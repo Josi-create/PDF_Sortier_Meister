@@ -16,3 +16,8 @@ SQLAlchemy>=2.0.0
 # Utilities
 python-dateutil>=2.8.0
 watchdog>=3.0.0
+
+# LLM Integration (optional - für KI-gestützte Klassifikation)
+# Installieren mit: pip install anthropic openai
+# anthropic>=0.18.0
+# openai>=1.12.0

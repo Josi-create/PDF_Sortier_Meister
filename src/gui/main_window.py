@@ -30,8 +30,10 @@ from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.folder_widget import FolderWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
+from src.gui.settings_dialog import SettingsDialog
 from src.core.file_manager import FileManager, FolderManager
 from src.ml.classifier import get_classifier, Suggestion
+from src.ml.hybrid_classifier import get_hybrid_classifier
 
 
 class MainWindow(QMainWindow):
@@ -44,6 +46,7 @@ class MainWindow(QMainWindow):
         self.file_manager = FileManager()
         self.folder_manager = FolderManager()
         self.classifier = get_classifier()
+        self.hybrid_classifier = get_hybrid_classifier()
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
@@ -374,6 +377,11 @@ class MainWindow(QMainWindow):
         self.training_label = QLabel(f"Gelernt: {training_count}")
         self.training_label.setToolTip("Anzahl gelernter Sortierentscheidungen")
         self.statusbar.addPermanentWidget(self.training_label)
+
+        # LLM-Status anzeigen
+        self.llm_status_label = QLabel("")
+        self._update_llm_status()
+        self.statusbar.addPermanentWidget(self.llm_status_label)
 
         self.backup_status_label = QLabel("Backup: Nicht geprüft")
         self.statusbar.addPermanentWidget(self.backup_status_label)
@@ -764,23 +772,48 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         """Öffnet den Einstellungsdialog."""
-        QMessageBox.information(
-            self,
-            "Einstellungen",
-            "Einstellungsdialog wird in einer späteren Version implementiert.",
-        )
+        dialog = SettingsDialog(self)
+        dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.exec()
+
+    def _on_settings_changed(self):
+        """Wird aufgerufen wenn Einstellungen geändert wurden."""
+        # Hybrid-Klassifikator neu initialisieren
+        self.hybrid_classifier._init_llm_provider()
+        self._update_llm_status()
+        self.statusbar.showMessage("Einstellungen gespeichert", 3000)
+
+    def _update_llm_status(self):
+        """Aktualisiert die LLM-Statusanzeige."""
+        if self.hybrid_classifier.is_llm_available():
+            provider = self.hybrid_classifier.get_llm_provider_name()
+            self.llm_status_label.setText(f"LLM: {provider}")
+            self.llm_status_label.setStyleSheet("color: green;")
+            self.llm_status_label.setToolTip(f"KI-Assistent aktiv ({provider})")
+        else:
+            self.llm_status_label.setText("LLM: Aus")
+            self.llm_status_label.setStyleSheet("color: gray;")
+            self.llm_status_label.setToolTip(
+                "KI-Assistent deaktiviert. In Einstellungen konfigurieren."
+            )
 
     def show_about(self):
         """Zeigt den Über-Dialog an."""
+        llm_info = ""
+        if self.hybrid_classifier.is_llm_available():
+            llm_info = f"\n- LLM aktiv: {self.hybrid_classifier.get_llm_provider_name()}"
+
         QMessageBox.about(
             self,
             "Über PDF Sortier Meister",
             "PDF Sortier Meister\n\n"
-            "Version 0.4.0\n\n"
+            "Version 0.5.0\n\n"
             "Ein intelligentes Programm zum Sortieren und\n"
             "Umbenennen von gescannten PDF-Dokumenten.\n\n"
             "Features:\n"
-            "- Lernfähige Klassifikation für Sortiervorschläge\n"
+            "- Lernfähige TF-IDF Klassifikation\n"
+            "- Optionale LLM-Integration (Claude/OpenAI)\n"
+            "- Hybrid-Ansatz: Lokal + KI kombiniert\n"
             "- Intelligente Umbenennungsvorschläge\n"
-            "- Lernt aus Benutzerentscheidungen",
+            f"- Lernt aus Benutzerentscheidungen{llm_info}",
         )

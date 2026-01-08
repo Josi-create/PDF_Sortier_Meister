@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 08.01.2026
-**Aktuelle Version:** 0.4.0
+**Aktuelle Version:** 0.5.0
 
 ---
 
@@ -41,6 +41,18 @@
 - [x] Lernen aus Umbenennungen (neue `RenameHistory` Tabelle)
 - [x] Gelernte Muster werden als Vorschläge angezeigt
 
+### Phase 6: LLM-Integration - Hybrid-Ansatz (100% fertig)
+- [x] LLM Provider-Abstraktion (`src/ml/llm_provider.py`)
+- [x] Claude API Integration (`src/ml/claude_provider.py`)
+- [x] OpenAI API Integration (`src/ml/openai_provider.py`)
+- [x] Hybrid-Klassifikator (`src/ml/hybrid_classifier.py`)
+- [x] Automatische Entscheidung: Lokal vs. LLM basierend auf Konfidenz
+- [x] API-Key Verwaltung in Config (`src/utils/config.py`)
+- [x] Einstellungsdialog mit LLM-Konfiguration (`src/gui/settings_dialog.py`)
+- [x] Verbindungstest für API-Keys
+- [x] LLM-Status in Statusleiste
+- [x] Fallback auf lokalen Klassifikator bei API-Fehler
+
 ---
 
 ## Noch offene Phasen
@@ -50,15 +62,6 @@
 - [ ] Visuelle Feedback beim Ziehen
 - [ ] Mehrfachauswahl von PDFs
 - [ ] Verbessertes Layout
-
-### Phase 6: LLM-Integration - Hybrid-Ansatz (offen)
-- [ ] Claude API Integration (`src/ml/llm_classifier.py`)
-- [ ] API-Key Verwaltung in Einstellungen
-- [ ] Hybrid-Logik: Lokaler TF-IDF + optionale LLM-Anfrage
-- [ ] Intelligentere Ordner-Vorschläge durch LLM
-- [ ] Bessere Dateinamen-Generierung durch LLM
-- [ ] Fallback auf lokalen Klassifikator bei API-Fehler
-- [ ] Kosten-/Nutzungsanzeige für API-Calls
 
 ### Phase 7: Backup-Integration (offen)
 - [ ] Macrium Reflect Log-Dateien finden
@@ -79,29 +82,34 @@
 ```
 PDF_Sortier_Meister/
 ├── run.py                      # Startskript
-├── requirements.txt            # Python-Abhängigkeiten (installiert)
-├── Machbarkeitsanalyse.md
-├── Projekt PDF Sortier Meister.md
+├── requirements.txt            # Python-Abhängigkeiten
+├── README.md                   # Projektbeschreibung
+├── LICENSE                     # MIT Lizenz
 ├── ENTWICKLUNGSSTAND.md        # Diese Datei
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Haupteinstiegspunkt
 │   ├── gui/
 │   │   ├── __init__.py
-│   │   ├── main_window.py      # Hauptfenster (Version 0.4.0)
+│   │   ├── main_window.py      # Hauptfenster (Version 0.5.0)
 │   │   ├── pdf_thumbnail.py    # PDF-Miniaturansicht Widget
 │   │   ├── folder_widget.py    # Zielordner-Widget
-│   │   └── rename_dialog.py    # Verbesserter Umbenennungsdialog (NEU)
+│   │   ├── rename_dialog.py    # Verbesserter Umbenennungsdialog
+│   │   └── settings_dialog.py  # Einstellungsdialog (NEU)
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── pdf_analyzer.py     # PDF-Analyse, OCR, Thumbnails
 │   │   └── file_manager.py     # Dateisystem-Operationen
 │   ├── ml/
 │   │   ├── __init__.py
-│   │   └── classifier.py       # Lernfähiger Klassifikator (TF-IDF)
+│   │   ├── classifier.py       # Lernfähiger Klassifikator (TF-IDF)
+│   │   ├── llm_provider.py     # LLM Provider-Abstraktion (NEU)
+│   │   ├── claude_provider.py  # Claude API Provider (NEU)
+│   │   ├── openai_provider.py  # OpenAI API Provider (NEU)
+│   │   └── hybrid_classifier.py # Hybrid TF-IDF + LLM (NEU)
 │   └── utils/
 │       ├── __init__.py
-│       ├── config.py           # Konfigurationsverwaltung
+│       ├── config.py           # Konfigurationsverwaltung (erweitert)
 │       └── database.py         # SQLite-Datenbank
 └── data/
     └── model/                  # Gespeicherte ML-Modelle
@@ -120,7 +128,40 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 - python-dateutil 2.9.0
 - watchdog 6.0.0
 
+**Optional für LLM-Integration:**
+- anthropic (für Claude API)
+- openai (für OpenAI API)
+
+```bash
+pip install anthropic openai
+```
+
 **Hinweis:** Für OCR muss Tesseract separat installiert werden.
+
+---
+
+## LLM-Integration (Phase 6)
+
+Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungsvorschläge:
+
+### Funktionsweise
+1. **Lokaler TF-IDF** wird immer zuerst verwendet (schnell, kostenlos)
+2. **LLM wird automatisch hinzugezogen** wenn:
+   - Lokale Konfidenz unter 60% liegt
+   - Keine lokalen Vorschläge gefunden wurden
+3. **Hybrid-Kombination**: Bei Übereinstimmung wird Konfidenz erhöht
+
+### Konfiguration
+1. Menü: Extras → Einstellungen
+2. Tab: KI-Assistent (LLM)
+3. Provider auswählen (Claude oder OpenAI)
+4. API-Key eingeben
+5. Modell wählen
+6. Optional: Auto-LLM aktivieren
+
+### Unterstützte Modelle
+- **Claude**: haiku (günstig), sonnet (ausgewogen), opus (beste Qualität)
+- **OpenAI**: gpt-4o-mini (günstig), gpt-4o (ausgewogen), gpt-4-turbo (beste Qualität)
 
 ---
 
@@ -135,10 +176,9 @@ Alle Pakete aus `requirements.txt` wurden installiert:
    python run.py
    ```
 
-3. **Phase 6 (LLM-Integration)** - Hybrid-Ansatz für bessere Vorschläge:
-   - Lokaler TF-IDF als schnelle Basis
-   - Optional: Claude API für komplexere Fälle
-   - Erfordert: `anthropic` Python-Paket, API-Key
+3. **LLM testen** - Mit Claude oder OpenAI API-Key:
+   - Extras → Einstellungen → KI-Assistent
+   - API-Key eingeben und testen
 
 4. **Phase 7** - Backup-Integration (niedrigere Priorität)
 
@@ -149,7 +189,7 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 1. OCR funktioniert nur mit installiertem Tesseract
 2. Drag & Drop von PDFs auf Ordner noch nicht implementiert
 3. Keine Mehrfachauswahl von PDFs möglich
-4. Einstellungsdialog noch nicht implementiert
+4. LLM-Nutzung erfordert API-Key und verursacht Kosten
 
 ---
 

@@ -23,6 +23,15 @@ class Config:
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
+        # LLM-Konfiguration
+        "llm": {
+            "provider": "none",  # "none", "claude", "openai"
+            "api_key": "",
+            "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini"
+            "max_tokens": 500,
+            "temperature": 0.3,
+            "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
+        },
     }
 
     def __init__(self, config_path: str = None):
@@ -155,6 +164,63 @@ class Config:
         model_dir = self.data_dir / "model"
         model_dir.mkdir(parents=True, exist_ok=True)
         return model_dir
+
+    # LLM-Konfigurationsmethoden
+    def get_llm_config(self) -> dict:
+        """Gibt die LLM-Konfiguration zurück."""
+        return self.get("llm", self.DEFAULTS["llm"])
+
+    def set_llm_provider(self, provider: str) -> None:
+        """
+        Setzt den LLM-Provider.
+
+        Args:
+            provider: "none", "claude", oder "openai"
+        """
+        llm_config = self.get_llm_config()
+        llm_config["provider"] = provider
+        self.set("llm", llm_config)
+
+    def set_llm_api_key(self, api_key: str) -> None:
+        """
+        Setzt den LLM API-Key.
+
+        Args:
+            api_key: Der API-Key
+        """
+        llm_config = self.get_llm_config()
+        llm_config["api_key"] = api_key
+        self.set("llm", llm_config)
+
+    def set_llm_model(self, model: str) -> None:
+        """
+        Setzt das LLM-Modell.
+
+        Args:
+            model: Modellname (z.B. "haiku", "gpt-4o-mini")
+        """
+        llm_config = self.get_llm_config()
+        llm_config["model"] = model
+        self.set("llm", llm_config)
+
+    def set_llm_auto_use(self, auto_use: bool) -> None:
+        """
+        Aktiviert/deaktiviert automatische LLM-Nutzung.
+
+        Args:
+            auto_use: True für automatische Nutzung bei niedriger Konfidenz
+        """
+        llm_config = self.get_llm_config()
+        llm_config["auto_use"] = auto_use
+        self.set("llm", llm_config)
+
+    def is_llm_configured(self) -> bool:
+        """Prüft ob ein LLM-Provider konfiguriert ist."""
+        llm_config = self.get_llm_config()
+        return (
+            llm_config.get("provider", "none") != "none"
+            and bool(llm_config.get("api_key", ""))
+        )
 
 
 # Globale Konfigurationsinstanz
