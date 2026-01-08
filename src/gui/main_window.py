@@ -777,12 +777,18 @@ class MainWindow(QMainWindow):
                     else:
                         detected_date = str(first_date)
 
+                # Datei-Änderungsdatum als Fallback (Scandatum)
+                from datetime import datetime
+                file_mtime = pdf_path.stat().st_mtime
+                file_date = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d")
+
                 llm_suggestions = self.hybrid_classifier.suggest_filename(
                     text=extracted_text or "",
                     current_filename=pdf_path.name,
                     keywords=keywords,
                     detected_date=detected_date,
                     use_llm=True,
+                    file_date=file_date,
                 )
 
                 # LLM-Vorschläge zu den Suggestions hinzufügen
@@ -900,9 +906,11 @@ class MainWindow(QMainWindow):
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
-        # Ordner im Explorer öffnen
-        import os
-        os.startfile(str(folder_path))
+        # Scan-Ordner auf diesen Ordner wechseln (Browser-Feeling)
+        self.config.set_scan_folder(str(folder_path))
+        self.file_manager.set_scan_folder(str(folder_path))
+        self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
+        self.load_pdfs()
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
         """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""

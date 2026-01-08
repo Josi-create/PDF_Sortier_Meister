@@ -95,6 +95,7 @@ class LLMProvider(ABC):
         keywords: list[str] = None,
         detected_date: str = None,
         target_folder: str = None,
+        file_date: str = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen für das Dokument vor.
@@ -105,6 +106,7 @@ class LLMProvider(ABC):
             keywords: Erkannte Schlüsselwörter
             detected_date: Erkanntes Datum im Dokument
             target_folder: Zielordner (falls bekannt)
+            file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
 
         Returns:
             LLMResponse mit Dateinamenvorschlag und Begründung
@@ -196,6 +198,7 @@ KONFIDENZ: [Zahl von 0-100]"""
         keywords: list[str] = None,
         detected_date: str = None,
         target_folder: str = None,
+        file_date: str = None,
     ) -> str:
         """
         Erstellt den Prompt für Dateinamenvorschläge.
@@ -206,6 +209,7 @@ KONFIDENZ: [Zahl von 0-100]"""
             keywords: Schlüsselwörter
             detected_date: Erkanntes Datum
             target_folder: Zielordner
+            file_date: Änderungsdatum der Datei (Fallback)
 
         Returns:
             Formatierter Prompt
@@ -217,6 +221,10 @@ KONFIDENZ: [Zahl von 0-100]"""
         date_info = ""
         if detected_date:
             date_info = f"\nErkanntes Datum im Dokument: {detected_date}"
+
+        file_date_info = ""
+        if file_date:
+            file_date_info = f"\nÄnderungsdatum der Datei (Scandatum): {file_date}"
 
         folder_info = ""
         if target_folder:
@@ -230,7 +238,7 @@ AKTUELLER DATEINAME: {current_filename}
 
 DOKUMENTINHALT:
 {self._truncate_text(text)}
-{keyword_info}{date_info}{folder_info}
+{keyword_info}{date_info}{file_date_info}{folder_info}
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format: YYYY-MM-DD_Kategorie_Beschreibung.pdf (wenn Datum vorhanden)
@@ -238,6 +246,15 @@ REGELN FÜR DEN DATEINAMEN:
 3. Keine Sonderzeichen, keine Leerzeichen, keine Umlaute
 4. Maximal 80 Zeichen (ohne .pdf)
 5. Aussagekräftig und prägnant
+6. WICHTIG bei Rechnungen: Füge unterscheidende Details hinzu wie:
+   - Rechnungsnummer (z.B. RE-12345)
+   - Leistung/Betreff (z.B. Heizungswartung, Rohrbruch)
+   - Nicht nur den Firmennamen, da mehrere Rechnungen vom selben Absender existieren können
+   Beispiel: 2024-03-15_Rechnung_Meyer-Sanitaer_RE12345_Heizungswartung.pdf
+7. WICHTIG zum Datum:
+   - Verwende das Datum AUS DEM DOKUMENT (Rechnungsdatum, Briefdatum, etc.)
+   - Wenn KEIN Datum im Dokument steht, verwende das Änderungsdatum der Datei (Scandatum)
+   - NIEMALS ein Datum erfinden! Kein 2023 oder andere Phantasiedaten!
 
 Antworte im folgenden Format:
 DATEINAME: [Vorgeschlagener Dateiname mit .pdf]

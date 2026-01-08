@@ -193,6 +193,7 @@ class PoeProvider(LLMProvider):
         keywords: list[str] = None,
         detected_date: str = None,
         target_folder: str = None,
+        file_date: str = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen mit Poe vor.
@@ -203,6 +204,7 @@ class PoeProvider(LLMProvider):
             keywords: Erkannte Schlüsselwörter
             detected_date: Erkanntes Datum im Dokument
             target_folder: Zielordner
+            file_date: Änderungsdatum der Datei (Fallback)
 
         Returns:
             LLMResponse mit Dateinamenvorschlag
@@ -214,7 +216,7 @@ class PoeProvider(LLMProvider):
             )
 
         prompt = self._build_filename_prompt(
-            text, current_filename, keywords, detected_date, target_folder
+            text, current_filename, keywords, detected_date, target_folder, file_date
         )
 
         try:

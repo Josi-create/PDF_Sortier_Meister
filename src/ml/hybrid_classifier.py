@@ -298,6 +298,7 @@ class HybridClassifier:
         detected_date: str = None,
         target_folder: str = None,
         use_llm: bool = None,
+        file_date: str = None,
     ) -> list[HybridFilename]:
         """
         Schlägt Dateinamen für ein Dokument vor.
@@ -309,6 +310,7 @@ class HybridClassifier:
             detected_date: Erkanntes Datum
             target_folder: Zielordner
             use_llm: LLM verwenden?
+            file_date: Änderungsdatum der Datei (Fallback)
 
         Returns:
             Liste von Dateinamenvorschlägen
@@ -330,7 +332,7 @@ class HybridClassifier:
         # 2. LLM-Vorschlag wenn gewünscht
         if (use_llm or use_llm is None) and self.llm_enabled:
             llm_suggestion = self._get_llm_filename_suggestion(
-                text, current_filename, keywords, detected_date, target_folder
+                text, current_filename, keywords, detected_date, target_folder, file_date
             )
             if llm_suggestion:
                 # LLM-Vorschlag an erster Stelle wenn Konfidenz hoch
@@ -393,6 +395,7 @@ class HybridClassifier:
         keywords: list[str],
         detected_date: str,
         target_folder: str,
+        file_date: str = None,
     ) -> Optional[HybridFilename]:
         """Holt einen Dateinamenvorschlag vom LLM."""
         if not self.llm_provider:
@@ -404,6 +407,7 @@ class HybridClassifier:
             keywords=keywords,
             detected_date=detected_date,
             target_folder=target_folder,
+            file_date=file_date,
         )
 
         self.total_tokens_used += response.tokens_used
