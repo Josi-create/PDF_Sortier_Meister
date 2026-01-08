@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
             widget.rename_requested.connect(self.on_pdf_rename)
             widget.delete_requested.connect(self.on_pdf_delete)
             widget.move_requested.connect(self.on_pdf_move)
+            widget.batch_rename_requested.connect(self.on_batch_rename)
 
             row = i // 3
             col = i % 3
@@ -695,7 +696,10 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Datei verschieben
-                self.file_manager.move_file(pdf_path, folder_path)
+                new_path = self.file_manager.move_file(pdf_path, folder_path)
+
+                # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
+                self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
 
                 # Aus der Entscheidung lernen (mit relativem Pfad)
                 if self.selected_pdf_text:
@@ -856,6 +860,9 @@ class MainWindow(QMainWindow):
                     # Datei umbenennen
                     new_path = self.file_manager.rename_file(pdf_path, new_name)
 
+                    # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
+                    self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+
                     # Aus der Umbenennung lernen
                     detected_date = None
                     if dates and len(dates) > 0:
@@ -921,6 +928,167 @@ class MainWindow(QMainWindow):
                 self.load_folders()
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+
+    def on_batch_rename(self):
+        """
+        Benennt alle ausgewählten PDFs automatisch mit LLM-Vorschlägen um.
+        """
+        if len(self.selected_pdfs) < 2:
+            QMessageBox.information(
+                self, "Batch-Umbenennung",
+                "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+            )
+            return
+
+        # Prüfen ob LLM verfügbar ist
+        from src.ml.hybrid_classifier import get_hybrid_classifier
+        classifier = get_hybrid_classifier()
+        if not classifier.is_llm_available():
+            QMessageBox.warning(
+                self, "LLM nicht verfügbar",
+                "Für die automatische Umbenennung wird ein LLM benötigt.\n"
+                "Bitte konfigurieren Sie einen LLM-Provider unter Extras → Einstellungen."
+            )
+            return
+
+        # Bestätigung anfordern
+        reply = QMessageBox.question(
+            self,
+            "Batch-Umbenennung",
+            f"{len(self.selected_pdfs)} PDFs automatisch mit LLM umbenennen?\n\n"
+            "Die PDFs werden analysiert und mit dem besten LLM-Vorschlag umbenannt.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Fortschritts-Dialog erstellen
+        from PyQt6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(
+            "Batch-Umbenennung läuft...", "Abbrechen", 0, len(self.selected_pdfs), self
+        )
+        progress.setWindowTitle("Automatische Umbenennung")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+
+        renamed_count = 0
+        skipped_count = 0
+        error_count = 0
+        pdfs_to_process = list(self.selected_pdfs)  # Kopie der Liste
+
+        for i, pdf_path in enumerate(pdfs_to_process):
+            if progress.wasCanceled():
+                break
+
+            progress.setValue(i)
+            progress.setLabelText(f"Verarbeite: {pdf_path.name}")
+            QApplication.processEvents()
+
+            try:
+                # Prüfen ob PDF noch existiert
+                if not pdf_path.exists():
+                    skipped_count += 1
+                    continue
+
+                # PDF-Analyse aus Cache oder neu
+                analysis = self.pdf_cache.get(pdf_path)
+                if not analysis:
+                    # Synchron analysieren
+                    from src.core.pdf_analyzer import PDFAnalyzer
+                    with PDFAnalyzer(pdf_path) as analyzer:
+                        extracted_text = analyzer.extract_text()
+                        keywords = analyzer.extract_keywords()
+                        dates = analyzer.extract_dates()
+                else:
+                    extracted_text = analysis.extracted_text
+                    keywords = analysis.keywords
+                    dates = analysis.dates
+
+                # Datum für Dateinamen
+                detected_date = None
+                if dates:
+                    try:
+                        first_date = dates[0]
+                        if hasattr(first_date, 'strftime'):
+                            detected_date = first_date.strftime("%Y-%m-%d")
+                        else:
+                            detected_date = str(first_date)
+                    except Exception:
+                        pass
+
+                # Datei-Änderungsdatum als Fallback
+                from datetime import datetime as dt
+                file_mtime = pdf_path.stat().st_mtime
+                file_date = dt.fromtimestamp(file_mtime).strftime("%Y-%m-%d")
+
+                # LLM-Vorschlag abrufen
+                suggestions = classifier.suggest_filename(
+                    text=extracted_text or "",
+                    current_filename=pdf_path.name,
+                    keywords=keywords,
+                    detected_date=detected_date,
+                    use_llm=True,
+                    file_date=file_date,
+                )
+
+                # Besten LLM-Vorschlag finden
+                llm_suggestion = None
+                for s in suggestions:
+                    if s.source == "llm" and s.confidence > 0.5:
+                        llm_suggestion = s
+                        break
+
+                if not llm_suggestion:
+                    skipped_count += 1
+                    continue
+
+                new_name = llm_suggestion.filename
+
+                # Prüfen ob der Name sich tatsächlich ändert
+                if new_name == pdf_path.name:
+                    skipped_count += 1
+                    continue
+
+                # Datei umbenennen
+                new_path = self.file_manager.rename_file(pdf_path, new_name)
+
+                # Cache migrieren
+                self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+
+                # Widget aktualisieren
+                self._update_pdf_widget_path(pdf_path, new_path)
+
+                # In selected_pdfs aktualisieren
+                if pdf_path in self.selected_pdfs:
+                    self.selected_pdfs.remove(pdf_path)
+                    self.selected_pdfs.append(new_path)
+
+                renamed_count += 1
+
+            except Exception as e:
+                print(f"Batch-Rename Fehler für {pdf_path.name}: {e}")
+                error_count += 1
+
+        progress.setValue(len(pdfs_to_process))
+        progress.close()
+
+        # Ergebnis anzeigen
+        result_msg = f"Batch-Umbenennung abgeschlossen:\n\n"
+        result_msg += f"✓ Umbenannt: {renamed_count}\n"
+        if skipped_count > 0:
+            result_msg += f"○ Übersprungen: {skipped_count}\n"
+        if error_count > 0:
+            result_msg += f"✗ Fehler: {error_count}"
+
+        QMessageBox.information(self, "Batch-Umbenennung", result_msg)
+
+        # Auswahl aufheben
+        self.selected_pdfs = []
+        for widget in self.pdf_widgets:
+            widget.selected = False
 
     # === Ordner-Aktionen ===
 

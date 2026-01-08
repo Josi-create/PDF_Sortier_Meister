@@ -51,6 +51,7 @@ class PDFThumbnailWidget(QFrame):
     rename_requested = pyqtSignal(Path)  # Umbenennung angefordert
     delete_requested = pyqtSignal(Path)  # Löschen angefordert
     move_requested = pyqtSignal(Path)  # Verschieben angefordert
+    batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
 
     def __init__(self, pdf_path: Path, parent=None):
         super().__init__(parent)
@@ -189,6 +190,9 @@ class PDFThumbnailWidget(QFrame):
         """Zeigt das Kontextmenü an."""
         menu = QMenu(self)
 
+        # Prüfen ob Mehrfachauswahl aktiv ist
+        selection_count = self._get_selection_count()
+
         # Öffnen
         open_action = menu.addAction("PDF öffnen")
         open_action.triggered.connect(lambda: self._open_pdf())
@@ -198,6 +202,11 @@ class PDFThumbnailWidget(QFrame):
         # Umbenennen
         rename_action = menu.addAction("Umbenennen...")
         rename_action.triggered.connect(lambda: self.rename_requested.emit(self.pdf_path))
+
+        # Batch-Umbenennung wenn mehrere ausgewählt
+        if selection_count > 1:
+            batch_rename_action = menu.addAction(f"Ausgewählte ({selection_count}) auto-umbenennen (LLM)")
+            batch_rename_action.triggered.connect(lambda: self.batch_rename_requested.emit())
 
         # Verschieben
         move_action = menu.addAction("Verschieben nach...")
@@ -210,6 +219,19 @@ class PDFThumbnailWidget(QFrame):
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
         menu.exec(event.globalPos())
+
+    def _get_selection_count(self) -> int:
+        """Gibt die Anzahl der ausgewählten PDFs zurück."""
+        parent = self.parent()
+        if parent and hasattr(parent, 'parent'):
+            main_window = parent.parent()
+            if main_window and hasattr(main_window, 'parent'):
+                main_window = main_window.parent()
+                if main_window and hasattr(main_window, 'parent'):
+                    main_window = main_window.parent()
+                    if hasattr(main_window, 'selected_pdfs'):
+                        return len(main_window.selected_pdfs)
+        return 0
 
     def _open_pdf(self):
         """Öffnet die PDF mit dem Standardprogramm."""

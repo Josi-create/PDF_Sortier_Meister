@@ -590,10 +590,21 @@ class PDFCache(QObject):
         """
         self.start_worker()
 
+        llm_queue_count = 0
         for pdf_path in pdf_paths:
             pdf_path = Path(pdf_path)
-            if not self.is_cached(pdf_path):
+            cached = self.get(pdf_path)
+
+            if not cached:
+                # Noch nicht analysiert - zur Analyse-Queue
                 self._worker.add_background(pdf_path)
+            elif self._llm_precache_enabled and not cached.llm_fetched:
+                # Bereits analysiert, aber LLM noch nicht abgerufen
+                self._request_llm_suggestions(pdf_path, cached)
+                llm_queue_count += 1
+
+        if llm_queue_count > 0:
+            print(f"LLM-Pre-Cache: {llm_queue_count} bereits analysierte PDFs zur LLM-Queue hinzugefügt")
 
     def _on_analysis_complete(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wird aufgerufen wenn eine Analyse abgeschlossen ist."""
@@ -669,6 +680,49 @@ class PDFCache(QObject):
         pdf_path = Path(pdf_path)
         with self._lock:
             self._cache.pop(pdf_path, None)
+
+    def migrate_cache_entry(self, old_path: Path, new_path: Path):
+        """
+        Migriert einen Cache-Eintrag von einem Pfad zu einem neuen.
+
+        Wird verwendet wenn eine PDF umbenannt oder verschoben wird,
+        um den LLM-Cache (llm_fetched) zu erhalten.
+
+        Args:
+            old_path: Alter Pfad
+            new_path: Neuer Pfad
+        """
+        old_path = Path(old_path)
+        new_path = Path(new_path)
+
+        with self._lock:
+            if old_path not in self._cache:
+                return
+
+            # Eintrag kopieren und Pfad aktualisieren
+            old_entry = self._cache.pop(old_path)
+            old_entry.pdf_path = new_path
+
+            # mtime aktualisieren (falls Datei existiert)
+            if new_path.exists():
+                old_entry.file_modified = new_path.stat().st_mtime
+
+            self._cache[new_path] = old_entry
+            print(f"Cache migriert: {old_path.name} -> {new_path.name} (LLM: {old_entry.llm_fetched})")
+
+        # Alten DB-Eintrag löschen und neuen speichern
+        if self._persist_cache and self._db_path:
+            try:
+                conn = sqlite3.connect(str(self._db_path))
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM pdf_cache WHERE pdf_path = ?", (str(old_path),))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+
+            # Neuen Eintrag speichern
+            self._save_to_db(old_entry)
 
     def get_stats(self) -> dict:
         """Gibt Cache-Statistiken zurück."""
