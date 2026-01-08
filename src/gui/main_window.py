@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QInputDialog,
     QApplication,
+    QPushButton,
 )
 
 from src.utils.config import get_config
@@ -105,10 +106,23 @@ class MainWindow(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
+        # Header mit Ordnerpfad und Navigation
+        header_layout = QHBoxLayout()
+
+        # Nach-oben-Button (ein Verzeichnis höher)
+        self.navigate_up_btn = QPushButton("⬆")
+        self.navigate_up_btn.setFixedSize(28, 28)
+        self.navigate_up_btn.setToolTip("Ein Verzeichnis nach oben (übergeordneter Ordner)")
+        self.navigate_up_btn.clicked.connect(self.on_navigate_up)
+        header_layout.addWidget(self.navigate_up_btn)
+
         # Überschrift mit Ordnerpfad
         self.pdf_header = QLabel("Neue PDFs im Scan-Ordner")
         self.pdf_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        layout.addWidget(self.pdf_header)
+        header_layout.addWidget(self.pdf_header)
+        header_layout.addStretch()
+
+        layout.addLayout(header_layout)
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
@@ -469,6 +483,7 @@ class MainWindow(QMainWindow):
 
         # PDF-Cache Worker stoppen
         self.pdf_cache.stop_worker()
+        self.pdf_cache.stop_llm_worker()
 
         event.accept()
 
@@ -719,7 +734,16 @@ class MainWindow(QMainWindow):
 
     def on_pdf_rename(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
-        self.statusbar.showMessage("Analysiere PDF für Umbenennung...")
+        from src.core.pdf_cache import get_pdf_cache
+
+        # Prüfe ob gecachte LLM-Vorschläge vorhanden sind
+        pdf_cache = get_pdf_cache()
+        cached_llm = pdf_cache.get_llm_suggestions(pdf_path)
+
+        if cached_llm:
+            self.statusbar.showMessage("Verwende gecachte KI-Vorschläge...")
+        else:
+            self.statusbar.showMessage("Analysiere PDF für Umbenennung...")
         QApplication.processEvents()
 
         # PDF analysieren falls noch nicht geschehen
@@ -727,8 +751,14 @@ class MainWindow(QMainWindow):
         keywords = None
         dates = None
 
-        if pdf_path == self.selected_pdf:
-            # Bereits analysiert
+        # Erst aus Cache versuchen
+        cached_result = pdf_cache.get(pdf_path)
+        if cached_result:
+            extracted_text = cached_result.extracted_text
+            keywords = cached_result.keywords
+            dates = cached_result.dates
+        elif pdf_path == self.selected_pdf:
+            # Bereits analysiert (lokale Variablen)
             extracted_text = self.selected_pdf_text
             keywords = self.selected_pdf_keywords
             dates = self.selected_pdf_dates
@@ -763,8 +793,16 @@ class MainWindow(QMainWindow):
             learned_patterns=learned_patterns if learned_patterns else None
         )
 
-        # LLM-Vorschlag holen wenn verfügbar
-        if self.hybrid_classifier.is_llm_available():
+        # Gecachte LLM-Vorschläge verwenden wenn vorhanden
+        if cached_llm:
+            for llm_s in cached_llm:
+                suggestions.insert(0, RenameSuggestion(
+                    name=llm_s.filename,
+                    reason=f"KI (gecacht): Vorschlag",
+                    confidence=llm_s.confidence
+                ))
+        # Sonst: LLM-Vorschlag live holen wenn verfügbar
+        elif self.hybrid_classifier.is_llm_available():
             self.statusbar.showMessage("Frage KI nach Vorschlag...")
             QApplication.processEvents()
             try:
@@ -894,9 +932,11 @@ class MainWindow(QMainWindow):
 
     def on_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner doppelgeklickt wird."""
-        # Ordner im Explorer öffnen
-        import os
-        os.startfile(str(folder_path))
+        # Scan-Ordner auf diesen Ordner wechseln (Browser-Feeling)
+        self.config.set_scan_folder(str(folder_path))
+        self.file_manager.set_scan_folder(str(folder_path))
+        self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
+        self.load_pdfs()
 
     def on_tree_folder_selected(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
@@ -911,6 +951,20 @@ class MainWindow(QMainWindow):
         self.file_manager.set_scan_folder(str(folder_path))
         self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
         self.load_pdfs()
+
+    def on_navigate_up(self):
+        """Navigiert ein Verzeichnis nach oben (übergeordneter Ordner)."""
+        current_scan_folder = Path(self.config.get_scan_folder())
+        parent_folder = current_scan_folder.parent
+
+        # Prüfen ob wir noch höher navigieren können
+        if parent_folder.exists() and parent_folder != current_scan_folder:
+            self.config.set_scan_folder(str(parent_folder))
+            self.file_manager.set_scan_folder(str(parent_folder))
+            self.statusbar.showMessage(f"Navigiert zu: {parent_folder.name}", 3000)
+            self.load_pdfs()
+        else:
+            self.statusbar.showMessage("Bereits im obersten Verzeichnis", 2000)
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
         """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""

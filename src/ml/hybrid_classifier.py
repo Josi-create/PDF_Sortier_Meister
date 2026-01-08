@@ -83,6 +83,7 @@ class HybridClassifier:
             model=model,
             max_tokens=llm_config.get("max_tokens", 500),
             temperature=llm_config.get("temperature", 0.3),
+            text_limit=llm_config.get("text_limit", 1500),
         )
 
         try:

@@ -137,6 +137,18 @@ class SettingsDialog(QDialog):
         )
         advanced_layout.addRow("Auto-LLM:", self.auto_use_check)
 
+        self.text_limit_spin = QSpinBox()
+        self.text_limit_spin.setRange(500, 5000)
+        self.text_limit_spin.setValue(1500)
+        self.text_limit_spin.setSingleStep(500)
+        self.text_limit_spin.setSuffix(" Zeichen")
+        self.text_limit_spin.setToolTip(
+            "Maximale Textlänge die an die LLM gesendet wird.\n"
+            "Weniger = schneller + günstiger, aber weniger Kontext.\n"
+            "Empfohlen: 1500 (meist ausreichend für Kopfzeile/Absender)"
+        )
+        advanced_layout.addRow("Text-Limit:", self.text_limit_spin)
+
         layout.addWidget(advanced_group)
 
         # Info-Label
@@ -185,6 +197,15 @@ class SettingsDialog(QDialog):
             "Dies beschleunigt besonders große Ordner erheblich."
         )
         cache_layout.addWidget(self.persist_cache_checkbox)
+
+        self.llm_precache_checkbox = QCheckBox("LLM-Vorschläge im Hintergrund vorladen (Pre-Caching)")
+        self.llm_precache_checkbox.setToolTip(
+            "Wenn aktiviert, werden LLM-Namensvorschläge bereits im Hintergrund\n"
+            "abgerufen, bevor Sie den Umbenennen-Dialog öffnen.\n"
+            "Dies beschleunigt den Dialog, verursacht aber mehr API-Aufrufe.\n"
+            "Deaktivieren für Debugging oder um API-Kosten zu sparen."
+        )
+        cache_layout.addWidget(self.llm_precache_checkbox)
 
         # Cache leeren Button
         cache_buttons_layout = QHBoxLayout()
@@ -238,7 +259,13 @@ class SettingsDialog(QDialog):
             from src.core.pdf_cache import get_pdf_cache
             cache = get_pdf_cache()
             stats = cache.get_stats()
-            self.cache_stats_label.setText(f"({stats['cached_count']} PDFs im Cache)")
+            llm_count = stats.get('llm_cached_count', 0)
+            if llm_count > 0:
+                self.cache_stats_label.setText(
+                    f"({stats['cached_count']} PDFs, {llm_count} mit LLM-Vorschlägen)"
+                )
+            else:
+                self.cache_stats_label.setText(f"({stats['cached_count']} PDFs im Cache)")
         except Exception:
             self.cache_stats_label.setText("")
 
@@ -326,6 +353,7 @@ class SettingsDialog(QDialog):
         self.max_tokens_spin.setValue(llm_config.get("max_tokens", 500))
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
         self.auto_use_check.setChecked(llm_config.get("auto_use", False))
+        self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
 
         # Allgemeine Einstellungen
         self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
@@ -333,6 +361,7 @@ class SettingsDialog(QDialog):
 
         # Cache-Einstellungen
         self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))
+        self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
         self._update_cache_stats()
 
     def _save_settings(self):
@@ -359,6 +388,7 @@ class SettingsDialog(QDialog):
             "max_tokens": self.max_tokens_spin.value(),
             "temperature": self.temperature_spin.value(),
             "auto_use": self.auto_use_check.isChecked(),
+            "text_limit": self.text_limit_spin.value(),
         }
         self.config.set("llm", llm_config)
 
@@ -370,11 +400,15 @@ class SettingsDialog(QDialog):
         persist_cache = self.persist_cache_checkbox.isChecked()
         self.config.set("persist_pdf_cache", persist_cache)
 
+        llm_precache = self.llm_precache_checkbox.isChecked()
+        self.config.set("llm_precache_enabled", llm_precache)
+
         # Cache-Modul über Änderung informieren
         try:
             from src.core.pdf_cache import get_pdf_cache
             cache = get_pdf_cache()
             cache.set_persist_cache(persist_cache)
+            cache.set_llm_precache_enabled(llm_precache)
         except Exception:
             pass
 

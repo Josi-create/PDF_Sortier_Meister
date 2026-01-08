@@ -41,6 +41,7 @@ class LLMConfig:
     model: str
     max_tokens: int = 500
     temperature: float = 0.3  # Niedrig für konsistente Antworten
+    text_limit: int = 1500  # Max. Zeichen die an LLM gesendet werden
 
 
 class LLMProvider(ABC):
@@ -123,19 +124,24 @@ class LLMProvider(ABC):
         """
         pass
 
-    def _truncate_text(self, text: str, max_chars: int = 3000) -> str:
+    def _truncate_text(self, text: str, max_chars: int = None) -> str:
         """
         Kürzt Text auf eine maximale Länge für API-Calls.
 
         Args:
             text: Der zu kürzende Text
-            max_chars: Maximale Zeichenanzahl
+            max_chars: Maximale Zeichenanzahl (None = aus Config)
 
         Returns:
             Gekürzter Text
         """
         if not text:
             return ""
+
+        # Text-Limit aus Config verwenden wenn nicht explizit angegeben
+        if max_chars is None:
+            max_chars = self.config.text_limit
+
         if len(text) <= max_chars:
             return text
         # Text kürzen und Hinweis anhängen

@@ -66,8 +66,8 @@ class PDFThumbnailWidget(QFrame):
         """Initialisiert die UI-Komponenten."""
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.setLineWidth(1)
-        self.setMinimumSize(160, 220)
-        self.setMaximumSize(180, 250)
+        self.setMinimumSize(160, 230)
+        self.setMaximumSize(180, 260)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         # Hover-Effekt
@@ -89,18 +89,21 @@ class PDFThumbnailWidget(QFrame):
         self.thumbnail_label.setText("Laden...")
         layout.addWidget(self.thumbnail_label)
 
-        # Dateiname
+        # Dateiname (zweizeilig mit Tooltip für vollständigen Namen)
         self.name_label = QLabel()
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
-        self.name_label.setMaximumHeight(45)
-        self.name_label.setStyleSheet("font-size: 11px;")
+        self.name_label.setMaximumHeight(55)  # Mehr Platz für 2 Zeilen
+        self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2;")
 
-        # Dateinamen kürzen wenn zu lang
-        name = self.pdf_path.name
-        if len(name) > 25:
-            name = name[:22] + "..."
+        # Dateinamen für Anzeige aufbereiten (max. 2 Zeilen)
+        name = self.pdf_path.stem  # Ohne .pdf-Endung für bessere Lesbarkeit
+        if len(name) > 45:
+            # Bei sehr langen Namen: erste und letzte Zeichen zeigen
+            name = name[:35] + "..." + name[-7:]
         self.name_label.setText(name)
+
+        # Vollständiger Dateiname als Tooltip (mit Endung)
         self.name_label.setToolTip(self.pdf_path.name)
 
         layout.addWidget(self.name_label)

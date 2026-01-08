@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 08.01.2026
-**Aktuelle Version:** 0.7.0
+**Aktuelle Version:** 0.7.1
 
 ---
 
@@ -53,6 +53,9 @@
 - [x] Verbindungstest für API-Keys
 - [x] LLM-Status in Statusleiste
 - [x] Fallback auf lokalen Klassifikator bei API-Fehler
+- [x] **LLM-Textlimit konfigurierbar** (500-5000 Zeichen, Default: 1500)
+- [x] **LLM erkennt Rechnungsnummern und Betreff** bei Rechnungen (nicht nur Firmennamen)
+- [x] **Fallback auf Scandatum** wenn kein Datum im PDF gefunden wird (kein Phantasiedatum mehr)
 
 ### Phase 12: Hierarchische Ordnerstruktur (100% fertig)
 - [x] Ordner-Baumansicht Widget (`src/gui/folder_tree_widget.py`)
@@ -64,6 +67,7 @@
 - [x] Relativer Pfad in Vorschlägen (z.B. "Steuer 2026/Banken")
 - [x] MainWindow mit Baumansicht integriert
 - [x] Kontextmenü zum Erstellen neuer Unterordner (Rechtsklick → "Neuer Unterordner")
+- [x] **Doppelklick auf Ordner** wechselt Scan-Ordner und zeigt dessen PDFs an
 
 ### Phase 5: GUI-Vervollständigung / Drag & Drop (100% fertig)
 - [x] Drag & Drop von PDF-Thumbnails auf Ordner
@@ -79,6 +83,10 @@
   - **Persistenter Cache** (SQLite): Bleibt über Programmende erhalten
   - Cache-Einstellungen in Extras → Einstellungen → Allgemein
   - Cache kann für Debugging geleert werden
+- [x] **LLM-Pre-Caching** im Hintergrund:
+  - LLM-Vorschläge werden vorgeladen bevor Dialog geöffnet wird
+  - Einstellbar in Extras → Einstellungen → Allgemein
+  - Debug-Ausgaben für Analyse aktivierbar
 - [x] **Optimiertes Verschieben/Löschen/Umbenennen**:
   - Kein vollständiger Refresh der Ansicht mehr nach Operationen
   - Nur das betroffene PDF-Widget wird entfernt/aktualisiert
@@ -88,7 +96,59 @@
 
 ## Noch offene Phasen
 
-### Phase 7: Backup-Integration (offen)
+### Phase 13: UX-Verbesserungen (NEU - Hohe Priorität)
+
+**Aus Benutzer-Feedback (to do.md):**
+
+- [ ] **Drag & Drop Haptik verbessern** (to do #1)
+  - Besseres visuelles Feedback beim Ziehen
+  - Farb-Highlighting auch in der Listenansicht (nicht nur Vorschlagsbereich)
+
+- [ ] **Undo für Verschiebungen** (to do #2)
+  - Nach dem Verschieben: Möglichkeit zum Zurückverschieben
+  - History der letzten Aktionen
+
+- [ ] **Kopieren-Option** (to do #9)
+  - PDF in mehrere Ordner kopieren (z.B. Versicherung UND Steuer)
+  - Kontextmenü-Option "Kopieren nach..."
+
+- [ ] **Zielordner-Dialog Startpfad** (to do #4)
+  - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
+
+- [ ] **Zurück-Button** (to do #7)
+  - Navigation zum vorherigen Scan-Ordner
+  - Breadcrumb-Navigation
+
+- [ ] **Umbenennung rückgängig** (to do #11)
+  - Rechtsklick auf Thumbnail → "Umbenennung rückgängig"
+
+### Phase 14: PDF-Bearbeitung (NEU - Mittlere Priorität)
+
+**Inspiriert von Nuance PaperPort (to do #13-15):**
+
+- [ ] **PDFs zusammenfügen** (to do #13)
+  - Zwei PDFs per Drag & Drop zusammenfügen
+  - Nützlich für mehrseitige Scans die getrennt wurden
+
+- [ ] **PDFs trennen** (to do #15)
+  - Mehrseitiges PDF in einzelne Seiten aufteilen
+  - Rechtsklick → "PDF trennen"
+
+### Phase 15: Layout-Optimierungen (NEU - Mittlere Priorität)
+
+- [ ] **Dynamische Thumbnail-Spalten** (to do #16)
+  - Mehr Spalten bei größerem Fenster
+  - Responsive Grid-Layout
+
+- [ ] **Explorer-ähnliche Listenansicht** (to do #18)
+  - Sortierbare Spalten im Zielordner-Bereich
+  - Details-Ansicht
+
+- [ ] **Konfidenz-Visualisierung** (to do #17)
+  - Visueller Rahmen bei hoher Konfidenz (>50%)
+  - Animiertes Highlight für Top-Vorschläge
+
+### Phase 7: Backup-Integration (offen - Niedrige Priorität)
 - [ ] Macrium Reflect Log-Dateien finden
 - [ ] Backup-Status parsen
 - [ ] Warnung bei veraltetem Backup anzeigen
@@ -108,8 +168,6 @@
 - [ ] Optional: Konfidenz-Schwelle für vollautomatische Umbenennung (z.B. >90%)
 - [ ] Batch-Verarbeitung mit Mehrfachauswahl
 - [ ] Fortschrittsanzeige bei Massenverarbeitung
-- [ ] **LLM-Antworten cachen** (beim Wechsel zwischen PDFs bleiben Vorschläge erhalten)
-- [ ] **Pre-Caching im Hintergrund** (LLM für nächste PDFs vorbereiten während User arbeitet)
 
 ### Phase 10: Verbesserte Benutzeroberfläche (offen)
 - [ ] Drei-Spalten-Layout für Umbenennung:
@@ -149,13 +207,30 @@
 
 | Phase | Feature | Aufwand | Nutzen | Priorität |
 |-------|---------|---------|--------|-----------|
+| **13** | **UX-Verbesserungen (Undo, Kopieren)** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐ |
 | 9 | Semi-Auto Workflow | Mittel | Hoch | ⭐⭐⭐ |
+| 14 | PDF-Bearbeitung (Merge/Split) | Mittel | Mittel | ⭐⭐ |
+| 15 | Layout-Optimierungen | Mittel | Mittel | ⭐⭐ |
 | 10 | 3-Spalten-Layout | Hoch | Mittel | ⭐⭐ |
 | 11 | Lokales LLM | Mittel | Mittel | ⭐⭐ |
 | 8 | Testing & Polishing | Mittel | Hoch | ⭐⭐ |
 | 7 | Backup-Integration | Niedrig | Niedrig | ⭐ |
 
-**Empfehlung:** Phase 9 (Semi-Auto Workflow) als nächstes.
+**Empfehlung:** Phase 13 (UX-Verbesserungen) als nächstes - direktes Benutzer-Feedback!
+
+---
+
+## Erledigte Items aus Benutzer-Feedback
+
+Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
+
+| # | Feature | Status | Umsetzung |
+|---|---------|--------|-----------|
+| 3 | Neuen Ordner erstellen (Rechtsklick) | ✅ | Phase 12 - Kontextmenü in Baumansicht |
+| 5 | Grüne Vorschlagsordner Bug | ✅ | Behoben |
+| 6 | Doppelklick auf Ordner → Navigation | ✅ | Doppelklick wechselt Scan-Ordner |
+| 10 | LLM erkennt Rechnungsnummer/Betreff | ✅ | LLM-Prompt erweitert |
+| 12 | Scandatum statt Phantasiedatum | ✅ | Datei-Änderungsdatum als Fallback |
 
 ---
 
@@ -168,26 +243,27 @@ PDF_Sortier_Meister/
 ├── README.md                   # Projektbeschreibung
 ├── LICENSE                     # MIT Lizenz
 ├── ENTWICKLUNGSSTAND.md        # Diese Datei
+├── to do.md                    # Benutzer-Feedback & Ideen
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Haupteinstiegspunkt
 │   ├── gui/
 │   │   ├── __init__.py
-│   │   ├── main_window.py      # Hauptfenster (Version 0.7.0)
+│   │   ├── main_window.py      # Hauptfenster (Version 0.7.1)
 │   │   ├── pdf_thumbnail.py    # PDF-Miniaturansicht Widget (mit Drag & Drop)
 │   │   ├── folder_widget.py    # Zielordner-Widget
 │   │   ├── folder_tree_widget.py # Ordner-Baumansicht (Phase 12)
 │   │   ├── rename_dialog.py    # Verbesserter Umbenennungsdialog
-│   │   └── settings_dialog.py  # Einstellungsdialog
+│   │   └── settings_dialog.py  # Einstellungsdialog (erweitert)
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── pdf_analyzer.py     # PDF-Analyse, OCR, Thumbnails
-│   │   ├── pdf_cache.py        # Analyse-Cache mit Hintergrund-Worker (NEU)
+│   │   ├── pdf_cache.py        # Analyse-Cache mit LLM-Pre-Caching
 │   │   └── file_manager.py     # Dateisystem-Operationen (erweitert)
 │   ├── ml/
 │   │   ├── __init__.py
 │   │   ├── classifier.py       # Lernfähiger Klassifikator (erweitert)
-│   │   ├── llm_provider.py     # LLM Provider-Abstraktion
+│   │   ├── llm_provider.py     # LLM Provider-Abstraktion (text_limit)
 │   │   ├── claude_provider.py  # Claude API Provider
 │   │   ├── openai_provider.py  # OpenAI API Provider
 │   │   ├── poe_provider.py     # Poe.com API Provider
@@ -238,6 +314,10 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
    - Keine lokalen Vorschläge gefunden wurden
 3. **Hybrid-Kombination**: Bei Übereinstimmung wird Konfidenz erhöht
 
+### Neue Einstellungen (v0.7.1)
+- **Text-Limit**: Konfigurierbar 500-5000 Zeichen (Default: 1500)
+- **LLM-Pre-Caching**: Ein/Ausschaltbar für Debugging
+
 ### Konfiguration
 1. Menü: Extras → Einstellungen
 2. Tab: KI-Assistent (LLM)
@@ -265,20 +345,23 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 ## Nächste Schritte (Empfehlung)
 
-1. **Phase 5 (Drag & Drop)** - Macht die Bedienung intuitiver:
-   - PDFs auf Ordner ziehen zum Sortieren
-   - Mehrfachauswahl ermöglichen
+### Sofort (Phase 13 - UX-Verbesserungen):
 
-2. **Testen** - Das Programm mit echten PDFs testen:
-   ```bash
-   python run.py
-   ```
+1. **Undo für Verschiebungen** - Wichtigstes Benutzer-Feedback
+   - History-Stack für letzte Aktionen
+   - Rechtsklick → "Rückgängig" oder Ctrl+Z
 
-3. **LLM testen** - Mit Claude oder OpenAI API-Key:
-   - Extras → Einstellungen → KI-Assistent
-   - API-Key eingeben und testen
+2. **Kopieren-Option** - Für Dokumente die mehrfach abgelegt werden
+   - Kontextmenü erweitern
+   - "Kopieren nach..." neben "Verschieben nach..."
 
-4. **Phase 7** - Backup-Integration (niedrigere Priorität)
+3. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
+
+### Danach (Phase 9 - Semi-Auto Workflow):
+
+4. **Batch-Umbenennung** mit LLM-Unterstützung
+   - Mehrere PDFs auf einmal umbenennen
+   - Fortschrittsanzeige
 
 ---
 
@@ -286,6 +369,7 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 1. OCR funktioniert nur mit installiertem Tesseract
 2. LLM-Nutzung erfordert API-Key und verursacht Kosten
+3. Grüne Vorschlagsordner können bei vielen Ordnern unübersichtlich werden
 
 ---
 

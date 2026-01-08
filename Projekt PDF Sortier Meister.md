@@ -131,3 +131,8 @@ Beispiel-Struktur:
 | 11 | Lokales LLM | Mittel | Mittel | ⭐⭐ |
 
 **Empfehlung:** Phase 12 (Unterordner) zuerst, da es die alltägliche Nutzung am meisten verbessert.
+
+--------------------------
+
+Ich schreibe ein Programm zum KI-gestützten sortieren von gescannten PDF files, sozusagen ein KI gestütztes Dokumenten-Managment-System auf Fileebene (Windows 11, Python). Motivation war in erster linie, dass Nuance Paperport seit 10 Jahren nicht weiterentwickelt wurde und ich dieses Programm sehr geschätzt habe. Ich würde gerne Beta-Tester dazu einladen, mein Programm zu nutzen sowie andere Entwickler, am Projekt mitzuarbeiten. Falls jemand im Internet nach "Nuance Paperport Nachfolge" oder DMS auf Fileebene sucht, soll er auf mein Projekt aufmerksam gemacht werden.
+
