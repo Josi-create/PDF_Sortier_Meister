@@ -19,10 +19,6 @@ Ein intelligentes Desktop-Programm zum Sortieren und Umbenennen von gescannten P
 - **OCR-Unterstützung**: Texterkennung für gescannte Dokumente (benötigt Tesseract)
 - **TF-IDF Klassifikation**: Ähnlichkeitsbasierte Ordnervorschläge
 
-## Screenshots
-
-*Coming soon*
-
 ## Installation
 
 ### Voraussetzungen
