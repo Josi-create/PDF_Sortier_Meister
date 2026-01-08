@@ -63,6 +63,7 @@
 - [x] Hervorhebung vorgeschlagener Ordner in der Baumansicht
 - [x] Relativer Pfad in Vorschlägen (z.B. "Steuer 2026/Banken")
 - [x] MainWindow mit Baumansicht integriert
+- [x] Kontextmenü zum Erstellen neuer Unterordner (Rechtsklick → "Neuer Unterordner")
 
 ---
 
@@ -70,7 +71,7 @@
 
 ### Phase 5: GUI-Vervollständigung / Drag & Drop (offen)
 - [ ] Drag & Drop von PDF-Thumbnails auf Ordner
-- [ ] Visuelle Feedback beim Ziehen
+- [ ] Visuelles Feedback beim Ziehen
 - [ ] Mehrfachauswahl von PDFs
 - [ ] Verbessertes Layout
 
@@ -85,6 +86,7 @@
 - [ ] Error Handling verbessern
 - [ ] Installer erstellen (PyInstaller)
 - [ ] Dokumentation
+- [ ] Startbildschirm optimieren (schnellere Thumbnail-Ladung, Caching vom letzten Start)
 
 ### Phase 9: Semi-Automatischer Workflow (offen)
 - [ ] **Schaltfläche "(Semi)-Auto Rename"** in der Toolbar
@@ -93,6 +95,8 @@
 - [ ] Optional: Konfidenz-Schwelle für vollautomatische Umbenennung (z.B. >90%)
 - [ ] Batch-Verarbeitung mit Mehrfachauswahl
 - [ ] Fortschrittsanzeige bei Massenverarbeitung
+- [ ] **LLM-Antworten cachen** (beim Wechsel zwischen PDFs bleiben Vorschläge erhalten)
+- [ ] **Pre-Caching im Hintergrund** (LLM für nächste PDFs vorbereiten während User arbeitet)
 
 ### Phase 10: Verbesserte Benutzeroberfläche (offen)
 - [ ] Drei-Spalten-Layout für Umbenennung:
@@ -108,6 +112,8 @@
 - [ ] Mehrseitige PDFs blätterbar
 - [ ] Text-Selektion zum Kopieren in Dateinamen
 - [ ] Hervorhebung erkannter Schlüsselwörter
+- [ ] **Grüner Haken** bei bereits umbenannten Thumbnails
+- [ ] **Zielordner-Vorschlag im Umbenennen-Dialog** (PDF geöffnet → gleich Zielordner wählen)
 
 ### Phase 11: Lokales LLM / Ollama (offen)
 - [ ] Neuer Provider: `OllamaProvider` für lokale Modelle
