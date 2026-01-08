@@ -33,6 +33,7 @@ from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.settings_dialog import SettingsDialog
 from src.core.file_manager import FileManager, FolderManager
+from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier
 
@@ -48,6 +49,7 @@ class MainWindow(QMainWindow):
         self.folder_manager = FolderManager()
         self.classifier = get_classifier()
         self.hybrid_classifier = get_hybrid_classifier()
+        self.pdf_cache = get_pdf_cache()
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
@@ -57,12 +59,16 @@ class MainWindow(QMainWindow):
         self.selected_pdf_text: Optional[str] = None
         self.selected_pdf_keywords: Optional[list[str]] = None
         self.selected_pdf_dates: Optional[list] = None
+        self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
 
         self.setup_ui()
         self.setup_menu()
         self.setup_toolbar()
         self.setup_statusbar()
         self.load_settings()
+
+        # PDF-Cache Signale verbinden
+        self.pdf_cache.pdf_analyzed.connect(self._on_pdf_analyzed)
 
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
@@ -230,6 +236,7 @@ class MainWindow(QMainWindow):
         for i, pdf_path in enumerate(pdf_files):
             widget = PDFThumbnailWidget(pdf_path)
             widget.clicked.connect(self.on_pdf_clicked)
+            widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.double_clicked.connect(self.on_pdf_double_clicked)
             widget.rename_requested.connect(self.on_pdf_rename)
             widget.delete_requested.connect(self.on_pdf_delete)
@@ -243,6 +250,64 @@ class MainWindow(QMainWindow):
         # Statusleiste aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(pdf_files)}")
         self.statusbar.showMessage(f"{len(pdf_files)} PDFs geladen", 3000)
+
+        # Pre-Caching starten: PDFs im Hintergrund analysieren
+        # Verzögert starten damit UI erstmal fertig geladen wird
+        QTimer.singleShot(500, lambda: self._start_pre_caching(pdf_files))
+
+    def _start_pre_caching(self, pdf_files: list[Path]):
+        """Startet das Pre-Caching für alle PDFs im Hintergrund."""
+        self.pdf_cache.pre_cache(pdf_files)
+        self.statusbar.showMessage(f"Analysiere {len(pdf_files)} PDFs im Hintergrund...", 2000)
+
+    def remove_pdf_widget(self, pdf_path: Path):
+        """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh)."""
+        for widget in self.pdf_widgets:
+            if widget.pdf_path == pdf_path:
+                # Widget aus Layout entfernen
+                self.pdf_layout.removeWidget(widget)
+                widget.cleanup() if hasattr(widget, 'cleanup') else None
+                widget.deleteLater()
+                self.pdf_widgets.remove(widget)
+                break
+
+        # PDF-Zähler aktualisieren
+        self.pdf_count_label.setText(f"PDFs: {len(self.pdf_widgets)}")
+
+        # Falls es die ausgewählte PDF war, Auswahl zurücksetzen
+        if self.selected_pdf == pdf_path:
+            self.selected_pdf = None
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
+
+        # Aus Mehrfachauswahl entfernen
+        if pdf_path in self.selected_pdfs:
+            self.selected_pdfs.remove(pdf_path)
+
+    def _update_pdf_widget_path(self, old_path: Path, new_path: Path):
+        """Aktualisiert den Pfad eines PDF-Widgets nach Umbenennung."""
+        for widget in self.pdf_widgets:
+            if widget.pdf_path == old_path:
+                # Pfad aktualisieren
+                widget.pdf_path = new_path
+
+                # Namen-Label aktualisieren
+                name = new_path.name
+                if len(name) > 25:
+                    name = name[:22] + "..."
+                widget.name_label.setText(name)
+                widget.name_label.setToolTip(new_path.name)
+
+                # Falls ausgewählt, auch selected_pdf aktualisieren
+                if self.selected_pdf == old_path:
+                    self.selected_pdf = new_path
+
+                # In Mehrfachauswahl aktualisieren
+                if old_path in self.selected_pdfs:
+                    self.selected_pdfs.remove(old_path)
+                    self.selected_pdfs.append(new_path)
+
+                break
 
     def load_folders(self):
         """Lädt die Zielordner in die Baumansicht."""
@@ -402,15 +467,21 @@ class MainWindow(QMainWindow):
         for widget in self.pdf_widgets:
             widget.cleanup()
 
+        # PDF-Cache Worker stoppen
+        self.pdf_cache.stop_worker()
+
         event.accept()
 
     # === PDF-Aktionen ===
 
     def on_pdf_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF angeklickt wird."""
-        # Alte Auswahl aufheben
+        # Alte Auswahl aufheben (Einzelauswahl)
         for widget in self.pdf_widgets:
             widget.selected = False
+
+        # Mehrfachauswahl zurücksetzen
+        self.selected_pdfs = []
 
         # Neue Auswahl setzen
         self.selected_pdf = pdf_path
@@ -424,19 +495,76 @@ class MainWindow(QMainWindow):
         # PDF analysieren und Vorschläge aktualisieren
         self.update_suggestions_for_pdf(pdf_path)
 
+    def on_pdf_ctrl_clicked(self, pdf_path: Path):
+        """Wird aufgerufen wenn eine PDF mit Ctrl angeklickt wird (Mehrfachauswahl)."""
+        # Toggle-Verhalten: Wenn bereits ausgewählt, entfernen
+        if pdf_path in self.selected_pdfs:
+            self.selected_pdfs.remove(pdf_path)
+            for widget in self.pdf_widgets:
+                if widget.pdf_path == pdf_path:
+                    widget.selected = False
+                    break
+        else:
+            # Zur Mehrfachauswahl hinzufügen
+            self.selected_pdfs.append(pdf_path)
+            for widget in self.pdf_widgets:
+                if widget.pdf_path == pdf_path:
+                    widget.selected = True
+                    break
+
+        # Statusbar aktualisieren
+        count = len(self.selected_pdfs)
+        if count == 0:
+            self.statusbar.showMessage("Keine Auswahl")
+            self.selected_pdf = None
+        elif count == 1:
+            self.selected_pdf = self.selected_pdfs[0]
+            self.statusbar.showMessage(f"Ausgewählt: {self.selected_pdf.name}")
+            self.update_suggestions_for_pdf(self.selected_pdf)
+        else:
+            self.selected_pdf = self.selected_pdfs[-1]  # Letzte PDF als "aktiv" für Vorschläge
+            self.statusbar.showMessage(f"{count} PDFs ausgewählt (Ctrl+Klick für weitere)")
+            # Vorschläge für die letzte ausgewählte PDF anzeigen
+            self.update_suggestions_for_pdf(self.selected_pdf)
+
     def update_suggestions_for_pdf(self, pdf_path: Path):
         """Aktualisiert die Vorschläge für eine ausgewählte PDF."""
-        self.statusbar.showMessage("Analysiere PDF...")
-        QApplication.processEvents()
+        # Prüfe ob im Cache
+        cached_result = self.pdf_cache.get(pdf_path)
 
+        if cached_result:
+            # Sofort aus Cache verwenden - keine Verzögerung!
+            self._apply_analysis_result(pdf_path, cached_result)
+        else:
+            # Noch nicht analysiert - Hintergrund-Analyse starten
+            self.statusbar.showMessage(f"Analysiere {pdf_path.name}...")
+
+            # Analyse anfordern mit Callback
+            self.pdf_cache.request_analysis(
+                pdf_path,
+                callback=lambda result: self._on_analysis_result_ready(pdf_path, result),
+                urgent=True  # Höchste Priorität weil User geklickt hat
+            )
+
+    def _on_analysis_result_ready(self, pdf_path: Path, result: PDFAnalysisResult):
+        """Wird aufgerufen wenn eine Analyse fertig ist (aus Cache-Worker)."""
+        # Nur anwenden wenn diese PDF noch ausgewählt ist
+        if self.selected_pdf == pdf_path:
+            self._apply_analysis_result(pdf_path, result)
+
+    def _on_pdf_analyzed(self, pdf_path: Path):
+        """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
+        # Könnte für Status-Updates genutzt werden
+        stats = self.pdf_cache.get_stats()
+        # Optional: Cache-Status in Statusleiste anzeigen
+
+    def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
+        """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
         try:
-            from src.core.pdf_analyzer import PDFAnalyzer
-
-            # PDF analysieren
-            with PDFAnalyzer(pdf_path) as analyzer:
-                self.selected_pdf_text = analyzer.extract_text()
-                self.selected_pdf_keywords = analyzer.extract_keywords()
-                self.selected_pdf_dates = analyzer.extract_dates()
+            # Ergebnisse speichern
+            self.selected_pdf_text = result.extracted_text
+            self.selected_pdf_keywords = result.keywords
+            self.selected_pdf_dates = result.dates
 
             # Erkanntes Datum für Jahr-Erkennung
             detected_date = None
@@ -447,7 +575,7 @@ class MainWindow(QMainWindow):
                 else:
                     detected_date = str(first_date)
 
-            # NEU: Vorschläge mit hierarchischen Pfaden holen
+            # Vorschläge mit hierarchischen Pfaden holen
             suggestions = self.classifier.suggest_with_subfolders(
                 text=self.selected_pdf_text,
                 keywords=self.selected_pdf_keywords,
@@ -459,7 +587,7 @@ class MainWindow(QMainWindow):
             # Vorschläge anzeigen
             self.display_suggestions(suggestions)
 
-            # NEU: Vorgeschlagene Ordner in der Baumansicht hervorheben
+            # Vorgeschlagene Ordner in der Baumansicht hervorheben
             suggested_folders = [s.folder_path for s in suggestions]
             self.folder_tree.set_suggestion_folders(suggested_folders)
 
@@ -473,7 +601,7 @@ class MainWindow(QMainWindow):
                 )
 
         except Exception as e:
-            print(f"Fehler bei PDF-Analyse: {e}")
+            print(f"Fehler bei Vorschlägen: {e}")
             self.selected_pdf_text = None
             self.selected_pdf_keywords = None
             self.selected_pdf_dates = None
@@ -574,13 +702,11 @@ class MainWindow(QMainWindow):
                 # Zuletzt verwendet aktualisieren
                 self.config.add_to_last_used(folder_path)
 
-                # Auswahl zurücksetzen
-                self.selected_pdf = None
-                self.selected_pdf_text = None
-                self.selected_pdf_keywords = None
+                # Nur das verschobene PDF-Widget entfernen (NICHT refresh_view!)
+                self.remove_pdf_widget(pdf_path)
 
-                # Ansicht aktualisieren (inkl. Baumansicht)
-                self.refresh_view()
+                # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
+                self.load_folders()
 
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -709,7 +835,8 @@ class MainWindow(QMainWindow):
                     self.statusbar.showMessage(
                         f"Umbenannt zu: {new_path.name} (gelernt)", 3000
                     )
-                    self.refresh_view()
+                    # Widget-Namen aktualisieren statt vollständigem Refresh
+                    self._update_pdf_widget_path(pdf_path, new_path)
 
                 except Exception as e:
                     QMessageBox.critical(self, "Fehler", f"Umbenennung fehlgeschlagen:\n{e}")
@@ -728,7 +855,8 @@ class MainWindow(QMainWindow):
             try:
                 self.file_manager.delete_file(pdf_path)
                 self.statusbar.showMessage(f"Gelöscht: {pdf_path.name}", 3000)
-                self.refresh_view()
+                # Nur das gelöschte PDF-Widget entfernen
+                self.remove_pdf_widget(pdf_path)
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Löschen fehlgeschlagen:\n{e}")
 
@@ -743,7 +871,10 @@ class MainWindow(QMainWindow):
             try:
                 new_path = self.file_manager.move_file(pdf_path, folder)
                 self.statusbar.showMessage(f"Verschoben nach: {new_path.parent.name}", 3000)
-                self.refresh_view()
+                # Nur das verschobene PDF-Widget entfernen
+                self.remove_pdf_widget(pdf_path)
+                # Ordneransicht aktualisieren
+                self.load_folders()
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
@@ -774,17 +905,73 @@ class MainWindow(QMainWindow):
         os.startfile(str(folder_path))
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
-        """Wird aufgerufen wenn eine PDF auf einen Ordner gezogen wird."""
-        try:
-            new_path = self.file_manager.move_file(pdf_path, folder_path)
-            self.statusbar.showMessage(f"Verschoben nach: {folder_path.name}", 3000)
+        """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""
+        # Relativen Pfad für die Baumansicht berechnen
+        relative_path = self.folder_tree.get_relative_path(folder_path)
 
-            # Zuletzt verwendet aktualisieren
-            self.config.add_to_last_used(folder_path)
+        # Prüfen ob mehrere PDFs gedroppt wurden (durch Mehrfachauswahl)
+        pdfs_to_move = []
+        if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
+            pdfs_to_move = list(self.selected_pdfs)
+        else:
+            pdfs_to_move = [pdf_path]
 
-            self.refresh_view()
-        except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+        moved_count = 0
+        moved_pdfs = []
+        errors = []
+
+        for current_pdf in pdfs_to_move:
+            try:
+                # Datei verschieben
+                self.file_manager.move_file(current_pdf, folder_path)
+                moved_count += 1
+                moved_pdfs.append(current_pdf)
+
+                # Versuchen zu lernen (wenn PDF vorher analysiert wurde)
+                if current_pdf == self.selected_pdf and self.selected_pdf_text:
+                    self.classifier.learn(
+                        pdf_path=current_pdf,
+                        target_folder=folder_path,
+                        extracted_text=self.selected_pdf_text,
+                        keywords=self.selected_pdf_keywords,
+                        relative_path=relative_path,
+                    )
+
+            except Exception as e:
+                errors.append(f"{current_pdf.name}: {e}")
+
+        # Status aktualisieren
+        training_count = self.classifier.get_training_count()
+        self.training_label.setText(f"Gelernt: {training_count}")
+
+        if moved_count == 1:
+            self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
+        else:
+            self.statusbar.showMessage(f"{moved_count} PDFs nach '{relative_path}' verschoben", 3000)
+
+        # Fehler anzeigen
+        if errors:
+            QMessageBox.warning(
+                self,
+                "Teilweise fehlgeschlagen",
+                f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
+            )
+
+        # Nur die verschobenen PDF-Widgets entfernen (NICHT refresh_view!)
+        for moved_pdf in moved_pdfs:
+            self.remove_pdf_widget(moved_pdf)
+
+        # Auswahl zurücksetzen (falls noch nicht durch remove_pdf_widget geschehen)
+        self.selected_pdf = None
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdfs = []
+
+        # Zuletzt verwendet aktualisieren
+        self.config.add_to_last_used(folder_path)
+
+        # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
+        self.load_folders()
 
     def on_folder_remove(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner aus der Liste entfernt werden soll."""

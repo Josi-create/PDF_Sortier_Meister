@@ -41,6 +41,7 @@ class FolderTreeWidget(QWidget):
         self._root_folders: list[Path] = []
         self._selected_folder: Optional[Path] = None
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
+        self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
 
         self.setup_ui()
 
@@ -105,6 +106,7 @@ class FolderTreeWidget(QWidget):
         # Drag & Drop Events überschreiben
         self.tree.dragEnterEvent = self._tree_drag_enter
         self.tree.dragMoveEvent = self._tree_drag_move
+        self.tree.dragLeaveEvent = self._tree_drag_leave
         self.tree.dropEvent = self._tree_drop
 
         layout.addWidget(self.tree)
@@ -335,16 +337,40 @@ class FolderTreeWidget(QWidget):
         event.ignore()
 
     def _tree_drag_move(self, event):
-        """Behandelt die Bewegung eines Drag-Objekts."""
+        """Behandelt die Bewegung eines Drag-Objekts mit visuellem Feedback."""
         if event.mimeData().hasUrls():
             item = self.tree.itemAt(event.position().toPoint())
+
+            # Altes Hover-Item zurücksetzen
+            if self._drag_hover_item and self._drag_hover_item != item:
+                self._reset_item_style(self._drag_hover_item)
+
             if item:
+                # Neues Item hervorheben
+                self._drag_hover_item = item
+                self._highlight_drop_target(item)
                 event.acceptProposedAction()
                 return
+
+        # Kein gültiges Ziel - altes Hover zurücksetzen
+        if self._drag_hover_item:
+            self._reset_item_style(self._drag_hover_item)
+            self._drag_hover_item = None
         event.ignore()
+
+    def _tree_drag_leave(self, event):
+        """Behandelt das Verlassen des Drag-Bereichs."""
+        if self._drag_hover_item:
+            self._reset_item_style(self._drag_hover_item)
+            self._drag_hover_item = None
 
     def _tree_drop(self, event: QDropEvent):
         """Behandelt das Ablegen von Dateien."""
+        # Hover-Highlighting zurücksetzen
+        if self._drag_hover_item:
+            self._reset_item_style(self._drag_hover_item)
+            self._drag_hover_item = None
+
         if not event.mimeData().hasUrls():
             event.ignore()
             return
@@ -362,6 +388,19 @@ class FolderTreeWidget(QWidget):
                 self.pdf_dropped.emit(file_path, folder_path)
 
         event.acceptProposedAction()
+
+    def _highlight_drop_target(self, item: QTreeWidgetItem):
+        """Hebt ein Item als Drop-Ziel hervor."""
+        from PyQt6.QtGui import QBrush, QColor
+        item.setBackground(0, QBrush(QColor("#90EE90")))  # Hellgrün
+
+    def _reset_item_style(self, item: QTreeWidgetItem):
+        """Setzt den Style eines Items zurück."""
+        folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+        if folder_path in self._suggestion_folders:
+            item.setBackground(0, Qt.GlobalColor.green)
+        else:
+            item.setBackground(0, Qt.GlobalColor.transparent)
 
     def get_selected_folder(self) -> Optional[Path]:
         """Gibt den aktuell ausgewählten Ordner zurück."""

@@ -7,8 +7,8 @@ Zeigt eine Miniaturansicht einer PDF-Datei mit Dateinamen und Aktionen.
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize
-from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize, QMimeData, QUrl, QPoint
+from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -46,6 +46,7 @@ class PDFThumbnailWidget(QFrame):
 
     # Signale
     clicked = pyqtSignal(Path)  # PDF wurde angeklickt
+    ctrl_clicked = pyqtSignal(Path)  # PDF wurde mit Ctrl angeklickt (Mehrfachauswahl)
     double_clicked = pyqtSignal(Path)  # PDF wurde doppelgeklickt
     rename_requested = pyqtSignal(Path)  # Umbenennung angefordert
     delete_requested = pyqtSignal(Path)  # Löschen angefordert
@@ -56,6 +57,7 @@ class PDFThumbnailWidget(QFrame):
         self.pdf_path = pdf_path
         self._selected = False
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
+        self._drag_start_position: Optional[QPoint] = None
 
         self.setup_ui()
         self.load_thumbnail()
@@ -148,10 +150,31 @@ class PDFThumbnailWidget(QFrame):
         self._update_style()
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Behandelt Mausklicks."""
+        """Behandelt Mausklicks und startet Drag-Vorbereitung."""
         if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self.pdf_path)
+            self._drag_start_position = event.pos()
+            # Ctrl+Klick für Mehrfachauswahl
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self.ctrl_clicked.emit(self.pdf_path)
+            else:
+                self.clicked.emit(self.pdf_path)
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """Behandelt Mausbewegungen und startet Drag & Drop."""
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+
+        if self._drag_start_position is None:
+            return
+
+        # Prüfen ob genug Distanz für Drag
+        distance = (event.pos() - self._drag_start_position).manhattanLength()
+        if distance < QApplication.startDragDistance():
+            return
+
+        # Drag starten
+        self._start_drag()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         """Behandelt Doppelklicks."""
@@ -203,3 +226,50 @@ class PDFThumbnailWidget(QFrame):
         if self._loader_thread and self._loader_thread.isRunning():
             self._loader_thread.quit()
             self._loader_thread.wait(1000)
+
+    def _start_drag(self):
+        """Startet den Drag & Drop Vorgang."""
+        drag = QDrag(self)
+
+        # MIME-Daten mit Datei-URL erstellen
+        mime_data = QMimeData()
+
+        # Prüfe ob Mehrfachauswahl aktiv ist (über Parent-Widget)
+        urls = [QUrl.fromLocalFile(str(self.pdf_path))]
+
+        # Mehrfachauswahl: Alle ausgewählten PDFs hinzufügen
+        parent = self.parent()
+        if parent and hasattr(parent, 'parent'):
+            main_window = parent.parent()
+            if main_window and hasattr(main_window, 'parent'):
+                main_window = main_window.parent()
+                if main_window and hasattr(main_window, 'parent'):
+                    main_window = main_window.parent()  # Durch die verschachtelten Layouts
+                    if hasattr(main_window, 'selected_pdfs') and self.pdf_path in main_window.selected_pdfs:
+                        urls = [QUrl.fromLocalFile(str(p)) for p in main_window.selected_pdfs]
+
+        mime_data.setUrls(urls)
+
+        # Optional: Auch Text setzen für andere Anwendungen
+        if len(urls) == 1:
+            mime_data.setText(str(self.pdf_path))
+        else:
+            mime_data.setText(f"{len(urls)} PDFs")
+
+        drag.setMimeData(mime_data)
+
+        # Thumbnail als Drag-Pixmap verwenden (verkleinert)
+        if self.thumbnail_label.pixmap() and not self.thumbnail_label.pixmap().isNull():
+            scaled_pixmap = self.thumbnail_label.pixmap().scaled(
+                80, 100,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            drag.setPixmap(scaled_pixmap)
+            drag.setHotSpot(QPoint(scaled_pixmap.width() // 2, scaled_pixmap.height() // 2))
+
+        # Drag ausführen
+        drag.exec(Qt.DropAction.MoveAction | Qt.DropAction.CopyAction)
+
+        # Drag-Position zurücksetzen
+        self._drag_start_position = None

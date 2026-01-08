@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 08.01.2026
-**Aktuelle Version:** 0.6.0
+**Aktuelle Version:** 0.7.0
 
 ---
 
@@ -65,15 +65,28 @@
 - [x] MainWindow mit Baumansicht integriert
 - [x] Kontextmenü zum Erstellen neuer Unterordner (Rechtsklick → "Neuer Unterordner")
 
+### Phase 5: GUI-Vervollständigung / Drag & Drop (100% fertig)
+- [x] Drag & Drop von PDF-Thumbnails auf Ordner
+- [x] Visuelles Feedback beim Ziehen (grün hervorgehobene Drop-Ziele)
+- [x] Mehrfachauswahl von PDFs (Ctrl+Klick)
+- [x] Thumbnail wird beim Ziehen als Vorschau angezeigt
+- [x] Lernen aus Drag & Drop Entscheidungen
+- [x] **PDF-Analyse-Caching** (`src/core/pdf_cache.py`):
+  - Bereits analysierte PDFs werden nicht erneut analysiert
+  - Hintergrund-Worker mit Prioritäten (User-Klick = höchste)
+  - Pre-Caching: PDFs werden automatisch im Hintergrund voranalysiert
+  - Sofortige Reaktion bei gecachten PDFs
+  - **Persistenter Cache** (SQLite): Bleibt über Programmende erhalten
+  - Cache-Einstellungen in Extras → Einstellungen → Allgemein
+  - Cache kann für Debugging geleert werden
+- [x] **Optimiertes Verschieben/Löschen/Umbenennen**:
+  - Kein vollständiger Refresh der Ansicht mehr nach Operationen
+  - Nur das betroffene PDF-Widget wird entfernt/aktualisiert
+  - Kein erneutes Pre-Caching aller PDFs (verhindert Lag)
+
 ---
 
 ## Noch offene Phasen
-
-### Phase 5: GUI-Vervollständigung / Drag & Drop (offen)
-- [ ] Drag & Drop von PDF-Thumbnails auf Ordner
-- [ ] Visuelles Feedback beim Ziehen
-- [ ] Mehrfachauswahl von PDFs
-- [ ] Verbessertes Layout
 
 ### Phase 7: Backup-Integration (offen)
 - [ ] Macrium Reflect Log-Dateien finden
@@ -137,13 +150,12 @@
 | Phase | Feature | Aufwand | Nutzen | Priorität |
 |-------|---------|---------|--------|-----------|
 | 9 | Semi-Auto Workflow | Mittel | Hoch | ⭐⭐⭐ |
-| 5 | Drag & Drop | Mittel | Mittel | ⭐⭐ |
 | 10 | 3-Spalten-Layout | Hoch | Mittel | ⭐⭐ |
 | 11 | Lokales LLM | Mittel | Mittel | ⭐⭐ |
-| 7 | Backup-Integration | Niedrig | Niedrig | ⭐ |
 | 8 | Testing & Polishing | Mittel | Hoch | ⭐⭐ |
+| 7 | Backup-Integration | Niedrig | Niedrig | ⭐ |
 
-**Empfehlung:** Phase 9 (Semi-Auto Workflow) oder Phase 5 (Drag & Drop) als nächstes.
+**Empfehlung:** Phase 9 (Semi-Auto Workflow) als nächstes.
 
 ---
 
@@ -161,15 +173,16 @@ PDF_Sortier_Meister/
 │   ├── main.py                 # Haupteinstiegspunkt
 │   ├── gui/
 │   │   ├── __init__.py
-│   │   ├── main_window.py      # Hauptfenster (Version 0.6.0)
-│   │   ├── pdf_thumbnail.py    # PDF-Miniaturansicht Widget
+│   │   ├── main_window.py      # Hauptfenster (Version 0.7.0)
+│   │   ├── pdf_thumbnail.py    # PDF-Miniaturansicht Widget (mit Drag & Drop)
 │   │   ├── folder_widget.py    # Zielordner-Widget
-│   │   ├── folder_tree_widget.py # Ordner-Baumansicht (NEU Phase 12)
+│   │   ├── folder_tree_widget.py # Ordner-Baumansicht (Phase 12)
 │   │   ├── rename_dialog.py    # Verbesserter Umbenennungsdialog
 │   │   └── settings_dialog.py  # Einstellungsdialog
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── pdf_analyzer.py     # PDF-Analyse, OCR, Thumbnails
+│   │   ├── pdf_cache.py        # Analyse-Cache mit Hintergrund-Worker (NEU)
 │   │   └── file_manager.py     # Dateisystem-Operationen (erweitert)
 │   ├── ml/
 │   │   ├── __init__.py
@@ -272,9 +285,7 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 ## Bekannte Einschränkungen
 
 1. OCR funktioniert nur mit installiertem Tesseract
-2. Drag & Drop von PDFs auf Ordner noch nicht implementiert
-3. Keine Mehrfachauswahl von PDFs möglich
-4. LLM-Nutzung erfordert API-Key und verursacht Kosten
+2. LLM-Nutzung erfordert API-Key und verursacht Kosten
 
 ---
 

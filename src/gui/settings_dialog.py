@@ -174,9 +174,73 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(display_group)
 
+        # Cache-Einstellungen
+        cache_group = QGroupBox("PDF-Analyse-Cache")
+        cache_layout = QVBoxLayout(cache_group)
+
+        self.persist_cache_checkbox = QCheckBox("Cache über Programmende hinaus speichern")
+        self.persist_cache_checkbox.setToolTip(
+            "Wenn aktiviert, werden PDF-Analysen auf der Festplatte gespeichert.\n"
+            "Beim nächsten Start sind bereits analysierte PDFs sofort verfügbar.\n"
+            "Dies beschleunigt besonders große Ordner erheblich."
+        )
+        cache_layout.addWidget(self.persist_cache_checkbox)
+
+        # Cache leeren Button
+        cache_buttons_layout = QHBoxLayout()
+
+        self.clear_cache_button = QPushButton("Cache leeren")
+        self.clear_cache_button.setToolTip("Löscht alle gecachten PDF-Analysen")
+        self.clear_cache_button.clicked.connect(self._clear_cache)
+        cache_buttons_layout.addWidget(self.clear_cache_button)
+
+        self.cache_stats_label = QLabel("")
+        cache_buttons_layout.addWidget(self.cache_stats_label)
+        cache_buttons_layout.addStretch()
+
+        cache_layout.addLayout(cache_buttons_layout)
+
+        layout.addWidget(cache_group)
+
         layout.addStretch()
 
         return tab
+
+    def _clear_cache(self):
+        """Löscht den PDF-Analyse-Cache."""
+        try:
+            from src.core.pdf_cache import get_pdf_cache
+
+            reply = QMessageBox.question(
+                self,
+                "Cache leeren",
+                "Möchten Sie den gesamten PDF-Analyse-Cache löschen?\n\n"
+                "Alle PDFs müssen dann erneut analysiert werden.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                cache = get_pdf_cache()
+                cache.clear()
+                cache.clear_persistent_cache()
+                self._update_cache_stats()
+                QMessageBox.information(
+                    self, "Cache geleert", "Der PDF-Analyse-Cache wurde erfolgreich geleert."
+                )
+
+        except Exception as e:
+            QMessageBox.warning(self, "Fehler", f"Cache konnte nicht geleert werden:\n{e}")
+
+    def _update_cache_stats(self):
+        """Aktualisiert die Cache-Statistik-Anzeige."""
+        try:
+            from src.core.pdf_cache import get_pdf_cache
+            cache = get_pdf_cache()
+            stats = cache.get_stats()
+            self.cache_stats_label.setText(f"({stats['cached_count']} PDFs im Cache)")
+        except Exception:
+            self.cache_stats_label.setText("")
 
     def _on_provider_changed(self, index: int):
         """Wird aufgerufen wenn der Provider geändert wird."""
@@ -267,6 +331,10 @@ class SettingsDialog(QDialog):
         self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
 
+        # Cache-Einstellungen
+        self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))
+        self._update_cache_stats()
+
     def _save_settings(self):
         """Speichert die Einstellungen."""
         # LLM-Einstellungen
@@ -297,6 +365,18 @@ class SettingsDialog(QDialog):
         # Allgemeine Einstellungen
         self.config.set("thumbnail_size", self.thumbnail_size_spin.value())
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
+
+        # Cache-Einstellungen
+        persist_cache = self.persist_cache_checkbox.isChecked()
+        self.config.set("persist_pdf_cache", persist_cache)
+
+        # Cache-Modul über Änderung informieren
+        try:
+            from src.core.pdf_cache import get_pdf_cache
+            cache = get_pdf_cache()
+            cache.set_persist_cache(persist_cache)
+        except Exception:
+            pass
 
         self.settings_changed.emit()
         self.accept()
