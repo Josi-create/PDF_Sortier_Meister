@@ -47,6 +47,7 @@ class PDFThumbnailWidget(QFrame):
     # Signale
     clicked = pyqtSignal(Path)  # PDF wurde angeklickt
     ctrl_clicked = pyqtSignal(Path)  # PDF wurde mit Ctrl angeklickt (Mehrfachauswahl)
+    shift_clicked = pyqtSignal(Path)  # PDF wurde mit Shift angeklickt (Bereichsauswahl)
     double_clicked = pyqtSignal(Path)  # PDF wurde doppelgeklickt
     rename_requested = pyqtSignal(Path)  # Umbenennung angefordert
     delete_requested = pyqtSignal(Path)  # Löschen angefordert
@@ -157,8 +158,11 @@ class PDFThumbnailWidget(QFrame):
         """Behandelt Mausklicks und startet Drag-Vorbereitung."""
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_position = event.pos()
+            # Shift+Klick für Bereichsauswahl
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.shift_clicked.emit(self.pdf_path)
             # Ctrl+Klick für Mehrfachauswahl
-            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            elif event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 self.ctrl_clicked.emit(self.pdf_path)
             else:
                 self.clicked.emit(self.pdf_path)
@@ -222,15 +226,10 @@ class PDFThumbnailWidget(QFrame):
 
     def _get_selection_count(self) -> int:
         """Gibt die Anzahl der ausgewählten PDFs zurück."""
-        parent = self.parent()
-        if parent and hasattr(parent, 'parent'):
-            main_window = parent.parent()
-            if main_window and hasattr(main_window, 'parent'):
-                main_window = main_window.parent()
-                if main_window and hasattr(main_window, 'parent'):
-                    main_window = main_window.parent()
-                    if hasattr(main_window, 'selected_pdfs'):
-                        return len(main_window.selected_pdfs)
+        # Verwende self.window() um direkt das Hauptfenster zu finden
+        main_window = self.window()
+        if main_window and hasattr(main_window, 'selected_pdfs'):
+            return len(main_window.selected_pdfs)
         return 0
 
     def _open_pdf(self):
@@ -259,19 +258,14 @@ class PDFThumbnailWidget(QFrame):
         # MIME-Daten mit Datei-URL erstellen
         mime_data = QMimeData()
 
-        # Prüfe ob Mehrfachauswahl aktiv ist (über Parent-Widget)
+        # Prüfe ob Mehrfachauswahl aktiv ist (über self.window())
         urls = [QUrl.fromLocalFile(str(self.pdf_path))]
 
         # Mehrfachauswahl: Alle ausgewählten PDFs hinzufügen
-        parent = self.parent()
-        if parent and hasattr(parent, 'parent'):
-            main_window = parent.parent()
-            if main_window and hasattr(main_window, 'parent'):
-                main_window = main_window.parent()
-                if main_window and hasattr(main_window, 'parent'):
-                    main_window = main_window.parent()  # Durch die verschachtelten Layouts
-                    if hasattr(main_window, 'selected_pdfs') and self.pdf_path in main_window.selected_pdfs:
-                        urls = [QUrl.fromLocalFile(str(p)) for p in main_window.selected_pdfs]
+        main_window = self.window()
+        if main_window and hasattr(main_window, 'selected_pdfs'):
+            if self.pdf_path in main_window.selected_pdfs:
+                urls = [QUrl.fromLocalFile(str(p)) for p in main_window.selected_pdfs]
 
         mime_data.setUrls(urls)
 

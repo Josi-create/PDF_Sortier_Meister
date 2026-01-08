@@ -251,6 +251,7 @@ class MainWindow(QMainWindow):
             widget = PDFThumbnailWidget(pdf_path)
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
+            widget.shift_clicked.connect(self.on_pdf_shift_clicked)
             widget.double_clicked.connect(self.on_pdf_double_clicked)
             widget.rename_requested.connect(self.on_pdf_rename)
             widget.delete_requested.connect(self.on_pdf_delete)
@@ -492,6 +493,12 @@ class MainWindow(QMainWindow):
 
     def on_pdf_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF angeklickt wird."""
+        # Klick auf bereits ausgewähltes PDF -> Auswahl aufheben
+        # Nur wenn wirklich eine Einzelauswahl vorliegt (nicht bei Mehrfachauswahl)
+        if self.selected_pdf == pdf_path and not self.selected_pdfs:
+            self._clear_selection()
+            return
+
         # Alte Auswahl aufheben (Einzelauswahl)
         for widget in self.pdf_widgets:
             widget.selected = False
@@ -513,6 +520,11 @@ class MainWindow(QMainWindow):
 
     def on_pdf_ctrl_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF mit Ctrl angeklickt wird (Mehrfachauswahl)."""
+        # Falls noch keine Mehrfachauswahl aktiv ist, aber eine Einzelauswahl existiert,
+        # diese in die Mehrfachauswahl übernehmen
+        if not self.selected_pdfs and self.selected_pdf:
+            self.selected_pdfs.append(self.selected_pdf)
+
         # Toggle-Verhalten: Wenn bereits ausgewählt, entfernen
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
@@ -529,6 +541,53 @@ class MainWindow(QMainWindow):
                     break
 
         # Statusbar aktualisieren
+        self._update_selection_status()
+
+    def on_pdf_shift_clicked(self, pdf_path: Path):
+        """Wird aufgerufen wenn eine PDF mit Shift angeklickt wird (Bereichsauswahl)."""
+        # Für Bereichsauswahl brauchen wir einen Ankerpunkt
+        # Der Ankerpunkt ist entweder die letzte Einzelauswahl oder die letzte aus der Mehrfachauswahl
+        anchor = self.selected_pdf
+        if not anchor:
+            # Kein Ankerpunkt - verhält sich wie normaler Klick
+            self.on_pdf_clicked(pdf_path)
+            return
+
+        # Indizes der Widgets finden
+        anchor_index = -1
+        target_index = -1
+        for i, widget in enumerate(self.pdf_widgets):
+            if widget.pdf_path == anchor:
+                anchor_index = i
+            if widget.pdf_path == pdf_path:
+                target_index = i
+
+        if anchor_index == -1 or target_index == -1:
+            # Eines der PDFs nicht gefunden
+            self.on_pdf_clicked(pdf_path)
+            return
+
+        # Bereich bestimmen (von...bis)
+        start_index = min(anchor_index, target_index)
+        end_index = max(anchor_index, target_index)
+
+        # Alle PDFs im Bereich auswählen
+        self.selected_pdfs = []
+        for i in range(start_index, end_index + 1):
+            widget = self.pdf_widgets[i]
+            widget.selected = True
+            self.selected_pdfs.append(widget.pdf_path)
+
+        # Widgets außerhalb des Bereichs deselektieren
+        for i, widget in enumerate(self.pdf_widgets):
+            if i < start_index or i > end_index:
+                widget.selected = False
+
+        # Statusbar aktualisieren
+        self._update_selection_status()
+
+    def _update_selection_status(self):
+        """Aktualisiert die Statusbar basierend auf der aktuellen Auswahl."""
         count = len(self.selected_pdfs)
         if count == 0:
             self.statusbar.showMessage("Keine Auswahl")
@@ -539,9 +598,39 @@ class MainWindow(QMainWindow):
             self.update_suggestions_for_pdf(self.selected_pdf)
         else:
             self.selected_pdf = self.selected_pdfs[-1]  # Letzte PDF als "aktiv" für Vorschläge
-            self.statusbar.showMessage(f"{count} PDFs ausgewählt (Ctrl+Klick für weitere)")
+            self.statusbar.showMessage(f"{count} PDFs ausgewählt (Shift/Ctrl+Klick für weitere)")
             # Vorschläge für die letzte ausgewählte PDF anzeigen
             self.update_suggestions_for_pdf(self.selected_pdf)
+
+    def _clear_selection(self):
+        """Hebt die aktuelle Auswahl vollständig auf."""
+        try:
+            # Alle Widgets deselektieren
+            for widget in self.pdf_widgets:
+                widget.selected = False
+
+            # Auswahl-Listen zurücksetzen
+            self.selected_pdf = None
+            self.selected_pdfs = []
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
+
+            # Vorschläge im Ordner-Baum leeren
+            if hasattr(self, 'folder_tree'):
+                self.folder_tree.clear_suggestions()
+
+            self.statusbar.showMessage("Auswahl aufgehoben", 2000)
+        except Exception as e:
+            print(f"Fehler beim Aufheben der Auswahl: {e}")
+
+    def _on_pdf_container_clicked(self, event):
+        """Wird aufgerufen wenn auf die leere Fläche im PDF-Container geklickt wird."""
+        # Nur bei linkem Mausklick
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Prüfen ob Klick auf leere Fläche (nicht auf ein Widget)
+            # Das Event kommt nur an wenn nicht auf ein Child-Widget geklickt wurde
+            if self.selected_pdf or self.selected_pdfs:
+                self._clear_selection()
 
     def update_suggestions_for_pdf(self, pdf_path: Path):
         """Aktualisiert die Vorschläge für eine ausgewählte PDF."""
