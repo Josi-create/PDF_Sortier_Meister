@@ -364,6 +364,122 @@ class FolderManager:
 
         return [p for p in parent.iterdir() if p.is_dir()]
 
+    def get_all_subfolders_recursive(
+        self,
+        parent: Path | str,
+        max_depth: int = 5
+    ) -> list[Path]:
+        """
+        Gibt alle Unterordner rekursiv zurück.
+
+        Args:
+            parent: Übergeordneter Ordner
+            max_depth: Maximale Tiefe
+
+        Returns:
+            Liste aller Unterordner (flach)
+        """
+        parent = Path(parent)
+        result = []
+
+        def recurse(folder: Path, depth: int):
+            if depth > max_depth:
+                return
+            try:
+                for p in folder.iterdir():
+                    if p.is_dir() and not p.name.startswith('.'):
+                        result.append(p)
+                        recurse(p, depth + 1)
+            except PermissionError:
+                pass
+
+        if parent.exists():
+            recurse(parent, 0)
+
+        return result
+
+    def get_folder_tree(
+        self,
+        parent: Path | str,
+        max_depth: int = 3
+    ) -> dict:
+        """
+        Gibt eine hierarchische Ordnerstruktur zurück.
+
+        Args:
+            parent: Übergeordneter Ordner
+            max_depth: Maximale Tiefe
+
+        Returns:
+            Dictionary mit Ordnerstruktur:
+            {
+                'path': Path,
+                'name': str,
+                'pdf_count': int,
+                'children': [...]
+            }
+        """
+        parent = Path(parent)
+
+        def build_tree(folder: Path, depth: int) -> dict:
+            pdf_count = len([
+                f for f in folder.iterdir()
+                if f.is_file() and f.suffix.lower() == '.pdf'
+            ]) if folder.exists() else 0
+
+            node = {
+                'path': folder,
+                'name': folder.name,
+                'pdf_count': pdf_count,
+                'children': []
+            }
+
+            if depth < max_depth:
+                try:
+                    subfolders = sorted([
+                        p for p in folder.iterdir()
+                        if p.is_dir() and not p.name.startswith('.')
+                    ])
+                    for subfolder in subfolders:
+                        node['children'].append(build_tree(subfolder, depth + 1))
+                except PermissionError:
+                    pass
+
+            return node
+
+        if not parent.exists():
+            return {'path': parent, 'name': parent.name, 'pdf_count': 0, 'children': []}
+
+        return build_tree(parent, 0)
+
+    def get_relative_path_from_root(
+        self,
+        folder: Path | str,
+        root_folders: list[Path]
+    ) -> str:
+        """
+        Gibt den relativen Pfad eines Ordners zu seinem Root zurück.
+
+        Args:
+            folder: Der Ordner
+            root_folders: Liste der Root-Ordner
+
+        Returns:
+            Relativer Pfad (z.B. "Steuer 2026/Banken")
+        """
+        folder = Path(folder)
+
+        for root in root_folders:
+            try:
+                # Prüfen ob folder unter root liegt
+                relative = folder.relative_to(root)
+                # Root-Name + relativer Pfad
+                return str(root.name / relative) if str(relative) != '.' else root.name
+            except ValueError:
+                continue
+
+        return folder.name
+
     def create_folder(self, parent: Path | str, name: str) -> Path:
         """
         Erstellt einen neuen Unterordner.
@@ -381,3 +497,17 @@ class FolderManager:
         new_folder.mkdir(parents=True, exist_ok=True)
 
         return new_folder
+
+    def ensure_folder_exists(self, folder_path: Path | str) -> Path:
+        """
+        Stellt sicher, dass ein Ordner existiert (erstellt ihn ggf.).
+
+        Args:
+            folder_path: Pfad zum Ordner
+
+        Returns:
+            Der Ordner-Pfad
+        """
+        folder_path = Path(folder_path)
+        folder_path.mkdir(parents=True, exist_ok=True)
+        return folder_path

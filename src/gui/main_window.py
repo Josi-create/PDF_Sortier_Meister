@@ -29,6 +29,7 @@ from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.folder_widget import FolderWidget
+from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.settings_dialog import SettingsDialog
 from src.core.file_manager import FileManager, FolderManager
@@ -164,22 +165,21 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
-        # Alle Ordner
-        all_folders_label = QLabel("Alle Zielordner:")
-        all_folders_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(all_folders_label)
+        # NEU: Ordner-Baumansicht für hierarchische Struktur
+        self.folder_tree = FolderTreeWidget()
+        self.folder_tree.folder_selected.connect(self.on_tree_folder_selected)
+        self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
+        self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+        self.folder_tree.folder_removed.connect(self.on_folder_remove)
+        layout.addWidget(self.folder_tree, stretch=1)
 
-        # Scroll-Bereich für Ordner
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-
+        # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
         self.folder_container = QWidget()
         self.folder_layout = QGridLayout(self.folder_container)
         self.folder_layout.setSpacing(10)
         self.folder_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-
-        scroll_area.setWidget(self.folder_container)
-        layout.addWidget(scroll_area)
+        self.folder_container.hide()  # Grid-Ansicht versteckt
+        layout.addWidget(self.folder_container)
 
         return panel
 
@@ -245,29 +245,24 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"{len(pdf_files)} PDFs geladen", 3000)
 
     def load_folders(self):
-        """Lädt die Zielordner."""
-        # Alte Widgets aus Layout entfernen
+        """Lädt die Zielordner in die Baumansicht."""
+        # Ordner laden
+        folders = self.folder_manager.target_folders
+
+        # Baumansicht aktualisieren
+        self.folder_tree.set_root_folders(folders)
+
+        # Alte Grid-Ansicht auch aktualisieren (für Kompatibilität)
         while self.folder_layout.count():
             item = self.folder_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         self.folder_widgets.clear()
 
-        # Ordner laden
-        folders = self.folder_manager.target_folders
-
         if not folders:
-            # Info anzeigen wenn keine Ordner konfiguriert
-            info_label = QLabel(
-                "Keine Zielordner konfiguriert.\n"
-                "Klicken Sie auf '+ Zielordner' um Ordner hinzuzufügen."
-            )
-            info_label.setStyleSheet("color: #666; padding: 20px;")
-            info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.folder_layout.addWidget(info_label, 0, 0)
             return
 
-        # Widgets erstellen
+        # Widgets für Grid erstellen (optional, versteckt)
         for i, folder_path in enumerate(folders):
             try:
                 folder_info = self.folder_manager.get_folder_info(folder_path)
@@ -443,15 +438,30 @@ class MainWindow(QMainWindow):
                 self.selected_pdf_keywords = analyzer.extract_keywords()
                 self.selected_pdf_dates = analyzer.extract_dates()
 
-            # Vorschläge vom Klassifikator holen
-            suggestions = self.classifier.suggest(
+            # Erkanntes Datum für Jahr-Erkennung
+            detected_date = None
+            if self.selected_pdf_dates and len(self.selected_pdf_dates) > 0:
+                first_date = self.selected_pdf_dates[0]
+                if hasattr(first_date, 'strftime'):
+                    detected_date = first_date.strftime("%Y-%m-%d")
+                else:
+                    detected_date = str(first_date)
+
+            # NEU: Vorschläge mit hierarchischen Pfaden holen
+            suggestions = self.classifier.suggest_with_subfolders(
                 text=self.selected_pdf_text,
                 keywords=self.selected_pdf_keywords,
+                detected_date=detected_date,
+                root_folders=self.folder_manager.target_folders,
                 max_suggestions=self.config.get("max_suggestions", 5),
             )
 
             # Vorschläge anzeigen
             self.display_suggestions(suggestions)
+
+            # NEU: Vorgeschlagene Ordner in der Baumansicht hervorheben
+            suggested_folders = [s.folder_path for s in suggestions]
+            self.folder_tree.set_suggestion_folders(suggested_folders)
 
             if suggestions:
                 self.statusbar.showMessage(
@@ -468,6 +478,7 @@ class MainWindow(QMainWindow):
             self.selected_pdf_keywords = None
             self.selected_pdf_dates = None
             self.clear_suggestions()
+            self.folder_tree.clear_suggestions()
             self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}", 3000)
 
     def display_suggestions(self, suggestions: list):
@@ -486,8 +497,17 @@ class MainWindow(QMainWindow):
             widget = FolderWidget(suggestion.folder_path, 0)
             widget.is_suggestion = True
 
-            # Tooltip mit Begründung und Konfidenz
-            tooltip = f"{suggestion.reason}\nKonfidenz: {int(suggestion.confidence * 100)}%"
+            # NEU: Relativen Pfad anzeigen wenn vorhanden
+            display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
+            # Kürzen wenn zu lang
+            if len(display_name) > 20:
+                display_name = "..." + display_name[-17:]
+            widget.name_label.setText(display_name)
+
+            # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
+            tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
+            tooltip += f"{suggestion.reason}\n"
+            tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%"
             widget.setToolTip(tooltip)
 
             # Konfidenz im Namen anzeigen
@@ -507,6 +527,9 @@ class MainWindow(QMainWindow):
             widget.deleteLater()
         self.suggestion_widgets.clear()
         self.no_suggestions_label.show()
+        # Auch Hervorhebungen in der Baumansicht entfernen
+        if hasattr(self, 'folder_tree'):
+            self.folder_tree.clear_suggestions()
 
     def on_suggestion_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Vorschlag angeklickt wird."""
@@ -515,10 +538,13 @@ class MainWindow(QMainWindow):
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
         """Verschiebt eine PDF und lernt aus der Entscheidung."""
+        # Relativen Pfad für die Baumansicht berechnen
+        relative_path = self.folder_tree.get_relative_path(folder_path)
+
         reply = QMessageBox.question(
             self,
             "PDF verschieben",
-            f"PDF '{pdf_path.name}' nach '{folder_path.name}' verschieben?",
+            f"PDF '{pdf_path.name}' nach '{relative_path}' verschieben?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -528,21 +554,22 @@ class MainWindow(QMainWindow):
                 # Datei verschieben
                 self.file_manager.move_file(pdf_path, folder_path)
 
-                # Aus der Entscheidung lernen
+                # Aus der Entscheidung lernen (mit relativem Pfad)
                 if self.selected_pdf_text:
                     self.classifier.learn(
                         pdf_path=pdf_path,
                         target_folder=folder_path,
                         extracted_text=self.selected_pdf_text,
                         keywords=self.selected_pdf_keywords,
+                        relative_path=relative_path,  # NEU: Relativer Pfad
                     )
                     training_count = self.classifier.get_training_count()
                     self.training_label.setText(f"Gelernt: {training_count}")
                     self.statusbar.showMessage(
-                        f"Verschoben und gelernt! ({training_count} Trainingsbeispiele)", 3000
+                        f"Verschoben nach '{relative_path}' und gelernt! ({training_count} Trainingsbeispiele)", 3000
                     )
                 else:
-                    self.statusbar.showMessage(f"Verschoben nach: {folder_path.name}", 3000)
+                    self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
 
                 # Zuletzt verwendet aktualisieren
                 self.config.add_to_last_used(folder_path)
@@ -552,7 +579,7 @@ class MainWindow(QMainWindow):
                 self.selected_pdf_text = None
                 self.selected_pdf_keywords = None
 
-                # Ansicht aktualisieren
+                # Ansicht aktualisieren (inkl. Baumansicht)
                 self.refresh_view()
 
             except Exception as e:
@@ -601,7 +628,7 @@ class MainWindow(QMainWindow):
                     confidence=0.7
                 ))
 
-        # Vorschläge generieren
+        # Vorschläge generieren (lokal)
         suggestions = generate_rename_suggestions(
             pdf_path=pdf_path,
             extracted_text=extracted_text,
@@ -609,6 +636,39 @@ class MainWindow(QMainWindow):
             dates=dates,
             learned_patterns=learned_patterns if learned_patterns else None
         )
+
+        # LLM-Vorschlag holen wenn verfügbar
+        if self.hybrid_classifier.is_llm_available():
+            self.statusbar.showMessage("Frage KI nach Vorschlag...")
+            QApplication.processEvents()
+            try:
+                # Datum als String für LLM
+                detected_date = None
+                if dates and len(dates) > 0:
+                    first_date = dates[0]
+                    if hasattr(first_date, 'strftime'):
+                        detected_date = first_date.strftime("%Y-%m-%d")
+                    else:
+                        detected_date = str(first_date)
+
+                llm_suggestions = self.hybrid_classifier.suggest_filename(
+                    text=extracted_text or "",
+                    current_filename=pdf_path.name,
+                    keywords=keywords,
+                    detected_date=detected_date,
+                    use_llm=True,
+                )
+
+                # LLM-Vorschläge zu den Suggestions hinzufügen
+                for llm_s in llm_suggestions:
+                    if llm_s.source == "llm":
+                        suggestions.insert(0, RenameSuggestion(
+                            name=llm_s.filename,
+                            reason=f"KI: {llm_s.reason}",
+                            confidence=llm_s.confidence
+                        ))
+            except Exception as e:
+                print(f"Fehler bei LLM-Vorschlag: {e}")
 
         # Dialog anzeigen
         dialog = RenameDialog(
@@ -628,8 +688,15 @@ class MainWindow(QMainWindow):
 
                     # Aus der Umbenennung lernen
                     detected_date = None
-                    if dates:
-                        detected_date = dates[0].strftime("%Y-%m-%d")
+                    if dates and len(dates) > 0:
+                        try:
+                            first_date = dates[0]
+                            if hasattr(first_date, 'strftime'):
+                                detected_date = first_date.strftime("%Y-%m-%d")
+                            else:
+                                detected_date = str(first_date)
+                        except Exception:
+                            pass
 
                     self.db.add_rename_entry(
                         original_filename=pdf_path.name,
@@ -690,6 +757,18 @@ class MainWindow(QMainWindow):
 
     def on_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner doppelgeklickt wird."""
+        # Ordner im Explorer öffnen
+        import os
+        os.startfile(str(folder_path))
+
+    def on_tree_folder_selected(self, folder_path: Path):
+        """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
+        # Wenn eine PDF ausgewählt ist, diese verschieben
+        if self.selected_pdf:
+            self.move_selected_pdf_to_folder(folder_path)
+
+    def on_tree_folder_double_clicked(self, folder_path: Path):
+        """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
         # Ordner im Explorer öffnen
         import os
         os.startfile(str(folder_path))

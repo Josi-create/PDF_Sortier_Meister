@@ -15,6 +15,7 @@ from src.ml.classifier import PDFClassifier, Suggestion, get_classifier
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProviderType
 from src.ml.claude_provider import ClaudeProvider
 from src.ml.openai_provider import OpenAIProvider
+from src.ml.poe_provider import PoeProvider
 from src.utils.config import get_config
 
 
@@ -89,6 +90,8 @@ class HybridClassifier:
                 self.llm_provider = ClaudeProvider(config)
             elif provider_type == "openai":
                 self.llm_provider = OpenAIProvider(config)
+            elif provider_type == "poe":
+                self.llm_provider = PoeProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -117,9 +120,15 @@ class HybridClassifier:
             self.llm_enabled = False
             return
 
+        # Standard-Modell je nach Provider
+        default_models = {
+            LLMProviderType.CLAUDE: "haiku",
+            LLMProviderType.OPENAI: "gpt-4o-mini",
+            LLMProviderType.POE: "GPT-4o-Mini",
+        }
         config = LLMConfig(
             api_key=api_key,
-            model=model or ("haiku" if provider_type == LLMProviderType.CLAUDE else "gpt-4o-mini"),
+            model=model or default_models.get(provider_type, ""),
         )
 
         try:
@@ -127,6 +136,8 @@ class HybridClassifier:
                 self.llm_provider = ClaudeProvider(config)
             elif provider_type == LLMProviderType.OPENAI:
                 self.llm_provider = OpenAIProvider(config)
+            elif provider_type == LLMProviderType.POE:
+                self.llm_provider = PoeProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -450,6 +461,8 @@ class HybridClassifier:
             return "Claude"
         if isinstance(self.llm_provider, OpenAIProvider):
             return "OpenAI"
+        if isinstance(self.llm_provider, PoeProvider):
+            return "Poe"
         return "Unbekannt"
 
 

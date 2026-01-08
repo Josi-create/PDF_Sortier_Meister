@@ -17,6 +17,7 @@ class LLMProviderType(Enum):
     """Unterstützte LLM-Anbieter."""
     CLAUDE = "claude"
     OPENAI = "openai"
+    POE = "poe"  # Poe.com - Zugang zu vielen Modellen
     NONE = "none"  # Kein LLM verwenden
 
 

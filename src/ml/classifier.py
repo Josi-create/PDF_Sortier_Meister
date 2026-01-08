@@ -3,9 +3,13 @@ Lernfähiger Klassifikator für PDF Sortier Meister
 
 Verwendet TF-IDF und Kosinus-Ähnlichkeit um PDFs basierend auf
 ihrem Textinhalt einem Zielordner zuzuordnen.
+
+Unterstützt hierarchische Ordnerstrukturen und Jahres-Muster-Erkennung.
 """
 
 import pickle
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
@@ -25,6 +29,7 @@ class Suggestion:
     folder_name: str
     confidence: float  # 0.0 - 1.0
     reason: str  # Begründung für den Vorschlag
+    relative_path: str = ""  # NEU: Relativer Pfad (z.B. "Steuer 2026/Banken")
 
 
 class PDFClassifier:
@@ -150,6 +155,7 @@ class PDFClassifier:
         keywords: list[str] = None,
         detected_date: str = None,
         new_filename: str = None,
+        relative_path: str = None,
     ):
         """
         Lernt aus einer Benutzerentscheidung.
@@ -161,6 +167,7 @@ class PDFClassifier:
             keywords: Erkannte Schlüsselwörter
             detected_date: Erkanntes Datum
             new_filename: Neuer Dateiname
+            relative_path: Relativer Pfad (z.B. "Steuer 2026/Banken")
         """
         # In Datenbank speichern
         self.db.add_sorting_entry(
@@ -173,6 +180,7 @@ class PDFClassifier:
             detected_date=detected_date,
             new_filename=new_filename,
             confidence=1.0,
+            target_relative_path=relative_path,
         )
 
         # Modell neu trainieren
@@ -328,6 +336,182 @@ class PDFClassifier:
     def get_training_count(self) -> int:
         """Gibt die Anzahl der Trainingseinträge zurück."""
         return self.db.get_entry_count()
+
+    def suggest_with_subfolders(
+        self,
+        text: str,
+        keywords: list[str] = None,
+        detected_date: str = None,
+        root_folders: list[Path] = None,
+        max_suggestions: int = 5,
+    ) -> list[Suggestion]:
+        """
+        Schlägt Zielordner inkl. Unterordner vor.
+
+        Berücksichtigt hierarchische Strukturen und aktualisiert Jahreszahlen.
+
+        Args:
+            text: Extrahierter Text aus der PDF
+            keywords: Erkannte Schlüsselwörter
+            detected_date: Erkanntes Datum (für Jahres-Erkennung)
+            root_folders: Liste der Root-Ordner
+            max_suggestions: Maximale Anzahl Vorschläge
+
+        Returns:
+            Liste von Sortiervorschlägen mit relativen Pfaden
+        """
+        # Basis-Vorschläge holen
+        base_suggestions = self.suggest(text, keywords, max_suggestions * 2)
+
+        # Aktuelles Jahr für Muster-Erkennung
+        current_year = datetime.now().year
+        detected_year = self._extract_year_from_date(detected_date)
+
+        suggestions = []
+        for s in base_suggestions:
+            # Relativen Pfad berechnen
+            relative_path = self._get_relative_path(s.folder_path, root_folders)
+
+            # Jahres-Muster aktualisieren
+            updated_path, updated_relative = self._update_year_pattern(
+                s.folder_path,
+                relative_path,
+                detected_year or current_year
+            )
+
+            # Neuen Suggestion mit rel. Pfad erstellen
+            updated_suggestion = Suggestion(
+                folder_path=updated_path,
+                folder_name=updated_path.name,
+                confidence=s.confidence,
+                reason=s.reason,
+                relative_path=updated_relative
+            )
+
+            # Duplikate vermeiden
+            if not any(
+                existing.folder_path == updated_suggestion.folder_path
+                for existing in suggestions
+            ):
+                suggestions.append(updated_suggestion)
+
+        return suggestions[:max_suggestions]
+
+    def _get_relative_path(
+        self,
+        folder_path: Path,
+        root_folders: list[Path] = None
+    ) -> str:
+        """Berechnet den relativen Pfad eines Ordners."""
+        if not root_folders:
+            return folder_path.name
+
+        for root in root_folders:
+            try:
+                relative = folder_path.relative_to(root)
+                if str(relative) == '.':
+                    return root.name
+                return f"{root.name}/{relative}"
+            except ValueError:
+                continue
+
+        return folder_path.name
+
+    def _extract_year_from_date(self, date_str: str) -> Optional[int]:
+        """Extrahiert das Jahr aus einem Datum-String."""
+        if not date_str:
+            return None
+
+        # Verschiedene Formate unterstützen
+        year_match = re.search(r'20\d{2}', date_str)
+        if year_match:
+            return int(year_match.group())
+        return None
+
+    def _update_year_pattern(
+        self,
+        folder_path: Path,
+        relative_path: str,
+        target_year: int
+    ) -> tuple[Path, str]:
+        """
+        NICHT automatisch Jahreszahlen aktualisieren!
+
+        Ein Dokument mit Datum 2026 kann trotzdem für "Steuer 2025" sein
+        (z.B. Lohnsteuerbescheinigung 2025 kommt im Januar 2026).
+
+        Stattdessen: Originalen Vorschlag behalten. Die Jahres-Variante
+        wird separat als Alternative angeboten wenn verfügbar.
+
+        Args:
+            folder_path: Absoluter Pfad
+            relative_path: Relativer Pfad
+            target_year: Zieljahr (aus Dokument-Datum)
+
+        Returns:
+            Tuple (Original-Pfad, Original-relativer-Pfad) - NICHT geändert
+        """
+        # Keine automatische Jahresanpassung mehr!
+        # Der Benutzer entscheidet selbst, ob das Dokument für 2025 oder 2026 ist.
+        return folder_path, relative_path
+
+    def suggest_subfolder_for_parent(
+        self,
+        parent_folder: Path,
+        text: str,
+        keywords: list[str] = None,
+        max_suggestions: int = 3,
+    ) -> list[Suggestion]:
+        """
+        Schlägt Unterordner für einen bereits gewählten Parent-Ordner vor.
+
+        Args:
+            parent_folder: Der übergeordnete Ordner
+            text: Extrahierter Text aus der PDF
+            keywords: Erkannte Schlüsselwörter
+            max_suggestions: Maximale Anzahl
+
+        Returns:
+            Liste von Unterordner-Vorschlägen
+        """
+        suggestions = []
+
+        # 1. Gelernte Unterordner aus der Datenbank
+        learned_subfolders = self.db.get_subfolders_for_parent(str(parent_folder))
+
+        for folder_entry in learned_subfolders[:max_suggestions]:
+            folder_path = Path(folder_entry.path)
+            if folder_path.exists():
+                confidence = min(folder_entry.usage_count / 50, 0.8)
+                suggestions.append(Suggestion(
+                    folder_path=folder_path,
+                    folder_name=folder_entry.name,
+                    confidence=confidence,
+                    reason=f"Gelernt ({folder_entry.usage_count}x verwendet)",
+                    relative_path=folder_entry.relative_path or folder_entry.name,
+                ))
+
+        # 2. Existierende Unterordner als Fallback
+        if len(suggestions) < max_suggestions:
+            try:
+                existing_subfolders = [
+                    p for p in parent_folder.iterdir()
+                    if p.is_dir() and not p.name.startswith('.')
+                ]
+
+                for subfolder in existing_subfolders[:max_suggestions - len(suggestions)]:
+                    if not any(s.folder_path == subfolder for s in suggestions):
+                        suggestions.append(Suggestion(
+                            folder_path=subfolder,
+                            folder_name=subfolder.name,
+                            confidence=0.2,
+                            reason="Existierender Unterordner",
+                            relative_path=subfolder.name,
+                        ))
+            except PermissionError:
+                pass
+
+        return suggestions[:max_suggestions]
 
 
 # Globale Klassifikator-Instanz

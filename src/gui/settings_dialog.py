@@ -83,7 +83,8 @@ class SettingsDialog(QDialog):
         self.provider_combo.addItems([
             "Keiner (nur lokale Klassifikation)",
             "Anthropic Claude",
-            "OpenAI GPT"
+            "OpenAI GPT",
+            "Poe.com (viele Modelle)",
         ])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
@@ -206,6 +207,21 @@ class SettingsDialog(QDialog):
                 "gpt-4-turbo (beste Qualität)",
             ])
             self.api_key_input.setPlaceholderText("sk-...")
+        elif index == 3:  # Poe
+            self.api_key_input.setEnabled(True)
+            self.model_combo.setEnabled(True)
+            self.test_button.setEnabled(True)
+            self.model_combo.addItems([
+                "GPT-4o-Mini (schnell & günstig)",
+                "GPT-4o (OpenAI)",
+                "GPT-5 (neuestes GPT)",
+                "Claude-3.5-Sonnet (Anthropic)",
+                "Claude-3-Haiku (schnell)",
+                "Gemini-2-Flash (Google)",
+                "Llama-3.1-405B (Meta)",
+                "Mistral-Large (Mistral)",
+            ])
+            self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
 
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
@@ -226,6 +242,8 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(1)
         elif provider == "openai":
             self.provider_combo.setCurrentIndex(2)
+        elif provider == "poe":
+            self.provider_combo.setCurrentIndex(3)
         else:
             self.provider_combo.setCurrentIndex(0)
 
@@ -257,8 +275,10 @@ class SettingsDialog(QDialog):
             provider = "none"
         elif provider_index == 1:
             provider = "claude"
-        else:
+        elif provider_index == 2:
             provider = "openai"
+        else:
+            provider = "poe"
 
         # Modellname extrahieren (vor dem Klammerteil)
         model_text = self.model_combo.currentText()
@@ -305,6 +325,8 @@ class SettingsDialog(QDialog):
                 self._test_claude(api_key, model)
             elif provider_index == 2:  # OpenAI
                 self._test_openai(api_key, model)
+            elif provider_index == 3:  # Poe
+                self._test_poe(api_key, model)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -384,6 +406,47 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(
                 self, "Fehler",
                 "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Verbindungsfehler: {str(e)}"
+            )
+
+    def _test_poe(self, api_key: str, model: str):
+        """Testet die Poe API."""
+        try:
+            import openai
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url="https://api.poe.com/v1",
+            )
+
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=20,  # Poe erfordert mindestens 16 Tokens
+                messages=[
+                    {"role": "user", "content": "Sage 'OK'"}
+                ]
+            )
+
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu Poe erfolgreich!\n"
+                f"Modell: {model}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except ImportError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai"
+            )
+        except openai.AuthenticationError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Ungültiger Poe API-Key.\n"
+                "Holen Sie Ihren Key von: poe.com/api_key"
             )
         except Exception as e:
             QMessageBox.critical(

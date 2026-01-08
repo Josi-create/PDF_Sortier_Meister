@@ -330,24 +330,33 @@ def generate_rename_suggestions(
         print(f"Fehler bei PDF-Analyse für Vorschläge: {e}")
 
     # 2. Datum-basierte Vorschläge
-    if dates:
-        date_str = dates[0].strftime("%Y-%m-%d")
+    if dates and len(dates) > 0:
+        try:
+            # Prüfen ob es ein datetime-Objekt ist oder ein String
+            first_date = dates[0]
+            if hasattr(first_date, 'strftime'):
+                date_str = first_date.strftime("%Y-%m-%d")
+            else:
+                # Falls es bereits ein String ist
+                date_str = str(first_date)
 
-        # Nur Datum
-        suggestions.append(RenameSuggestion(
-            name=f"{date_str}.pdf",
-            reason="Nur Datum",
-            confidence=0.3
-        ))
-
-        # Datum + Kategorie
-        if keywords:
-            category = keywords[0].capitalize()
+            # Nur Datum
             suggestions.append(RenameSuggestion(
-                name=f"{date_str} {category}.pdf",
-                reason=f"Datum + Kategorie ({category})",
-                confidence=0.5
+                name=f"{date_str}.pdf",
+                reason="Nur Datum",
+                confidence=0.3
             ))
+
+            # Datum + Kategorie
+            if keywords:
+                category = keywords[0].capitalize()
+                suggestions.append(RenameSuggestion(
+                    name=f"{date_str} {category}.pdf",
+                    reason=f"Datum + Kategorie ({category})",
+                    confidence=0.5
+                ))
+        except Exception as e:
+            print(f"Fehler bei Datum-Vorschlag: {e}")
 
     # 3. Kategorie-basierte Vorschläge
     if keywords:
@@ -369,11 +378,21 @@ def generate_rename_suggestions(
     # 4. Gelernte Muster anwenden
     if learned_patterns:
         for pattern in learned_patterns[:3]:  # Max 3 gelernte Vorschläge
-            suggestions.append(RenameSuggestion(
-                name=pattern.suggested_name,
-                reason=f"Gelernt: ähnlich zu {pattern.original_name}",
-                confidence=pattern.confidence
-            ))
+            # Pattern kann RenameSuggestion oder ein anderes Objekt sein
+            if isinstance(pattern, RenameSuggestion):
+                suggestions.append(pattern)
+            elif hasattr(pattern, 'name'):
+                suggestions.append(RenameSuggestion(
+                    name=pattern.name,
+                    reason=getattr(pattern, 'reason', 'Gelernt'),
+                    confidence=getattr(pattern, 'confidence', 0.7)
+                ))
+            elif hasattr(pattern, 'suggested_name'):
+                suggestions.append(RenameSuggestion(
+                    name=pattern.suggested_name,
+                    reason=f"Gelernt: ähnlich zu {getattr(pattern, 'original_name', 'unbekannt')}",
+                    confidence=getattr(pattern, 'confidence', 0.7)
+                ))
 
     # Duplikate entfernen (nach Name)
     seen_names = set()

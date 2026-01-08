@@ -39,6 +39,9 @@ class SortingHistory(Base):
     target_folder = Column(String(1000), nullable=False)
     target_folder_name = Column(String(255), nullable=False)
 
+    # NEU: Relativer Pfad für hierarchische Struktur (z.B. "Steuer 2026/Banken")
+    target_relative_path = Column(String(1000), nullable=True)
+
     # Neuer Dateiname (falls umbenannt)
     new_filename = Column(String(500), nullable=True)
 
@@ -55,6 +58,12 @@ class TargetFolder(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     path = Column(String(1000), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
+
+    # NEU: Relativer Pfad für hierarchische Struktur
+    relative_path = Column(String(1000), nullable=True)
+    # NEU: Übergeordneter Ordner (für Hierarchie-Lernen)
+    parent_path = Column(String(1000), nullable=True)
+
     usage_count = Column(Integer, default=0)
     last_used = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -107,12 +116,48 @@ class Database:
         # Tabellen erstellen
         Base.metadata.create_all(self.engine)
 
+        # Migration: Neue Spalten hinzufügen (falls nicht vorhanden)
+        self._migrate_database()
+
         # Session-Factory
         self.Session = sessionmaker(bind=self.engine)
 
     def get_session(self):
         """Erstellt eine neue Datenbank-Session."""
         return self.Session()
+
+    def _migrate_database(self):
+        """
+        Führt Datenbank-Migrationen durch.
+
+        Fügt neue Spalten hinzu, falls sie in einer älteren Datenbank fehlen.
+        """
+        from sqlalchemy import text
+
+        with self.engine.connect() as conn:
+            # Prüfe und füge fehlende Spalten hinzu
+            migrations = [
+                # (Tabelle, Spalte, SQL-Typ)
+                ("sorting_history", "target_relative_path", "VARCHAR(1000)"),
+                ("target_folders", "relative_path", "VARCHAR(1000)"),
+                ("target_folders", "parent_path", "VARCHAR(1000)"),
+            ]
+
+            for table, column, sql_type in migrations:
+                try:
+                    # Prüfen ob Spalte existiert
+                    result = conn.execute(text(f"PRAGMA table_info({table})"))
+                    columns = [row[1] for row in result.fetchall()]
+
+                    if column not in columns:
+                        # Spalte hinzufügen
+                        conn.execute(text(
+                            f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"
+                        ))
+                        conn.commit()
+                        print(f"Migration: Spalte '{column}' zu '{table}' hinzugefügt")
+                except Exception as e:
+                    print(f"Migration-Warnung für {table}.{column}: {e}")
 
     # === Sortierhistorie ===
 
@@ -127,6 +172,7 @@ class Database:
         detected_date: str = None,
         new_filename: str = None,
         confidence: float = 1.0,
+        target_relative_path: str = None,
     ) -> SortingHistory:
         """
         Fügt einen neuen Eintrag zur Sortierhistorie hinzu.
@@ -141,6 +187,7 @@ class Database:
             detected_date: Erkanntes Datum
             new_filename: Neuer Dateiname (falls umbenannt)
             confidence: Konfidenz (1.0 = Benutzerentscheidung)
+            target_relative_path: Relativer Pfad (z.B. "Steuer 2026/Banken")
 
         Returns:
             Der erstellte Eintrag
@@ -152,6 +199,7 @@ class Database:
                 original_path=original_path,
                 target_folder=target_folder,
                 target_folder_name=target_folder_name,
+                target_relative_path=target_relative_path,
                 extracted_text=extracted_text,
                 keywords=",".join(keywords) if keywords else None,
                 detected_date=detected_date,
@@ -161,7 +209,9 @@ class Database:
             session.add(entry)
 
             # Zielordner-Statistik aktualisieren
-            self._update_folder_stats(session, target_folder, target_folder_name)
+            self._update_folder_stats(
+                session, target_folder, target_folder_name, target_relative_path
+            )
 
             session.commit()
             return entry
@@ -198,7 +248,13 @@ class Database:
 
     # === Zielordner-Statistiken ===
 
-    def _update_folder_stats(self, session, folder_path: str, folder_name: str):
+    def _update_folder_stats(
+        self,
+        session,
+        folder_path: str,
+        folder_name: str,
+        relative_path: str = None
+    ):
         """Aktualisiert die Statistiken eines Zielordners."""
         folder = session.query(TargetFolder).filter(
             TargetFolder.path == folder_path
@@ -207,10 +263,19 @@ class Database:
         if folder:
             folder.usage_count += 1
             folder.last_used = datetime.utcnow()
+            # Relativen Pfad aktualisieren wenn vorhanden
+            if relative_path and not folder.relative_path:
+                folder.relative_path = relative_path
         else:
+            # Parent-Pfad ermitteln
+            from pathlib import Path
+            parent_path = str(Path(folder_path).parent)
+
             folder = TargetFolder(
                 path=folder_path,
                 name=folder_name,
+                relative_path=relative_path,
+                parent_path=parent_path,
                 usage_count=1,
             )
             session.add(folder)
@@ -231,6 +296,72 @@ class Database:
         try:
             return session.query(TargetFolder).order_by(
                 TargetFolder.usage_count.desc()
+            ).limit(limit).all()
+        finally:
+            session.close()
+
+    def get_subfolders_for_parent(self, parent_path: str) -> list[TargetFolder]:
+        """
+        Gibt alle genutzten Unterordner eines Parent-Ordners zurück.
+
+        Args:
+            parent_path: Pfad zum übergeordneten Ordner
+
+        Returns:
+            Liste der Unterordner (nach Nutzung sortiert)
+        """
+        session = self.get_session()
+        try:
+            return session.query(TargetFolder).filter(
+                TargetFolder.parent_path == parent_path
+            ).order_by(
+                TargetFolder.usage_count.desc()
+            ).all()
+        finally:
+            session.close()
+
+    def get_folders_by_relative_path_pattern(
+        self, pattern: str, limit: int = 10
+    ) -> list[TargetFolder]:
+        """
+        Sucht Ordner deren relativer Pfad ein Muster enthält.
+
+        Args:
+            pattern: Suchmuster (z.B. "Steuer" oder "Banken")
+            limit: Maximale Anzahl
+
+        Returns:
+            Liste passender Ordner
+        """
+        session = self.get_session()
+        try:
+            return session.query(TargetFolder).filter(
+                TargetFolder.relative_path.ilike(f"%{pattern}%")
+            ).order_by(
+                TargetFolder.usage_count.desc()
+            ).limit(limit).all()
+        finally:
+            session.close()
+
+    def get_sorting_history_by_relative_path(
+        self, relative_path: str, limit: int = 10
+    ) -> list[SortingHistory]:
+        """
+        Gibt Sortierhistorie für einen relativen Pfad zurück.
+
+        Args:
+            relative_path: Der relative Pfad (z.B. "Steuer 2026/Banken")
+            limit: Maximale Anzahl
+
+        Returns:
+            Liste der Sortierhistorie-Einträge
+        """
+        session = self.get_session()
+        try:
+            return session.query(SortingHistory).filter(
+                SortingHistory.target_relative_path == relative_path
+            ).order_by(
+                SortingHistory.created_at.desc()
             ).limit(limit).all()
         finally:
             session.close()
