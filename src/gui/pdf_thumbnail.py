@@ -52,7 +52,9 @@ class PDFThumbnailWidget(QFrame):
     rename_requested = pyqtSignal(Path)  # Umbenennung angefordert
     delete_requested = pyqtSignal(Path)  # Löschen angefordert
     move_requested = pyqtSignal(Path)  # Verschieben angefordert
+    copy_requested = pyqtSignal(Path)  # Kopie erstellen angefordert
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
+    thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     def __init__(self, pdf_path: Path, parent=None):
         super().__init__(parent)
@@ -123,6 +125,7 @@ class PDFThumbnailWidget(QFrame):
         self.thumbnail_label.setStyleSheet(
             "background-color: white; border: 1px solid #ddd; border-radius: 3px;"
         )
+        self.thumbnail_ready.emit()
 
     def _on_thumbnail_error(self, error: str):
         """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
@@ -130,6 +133,7 @@ class PDFThumbnailWidget(QFrame):
         self.thumbnail_label.setStyleSheet(
             "background-color: #ffe0e0; border: 1px solid #ffaaaa; border-radius: 3px; color: #cc0000;"
         )
+        self.thumbnail_ready.emit()  # Auch bei Fehler Signal senden
 
     def _update_style(self):
         """Aktualisiert den Style basierend auf dem Auswahlstatus."""
@@ -215,6 +219,10 @@ class PDFThumbnailWidget(QFrame):
         # Verschieben
         move_action = menu.addAction("Verschieben nach...")
         move_action.triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
+
+        # Kopie erstellen
+        copy_action = menu.addAction("Kopie erstellen")
+        copy_action.triggered.connect(lambda: self.copy_requested.emit(self.pdf_path))
 
         menu.addSeparator()
 

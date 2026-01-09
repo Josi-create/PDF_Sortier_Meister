@@ -5,7 +5,7 @@ Hauptfenster der PDF Sortier Meister Anwendung
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -41,6 +41,9 @@ from src.ml.hybrid_classifier import get_hybrid_classifier
 
 class MainWindow(QMainWindow):
     """Hauptfenster der Anwendung."""
+
+    # Signal das gefeuert wird wenn alle Thumbnails geladen sind
+    thumbnails_loaded = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -158,10 +161,35 @@ class MainWindow(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
-        # Überschrift
+        # Überschrift mit Buttons
+        header_layout = QHBoxLayout()
         header = QLabel("Zielordner")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        layout.addWidget(header)
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+
+        # Button: Zielordner hinzufügen
+        add_folder_btn = QPushButton("+ Hinzufügen")
+        add_folder_btn.setToolTip("Neuen Zielordner hinzufügen")
+        add_folder_btn.setStyleSheet("padding: 3px 8px;")
+        add_folder_btn.clicked.connect(self.add_target_folder)
+        header_layout.addWidget(add_folder_btn)
+
+        # Button: Zielordner neu aufbauen
+        rebuild_btn = QPushButton("↻ Neu laden")
+        rebuild_btn.setToolTip("Zielordner-Ansicht neu aufbauen (Lerninhalte bleiben erhalten)")
+        rebuild_btn.setStyleSheet("padding: 3px 8px;")
+        rebuild_btn.clicked.connect(self.rebuild_folder_view)
+        header_layout.addWidget(rebuild_btn)
+
+        # Button: Zielordner-Ansicht leeren
+        clear_btn = QPushButton("🗑 Leeren")
+        clear_btn.setToolTip("Zielordner-Ansicht leeren (Lerninhalte bleiben erhalten)")
+        clear_btn.setStyleSheet("padding: 3px 8px;")
+        clear_btn.clicked.connect(self.clear_folder_view)
+        header_layout.addWidget(clear_btn)
+
+        layout.addLayout(header_layout)
 
         # Vorschläge-Bereich
         self.suggestions_label = QLabel("Vorgeschlagene Ziele:")
@@ -246,6 +274,10 @@ class MainWindow(QMainWindow):
         self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
 
+        # Thumbnail-Ladetracking initialisieren
+        self._pending_thumbnails = len(pdf_files)
+        self._thumbnails_signal_emitted = False
+
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
             widget = PDFThumbnailWidget(pdf_path)
@@ -256,12 +288,20 @@ class MainWindow(QMainWindow):
             widget.rename_requested.connect(self.on_pdf_rename)
             widget.delete_requested.connect(self.on_pdf_delete)
             widget.move_requested.connect(self.on_pdf_move)
+            widget.copy_requested.connect(self.on_pdf_copy)
             widget.batch_rename_requested.connect(self.on_batch_rename)
+            # Thumbnail-Ladetracking
+            widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
 
             row = i // 3
             col = i % 3
             self.pdf_layout.addWidget(widget, row, col)
             self.pdf_widgets.append(widget)
+
+        # Falls keine PDFs, Signal sofort senden
+        if self._pending_thumbnails == 0:
+            self.thumbnails_loaded.emit()
+            self._thumbnails_signal_emitted = True
 
         # Statusleiste aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(pdf_files)}")
@@ -275,6 +315,13 @@ class MainWindow(QMainWindow):
         """Startet das Pre-Caching für alle PDFs im Hintergrund."""
         self.pdf_cache.pre_cache(pdf_files)
         self.statusbar.showMessage(f"Analysiere {len(pdf_files)} PDFs im Hintergrund...", 2000)
+
+    def _on_thumbnail_loaded(self):
+        """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
+        self._pending_thumbnails -= 1
+        if self._pending_thumbnails <= 0 and not self._thumbnails_signal_emitted:
+            self._thumbnails_signal_emitted = True
+            self.thumbnails_loaded.emit()
 
     def remove_pdf_widget(self, pdf_path: Path):
         """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh)."""
@@ -361,6 +408,116 @@ class MainWindow(QMainWindow):
             col = i % 4
             self.folder_layout.addWidget(widget, row, col)
             self.folder_widgets.append(widget)
+
+    def rebuild_folder_view(self):
+        """
+        Baut die Zielordner-Ansicht komplett neu auf.
+
+        Die Lerninhalte (Datenbank) bleiben erhalten, nur die Ansicht wird
+        neu eingelesen. Nützlich wenn:
+        - Der Zielordner gewechselt wurde
+        - Die Ordnerstruktur sich geändert hat
+        - Neue Ordner angelegt wurden
+        """
+        # Bestätigungsdialog
+        reply = QMessageBox.question(
+            self,
+            "Zielordner neu laden",
+            "Möchten Sie die Zielordner-Ansicht neu aufbauen?\n\n"
+            "• Die Ordnerstruktur wird neu eingelesen\n"
+            "• Gelernte Zuordnungen bleiben erhalten\n"
+            "• Nicht mehr existierende Ordner werden entfernt",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Aktuelle Zielordner aus Config holen
+        target_folders = self.config.get_target_folders()
+
+        # Prüfen welche noch existieren
+        existing_folders = [f for f in target_folders if f.exists()]
+        removed_count = len(target_folders) - len(existing_folders)
+
+        # Ordner neu laden
+        self.folder_manager.load_folders(existing_folders)
+
+        # Config aktualisieren (nur existierende Ordner behalten)
+        if removed_count > 0:
+            # Nicht mehr existierende Ordner aus Config entfernen
+            for folder in target_folders:
+                if folder not in existing_folders:
+                    self.config.remove_target_folder(folder)
+
+        # Ansicht neu aufbauen
+        self.load_folders()
+
+        # Classifier-Cache invalidieren (damit neue Ordnerstruktur erkannt wird)
+        if hasattr(self, 'classifier'):
+            self.classifier._folder_cache = {}
+            self.classifier._folder_cache_roots = []
+
+        # Statusmeldung
+        if removed_count > 0:
+            self.statusbar.showMessage(
+                f"Zielordner neu geladen. {removed_count} nicht mehr existierende Ordner entfernt.",
+                5000
+            )
+        else:
+            self.statusbar.showMessage("Zielordner-Ansicht neu aufgebaut.", 3000)
+
+    def clear_folder_view(self):
+        """
+        Leert die Zielordner-Ansicht komplett.
+
+        Die Lerninhalte (Datenbank) bleiben erhalten, nur die Ansicht wird
+        geleert. Danach können Zielordner manuell neu hinzugefügt werden.
+        """
+        # Bestätigungsdialog
+        reply = QMessageBox.question(
+            self,
+            "Zielordner-Ansicht leeren",
+            "Möchten Sie alle Zielordner aus der Ansicht entfernen?\n\n"
+            "• Die Ansicht wird geleert\n"
+            "• Gelernte Zuordnungen bleiben erhalten\n"
+            "• Sie können danach neue Zielordner hinzufügen",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # Ordner aus Config entfernen (einzeln, da set_target_folders nicht existiert)
+            current_folders = self.config.get_target_folders()
+            for folder in current_folders:
+                self.config.remove_target_folder(folder)
+
+            # FolderManager leeren
+            self.folder_manager.load_folders([])
+
+            # Ansicht leeren
+            self.folder_tree.set_root_folders([])
+
+            # Grid-Ansicht auch leeren
+            while self.folder_layout.count():
+                item = self.folder_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self.folder_widgets.clear()
+
+            # Classifier-Cache invalidieren
+            if hasattr(self, 'classifier'):
+                self.classifier._folder_cache = {}
+                self.classifier._folder_cache_roots = []
+
+            self.statusbar.showMessage("Zielordner-Ansicht geleert. Fügen Sie neue Zielordner hinzu.", 5000)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Fehler beim Leeren der Ansicht:\n{e}")
 
     def setup_menu(self):
         """Erstellt die Menüleiste."""
@@ -766,7 +923,10 @@ class MainWindow(QMainWindow):
 
     def on_suggestion_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Vorschlag angeklickt wird."""
-        if self.selected_pdf:
+        # Multi-Selektion: Mehrere PDFs verschieben
+        if len(self.selected_pdfs) > 1:
+            self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
+        elif self.selected_pdf:
             self.move_pdf_to_folder_and_learn(self.selected_pdf, folder_path)
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
@@ -818,6 +978,87 @@ class MainWindow(QMainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+
+    def move_multiple_pdfs_to_folder(self, pdf_paths: list[Path], folder_path: Path):
+        """Verschiebt mehrere PDFs in einen Zielordner."""
+        relative_path = self.folder_tree.get_relative_path(folder_path)
+
+        # Bestätigung
+        reply = QMessageBox.question(
+            self,
+            "Mehrere PDFs verschieben",
+            f"{len(pdf_paths)} PDFs nach '{relative_path}' verschieben?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        moved_count = 0
+        moved_pdfs = []
+        errors = []
+
+        for pdf_path in pdf_paths:
+            try:
+                # Datei verschieben
+                new_path = self.file_manager.move_file(pdf_path, folder_path)
+
+                # Cache-Eintrag migrieren
+                self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+
+                moved_count += 1
+                moved_pdfs.append(pdf_path)
+
+                # Versuchen zu lernen (wenn PDF analysiert wurde)
+                cached_result = self.pdf_cache.get(new_path)
+                if cached_result and cached_result.extracted_text:
+                    self.classifier.learn(
+                        pdf_path=pdf_path,
+                        target_folder=folder_path,
+                        extracted_text=cached_result.extracted_text,
+                        keywords=cached_result.keywords,
+                        relative_path=relative_path,
+                    )
+
+            except Exception as e:
+                errors.append(f"{pdf_path.name}: {e}")
+
+        # Status aktualisieren
+        training_count = self.classifier.get_training_count()
+        self.training_label.setText(f"Gelernt: {training_count}")
+
+        if moved_count > 0:
+            self.statusbar.showMessage(
+                f"{moved_count} PDFs nach '{relative_path}' verschoben", 3000
+            )
+
+        # Fehler anzeigen
+        if errors:
+            QMessageBox.warning(
+                self,
+                "Teilweise fehlgeschlagen",
+                f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
+            )
+
+        # Verschobene PDF-Widgets entfernen
+        for moved_pdf in moved_pdfs:
+            self.remove_pdf_widget(moved_pdf)
+
+        # Auswahl zurücksetzen
+        self.selected_pdf = None
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdfs = []
+
+        # Zuletzt verwendet aktualisieren
+        self.config.add_to_last_used(folder_path)
+
+        # Ordneransicht aktualisieren
+        self.load_folders()
+
+        # Vorschläge leeren
+        self.clear_suggestions()
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
@@ -1018,6 +1259,32 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
+    def on_pdf_copy(self, pdf_path: Path):
+        """Erstellt eine Kopie der PDF im selben Verzeichnis mit Suffix '_kopie'."""
+        try:
+            import shutil
+            # Neuen Dateinamen erstellen: name_kopie.pdf
+            new_name = pdf_path.stem + "_kopie" + pdf_path.suffix
+            new_path = pdf_path.parent / new_name
+
+            # Falls Datei bereits existiert, nummerieren
+            counter = 2
+            while new_path.exists():
+                new_name = f"{pdf_path.stem}_kopie_{counter}{pdf_path.suffix}"
+                new_path = pdf_path.parent / new_name
+                counter += 1
+
+            # Datei kopieren
+            shutil.copy2(pdf_path, new_path)
+
+            self.statusbar.showMessage(f"Kopie erstellt: {new_name}", 3000)
+
+            # PDF-Ansicht aktualisieren um neue Datei anzuzeigen
+            self.load_pdfs()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Kopieren fehlgeschlagen:\n{e}")
+
     def on_batch_rename(self):
         """
         Benennt alle ausgewählten PDFs automatisch mit LLM-Vorschlägen um.
@@ -1197,8 +1464,10 @@ class MainWindow(QMainWindow):
 
     def on_tree_folder_selected(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
-        # Wenn eine PDF ausgewählt ist, diese verschieben
-        if self.selected_pdf:
+        # Multi-Selektion: Mehrere PDFs verschieben
+        if len(self.selected_pdfs) > 1:
+            self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
+        elif self.selected_pdf:
             self.move_selected_pdf_to_folder(folder_path)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
@@ -1297,6 +1566,18 @@ class MainWindow(QMainWindow):
         self.config.remove_target_folder(folder_path)
         self.folder_manager.remove_folder(folder_path)
         self.load_folders()
+
+        # Auch aus den Vorschlag-Widgets entfernen (grüne Buttons)
+        for widget in self.suggestion_widgets[:]:  # Kopie der Liste für sichere Iteration
+            if widget.folder_path == folder_path:
+                self.suggestions_layout.removeWidget(widget)
+                widget.deleteLater()
+                self.suggestion_widgets.remove(widget)
+
+        # Falls keine Vorschläge mehr übrig, Platzhalter anzeigen
+        if not self.suggestion_widgets:
+            self.no_suggestions_label.show()
+
         self.statusbar.showMessage(f"Ordner entfernt: {folder_path.name}", 3000)
 
     def move_selected_pdf_to_folder(self, folder_path: Path):

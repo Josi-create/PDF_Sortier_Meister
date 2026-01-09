@@ -223,9 +223,124 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(cache_group)
 
+        # Debug-Bereich
+        debug_group = QGroupBox("Debug / Zurücksetzen")
+        debug_layout = QVBoxLayout(debug_group)
+
+        debug_info = QLabel(
+            "<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>"
+        )
+        debug_info.setStyleSheet("color: #cc0000;")
+        debug_layout.addWidget(debug_info)
+
+        debug_buttons_layout = QHBoxLayout()
+
+        self.clear_learning_button = QPushButton("🗑 Gelernte Ordnervorschläge löschen")
+        self.clear_learning_button.setToolTip(
+            "Löscht alle gelernten Zuordnungen (Sortierhistorie, Ordnerstatistiken).\n"
+            "Das Programm startet danach quasi 'neu' ohne Lernfortschritt."
+        )
+        self.clear_learning_button.clicked.connect(self._clear_learned_data)
+        debug_buttons_layout.addWidget(self.clear_learning_button)
+
+        debug_buttons_layout.addStretch()
+        debug_layout.addLayout(debug_buttons_layout)
+
+        # Statistik-Label
+        self.learning_stats_label = QLabel("")
+        debug_layout.addWidget(self.learning_stats_label)
+        self._update_learning_stats()
+
+        layout.addWidget(debug_group)
+
         layout.addStretch()
 
         return tab
+
+    def _clear_learned_data(self):
+        """Löscht alle gelernten Ordnervorschläge aus der Datenbank."""
+        try:
+            from src.utils.database import get_database
+
+            db = get_database()
+            entry_count = db.get_entry_count()
+            rename_count = db.get_rename_count()
+
+            reply = QMessageBox.warning(
+                self,
+                "Gelernte Daten löschen",
+                f"Möchten Sie wirklich ALLE gelernten Daten löschen?\n\n"
+                f"• {entry_count} Sortierhistorie-Einträge\n"
+                f"• {rename_count} Umbenennungs-Einträge\n"
+                f"• Alle Ordnerstatistiken\n\n"
+                f"Diese Aktion kann NICHT rückgängig gemacht werden!",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            # Nochmal bestätigen
+            confirm = QMessageBox.question(
+                self,
+                "Wirklich löschen?",
+                "Sind Sie SICHER? Alle Lernfortschritte gehen verloren!",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
+            # Datenbank-Tabellen leeren
+            session = db.get_session()
+            try:
+                from src.utils.database import SortingHistory, TargetFolder, RenameHistory
+
+                session.query(SortingHistory).delete()
+                session.query(TargetFolder).delete()
+                session.query(RenameHistory).delete()
+                session.commit()
+
+                # Classifier-Modell auch löschen
+                from src.ml.classifier import get_classifier
+                classifier = get_classifier()
+                if classifier.model_path.exists():
+                    classifier.model_path.unlink()
+                classifier._retrain()  # Leeres Modell erstellen
+
+                self._update_learning_stats()
+
+                QMessageBox.information(
+                    self,
+                    "Daten gelöscht",
+                    "Alle gelernten Ordnervorschläge wurden gelöscht.\n"
+                    "Das Programm startet jetzt ohne Lernfortschritt."
+                )
+
+            finally:
+                session.close()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Fehler",
+                f"Fehler beim Löschen der Daten:\n{e}"
+            )
+
+    def _update_learning_stats(self):
+        """Aktualisiert die Lernstatistik-Anzeige."""
+        try:
+            from src.utils.database import get_database
+            db = get_database()
+            entry_count = db.get_entry_count()
+            rename_count = db.get_rename_count()
+            self.learning_stats_label.setText(
+                f"Aktuell: {entry_count} Sortierungen, {rename_count} Umbenennungen gelernt"
+            )
+        except Exception:
+            self.learning_stats_label.setText("")
 
     def _clear_cache(self):
         """Löscht den PDF-Analyse-Cache."""

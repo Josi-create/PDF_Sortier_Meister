@@ -402,6 +402,68 @@ class Database:
         finally:
             session.close()
 
+    def get_learned_folder_names(self) -> dict[str, int]:
+        """
+        Gibt alle gelernten Ordnernamen mit ihrer Nutzungshäufigkeit zurück.
+
+        Diese Methode ist unabhängig von absoluten Pfaden - sie gibt nur
+        die Ordnernamen zurück, die gelernt wurden.
+
+        Returns:
+            Dict mit Ordnername -> Anzahl der Nutzungen
+        """
+        session = self.get_session()
+        try:
+            folder_counts: dict[str, int] = {}
+            for entry in session.query(SortingHistory).all():
+                name = entry.target_folder_name
+                if name:
+                    folder_counts[name] = folder_counts.get(name, 0) + 1
+            return folder_counts
+        finally:
+            session.close()
+
+    def get_learned_relative_paths(self) -> dict[str, int]:
+        """
+        Gibt alle gelernten relativen Pfade mit ihrer Nutzungshäufigkeit zurück.
+
+        Relativer Pfad z.B. "Steuer 2026/Banken" - unabhängig vom Root-Ordner.
+
+        Returns:
+            Dict mit relativer Pfad -> Anzahl der Nutzungen
+        """
+        session = self.get_session()
+        try:
+            path_counts: dict[str, int] = {}
+            for entry in session.query(SortingHistory).all():
+                rel_path = entry.target_relative_path
+                if rel_path:
+                    path_counts[rel_path] = path_counts.get(rel_path, 0) + 1
+            return path_counts
+        finally:
+            session.close()
+
+    def get_folder_name_to_keywords_mapping(self) -> dict[str, set[str]]:
+        """
+        Gibt ein Mapping von Ordnernamen zu gelernten Keywords zurück.
+
+        Returns:
+            Dict mit Ordnername -> Set von Keywords die zu diesem Ordner führten
+        """
+        session = self.get_session()
+        try:
+            folder_keywords: dict[str, set[str]] = {}
+            for entry in session.query(SortingHistory).all():
+                name = entry.target_folder_name
+                if name and entry.keywords:
+                    if name not in folder_keywords:
+                        folder_keywords[name] = set()
+                    keywords = entry.keywords.lower().split(",")
+                    folder_keywords[name].update(k.strip() for k in keywords if k.strip())
+            return folder_keywords
+        finally:
+            session.close()
+
     # === Umbenennungshistorie ===
 
     def add_rename_entry(

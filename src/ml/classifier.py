@@ -52,8 +52,79 @@ class PDFClassifier:
         # Modell-Pfad
         self.model_path = self.config.model_dir / "classifier.pkl"
 
+        # Cache für Ordner-Suche in den Zielordnern
+        self._folder_cache: dict[str, Path] = {}
+        self._folder_cache_roots: list[Path] = []
+
         # Modell laden oder neu erstellen
         self._load_or_create_model()
+
+    def _find_folder_by_name(self, folder_name: str) -> Optional[Path]:
+        """
+        Sucht einen Ordner nach Namen in allen Zielordnern.
+
+        Diese Methode ermöglicht das Matching von gelernten Ordnernamen
+        auf einen neuen Zielordner - die Lerninhalte bleiben erhalten.
+
+        Args:
+            folder_name: Name des gesuchten Ordners
+
+        Returns:
+            Pfad zum gefundenen Ordner oder None
+        """
+        # Aktuelle Zielordner holen
+        target_folders = self.config.get_target_folders()
+
+        if not target_folders:
+            return None
+
+        # Cache invalidieren wenn Zielordner sich geändert haben
+        if self._folder_cache_roots != target_folders:
+            self._folder_cache = {}
+            self._folder_cache_roots = target_folders.copy()
+            self._build_folder_cache(target_folders)
+
+        return self._folder_cache.get(folder_name.lower())
+
+    def _build_folder_cache(self, root_folders: list[Path]):
+        """Baut den Ordner-Cache für schnelle Suche auf."""
+        self._folder_cache = {}
+        for root_folder in root_folders:
+            if not root_folder.exists():
+                continue
+            try:
+                # Root-Ordner selbst auch hinzufügen
+                self._folder_cache[root_folder.name.lower()] = root_folder
+                # Alle Unterordner
+                for folder in root_folder.rglob("*"):
+                    if folder.is_dir() and not folder.name.startswith('.'):
+                        # Lowercase für case-insensitive Matching
+                        self._folder_cache[folder.name.lower()] = folder
+            except PermissionError:
+                pass
+
+    def _resolve_folder_path(self, learned_folder: str, learned_name: str) -> Optional[Path]:
+        """
+        Löst einen gelernten Ordnerpfad auf - entweder direkt oder per Namen.
+
+        Args:
+            learned_folder: Der gelernte absolute Pfad
+            learned_name: Der gelernte Ordnername
+
+        Returns:
+            Pfad zum existierenden Ordner oder None
+        """
+        # 1. Versuche den originalen Pfad
+        original_path = Path(learned_folder)
+        if original_path.exists():
+            return original_path
+
+        # 2. Suche nach Ordnernamen im aktuellen Zielordner
+        found_path = self._find_folder_by_name(learned_name)
+        if found_path:
+            return found_path
+
+        return None
 
     def _load_or_create_model(self):
         """Lädt ein bestehendes Modell oder erstellt ein neues."""
@@ -252,26 +323,28 @@ class PDFClassifier:
         # Ähnlichkeiten berechnen
         similarities = cosine_similarity(query_vector, self.tfidf_matrix)[0]
 
-        # Beste Übereinstimmungen finden
-        folder_scores: dict[str, list[float]] = {}
+        # Beste Übereinstimmungen finden - gruppiert nach Ordnernamen
+        # (nicht nach absolutem Pfad, damit Wechsel des Zielordners funktioniert)
+        folder_scores: dict[str, tuple[str, list[float]]] = {}  # name -> (learned_path, scores)
         for idx, similarity in enumerate(similarities):
             if similarity > 0.1:  # Mindest-Ähnlichkeit
                 entry = self.training_entries[idx]
-                folder = entry.target_folder
-                if folder not in folder_scores:
-                    folder_scores[folder] = []
-                folder_scores[folder].append(similarity)
+                folder_name = entry.target_folder_name
+                if folder_name not in folder_scores:
+                    folder_scores[folder_name] = (entry.target_folder, [])
+                folder_scores[folder_name][1].append(similarity)
 
         # Durchschnittliche Ähnlichkeit pro Ordner
         suggestions = []
-        for folder, scores in folder_scores.items():
+        for folder_name, (learned_path, scores) in folder_scores.items():
             avg_score = np.mean(scores)
             max_score = max(scores)
             # Gewichteter Score: 70% max, 30% avg
             combined_score = 0.7 * max_score + 0.3 * avg_score
 
-            folder_path = Path(folder)
-            if folder_path.exists():
+            # Ordner im aktuellen Zielordner finden (oder Original wenn noch da)
+            folder_path = self._resolve_folder_path(learned_path, folder_name)
+            if folder_path:
                 suggestions.append(Suggestion(
                     folder_path=folder_path,
                     folder_name=folder_path.name,
@@ -291,18 +364,24 @@ class PDFClassifier:
         if not entries:
             return []
 
-        # Ordner nach Häufigkeit mit passenden Keywords
-        folder_counts: dict[str, int] = {}
+        # Ordner nach Häufigkeit mit passenden Keywords - gruppiert nach Namen
+        folder_counts: dict[str, tuple[str, int]] = {}  # name -> (learned_path, count)
         for entry in entries:
-            folder = entry.target_folder
-            folder_counts[folder] = folder_counts.get(folder, 0) + 1
+            folder_name = entry.target_folder_name
+            if folder_name not in folder_counts:
+                folder_counts[folder_name] = (entry.target_folder, 0)
+            folder_counts[folder_name] = (
+                folder_counts[folder_name][0],
+                folder_counts[folder_name][1] + 1
+            )
 
         suggestions = []
-        total = sum(folder_counts.values())
+        total = sum(count for _, count in folder_counts.values())
 
-        for folder, count in folder_counts.items():
-            folder_path = Path(folder)
-            if folder_path.exists():
+        for folder_name, (learned_path, count) in folder_counts.items():
+            # Ordner im aktuellen Zielordner finden
+            folder_path = self._resolve_folder_path(learned_path, folder_name)
+            if folder_path:
                 confidence = min(count / total * 0.8, 0.8)  # Max 80%
                 suggestions.append(Suggestion(
                     folder_path=folder_path,
@@ -316,20 +395,23 @@ class PDFClassifier:
 
     def _suggest_by_frequency(self, max_suggestions: int) -> list[Suggestion]:
         """Schlägt häufig verwendete Ordner vor."""
-        folders = self.db.get_most_used_folders(max_suggestions)
+        folders = self.db.get_most_used_folders(max_suggestions * 2)  # Mehr holen für Fallbacks
 
         suggestions = []
         for folder in folders:
-            folder_path = Path(folder.path)
-            if folder_path.exists():
+            # Ordner im aktuellen Zielordner finden
+            folder_path = self._resolve_folder_path(folder.path, folder.name)
+            if folder_path:
                 # Niedrige Konfidenz für Frequenz-basierte Vorschläge
                 confidence = min(folder.usage_count / 100, 0.3)  # Max 30%
                 suggestions.append(Suggestion(
                     folder_path=folder_path,
-                    folder_name=folder.name,
+                    folder_name=folder_path.name,
                     confidence=confidence,
                     reason=f"Häufig verwendet ({folder.usage_count}x)",
                 ))
+                if len(suggestions) >= max_suggestions:
+                    break
 
         return suggestions
 
@@ -479,17 +561,20 @@ class PDFClassifier:
         # 1. Gelernte Unterordner aus der Datenbank
         learned_subfolders = self.db.get_subfolders_for_parent(str(parent_folder))
 
-        for folder_entry in learned_subfolders[:max_suggestions]:
-            folder_path = Path(folder_entry.path)
-            if folder_path.exists():
+        for folder_entry in learned_subfolders[:max_suggestions * 2]:
+            # Ordner im aktuellen Zielordner finden
+            folder_path = self._resolve_folder_path(folder_entry.path, folder_entry.name)
+            if folder_path:
                 confidence = min(folder_entry.usage_count / 50, 0.8)
                 suggestions.append(Suggestion(
                     folder_path=folder_path,
-                    folder_name=folder_entry.name,
+                    folder_name=folder_path.name,
                     confidence=confidence,
                     reason=f"Gelernt ({folder_entry.usage_count}x verwendet)",
                     relative_path=folder_entry.relative_path or folder_entry.name,
                 ))
+                if len(suggestions) >= max_suggestions:
+                    break
 
         # 2. Existierende Unterordner als Fallback
         if len(suggestions) < max_suggestions:
