@@ -3,9 +3,12 @@ Konfigurationsverwaltung für PDF Sortier Meister
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("pdf_sortier_meister.config")
 
 
 class Config:
@@ -62,7 +65,7 @@ class Config:
                     # Merge mit Defaults (für neue Konfigurationsoptionen)
                     self._config = {**self.DEFAULTS, **loaded}
             except (json.JSONDecodeError, IOError) as e:
-                print(f"Fehler beim Laden der Konfiguration: {e}")
+                logger.error(f"Fehler beim Laden der Konfiguration: {e}")
                 self._config = self.DEFAULTS.copy()
 
     def save(self) -> None:
@@ -72,7 +75,7 @@ class Config:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
         except IOError as e:
-            print(f"Fehler beim Speichern der Konfiguration: {e}")
+            logger.error(f"Fehler beim Speichern der Konfiguration: {e}")
 
     def get(self, key: str, default: Any = None) -> Any:
         """

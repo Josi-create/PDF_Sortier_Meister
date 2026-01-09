@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-sortier-meister"
+version = "0.8.0"
+description = "Ein intelligentes Programm zum Sortieren und Umbenennen von gescannten PDF-Dokumenten"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Josi-create"}
+]
+keywords = ["pdf", "sorting", "ocr", "machine-learning", "document-management"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "PyQt6>=6.5.0",
+    "PyMuPDF>=1.23.0",
+    "pytesseract>=0.3.10",
+    "scikit-learn>=1.3.0",
+    "SQLAlchemy>=2.0.0",
+    "python-dateutil>=2.8.0",
+    "watchdog>=3.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "anthropic>=0.18.0",
+    "openai>=1.12.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-qt>=4.2.0",
+    "pyinstaller>=6.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+all = [
+    "pdf-sortier-meister[llm,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/Josi-create/PDF_Sortier_Meister"
+Repository = "https://github.com/Josi-create/PDF_Sortier_Meister"
+Issues = "https://github.com/Josi-create/PDF_Sortier_Meister/issues"
+
+[project.gui-scripts]
+pdf-sortier-meister = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.png", "*.ico", "*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

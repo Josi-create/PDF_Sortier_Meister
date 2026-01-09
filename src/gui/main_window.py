@@ -889,9 +889,9 @@ class MainWindow(QMainWindow):
 
             # NEU: Relativen Pfad anzeigen wenn vorhanden
             display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
-            # Kürzen wenn zu lang
-            if len(display_name) > 20:
-                display_name = "..." + display_name[-17:]
+            # Nur bei extrem langen Namen kürzen (WordWrap übernimmt den Rest)
+            if len(display_name) > 50:
+                display_name = "..." + display_name[-47:]
             widget.name_label.setText(display_name)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
@@ -1665,21 +1665,98 @@ class MainWindow(QMainWindow):
 
     def show_about(self):
         """Zeigt den Über-Dialog an."""
-        llm_info = ""
-        if self.hybrid_classifier.is_llm_available():
-            llm_info = f"\n- LLM aktiv: {self.hybrid_classifier.get_llm_provider_name()}"
+        from src.main import __version__
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
+        from PyQt6.QtCore import Qt
 
-        QMessageBox.about(
-            self,
-            "Über PDF Sortier Meister",
-            "PDF Sortier Meister\n\n"
-            "Version 0.5.0\n\n"
-            "Ein intelligentes Programm zum Sortieren und\n"
-            "Umbenennen von gescannten PDF-Dokumenten.\n\n"
-            "Features:\n"
-            "- Lernfähige TF-IDF Klassifikation\n"
-            "- Optionale LLM-Integration (Claude/OpenAI)\n"
-            "- Hybrid-Ansatz: Lokal + KI kombiniert\n"
-            "- Intelligente Umbenennungsvorschläge\n"
-            f"- Lernt aus Benutzerentscheidungen{llm_info}",
+        # LLM-Status ermitteln
+        llm_status = "Nicht konfiguriert"
+        if self.hybrid_classifier.is_llm_available():
+            llm_status = self.hybrid_classifier.get_llm_provider_name()
+
+        # Lernstatistik holen
+        try:
+            from src.utils.database import get_database
+            db = get_database()
+            learn_count = db.get_entry_count()
+        except Exception:
+            learn_count = 0
+
+        # Dialog erstellen
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Über PDF Sortier Meister")
+        dialog.setFixedSize(450, 380)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+
+        # Titel und Version
+        title_label = QLabel(
+            f"<h2>PDF Sortier Meister</h2>"
+            f"<p style='color: #666;'>Version {__version__}</p>"
         )
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Beschreibung
+        desc_label = QLabel(
+            "Ein intelligentes Programm zum Sortieren und<br>"
+            "Umbenennen von gescannten PDF-Dokumenten."
+        )
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(desc_label)
+
+        # Status-Info
+        status_label = QLabel(
+            f"<table style='margin: 10px;'>"
+            f"<tr><td><b>LLM-Provider:</b></td><td>{llm_status}</td></tr>"
+            f"<tr><td><b>Gelernte Zuordnungen:</b></td><td>{learn_count}</td></tr>"
+            f"</table>"
+        )
+        status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(status_label)
+
+        # GitHub-Link
+        github_label = QLabel(
+            '<p><b>GitHub:</b> '
+            '<a href="https://github.com/Josi-create/PDF_Sortier_Meister">'
+            'github.com/Josi-create/PDF_Sortier_Meister</a></p>'
+        )
+        github_label.setOpenExternalLinks(True)
+        github_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(github_label)
+
+        # Lizenz
+        license_label = QLabel(
+            "<p style='color: #666; font-size: 11px;'>"
+            "<b>Lizenz:</b> MIT License<br>"
+            "Copyright (c) 2024-2026<br>"
+            "Freie Software - Open Source</p>"
+        )
+        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(license_label)
+
+        # Log-Pfad (für Support)
+        from src.utils.logging_config import get_log_file_path
+        log_path = get_log_file_path()
+        log_label = QLabel(
+            f"<p style='color: #999; font-size: 10px;'>"
+            f"Log-Datei: {log_path}</p>"
+        )
+        log_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        log_label.setWordWrap(True)
+        layout.addWidget(log_label)
+
+        layout.addStretch()
+
+        # OK-Button
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        ok_button = QPushButton("OK")
+        ok_button.setFixedWidth(80)
+        ok_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(ok_button)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+
+        dialog.exec()

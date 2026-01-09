@@ -7,6 +7,7 @@ ihrem Textinhalt einem Zielordner zuzuordnen.
 Unterstützt hierarchische Ordnerstrukturen und Jahres-Muster-Erkennung.
 """
 
+import logging
 import pickle
 import re
 from datetime import datetime
@@ -20,6 +21,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src.utils.config import get_config
 from src.utils.database import get_database, SortingHistory
+
+logger = logging.getLogger("pdf_sortier_meister.classifier")
 
 
 @dataclass
@@ -131,9 +134,9 @@ class PDFClassifier:
         if self.model_path.exists():
             try:
                 self._load_model()
-                print(f"Klassifikator geladen mit {len(self.training_entries)} Einträgen")
+                logger.info(f"Klassifikator geladen mit {len(self.training_entries)} Einträgen")
             except Exception as e:
-                print(f"Fehler beim Laden des Modells: {e}")
+                logger.error(f"Fehler beim Laden des Modells: {e}")
                 self._create_new_model()
         else:
             self._create_new_model()

@@ -40,8 +40,8 @@ class FolderWidget(QFrame):
         """Initialisiert die UI-Komponenten."""
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.setLineWidth(1)
-        self.setMinimumSize(130, 110)
-        self.setMaximumSize(160, 140)
+        self.setMinimumSize(140, 120)
+        self.setMaximumSize(170, 155)  # Mehr Höhe für dreizeilige Namen
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         self._update_style()
@@ -57,17 +57,18 @@ class FolderWidget(QFrame):
         self.icon_label.setStyleSheet("font-size: 36px; background: transparent;")
         layout.addWidget(self.icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Ordnername
+        # Ordnername (dreizeilig für lange Namen)
         self.name_label = QLabel()
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
-        self.name_label.setMaximumHeight(35)
-        self.name_label.setStyleSheet("font-size: 11px; font-weight: bold;")
+        self.name_label.setMaximumHeight(48)  # Platz für 3 Zeilen
+        self.name_label.setStyleSheet("font-size: 10px; font-weight: bold; line-height: 1.2;")
 
-        # Namen kürzen wenn zu lang
+        # Namen umbrechen statt kürzen - WordWrap übernimmt das
         name = self.folder_path.name
-        if len(name) > 18:
-            name = name[:15] + "..."
+        # Nur kürzen wenn wirklich extrem lang (>50 Zeichen)
+        if len(name) > 50:
+            name = name[:47] + "..."
         self.name_label.setText(name)
         self.name_label.setToolTip(str(self.folder_path))
 

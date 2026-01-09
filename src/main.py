@@ -18,10 +18,19 @@ from PyQt6.QtGui import QPixmap
 
 from src.gui.main_window import MainWindow
 from src.utils.config import get_config
+from src.utils.logging_config import setup_logging, get_logger
+
+# Versionsnummer zentral definiert
+__version__ = "0.8.0"
 
 
 def main():
     """Hauptfunktion - startet die Anwendung."""
+    # Logging initialisieren (vor allem anderen!)
+    setup_logging()
+    logger = get_logger("main")
+    logger.info(f"Version {__version__}")
+
     # High-DPI Skalierung aktivieren
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -30,7 +39,7 @@ def main():
     # Anwendung erstellen
     app = QApplication(sys.argv)
     app.setApplicationName("PDF Sortier Meister")
-    app.setApplicationVersion("0.1.0")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("PDF Sortier Meister")
 
     # SplashScreen anzeigen

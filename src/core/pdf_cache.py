@@ -8,17 +8,20 @@ Cached PDF-Analysen für schnellere Interaktion:
 - Persistente Speicherung (optional) für schnellen Neustart
 """
 
-from pathlib import Path
-from typing import Optional, Callable
+import json
+import logging
+import queue
+import sqlite3
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from threading import Lock
-import queue
-import time
-import json
-import sqlite3
+from typing import Optional, Callable
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+logger = logging.getLogger("pdf_sortier_meister.cache")
 
 
 @dataclass
@@ -180,12 +183,12 @@ class LLMSuggestionWorker(QThread):
                             from src.ml.hybrid_classifier import get_hybrid_classifier
                             self._hybrid_classifier = get_hybrid_classifier()
                         except Exception as e:
-                            print(f"LLM-Pre-Cache: Konnte Hybrid-Classifier nicht laden: {e}")
+                            logger.warning(f"LLM-Pre-Cache: Konnte Hybrid-Classifier nicht laden: {e}")
                             continue
 
                     # Prüfen ob LLM überhaupt verfügbar ist
                     if not self._hybrid_classifier.is_llm_available():
-                        print(f"LLM-Pre-Cache: LLM nicht verfügbar, überspringe {pdf_path.name}")
+                        logger.debug(f"LLM-Pre-Cache: LLM nicht verfügbar, überspringe {pdf_path.name}")
                         continue
 
                     # LLM-Vorschläge abrufen
@@ -197,7 +200,7 @@ class LLMSuggestionWorker(QThread):
                     if analysis_result.dates:
                         detected_date = str(analysis_result.dates[0])
 
-                    print(f"LLM-Pre-Cache: Rufe LLM ab für {pdf_path.name}...")
+                    logger.debug(f"LLM-Pre-Cache: Rufe LLM ab für {pdf_path.name}...")
                     suggestions = self._hybrid_classifier.suggest_filename(
                         text=analysis_result.extracted_text or "",
                         current_filename=pdf_path.name,
@@ -327,7 +330,7 @@ class PDFCache(QObject):
             self._load_from_db()
 
         except Exception as e:
-            print(f"Cache-Initialisierung fehlgeschlagen: {e}")
+            logger.error(f"Cache-Initialisierung fehlgeschlagen: {e}")
             self._persist_cache = False
 
     def _load_from_db(self):
@@ -400,10 +403,10 @@ class PDFCache(QObject):
                 loaded_count += 1
 
             conn.close()
-            print(f"PDF-Cache: {loaded_count} Einträge geladen ({llm_count} mit LLM-Vorschlägen)")
+            logger.info(f"PDF-Cache: {loaded_count} Einträge geladen ({llm_count} mit LLM-Vorschlägen)")
 
         except Exception as e:
-            print(f"Cache-Laden fehlgeschlagen: {e}")
+            logger.error(f"Cache-Laden fehlgeschlagen: {e}")
 
     def _save_to_db(self, result: PDFAnalysisResult):
         """Speichert einen Eintrag in die SQLite-Datenbank."""
@@ -443,7 +446,7 @@ class PDFCache(QObject):
             conn.close()
 
         except Exception as e:
-            print(f"Cache-Speichern fehlgeschlagen: {e}")
+            logger.error(f"Cache-Speichern fehlgeschlagen: {e}")
 
     def set_persist_cache(self, enabled: bool):
         """Aktiviert/deaktiviert die persistente Cache-Speicherung."""
@@ -466,9 +469,9 @@ class PDFCache(QObject):
                 cursor.execute("DELETE FROM pdf_cache")
                 conn.commit()
                 conn.close()
-                print("Persistenter PDF-Cache gelöscht")
+                logger.info("Persistenter PDF-Cache gelöscht")
             except Exception as e:
-                print(f"Cache-Löschen fehlgeschlagen: {e}")
+                logger.error(f"Cache-Löschen fehlgeschlagen: {e}")
 
     def start_worker(self):
         """Startet den Hintergrund-Worker."""
@@ -604,7 +607,7 @@ class PDFCache(QObject):
                 llm_queue_count += 1
 
         if llm_queue_count > 0:
-            print(f"LLM-Pre-Cache: {llm_queue_count} bereits analysierte PDFs zur LLM-Queue hinzugefügt")
+            logger.info(f"LLM-Pre-Cache: {llm_queue_count} PDFs zur LLM-Queue hinzugefügt")
 
     def _on_analysis_complete(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wird aufgerufen wenn eine Analyse abgeschlossen ist."""
@@ -633,13 +636,13 @@ class PDFCache(QObject):
 
     def _request_llm_suggestions(self, pdf_path: Path, analysis_result: PDFAnalysisResult):
         """Fordert LLM-Vorschläge im Hintergrund an."""
-        print(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}...")
+        logger.debug(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}")
         self.start_llm_worker()
         self._llm_worker.add_task(pdf_path, analysis_result, priority=10)
 
     def _on_llm_suggestions_complete(self, pdf_path: Path, suggestions: list):
         """Wird aufgerufen wenn LLM-Vorschläge abgerufen wurden."""
-        print(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name} erhalten")
+        logger.debug(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name}")
         with self._lock:
             if pdf_path in self._cache:
                 self._cache[pdf_path].llm_suggestions = suggestions
@@ -653,7 +656,7 @@ class PDFCache(QObject):
 
     def _on_llm_suggestions_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn LLM-Abruf fehlschlägt."""
-        print(f"LLM-Pre-Cache FEHLER für {pdf_path.name}: {error}")
+        logger.warning(f"LLM-Pre-Cache Fehler für {pdf_path.name}: {error}")
 
     def _on_analysis_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn eine Analyse fehlschlägt."""
@@ -708,7 +711,7 @@ class PDFCache(QObject):
                 old_entry.file_modified = new_path.stat().st_mtime
 
             self._cache[new_path] = old_entry
-            print(f"Cache migriert: {old_path.name} -> {new_path.name} (LLM: {old_entry.llm_fetched})")
+            logger.debug(f"Cache migriert: {old_path.name} -> {new_path.name}")
 
         # Alten DB-Eintrag löschen und neuen speichern
         if self._persist_cache and self._db_path:
@@ -761,7 +764,7 @@ class PDFCache(QObject):
     def set_llm_precache_enabled(self, enabled: bool):
         """Aktiviert/deaktiviert LLM-Pre-Caching."""
         self._llm_precache_enabled = enabled
-        print(f"LLM-Pre-Cache: {'aktiviert' if enabled else 'deaktiviert'}")
+        logger.info(f"LLM-Pre-Cache: {'aktiviert' if enabled else 'deaktiviert'}")
 
     def _load_llm_precache_setting(self):
         """Lädt die LLM-Pre-Cache Einstellung aus der Config."""
@@ -769,7 +772,7 @@ class PDFCache(QObject):
             from src.utils.config import get_config
             config = get_config()
             self._llm_precache_enabled = config.get("llm_precache_enabled", True)
-            print(f"LLM-Pre-Cache: {'aktiviert' if self._llm_precache_enabled else 'deaktiviert'} (aus Config)")
+            logger.debug(f"LLM-Pre-Cache: {'aktiviert' if self._llm_precache_enabled else 'deaktiviert'}")
         except Exception:
             pass  # Bei Fehler bleibt Default (True)
 
