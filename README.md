@@ -192,6 +192,12 @@ PDF_Sortier_Meister/
 
 ---
 
+## Vergleich mit paperless-ngx
+
+Siehe [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) für eine detaillierte Gegenüberstellung beider Programme.
+
+---
+
 ## Lizenz
 
 MIT License — siehe [LICENSE](LICENSE)
