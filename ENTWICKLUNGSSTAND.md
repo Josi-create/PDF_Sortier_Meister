@@ -106,9 +106,8 @@
   - Nach dem Verschieben: Möglichkeit zum Zurückverschieben
   - History der letzten Aktionen
 
-- [ ] **Kopieren-Option**
-  - PDF in mehrere Ordner kopieren (z.B. Versicherung UND Steuer)
-  - Kontextmenü-Option "Kopieren nach..."
+- [x] **Kopieren-Option** *(erledigt in v0.8.0)*
+  - Rechtsklick → "Kopie erstellen" im Kontextmenü
 
 - [ ] **Zielordner-Dialog Startpfad**
   - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
@@ -120,11 +119,11 @@
 - [ ] **Umbenennung rückgängig**
   - Rechtsklick auf Thumbnail → "Umbenennung rückgängig"
 
-- [ ] **Dreizeilige Vorschlags-Buttons**
+- [x] **Dreizeilige Vorschlags-Buttons** *(erledigt in v0.8.0)*
   - Text in den grünen Vorschlagsbuttons auf 3 Zeilen umbrechen
   - Ordnernamen können sehr lang sein — kein Abschneiden mehr
 
-- [ ] **Info-Dialog erweitern**
+- [x] **Info-Dialog erweitern** *(erledigt in v0.8.0)*
   - Aktuelle Versionsnummer anzeigen
   - Klickbarer Link zum GitHub-Repository
   - Hinweis auf MIT-Lizenz
@@ -384,6 +383,9 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | Mehrere Thumbnails markieren → Batch-Umbenennung per LLM | ✅ | Shift+Klick Bereichsauswahl + Rechtsklick-Menü |
 | Shift+Klick Bereichsauswahl + Toggle-Deselect | ✅ | pdf_thumbnail.py erweitert |
 | Multi-Selektion beim Verschieben (mehrere PDFs gleichzeitig) | ✅ | Implementiert |
+| Dreizeilige Ordnernamen in Vorschlags-Buttons | ✅ | v0.8.0 - folder_widget.py |
+| Info-Dialog: Version + GitHub-Link + Lizenz | ✅ | v0.8.0 - main_window.py |
+| Kopie erstellen (Rechtsklick-Menü) | ✅ | v0.8.0 - main_window.py |
 | paperless-ai Funktionsvergleich + Roadmap Phase 16–21 | ✅ | März 2026 - ENTWICKLUNGSSTAND.md aktualisiert |
 
 ---

@@ -24,9 +24,8 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
   - Gelernten Mustern aus der Umbenennungshistorie
 - **OCR-Unterstützung**: Texterkennung für gescannte Dokumente via Tesseract (Deutsch)
 - **Drag & Drop**: PDFs per Drag & Drop in Zielordner verschieben — mit visuellem Feedback
-- **Mehrfachauswahl**: Shift+Klick für Bereichsauswahl, Ctrl+Klick für Einzelauswahl; Batch-Verschieben/Kopieren
-- **Undo**: Letzte Verschiebungen rückgängig machen
-- **Kopieren**: PDF in mehrere Ordner kopieren (z.B. Versicherung UND Steuer)
+- **Mehrfachauswahl**: Shift+Klick für Bereichsauswahl, Ctrl+Klick für Einzelauswahl; Batch-Verschieben und Batch-Umbenennung per LLM
+- **Kopieren**: Rechtsklick → "Kopie erstellen" für Ablage in mehreren Ordnern (z.B. Versicherung UND Steuer)
 
 ### KI & Klassifikation
 
@@ -51,27 +50,46 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 
 - **Baumansicht** für hierarchische Ordnerstruktur mit Kontextmenü (Neuer Unterordner)
 - **Doppelklick** auf Ordner wechselt den Scan-Ordner
-- **Grün hervorgehobene** Vorschlagsordner in der Baumansicht
+- **Grün hervorgehobene** Vorschlagsordner mit dreizeiligen Ordnernamen (auch bei langen Pfaden)
 - **Statusleiste**: Trainingsstand, PDF-Anzahl, LLM-Status
 - **Einstellungsdialog**: LLM-Konfiguration, Caching, Debug-Optionen
-- **Info-Dialog** und integriertes Logging-System
+- **Info-Dialog** (Hilfe → Über): Version, GitHub-Link, Lizenzhinweis, LLM-Status, Lernstatistik
+- **Integriertes Logging-System** mit rotierenden Log-Dateien (AppData/logs/)
+- **SplashScreen** beim Programmstart
 
 ---
 
 ## Geplante Features (Roadmap)
 
-### Kurzfristig (Phase 16–18)
+### UX & Umbenennungsdialog (Phase 13 + 10)
 
-- **PDF-XMP-Metadaten schreiben**: Schlagworte, Kategorie, Korrespondent, Steuerjahr, Betrag direkt in die PDF-Datei einbetten (portabel, ISO-Standard, Dual-Layer mit SQLite-Index)
+- **Undo für Verschiebungen**: History-Stack, Ctrl+Z oder Rechtsklick → "Rückgängig"
+- **Umbenennung rückgängig**: Rechtsklick auf Thumbnail → Original-Dateiname wiederherstellen
+- **De-Selektion**: Klick auf leere Fläche oder nochmaliges Anklicken hebt Selektion auf
+- **F2 für Umbenennen**: Windows-Standard-Shortcut für ausgewähltes PDF
+- **Mehrere LLM API-Keys**: Schnelles Umschalten zwischen gespeicherten Profilen
+- **Umbenennungsdialog**: LLM-Modell direkt im Dialog wählen + "Neu generieren"-Button
+- **3 LLM-Vorschläge** statt ML-Vorschläge im Umbenennungsdialog (ML bleibt intern für Sortierung)
+
+### Metadaten & Suche (Phase 16–18)
+
+- **PDF-XMP-Metadaten schreiben**: Schlagworte, Kategorie, Korrespondent, Steuerjahr, Betrag direkt in die PDF-Datei einbetten — portabel, ISO-Standard, unabhängig vom Programm (Dual-Layer mit SQLite-Index)
+- **Metadaten beim Umbenennen**: LLM schlägt gleichzeitig Steuerjahr, Betrag, Kategorie vor; Lerneffekt verbessert Genauigkeit über Zeit
 - **Volltext-Suche**: SQLite FTS5-Index mit Filterleiste (Steuerjahr, Kategorie, Datumsbereich, Betrag)
-- **Buchhaltungs-/Steuerfelder**: LLM extrahiert Betrag, MwSt, Steuerjahr; editierbare Metadaten-Sidebar
+- **Buchhaltungs-/Steuerfelder**: Editierbare Metadaten-Sidebar; Steuer-Auswertung (Summen pro Jahr, CSV-Export)
 
-### Mittelfristig (Phase 19–21)
+### KI-Erweiterungen (Phase 9, 11, 19–21)
 
-- **RAG-Chat**: Dokumente per natürlicher Sprache befragen ("Was habe ich 2023 für Strom gezahlt?")
-- **Korrespondenten-Verwaltung**: Bekannte Absender als persistente Kontakte
+- **Semi-Auto Workflow**: "(Semi)-Auto Rename"-Button für Batch-Umbenennung mit LLM-Bestätigung
+- **RAG-Chat**: Dokumente per natürlicher Sprache befragen (*"Was habe ich 2023 für Strom gezahlt?"*)
+- **Korrespondenten-Verwaltung**: Bekannte Absender als persistente Kontakte, filterbar
 - **Automatisierungs-Regeln**: WENN/DANN-Regeln für bekannte Absender (vollautomatische Sortierung)
-- **Lokales LLM (Ollama)**: Volle Datenschutzkontrolle, kein API-Key erforderlich
+- **Lokales LLM (Ollama)**: Volle Datenschutzkontrolle, kein API-Key erforderlich (RTX 3060 Ti optimiert)
+
+### Weitere Features (Phase 14–15)
+
+- **PDF-Bearbeitung**: Merge (Drag & Drop zweier PDFs) und Split (mehrseitiges PDF aufteilen)
+- **Layout**: Responsive Grid-Spalten, Explorer-ähnliche Listenansicht, Konfidenz-Visualisierung
 
 ---
 
