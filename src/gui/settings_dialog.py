@@ -109,10 +109,21 @@ class SettingsDialog(QDialog):
         key_button_layout.addStretch()
         api_layout.addRow("", key_button_layout)
 
-        # Modell-Auswahl
+        # Modell-Auswahl mit Aktualisieren-Button
+        model_row_layout = QHBoxLayout()
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
-        api_layout.addRow("Modell:", self.model_combo)
+        model_row_layout.addWidget(self.model_combo, 1)
+
+        self.refresh_models_button = QPushButton("Modelle aktualisieren")
+        self.refresh_models_button.setToolTip(
+            "Ruft die aktuell verfügbaren Modelle vom API-Provider ab.\n"
+            "Erfordert einen gültigen API-Key."
+        )
+        self.refresh_models_button.clicked.connect(self._refresh_models)
+        model_row_layout.addWidget(self.refresh_models_button)
+
+        api_layout.addRow("Modell:", model_row_layout)
 
         layout.addWidget(api_group)
 
@@ -398,9 +409,12 @@ class SettingsDialog(QDialog):
             self.model_combo.setEnabled(True)
             self.test_button.setEnabled(True)
             self.model_combo.addItems([
-                "haiku (schnell & günstig)",
-                "sonnet (ausgewogen)",
-                "opus (beste Qualität)",
+                "haiku-3.5 (günstig, älter)",
+                "haiku-4.5 (schnell & günstig)",
+                "sonnet-3.5 (günstig, älter)",
+                "sonnet-4 (ausgewogen)",
+                "sonnet-4.5 (beste Qualität)",
+                "opus-4 (premium)",
             ])
             self.api_key_input.setPlaceholderText("sk-ant-...")
         elif index == 2:  # OpenAI
@@ -408,9 +422,14 @@ class SettingsDialog(QDialog):
             self.model_combo.setEnabled(True)
             self.test_button.setEnabled(True)
             self.model_combo.addItems([
-                "gpt-4o-mini (schnell & günstig)",
+                "gpt-4o-mini (günstig, älter)",
+                "gpt-4.1-nano (schnellstes)",
+                "gpt-4.1-mini (schnell & günstig)",
                 "gpt-4o (ausgewogen)",
-                "gpt-4-turbo (beste Qualität)",
+                "gpt-4.1 (beste Qualität)",
+                "o3-mini (Reasoning, günstig)",
+                "o3 (Reasoning)",
+                "o4-mini (Reasoning, neu)",
             ])
             self.api_key_input.setPlaceholderText("sk-...")
         elif index == 3:  # Poe
@@ -420,10 +439,18 @@ class SettingsDialog(QDialog):
             self.model_combo.addItems([
                 "GPT-4o-Mini (schnell & günstig)",
                 "GPT-4o (OpenAI)",
-                "GPT-5 (neuestes GPT)",
+                "GPT-4.1-Mini (OpenAI, neu)",
+                "GPT-4.1 (OpenAI, neu)",
+                "o3-Mini (Reasoning)",
+                "o4-Mini (Reasoning, neu)",
+                "Claude-3.5-Haiku (schnell)",
                 "Claude-3.5-Sonnet (Anthropic)",
-                "Claude-3-Haiku (schnell)",
+                "Claude-Sonnet-4 (Anthropic, neu)",
+                "Claude-Sonnet-4.5 (Anthropic, neuestes)",
+                "Claude-Opus-4 (Anthropic, premium)",
                 "Gemini-2-Flash (Google)",
+                "Gemini-2.5-Flash (Google, neu)",
+                "Gemini-2.5-Pro (Google, premium)",
                 "Llama-3.1-405B (Meta)",
                 "Mistral-Large (Mistral)",
             ])
@@ -682,3 +709,111 @@ class SettingsDialog(QDialog):
                 self, "Fehler",
                 f"Verbindungsfehler: {str(e)}"
             )
+
+    def _refresh_models(self):
+        """Ruft die verfügbaren Modelle vom API-Provider ab."""
+        provider_index = self.provider_combo.currentIndex()
+        api_key = self.api_key_input.text().strip()
+
+        if provider_index == 0:
+            QMessageBox.information(
+                self, "Hinweis",
+                "Bitte wählen Sie zuerst einen LLM-Provider aus."
+            )
+            return
+
+        if not api_key:
+            QMessageBox.warning(
+                self, "Fehler",
+                "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
+            )
+            return
+
+        # Aktuell gewähltes Modell merken
+        current_model = self.model_combo.currentText().split(" ")[0]
+
+        self.refresh_models_button.setEnabled(False)
+        self.refresh_models_button.setText("Lade...")
+
+        try:
+            if provider_index == 1:  # Claude
+                models = self._fetch_claude_models(api_key)
+            elif provider_index == 2:  # OpenAI
+                models = self._fetch_openai_models(api_key)
+            elif provider_index == 3:  # Poe
+                models = self._fetch_poe_models(api_key)
+            else:
+                models = []
+
+            if models:
+                self.model_combo.clear()
+                self.model_combo.addItems(models)
+
+                # Vorheriges Modell wieder auswählen wenn möglich
+                for i in range(self.model_combo.count()):
+                    if self.model_combo.itemText(i).startswith(current_model):
+                        self.model_combo.setCurrentIndex(i)
+                        break
+
+                QMessageBox.information(
+                    self, "Erfolg",
+                    f"{len(models)} Modelle gefunden und aktualisiert."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Modelle konnten nicht abgerufen werden:\n{str(e)}"
+            )
+        finally:
+            self.refresh_models_button.setEnabled(True)
+            self.refresh_models_button.setText("Modelle aktualisieren")
+
+    def _fetch_claude_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare Claude-Modelle von der Anthropic API ab."""
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        models_response = client.models.list(limit=100)
+        models = []
+        for model in models_response.data:
+            model_id = model.id
+            if not model_id.startswith("claude"):
+                continue
+            display = model.display_name if hasattr(model, 'display_name') and model.display_name else model_id
+            models.append(f"{model_id} ({display})")
+
+        models.sort(reverse=True)
+        return models
+
+    def _fetch_openai_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare OpenAI-Modelle von der API ab."""
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+
+        models_response = client.models.list()
+        models = []
+        chat_prefixes = ("gpt-4", "gpt-3.5", "o1", "o3", "o4", "chatgpt")
+        for model in models_response.data:
+            model_id = model.id
+            if not any(model_id.startswith(p) for p in chat_prefixes):
+                continue
+            models.append(model_id)
+
+        models.sort(reverse=True)
+        return models
+
+    def _fetch_poe_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare Modelle von der Poe API ab."""
+        import openai
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://api.poe.com/v1",
+        )
+
+        models_response = client.models.list()
+        models = []
+        for model in models_response.data:
+            models.append(model.id)
+
+        models.sort()
+        return models

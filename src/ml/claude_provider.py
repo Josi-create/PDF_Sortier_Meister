@@ -18,14 +18,17 @@ class ClaudeProvider(LLMProvider):
     Unterstützt Claude 3 Modelle (Haiku, Sonnet, Opus).
     """
 
-    # Verfügbare Claude Modelle
+    # Verfügbare Claude Modelle (Stand: März 2026)
     MODELS = {
-        "haiku": "claude-3-haiku-20240307",
-        "sonnet": "claude-3-5-sonnet-20241022",
-        "opus": "claude-3-opus-20240229",
+        "haiku-3.5": "claude-3-5-haiku-20241022",
+        "haiku-4.5": "claude-haiku-4-5-20251001",
+        "sonnet-3.5": "claude-3-5-sonnet-20241022",
+        "sonnet-4": "claude-sonnet-4-20250514",
+        "sonnet-4.5": "claude-sonnet-4-5-20250514",
+        "opus-4": "claude-opus-4-20250514",
     }
 
-    DEFAULT_MODEL = "haiku"  # Günstigstes Modell als Standard
+    DEFAULT_MODEL = "haiku-4.5"  # Günstigstes aktuelles Modell
 
     def __init__(self, config: LLMConfig):
         """

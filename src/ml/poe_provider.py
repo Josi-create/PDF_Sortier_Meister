@@ -21,20 +21,26 @@ class PoeProvider(LLMProvider):
     OpenAI-kompatible API. Unterstützt GPT, Claude, Gemini und mehr.
     """
 
-    # Verfügbare Poe Modelle (Auswahl der wichtigsten)
+    # Verfügbare Poe Modelle (Stand: März 2026)
+    # Hinweis: Poe-Bot-Namen können sich ändern. Bei Fehler auf poe.com prüfen.
     MODELS = {
-        # Claude Modelle
-        "claude-3-opus": "Claude-3-Opus",
+        # Claude Modelle (Anthropic)
+        "claude-3.5-haiku": "Claude-3.5-Haiku",
         "claude-3.5-sonnet": "Claude-3.5-Sonnet",
-        "claude-3-haiku": "Claude-3-Haiku",
-        # GPT Modelle
-        "gpt-4o": "GPT-4o",
+        "claude-4-sonnet": "Claude-Sonnet-4",
+        "claude-4.5-sonnet": "Claude-Sonnet-4.5",
+        "claude-4-opus": "Claude-Opus-4",
+        # GPT Modelle (OpenAI)
         "gpt-4o-mini": "GPT-4o-Mini",
-        "gpt-4-turbo": "GPT-4-Turbo",
-        "gpt-5": "GPT-5",
-        # Gemini Modelle
+        "gpt-4o": "GPT-4o",
+        "gpt-4.1-mini": "GPT-4.1-Mini",
+        "gpt-4.1": "GPT-4.1",
+        "o3-mini": "o3-Mini",
+        "o4-mini": "o4-Mini",
+        # Gemini Modelle (Google)
         "gemini-2-flash": "Gemini-2-Flash",
-        "gemini-pro": "Gemini-Pro",
+        "gemini-2.5-flash": "Gemini-2.5-Flash",
+        "gemini-2.5-pro": "Gemini-2.5-Pro",
         # Weitere
         "llama-3.1-405b": "Llama-3.1-405B",
         "mistral-large": "Mistral-Large",
@@ -330,13 +336,4 @@ class PoeProvider(LLMProvider):
         Returns:
             Liste von (display_name, model_id) Tupeln
         """
-        return [
-            ("GPT-4o-Mini (schnell & günstig)", "GPT-4o-Mini"),
-            ("GPT-4o (ausgewogen)", "GPT-4o"),
-            ("GPT-5 (neuestes GPT)", "GPT-5"),
-            ("Claude-3.5-Sonnet (Anthropic)", "Claude-3.5-Sonnet"),
-            ("Claude-3-Haiku (schnell)", "Claude-3-Haiku"),
-            ("Gemini-2-Flash (Google)", "Gemini-2-Flash"),
-            ("Llama-3.1-405B (Meta)", "Llama-3.1-405B"),
-            ("Mistral-Large (Mistral)", "Mistral-Large"),
-        ]
+        return [(f"{v} ({k})", v) for k, v in cls.MODELS.items()]

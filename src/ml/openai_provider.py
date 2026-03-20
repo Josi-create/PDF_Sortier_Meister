@@ -18,16 +18,19 @@ class OpenAIProvider(LLMProvider):
     Unterstützt GPT-3.5 und GPT-4 Modelle.
     """
 
-    # Verfügbare OpenAI Modelle
+    # Verfügbare OpenAI Modelle (Stand: März 2026)
     MODELS = {
-        "gpt-3.5": "gpt-3.5-turbo",
-        "gpt-4": "gpt-4",
-        "gpt-4-turbo": "gpt-4-turbo-preview",
-        "gpt-4o": "gpt-4o",
         "gpt-4o-mini": "gpt-4o-mini",
+        "gpt-4o": "gpt-4o",
+        "gpt-4.1-nano": "gpt-4.1-nano",
+        "gpt-4.1-mini": "gpt-4.1-mini",
+        "gpt-4.1": "gpt-4.1",
+        "o3-mini": "o3-mini",
+        "o3": "o3",
+        "o4-mini": "o4-mini",
     }
 
-    DEFAULT_MODEL = "gpt-4o-mini"  # Günstigstes aktuelles Modell
+    DEFAULT_MODEL = "gpt-4.1-nano"  # Günstigstes aktuelles Modell
 
     def __init__(self, config: LLMConfig):
         """
@@ -66,8 +69,8 @@ class OpenAIProvider(LLMProvider):
         model = self.config.model.lower()
         if model in self.MODELS:
             return self.MODELS[model]
-        # Falls vollständige ID angegeben
-        if model.startswith("gpt"):
+        # Falls vollständige ID angegeben (gpt-*, o1-*, o3-*, o4-*, chatgpt-*)
+        if any(model.startswith(p) for p in ("gpt", "o1", "o3", "o4", "chatgpt")):
             return model
         return self.MODELS[self.DEFAULT_MODEL]
 

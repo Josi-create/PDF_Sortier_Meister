@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 08.01.2026
-**Aktuelle Version:** 0.7.1
+**Datum:** 20.03.2026
+**Aktuelle Version:** 0.8.0
 
 ---
 
@@ -186,6 +186,119 @@
 - [ ] **Grüner Haken** bei bereits umbenannten Thumbnails
 - [ ] **Zielordner-Vorschlag im Umbenennen-Dialog** (PDF geöffnet → gleich Zielordner wählen)
 
+### Phase 16: PDF-Metadaten direkt in PDF-Dateien schreiben (NEU - Hohe Priorität)
+
+**Inspiration: paperless-ai Vergleich (März 2026)**
+
+Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in die PDF-Datei eingebettet **und** zusätzlich in der SQLite-Datenbank für schnelle Indizierung/Suche. Damit bleiben Metadaten portabel und bei der Datei, unabhängig vom Programm.
+
+- [ ] **pikepdf als neue Abhängigkeit** für XMP-Metadaten-Schreibzugriff
+- [ ] **Schreiben folgender XMP-Felder** bei Sortierung/Umbenennung:
+  - `dc:title` → Dokumententitel (aus Umbenennung)
+  - `dc:subject` → Kategorie (Rechnung, Vertrag, Steuer, ...)
+  - `dc:description` → Kurzzusammenfassung (LLM-generiert)
+  - `pdf:Keywords` → Erkannte Schlagworte (kommagetrennt)
+  - `custom:Korrespondent` → Erkannter Firmenname/Absender
+  - `custom:Buchungsdatum` → Erkanntes Rechnungs-/Dokumentendatum (ISO: YYYY-MM-DD)
+  - `custom:Steuerjahr` → Steuerjahr (z.B. `2024`)
+  - `custom:Betrag` → Rechnungsbetrag (z.B. `142.50`)
+  - `custom:Waehrung` → Währung (EUR/USD)
+  - `custom:MwStSatz` → Mehrwertsteuersatz (7 / 19)
+  - `custom:SteuerlichAbsetzbar` → ja / nein / teilweise
+- [ ] **Metadaten-Extraktion per LLM** erweitern:
+  - Betrag, Währung, MwSt aus Dokumenttext extrahieren
+  - Steuerjahr aus Datum ableiten
+- [ ] **SQLite-Datenbank bleibt als Index-Spiegel** (kein Ersatz, Ergänzung):
+  - `SortingHistory` um neue Felder erweitern: `betrag`, `steuerjahr`, `korrespondent`, `steuerlich_absetzbar`
+  - Wird bei jedem Schreiben in die PDF synchron befüllt
+- [ ] **Kompatibilität** mit Paperless-ngx, DEVONthink, Adobe Acrobat (XMP-Standard)
+
+```python
+# Implementierungsbeispiel (pikepdf)
+import pikepdf
+with pikepdf.open("dokument.pdf", allow_overwriting_input=True) as pdf:
+    with pdf.open_metadata() as meta:
+        meta["dc:title"] = "Stromrechnung Januar 2024"
+        meta["dc:subject"] = "Rechnung"
+        meta["pdf:Keywords"] = "Strom, Energie, 2024"
+        meta["custom:Steuerjahr"] = "2024"
+        meta["custom:Betrag"] = "142.50"
+    pdf.save()
+```
+
+### Phase 17: Volltext-Suche mit SQLite FTS5 (NEU - Hohe Priorität)
+
+- [ ] **SQLite FTS5-Index** für extrahierten Dokumententext
+- [ ] **Such-/Filterleiste** im Hauptfenster (oberhalb der Thumbnail-Grid)
+- [ ] Suche über: Dateiinhalt, Dateiname, alle Metadaten-Felder
+- [ ] **Filter-Kombinationen**:
+  - Steuerjahr (Dropdown: 2022, 2023, 2024, 2025 ...)
+  - Kategorie (Dropdown: Rechnung, Vertrag, Steuer ...)
+  - Korrespondent (Freitext oder Dropdown aus bekannten)
+  - Datumsbereich (Von/Bis)
+  - Betrag (Von/Bis)
+- [ ] Index wird beim Sortieren/Umbenennen automatisch aktualisiert
+- [ ] Suchergebnisse in Thumbnail-Grid hervorgehoben anzeigen
+
+### Phase 18: Buchhaltungs- und Steuerfelder (NEU - Hohe Priorität)
+
+Dedizierte Felder für deutschen Steuerbüro-Workflow — Feature das paperless-ai **nicht** hat:
+
+- [ ] **LLM-Prompt-Erweiterung** für Steuer-/Buchhaltungsdaten:
+  - Rechnungsbetrag (netto/brutto)
+  - Mehrwertsteuersatz (7% / 19%)
+  - IBAN / Kontonummer des Absenders
+  - Steuerjahr (aus Datum abgeleitet)
+- [ ] **Metadaten-Sidebar** im Hauptfenster (rechts neben Ordnerbaum):
+  - Anzeige aller erkannten Felder für ausgewähltes PDF
+  - Direkte Bearbeitung ohne externen PDF-Editor
+  - Änderungen sofort in PDF + Datenbank schreiben
+- [ ] **Steuer-Auswertung** (einfache Statistik):
+  - Summe aller Rechnungen pro Steuerjahr
+  - Summe steuerlich absetzbarer Beträge
+  - Export als CSV für Steuerberater
+
+### Phase 19: RAG-Chat / Dokumentensuche per natürlicher Sprache (NEU - Mittlere Priorität)
+
+**Paperless-ai's stärkstes Feature** — Fragen wie:
+- *"Was habe ich 2023 für Strom bezahlt?"*
+- *"Zeig alle Verträge mit der GEZ"*
+- *"Wann läuft meine Kfz-Versicherung ab?"*
+
+- [ ] **Chat-Tab** im Hauptfenster (neben oder unter dem Thumbnail-Grid)
+- [ ] Bestehende LLM-Provider (Claude/OpenAI/Poe) als Backend nutzen
+- [ ] LLM erhält relevante Dokumente aus SQLite-Datenbank als Kontext
+- [ ] **Antworten mit Quellenangabe** — klickbar öffnet das jeweilige PDF
+- [ ] Konversationshistorie innerhalb einer Sitzung
+- [ ] Offline-Fallback: Einfache Keyword-Suche wenn kein LLM konfiguriert
+
+### Phase 20: Korrespondenten-Verwaltung (NEU - Mittlere Priorität)
+
+Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
+
+- [ ] **Korrespondenten-Liste** aus Sortierhistorie automatisch aufbauen
+- [ ] Neue Datenbanktabelle `Korrespondent` (Name, Alias-Liste, Kategorie, Farbe)
+- [ ] **Automatische Erkennung** per LLM oder Regex
+- [ ] Filterbar im Hauptfenster (Klick auf Korrespondent → zeigt alle PDFs)
+- [ ] Wird in PDF-XMP-Metadaten als `custom:Korrespondent` persistiert
+
+### Phase 21: Automatisierungs-Regeln (NEU - Mittlere Priorität)
+
+Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisches Sortieren:
+
+- [ ] **Regel-Editor** in den Einstellungen
+- [ ] Regelstruktur: WENN [Bedingung] DANN [Aktion]
+  ```
+  WENN Korrespondent = "Finanzamt"
+    UND Kategorie = "Steuerbescheid"
+  DANN Zielordner = "Steuern/Bescheide/{Steuerjahr}"
+       Steuerjahr-Feld = auto
+       Tag = "steuerlich-relevant"
+  ```
+- [ ] Bedingungen: Korrespondent, Kategorie, Betrag-Bereich, Datumsbereich, Schlüsselwörter
+- [ ] Aktionen: Zielordner setzen, Tag hinzufügen, Feld setzen, umbenennen
+- [ ] Regeln werden **vor** manuellem Eingriff geprüft (vollautomatisch wenn Konfidenz >90%)
+
 ### Phase 11: Lokales LLM / Ollama (offen)
 - [ ] Neuer Provider: `OllamaProvider` für lokale Modelle
 - [ ] API-Endpunkt: `http://localhost:11434/v1/chat/completions`
@@ -207,8 +320,14 @@
 
 | Phase | Feature | Aufwand | Nutzen | Priorität |
 |-------|---------|---------|--------|-----------|
-| **13** | **UX-Verbesserungen (Undo, Kopieren)** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐ |
+| **13** | **UX-Verbesserungen (Undo, Kopieren)** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐⭐ |
+| **16** | **PDF-XMP-Metadaten schreiben** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐⭐ |
+| **17** | **Volltext-Suche (FTS5)** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐** |
+| **18** | **Buchhaltungs-/Steuerfelder + Sidebar** | **Mittel** | **Sehr Hoch** | ⭐⭐⭐⭐ |
 | 9 | Semi-Auto Workflow | Mittel | Hoch | ⭐⭐⭐ |
+| 20 | Korrespondenten-Verwaltung | Mittel | Hoch | ⭐⭐⭐ |
+| 19 | RAG-Chat (natürliche Sprachsuche) | Hoch | Hoch | ⭐⭐⭐ |
+| 21 | Automatisierungs-Regeln | Hoch | Hoch | ⭐⭐⭐ |
 | 14 | PDF-Bearbeitung (Merge/Split) | Mittel | Mittel | ⭐⭐ |
 | 15 | Layout-Optimierungen | Mittel | Mittel | ⭐⭐ |
 | 10 | 3-Spalten-Layout | Hoch | Mittel | ⭐⭐ |
@@ -216,7 +335,7 @@
 | 8 | Testing & Polishing | Mittel | Hoch | ⭐⭐ |
 | 7 | Backup-Integration | Niedrig | Niedrig | ⭐ |
 
-**Empfehlung:** Phase 13 (UX-Verbesserungen) als nächstes - direktes Benutzer-Feedback!
+**Empfehlung:** Phase 13 + 16 parallel angehen — UX-Verbesserungen für sofortigen Komfort, PDF-Metadaten als strategische Kernfunktion.
 
 ---
 
@@ -297,6 +416,13 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 pip install anthropic openai
 ```
 
+**Geplant für Phase 16 (PDF-Metadaten schreiben):**
+- pikepdf (XMP-Metadaten in PDF einbetten — besser als pypdf für XMP)
+
+```bash
+pip install pikepdf
+```
+
 **Tipp:** Mit einem Poe.com Account benötigen Sie nur `openai` und haben Zugang zu vielen Modellen (GPT, Claude, Gemini, Llama, etc.).
 
 **Hinweis:** Für OCR muss Tesseract separat installiert werden.
@@ -357,11 +483,49 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 3. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
 
-### Danach (Phase 9 - Semi-Auto Workflow):
+### Parallel / Danach (Phase 16 - PDF-Metadaten):
 
-4. **Batch-Umbenennung** mit LLM-Unterstützung
+4. **pikepdf installieren** und XMP-Schreibfunktion in `pdf_analyzer.py` integrieren
+   - Bei jeder Sortierung/Umbenennung Metadaten in die PDF schreiben
+   - `SortingHistory`-Tabelle um neue Felder erweitern
+
+5. **LLM-Prompt erweitern** für Betrag, MwSt, Steuerjahr-Extraktion
+
+### Danach (Phase 17+18 - Suche & Steuerfelder):
+
+6. **FTS5-Volltext-Index** aufbauen und Such-Leiste im Hauptfenster integrieren
+7. **Metadaten-Sidebar** mit editierbaren Steuer-/Buchhaltungsfeldern
+
+### Mittelfristig (Phase 9 - Semi-Auto Workflow):
+
+8. **Batch-Umbenennung** mit LLM-Unterstützung
    - Mehrere PDFs auf einmal umbenennen
    - Fortschrittsanzeige
+
+---
+
+## Wettbewerbsanalyse: paperless-ai (März 2026)
+
+Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On für Paperless-ngx):
+
+| Feature | paperless-ai | PDF Sortier Meister | Geplant |
+|---|---|---|---|
+| Automatisches Tagging per LLM | Ja | Ja (Hybrid TF-IDF+LLM) | — |
+| Dokumententyp-Klassifizierung | Ja | Ja (10 Kategorien) | — |
+| Korrespondenten-Erkennung | Ja | Teilweise (Firmenname) | Phase 20 |
+| Metadaten direkt in PDF schreiben | Nein | Nein | **Phase 16** |
+| Steuerjahr / Buchhaltungsfelder | Nein | Nein | **Phase 18** |
+| Betrag / MwSt-Extraktion | Nein | Nein | **Phase 16+18** |
+| Volltext-Suche | Nein | Nein | **Phase 17** |
+| RAG-Chat (natürliche Sprache) | Ja | Nein | Phase 19 |
+| Automatisierungs-Regeln | Ja | Nein | Phase 21 |
+| Desktop-Anwendung (offline) | Nein (Web) | Ja | — |
+| Lokales LLM (Ollama) | Ja | Nein | Phase 11 |
+| Drag & Drop Sortierung | Nein | Ja | — |
+| Lernsystem (TF-IDF) | Nein | Ja | — |
+| PDF-Merge/Split | Nein | Nein | Phase 14 |
+
+**Strategischer Vorteil:** PDF Sortier Meister ist die einzige Lösung mit Metadaten **direkt in der PDF-Datei** (Dual-Layer: XMP + SQLite-Index). Dadurch bleiben alle Metadaten portabel und unabhängig von einem Server/Datenbank-Backend.
 
 ---
 

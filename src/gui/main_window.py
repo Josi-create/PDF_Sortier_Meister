@@ -65,6 +65,10 @@ class MainWindow(QMainWindow):
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
 
+        # Undo-Historie für Verschiebe-Aktionen
+        # Jeder Eintrag: {"moves": [(source, dest), ...], "description": str}
+        self._undo_stack: list[dict] = []
+
         self.setup_ui()
         self.setup_menu()
         self.setup_toolbar()
@@ -124,6 +128,13 @@ class MainWindow(QMainWindow):
         self.pdf_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(self.pdf_header)
         header_layout.addStretch()
+
+        # Anzahl der PDFs im Ordner
+        self.pdf_folder_count_label = QLabel("")
+        self.pdf_folder_count_label.setStyleSheet(
+            "color: #888; font-size: 12px; padding: 5px;"
+        )
+        header_layout.addWidget(self.pdf_folder_count_label)
 
         layout.addLayout(header_layout)
 
@@ -265,6 +276,7 @@ class MainWindow(QMainWindow):
             self.empty_label.show()
             self.pdf_scroll_area.hide()
             self.pdf_count_label.setText("PDFs: 0")
+            self.pdf_folder_count_label.setText("0 Dateien")
             return
 
         self.empty_label.hide()
@@ -273,6 +285,8 @@ class MainWindow(QMainWindow):
         # Header aktualisieren
         self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
+        count = len(pdf_files)
+        self.pdf_folder_count_label.setText(f"{count} {'Datei' if count == 1 else 'Dateien'}")
 
         # Thumbnail-Ladetracking initialisieren
         self._pending_thumbnails = len(pdf_files)
@@ -542,6 +556,16 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # Bearbeiten-Menü
+        edit_menu = menubar.addMenu("Bearbeiten")
+
+        self.undo_action = QAction("Rückgängig (Verschieben)", self)
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.setToolTip("Letzte Verschiebe-Aktion rückgängig machen")
+        self.undo_action.triggered.connect(self.undo_last_move)
+        self.undo_action.setEnabled(False)
+        edit_menu.addAction(self.undo_action)
+
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
 
@@ -595,6 +619,15 @@ class MainWindow(QMainWindow):
         add_folder_action.setToolTip("Neuen Zielordner hinzufügen")
         add_folder_action.triggered.connect(self.add_target_folder)
         toolbar.addAction(add_folder_action)
+
+        toolbar.addSeparator()
+
+        # Rückgängig-Button
+        self.undo_toolbar_action = QAction("↩ Rückgängig", self)
+        self.undo_toolbar_action.setToolTip("Letzte Verschiebe-Aktion rückgängig machen (Ctrl+Z)")
+        self.undo_toolbar_action.triggered.connect(self.undo_last_move)
+        self.undo_toolbar_action.setEnabled(False)
+        toolbar.addAction(self.undo_toolbar_action)
 
     def setup_statusbar(self):
         """Erstellt die Statusleiste."""
@@ -1252,6 +1285,13 @@ class MainWindow(QMainWindow):
             try:
                 new_path = self.file_manager.move_file(pdf_path, folder)
                 self.statusbar.showMessage(f"Verschoben nach: {new_path.parent.name}", 3000)
+
+                # Undo-Eintrag erstellen
+                self._push_undo({
+                    "moves": [(pdf_path, new_path)],
+                    "description": f"{pdf_path.name} → {new_path.parent.name}",
+                })
+
                 # Nur das verschobene PDF-Widget entfernen
                 self.remove_pdf_widget(pdf_path)
                 # Ordneransicht aktualisieren
@@ -1284,6 +1324,110 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Kopieren fehlgeschlagen:\n{e}")
+
+    # --- Undo-Funktionalität ---
+
+    def _push_undo(self, entry: dict):
+        """Fügt einen Eintrag zum Undo-Stack hinzu."""
+        self._undo_stack.append(entry)
+        # Maximal 20 Einträge behalten
+        if len(self._undo_stack) > 20:
+            self._undo_stack.pop(0)
+        self._update_undo_ui()
+
+    def _update_undo_ui(self):
+        """Aktualisiert den Zustand der Undo-Buttons und Menüeinträge."""
+        has_undo = len(self._undo_stack) > 0
+        if has_undo:
+            desc = self._undo_stack[-1]["description"]
+            text = f"Rückgängig: {desc}"
+            self.undo_action.setText(text)
+            self.undo_action.setEnabled(True)
+            self.undo_toolbar_action.setText(f"↩ Rückgängig")
+            self.undo_toolbar_action.setToolTip(f"Rückgängig: {desc} (Ctrl+Z)")
+            self.undo_toolbar_action.setEnabled(True)
+        else:
+            self.undo_action.setText("Rückgängig (Verschieben)")
+            self.undo_action.setEnabled(False)
+            self.undo_toolbar_action.setText("↩ Rückgängig")
+            self.undo_toolbar_action.setToolTip("Keine Aktion zum Rückgängig machen")
+            self.undo_toolbar_action.setEnabled(False)
+
+    def undo_last_move(self):
+        """Macht die letzte Verschiebe-Aktion rückgängig."""
+        if not self._undo_stack:
+            return
+
+        entry = self._undo_stack[-1]
+        moves = entry["moves"]
+        desc = entry["description"]
+
+        # Prüfen ob alle Dateien noch existieren (am Zielort)
+        missing = [dest for _, dest in moves if not dest.exists()]
+        if missing:
+            names = "\n".join(p.name for p in missing)
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"Folgende Dateien wurden am Zielort nicht mehr gefunden:\n{names}\n\n"
+                "Möglicherweise wurden sie bereits manuell verschoben oder gelöscht."
+            )
+            # Eintrag trotzdem entfernen, da ungültig
+            self._undo_stack.pop()
+            self._update_undo_ui()
+            return
+
+        # Bestätigung
+        if len(moves) == 1:
+            source, dest = moves[0]
+            msg = f"Datei zurückverschieben?\n\n{dest.name}\nvon: {dest.parent}\nnach: {source.parent}"
+        else:
+            msg = f"{len(moves)} Dateien zurückverschieben?\n\nVon: {moves[0][1].parent}\nNach: {moves[0][0].parent}"
+
+        reply = QMessageBox.question(
+            self, "Rückgängig machen",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Dateien zurückverschieben
+        import shutil
+        restored = 0
+        errors = []
+
+        for source_orig, dest_path in moves:
+            try:
+                # Zurück zum ursprünglichen Ordner verschieben
+                target_dir = source_orig.parent
+                if not target_dir.exists():
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                restored_path = target_dir / dest_path.name
+                shutil.move(str(dest_path), str(restored_path))
+                restored += 1
+            except Exception as e:
+                errors.append(f"{dest_path.name}: {e}")
+
+        # Undo-Eintrag entfernen
+        self._undo_stack.pop()
+        self._update_undo_ui()
+
+        if errors:
+            QMessageBox.warning(
+                self, "Teilweise fehlgeschlagen",
+                f"{restored} von {len(moves)} Dateien zurückverschoben.\n\n"
+                f"Fehler:\n" + "\n".join(errors)
+            )
+        else:
+            if restored == 1:
+                self.statusbar.showMessage(f"Rückgängig: {desc}", 3000)
+            else:
+                self.statusbar.showMessage(f"Rückgängig: {restored} Dateien zurückverschoben", 3000)
+
+        # Ansichten aktualisieren
+        self.load_pdfs()
+        self.load_folders()
 
     def on_batch_rename(self):
         """
@@ -1506,14 +1650,16 @@ class MainWindow(QMainWindow):
 
         moved_count = 0
         moved_pdfs = []
+        move_pairs = []  # (source, dest) für Undo
         errors = []
 
         for current_pdf in pdfs_to_move:
             try:
                 # Datei verschieben
-                self.file_manager.move_file(current_pdf, folder_path)
+                new_path = self.file_manager.move_file(current_pdf, folder_path)
                 moved_count += 1
                 moved_pdfs.append(current_pdf)
+                move_pairs.append((current_pdf, new_path))
 
                 # Versuchen zu lernen (wenn PDF vorher analysiert wurde)
                 if current_pdf == self.selected_pdf and self.selected_pdf_text:
@@ -1544,6 +1690,14 @@ class MainWindow(QMainWindow):
                 "Teilweise fehlgeschlagen",
                 f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
             )
+
+        # Undo-Eintrag erstellen (nur wenn Dateien verschoben wurden)
+        if move_pairs:
+            if moved_count == 1:
+                desc = f"{move_pairs[0][0].name} → {relative_path}"
+            else:
+                desc = f"{moved_count} PDFs → {relative_path}"
+            self._push_undo({"moves": move_pairs, "description": desc})
 
         # Nur die verschobenen PDF-Widgets entfernen (NICHT refresh_view!)
         for moved_pdf in moved_pdfs:
