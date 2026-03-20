@@ -98,29 +98,48 @@
 
 ### Phase 13: UX-Verbesserungen (NEU - Hohe Priorität)
 
-**Aus Benutzer-Feedback (to do.md):**
-
-- [ ] **Drag & Drop Haptik verbessern** (to do #1)
+- [ ] **Drag & Drop Haptik verbessern**
   - Besseres visuelles Feedback beim Ziehen
   - Farb-Highlighting auch in der Listenansicht (nicht nur Vorschlagsbereich)
 
-- [ ] **Undo für Verschiebungen** (to do #2)
+- [ ] **Undo für Verschiebungen**
   - Nach dem Verschieben: Möglichkeit zum Zurückverschieben
   - History der letzten Aktionen
 
-- [ ] **Kopieren-Option** (to do #9)
+- [ ] **Kopieren-Option**
   - PDF in mehrere Ordner kopieren (z.B. Versicherung UND Steuer)
   - Kontextmenü-Option "Kopieren nach..."
 
-- [ ] **Zielordner-Dialog Startpfad** (to do #4)
+- [ ] **Zielordner-Dialog Startpfad**
   - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
 
-- [ ] **Zurück-Button** (to do #7)
+- [ ] **Zurück-Button**
   - Navigation zum vorherigen Scan-Ordner
   - Breadcrumb-Navigation
 
-- [ ] **Umbenennung rückgängig** (to do #11)
+- [ ] **Umbenennung rückgängig**
   - Rechtsklick auf Thumbnail → "Umbenennung rückgängig"
+
+- [ ] **Dreizeilige Vorschlags-Buttons**
+  - Text in den grünen Vorschlagsbuttons auf 3 Zeilen umbrechen
+  - Ordnernamen können sehr lang sein — kein Abschneiden mehr
+
+- [ ] **Info-Dialog erweitern**
+  - Aktuelle Versionsnummer anzeigen
+  - Klickbarer Link zum GitHub-Repository
+  - Hinweis auf MIT-Lizenz
+
+- [ ] **De-Selektion von PDFs**
+  - Klick auf leere (weiße) Fläche hebt alle Selektionen auf
+  - Alternativ: nochmaliges (langsames) Anklicken desselben Thumbnails deselektiert
+  - Problem: Doppelklick auf Ordner funktioniert nicht wenn ein PDF selektiert ist
+
+- [ ] **F2-Taste für Umbenennen** (Windows-Standard)
+  - Ausgewähltes PDF per F2 direkt in den Umbenennungsdialog
+
+- [ ] **Mehrere LLM API-Keys verwalten**
+  - In den Einstellungen mehrere API-Keys für verschiedene Provider speichern
+  - Schnelles Umschalten des aktiven LLM-Modells ohne erneute Key-Eingabe
 
 ### Phase 14: PDF-Bearbeitung (NEU - Mittlere Priorität)
 
@@ -185,6 +204,13 @@
 - [ ] Hervorhebung erkannter Schlüsselwörter
 - [ ] **Grüner Haken** bei bereits umbenannten Thumbnails
 - [ ] **Zielordner-Vorschlag im Umbenennen-Dialog** (PDF geöffnet → gleich Zielordner wählen)
+- [ ] **LLM-Auswahl im Umbenennungsdialog**
+  - Direkt im Dialog das LLM-Modell wechseln (nur Modelle für die ein Key hinterlegt ist)
+  - "LLM-Vorschlag neu generieren"-Button im Dialog
+- [ ] **Ausschließlich LLM-Vorschläge anzeigen** (keine ML-Vorschläge mehr)
+  - Die ML-Vorschläge (TF-IDF) ergeben beim Umbenennen kaum brauchbare Hinweise
+  - Stattdessen: bis zu **3 verschiedene LLM-Vorschläge** zur Auswahl
+  - ML bleibt intern für Ordner-Sortierung erhalten, aber nicht im Umbenennen-Dialog sichtbar
 
 ### Phase 16: PDF-Metadaten direkt in PDF-Dateien schreiben (NEU - Hohe Priorität)
 
@@ -211,6 +237,10 @@ Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in d
 - [ ] **SQLite-Datenbank bleibt als Index-Spiegel** (kein Ersatz, Ergänzung):
   - `SortingHistory` um neue Felder erweitern: `betrag`, `steuerjahr`, `korrespondent`, `steuerlich_absetzbar`
   - Wird bei jedem Schreiben in die PDF synchron befüllt
+- [ ] **Metadaten direkt beim Umbenennen setzen**
+  - Im Umbenennungsdialog: LLM schlägt gleichzeitig Metadaten vor (Steuerjahr, Kategorie, Betrag)
+  - Lerneffekt: Nach einigen Entscheidungen verbessert sich die Genauigkeit der Metadatenvorschläge (z.B. Steuerjahr-Zuordnung)
+  - Nutzer kann Vorschläge bestätigen, anpassen oder ablehnen
 - [ ] **Kompatibilität** mit Paperless-ngx, DEVONthink, Adobe Acrobat (XMP-Standard)
 
 ```python
@@ -343,13 +373,18 @@ Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisch
 
 Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 
-| # | Feature | Status | Umsetzung |
-|---|---------|--------|-----------|
-| 3 | Neuen Ordner erstellen (Rechtsklick) | ✅ | Phase 12 - Kontextmenü in Baumansicht |
-| 5 | Grüne Vorschlagsordner Bug | ✅ | Behoben |
-| 6 | Doppelklick auf Ordner → Navigation | ✅ | Doppelklick wechselt Scan-Ordner |
-| 10 | LLM erkennt Rechnungsnummer/Betreff | ✅ | LLM-Prompt erweitert |
-| 12 | Scandatum statt Phantasiedatum | ✅ | Datei-Änderungsdatum als Fallback |
+| Feature | Status | Umsetzung |
+|---------|--------|-----------|
+| Neuen Ordner erstellen (Rechtsklick) | ✅ | Phase 12 - Kontextmenü in Baumansicht |
+| Grüne Vorschlagsordner Bug | ✅ | Behoben |
+| Doppelklick auf Ordner → Navigation | ✅ | Doppelklick wechselt Scan-Ordner |
+| LLM erkennt Rechnungsnummer/Betreff | ✅ | LLM-Prompt erweitert |
+| Scandatum statt Phantasiedatum | ✅ | Datei-Änderungsdatum als Fallback |
+| LLM-Pre-Caching mit Flag (kein Re-Upload umbenannter Dateien) | ✅ | Phase 5 - Flag verhindert doppeltes Caching |
+| Mehrere Thumbnails markieren → Batch-Umbenennung per LLM | ✅ | Shift+Klick Bereichsauswahl + Rechtsklick-Menü |
+| Shift+Klick Bereichsauswahl + Toggle-Deselect | ✅ | pdf_thumbnail.py erweitert |
+| Multi-Selektion beim Verschieben (mehrere PDFs gleichzeitig) | ✅ | Implementiert |
+| paperless-ai Funktionsvergleich + Roadmap Phase 16–21 | ✅ | März 2026 - ENTWICKLUNGSSTAND.md aktualisiert |
 
 ---
 
