@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 20.03.2026
-**Aktuelle Version:** 0.8.0
+**Datum:** 12.04.2026
+**Aktuelle Version:** 0.9.0
 
 ---
 
@@ -102,9 +102,9 @@
   - Besseres visuelles Feedback beim Ziehen
   - Farb-Highlighting auch in der Listenansicht (nicht nur Vorschlagsbereich)
 
-- [ ] **Undo für Verschiebungen**
-  - Nach dem Verschieben: Möglichkeit zum Zurückverschieben
-  - History der letzten Aktionen
+- [x] **Undo für Verschiebungen** *(erledigt in v0.9.0)*
+  - Ctrl+Z macht letzte Verschiebung rückgängig (alle Codepfade: Vorschlag-Klick, Drag&Drop, Kontextmenü, Baumansicht)
+  - History der letzten 20 Aktionen mit Beschreibung in Toolbar und Menü
 
 - [x] **Kopieren-Option** *(erledigt in v0.8.0)*
   - Rechtsklick → "Kopie erstellen" im Kontextmenü
@@ -112,12 +112,14 @@
 - [ ] **Zielordner-Dialog Startpfad**
   - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
 
-- [ ] **Zurück-Button**
-  - Navigation zum vorherigen Scan-Ordner
-  - Breadcrumb-Navigation
+- [x] **Zurück-Button** *(erledigt in v0.9.0)*
+  - ⬅ Button im Header navigiert zum vorherigen Scan-Ordner
+  - Alt+Left Tastenkürzel + Menüeintrag unter Ansicht → Zurück
+  - History-Stack speichert bis zu 50 vorherige Ordner
 
-- [ ] **Umbenennung rückgängig**
-  - Rechtsklick auf Thumbnail → "Umbenennung rückgängig"
+- [x] **Umbenennung rückgängig** *(erledigt in v0.9.0)*
+  - Ctrl+Z macht auch Umbenennungen rückgängig (gemeinsamer Undo-Stack mit Verschiebungen)
+  - Cache-Einträge werden beim Rückgängig-Machen korrekt migriert
 
 - [x] **Dreizeilige Vorschlags-Buttons** *(erledigt in v0.8.0)*
   - Text in den grünen Vorschlagsbuttons auf 3 Zeilen umbrechen
@@ -128,13 +130,14 @@
   - Klickbarer Link zum GitHub-Repository
   - Hinweis auf MIT-Lizenz
 
-- [ ] **De-Selektion von PDFs**
+- [x] **De-Selektion von PDFs** *(erledigt in v0.9.0)*
   - Klick auf leere (weiße) Fläche hebt alle Selektionen auf
-  - Alternativ: nochmaliges (langsames) Anklicken desselben Thumbnails deselektiert
-  - Problem: Doppelklick auf Ordner funktioniert nicht wenn ein PDF selektiert ist
+  - Escape-Taste hebt Auswahl auf (Menü: Bearbeiten → Auswahl aufheben)
+  - Vorschläge werden beim Deselektieren automatisch geleert
 
-- [ ] **F2-Taste für Umbenennen** (Windows-Standard)
-  - Ausgewähltes PDF per F2 direkt in den Umbenennungsdialog
+- [x] **F2-Taste für Umbenennen** *(erledigt in v0.9.0)*
+  - F2 öffnet Umbenennungsdialog für ausgewählte PDF (Windows-Standard)
+  - Menüeintrag unter Bearbeiten → Umbenennen...
 
 - [ ] **Mehrere LLM API-Keys verwalten**
   - In den Einstellungen mehrere API-Keys für verschiedene Provider speichern
@@ -387,6 +390,11 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | Info-Dialog: Version + GitHub-Link + Lizenz | ✅ | v0.8.0 - main_window.py |
 | Kopie erstellen (Rechtsklick-Menü) | ✅ | v0.8.0 - main_window.py |
 | paperless-ai Funktionsvergleich + Roadmap Phase 16–21 | ✅ | März 2026 - ENTWICKLUNGSSTAND.md aktualisiert |
+| Undo für Verschiebungen (alle Codepfade) | ✅ | v0.9.0 - Ctrl+Z, Undo-Stack mit 20 Einträgen |
+| Umbenennung rückgängig (Ctrl+Z) | ✅ | v0.9.0 - Gemeinsamer Undo-Stack für Move+Rename |
+| F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut |
+| De-Selektion (Klick auf leere Fläche / Escape) | ✅ | v0.9.0 - mousePressEvent + Escape-Shortcut |
+| Zurück-Button (Ordner-History) | ✅ | v0.9.0 - ⬅ Button + Alt+Left + Menü |
 
 ---
 
@@ -508,34 +516,27 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 ## Nächste Schritte (Empfehlung)
 
-### Sofort (Phase 13 - UX-Verbesserungen):
+### Sofort (Phase 13 - verbleibende UX-Verbesserungen):
 
-1. **Undo für Verschiebungen** - Wichtigstes Benutzer-Feedback
-   - History-Stack für letzte Aktionen
-   - Rechtsklick → "Rückgängig" oder Ctrl+Z
-
-2. **Kopieren-Option** - Für Dokumente die mehrfach abgelegt werden
-   - Kontextmenü erweitern
-   - "Kopieren nach..." neben "Verschieben nach..."
-
-3. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
+1. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
+2. **Mehrere LLM API-Keys verwalten** - Schnelles Umschalten zwischen Providern
 
 ### Parallel / Danach (Phase 16 - PDF-Metadaten):
 
-4. **pikepdf installieren** und XMP-Schreibfunktion in `pdf_analyzer.py` integrieren
+3. **pikepdf installieren** und XMP-Schreibfunktion in `pdf_analyzer.py` integrieren
    - Bei jeder Sortierung/Umbenennung Metadaten in die PDF schreiben
    - `SortingHistory`-Tabelle um neue Felder erweitern
 
-5. **LLM-Prompt erweitern** für Betrag, MwSt, Steuerjahr-Extraktion
+4. **LLM-Prompt erweitern** für Betrag, MwSt, Steuerjahr-Extraktion
 
 ### Danach (Phase 17+18 - Suche & Steuerfelder):
 
-6. **FTS5-Volltext-Index** aufbauen und Such-Leiste im Hauptfenster integrieren
-7. **Metadaten-Sidebar** mit editierbaren Steuer-/Buchhaltungsfeldern
+5. **FTS5-Volltext-Index** aufbauen und Such-Leiste im Hauptfenster integrieren
+6. **Metadaten-Sidebar** mit editierbaren Steuer-/Buchhaltungsfeldern
 
 ### Mittelfristig (Phase 9 - Semi-Auto Workflow):
 
-8. **Batch-Umbenennung** mit LLM-Unterstützung
+7. **Batch-Umbenennung** mit LLM-Unterstützung
    - Mehrere PDFs auf einmal umbenennen
    - Fortschrittsanzeige
 
@@ -577,6 +578,6 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 ## Zum Starten
 
 ```bash
-cd "e:\Users\johan_000\OneDrive\VisualStudioCode Stuff\PDF_Sortier_Meister"
+cd "..\\PDF_Sortier_Meister"
 python run.py
 ```

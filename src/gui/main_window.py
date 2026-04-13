@@ -65,9 +65,13 @@ class MainWindow(QMainWindow):
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
 
-        # Undo-Historie für Verschiebe-Aktionen
-        # Jeder Eintrag: {"moves": [(source, dest), ...], "description": str}
+        # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
+        # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
+        # Rename-Eintrag: {"type": "rename", "old_path": Path, "new_path": Path, "description": str}
         self._undo_stack: list[dict] = []
+
+        # Ordner-Navigations-Historie für Zurück-Button
+        self._folder_history: list[Path] = []
 
         self.setup_ui()
         self.setup_menu()
@@ -116,6 +120,14 @@ class MainWindow(QMainWindow):
         # Header mit Ordnerpfad und Navigation
         header_layout = QHBoxLayout()
 
+        # Zurück-Button (vorheriger Ordner)
+        self.navigate_back_btn = QPushButton("⬅")
+        self.navigate_back_btn.setFixedSize(28, 28)
+        self.navigate_back_btn.setToolTip("Zurück zum vorherigen Ordner (Alt+Left)")
+        self.navigate_back_btn.clicked.connect(self.on_navigate_back)
+        self.navigate_back_btn.setEnabled(False)
+        header_layout.addWidget(self.navigate_back_btn)
+
         # Nach-oben-Button (ein Verzeichnis höher)
         self.navigate_up_btn = QPushButton("⬆")
         self.navigate_up_btn.setFixedSize(28, 28)
@@ -157,6 +169,7 @@ class MainWindow(QMainWindow):
 
         # Container für Thumbnails
         self.pdf_container = QWidget()
+        self.pdf_container.mousePressEvent = self._on_pdf_container_clicked
         self.pdf_layout = QGridLayout(self.pdf_container)
         self.pdf_layout.setSpacing(10)
         self.pdf_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -559,12 +572,26 @@ class MainWindow(QMainWindow):
         # Bearbeiten-Menü
         edit_menu = menubar.addMenu("Bearbeiten")
 
-        self.undo_action = QAction("Rückgängig (Verschieben)", self)
+        self.undo_action = QAction("Rückgängig", self)
         self.undo_action.setShortcut("Ctrl+Z")
-        self.undo_action.setToolTip("Letzte Verschiebe-Aktion rückgängig machen")
-        self.undo_action.triggered.connect(self.undo_last_move)
+        self.undo_action.setToolTip("Letzte Aktion rückgängig machen (Verschieben/Umbenennen)")
+        self.undo_action.triggered.connect(self.undo_last_action)
         self.undo_action.setEnabled(False)
         edit_menu.addAction(self.undo_action)
+
+        rename_action = QAction("Umbenennen...", self)
+        rename_action.setShortcut("F2")
+        rename_action.setToolTip("Ausgewählte PDF umbenennen (F2)")
+        rename_action.triggered.connect(self._rename_selected_pdf)
+        edit_menu.addAction(rename_action)
+
+        edit_menu.addSeparator()
+
+        deselect_action = QAction("Auswahl aufheben", self)
+        deselect_action.setShortcut("Escape")
+        deselect_action.setToolTip("Alle Selektionen aufheben (Escape)")
+        deselect_action.triggered.connect(self._clear_selection)
+        edit_menu.addAction(deselect_action)
 
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
@@ -573,6 +600,14 @@ class MainWindow(QMainWindow):
         refresh_action.setShortcut("F5")
         refresh_action.triggered.connect(self.refresh_view)
         view_menu.addAction(refresh_action)
+
+        view_menu.addSeparator()
+
+        back_action = QAction("Zurück", self)
+        back_action.setShortcut("Alt+Left")
+        back_action.setToolTip("Zum vorherigen Scan-Ordner zurückkehren")
+        back_action.triggered.connect(self.on_navigate_back)
+        view_menu.addAction(back_action)
 
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
@@ -624,8 +659,8 @@ class MainWindow(QMainWindow):
 
         # Rückgängig-Button
         self.undo_toolbar_action = QAction("↩ Rückgängig", self)
-        self.undo_toolbar_action.setToolTip("Letzte Verschiebe-Aktion rückgängig machen (Ctrl+Z)")
-        self.undo_toolbar_action.triggered.connect(self.undo_last_move)
+        self.undo_toolbar_action.setToolTip("Letzte Aktion rückgängig machen (Ctrl+Z)")
+        self.undo_toolbar_action.triggered.connect(self.undo_last_action)
         self.undo_toolbar_action.setEnabled(False)
         toolbar.addAction(self.undo_toolbar_action)
 
@@ -805,9 +840,10 @@ class MainWindow(QMainWindow):
             self.selected_pdf_text = None
             self.selected_pdf_keywords = None
 
-            # Vorschläge im Ordner-Baum leeren
+            # Vorschläge im Ordner-Baum und grüne Buttons leeren
             if hasattr(self, 'folder_tree'):
                 self.folder_tree.clear_suggestions()
+            self.clear_suggestions()
 
             self.statusbar.showMessage("Auswahl aufgehoben", 2000)
         except Exception as e:
@@ -817,9 +853,11 @@ class MainWindow(QMainWindow):
         """Wird aufgerufen wenn auf die leere Fläche im PDF-Container geklickt wird."""
         # Nur bei linkem Mausklick
         if event.button() == Qt.MouseButton.LeftButton:
-            # Prüfen ob Klick auf leere Fläche (nicht auf ein Widget)
-            # Das Event kommt nur an wenn nicht auf ein Child-Widget geklickt wurde
-            if self.selected_pdf or self.selected_pdfs:
+            # Prüfen ob Klick wirklich auf leere Fläche war (nicht auf ein PDF-Widget)
+            # Events von Child-Widgets werden via super().mousePressEvent() weitergeleitet,
+            # daher muss geprüft werden ob unter dem Klickpunkt ein Widget liegt
+            child = self.pdf_container.childAt(event.pos())
+            if child is None and (self.selected_pdf or self.selected_pdfs):
                 self._clear_selection()
 
     def update_suggestions_for_pdf(self, pdf_path: Path):
@@ -983,6 +1021,13 @@ class MainWindow(QMainWindow):
                 # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
                 self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
 
+                # Undo-Eintrag erstellen
+                self._push_undo({
+                    "type": "move",
+                    "moves": [(pdf_path, new_path)],
+                    "description": f"{pdf_path.name} → {relative_path}",
+                })
+
                 # Aus der Entscheidung lernen (mit relativem Pfad)
                 if self.selected_pdf_text:
                     self.classifier.learn(
@@ -1030,6 +1075,7 @@ class MainWindow(QMainWindow):
 
         moved_count = 0
         moved_pdfs = []
+        move_pairs = []  # (source, dest) für Undo
         errors = []
 
         for pdf_path in pdf_paths:
@@ -1042,6 +1088,7 @@ class MainWindow(QMainWindow):
 
                 moved_count += 1
                 moved_pdfs.append(pdf_path)
+                move_pairs.append((pdf_path, new_path))
 
                 # Versuchen zu lernen (wenn PDF analysiert wurde)
                 cached_result = self.pdf_cache.get(new_path)
@@ -1074,6 +1121,14 @@ class MainWindow(QMainWindow):
                 f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
             )
 
+        # Undo-Eintrag erstellen (nur wenn Dateien verschoben wurden)
+        if move_pairs:
+            if moved_count == 1:
+                desc = f"{move_pairs[0][0].name} → {relative_path}"
+            else:
+                desc = f"{moved_count} PDFs → {relative_path}"
+            self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
+
         # Verschobene PDF-Widgets entfernen
         for moved_pdf in moved_pdfs:
             self.remove_pdf_widget(moved_pdf)
@@ -1098,6 +1153,13 @@ class MainWindow(QMainWindow):
         # PDF mit Standardprogramm öffnen
         import os
         os.startfile(str(pdf_path))
+
+    def _rename_selected_pdf(self):
+        """F2-Shortcut: Öffnet den Umbenennungsdialog für die ausgewählte PDF."""
+        if self.selected_pdf and self.selected_pdf.exists():
+            self.on_pdf_rename(self.selected_pdf)
+        else:
+            self.statusbar.showMessage("Keine PDF ausgewählt zum Umbenennen", 2000)
 
     def on_pdf_rename(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
@@ -1246,6 +1308,14 @@ class MainWindow(QMainWindow):
                         detected_date=detected_date,
                     )
 
+                    # Undo-Eintrag für Umbenennung
+                    self._push_undo({
+                        "type": "rename",
+                        "old_path": pdf_path,
+                        "new_path": new_path,
+                        "description": f"Umbenennung: {pdf_path.name} → {new_path.name}",
+                    })
+
                     self.statusbar.showMessage(
                         f"Umbenannt zu: {new_path.name} (gelernt)", 3000
                     )
@@ -1288,6 +1358,7 @@ class MainWindow(QMainWindow):
 
                 # Undo-Eintrag erstellen
                 self._push_undo({
+                    "type": "move",
                     "moves": [(pdf_path, new_path)],
                     "description": f"{pdf_path.name} → {new_path.parent.name}",
                 })
@@ -1347,18 +1418,87 @@ class MainWindow(QMainWindow):
             self.undo_toolbar_action.setToolTip(f"Rückgängig: {desc} (Ctrl+Z)")
             self.undo_toolbar_action.setEnabled(True)
         else:
-            self.undo_action.setText("Rückgängig (Verschieben)")
+            self.undo_action.setText("Rückgängig")
             self.undo_action.setEnabled(False)
             self.undo_toolbar_action.setText("↩ Rückgängig")
             self.undo_toolbar_action.setToolTip("Keine Aktion zum Rückgängig machen")
             self.undo_toolbar_action.setEnabled(False)
 
-    def undo_last_move(self):
-        """Macht die letzte Verschiebe-Aktion rückgängig."""
+    def undo_last_action(self):
+        """Macht die letzte Aktion (Verschiebung oder Umbenennung) rückgängig."""
         if not self._undo_stack:
             return
 
         entry = self._undo_stack[-1]
+        entry_type = entry.get("type", "move")
+
+        if entry_type == "rename":
+            self._undo_rename(entry)
+        else:
+            self._undo_move(entry)
+
+    def _undo_rename(self, entry: dict):
+        """Macht eine Umbenennung rückgängig."""
+        old_path = entry["old_path"]  # Originaler Pfad
+        new_path = entry["new_path"]  # Aktueller Pfad (nach Umbenennung)
+        desc = entry["description"]
+
+        # Prüfen ob die Datei noch am neuen Ort existiert
+        if not new_path.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"Die Datei '{new_path.name}' wurde nicht gefunden.\n\n"
+                "Möglicherweise wurde sie bereits manuell umbenannt oder gelöscht."
+            )
+            self._undo_stack.pop()
+            self._update_undo_ui()
+            return
+
+        # Prüfen ob der alte Name schon vergeben ist
+        if old_path.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"Eine Datei mit dem Namen '{old_path.name}' existiert bereits."
+            )
+            self._undo_stack.pop()
+            self._update_undo_ui()
+            return
+
+        # Bestätigung
+        reply = QMessageBox.question(
+            self, "Umbenennung rückgängig",
+            f"Umbenennung rückgängig machen?\n\n"
+            f"'{new_path.name}'\n→ '{old_path.name}'",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # Datei zurückbenennen
+            restored_path = self.file_manager.rename_file(new_path, old_path.name)
+
+            # Cache-Eintrag migrieren
+            self.pdf_cache.migrate_cache_entry(new_path, restored_path)
+
+            # Undo-Eintrag entfernen
+            self._undo_stack.pop()
+            self._update_undo_ui()
+
+            self.statusbar.showMessage(f"Rückgängig: {old_path.name}", 3000)
+
+            # Widget-Namen aktualisieren
+            self._update_pdf_widget_path(new_path, restored_path)
+
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Umbenennung konnte nicht rückgängig gemacht werden:\n{e}"
+            )
+
+    def _undo_move(self, entry: dict):
+        """Macht eine Verschiebe-Aktion rückgängig."""
         moves = entry["moves"]
         desc = entry["description"]
 
@@ -1592,6 +1732,49 @@ class MainWindow(QMainWindow):
 
     # === Ordner-Aktionen ===
 
+    # --- Ordner-Navigation ---
+
+    def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True):
+        """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking."""
+        current = self.config.get_scan_folder()
+        if current and add_to_history:
+            current_path = Path(current)
+            if current_path != folder_path:
+                self._folder_history.append(current_path)
+                # Maximal 50 Einträge behalten
+                if len(self._folder_history) > 50:
+                    self._folder_history.pop(0)
+
+        self.config.set_scan_folder(str(folder_path))
+        self.file_manager.set_scan_folder(str(folder_path))
+        self.load_pdfs()
+        self._update_navigation_buttons()
+
+    def _update_navigation_buttons(self):
+        """Aktualisiert den Zustand des Zurück-Buttons."""
+        has_history = len(self._folder_history) > 0
+        self.navigate_back_btn.setEnabled(has_history)
+        if has_history:
+            prev = self._folder_history[-1]
+            self.navigate_back_btn.setToolTip(f"Zurück zu: {prev.name} (Alt+Left)")
+        else:
+            self.navigate_back_btn.setToolTip("Kein vorheriger Ordner")
+
+    def on_navigate_back(self):
+        """Navigiert zum vorherigen Scan-Ordner aus der History."""
+        if not self._folder_history:
+            self.statusbar.showMessage("Kein vorheriger Ordner in der History", 2000)
+            return
+
+        previous_folder = self._folder_history.pop()
+
+        if previous_folder.exists():
+            self._navigate_to_folder(previous_folder, add_to_history=False)
+            self.statusbar.showMessage(f"Zurück zu: {previous_folder.name}", 3000)
+        else:
+            self.statusbar.showMessage(f"Ordner existiert nicht mehr: {previous_folder}", 3000)
+            self._update_navigation_buttons()
+
     def on_folder_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner angeklickt wird."""
         # Wenn eine PDF ausgewählt ist, diese verschieben
@@ -1600,11 +1783,8 @@ class MainWindow(QMainWindow):
 
     def on_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner doppelgeklickt wird."""
-        # Scan-Ordner auf diesen Ordner wechseln (Browser-Feeling)
-        self.config.set_scan_folder(str(folder_path))
-        self.file_manager.set_scan_folder(str(folder_path))
+        self._navigate_to_folder(folder_path)
         self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
-        self.load_pdfs()
 
     def on_tree_folder_selected(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
@@ -1616,11 +1796,8 @@ class MainWindow(QMainWindow):
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
-        # Scan-Ordner auf diesen Ordner wechseln (Browser-Feeling)
-        self.config.set_scan_folder(str(folder_path))
-        self.file_manager.set_scan_folder(str(folder_path))
+        self._navigate_to_folder(folder_path)
         self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
-        self.load_pdfs()
 
     def on_navigate_up(self):
         """Navigiert ein Verzeichnis nach oben (übergeordneter Ordner)."""
@@ -1629,10 +1806,8 @@ class MainWindow(QMainWindow):
 
         # Prüfen ob wir noch höher navigieren können
         if parent_folder.exists() and parent_folder != current_scan_folder:
-            self.config.set_scan_folder(str(parent_folder))
-            self.file_manager.set_scan_folder(str(parent_folder))
+            self._navigate_to_folder(parent_folder)
             self.statusbar.showMessage(f"Navigiert zu: {parent_folder.name}", 3000)
-            self.load_pdfs()
         else:
             self.statusbar.showMessage("Bereits im obersten Verzeichnis", 2000)
 
@@ -1697,7 +1872,7 @@ class MainWindow(QMainWindow):
                 desc = f"{move_pairs[0][0].name} → {relative_path}"
             else:
                 desc = f"{moved_count} PDFs → {relative_path}"
-            self._push_undo({"moves": move_pairs, "description": desc})
+            self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
 
         # Nur die verschobenen PDF-Widgets entfernen (NICHT refresh_view!)
         for moved_pdf in moved_pdfs:
@@ -1753,10 +1928,8 @@ class MainWindow(QMainWindow):
             str(current) if current else "",
         )
         if folder:
-            self.config.set_scan_folder(folder)
-            self.file_manager.set_scan_folder(folder)
+            self._navigate_to_folder(Path(folder))
             self.statusbar.showMessage(f"Scan-Ordner gesetzt: {folder}")
-            self.load_pdfs()
 
     def add_target_folder(self):
         """Öffnet einen Dialog zum Hinzufügen eines Zielordners."""
