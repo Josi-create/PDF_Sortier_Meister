@@ -229,6 +229,7 @@ class OpenAIProvider(LLMProvider):
                 filename_reason=parsed.get("reason"),
                 confidence=parsed.get("confidence", 0.5),
                 tokens_used=tokens_used,
+                metadata=parsed.get("metadata"),
             )
 
         except Exception as e:

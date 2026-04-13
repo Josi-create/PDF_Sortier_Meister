@@ -34,6 +34,7 @@ class RenameSuggestion:
     name: str
     reason: str
     confidence: float  # 0.0 - 1.0
+    metadata: Optional[dict] = None  # LLM-extrahierte Metadaten
 
 
 class RenameDialog(QDialog):
@@ -48,6 +49,7 @@ class RenameDialog(QDialog):
         suggestions: list[RenameSuggestion] = None,
         extracted_text: str = None,
         keywords: list[str] = None,
+        detected_date: str = None,
         parent=None
     ):
         super().__init__(parent)
@@ -56,10 +58,29 @@ class RenameDialog(QDialog):
         self.extracted_text = extracted_text or ""
         self.keywords = keywords or []
         self.new_name: Optional[str] = None
+        self._metadata: dict = {}  # Gesammelte Metadaten
+
+        # 1. Basis-Vorbelegung aus Analyse-Daten (immer verfügbar)
+        if keywords:
+            self._metadata["subject"] = keywords[0].capitalize()
+        if detected_date:
+            # Steuerjahr aus Datum ableiten
+            try:
+                year = detected_date[:4]
+                if year.isdigit():
+                    self._metadata["steuerjahr"] = year
+            except Exception:
+                pass
+
+        # 2. LLM-Metadaten überschreiben (falls vorhanden, detaillierter)
+        for s in self.suggestions:
+            if s.metadata:
+                self._metadata.update(s.metadata)
+                break
 
         self.setWindowTitle("PDF umbenennen")
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
+        self.setMinimumWidth(550)
+        self.setMinimumHeight(500)
 
         self.setup_ui()
         self.populate_suggestions()
@@ -133,6 +154,43 @@ class RenameDialog(QDialog):
         preview_layout.addWidget(self.warning_label)
 
         layout.addWidget(preview_group)
+
+        # Metadaten-Panel (Phase 16)
+        metadata_group = QGroupBox("Dokument-Metadaten (werden in PDF gespeichert)")
+        metadata_layout = QVBoxLayout(metadata_group)
+        metadata_layout.setSpacing(4)
+
+        # Metadaten-Felder als editierbare Eingabefelder
+        self._metadata_inputs = {}
+        metadata_field_labels = [
+            ("subject", "Kategorie"),
+            ("korrespondent", "Korrespondent"),
+            ("betrag", "Betrag"),
+            ("waehrung", "Währung"),
+            ("mwst_satz", "MwSt-Satz"),
+            ("steuerjahr", "Steuerjahr"),
+            ("description", "Zusammenfassung"),
+        ]
+
+        for field_key, field_label in metadata_field_labels:
+            row = QHBoxLayout()
+            label = QLabel(f"{field_label}:")
+            label.setFixedWidth(110)
+            label.setStyleSheet("color: #555; font-size: 11px;")
+            row.addWidget(label)
+
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"{field_label}...")
+            input_field.setStyleSheet("font-size: 11px; padding: 2px 4px;")
+            # Vorausfüllen mit LLM-Metadaten
+            if self._metadata.get(field_key):
+                input_field.setText(str(self._metadata[field_key]))
+            row.addWidget(input_field)
+
+            self._metadata_inputs[field_key] = input_field
+            metadata_layout.addLayout(row)
+
+        layout.addWidget(metadata_group)
 
         # Erkannte Informationen
         if self.keywords:
@@ -209,6 +267,13 @@ class RenameDialog(QDialog):
             name = name.replace('.pdf', '')
             self.name_input.setText(name)
 
+            # Metadaten des Vorschlags übernehmen (falls vorhanden)
+            idx = self.suggestions_list.row(item)
+            if idx < len(self.suggestions) and self.suggestions[idx].metadata:
+                for key, value in self.suggestions[idx].metadata.items():
+                    if key in self._metadata_inputs:
+                        self._metadata_inputs[key].setText(str(value))
+
     def on_suggestion_double_clicked(self, item: QListWidgetItem):
         """Doppelklick übernimmt und bestätigt sofort."""
         self.on_suggestion_clicked(item)
@@ -281,6 +346,15 @@ class RenameDialog(QDialog):
     def get_new_name(self) -> Optional[str]:
         """Gibt den neuen Dateinamen zurück."""
         return self.new_name
+
+    def get_metadata(self) -> dict:
+        """Gibt die eingegebenen/bestätigten Metadaten zurück."""
+        metadata = {}
+        for field_key, input_field in self._metadata_inputs.items():
+            value = input_field.text().strip()
+            if value:
+                metadata[field_key] = value
+        return metadata
 
 
 def generate_rename_suggestions(

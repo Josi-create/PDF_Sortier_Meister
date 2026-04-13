@@ -214,49 +214,36 @@
   - Stattdessen: bis zu **3 verschiedene LLM-Vorschläge** zur Auswahl
   - ML bleibt intern für Ordner-Sortierung erhalten, aber nicht im Umbenennen-Dialog sichtbar
 
-### Phase 16: PDF-Metadaten direkt in PDF-Dateien schreiben (NEU - Hohe Priorität)
+### Phase 16: PDF-Metadaten direkt in PDF-Dateien schreiben (100% fertig)
 
 **Inspiration: paperless-ai Vergleich (März 2026)**
 
 Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in die PDF-Datei eingebettet **und** zusätzlich in der SQLite-Datenbank für schnelle Indizierung/Suche. Damit bleiben Metadaten portabel und bei der Datei, unabhängig vom Programm.
 
-- [ ] **pikepdf als neue Abhängigkeit** für XMP-Metadaten-Schreibzugriff
-- [ ] **Schreiben folgender XMP-Felder** bei Sortierung/Umbenennung:
+- [x] **pikepdf als neue Abhängigkeit** für XMP-Metadaten-Schreibzugriff *(v0.9.0)*
+- [x] **Neues Modul `src/core/pdf_metadata.py`** *(v0.9.0)*
+  - `PDFMetadata` Datenklasse für alle Metadaten-Felder
+  - `write_metadata()` schreibt XMP + Info Dictionary in PDF
+  - `read_metadata()` liest Metadaten aus PDF zurück
+- [x] **Schreiben folgender Felder** bei Umbenennung:
   - `dc:title` → Dokumententitel (aus Umbenennung)
   - `dc:subject` → Kategorie (Rechnung, Vertrag, Steuer, ...)
   - `dc:description` → Kurzzusammenfassung (LLM-generiert)
   - `pdf:Keywords` → Erkannte Schlagworte (kommagetrennt)
-  - `custom:Korrespondent` → Erkannter Firmenname/Absender
-  - `custom:Buchungsdatum` → Erkanntes Rechnungs-/Dokumentendatum (ISO: YYYY-MM-DD)
-  - `custom:Steuerjahr` → Steuerjahr (z.B. `2024`)
-  - `custom:Betrag` → Rechnungsbetrag (z.B. `142.50`)
-  - `custom:Waehrung` → Währung (EUR/USD)
-  - `custom:MwStSatz` → Mehrwertsteuersatz (7 / 19)
-  - `custom:SteuerlichAbsetzbar` → ja / nein / teilweise
-- [ ] **Metadaten-Extraktion per LLM** erweitern:
-  - Betrag, Währung, MwSt aus Dokumenttext extrahieren
-  - Steuerjahr aus Datum ableiten
-- [ ] **SQLite-Datenbank bleibt als Index-Spiegel** (kein Ersatz, Ergänzung):
-  - `SortingHistory` um neue Felder erweitern: `betrag`, `steuerjahr`, `korrespondent`, `steuerlich_absetzbar`
-  - Wird bei jedem Schreiben in die PDF synchron befüllt
-- [ ] **Metadaten direkt beim Umbenennen setzen**
-  - Im Umbenennungsdialog: LLM schlägt gleichzeitig Metadaten vor (Steuerjahr, Kategorie, Betrag)
-  - Lerneffekt: Nach einigen Entscheidungen verbessert sich die Genauigkeit der Metadatenvorschläge (z.B. Steuerjahr-Zuordnung)
-  - Nutzer kann Vorschläge bestätigen, anpassen oder ablehnen
-- [ ] **Kompatibilität** mit Paperless-ngx, DEVONthink, Adobe Acrobat (XMP-Standard)
-
-```python
-# Implementierungsbeispiel (pikepdf)
-import pikepdf
-with pikepdf.open("dokument.pdf", allow_overwriting_input=True) as pdf:
-    with pdf.open_metadata() as meta:
-        meta["dc:title"] = "Stromrechnung Januar 2024"
-        meta["dc:subject"] = "Rechnung"
-        meta["pdf:Keywords"] = "Strom, Energie, 2024"
-        meta["custom:Steuerjahr"] = "2024"
-        meta["custom:Betrag"] = "142.50"
-    pdf.save()
-```
+  - Info Dictionary: Korrespondent, Buchungsdatum, Steuerjahr, Betrag, Währung, MwSt, SteuerlichAbsetzbar
+- [x] **LLM-Prompt erweitert** für Metadaten-Extraktion *(v0.9.0)*
+  - LLM extrahiert jetzt: Kategorie, Korrespondent, Betrag, Währung, MwSt, Steuerjahr, Zusammenfassung
+  - Alle 3 Provider (Claude, OpenAI, Poe) unterstützen Metadaten in der Response
+  - `_parse_response()` erkennt neue Felder (KATEGORIE, KORRESPONDENT, BETRAG, etc.)
+- [x] **SQLite-Datenbank als Index-Spiegel** erweitert *(v0.9.0)*
+  - `SortingHistory` um 8 neue Felder: `korrespondent`, `betrag`, `waehrung`, `mwst_satz`, `steuerjahr`, `steuerlich_absetzbar`, `kategorie`, `zusammenfassung`
+  - Automatische Migration älterer Datenbanken
+- [x] **Metadaten direkt beim Umbenennen setzen** *(v0.9.0)*
+  - Umbenennungsdialog zeigt 7 editierbare Metadaten-Felder
+  - LLM füllt Felder automatisch vor, Nutzer kann anpassen
+  - Bei Vorschlag-Klick werden Metadaten des jeweiligen Vorschlags übernommen
+  - Nach Bestätigung: Metadaten in PDF + DB geschrieben
+- [x] **Kompatibilität** mit Paperless-ngx, DEVONthink, Adobe Acrobat (XMP + Info Dictionary)
 
 ### Phase 17: Volltext-Suche mit SQLite FTS5 (NEU - Hohe Priorität)
 
@@ -395,6 +382,10 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut |
 | De-Selektion (Klick auf leere Fläche / Escape) | ✅ | v0.9.0 - mousePressEvent + Escape-Shortcut |
 | Zurück-Button (Ordner-History) | ✅ | v0.9.0 - ⬅ Button + Alt+Left + Menü |
+| Phase 16: PDF-XMP-Metadaten schreiben | ✅ | v0.9.0 - pikepdf + LLM-Extraktion + Umbenennungsdialog |
+| LLM extrahiert Betrag/MwSt/Steuerjahr/Korrespondent | ✅ | v0.9.0 - Erweiterter Prompt für alle 3 Provider |
+| SortingHistory um 8 Metadaten-Felder erweitert | ✅ | v0.9.0 - Automatische Migration |
+| Metadaten-Panel im Umbenennungsdialog | ✅ | v0.9.0 - 7 editierbare Felder |
 
 ---
 
@@ -423,6 +414,7 @@ PDF_Sortier_Meister/
 │   │   ├── __init__.py
 │   │   ├── pdf_analyzer.py     # PDF-Analyse, OCR, Thumbnails
 │   │   ├── pdf_cache.py        # Analyse-Cache mit LLM-Pre-Caching
+│   │   ├── pdf_metadata.py     # XMP-Metadaten in PDF schreiben (Phase 16)
 │   │   └── file_manager.py     # Dateisystem-Operationen (erweitert)
 │   ├── ml/
 │   │   ├── __init__.py
@@ -452,6 +444,7 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 - SQLAlchemy 2.0.45
 - python-dateutil 2.9.0
 - watchdog 6.0.0
+- pikepdf 10.5.1 *(NEU in v0.9.0 — Phase 16)*
 
 **Optional für LLM-Integration:**
 - anthropic (für Claude API direkt)
@@ -459,13 +452,6 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 
 ```bash
 pip install anthropic openai
-```
-
-**Geplant für Phase 16 (PDF-Metadaten schreiben):**
-- pikepdf (XMP-Metadaten in PDF einbetten — besser als pypdf für XMP)
-
-```bash
-pip install pikepdf
 ```
 
 **Tipp:** Mit einem Poe.com Account benötigen Sie nur `openai` und haben Zugang zu vielen Modellen (GPT, Claude, Gemini, Llama, etc.).
@@ -521,22 +507,14 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 1. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
 2. **Mehrere LLM API-Keys verwalten** - Schnelles Umschalten zwischen Providern
 
-### Parallel / Danach (Phase 16 - PDF-Metadaten):
+### Nächstes (Phase 17+18 - Suche & Steuerfelder):
 
-3. **pikepdf installieren** und XMP-Schreibfunktion in `pdf_analyzer.py` integrieren
-   - Bei jeder Sortierung/Umbenennung Metadaten in die PDF schreiben
-   - `SortingHistory`-Tabelle um neue Felder erweitern
-
-4. **LLM-Prompt erweitern** für Betrag, MwSt, Steuerjahr-Extraktion
-
-### Danach (Phase 17+18 - Suche & Steuerfelder):
-
-5. **FTS5-Volltext-Index** aufbauen und Such-Leiste im Hauptfenster integrieren
-6. **Metadaten-Sidebar** mit editierbaren Steuer-/Buchhaltungsfeldern
+3. **FTS5-Volltext-Index** aufbauen und Such-Leiste im Hauptfenster integrieren
+4. **Metadaten-Sidebar** mit editierbaren Steuer-/Buchhaltungsfeldern
 
 ### Mittelfristig (Phase 9 - Semi-Auto Workflow):
 
-7. **Batch-Umbenennung** mit LLM-Unterstützung
+5. **Batch-Umbenennung** mit LLM-Unterstützung
    - Mehrere PDFs auf einmal umbenennen
    - Fortschrittsanzeige
 
@@ -551,9 +529,9 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 | Automatisches Tagging per LLM | Ja | Ja (Hybrid TF-IDF+LLM) | — |
 | Dokumententyp-Klassifizierung | Ja | Ja (10 Kategorien) | — |
 | Korrespondenten-Erkennung | Ja | Teilweise (Firmenname) | Phase 20 |
-| Metadaten direkt in PDF schreiben | Nein | Nein | **Phase 16** |
-| Steuerjahr / Buchhaltungsfelder | Nein | Nein | **Phase 18** |
-| Betrag / MwSt-Extraktion | Nein | Nein | **Phase 16+18** |
+| Metadaten direkt in PDF schreiben | Nein | **Ja (v0.9.0)** | — |
+| Steuerjahr / Buchhaltungsfelder | Nein | **Ja (v0.9.0)** | Phase 18 (Sidebar) |
+| Betrag / MwSt-Extraktion | Nein | **Ja (v0.9.0)** | — |
 | Volltext-Suche | Nein | Nein | **Phase 17** |
 | RAG-Chat (natürliche Sprache) | Ja | Nein | Phase 19 |
 | Automatisierungs-Regeln | Ja | Nein | Phase 21 |

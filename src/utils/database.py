@@ -45,7 +45,17 @@ class SortingHistory(Base):
     # Neuer Dateiname (falls umbenannt)
     new_filename = Column(String(500), nullable=True)
 
-    # Metadaten
+    # Dokument-Metadaten (Phase 16)
+    korrespondent = Column(String(500), nullable=True)    # Firmenname/Absender
+    betrag = Column(String(50), nullable=True)            # Rechnungsbetrag
+    waehrung = Column(String(10), nullable=True)          # EUR/USD
+    mwst_satz = Column(String(10), nullable=True)         # 7 / 19
+    steuerjahr = Column(String(10), nullable=True)        # z.B. "2024"
+    steuerlich_absetzbar = Column(String(20), nullable=True)  # ja/nein/teilweise
+    kategorie = Column(String(100), nullable=True)        # Rechnung/Vertrag/etc.
+    zusammenfassung = Column(String(1000), nullable=True)  # Kurzbeschreibung
+
+    # System-Metadaten
     created_at = Column(DateTime, default=datetime.utcnow)
     confidence = Column(Float, default=1.0)  # 1.0 = Benutzerentscheidung
 
@@ -141,6 +151,15 @@ class Database:
                 ("sorting_history", "target_relative_path", "VARCHAR(1000)"),
                 ("target_folders", "relative_path", "VARCHAR(1000)"),
                 ("target_folders", "parent_path", "VARCHAR(1000)"),
+                # Phase 16: Dokument-Metadaten
+                ("sorting_history", "korrespondent", "VARCHAR(500)"),
+                ("sorting_history", "betrag", "VARCHAR(50)"),
+                ("sorting_history", "waehrung", "VARCHAR(10)"),
+                ("sorting_history", "mwst_satz", "VARCHAR(10)"),
+                ("sorting_history", "steuerjahr", "VARCHAR(10)"),
+                ("sorting_history", "steuerlich_absetzbar", "VARCHAR(20)"),
+                ("sorting_history", "kategorie", "VARCHAR(100)"),
+                ("sorting_history", "zusammenfassung", "VARCHAR(1000)"),
             ]
 
             for table, column, sql_type in migrations:
@@ -173,6 +192,7 @@ class Database:
         new_filename: str = None,
         confidence: float = 1.0,
         target_relative_path: str = None,
+        metadata: dict = None,
     ) -> SortingHistory:
         """
         Fügt einen neuen Eintrag zur Sortierhistorie hinzu.
@@ -188,6 +208,7 @@ class Database:
             new_filename: Neuer Dateiname (falls umbenannt)
             confidence: Konfidenz (1.0 = Benutzerentscheidung)
             target_relative_path: Relativer Pfad (z.B. "Steuer 2026/Banken")
+            metadata: Dokument-Metadaten (Phase 16)
 
         Returns:
             Der erstellte Eintrag
@@ -206,6 +227,18 @@ class Database:
                 new_filename=new_filename,
                 confidence=confidence,
             )
+
+            # Metadaten-Felder setzen (Phase 16)
+            if metadata:
+                entry.korrespondent = metadata.get("korrespondent")
+                entry.betrag = metadata.get("betrag")
+                entry.waehrung = metadata.get("waehrung")
+                entry.mwst_satz = metadata.get("mwst_satz")
+                entry.steuerjahr = metadata.get("steuerjahr")
+                entry.steuerlich_absetzbar = metadata.get("steuerlich_absetzbar")
+                entry.kategorie = metadata.get("subject")
+                entry.zusammenfassung = metadata.get("description")
+
             session.add(entry)
 
             # Zielordner-Statistik aktualisieren

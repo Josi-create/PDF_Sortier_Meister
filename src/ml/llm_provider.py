@@ -32,6 +32,8 @@ class LLMResponse:
     confidence: float = 0.0  # 0.0 - 1.0
     error_message: Optional[str] = None
     tokens_used: int = 0
+    # Metadaten-Felder (Phase 16)
+    metadata: Optional[dict] = None  # Extrahierte Metadaten
 
 
 @dataclass
@@ -39,7 +41,7 @@ class LLMConfig:
     """Konfiguration für einen LLM-Provider."""
     api_key: str
     model: str
-    max_tokens: int = 500
+    max_tokens: int = 700
     temperature: float = 0.3  # Niedrig für konsistente Antworten
     text_limit: int = 1500  # Max. Zeichen die an LLM gesendet werden
 
@@ -236,9 +238,10 @@ KONFIDENZ: [Zahl von 0-100]"""
         if target_folder:
             folder_info = f"\nZielordner: {target_folder}"
 
-        return f"""Du bist ein Assistent zum Benennen von Dokumenten.
+        return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten.
 
 Analysiere das folgende Dokument und schlage einen aussagekräftigen Dateinamen vor.
+Extrahiere außerdem wichtige Metadaten aus dem Dokument.
 
 AKTUELLER DATEINAME: {current_filename}
 
@@ -262,14 +265,21 @@ REGELN FÜR DEN DATEINAMEN:
    - Wenn KEIN Datum im Dokument steht, verwende das Änderungsdatum der Datei (Scandatum)
    - NIEMALS ein Datum erfinden! Kein 2023 oder andere Phantasiedaten!
 
-Antworte im folgenden Format:
+Antworte im folgenden Format (jedes Feld in einer eigenen Zeile):
 DATEINAME: [Vorgeschlagener Dateiname mit .pdf]
 BEGRÜNDUNG: [Kurze Begründung, max 1-2 Sätze]
-KONFIDENZ: [Zahl von 0-100]"""
+KONFIDENZ: [Zahl von 0-100]
+KATEGORIE: [Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges]
+KORRESPONDENT: [Firmenname oder Absender, z.B. "Stadtwerke München GmbH"]
+BETRAG: [Rechnungsbetrag in Format 123.45 oder UNBEKANNT]
+WAEHRUNG: [EUR/USD oder UNBEKANNT]
+MWST: [Mehrwertsteuersatz als Zahl: 7/19 oder UNBEKANNT]
+STEUERJAHR: [Steuerjahr als vierstellige Zahl, z.B. 2024, oder UNBEKANNT]
+ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
 
     def _parse_response(self, response_text: str) -> dict:
         """
-        Parst die LLM-Antwort.
+        Parst die LLM-Antwort inkl. Metadaten-Felder.
 
         Args:
             response_text: Rohe Antwort vom LLM
@@ -282,6 +292,18 @@ KONFIDENZ: [Zahl von 0-100]"""
             "filename": None,
             "reason": None,
             "confidence": 0.0,
+            "metadata": {},
+        }
+
+        # Mapping von LLM-Ausgabefeldern zu Metadaten-Keys
+        metadata_fields = {
+            "KATEGORIE:": "subject",
+            "KORRESPONDENT:": "korrespondent",
+            "BETRAG:": "betrag",
+            "WAEHRUNG:": "waehrung",
+            "MWST:": "mwst_satz",
+            "STEUERJAHR:": "steuerjahr",
+            "ZUSAMMENFASSUNG:": "description",
         }
 
         lines = response_text.strip().split("\n")
@@ -300,5 +322,14 @@ KONFIDENZ: [Zahl von 0-100]"""
                     result["confidence"] = float(conf_str) / 100.0
                 except ValueError:
                     result["confidence"] = 0.5
+            else:
+                # Metadaten-Felder parsen
+                for prefix, key in metadata_fields.items():
+                    if line.startswith(prefix):
+                        value = line.replace(prefix, "").strip()
+                        # "UNBEKANNT" oder leere Werte ignorieren
+                        if value and value.upper() not in ("UNBEKANNT", "KEINE", "N/A", "-", ""):
+                            result["metadata"][key] = value
+                        break
 
         return result

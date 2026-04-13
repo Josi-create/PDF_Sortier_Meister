@@ -36,6 +36,7 @@ class HybridFilename:
     reason: str
     confidence: float  # 0.0 - 1.0
     source: str  # "local", "llm"
+    metadata: Optional[dict] = None  # Extrahierte Metadaten (nur bei LLM)
 
 
 class HybridClassifier:
@@ -421,6 +422,7 @@ class HybridClassifier:
             reason=response.filename_reason or "LLM-Vorschlag",
             confidence=response.confidence,
             source="llm",
+            metadata=response.metadata,
         )
 
     def learn(

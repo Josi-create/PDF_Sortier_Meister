@@ -1154,6 +1154,58 @@ class MainWindow(QMainWindow):
         import os
         os.startfile(str(pdf_path))
 
+    def _write_pdf_metadata(
+        self,
+        pdf_path: Path,
+        new_name: str,
+        keywords: list[str] = None,
+        dialog_metadata: dict = None,
+    ):
+        """Schreibt Metadaten in die PDF-Datei (XMP + Info Dictionary)."""
+        try:
+            from src.core.pdf_metadata import PDFMetadata, write_metadata
+
+            metadata = PDFMetadata()
+
+            # Titel aus neuem Dateinamen (ohne .pdf)
+            metadata.title = Path(new_name).stem.replace("_", " ").replace("-", " ")
+
+            # Keywords aus Analyse
+            if keywords:
+                metadata.keywords = ", ".join(keywords)
+                # Erste Kategorie als Subject (falls nicht aus Dialog)
+                if not (dialog_metadata and dialog_metadata.get("subject")):
+                    metadata.subject = keywords[0].capitalize()
+
+            # Felder aus dem Dialog (LLM-Vorschläge, ggf. vom User editiert)
+            if dialog_metadata:
+                if dialog_metadata.get("subject"):
+                    metadata.subject = dialog_metadata["subject"]
+                if dialog_metadata.get("korrespondent"):
+                    metadata.korrespondent = dialog_metadata["korrespondent"]
+                if dialog_metadata.get("betrag"):
+                    metadata.betrag = dialog_metadata["betrag"]
+                if dialog_metadata.get("waehrung"):
+                    metadata.waehrung = dialog_metadata["waehrung"]
+                if dialog_metadata.get("mwst_satz"):
+                    metadata.mwst_satz = dialog_metadata["mwst_satz"]
+                if dialog_metadata.get("steuerjahr"):
+                    metadata.steuerjahr = dialog_metadata["steuerjahr"]
+                if dialog_metadata.get("description"):
+                    metadata.description = dialog_metadata["description"]
+
+            if metadata.has_any_data():
+                success = write_metadata(pdf_path, metadata)
+                if success:
+                    print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
+                else:
+                    print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
+
+        except ImportError:
+            pass  # pikepdf nicht installiert - kein Fehler
+        except Exception as e:
+            print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
     def _rename_selected_pdf(self):
         """F2-Shortcut: Öffnet den Umbenennungsdialog für die ausgewählte PDF."""
         if self.selected_pdf and self.selected_pdf.exists():
@@ -1222,28 +1274,29 @@ class MainWindow(QMainWindow):
             learned_patterns=learned_patterns if learned_patterns else None
         )
 
+        # Datum als String für Dialog und LLM
+        detected_date_str = None
+        if dates and len(dates) > 0:
+            first_date = dates[0]
+            if hasattr(first_date, 'strftime'):
+                detected_date_str = first_date.strftime("%Y-%m-%d")
+            else:
+                detected_date_str = str(first_date)
+
         # Gecachte LLM-Vorschläge verwenden wenn vorhanden
         if cached_llm:
             for llm_s in cached_llm:
                 suggestions.insert(0, RenameSuggestion(
                     name=llm_s.filename,
                     reason=f"KI (gecacht): Vorschlag",
-                    confidence=llm_s.confidence
+                    confidence=llm_s.confidence,
+                    metadata=getattr(llm_s, 'metadata', None),
                 ))
         # Sonst: LLM-Vorschlag live holen wenn verfügbar
         elif self.hybrid_classifier.is_llm_available():
             self.statusbar.showMessage("Frage KI nach Vorschlag...")
             QApplication.processEvents()
             try:
-                # Datum als String für LLM
-                detected_date = None
-                if dates and len(dates) > 0:
-                    first_date = dates[0]
-                    if hasattr(first_date, 'strftime'):
-                        detected_date = first_date.strftime("%Y-%m-%d")
-                    else:
-                        detected_date = str(first_date)
-
                 # Datei-Änderungsdatum als Fallback (Scandatum)
                 from datetime import datetime
                 file_mtime = pdf_path.stat().st_mtime
@@ -1253,7 +1306,7 @@ class MainWindow(QMainWindow):
                     text=extracted_text or "",
                     current_filename=pdf_path.name,
                     keywords=keywords,
-                    detected_date=detected_date,
+                    detected_date=detected_date_str,
                     use_llm=True,
                     file_date=file_date,
                 )
@@ -1264,7 +1317,8 @@ class MainWindow(QMainWindow):
                         suggestions.insert(0, RenameSuggestion(
                             name=llm_s.filename,
                             reason=f"KI: {llm_s.reason}",
-                            confidence=llm_s.confidence
+                            confidence=llm_s.confidence,
+                            metadata=llm_s.metadata,
                         ))
             except Exception as e:
                 print(f"Fehler bei LLM-Vorschlag: {e}")
@@ -1275,11 +1329,13 @@ class MainWindow(QMainWindow):
             suggestions=suggestions,
             extracted_text=extracted_text,
             keywords=keywords,
+            detected_date=detected_date_str,
             parent=self
         )
 
         if dialog.exec() == RenameDialog.DialogCode.Accepted:
             new_name = dialog.get_new_name()
+            dialog_metadata = dialog.get_metadata()
             if new_name:
                 try:
                     # Datei umbenennen
@@ -1287,6 +1343,9 @@ class MainWindow(QMainWindow):
 
                     # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
                     self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+
+                    # Metadaten in PDF schreiben (Phase 16)
+                    self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
 
                     # Aus der Umbenennung lernen
                     detected_date = None
@@ -1316,8 +1375,11 @@ class MainWindow(QMainWindow):
                         "description": f"Umbenennung: {pdf_path.name} → {new_path.name}",
                     })
 
+                    meta_info = ""
+                    if dialog_metadata:
+                        meta_info = f" + {len(dialog_metadata)} Metadaten"
                     self.statusbar.showMessage(
-                        f"Umbenannt zu: {new_path.name} (gelernt)", 3000
+                        f"Umbenannt zu: {new_path.name} (gelernt{meta_info})", 3000
                     )
                     # Widget-Namen aktualisieren statt vollständigem Refresh
                     self._update_pdf_widget_path(pdf_path, new_path)
