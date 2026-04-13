@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QDialog,
@@ -201,6 +201,21 @@ class RenameDialog(QDialog):
             self._metadata_inputs[field_key] = input_field
             metadata_layout.addLayout(row)
 
+        # Button: KI-Metadaten neu generieren
+        llm_btn_row = QHBoxLayout()
+        llm_btn_row.addStretch()
+        self.llm_metadata_btn = QPushButton("KI-Metadaten generieren")
+        self.llm_metadata_btn.setToolTip("LLM erneut aufrufen um Metadaten zu extrahieren")
+        self.llm_metadata_btn.setStyleSheet(
+            "QPushButton { background-color: #7b1fa2; color: white; "
+            "padding: 4px 12px; border: none; border-radius: 3px; font-size: 11px; }"
+            "QPushButton:hover { background-color: #6a1b9a; }"
+            "QPushButton:disabled { background-color: #bdbdbd; }"
+        )
+        self.llm_metadata_btn.clicked.connect(self._request_llm_metadata)
+        llm_btn_row.addWidget(self.llm_metadata_btn)
+        metadata_layout.addLayout(llm_btn_row)
+
         layout.addWidget(metadata_group)
 
         # Erkannte Informationen
@@ -358,6 +373,77 @@ class RenameDialog(QDialog):
 
         self.new_name = text
         self.accept()
+
+    def _request_llm_metadata(self):
+        """Ruft das LLM erneut auf um Metadaten zu extrahieren."""
+        from PyQt6.QtWidgets import QPlainTextEdit, QApplication
+
+        try:
+            from src.ml.hybrid_classifier import get_hybrid_classifier
+
+            classifier = get_hybrid_classifier()
+            if not classifier.is_llm_available():
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self, "KI nicht verfügbar",
+                    "Kein LLM konfiguriert. Bitte unter Extras → Einstellungen einen API-Key hinterlegen."
+                )
+                return
+
+            # Button deaktivieren während der Anfrage
+            self.llm_metadata_btn.setEnabled(False)
+            self.llm_metadata_btn.setText("KI arbeitet...")
+            QApplication.processEvents()
+
+            # Datum ermitteln
+            detected_date = self._metadata.get("buchungsdatum")
+
+            # Datei-Änderungsdatum als Fallback
+            from datetime import datetime
+            file_date = None
+            try:
+                file_mtime = self.pdf_path.stat().st_mtime
+                file_date = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+            # LLM aufrufen
+            llm_suggestions = classifier.suggest_filename(
+                text=self.extracted_text or "",
+                current_filename=self.pdf_path.name,
+                keywords=self.keywords,
+                detected_date=detected_date,
+                use_llm=True,
+                file_date=file_date,
+            )
+
+            # Metadaten aus LLM-Antwort übernehmen
+            metadata_found = False
+            for s in llm_suggestions:
+                if s.source == "llm" and s.metadata:
+                    for key, value in s.metadata.items():
+                        widget = self._metadata_inputs.get(key)
+                        if widget:
+                            if isinstance(widget, QPlainTextEdit):
+                                widget.setPlainText(str(value))
+                            else:
+                                widget.setText(str(value))
+                    metadata_found = True
+                    break
+
+            if not metadata_found:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self, "Keine Metadaten",
+                    "Das LLM konnte keine Metadaten aus dem Dokument extrahieren."
+                )
+
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Fehler", f"LLM-Aufruf fehlgeschlagen:\n{e}")
+        finally:
+            self.llm_metadata_btn.setEnabled(True)
+            self.llm_metadata_btn.setText("KI-Metadaten generieren")
 
     def get_new_name(self) -> Optional[str]:
         """Gibt den neuen Dateinamen zurück."""

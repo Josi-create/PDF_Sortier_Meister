@@ -341,6 +341,7 @@ class MainWindow(QMainWindow):
     def _start_pre_caching(self, pdf_files: list[Path]):
         """Startet das Pre-Caching für alle PDFs im Hintergrund."""
         self.pdf_cache.pre_cache(pdf_files)
+        self.cache_status_label.setText(f"Analyse: 0/{len(pdf_files)} PDFs...")
         self.statusbar.showMessage(f"Analysiere {len(pdf_files)} PDFs im Hintergrund...", 2000)
 
     def _on_thumbnail_loaded(self):
@@ -679,6 +680,11 @@ class MainWindow(QMainWindow):
         self.training_label.setToolTip("Anzahl gelernter Sortierentscheidungen")
         self.statusbar.addPermanentWidget(self.training_label)
 
+        # Cache-Status (Pre-Caching-Fortschritt)
+        self.cache_status_label = QLabel("")
+        self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.statusbar.addPermanentWidget(self.cache_status_label)
+
         # LLM-Status anzeigen
         self.llm_status_label = QLabel("")
         self._update_llm_status()
@@ -887,9 +893,14 @@ class MainWindow(QMainWindow):
 
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
-        # Könnte für Status-Updates genutzt werden
         stats = self.pdf_cache.get_stats()
-        # Optional: Cache-Status in Statusleiste anzeigen
+        total_pdfs = len(self.pdf_widgets)
+        cached = stats.get("cached_count", 0)
+
+        if total_pdfs > 0 and cached < total_pdfs:
+            self.cache_status_label.setText(f"Analyse: {pdf_path.name[:30]}... ({cached}/{total_pdfs})")
+        else:
+            self.cache_status_label.setText("")
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
