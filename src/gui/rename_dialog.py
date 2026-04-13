@@ -177,14 +177,25 @@ class RenameDialog(QDialog):
             label = QLabel(f"{field_label}:")
             label.setFixedWidth(110)
             label.setStyleSheet("color: #555; font-size: 11px;")
+            if field_key == "description":
+                label.setAlignment(Qt.AlignmentFlag.AlignTop)
             row.addWidget(label)
 
-            input_field = QLineEdit()
-            input_field.setPlaceholderText(f"{field_label}...")
-            input_field.setStyleSheet("font-size: 11px; padding: 2px 4px;")
-            # Vorausfüllen mit LLM-Metadaten
-            if self._metadata.get(field_key):
-                input_field.setText(str(self._metadata[field_key]))
+            if field_key == "description":
+                # Zusammenfassung als mehrzeiliges Textfeld (3 Zeilen)
+                from PyQt6.QtWidgets import QPlainTextEdit
+                input_field = QPlainTextEdit()
+                input_field.setPlaceholderText(f"{field_label}...")
+                input_field.setStyleSheet("font-size: 11px; padding: 2px 4px;")
+                input_field.setFixedHeight(55)
+                if self._metadata.get(field_key):
+                    input_field.setPlainText(str(self._metadata[field_key]))
+            else:
+                input_field = QLineEdit()
+                input_field.setPlaceholderText(f"{field_label}...")
+                input_field.setStyleSheet("font-size: 11px; padding: 2px 4px;")
+                if self._metadata.get(field_key):
+                    input_field.setText(str(self._metadata[field_key]))
             row.addWidget(input_field)
 
             self._metadata_inputs[field_key] = input_field
@@ -271,8 +282,13 @@ class RenameDialog(QDialog):
             idx = self.suggestions_list.row(item)
             if idx < len(self.suggestions) and self.suggestions[idx].metadata:
                 for key, value in self.suggestions[idx].metadata.items():
-                    if key in self._metadata_inputs:
-                        self._metadata_inputs[key].setText(str(value))
+                    widget = self._metadata_inputs.get(key)
+                    if widget:
+                        from PyQt6.QtWidgets import QPlainTextEdit
+                        if isinstance(widget, QPlainTextEdit):
+                            widget.setPlainText(str(value))
+                        else:
+                            widget.setText(str(value))
 
     def on_suggestion_double_clicked(self, item: QListWidgetItem):
         """Doppelklick übernimmt und bestätigt sofort."""
@@ -349,9 +365,13 @@ class RenameDialog(QDialog):
 
     def get_metadata(self) -> dict:
         """Gibt die eingegebenen/bestätigten Metadaten zurück."""
+        from PyQt6.QtWidgets import QPlainTextEdit
         metadata = {}
         for field_key, input_field in self._metadata_inputs.items():
-            value = input_field.text().strip()
+            if isinstance(input_field, QPlainTextEdit):
+                value = input_field.toPlainText().strip()
+            else:
+                value = input_field.text().strip()
             if value:
                 metadata[field_key] = value
         return metadata
