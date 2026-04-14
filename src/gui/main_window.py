@@ -1358,6 +1358,12 @@ class MainWindow(QMainWindow):
                     # Metadaten in PDF schreiben (Phase 16)
                     self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
 
+                    # Korrespondent-Metadaten lernen (für künftige Dokumente)
+                    if dialog_metadata and dialog_metadata.get("korrespondent"):
+                        self.db.learn_korrespondent_metadata(
+                            dialog_metadata["korrespondent"], dialog_metadata
+                        )
+
                     # Aus der Umbenennung lernen
                     detected_date = None
                     if dates and len(dates) > 0:

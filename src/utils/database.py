@@ -102,6 +102,32 @@ class RenameHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class KorrespondentMetadata(Base):
+    """Gelernte Metadaten-Zuordnungen pro Korrespondent.
+
+    Wenn ein Nutzer Metadaten für einen Korrespondenten korrigiert
+    (z.B. "ista" → Kategorie "Hausverwaltung" statt "Energie"),
+    wird diese Zuordnung gespeichert und bei künftigen Dokumenten
+    desselben Absenders automatisch angewendet.
+    """
+
+    __tablename__ = "korrespondent_metadata"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    korrespondent = Column(String(500), nullable=False, unique=True)
+
+    # Gelernte Metadaten-Felder
+    kategorie = Column(String(100), nullable=True)
+    waehrung = Column(String(10), nullable=True)
+    mwst_satz = Column(String(10), nullable=True)
+    steuerlich_absetzbar = Column(String(20), nullable=True)
+
+    # Tracking
+    usage_count = Column(Integer, default=1)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Database:
     """Datenbankverbindung und -operationen."""
 
@@ -596,6 +622,113 @@ class Database:
         session = self.get_session()
         try:
             return session.query(RenameHistory).count()
+        finally:
+            session.close()
+
+    # === Korrespondent-Metadaten (lernendes System) ===
+
+    def learn_korrespondent_metadata(self, korrespondent: str, metadata: dict):
+        """
+        Speichert/aktualisiert gelernte Metadaten für einen Korrespondenten.
+
+        Wird aufgerufen wenn der Nutzer im Umbenennungsdialog Metadaten
+        bestätigt oder korrigiert. Das System merkt sich die Zuordnung
+        und wendet sie bei künftigen Dokumenten desselben Absenders an.
+
+        Args:
+            korrespondent: Firmenname/Absender (z.B. "ista")
+            metadata: Dict mit Feldern wie kategorie, waehrung, mwst_satz, etc.
+        """
+        if not korrespondent or not korrespondent.strip():
+            return
+
+        korrespondent = korrespondent.strip()
+        session = self.get_session()
+        try:
+            existing = session.query(KorrespondentMetadata).filter(
+                KorrespondentMetadata.korrespondent == korrespondent
+            ).first()
+
+            if existing:
+                # Bestehenden Eintrag aktualisieren
+                if metadata.get("subject"):
+                    existing.kategorie = metadata["subject"]
+                if metadata.get("waehrung"):
+                    existing.waehrung = metadata["waehrung"]
+                if metadata.get("mwst_satz"):
+                    existing.mwst_satz = metadata["mwst_satz"]
+                if metadata.get("steuerlich_absetzbar"):
+                    existing.steuerlich_absetzbar = metadata["steuerlich_absetzbar"]
+                existing.usage_count += 1
+                existing.updated_at = datetime.utcnow()
+            else:
+                # Neuen Eintrag erstellen
+                entry = KorrespondentMetadata(
+                    korrespondent=korrespondent,
+                    kategorie=metadata.get("subject"),
+                    waehrung=metadata.get("waehrung"),
+                    mwst_satz=metadata.get("mwst_satz"),
+                    steuerlich_absetzbar=metadata.get("steuerlich_absetzbar"),
+                )
+                session.add(entry)
+
+            session.commit()
+        finally:
+            session.close()
+
+    def get_korrespondent_metadata(self, korrespondent: str) -> Optional[dict]:
+        """
+        Gibt gelernte Metadaten für einen Korrespondenten zurück.
+
+        Args:
+            korrespondent: Firmenname/Absender
+
+        Returns:
+            Dict mit gelernten Feldern oder None
+        """
+        if not korrespondent or not korrespondent.strip():
+            return None
+
+        session = self.get_session()
+        try:
+            entry = session.query(KorrespondentMetadata).filter(
+                KorrespondentMetadata.korrespondent == korrespondent.strip()
+            ).first()
+
+            if not entry:
+                # Fuzzy-Suche: Teilübereinstimmung (z.B. "ista GmbH" findet "ista")
+                entries = session.query(KorrespondentMetadata).all()
+                korr_lower = korrespondent.strip().lower()
+                for e in entries:
+                    if (e.korrespondent.lower() in korr_lower
+                            or korr_lower in e.korrespondent.lower()):
+                        entry = e
+                        break
+
+            if not entry:
+                return None
+
+            result = {}
+            if entry.kategorie:
+                result["subject"] = entry.kategorie
+            if entry.waehrung:
+                result["waehrung"] = entry.waehrung
+            if entry.mwst_satz:
+                result["mwst_satz"] = entry.mwst_satz
+            if entry.steuerlich_absetzbar:
+                result["steuerlich_absetzbar"] = entry.steuerlich_absetzbar
+            return result if result else None
+        finally:
+            session.close()
+
+    def get_all_korrespondenten(self) -> list[str]:
+        """Gibt alle bekannten Korrespondenten zurück (für Autovervollständigung)."""
+        session = self.get_session()
+        try:
+            entries = session.query(KorrespondentMetadata).order_by(
+                KorrespondentMetadata.usage_count.desc()
+            ).all()
+            return [e.korrespondent for e in entries]
         finally:
             session.close()
 

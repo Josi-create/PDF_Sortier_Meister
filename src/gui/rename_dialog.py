@@ -59,6 +59,7 @@ class RenameDialog(QDialog):
         self.keywords = keywords or []
         self.new_name: Optional[str] = None
         self._metadata: dict = {}  # Gesammelte Metadaten
+        self._has_learned_overrides: bool = False
 
         # 1. Basis-Vorbelegung aus Analyse-Daten (immer verfügbar)
         if keywords:
@@ -77,6 +78,19 @@ class RenameDialog(QDialog):
             if s.metadata:
                 self._metadata.update(s.metadata)
                 break
+
+        # 3. Gelernte Korrespondent-Zuordnungen anwenden (höchste Priorität)
+        korrespondent = self._metadata.get("korrespondent")
+        if korrespondent:
+            try:
+                from src.utils.database import get_database
+                db = get_database()
+                learned = db.get_korrespondent_metadata(korrespondent)
+                if learned:
+                    self._metadata.update(learned)
+                    self._has_learned_overrides = True
+            except Exception:
+                pass
 
         self.setWindowTitle("PDF umbenennen")
         self.setMinimumWidth(550)
@@ -156,7 +170,11 @@ class RenameDialog(QDialog):
         layout.addWidget(preview_group)
 
         # Metadaten-Panel (Phase 16)
-        metadata_group = QGroupBox("Dokument-Metadaten (werden in PDF gespeichert)")
+        if self._has_learned_overrides:
+            metadata_title = "Dokument-Metadaten (gelernt + werden in PDF gespeichert)"
+        else:
+            metadata_title = "Dokument-Metadaten (werden in PDF gespeichert)"
+        metadata_group = QGroupBox(metadata_title)
         metadata_layout = QVBoxLayout(metadata_group)
         metadata_layout.setSpacing(4)
 
@@ -429,6 +447,23 @@ class RenameDialog(QDialog):
                             else:
                                 widget.setText(str(value))
                     metadata_found = True
+
+                    # Gelernte Korrekturen anwenden (überschreibt LLM-Vorschläge)
+                    korrespondent = s.metadata.get("korrespondent", "")
+                    if korrespondent:
+                        try:
+                            from src.utils.database import get_database
+                            learned = get_database().get_korrespondent_metadata(korrespondent)
+                            if learned:
+                                for lkey, lvalue in learned.items():
+                                    w = self._metadata_inputs.get(lkey)
+                                    if w:
+                                        if isinstance(w, QPlainTextEdit):
+                                            w.setPlainText(str(lvalue))
+                                        else:
+                                            w.setText(str(lvalue))
+                        except Exception:
+                            pass
                     break
 
             if not metadata_found:
