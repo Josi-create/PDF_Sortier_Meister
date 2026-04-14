@@ -45,6 +45,10 @@ class SettingsDialog(QDialog):
         llm_tab = self._create_llm_tab()
         tab_widget.addTab(llm_tab, "KI-Assistent (LLM)")
 
+        # Persönliche Daten Tab
+        personal_tab = self._create_personal_tab()
+        tab_widget.addTab(personal_tab, "Persönliche Daten")
+
         # Allgemeine Einstellungen Tab
         general_tab = self._create_general_tab()
         tab_widget.addTab(general_tab, "Allgemein")
@@ -173,6 +177,52 @@ class SettingsDialog(QDialog):
 
         layout.addStretch()
 
+        return tab
+
+    def _create_personal_tab(self) -> QWidget:
+        """Erstellt den Tab für persönliche Daten."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Erklärung
+        info_label = QLabel(
+            "Damit das System Sie nicht als Korrespondent erkennt, geben Sie hier\n"
+            "Ihren Namen ein. Der Korrespondent ist immer die andere Partei\n"
+            "(Firma, Behörde, Person) — nicht Sie selbst."
+        )
+        info_label.setStyleSheet("color: #555; font-size: 11px; padding: 5px;")
+        layout.addWidget(info_label)
+
+        # Benutzerinformationen
+        user_group = QGroupBox("Ihre Daten")
+        user_layout = QFormLayout(user_group)
+
+        self.owner_name_input = QLineEdit()
+        self.owner_name_input.setPlaceholderText("z.B. Johannes Härle-Wack")
+        self.owner_name_input.setToolTip("Ihr vollständiger Name")
+        user_layout.addRow("Name:", self.owner_name_input)
+
+        self.owner_variants_input = QLineEdit()
+        self.owner_variants_input.setPlaceholderText("z.B. J. Härle-Wack, Härle-Wack")
+        self.owner_variants_input.setToolTip(
+            "Weitere Schreibweisen Ihres Namens (kommagetrennt),\n"
+            "die auf Dokumenten vorkommen können."
+        )
+        user_layout.addRow("Namensvarianten:", self.owner_variants_input)
+
+        self.owner_company_input = QLineEdit()
+        self.owner_company_input.setPlaceholderText("z.B. Härle-Wack GbR (optional)")
+        self.owner_company_input.setToolTip("Ihre eigene Firma (falls vorhanden)")
+        user_layout.addRow("Eigene Firma:", self.owner_company_input)
+
+        self.owner_address_input = QLineEdit()
+        self.owner_address_input.setPlaceholderText("z.B. Musterstraße 12, 12345 Berlin (optional)")
+        self.owner_address_input.setToolTip("Ihre Adresse (hilft bei der Erkennung auf Briefen)")
+        user_layout.addRow("Adresse:", self.owner_address_input)
+
+        layout.addWidget(user_group)
+
+        layout.addStretch()
         return tab
 
     def _create_general_tab(self) -> QWidget:
@@ -501,6 +551,12 @@ class SettingsDialog(QDialog):
         self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
 
+        # Persönliche Daten
+        self.owner_name_input.setText(self.config.get("owner_name", ""))
+        self.owner_variants_input.setText(self.config.get("owner_name_variants", ""))
+        self.owner_company_input.setText(self.config.get("owner_company", ""))
+        self.owner_address_input.setText(self.config.get("owner_address", ""))
+
         # Cache-Einstellungen
         self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
@@ -553,6 +609,12 @@ class SettingsDialog(QDialog):
             cache.set_llm_precache_enabled(llm_precache)
         except Exception:
             pass
+
+        # Persönliche Daten speichern
+        self.config.set("owner_name", self.owner_name_input.text().strip())
+        self.config.set("owner_name_variants", self.owner_variants_input.text().strip())
+        self.config.set("owner_company", self.owner_company_input.text().strip())
+        self.config.set("owner_address", self.owner_address_input.text().strip())
 
         self.settings_changed.emit()
         self.accept()

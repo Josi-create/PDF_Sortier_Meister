@@ -26,6 +26,11 @@ class Config:
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
+        # Persönliche Daten (damit das System den Benutzer kennt)
+        "owner_name": "",           # z.B. "Johannes Härle-Wack"
+        "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
+        "owner_company": "",        # Eigene Firma (falls vorhanden)
+        "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
         # LLM-Konfiguration
         "llm": {
             "provider": "none",  # "none", "claude", "openai"

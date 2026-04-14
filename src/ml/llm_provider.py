@@ -238,11 +238,14 @@ KONFIDENZ: [Zahl von 0-100]"""
         if target_folder:
             folder_info = f"\nZielordner: {target_folder}"
 
+        # Benutzer-Identität laden (damit LLM den Besitzer nicht als Korrespondent erkennt)
+        owner_info = self._build_owner_info()
+
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten.
 
 Analysiere das folgende Dokument und schlage einen aussagekräftigen Dateinamen vor.
 Extrahiere außerdem wichtige Metadaten aus dem Dokument.
-
+{owner_info}
 AKTUELLER DATEINAME: {current_filename}
 
 DOKUMENTINHALT:
@@ -270,12 +273,40 @@ DATEINAME: [Vorgeschlagener Dateiname mit .pdf]
 BEGRÜNDUNG: [Kurze Begründung, max 1-2 Sätze]
 KONFIDENZ: [Zahl von 0-100]
 KATEGORIE: [Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges]
-KORRESPONDENT: [Firmenname oder Absender, z.B. "Stadtwerke München GmbH"]
+KORRESPONDENT: [Firmenname oder Absender — NICHT der Dokumentbesitzer/Empfänger, sondern die ANDERE Partei, z.B. "Stadtwerke München GmbH"]
 BETRAG: [Rechnungsbetrag in Format 123.45 oder UNBEKANNT]
 WAEHRUNG: [EUR/USD oder UNBEKANNT]
 MWST: [Mehrwertsteuersatz als Zahl: 7/19 oder UNBEKANNT]
 STEUERJAHR: [Steuerjahr als vierstellige Zahl, z.B. 2024, oder UNBEKANNT]
 ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
+
+    def _build_owner_info(self) -> str:
+        """Erstellt den Benutzer-Identitäts-Abschnitt für den Prompt."""
+        try:
+            from src.utils.config import get_config
+            config = get_config()
+            owner_name = config.get("owner_name", "")
+            owner_variants = config.get("owner_name_variants", "")
+            owner_company = config.get("owner_company", "")
+
+            if not owner_name:
+                return ""
+
+            names = [owner_name]
+            if owner_variants:
+                names.extend(v.strip() for v in owner_variants.split(",") if v.strip())
+            if owner_company:
+                names.append(owner_company)
+
+            names_str = ", ".join(f'"{n}"' for n in names)
+            return (
+                f"\nWICHTIG - DOKUMENTBESITZER: Die folgenden Namen gehören dem Benutzer "
+                f"(Empfänger/Besitzer der Dokumente): {names_str}. "
+                f"Diese Namen sind NICHT der Korrespondent! "
+                f"Der Korrespondent ist immer der ABSENDER/die andere Partei."
+            )
+        except Exception:
+            return ""
 
     def _parse_response(self, response_text: str) -> dict:
         """
