@@ -30,6 +30,7 @@ class LLMSuggestion:
     filename: str
     confidence: float = 0.0
     source: str = "llm"
+    metadata: Optional[dict] = None  # Extrahierte Metadaten (Phase 16)
 
 
 @dataclass
@@ -217,7 +218,8 @@ class LLMSuggestionWorker(QThread):
                             llm_suggestions.append(LLMSuggestion(
                                 filename=s.filename,
                                 confidence=s.confidence,
-                                source=s.source
+                                source=s.source,
+                                metadata=getattr(s, 'metadata', None),
                             ))
 
                     self.suggestions_complete.emit(pdf_path, llm_suggestions)
@@ -379,7 +381,8 @@ class PDFCache(QObject):
                             llm_suggestions.append(LLMSuggestion(
                                 filename=s.get("filename", ""),
                                 confidence=s.get("confidence", 0.0),
-                                source=s.get("source", "llm")
+                                source=s.get("source", "llm"),
+                                metadata=s.get("metadata"),
                             ))
                         llm_fetched = bool(len(row) > 7 and row[7])
                         if llm_suggestions:
@@ -421,9 +424,10 @@ class PDFCache(QObject):
             dates_json = json.dumps([str(d) for d in result.dates])
             keywords_json = json.dumps(result.keywords)
 
-            # LLM-Vorschläge als JSON speichern
+            # LLM-Vorschläge als JSON speichern (inkl. Metadaten)
             llm_json = json.dumps([
-                {"filename": s.filename, "confidence": s.confidence, "source": s.source}
+                {"filename": s.filename, "confidence": s.confidence, "source": s.source,
+                 "metadata": s.metadata}
                 for s in result.llm_suggestions
             ]) if result.llm_suggestions else None
 
