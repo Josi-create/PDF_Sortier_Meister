@@ -619,6 +619,14 @@ class MainWindow(QMainWindow):
         back_action.triggered.connect(self.on_navigate_back)
         view_menu.addAction(back_action)
 
+        view_menu.addSeparator()
+
+        search_action = QAction("Dokumentensuche...", self)
+        search_action.setShortcut("Ctrl+F")
+        search_action.setToolTip("Alle sortierten Dokumente durchsuchen")
+        search_action.triggered.connect(lambda: self.search_input.setFocus())
+        view_menu.addAction(search_action)
+
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
 
@@ -673,6 +681,29 @@ class MainWindow(QMainWindow):
         self.undo_toolbar_action.triggered.connect(self.undo_last_action)
         self.undo_toolbar_action.setEnabled(False)
         toolbar.addAction(self.undo_toolbar_action)
+
+        toolbar.addSeparator()
+
+        # Suchleiste (Phase 17)
+        search_label = QLabel(" Suche: ")
+        toolbar.addWidget(search_label)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Dokumente durchsuchen... (Ctrl+F)")
+        self.search_input.setFixedWidth(250)
+        self.search_input.setStyleSheet("padding: 3px 6px;")
+        self.search_input.returnPressed.connect(self._execute_search)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        toolbar.addWidget(self.search_input)
+
+        self.search_count_label = QLabel("")
+        self.search_count_label.setStyleSheet("color: #666; padding-left: 5px;")
+        toolbar.addWidget(self.search_count_label)
+
+        clear_search_action = QAction("Suche leeren", self)
+        clear_search_action.setToolTip("Suchfilter zurücksetzen")
+        clear_search_action.triggered.connect(self._clear_search)
+        toolbar.addAction(clear_search_action)
 
     def setup_statusbar(self):
         """Erstellt die Statusleiste."""
@@ -1154,6 +1185,20 @@ class MainWindow(QMainWindow):
                     detected_date=detected_date,
                 )
 
+            # Volltext-Suchindex befüllen (Phase 17)
+            self.db.index_document(
+                file_path=str(new_path),
+                filename=new_path.name,
+                extracted_text=self.selected_pdf_text or "",
+                keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
+                korrespondent=metadata.get("korrespondent", "") if metadata else "",
+                kategorie=metadata.get("subject", "") if metadata else "",
+                steuerjahr=metadata.get("steuerjahr", "") if metadata else "",
+                betrag=metadata.get("betrag", "") if metadata else "",
+                zusammenfassung=metadata.get("description", "") if metadata else "",
+                target_folder=relative_path,
+            )
+
             # Status
             training_count = self.classifier.get_training_count()
             self.training_label.setText(f"Gelernt: {training_count}")
@@ -1217,6 +1262,15 @@ class MainWindow(QMainWindow):
                     )
                 else:
                     self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
+
+                # Volltext-Suchindex befüllen (Phase 17)
+                self.db.index_document(
+                    file_path=str(new_path),
+                    filename=new_path.name,
+                    extracted_text=self.selected_pdf_text or "",
+                    keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
+                    target_folder=relative_path,
+                )
 
                 # Zuletzt verwendet aktualisieren
                 self.config.add_to_last_used(folder_path)
@@ -2184,6 +2238,55 @@ class MainWindow(QMainWindow):
             self.folder_manager.add_folder(folder_path)
             self.load_folders()
             self.statusbar.showMessage(f"Zielordner hinzugefügt: {folder_path.name}", 3000)
+
+    # === Volltextsuche (Phase 17) ===
+
+    def _on_search_text_changed(self, text: str):
+        """Live-Suche bei Texteingabe (mit Verzögerung)."""
+        if not text.strip():
+            self._clear_search()
+            return
+        # Suche erst ab 2 Zeichen auslösen
+        if len(text.strip()) >= 2:
+            self._execute_search()
+
+    def _execute_search(self):
+        """Führt die Volltextsuche aus und zeigt Ergebnisse."""
+        query = self.search_input.text().strip()
+        if not query:
+            self._clear_search()
+            return
+
+        results = self.db.search_documents(query, limit=50)
+
+        if results:
+            self.search_count_label.setText(f"{len(results)} Treffer")
+            self._show_search_results(results)
+        else:
+            self.search_count_label.setText("Keine Treffer")
+            self.detail_panel.clear()
+            self.statusbar.showMessage(f"Keine Dokumente gefunden für '{query}'", 3000)
+
+    def _show_search_results(self, results: list[dict]):
+        """Zeigt Suchergebnisse im Detail-Panel an."""
+        # Suchergebnisse als HTML im Detail-Panel darstellen
+        self.detail_panel.show_search_results(results)
+
+    def _clear_search(self):
+        """Setzt den Suchfilter zurück."""
+        self.search_input.clear()
+        self.search_count_label.setText("")
+        # Zurück zur normalen Ansicht wenn ein PDF ausgewählt war
+        if self.selected_pdf:
+            cached = self.pdf_cache.get(self.selected_pdf)
+            if cached:
+                detected_date = None
+                if cached.dates:
+                    d = cached.dates[0]
+                    detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
+                self._populate_detail_panel(self.selected_pdf, cached, detected_date)
+        else:
+            self.detail_panel.clear()
 
     def refresh_view(self):
         """Aktualisiert die Ansicht."""

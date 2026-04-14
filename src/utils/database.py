@@ -155,6 +155,9 @@ class Database:
         # Migration: Neue Spalten hinzufügen (falls nicht vorhanden)
         self._migrate_database()
 
+        # FTS5-Volltextsuche erstellen (Phase 17)
+        self._create_fts_index()
+
         # Session-Factory
         self.Session = sessionmaker(bind=self.engine)
 
@@ -203,6 +206,167 @@ class Database:
                         print(f"Migration: Spalte '{column}' zu '{table}' hinzugefügt")
                 except Exception as e:
                     print(f"Migration-Warnung für {table}.{column}: {e}")
+
+    def _create_fts_index(self):
+        """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17)."""
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            # FTS5 Virtual Table für Volltextsuche
+            cursor.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS document_search
+                USING fts5(
+                    file_path,
+                    filename,
+                    extracted_text,
+                    keywords,
+                    korrespondent,
+                    kategorie,
+                    steuerjahr,
+                    betrag,
+                    zusammenfassung,
+                    target_folder,
+                    tokenize='unicode61'
+                )
+            """)
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"FTS5-Index Warnung: {e}")
+
+    # === Volltextsuche (Phase 17) ===
+
+    def index_document(
+        self,
+        file_path: str,
+        filename: str,
+        extracted_text: str = "",
+        keywords: str = "",
+        korrespondent: str = "",
+        kategorie: str = "",
+        steuerjahr: str = "",
+        betrag: str = "",
+        zusammenfassung: str = "",
+        target_folder: str = "",
+    ):
+        """
+        Fügt ein Dokument zum Volltext-Suchindex hinzu.
+
+        Wird beim Verschieben/Sortieren aufgerufen, damit das Dokument
+        später per Suche gefunden werden kann.
+        """
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            # Alten Eintrag für diesen Pfad löschen (falls vorhanden)
+            cursor.execute(
+                "DELETE FROM document_search WHERE file_path = ?",
+                (file_path,)
+            )
+
+            # Neuen Eintrag einfügen
+            cursor.execute("""
+                INSERT INTO document_search
+                (file_path, filename, extracted_text, keywords,
+                 korrespondent, kategorie, steuerjahr, betrag,
+                 zusammenfassung, target_folder)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                file_path, filename, extracted_text or "", keywords or "",
+                korrespondent or "", kategorie or "", steuerjahr or "",
+                betrag or "", zusammenfassung or "", target_folder or "",
+            ))
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"FTS5-Indexierung Fehler: {e}")
+
+    def search_documents(self, query: str, limit: int = 50) -> list[dict]:
+        """
+        Durchsucht alle indexierten Dokumente per Volltextsuche.
+
+        Args:
+            query: Suchbegriff(e)
+            limit: Maximale Anzahl Ergebnisse
+
+        Returns:
+            Liste von Dicts mit file_path, filename, snippet, etc.
+        """
+        import sqlite3
+
+        if not query or not query.strip():
+            return []
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            # Suchbegriffe für FTS5 vorbereiten
+            # Jedes Wort mit * für Präfix-Suche ergänzen
+            terms = query.strip().split()
+            fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
+
+            cursor.execute(f"""
+                SELECT
+                    file_path,
+                    filename,
+                    snippet(document_search, 2, '>>>', '<<<', '...', 30) as text_snippet,
+                    keywords,
+                    korrespondent,
+                    kategorie,
+                    steuerjahr,
+                    betrag,
+                    zusammenfassung,
+                    target_folder,
+                    rank
+                FROM document_search
+                WHERE document_search MATCH ?
+                ORDER BY rank
+                LIMIT ?
+            """, (fts_query, limit))
+
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    "file_path": row[0],
+                    "filename": row[1],
+                    "text_snippet": row[2],
+                    "keywords": row[3],
+                    "korrespondent": row[4],
+                    "kategorie": row[5],
+                    "steuerjahr": row[6],
+                    "betrag": row[7],
+                    "zusammenfassung": row[8],
+                    "target_folder": row[9],
+                })
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            print(f"FTS5-Suche Fehler: {e}")
+            return []
+
+    def get_search_index_count(self) -> int:
+        """Gibt die Anzahl der indexierten Dokumente zurück."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM document_search")
+            count = cursor.fetchone()[0]
+            conn.close()
+            return count
+        except Exception:
+            return 0
 
     # === Sortierhistorie ===
 

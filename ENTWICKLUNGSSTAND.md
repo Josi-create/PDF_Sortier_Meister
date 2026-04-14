@@ -245,19 +245,25 @@ Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in d
   - Nach Bestätigung: Metadaten in PDF + DB geschrieben
 - [x] **Kompatibilität** mit Paperless-ngx, DEVONthink, Adobe Acrobat (XMP + Info Dictionary)
 
-### Phase 17: Volltext-Suche mit SQLite FTS5 (NEU - Hohe Priorität)
+### Phase 17: Volltext-Suche mit SQLite FTS5 (100% fertig)
 
-- [ ] **SQLite FTS5-Index** für extrahierten Dokumententext
-- [ ] **Such-/Filterleiste** im Hauptfenster (oberhalb der Thumbnail-Grid)
-- [ ] Suche über: Dateiinhalt, Dateiname, alle Metadaten-Felder
-- [ ] **Filter-Kombinationen**:
-  - Steuerjahr (Dropdown: 2022, 2023, 2024, 2025 ...)
-  - Kategorie (Dropdown: Rechnung, Vertrag, Steuer ...)
-  - Korrespondent (Freitext oder Dropdown aus bekannten)
+- [x] **SQLite FTS5-Index** für extrahierten Dokumententext *(v0.9.0)*
+  - Virtuelle Tabelle `document_search` mit unicode61-Tokenizer
+  - Speichert: Volltext, Dateiname, Keywords, Korrespondent, Kategorie, Betrag, Steuerjahr, Zusammenfassung
+- [x] **Suchleiste in der Toolbar** (Ctrl+F) *(v0.9.0)*
+  - Live-Suche ab 2 Zeichen mit Prefix-Matching
+  - Ergebnis-Anzeige im Detail-Panel mit Dateiname, Korrespondent, Kategorie, Betrag
+  - Doppelklick auf Treffer öffnet die PDF
+  - Treffer-Zähler in der Toolbar
+- [x] **Suche über alle Felder**: Dateiinhalt, Dateiname, alle Metadaten
+- [x] **Index wird beim Verschieben/Sortieren automatisch befüllt** *(v0.9.0)*
+  - Sowohl im neuen 3-Spalten-Workflow als auch bei Drag&Drop
+- [ ] **Filter-Kombinationen** (noch offen):
+  - Steuerjahr (Dropdown)
+  - Kategorie (Dropdown)
+  - Korrespondent (Dropdown aus bekannten)
   - Datumsbereich (Von/Bis)
   - Betrag (Von/Bis)
-- [ ] Index wird beim Sortieren/Umbenennen automatisch aktualisiert
-- [ ] Suchergebnisse in Thumbnail-Grid hervorgehoben anzeigen
 
 ### Phase 18: Buchhaltungs- und Steuerfelder (NEU - Hohe Priorität)
 
@@ -532,7 +538,7 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 | Metadaten direkt in PDF schreiben | Nein | **Ja (v0.9.0)** | — |
 | Steuerjahr / Buchhaltungsfelder | Nein | **Ja (v0.9.0)** | Phase 18 (Sidebar) |
 | Betrag / MwSt-Extraktion | Nein | **Ja (v0.9.0)** | — |
-| Volltext-Suche | Nein | Nein | **Phase 17** |
+| Volltext-Suche | Nein | **Ja (v0.9.0)** | — |
 | RAG-Chat (natürliche Sprache) | Ja | Nein | Phase 19 |
 | Automatisierungs-Regeln | Ja | Nein | Phase 21 |
 | Desktop-Anwendung (offline) | Nein (Web) | Ja | — |

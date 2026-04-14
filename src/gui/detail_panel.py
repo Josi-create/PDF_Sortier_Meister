@@ -193,6 +193,26 @@ class DetailPanel(QWidget):
         self.detail_container.hide()
         layout.addWidget(self.detail_container)
 
+        # Suchergebnis-Bereich (Phase 17)
+        self.search_container = QWidget()
+        search_layout = QVBoxLayout(self.search_container)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.search_header = QLabel("Suchergebnisse")
+        self.search_header.setStyleSheet(
+            "font-size: 13px; font-weight: bold; padding: 6px; "
+            "background-color: #e3f2fd; border-radius: 3px;"
+        )
+        search_layout.addWidget(self.search_header)
+
+        self.search_results_list = QListWidget()
+        self.search_results_list.setStyleSheet("font-size: 11px;")
+        self.search_results_list.itemDoubleClicked.connect(self._on_search_result_double_clicked)
+        search_layout.addWidget(self.search_results_list)
+
+        self.search_container.hide()
+        layout.addWidget(self.search_container)
+
         scroll.setWidget(container)
 
         outer_layout = QVBoxLayout(self)
@@ -268,7 +288,73 @@ class DetailPanel(QWidget):
 
         # UI umschalten
         self.placeholder.hide()
+        self.search_container.hide()
         self.detail_container.show()
+
+    def show_search_results(self, results: list[dict]):
+        """Zeigt Suchergebnisse an."""
+        self.placeholder.hide()
+        self.detail_container.hide()
+        self.search_container.show()
+
+        self.search_header.setText(f"Suchergebnisse ({len(results)} Treffer)")
+        self.search_results_list.clear()
+
+        for r in results:
+            filename = r.get("filename", "?")
+            korrespondent = r.get("korrespondent", "")
+            kategorie = r.get("kategorie", "")
+            betrag = r.get("betrag", "")
+            steuerjahr = r.get("steuerjahr", "")
+            target = r.get("target_folder", "")
+            snippet = r.get("text_snippet", "")
+
+            # Mehrzeilige Anzeige
+            line1 = filename
+            details = []
+            if korrespondent:
+                details.append(korrespondent)
+            if kategorie:
+                details.append(kategorie)
+            if betrag:
+                details.append(f"{betrag} EUR")
+            if steuerjahr:
+                details.append(f"SJ {steuerjahr}")
+            line2 = " | ".join(details) if details else ""
+            line3 = f"Ordner: {target}" if target else ""
+
+            display = line1
+            if line2:
+                display += f"\n  {line2}"
+            if line3:
+                display += f"\n  {line3}"
+            if snippet:
+                # >>> und <<< aus FTS5-Snippet entfernen
+                clean_snippet = snippet.replace(">>>", "[").replace("<<<", "]")
+                display += f"\n  ...{clean_snippet}..."
+
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, r.get("file_path", ""))
+            item.setToolTip(r.get("file_path", ""))
+            self.search_results_list.addItem(item)
+
+    def _on_search_result_double_clicked(self, item: QListWidgetItem):
+        """Öffnet ein Suchergebnis mit dem Standard-Programm."""
+        file_path = item.data(Qt.ItemDataRole.UserRole)
+        if file_path:
+            try:
+                import os
+                path = Path(file_path)
+                if path.exists():
+                    os.startfile(str(path))
+                else:
+                    from PyQt6.QtWidgets import QMessageBox
+                    QMessageBox.warning(
+                        self, "Datei nicht gefunden",
+                        f"Die Datei existiert nicht mehr:\n{file_path}"
+                    )
+            except Exception as e:
+                print(f"Fehler beim Öffnen: {e}")
 
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
@@ -287,6 +373,7 @@ class DetailPanel(QWidget):
                 widget.clear()
 
         self.detail_container.hide()
+        self.search_container.hide()
         self.placeholder.show()
 
     def get_new_name(self) -> Optional[str]:
