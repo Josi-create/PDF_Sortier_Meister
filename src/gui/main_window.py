@@ -32,6 +32,7 @@ from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
+from src.gui.detail_panel import DetailPanel
 from src.gui.settings_dialog import SettingsDialog
 from src.core.file_manager import FileManager, FolderManager
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
@@ -101,16 +102,20 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
-        # Linke Seite: PDF-Bereich
+        # Linke Spalte: PDF-Thumbnails
         pdf_panel = self.create_pdf_panel()
         splitter.addWidget(pdf_panel)
 
-        # Rechte Seite: Zielordner-Bereich
+        # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
+        self.detail_panel = DetailPanel()
+        splitter.addWidget(self.detail_panel)
+
+        # Rechte Spalte: Zielordner
         folder_panel = self.create_folder_panel()
         splitter.addWidget(folder_panel)
 
-        # Splitter-Größenverhältnis (60% PDF, 40% Ordner)
-        splitter.setSizes([600, 400])
+        # Splitter-Größenverhältnis (30% Thumbnails, 40% Details, 30% Ordner)
+        splitter.setSizes([300, 400, 300])
 
     def create_pdf_panel(self) -> QWidget:
         """Erstellt das Panel für die PDF-Anzeige."""
@@ -851,6 +856,10 @@ class MainWindow(QMainWindow):
                 self.folder_tree.clear_suggestions()
             self.clear_suggestions()
 
+            # Detail-Panel leeren
+            if hasattr(self, 'detail_panel'):
+                self.detail_panel.clear()
+
             self.statusbar.showMessage("Auswahl aufgehoben", 2000)
         except Exception as e:
             print(f"Fehler beim Aufheben der Auswahl: {e}")
@@ -928,12 +937,15 @@ class MainWindow(QMainWindow):
                 max_suggestions=self.config.get("max_suggestions", 5),
             )
 
-            # Vorschläge anzeigen
+            # Vorschläge anzeigen (alte grüne Buttons)
             self.display_suggestions(suggestions)
 
             # Vorgeschlagene Ordner in der Baumansicht hervorheben
             suggested_folders = [s.folder_path for s in suggestions]
             self.folder_tree.set_suggestion_folders(suggested_folders)
+
+            # Detail-Panel befüllen (3-Spalten-Layout)
+            self._populate_detail_panel(pdf_path, result, detected_date)
 
             if suggestions:
                 self.statusbar.showMessage(
@@ -952,6 +964,51 @@ class MainWindow(QMainWindow):
             self.clear_suggestions()
             self.folder_tree.clear_suggestions()
             self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}", 3000)
+
+    def _populate_detail_panel(self, pdf_path: Path, result: PDFAnalysisResult, detected_date: str = None):
+        """Befüllt das Detail-Panel mit Umbenennungsvorschlägen und Metadaten."""
+        try:
+            # Rename-Suggestions generieren (gleiche Logik wie on_pdf_rename)
+            rename_suggestions = generate_rename_suggestions(
+                pdf_path=pdf_path,
+                extracted_text=result.extracted_text,
+                keywords=result.keywords,
+                dates=result.dates,
+            )
+
+            # Gelernte Muster aus DB
+            if result.keywords:
+                from src.utils.database import get_database
+                rename_history = get_database().get_rename_suggestions_by_keywords(result.keywords, limit=3)
+                for entry in rename_history:
+                    rename_suggestions.append(RenameSuggestion(
+                        name=entry.new_filename,
+                        reason=f"Gelernt: ähnlich zu {entry.original_filename}",
+                        confidence=0.7,
+                    ))
+
+            # Gecachte LLM-Vorschläge hinzufügen
+            cached_llm = self.pdf_cache.get_llm_suggestions(pdf_path)
+            if cached_llm:
+                for llm_s in cached_llm:
+                    rename_suggestions.insert(0, RenameSuggestion(
+                        name=llm_s.filename,
+                        reason="KI-Vorschlag",
+                        confidence=llm_s.confidence,
+                        metadata=getattr(llm_s, 'metadata', None),
+                    ))
+
+            # Detail-Panel befüllen
+            self.detail_panel.set_pdf(
+                pdf_path=pdf_path,
+                suggestions=rename_suggestions,
+                extracted_text=result.extracted_text,
+                keywords=result.keywords,
+                detected_date=detected_date,
+            )
+
+        except Exception as e:
+            print(f"Fehler beim Befüllen des Detail-Panels: {e}")
 
     def display_suggestions(self, suggestions: list):
         """Zeigt die Sortiervorschläge an."""
@@ -1009,7 +1066,108 @@ class MainWindow(QMainWindow):
         if len(self.selected_pdfs) > 1:
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
-            self.move_pdf_to_folder_and_learn(self.selected_pdf, folder_path)
+            self._move_rename_and_learn(self.selected_pdf, folder_path)
+
+    def _move_rename_and_learn(self, pdf_path: Path, folder_path: Path):
+        """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow)."""
+        relative_path = self.folder_tree.get_relative_path(folder_path)
+
+        # Name und Metadaten aus Detail-Panel holen
+        new_name = self.detail_panel.get_new_name()
+        metadata = self.detail_panel.get_metadata()
+
+        # Prüfen ob umbenannt wird
+        name_changed = new_name and new_name != pdf_path.name
+
+        # Bestätigungsdialog
+        if name_changed:
+            msg = f"'{pdf_path.name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
+        else:
+            msg = f"'{pdf_path.name}' nach '{relative_path}' verschieben?"
+            new_name = None  # Originalname beibehalten
+
+        reply = QMessageBox.question(
+            self, "PDF verschieben",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # Datei verschieben (mit optionalem neuen Namen)
+            new_path = self.file_manager.move_file(pdf_path, folder_path, new_name=new_name)
+
+            # Cache-Eintrag migrieren
+            self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+
+            # Metadaten in PDF schreiben
+            if metadata:
+                self._write_pdf_metadata(new_path, new_path.name,
+                                         self.selected_pdf_keywords, metadata)
+                # Korrespondent-Zuordnung lernen
+                if metadata.get("korrespondent"):
+                    self.db.learn_korrespondent_metadata(
+                        metadata["korrespondent"], metadata
+                    )
+
+            # Undo-Eintrag
+            desc = f"{pdf_path.name} → {relative_path}"
+            if name_changed:
+                desc = f"{pdf_path.name} → {new_path.name} → {relative_path}"
+            self._push_undo({
+                "type": "move",
+                "moves": [(pdf_path, new_path)],
+                "description": desc,
+            })
+
+            # Aus der Entscheidung lernen
+            if self.selected_pdf_text:
+                self.classifier.learn(
+                    pdf_path=pdf_path,
+                    target_folder=folder_path,
+                    extracted_text=self.selected_pdf_text,
+                    keywords=self.selected_pdf_keywords,
+                    relative_path=relative_path,
+                )
+
+            # Umbenennung lernen (falls Name geändert)
+            if name_changed:
+                detected_date = None
+                if self.selected_pdf_dates:
+                    try:
+                        d = self.selected_pdf_dates[0]
+                        detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
+                    except Exception:
+                        pass
+                self.db.add_rename_entry(
+                    original_filename=pdf_path.name,
+                    new_filename=new_path.name,
+                    extracted_text=self.selected_pdf_text,
+                    keywords=self.selected_pdf_keywords,
+                    detected_date=detected_date,
+                )
+
+            # Status
+            training_count = self.classifier.get_training_count()
+            self.training_label.setText(f"Gelernt: {training_count}")
+
+            meta_info = f" + {len(metadata)} Metadaten" if metadata else ""
+            rename_info = f" (umbenannt)" if name_changed else ""
+            self.statusbar.showMessage(
+                f"Verschoben nach '{relative_path}'{rename_info}{meta_info}", 3000
+            )
+
+            # UI aktualisieren
+            self.config.add_to_last_used(folder_path)
+            self.remove_pdf_widget(pdf_path)
+            self.detail_panel.clear()
+            self.load_folders()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
         """Verschiebt eine PDF und lernt aus der Entscheidung."""
@@ -1871,7 +2029,7 @@ class MainWindow(QMainWindow):
         if len(self.selected_pdfs) > 1:
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
-            self.move_selected_pdf_to_folder(folder_path)
+            self._move_rename_and_learn(self.selected_pdf, folder_path)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
