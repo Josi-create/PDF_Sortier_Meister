@@ -630,6 +630,13 @@ class MainWindow(QMainWindow):
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
 
+        index_folder_action = QAction("Ordner zum Suchindex hinzufügen...", self)
+        index_folder_action.setToolTip("Bestehende PDF-Sammlung scannen und in den Suchindex aufnehmen")
+        index_folder_action.triggered.connect(self._index_folder_dialog)
+        extras_menu.addAction(index_folder_action)
+
+        extras_menu.addSeparator()
+
         backup_action = QAction("Backup-Status prüfen", self)
         backup_action.triggered.connect(self.check_backup_status)
         extras_menu.addAction(backup_action)
@@ -2287,6 +2294,183 @@ class MainWindow(QMainWindow):
                 self._populate_detail_panel(self.selected_pdf, cached, detected_date)
         else:
             self.detail_panel.clear()
+
+    def _index_folder_dialog(self):
+        """Dialog: Ordner zum Suchindex hinzufügen."""
+        from PyQt6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFormLayout
+
+        # Ordner auswählen
+        folder = QFileDialog.getExistingDirectory(
+            self, "Ordner zum Suchindex hinzufügen"
+        )
+        if not folder:
+            return
+
+        folder_path = Path(folder)
+
+        # Optionen-Dialog
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Indexierungs-Optionen")
+        dlg.setMinimumWidth(400)
+        form = QFormLayout(dlg)
+
+        folder_label = QLabel(str(folder_path))
+        folder_label.setWordWrap(True)
+        folder_label.setStyleSheet("font-weight: bold;")
+        form.addRow("Ordner:", folder_label)
+
+        include_subfolders = QCheckBox("Unterordner einbeziehen")
+        include_subfolders.setChecked(True)
+        form.addRow(include_subfolders)
+
+        use_llm = QCheckBox("KI-Metadaten generieren (Zusammenfassung, Kategorie, ...)")
+        use_llm.setChecked(self.hybrid_classifier.is_llm_available())
+        use_llm.setEnabled(self.hybrid_classifier.is_llm_available())
+        if not self.hybrid_classifier.is_llm_available():
+            use_llm.setToolTip("Kein LLM konfiguriert - nur Textextraktion")
+        form.addRow(use_llm)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # PDFs sammeln
+        if include_subfolders.isChecked():
+            pdf_files = list(folder_path.rglob("*.pdf"))
+        else:
+            pdf_files = list(folder_path.glob("*.pdf"))
+
+        if not pdf_files:
+            QMessageBox.information(self, "Keine PDFs", f"Keine PDF-Dateien in '{folder_path.name}' gefunden.")
+            return
+
+        # Batch-Indexierung starten
+        self._index_pdfs_batch(pdf_files, use_llm=use_llm.isChecked())
+
+    def _index_pdfs_batch(self, pdf_files: list[Path], use_llm: bool = False):
+        """Indexiert eine Liste von PDFs in den Suchindex (mit Fortschrittsanzeige)."""
+        from PyQt6.QtWidgets import QProgressDialog
+
+        progress = QProgressDialog(
+            "Indexiere PDFs...", "Abbrechen", 0, len(pdf_files), self
+        )
+        progress.setWindowTitle("Suchindex aufbauen")
+        progress.setMinimumDuration(0)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        indexed = 0
+        skipped = 0
+        errors = 0
+
+        for i, pdf_path in enumerate(pdf_files):
+            if progress.wasCanceled():
+                break
+
+            progress.setValue(i)
+            progress.setLabelText(f"Analysiere: {pdf_path.name}\n({i+1}/{len(pdf_files)})")
+            QApplication.processEvents()
+
+            try:
+                # Text extrahieren
+                from src.core.pdf_analyzer import PDFAnalyzer
+                extracted_text = ""
+                keywords = []
+                detected_date = None
+
+                try:
+                    with PDFAnalyzer(pdf_path) as analyzer:
+                        extracted_text = analyzer.extract_text() or ""
+                        keywords = analyzer.extract_keywords() or []
+                        dates = analyzer.extract_dates()
+                        if dates:
+                            d = dates[0]
+                            detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
+                except Exception as e:
+                    print(f"Analyse-Fehler {pdf_path.name}: {e}")
+                    errors += 1
+                    continue
+
+                # LLM-Metadaten holen (optional)
+                metadata = {}
+                if use_llm and extracted_text:
+                    try:
+                        from datetime import datetime
+                        file_mtime = pdf_path.stat().st_mtime
+                        file_date = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d")
+
+                        suggestions = self.hybrid_classifier.suggest_filename(
+                            text=extracted_text,
+                            current_filename=pdf_path.name,
+                            keywords=keywords,
+                            detected_date=detected_date,
+                            use_llm=True,
+                            file_date=file_date,
+                        )
+                        for s in suggestions:
+                            if s.source == "llm" and s.metadata:
+                                metadata = s.metadata
+                                break
+                    except Exception as e:
+                        print(f"LLM-Fehler {pdf_path.name}: {e}")
+
+                # Gelernte Korrespondent-Overrides anwenden
+                korrespondent = metadata.get("korrespondent", "")
+                if korrespondent:
+                    learned = self.db.get_korrespondent_metadata(korrespondent)
+                    if learned:
+                        metadata.update(learned)
+
+                # Relative Ordner-Position ermitteln
+                target_folder = str(pdf_path.parent)
+
+                # In Suchindex aufnehmen
+                self.db.index_document(
+                    file_path=str(pdf_path),
+                    filename=pdf_path.name,
+                    extracted_text=extracted_text,
+                    keywords=", ".join(keywords) if keywords else "",
+                    korrespondent=metadata.get("korrespondent", ""),
+                    kategorie=metadata.get("subject", ""),
+                    steuerjahr=metadata.get("steuerjahr", ""),
+                    betrag=metadata.get("betrag", ""),
+                    zusammenfassung=metadata.get("description", ""),
+                    target_folder=target_folder,
+                )
+
+                # XMP-Metadaten in PDF schreiben (falls LLM-Daten vorhanden)
+                if metadata:
+                    self._write_pdf_metadata(pdf_path, pdf_path.name, keywords, metadata)
+
+                indexed += 1
+
+            except Exception as e:
+                print(f"Indexierung Fehler {pdf_path.name}: {e}")
+                errors += 1
+
+        progress.setValue(len(pdf_files))
+
+        # Ergebnis
+        msg = f"{indexed} PDFs indexiert"
+        if skipped:
+            msg += f", {skipped} übersprungen"
+        if errors:
+            msg += f", {errors} Fehler"
+        if progress.wasCanceled():
+            msg += " (abgebrochen)"
+
+        total_indexed = self.db.get_search_index_count()
+        self.statusbar.showMessage(f"{msg} | Gesamt im Index: {total_indexed}", 5000)
+
+        QMessageBox.information(
+            self, "Indexierung abgeschlossen",
+            f"{msg}\n\nGesamt im Suchindex: {total_indexed} Dokumente"
+        )
 
     def refresh_view(self):
         """Aktualisiert die Ansicht."""
