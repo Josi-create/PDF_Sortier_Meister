@@ -39,6 +39,10 @@ class DetailPanel(QWidget):
         self._metadata: dict = {}
         self._has_learned_overrides: bool = False
 
+        # Feste Größenpolitik: Panel ändert seine Größe nicht beim Befüllen
+        from PyQt6.QtWidgets import QSizePolicy
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+
         self._setup_ui()
 
     def _setup_ui(self):
@@ -148,8 +152,8 @@ class DetailPanel(QWidget):
             if field_key == "description":
                 input_field = QPlainTextEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
-                input_field.setStyleSheet("font-size: 10px; padding: 2px;")
-                input_field.setFixedHeight(45)
+                input_field.setStyleSheet("font-size: 12px; padding: 4px;")
+                input_field.setFixedHeight(90)
             else:
                 input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")

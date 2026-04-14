@@ -204,8 +204,8 @@ class RenameDialog(QDialog):
                 from PyQt6.QtWidgets import QPlainTextEdit
                 input_field = QPlainTextEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
-                input_field.setStyleSheet("font-size: 11px; padding: 2px 4px;")
-                input_field.setFixedHeight(55)
+                input_field.setStyleSheet("font-size: 12px; padding: 4px;")
+                input_field.setFixedHeight(90)
                 if self._metadata.get(field_key):
                     input_field.setPlainText(str(self._metadata[field_key]))
             else:

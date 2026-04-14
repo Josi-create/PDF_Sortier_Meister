@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
         """Initialisiert die Haupt-UI-Komponenten."""
         self.setWindowTitle("PDF Sortier Meister")
         self.setMinimumSize(800, 600)
+        self.showMaximized()
 
         # Zentrales Widget
         central_widget = QWidget()
@@ -114,7 +115,10 @@ class MainWindow(QMainWindow):
         folder_panel = self.create_folder_panel()
         splitter.addWidget(folder_panel)
 
-        # Splitter-Größenverhältnis (30% Thumbnails, 40% Details, 30% Ordner)
+        # Splitter-Größenverhältnis fixieren (30/40/30%)
+        splitter.setStretchFactor(0, 3)  # Links: 30%
+        splitter.setStretchFactor(1, 4)  # Mitte: 40%
+        splitter.setStretchFactor(2, 3)  # Rechts: 30%
         splitter.setSizes([300, 400, 300])
 
     def create_pdf_panel(self) -> QWidget:
