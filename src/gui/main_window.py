@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QInputDialog,
     QApplication,
     QPushButton,
+    QLineEdit,
 )
 
 from src.utils.config import get_config
@@ -2000,6 +2001,17 @@ class MainWindow(QMainWindow):
                 # Cache migrieren
                 self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
 
+                # Metadaten in PDF schreiben (Phase 16)
+                self._write_pdf_metadata(
+                    new_path, new_name, keywords, llm_suggestion.metadata
+                )
+
+                # Korrespondent-Metadaten lernen (für künftige Dokumente)
+                if llm_suggestion.metadata and llm_suggestion.metadata.get("korrespondent"):
+                    self.db.learn_korrespondent_metadata(
+                        llm_suggestion.metadata["korrespondent"], llm_suggestion.metadata
+                    )
+
                 # Widget aktualisieren
                 self._update_pdf_widget_path(pdf_path, new_path)
 
@@ -2324,8 +2336,9 @@ class MainWindow(QMainWindow):
         form.addRow(include_subfolders)
 
         use_llm = QCheckBox("KI-Metadaten generieren (Zusammenfassung, Kategorie, ...)")
-        use_llm.setChecked(self.hybrid_classifier.is_llm_available())
-        use_llm.setEnabled(self.hybrid_classifier.is_llm_available())
+        llm_available = bool(self.hybrid_classifier.is_llm_available())
+        use_llm.setChecked(llm_available)
+        use_llm.setEnabled(llm_available)
         if not self.hybrid_classifier.is_llm_available():
             use_llm.setToolTip("Kein LLM konfiguriert - nur Textextraktion")
         form.addRow(use_llm)

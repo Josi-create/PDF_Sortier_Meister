@@ -5,7 +5,25 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Version](https://img.shields.io/badge/Version-0.8.0-orange.svg)
+![Version](https://img.shields.io/badge/Version-0.9.0-orange.svg)
+
+---
+
+## ⚡ Schnellinstallation für DAUs
+
+**Kein Python. Keine Konsole. Kein Ärger.** Nur Doppelklick.
+
+### 📥 In 3 Schritten startklar
+
+1. **Herunterladen:** 👉 [**PDF_Sortier_Meister_v0.9.0.zip**](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_v0.9.0.zip) *(ca. 150 MB)*
+2. **Entpacken** irgendwo hin, z. B. nach `Dokumente\PDF_Sortier_Meister\`
+3. **Doppelklick** auf `PDF_Sortier_Meister.exe` → fertig! 🎉
+
+> 💡 Beim ersten Start erscheint sofort der Splash-Screen, während im Hintergrund die KI-Komponenten geladen werden.
+>
+> 🛡️ **Windows SmartScreen warnt?** Klick auf *"Weitere Informationen"* → *"Trotzdem ausführen"*. Das passiert bei unsignierten Apps — der Code ist auf GitHub öffentlich einsehbar.
+>
+> 🔗 Alle Versionen: [Releases-Seite](https://github.com/Josi-create/PDF_Sortier_Meister/releases)
 
 ---
 

@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Optional, Generator
 from datetime import datetime
 
+import fitz  # PyMuPDF
+
 
 class FileManager:
     """Verwaltet Dateioperationen für PDFs."""
@@ -204,6 +206,108 @@ class FileManager:
             raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
 
         file_path.unlink()
+
+    def merge_pdfs(
+        self,
+        sources: list[Path | str],
+        target_folder: Path | str,
+        output_name: str,
+    ) -> Path:
+        """
+        Führt mehrere PDFs zu einer einzigen Datei zusammen.
+
+        Args:
+            sources: Liste der zu verbindenden PDF-Dateien
+            target_folder: Ordner für das Ergebnis
+            output_name: Name der Ziel-PDF-Datei
+
+        Returns:
+            Pfad zur zusammengeführten PDF
+        """
+        if not sources:
+            raise ValueError("Es müssen mindestens zwei PDF-Quelldateien angegeben werden.")
+
+        target_folder = Path(target_folder)
+        if not target_folder.exists():
+            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+
+        output_name = str(output_name)
+        if not output_name.lower().endswith('.pdf'):
+            output_name += '.pdf'
+
+        output_path = target_folder / output_name
+        output_path = self._get_unique_path(output_path)
+
+        merged_doc = fitz.open()
+        try:
+            for source in sources:
+                source_path = Path(source)
+                if not source_path.exists():
+                    merged_doc.close()
+                    raise FileNotFoundError(f"Quelldatei nicht gefunden: {source_path}")
+                with fitz.open(str(source_path)) as src_doc:
+                    merged_doc.insert_pdf(src_doc)
+            merged_doc.save(str(output_path))
+        finally:
+            merged_doc.close()
+
+        return output_path
+
+    def split_pdf(
+        self,
+        source: Path | str,
+        target_folder: Path | str,
+        pages: Optional[list[int]] = None,
+    ) -> list[Path]:
+        """
+        Teilt ein PDF in einzelne Seiten auf oder extrahiert ausgewählte Seiten.
+
+        Args:
+            source: Quelldatei
+            target_folder: Ordner für die geteilten PDFs
+            pages: Optional Liste von 1-basierten Seitenzahlen. Wenn None, werden alle Seiten einzeln gespeichert.
+
+        Returns:
+            Liste der erzeugten PDF-Dateien
+        """
+        source = Path(source)
+        target_folder = Path(target_folder)
+
+        if not source.exists():
+            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+
+        if not target_folder.exists():
+            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+
+        with fitz.open(str(source)) as doc:
+            page_count = len(doc)
+            if page_count == 0:
+                return []
+
+            if pages is None:
+                pages = list(range(1, page_count + 1))
+            else:
+                invalid_pages = [p for p in pages if p < 1 or p > page_count]
+                if invalid_pages:
+                    raise ValueError(f"Ungültige Seitenzahlen: {invalid_pages}")
+
+            output_paths: list[Path] = []
+            for page_number in pages:
+                page_index = page_number - 1
+                output_name = f"{source.stem}_Seite_{page_number}.pdf"
+                output_path = target_folder / output_name
+                output_path = self._get_unique_path(output_path)
+
+                new_doc = fitz.open()
+                try:
+                    new_doc.insert_pdf(doc, from_page=page_index, to_page=page_index)
+                    new_doc.save(str(output_path))
+                finally:
+                    new_doc.close()
+
+                output_paths.append(output_path)
+
+        return output_paths
 
     def _get_unique_path(self, path: Path) -> Path:
         """
