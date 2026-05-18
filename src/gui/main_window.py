@@ -110,6 +110,7 @@ class MainWindow(QMainWindow):
 
         # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
         self.detail_panel = DetailPanel()
+        self.detail_panel.save_metadata_requested.connect(self._on_save_metadata_in_place)
         splitter.addWidget(self.detail_panel)
 
         # Rechte Spalte: Zielordner
@@ -1440,6 +1441,33 @@ class MainWindow(QMainWindow):
             pass  # pikepdf nicht installiert - kein Fehler
         except Exception as e:
             print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
+    def _on_save_metadata_in_place(self):
+        """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
+        pdf_path = self.detail_panel.get_current_pdf()
+        if not pdf_path or not pdf_path.exists():
+            self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            return
+
+        metadata = self.detail_panel.get_metadata()
+        if not metadata:
+            self.statusbar.showMessage("Keine Metadaten eingegeben", 2000)
+            return
+
+        self._write_pdf_metadata(
+            pdf_path,
+            pdf_path.name,
+            self.selected_pdf_keywords,
+            metadata,
+        )
+
+        # Korrespondent-Zuordnung lernen
+        if metadata.get("korrespondent"):
+            self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
+
+        self.statusbar.showMessage(
+            f"Metadaten in '{pdf_path.name}' gespeichert", 3000
+        )
 
     def _rename_selected_pdf(self):
         """F2-Shortcut: Öffnet den Umbenennungsdialog für die ausgewählte PDF."""

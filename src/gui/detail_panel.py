@@ -32,6 +32,9 @@ from src.gui.rename_dialog import RenameSuggestion
 class DetailPanel(QWidget):
     """Mittleres Panel: Zeigt Rename-Vorschläge + Metadaten für ausgewählte PDF."""
 
+    # Signal: Benutzer möchte Metadaten in PDF speichern (ohne Verschieben)
+    save_metadata_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
@@ -163,9 +166,23 @@ class DetailPanel(QWidget):
             self._metadata_inputs[field_key] = input_field
             metadata_layout.addLayout(row)
 
-        # KI-Button
+        # Buttons: KI + Speichern
         btn_row = QHBoxLayout()
         btn_row.addStretch()
+
+        self.save_metadata_btn = QPushButton("Metadaten speichern")
+        self.save_metadata_btn.setToolTip(
+            "Metadaten in die PDF schreiben, ohne die Datei zu verschieben"
+        )
+        self.save_metadata_btn.setStyleSheet(
+            "QPushButton { background-color: #1565c0; color: white; "
+            "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
+            "QPushButton:hover { background-color: #0d47a1; }"
+            "QPushButton:disabled { background-color: #bdbdbd; }"
+        )
+        self.save_metadata_btn.clicked.connect(self.save_metadata_requested)
+        btn_row.addWidget(self.save_metadata_btn)
+
         self.llm_btn = QPushButton("KI-Metadaten generieren")
         self.llm_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
