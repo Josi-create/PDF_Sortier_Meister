@@ -35,6 +35,7 @@ from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
 from src.gui.settings_dialog import SettingsDialog
+from src.gui.setup_wizard import SetupWizard
 from src.core.file_manager import FileManager, FolderManager
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
@@ -645,6 +646,10 @@ class MainWindow(QMainWindow):
         extras_menu.addAction(backup_action)
 
         extras_menu.addSeparator()
+
+        wizard_action = QAction("Einrichtungs-Assistent...", self)
+        wizard_action.triggered.connect(self.open_setup_wizard)
+        extras_menu.addAction(wizard_action)
 
         settings_action = QAction("Einstellungen...", self)
         settings_action.triggered.connect(self.open_settings)
@@ -2598,6 +2603,17 @@ class MainWindow(QMainWindow):
             "Backup-Status",
             "Backup-Prüfung wird in Phase 7 implementiert.",
         )
+
+    def open_setup_wizard(self):
+        """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""
+        wizard = SetupWizard(self)
+        wizard.exec()
+        # Scan-Ordner und LLM-Status aktualisieren
+        new_folder = self.config.get_scan_folder()
+        if new_folder:
+            self.file_manager.set_scan_folder(new_folder)
+            self.load_pdfs()
+        self._on_settings_changed()
 
     def open_settings(self):
         """Öffnet den Einstellungsdialog."""

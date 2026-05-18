@@ -27,6 +27,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap, QPalette, QColor
 
 from src.gui.main_window import MainWindow
+from src.gui.setup_wizard import SetupWizard
 from src.utils.config import get_config
 from src.utils.logging_config import setup_logging, get_logger
 
@@ -131,11 +132,13 @@ def main():
     window.thumbnails_loaded.connect(close_splash)
     QTimer.singleShot(15000, close_splash)
 
-    # Beim ersten Start: Scan-Ordner Dialog anzeigen
+    # Beim ersten Start: Einrichtungs-Wizard anzeigen
     if not config.get_scan_folder():
-        window.statusbar.showMessage(
-            "Willkommen! Bitte wählen Sie zunächst einen Scan-Ordner aus."
-        )
+        wizard = SetupWizard(window)
+        wizard.exec()
+        # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner aktualisieren
+        if config.get_scan_folder():
+            window.initial_load()
 
     # Anwendungsschleife starten
     sys.exit(app.exec())
