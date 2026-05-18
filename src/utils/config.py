@@ -33,12 +33,13 @@ class Config:
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
         # LLM-Konfiguration
         "llm": {
-            "provider": "none",  # "none", "claude", "openai"
+            "provider": "none",  # "none", "claude", "openai", "poe", "ollama"
             "api_key": "",
-            "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini"
+            "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"
             "max_tokens": 500,
             "temperature": 0.3,
             "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
+            "base_url": "",  # nur fuer Ollama (lokaler Server)
         },
     }
 

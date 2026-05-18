@@ -89,6 +89,7 @@ class SettingsDialog(QDialog):
             "Anthropic Claude",
             "OpenAI GPT",
             "Poe.com (viele Modelle)",
+            "Ollama (lokal, kein API-Key noetig)",
         ])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
@@ -112,6 +113,15 @@ class SettingsDialog(QDialog):
         key_button_layout.addWidget(self.show_key_button)
         key_button_layout.addStretch()
         api_layout.addRow("", key_button_layout)
+
+        # Server-URL (nur fuer Ollama relevant)
+        self.base_url_input = QLineEdit()
+        self.base_url_input.setPlaceholderText("http://localhost:11434")
+        self.base_url_input.setToolTip(
+            "Nur fuer Ollama: URL des lokalen Ollama-Servers.\n"
+            "Standard: http://localhost:11434"
+        )
+        api_layout.addRow("Server-URL:", self.base_url_input)
 
         # Modell-Auswahl mit Aktualisieren-Button
         model_row_layout = QHBoxLayout()
@@ -450,6 +460,10 @@ class SettingsDialog(QDialog):
         # Modelle je nach Provider aktualisieren
         self.model_combo.clear()
 
+        # Server-URL ist nur fuer Ollama relevant - standardmaessig deaktivieren
+        is_ollama = (index == 4)
+        self.base_url_input.setEnabled(is_ollama)
+
         if index == 0:  # Keiner
             self.api_key_input.setEnabled(False)
             self.model_combo.setEnabled(False)
@@ -505,6 +519,22 @@ class SettingsDialog(QDialog):
                 "Mistral-Large (Mistral)",
             ])
             self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
+        elif index == 4:  # Ollama (lokal)
+            # Kein API-Key noetig, aber URL und Modell
+            self.api_key_input.setEnabled(False)
+            self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
+            self.model_combo.setEnabled(True)
+            self.test_button.setEnabled(True)
+            # Vorinstallierte Vorschlaege - per "Modelle aktualisieren" werden
+            # die tatsaechlich vorhandenen Modelle vom Server gelesen.
+            self.model_combo.addItems([
+                "llama3.1 (Meta, ausgewogen)",
+                "llama3.2 (Meta, klein & schnell)",
+                "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
+                "mistral (Mistral, klein)",
+                "gemma3 (Google)",
+                "phi3 (Microsoft, sehr klein)",
+            ])
 
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
@@ -527,10 +557,13 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(2)
         elif provider == "poe":
             self.provider_combo.setCurrentIndex(3)
+        elif provider == "ollama":
+            self.provider_combo.setCurrentIndex(4)
         else:
             self.provider_combo.setCurrentIndex(0)
 
         self.api_key_input.setText(llm_config.get("api_key", ""))
+        self.base_url_input.setText(llm_config.get("base_url", ""))
 
         model = llm_config.get("model", "")
         if model:
@@ -572,8 +605,10 @@ class SettingsDialog(QDialog):
             provider = "claude"
         elif provider_index == 2:
             provider = "openai"
-        else:
+        elif provider_index == 3:
             provider = "poe"
+        else:
+            provider = "ollama"
 
         # Modellname extrahieren (vor dem Klammerteil)
         model_text = self.model_combo.currentText()
@@ -587,6 +622,7 @@ class SettingsDialog(QDialog):
             "temperature": self.temperature_spin.value(),
             "auto_use": self.auto_use_check.isChecked(),
             "text_limit": self.text_limit_spin.value(),
+            "base_url": self.base_url_input.text().strip(),
         }
         self.config.set("llm", llm_config)
 
@@ -624,7 +660,10 @@ class SettingsDialog(QDialog):
         provider_index = self.provider_combo.currentIndex()
         api_key = self.api_key_input.text().strip()
 
-        if not api_key:
+        # Ollama braucht keinen API-Key, aber eine URL.
+        if provider_index == 4:
+            base_url = self.base_url_input.text().strip() or "http://localhost:11434"
+        elif not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein."
@@ -645,6 +684,8 @@ class SettingsDialog(QDialog):
                 self._test_openai(api_key, model)
             elif provider_index == 3:  # Poe
                 self._test_poe(api_key, model)
+            elif provider_index == 4:  # Ollama
+                self._test_ollama(base_url, model)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -772,6 +813,55 @@ class SettingsDialog(QDialog):
                 f"Verbindungsfehler: {str(e)}"
             )
 
+    def _test_ollama(self, base_url: str, model: str):
+        """Testet die Verbindung zu einem lokalen Ollama-Server."""
+        try:
+            from src.ml.ollama_provider import OllamaProvider
+            from src.ml.llm_provider import LLMConfig
+
+            provider = OllamaProvider(LLMConfig(
+                api_key="",
+                model=model or OllamaProvider.DEFAULT_MODEL,
+                base_url=base_url,
+            ))
+
+            ok, msg = provider.ping()
+            if not ok:
+                QMessageBox.critical(
+                    self, "Fehler",
+                    f"Ollama-Server nicht erreichbar:\n{msg}\n\n"
+                    f"Pruefen Sie ob Ollama laeuft (z.B. 'ollama serve')\n"
+                    f"und die URL stimmt: {base_url}"
+                )
+                return
+
+            available = provider.list_models()
+            chosen = model or OllamaProvider.DEFAULT_MODEL
+            extra = ""
+            if available and chosen not in available:
+                # Nicht zwingend ein Fehler - der Modellname kann ein Tag
+                # enthalten (z.B. 'llama3.1:latest'). Wir geben einen Hinweis.
+                extra = (
+                    f"\n\nHinweis: Modell '{chosen}' steht nicht in der Liste "
+                    f"der installierten Modelle. Verfuegbar:\n"
+                    + "\n".join(f"  - {m}" for m in available[:10])
+                    + f"\n\nInstallieren mit: ollama pull {chosen}"
+                )
+
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu Ollama erfolgreich!\n"
+                f"Server: {base_url}\n"
+                f"Version: {msg}\n"
+                f"Gewaehltes Modell: {chosen}"
+                + extra
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Verbindungsfehler: {str(e)}"
+            )
+
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
         provider_index = self.provider_combo.currentIndex()
@@ -784,7 +874,8 @@ class SettingsDialog(QDialog):
             )
             return
 
-        if not api_key:
+        # Ollama braucht keinen API-Key, alle anderen schon.
+        if provider_index != 4 and not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
@@ -804,6 +895,9 @@ class SettingsDialog(QDialog):
                 models = self._fetch_openai_models(api_key)
             elif provider_index == 3:  # Poe
                 models = self._fetch_poe_models(api_key)
+            elif provider_index == 4:  # Ollama (lokal)
+                base_url = self.base_url_input.text().strip() or "http://localhost:11434"
+                models = self._fetch_ollama_models(base_url)
             else:
                 models = []
 
@@ -877,5 +971,24 @@ class SettingsDialog(QDialog):
         for model in models_response.data:
             models.append(model.id)
 
+        models.sort()
+        return models
+
+    def _fetch_ollama_models(self, base_url: str) -> list[str]:
+        """Ruft die lokal installierten Modelle vom Ollama-Server ab."""
+        from src.ml.ollama_provider import OllamaProvider
+        from src.ml.llm_provider import LLMConfig
+
+        provider = OllamaProvider(LLMConfig(
+            api_key="",
+            model="",
+            base_url=base_url,
+        ))
+        models = provider.list_models()
+        if not models:
+            raise RuntimeError(
+                f"Keine Modelle gefunden. Laeuft Ollama unter {base_url}?\n"
+                "Modelle installieren mit: ollama pull llama3.1"
+            )
         models.sort()
         return models

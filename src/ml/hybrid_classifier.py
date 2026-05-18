@@ -16,6 +16,7 @@ from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProvider
 from src.ml.claude_provider import ClaudeProvider
 from src.ml.openai_provider import OpenAIProvider
 from src.ml.poe_provider import PoeProvider
+from src.ml.ollama_provider import OllamaProvider
 from src.utils.config import get_config
 
 
@@ -74,8 +75,15 @@ class HybridClassifier:
         provider_type = llm_config.get("provider", "none")
         api_key = llm_config.get("api_key", "")
         model = llm_config.get("model", "")
+        base_url = llm_config.get("base_url", "")
 
-        if not api_key or provider_type == "none":
+        if provider_type == "none":
+            self.llm_enabled = False
+            return
+
+        # Ollama laeuft lokal und braucht keinen API-Key.
+        # Alle anderen Provider brauchen einen.
+        if provider_type != "ollama" and not api_key:
             self.llm_enabled = False
             return
 
@@ -85,6 +93,7 @@ class HybridClassifier:
             max_tokens=llm_config.get("max_tokens", 500),
             temperature=llm_config.get("temperature", 0.3),
             text_limit=llm_config.get("text_limit", 1500),
+            base_url=base_url,
         )
 
         try:
@@ -94,6 +103,8 @@ class HybridClassifier:
                 self.llm_provider = OpenAIProvider(config)
             elif provider_type == "poe":
                 self.llm_provider = PoeProvider(config)
+            elif provider_type == "ollama":
+                self.llm_provider = OllamaProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -108,16 +119,24 @@ class HybridClassifier:
         provider_type: LLMProviderType,
         api_key: str,
         model: str = "",
+        base_url: str = "",
     ):
         """
         Setzt den LLM-Provider zur Laufzeit.
 
         Args:
-            provider_type: Art des Providers (claude, openai, none)
-            api_key: API-Key
+            provider_type: Art des Providers (claude, openai, poe, ollama, none)
+            api_key: API-Key (bei Ollama ignoriert)
             model: Modellname (optional)
+            base_url: Server-URL (nur fuer Ollama relevant)
         """
-        if provider_type == LLMProviderType.NONE or not api_key:
+        if provider_type == LLMProviderType.NONE:
+            self.llm_provider = None
+            self.llm_enabled = False
+            return
+
+        # Ollama laeuft lokal und braucht keinen API-Key.
+        if provider_type != LLMProviderType.OLLAMA and not api_key:
             self.llm_provider = None
             self.llm_enabled = False
             return
@@ -127,10 +146,12 @@ class HybridClassifier:
             LLMProviderType.CLAUDE: "haiku",
             LLMProviderType.OPENAI: "gpt-4o-mini",
             LLMProviderType.POE: "GPT-4o-Mini",
+            LLMProviderType.OLLAMA: OllamaProvider.DEFAULT_MODEL,
         }
         config = LLMConfig(
             api_key=api_key,
             model=model or default_models.get(provider_type, ""),
+            base_url=base_url,
         )
 
         try:
@@ -140,6 +161,8 @@ class HybridClassifier:
                 self.llm_provider = OpenAIProvider(config)
             elif provider_type == LLMProviderType.POE:
                 self.llm_provider = PoeProvider(config)
+            elif provider_type == LLMProviderType.OLLAMA:
+                self.llm_provider = OllamaProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -470,6 +493,8 @@ class HybridClassifier:
             return "OpenAI"
         if isinstance(self.llm_provider, PoeProvider):
             return "Poe"
+        if isinstance(self.llm_provider, OllamaProvider):
+            return "Ollama"
         return "Unbekannt"
 
 

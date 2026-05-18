@@ -18,6 +18,7 @@ class LLMProviderType(Enum):
     CLAUDE = "claude"
     OPENAI = "openai"
     POE = "poe"  # Poe.com - Zugang zu vielen Modellen
+    OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     NONE = "none"  # Kein LLM verwenden
 
 
@@ -44,6 +45,9 @@ class LLMConfig:
     max_tokens: int = 700
     temperature: float = 0.3  # Niedrig für konsistente Antworten
     text_limit: int = 1500  # Max. Zeichen die an LLM gesendet werden
+    # Optional: Basis-URL fuer lokale/selbst-gehostete Provider (z.B. Ollama).
+    # Bei Cloud-Providern bleibt der Wert leer und wird ignoriert.
+    base_url: str = ""
 
 
 class LLMProvider(ABC):

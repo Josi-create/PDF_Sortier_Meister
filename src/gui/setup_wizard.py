@@ -30,22 +30,25 @@ PAGE_API_KEY = 3
 PAGE_DONE = 4
 
 # Provider-Konstanten (Index -> interner Name)
-_PROVIDER_IDS = ["none", "claude", "openai", "poe"]
+_PROVIDER_IDS = ["none", "claude", "openai", "poe", "ollama"]
 _PROVIDER_LABELS = [
     "Kein KI-Assistent (nur klassische Erkennung)",
     "Anthropic Claude (empfohlen)",
     "OpenAI GPT",
     "Poe.com (viele KI-Modelle, ein Account)",
+    "Ollama (lokal auf Ihrem PC, kostenlos)",
 ]
 _PROVIDER_URLS = {
     "claude": "https://console.anthropic.com/settings/keys",
     "openai": "https://platform.openai.com/api-keys",
     "poe":    "https://poe.com/api_key",
+    "ollama": "https://ollama.com/download",
 }
 _PROVIDER_KEY_HINTS = {
     "claude": 'Beginnt mit "sk-ant-..."',
     "openai": 'Beginnt mit "sk-..."',
     "poe":    "Zu finden auf poe.com/api_key",
+    "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
 }
 
 
@@ -245,36 +248,65 @@ class ApiKeyPage(QWizardPage):
         provider_page = wizard.page(PAGE_PROVIDER)
         self._provider_id = provider_page.get_provider_id()
 
-        # Vorhandenen Key aus Config laden
+        # Vorhandenen Wert aus Config laden (Key bei Cloud-Providern, URL bei Ollama)
         config = get_config()
         llm_cfg = config.get_llm_config()
-        existing_key = ""
+        existing_value = ""
         if llm_cfg.get("provider") == self._provider_id:
-            existing_key = llm_cfg.get("api_key", "")
-        self.key_edit.setText(existing_key)
+            if self._provider_id == "ollama":
+                existing_value = llm_cfg.get("base_url", "")
+            else:
+                existing_value = llm_cfg.get("api_key", "")
+        self.key_edit.setText(existing_value)
 
         # UI an Provider anpassen
         provider_labels = {
             "claude": "Anthropic Claude",
             "openai": "OpenAI GPT",
             "poe":    "Poe.com",
+            "ollama": "Ollama",
         }
         name = provider_labels.get(self._provider_id, self._provider_id)
-        self.setSubTitle(
-            f"Geben Sie Ihren {name} API-Key ein.\n"
-            "Den Key koennen Sie kostenlos erstellen (ein Account genuegt)."
-        )
+
+        is_ollama = (self._provider_id == "ollama")
+
+        if is_ollama:
+            self.setTitle("Schritt 3: Ollama einrichten")
+            self.setSubTitle(
+                "Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
+                "muessen aber Ollama installieren und ein Modell herunterladen."
+            )
+            # URL ist nicht geheim - im Klartext anzeigen, kein Show/Hide-Button
+            self.key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._show_btn.setVisible(False)
+        else:
+            self.setTitle("Schritt 3: API-Key eingeben")
+            self.setSubTitle(
+                f"Geben Sie Ihren {name} API-Key ein.\n"
+                "Den Key koennen Sie kostenlos erstellen (ein Account genuegt)."
+            )
+            # API-Keys sind geheim - verstecken, Show/Hide-Button anzeigen
+            self.key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            self._show_btn.setVisible(True)
+            self._show_btn.setChecked(False)
 
         url = _PROVIDER_URLS.get(self._provider_id, "")
         if url:
-            self._link_btn.setText(f"  Hier klicken um API-Key zu erstellen: {url}")
+            link_text = (
+                f"  Hier klicken um Ollama herunterzuladen: {url}"
+                if is_ollama
+                else f"  Hier klicken um API-Key zu erstellen: {url}"
+            )
+            self._link_btn.setText(link_text)
             self._link_btn.setVisible(True)
         else:
             self._link_btn.setVisible(False)
 
         hint = _PROVIDER_KEY_HINTS.get(self._provider_id, "")
         self._hint_label.setText(hint)
-        self.key_edit.setPlaceholderText(hint or "API-Key hier einfuegen ...")
+        self.key_edit.setPlaceholderText(
+            hint if is_ollama else (hint or "API-Key hier einfuegen ...")
+        )
 
         info_texts = {
             "claude": (
@@ -294,6 +326,17 @@ class ApiKeyPage(QWizardPage):
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n"
                 "4. Fuegen Sie ihn unten ein."
+            ),
+            "ollama": (
+                "So richten Sie Ollama ein:\n"
+                "1. Ollama von ollama.com/download installieren.\n"
+                "2. Terminal/Eingabeaufforderung oeffnen und ein Modell laden, z.B.:\n"
+                "       ollama pull llama3.1\n"
+                "   (Andere gute Modelle: qwen2.5, gemma3, mistral.)\n"
+                "3. Ollama laeuft danach automatisch im Hintergrund.\n"
+                "4. Die Server-URL unten koennen Sie leer lassen — Standard ist\n"
+                "   http://localhost:11434. Modell waehlen Sie spaeter unter\n"
+                "   Extras -> Einstellungen aus."
             ),
         }
         self._info_label.setText(info_texts.get(self._provider_id, ""))
@@ -396,11 +439,22 @@ class SetupWizard(QWizard):
         if folder:
             config.set_scan_folder(folder)
 
-        # Provider und API-Key speichern
+        # Provider und API-Key bzw. Server-URL speichern
         provider_id = self._provider_page.get_provider_id()
         config.set_llm_provider(provider_id)
 
-        if provider_id != "none":
+        if provider_id == "ollama":
+            # Bei Ollama steht im Eingabefeld die Server-URL, kein API-Key.
+            # Leerer Eintrag heisst: Default-URL verwenden (wird im Provider
+            # selbst auf http://localhost:11434 gesetzt).
+            base_url = self._api_key_page.get_api_key()
+            llm_cfg = config.get_llm_config()
+            llm_cfg["base_url"] = base_url
+            # API-Key auf leer setzen, damit kein Cloud-Key aus einem
+            # vorherigen Setup haengenbleibt.
+            llm_cfg["api_key"] = ""
+            config.set("llm", llm_cfg)
+        elif provider_id != "none":
             api_key = self._api_key_page.get_api_key()
             if api_key:
                 config.set_llm_api_key(api_key)
