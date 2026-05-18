@@ -111,6 +111,7 @@ class MainWindow(QMainWindow):
         # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
         self.detail_panel = DetailPanel()
         self.detail_panel.save_metadata_requested.connect(self._on_save_metadata_in_place)
+        self.detail_panel.rename_and_save_metadata_requested.connect(self._on_rename_and_save_metadata)
         splitter.addWidget(self.detail_panel)
 
         # Rechte Spalte: Zielordner
@@ -1465,9 +1466,75 @@ class MainWindow(QMainWindow):
         if metadata.get("korrespondent"):
             self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
 
+        self.detail_panel.mark_metadata_saved()
         self.statusbar.showMessage(
             f"Metadaten in '{pdf_path.name}' gespeichert", 3000
         )
+
+    def _on_rename_and_save_metadata(self):
+        """Benennt die PDF um (Dateiname aus Detail-Panel) und speichert Metadaten in-place."""
+        pdf_path = self.detail_panel.get_current_pdf()
+        if not pdf_path or not pdf_path.exists():
+            self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            return
+
+        new_name = self.detail_panel.get_new_name()
+        metadata = self.detail_panel.get_metadata()
+
+        if not new_name:
+            self.statusbar.showMessage("Kein Dateiname eingegeben", 2000)
+            return
+
+        name_changed = new_name != pdf_path.name
+
+        try:
+            if name_changed:
+                new_path = self.file_manager.rename_file(pdf_path, new_name)
+                self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+                # Undo-Eintrag
+                self._push_undo({
+                    "type": "rename",
+                    "old_path": pdf_path,
+                    "new_path": new_path,
+                    "description": f"{pdf_path.name} → {new_name}",
+                })
+                # Umbenennung lernen
+                if self.selected_pdf_keywords:
+                    self.db.add_rename_entry(
+                        original_filename=pdf_path.name,
+                        new_filename=new_path.name,
+                        extracted_text=self.selected_pdf_text,
+                        keywords=self.selected_pdf_keywords,
+                        detected_date=None,
+                    )
+                self.selected_pdf = new_path
+                self.detail_panel._current_pdf = new_path
+                self.header_label_update(new_path) if hasattr(self, 'header_label_update') else None
+            else:
+                new_path = pdf_path
+
+            if metadata:
+                self._write_pdf_metadata(new_path, new_path.name, self.selected_pdf_keywords, metadata)
+                if metadata.get("korrespondent"):
+                    self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
+
+            self.detail_panel.mark_metadata_saved()
+
+            rename_info = f" und umbenannt zu '{new_name}'" if name_changed else ""
+            self.statusbar.showMessage(
+                f"Metadaten in '{new_path.name}' gespeichert{rename_info}", 3000
+            )
+
+            # Thumbnail-Widget aktualisieren falls umbenannt
+            if name_changed:
+                for widget in self.pdf_widgets:
+                    if widget.pdf_path == pdf_path:
+                        widget.pdf_path = new_path
+                        widget.filename_label.setText(new_path.name)
+                        break
+
+        except Exception as e:
+            QMessageBox.warning(self, "Fehler", f"Umbenennen/Speichern fehlgeschlagen:\n{e}")
 
     def _rename_selected_pdf(self):
         """F2-Shortcut: Öffnet den Umbenennungsdialog für die ausgewählte PDF."""

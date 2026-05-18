@@ -34,6 +34,8 @@ class DetailPanel(QWidget):
 
     # Signal: Benutzer möchte Metadaten in PDF speichern (ohne Verschieben)
     save_metadata_requested = pyqtSignal()
+    # Signal: Benutzer möchte Dateiname UND Metadaten speichern (ohne Verschieben)
+    rename_and_save_metadata_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,6 +43,12 @@ class DetailPanel(QWidget):
         self._suggestions: list[RenameSuggestion] = []
         self._metadata: dict = {}
         self._has_learned_overrides: bool = False
+        # Quelle der aktuell angezeigten Metadaten: "pdf", "llm", "user", None
+        self._metadata_source: Optional[str] = None
+        # Snapshot der zuletzt gespeicherten Metadaten (entspricht PDF-Stand)
+        self._saved_metadata_snapshot: dict = {}
+        # Flag um textChanged-Signale während des programmatischen Füllens zu ignorieren
+        self._loading_metadata: bool = False
 
         # Feste Größenpolitik: Panel ändert seine Größe nicht beim Befüllen
         from PyQt6.QtWidgets import QSizePolicy
@@ -132,6 +140,12 @@ class DetailPanel(QWidget):
         metadata_layout = QVBoxLayout(self.metadata_group)
         metadata_layout.setSpacing(3)
 
+        # Statusanzeige: Quelle der Metadaten
+        self.metadata_status_label = QLabel("")
+        self.metadata_status_label.setStyleSheet("font-size: 10px; padding: 2px 4px; border-radius: 3px;")
+        self.metadata_status_label.hide()
+        metadata_layout.addWidget(self.metadata_status_label)
+
         self._metadata_inputs = {}
         metadata_fields = [
             ("subject", "Kategorie"),
@@ -163,6 +177,10 @@ class DetailPanel(QWidget):
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
             row.addWidget(input_field)
 
+            if isinstance(input_field, QPlainTextEdit):
+                input_field.textChanged.connect(self._on_metadata_user_edit)
+            else:
+                input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
             metadata_layout.addLayout(row)
 
@@ -178,10 +196,23 @@ class DetailPanel(QWidget):
             "QPushButton { background-color: #1565c0; color: white; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
             "QPushButton:hover { background-color: #0d47a1; }"
-            "QPushButton:disabled { background-color: #bdbdbd; }"
+            "QPushButton:disabled { background-color: #bdbdbd; color: #777; }"
         )
         self.save_metadata_btn.clicked.connect(self.save_metadata_requested)
         btn_row.addWidget(self.save_metadata_btn)
+
+        self.rename_and_save_btn = QPushButton("Umbenennen + Metadaten speichern")
+        self.rename_and_save_btn.setToolTip(
+            "Dateinamen aktualisieren UND Metadaten in die PDF schreiben, ohne sie zu verschieben"
+        )
+        self.rename_and_save_btn.setStyleSheet(
+            "QPushButton { background-color: #2e7d32; color: white; "
+            "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
+            "QPushButton:hover { background-color: #1b5e20; }"
+            "QPushButton:disabled { background-color: #bdbdbd; color: #777; }"
+        )
+        self.rename_and_save_btn.clicked.connect(self.rename_and_save_metadata_requested)
+        btn_row.addWidget(self.rename_and_save_btn)
 
         self.llm_btn = QPushButton("KI-Metadaten generieren")
         self.llm_btn.setStyleSheet(
@@ -260,43 +291,56 @@ class DetailPanel(QWidget):
         # Metadaten vorbefüllen
         self._metadata = {}
 
-        # 1. Basis aus Analyse
-        if keywords:
-            self._metadata["subject"] = keywords[0].capitalize()
-        if detected_date:
-            try:
-                year = detected_date[:4]
-                if year.isdigit():
-                    self._metadata["steuerjahr"] = year
-            except Exception:
-                pass
+        # 1. Bereits gespeicherte XMP-Metadaten aus der PDF laden (höchste Priorität als Basis)
+        self.load_metadata_from_pdf(pdf_path)
+        pdf_had_data = bool(self._saved_metadata_snapshot)
 
-        # 2. LLM-Metadaten
-        for s in self._suggestions:
-            if s.metadata:
-                self._metadata.update(s.metadata)
-                break
+        # 2. Nur wenn keine PDF-Metadaten vorhanden: Basis aus Analyse
+        if not pdf_had_data:
+            if keywords:
+                self._metadata["subject"] = keywords[0].capitalize()
+            if detected_date:
+                try:
+                    year = detected_date[:4]
+                    if year.isdigit():
+                        self._metadata["steuerjahr"] = year
+                except Exception:
+                    pass
 
-        # 3. Gelernte Korrespondent-Zuordnungen
-        korrespondent = self._metadata.get("korrespondent")
-        if korrespondent:
-            try:
-                from src.utils.database import get_database
-                learned = get_database().get_korrespondent_metadata(korrespondent)
-                if learned:
-                    self._metadata.update(learned)
-                    self._has_learned_overrides = True
-            except Exception:
-                pass
+            # LLM-Metadaten
+            for s in self._suggestions:
+                if s.metadata:
+                    self._metadata.update(s.metadata)
+                    break
 
-        # Metadaten-Felder befüllen
-        self._apply_metadata_to_fields()
+            # Gelernte Korrespondent-Zuordnungen
+            korrespondent = self._metadata.get("korrespondent")
+            if korrespondent:
+                try:
+                    from src.utils.database import get_database
+                    learned = get_database().get_korrespondent_metadata(korrespondent)
+                    if learned:
+                        self._metadata.update(learned)
+                        self._has_learned_overrides = True
+                except Exception:
+                    pass
+
+            # Metadaten-Felder befüllen und Quelle setzen
+            self._loading_metadata = True
+            self._apply_metadata_to_fields()
+            self._loading_metadata = False
+            if any(self._metadata.values()):
+                self._metadata_source = "llm"
+            else:
+                self._metadata_source = None
 
         # GroupBox-Titel
         if self._has_learned_overrides:
             self.metadata_group.setTitle("Metadaten (gelernt + werden in PDF gespeichert)")
         else:
             self.metadata_group.setTitle("Metadaten (werden in PDF gespeichert)")
+
+        self._refresh_save_btn()
 
         # Ersten Vorschlag als Name setzen
         if self._suggestions:
@@ -378,11 +422,14 @@ class DetailPanel(QWidget):
         self._current_pdf = None
         self._suggestions = []
         self._metadata = {}
+        self._metadata_source = None
+        self._saved_metadata_snapshot = {}
 
         self.name_input.clear()
         self.suggestions_list.clear()
         self.preview_label.clear()
         self.warning_label.hide()
+        self.metadata_status_label.hide()
         for widget in self._metadata_inputs.values():
             if isinstance(widget, QPlainTextEdit):
                 widget.clear()
@@ -417,6 +464,92 @@ class DetailPanel(QWidget):
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
+
+    def load_metadata_from_pdf(self, pdf_path: Path):
+        """Liest XMP-Metadaten aus der PDF und befüllt die Felder. Setzt Quelle auf 'pdf'."""
+        try:
+            from src.core.pdf_metadata import read_metadata
+            pdf_meta = read_metadata(pdf_path)
+        except Exception:
+            pdf_meta = None
+
+        if pdf_meta is None or not pdf_meta.has_any_data():
+            self._saved_metadata_snapshot = {}
+            return
+
+        # Felder aus PDFMetadata in _metadata-Dict übertragen
+        field_map = {
+            "subject": pdf_meta.subject,
+            "korrespondent": pdf_meta.korrespondent,
+            "betrag": pdf_meta.betrag,
+            "waehrung": pdf_meta.waehrung,
+            "mwst_satz": pdf_meta.mwst_satz,
+            "steuerjahr": pdf_meta.steuerjahr,
+            "description": pdf_meta.description,
+        }
+        for key, value in field_map.items():
+            if value:
+                self._metadata[key] = value
+
+        self._loading_metadata = True
+        self._apply_metadata_to_fields()
+        self._loading_metadata = False
+
+        self._metadata_source = "pdf"
+        self._saved_metadata_snapshot = self.get_metadata()
+        self._refresh_save_btn()
+
+    def mark_metadata_saved(self):
+        """Markiert den aktuellen Zustand als gespeichert (nach erfolgreichem Schreiben)."""
+        self._metadata_source = "pdf"
+        self._saved_metadata_snapshot = self.get_metadata()
+        self._refresh_save_btn()
+
+    def _on_metadata_user_edit(self, *args):
+        """Wird aufgerufen wenn der User ein Metadaten-Feld ändert."""
+        if self._loading_metadata:
+            return
+        if self._metadata_source != "user":
+            self._metadata_source = "user"
+        self._refresh_save_btn()
+
+    def _refresh_save_btn(self):
+        """Aktualisiert Text und Status des Speichern-Buttons und des Status-Labels."""
+        current = self.get_metadata()
+        is_saved = (current == self._saved_metadata_snapshot) and bool(self._saved_metadata_snapshot)
+
+        if is_saved:
+            self.save_metadata_btn.setText("Metadaten gespeichert")
+            self.save_metadata_btn.setEnabled(False)
+        else:
+            self.save_metadata_btn.setText("Metadaten speichern")
+            self.save_metadata_btn.setEnabled(True)
+
+        # Status-Label
+        source = self._metadata_source
+        if source == "pdf":
+            self.metadata_status_label.setText("Quelle: aus PDF gelesen")
+            self.metadata_status_label.setStyleSheet(
+                "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
+                "background-color: #e8f5e9; color: #2e7d32;"
+            )
+            self.metadata_status_label.show()
+        elif source == "llm":
+            self.metadata_status_label.setText("Quelle: KI-Vorschlag (noch nicht gespeichert)")
+            self.metadata_status_label.setStyleSheet(
+                "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
+                "background-color: #f3e5f5; color: #6a1b9a;"
+            )
+            self.metadata_status_label.show()
+        elif source == "user":
+            self.metadata_status_label.setText("Quelle: editiert (noch nicht gespeichert)")
+            self.metadata_status_label.setStyleSheet(
+                "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
+                "background-color: #fff8e1; color: #e65100;"
+            )
+            self.metadata_status_label.show()
+        else:
+            self.metadata_status_label.hide()
 
     # === Interne Methoden ===
 
@@ -457,6 +590,7 @@ class DetailPanel(QWidget):
             # Metadaten des Vorschlags übernehmen
             idx = self.suggestions_list.row(item)
             if idx < len(self._suggestions) and self._suggestions[idx].metadata:
+                self._loading_metadata = True
                 for key, value in self._suggestions[idx].metadata.items():
                     widget = self._metadata_inputs.get(key)
                     if widget:
@@ -464,6 +598,10 @@ class DetailPanel(QWidget):
                             widget.setPlainText(str(value))
                         else:
                             widget.setText(str(value))
+                self._loading_metadata = False
+                if self._metadata_source != "pdf":
+                    self._metadata_source = "llm"
+                self._refresh_save_btn()
 
     def _apply_metadata_to_fields(self):
         """Setzt die Metadaten-Werte in die Eingabefelder."""
@@ -550,6 +688,7 @@ class DetailPanel(QWidget):
 
             for s in suggestions:
                 if s.source == "llm" and s.metadata:
+                    self._loading_metadata = True
                     for key, value in s.metadata.items():
                         widget = self._metadata_inputs.get(key)
                         if widget:
@@ -574,6 +713,9 @@ class DetailPanel(QWidget):
                                             w.setText(str(lv))
                         except Exception:
                             pass
+                    self._loading_metadata = False
+                    self._metadata_source = "llm"
+                    self._refresh_save_btn()
                     break
 
         except Exception as e:
