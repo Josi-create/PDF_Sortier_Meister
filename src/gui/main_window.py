@@ -1509,7 +1509,7 @@ class MainWindow(QMainWindow):
                     )
                 self.selected_pdf = new_path
                 self.detail_panel._current_pdf = new_path
-                self.header_label_update(new_path) if hasattr(self, 'header_label_update') else None
+                self.detail_panel.header_label.setText(f"Original: {new_path.name}")
             else:
                 new_path = pdf_path
 
