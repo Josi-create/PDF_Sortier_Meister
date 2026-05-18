@@ -136,7 +136,7 @@ class DetailPanel(QWidget):
         detail_layout.addWidget(name_group)
 
         # Metadaten
-        self.metadata_group = QGroupBox("Metadaten")
+        self.metadata_group = QGroupBox("Metadaten (werden in PDF gespeichert)")
         metadata_layout = QVBoxLayout(self.metadata_group)
         metadata_layout.setSpacing(3)
 
@@ -336,9 +336,9 @@ class DetailPanel(QWidget):
 
         # GroupBox-Titel
         if self._has_learned_overrides:
-            self.metadata_group.setTitle("Metadaten (gelernt)")
+            self.metadata_group.setTitle("Metadaten (gelernt + werden in PDF gespeichert)")
         else:
-            self.metadata_group.setTitle("Metadaten")
+            self.metadata_group.setTitle("Metadaten (werden in PDF gespeichert)")
 
         self._refresh_save_btn()
 
