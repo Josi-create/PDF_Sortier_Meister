@@ -100,17 +100,16 @@ class PDFThumbnailWidget(QFrame):
         self.name_label.setMaximumHeight(55)  # Mehr Platz für 2 Zeilen
         self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2;")
 
-        # Dateinamen für Anzeige aufbereiten (max. 2 Zeilen)
-        name = self.pdf_path.stem  # Ohne .pdf-Endung für bessere Lesbarkeit
+        self.update_name_display()
+        layout.addWidget(self.name_label)
+
+    def update_name_display(self):
+        """Befuellt name_label mit gekuerztem stem + setzt vollen Namen als Tooltip."""
+        name = self.pdf_path.stem
         if len(name) > 45:
-            # Bei sehr langen Namen: erste und letzte Zeichen zeigen
             name = name[:35] + "..." + name[-7:]
         self.name_label.setText(name)
-
-        # Vollständiger Dateiname als Tooltip (mit Endung)
         self.name_label.setToolTip(self.pdf_path.name)
-
-        layout.addWidget(self.name_label)
 
     def load_thumbnail(self):
         """Startet das asynchrone Laden des Thumbnails."""

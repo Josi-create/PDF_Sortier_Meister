@@ -1530,7 +1530,7 @@ class MainWindow(QMainWindow):
                 for widget in self.pdf_widgets:
                     if widget.pdf_path == pdf_path:
                         widget.pdf_path = new_path
-                        widget.filename_label.setText(new_path.name)
+                        widget.update_name_display()
                         break
 
         except Exception as e:
