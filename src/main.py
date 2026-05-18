@@ -24,7 +24,7 @@ if str(src_path) not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QSplashScreen
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QPalette, QColor
 
 from src.gui.main_window import MainWindow
 from src.utils.config import get_config
@@ -51,6 +51,27 @@ def main():
     app.setApplicationName("PDF Sortier Meister")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("PDF Sortier Meister")
+
+    # Helle Palette erzwingen, damit dunkle System-Themes die Lesbarkeit
+    # nicht zerschiessen (siehe Issue #1). Fusion-Style sorgt fuer
+    # plattformuebergreifend konsistentes Verhalten.
+    app.setStyle("Fusion")
+    light_palette = QPalette()
+    light_palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
+    light_palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
+    light_palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+    light_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
+    light_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220))
+    light_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
+    light_palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+    light_palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
+    light_palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
+    light_palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+    light_palette.setColor(QPalette.ColorRole.Link, QColor(0, 102, 204))
+    light_palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+    light_palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+    light_palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 120, 120))
+    app.setPalette(light_palette)
 
     # SplashScreen: im gefrorenen Build zeigt PyInstaller den Splash bereits
     # vom Bootloader aus an (siehe .spec). Der Qt-Splash dient nur als
