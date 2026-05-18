@@ -1,0 +1,3 @@
+# Claude-Code-Konfiguration: erzwingt LF, damit Agent-Loader nicht an CRLF scheitert.
+.claude/**/*.md text eol=lf
+.claude/**/*.json text eol=lf

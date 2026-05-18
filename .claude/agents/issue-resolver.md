@@ -52,7 +52,7 @@ mit schwarzem Hintergrund nicht zu schwarzer Schrift fuehren.
 
 ## Was Du NICHT tust
 
-- Keine „Verbesserungen" an angrenzendem Code, der nichts mit dem Issue zu tun hat.
+- Keine "Verbesserungen" an angrenzendem Code, der nichts mit dem Issue zu tun hat.
 - Keine neuen Abhaengigkeiten ohne kurze Begruendung im Plan.
 - Keine destruktiven Git-Operationen (force-push, reset --hard, branch -D) ohne explizite Freigabe.
 - Keine PRs erstellen, keine Tags setzen, kein Release bauen — der User macht das selbst.
