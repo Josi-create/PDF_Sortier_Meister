@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
-    QWidget, QSpinBox, QDoubleSpinBox
+    QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
+    QButtonGroup, QPlainTextEdit
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -44,6 +45,10 @@ class SettingsDialog(QDialog):
         # LLM-Tab
         llm_tab = self._create_llm_tab()
         tab_widget.addTab(llm_tab, "KI-Assistent (LLM)")
+
+        # Dateinamen-Muster Tab
+        filename_tab = self._create_filename_pattern_tab()
+        tab_widget.addTab(filename_tab, "Dateinamen-Muster")
 
         # Persönliche Daten Tab
         personal_tab = self._create_personal_tab()
@@ -188,6 +193,98 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
         return tab
+
+    # Vordefinierte Muster - werden im Tab als Auswahl angeboten und genau so
+    # an die LLM uebergeben (sie soll das Muster IMITIEREN, nicht woertlich
+    # uebernehmen, siehe Prompt-Hinweis in llm_provider._build_filename_pattern_info).
+    PATTERN_PRESETS = [
+        ("YYYY-MM-DD_Rechnung_Kontakt_Betreff",
+         "Datum_Dokumenttyp_Absender_Betreff (z.B. fuer Rechnungen)"),
+        ("PROJEKTNUMMER_INITIALIEN/AKTENZEICHEN_YYYY-MM-DD_Betreff_Kontakt",
+         "Projekt-/Aktenbezogen (Projekt zuerst, dann Datum)"),
+    ]
+
+    def _create_filename_pattern_tab(self) -> QWidget:
+        """
+        Erstellt den Tab fuer das benutzerdefinierte Dateinamen-Muster.
+
+        Der Nutzer kann zwischen Standardverhalten, vordefinierten Mustern und
+        einem Freitext-Template waehlen. Der gewaehlte Wert wird als Hinweis in
+        den Filename-Prompt aller LLM-Provider eingeflochten.
+        """
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        info_label = QLabel(
+            "Hier koennen Sie der KI ein Muster vorgeben, an dem sie sich beim "
+            "Vorschlagen von Dateinamen orientieren soll. Die KI ersetzt die "
+            "Platzhalter im Muster mit den konkreten Werten aus dem Dokument."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #555; padding: 5px;")
+        layout.addWidget(info_label)
+
+        # Auswahl-Gruppe: Standard | Preset 1 | Preset 2 | Freitext
+        choice_group = QGroupBox("Muster waehlen")
+        choice_layout = QVBoxLayout(choice_group)
+
+        self.pattern_button_group = QButtonGroup(self)
+
+        self.pattern_radio_default = QRadioButton(
+            "Standard (KI entscheidet selbst, z.B. YYYY-MM-DD_Kategorie_Beschreibung)"
+        )
+        self.pattern_button_group.addButton(self.pattern_radio_default, 0)
+        choice_layout.addWidget(self.pattern_radio_default)
+
+        self.pattern_preset_radios = []
+        for i, (pattern, description) in enumerate(self.PATTERN_PRESETS, start=1):
+            radio = QRadioButton(f"{pattern}\n    ({description})")
+            self.pattern_button_group.addButton(radio, i)
+            choice_layout.addWidget(radio)
+            self.pattern_preset_radios.append((radio, pattern))
+
+        self.pattern_radio_custom = QRadioButton("Eigenes Muster (Freitext):")
+        self.pattern_button_group.addButton(
+            self.pattern_radio_custom, len(self.PATTERN_PRESETS) + 1
+        )
+        choice_layout.addWidget(self.pattern_radio_custom)
+
+        self.pattern_custom_input = QPlainTextEdit()
+        self.pattern_custom_input.setPlaceholderText(
+            "z.B.  YYYY-MM-DD_Lieferant_Auftragsnummer_Kurzbeschreibung\n"
+            "\n"
+            "Sie koennen die Platzhalter frei waehlen. Schreiben Sie z.B.\n"
+            "'Datum' oder 'YYYY-MM-DD' fuer das Datum, 'Kontakt' oder 'Absender'\n"
+            "fuer den Korrespondenten, usw. Die KI interpretiert die\n"
+            "Bezeichnungen selbst und fuellt sie aus dem Dokument."
+        )
+        self.pattern_custom_input.setMaximumHeight(120)
+        choice_layout.addWidget(self.pattern_custom_input)
+
+        layout.addWidget(choice_group)
+
+        # UI-Logik: Freitextfeld nur bei "Eigenes Muster" aktiv
+        self.pattern_button_group.idToggled.connect(self._on_pattern_choice_changed)
+
+        # Hinweis
+        hint_label = QLabel(
+            "<i>Hinweis: Das Muster wird der KI als Vorlage gezeigt. Die "
+            "allgemeinen Regeln (erlaubte Zeichen, Datum nicht erfinden, "
+            "max. 80 Zeichen) bleiben bestehen.</i>"
+        )
+        hint_label.setWordWrap(True)
+        hint_label.setStyleSheet("color: gray;")
+        layout.addWidget(hint_label)
+
+        layout.addStretch()
+        return tab
+
+    def _on_pattern_choice_changed(self, button_id: int, checked: bool):
+        """Aktiviert/deaktiviert das Freitextfeld je nach Auswahl."""
+        if not checked:
+            return
+        is_custom = (button_id == len(self.PATTERN_PRESETS) + 1)
+        self.pattern_custom_input.setEnabled(is_custom)
 
     def _create_personal_tab(self) -> QWidget:
         """Erstellt den Tab für persönliche Daten."""
@@ -590,6 +687,9 @@ class SettingsDialog(QDialog):
         self.owner_company_input.setText(self.config.get("owner_company", ""))
         self.owner_address_input.setText(self.config.get("owner_address", ""))
 
+        # Dateinamen-Muster
+        self._load_filename_pattern()
+
         # Cache-Einstellungen
         self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
@@ -652,8 +752,43 @@ class SettingsDialog(QDialog):
         self.config.set("owner_company", self.owner_company_input.text().strip())
         self.config.set("owner_address", self.owner_address_input.text().strip())
 
+        # Dateinamen-Muster speichern
+        self.config.set("filename_pattern", self._collect_filename_pattern())
+
         self.settings_changed.emit()
         self.accept()
+
+    def _load_filename_pattern(self):
+        """Stellt die gespeicherte Pattern-Auswahl im Tab wieder her."""
+        saved = self.config.get("filename_pattern", "").strip()
+
+        if not saved:
+            self.pattern_radio_default.setChecked(True)
+            self.pattern_custom_input.setEnabled(False)
+            return
+
+        # Match gegen Presets
+        for radio, pattern in self.pattern_preset_radios:
+            if saved == pattern:
+                radio.setChecked(True)
+                self.pattern_custom_input.setEnabled(False)
+                return
+
+        # Sonst: Freitext
+        self.pattern_radio_custom.setChecked(True)
+        self.pattern_custom_input.setPlainText(saved)
+        self.pattern_custom_input.setEnabled(True)
+
+    def _collect_filename_pattern(self) -> str:
+        """Ermittelt den zu speichernden Pattern-String aus der UI-Auswahl."""
+        if self.pattern_radio_default.isChecked():
+            return ""
+        for radio, pattern in self.pattern_preset_radios:
+            if radio.isChecked():
+                return pattern
+        if self.pattern_radio_custom.isChecked():
+            return self.pattern_custom_input.toPlainText().strip()
+        return ""
 
     def _test_connection(self):
         """Testet die Verbindung zum LLM-Provider."""

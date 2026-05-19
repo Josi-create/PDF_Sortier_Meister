@@ -31,6 +31,9 @@ class Config:
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
         "owner_company": "",        # Eigene Firma (falls vorhanden)
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
+        # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
+        # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
+        "filename_pattern": "",
         # LLM-Konfiguration
         "llm": {
             "provider": "none",  # "none", "claude", "openai", "poe", "ollama"

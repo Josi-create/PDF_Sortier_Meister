@@ -245,6 +245,9 @@ KONFIDENZ: [Zahl von 0-100]"""
         # Benutzer-Identität laden (damit LLM den Besitzer nicht als Korrespondent erkennt)
         owner_info = self._build_owner_info()
 
+        # Benutzerdefiniertes Dateinamen-Muster (optional)
+        pattern_info = self._build_filename_pattern_info()
+
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten.
 
 Analysiere das folgende Dokument und schlage einen aussagekräftigen Dateinamen vor.
@@ -255,7 +258,7 @@ AKTUELLER DATEINAME: {current_filename}
 DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}
-
+{pattern_info}
 REGELN FÜR DEN DATEINAMEN:
 1. Format: YYYY-MM-DD_Kategorie_Beschreibung.pdf (wenn Datum vorhanden)
 2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden
@@ -283,6 +286,45 @@ WAEHRUNG: [EUR/USD oder UNBEKANNT]
 MWST: [Mehrwertsteuersatz als Zahl: 7/19 oder UNBEKANNT]
 STEUERJAHR: [Steuerjahr als vierstellige Zahl, z.B. 2024, oder UNBEKANNT]
 ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
+
+    def _build_filename_pattern_info(self) -> str:
+        """
+        Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt, der dem LLM
+        ein vom Benutzer gewaehltes Namens-Muster vorgibt.
+
+        Das LLM soll das Muster als STRUKTUR-VORLAGE behandeln (Reihenfolge der
+        Bestandteile, Trennzeichen, Platzhalter-Bedeutung) und es mit den
+        tatsaechlichen Werten aus dem Dokument fuellen — nicht woertlich
+        uebernehmen. Wenn kein Muster gesetzt ist, wird ein leerer String
+        zurueckgegeben und der Default-Prompt greift.
+
+        Returns:
+            Prompt-Abschnitt (kann leer sein)
+        """
+        try:
+            from src.utils.config import get_config
+            pattern = get_config().get("filename_pattern", "").strip()
+        except Exception:
+            return ""
+
+        if not pattern:
+            return ""
+
+        return (
+            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER (HOECHSTE PRIORITAET):\n"
+            f"    {pattern}\n"
+            "Der Benutzer hat dieses Muster als Vorlage fuer die Benennung\n"
+            "festgelegt. IMITIERE die Struktur (Reihenfolge der Bestandteile,\n"
+            "Trennzeichen wie '_' oder '-', Gross-/Kleinschreibung) und fuelle\n"
+            "die Platzhalter mit den tatsaechlichen Werten aus dem Dokument.\n"
+            "Uebernimm das Muster NICHT woertlich — die Platzhalter (z.B.\n"
+            "YYYY-MM-DD, Kontakt, Betreff, PROJEKTNUMMER, AKTENZEICHEN,\n"
+            "INITIALIEN) sind durch konkrete Werte zu ersetzen. Wenn ein\n"
+            "Platzhalter im Dokument nicht ermittelbar ist, lasse den\n"
+            "zugehoerigen Bestandteil samt zugehoerigem Trennzeichen weg.\n"
+            "Die allgemeinen Regeln weiter unten (erlaubte Zeichen, Laenge,\n"
+            "Datum nicht erfinden) gelten weiterhin und schlagen das Muster.\n"
+        )
 
     def _build_owner_info(self) -> str:
         """Erstellt den Benutzer-Identitäts-Abschnitt für den Prompt."""
