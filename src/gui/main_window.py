@@ -1122,9 +1122,13 @@ class MainWindow(QMainWindow):
         """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow)."""
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
-        # Name und Metadaten aus Detail-Panel holen
-        new_name = self.detail_panel.get_new_name()
-        metadata = self.detail_panel.get_metadata()
+        # Move-Only-Schalter im Detail-Panel: ueberspringt Umbenennen + Metadaten
+        if self.detail_panel.is_move_only_mode():
+            new_name = None
+            metadata = {}
+        else:
+            new_name = self.detail_panel.get_new_name()
+            metadata = self.detail_panel.get_metadata()
 
         # Prüfen ob umbenannt wird
         name_changed = new_name and new_name != pdf_path.name

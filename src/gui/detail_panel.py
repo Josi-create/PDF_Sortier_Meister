@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QScrollArea,
     QApplication,
+    QCheckBox,
 )
 
 from src.gui.rename_dialog import RenameSuggestion
@@ -227,14 +228,36 @@ class DetailPanel(QWidget):
 
         detail_layout.addWidget(self.metadata_group)
 
-        # Hinweis
-        self.hint_label = QLabel("Jetzt rechts auf einen Zielordner klicken")
-        self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Hinweis-Zeile mit Move-Only-Toggle
+        hint_layout = QHBoxLayout()
+        hint_layout.setSpacing(8)
+        hint_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.move_only_toggle = QCheckBox("Nur verschieben")
+        self.move_only_toggle.setToolTip(
+            "Wenn aktiv (rot): beim Klick auf einen Zielordner wird das PDF NUR "
+            "verschoben - ohne Umbenennen und ohne Metadaten in die PDF zu schreiben."
+        )
+        self.move_only_toggle.setStyleSheet(
+            "QCheckBox { font-size: 10px; color: #555; spacing: 6px; }"
+            "QCheckBox::indicator { width: 32px; height: 16px; border-radius: 8px; "
+            "background-color: #c8e6c9; border: 1px solid #66bb6a; }"
+            "QCheckBox::indicator:checked { background-color: #ef5350; "
+            "border: 1px solid #c62828; }"
+        )
+        self.move_only_toggle.toggled.connect(self._refresh_hint_label)
+        hint_layout.addWidget(self.move_only_toggle)
+
+        self.hint_label = QLabel()
+        self.hint_label.setWordWrap(True)
         self.hint_label.setStyleSheet(
             "color: #1976d2; font-weight: bold; padding: 8px; "
             "background-color: #e3f2fd; border-radius: 4px; font-size: 11px;"
         )
-        detail_layout.addWidget(self.hint_label)
+        hint_layout.addWidget(self.hint_label, stretch=1)
+
+        detail_layout.addLayout(hint_layout)
+        self._refresh_hint_label()
 
         detail_layout.addStretch()
 
@@ -513,6 +536,23 @@ class DetailPanel(QWidget):
             self._metadata_source = "user"
         self._refresh_save_btn()
 
+    def _refresh_hint_label(self):
+        """Aktualisiert den Hinweistext je nach Move-Only-Modus."""
+        if self.move_only_toggle.isChecked():
+            self.hint_label.setText(
+                'Jetzt rechts auf einen Zielordner klicken - dabei wird das PDF '
+                'verschoben, <s>umbenannt und die Metadaten gespeichert</s>'
+            )
+        else:
+            self.hint_label.setText(
+                'Jetzt rechts auf einen Zielordner klicken - dabei wird das PDF '
+                'verschoben, umbenannt und die Metadaten gespeichert'
+            )
+
+    def is_move_only_mode(self) -> bool:
+        """True wenn der Move-Only-Schalter aktiv ist."""
+        return self.move_only_toggle.isChecked()
+
     def _refresh_save_btn(self):
         """Aktualisiert Text und Status des Speichern-Buttons und des Status-Labels."""
         current = self.get_metadata()
@@ -524,6 +564,20 @@ class DetailPanel(QWidget):
         else:
             self.save_metadata_btn.setText("Metadaten speichern")
             self.save_metadata_btn.setEnabled(True)
+
+        # rename_and_save_btn: ausgrauen, wenn nichts mehr zu tun ist
+        # (Dateiname schon = Wunschname UND Metadaten bereits gespeichert)
+        name_pending = False
+        if self._current_pdf:
+            desired = self.get_new_name()
+            if desired and desired != self._current_pdf.name:
+                name_pending = True
+        if is_saved and not name_pending:
+            self.rename_and_save_btn.setText("Bereits gespeichert")
+            self.rename_and_save_btn.setEnabled(False)
+        else:
+            self.rename_and_save_btn.setText("Umbenennen + Metadaten speichern")
+            self.rename_and_save_btn.setEnabled(True)
 
         # Status-Label
         source = self._metadata_source
@@ -642,6 +696,8 @@ class DetailPanel(QWidget):
                 "font-family: monospace; padding: 6px; background-color: #e8f5e9; "
                 "border: 1px solid #a5d6a7; border-radius: 3px; font-size: 11px;"
             )
+
+        self._refresh_save_btn()
 
         self.preview_label.setText(preview_name)
 
