@@ -32,7 +32,7 @@ from src.utils.config import get_config
 from src.utils.logging_config import setup_logging, get_logger
 
 # Versionsnummer zentral definiert
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 
 def main():

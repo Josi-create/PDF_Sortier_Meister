@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 12.04.2026
-**Aktuelle Version:** 0.9.0
+**Datum:** 19.05.2026
+**Aktuelle Version:** 0.10.0
 
 ---
 

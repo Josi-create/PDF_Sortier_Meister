@@ -11,7 +11,7 @@
 ; ============================================================
 
 #define MyAppName "PDF Sortier Meister"
-#define MyAppVersion "0.9.0"
+#define MyAppVersion "0.10.0"
 #define MyAppPublisher "PDF Sortier Meister"
 #define MyAppExeName "PDF_Sortier_Meister.exe"
 

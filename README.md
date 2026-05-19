@@ -5,7 +5,7 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Version](https://img.shields.io/badge/Version-0.9.0-orange.svg)
+![Version](https://img.shields.io/badge/Version-0.10.0-orange.svg)
 
 ---
 
@@ -15,7 +15,7 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 
 ### 📥 In 3 Schritten startklar
 
-1. **Herunterladen:** 👉 [**PDF_Sortier_Meister_v0.9.0.zip**](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_v0.9.0.zip) *(ca. 150 MB)*
+1. **Herunterladen:** 👉 [**PDF_Sortier_Meister_v0.10.0.zip**](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_v0.10.0.zip) *(ca. 150 MB)*
 2. **Entpacken** irgendwo hin, z. B. nach `Dokumente\PDF_Sortier_Meister\`
 3. **Doppelklick** auf `PDF_Sortier_Meister.exe` → fertig! 🎉
 
@@ -55,6 +55,8 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
   - **Anthropic Claude** (Haiku, Sonnet, Opus)
   - **OpenAI GPT** (GPT-4o-mini, GPT-4o, GPT-4-turbo)
   - **Poe.com** (ein Account, viele Modelle: GPT, Claude, Gemini, Llama, Mistral)
+  - **Ollama** (lokal, kein API-Key, volle Datenschutzkontrolle — *neu in v0.10.0*)
+- **Benutzerdefiniertes Dateinamen-Muster** *(neu in v0.10.0)*: zwei vorgefertigte Vorlagen oder freier Freitext-Template, das die LLM beim Benennen imitiert
 - **LLM Pre-Caching**: LLM-Vorschläge werden im Hintergrund vorgeladen
 - **Konfigurierbares Text-Limit**: 500–5000 Zeichen pro LLM-Anfrage (Default: 1500)
 
@@ -69,8 +71,11 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 - **Baumansicht** für hierarchische Ordnerstruktur mit Kontextmenü (Neuer Unterordner)
 - **Doppelklick** auf Ordner wechselt den Scan-Ordner
 - **Grün hervorgehobene** Vorschlagsordner mit dreizeiligen Ordnernamen (auch bei langen Pfaden)
+- **Erststart-Wizard** *(neu in v0.10.0)*: geführte 5-Seiten-Einrichtung beim ersten Start (Scan-Ordner, LLM-Provider, API-Key) — auch jederzeit über Extras → Einrichtungs-Assistent erneut aufrufbar
+- **"Nur verschieben"-Toggle** *(neu in v0.10.0)*: roter Schiebeschalter im Detail-Panel — wenn aktiv, wird beim Klick auf einen Zielordner nur verschoben, ohne Umbenennen und ohne Metadaten-Schreiben
+- **Helle Palette erzwungen** *(neu in v0.10.0)*: App ignoriert dunkle System-Themes und bleibt durchgängig lesbar (Fix für Issue #1)
 - **Statusleiste**: Trainingsstand, PDF-Anzahl, LLM-Status
-- **Einstellungsdialog**: LLM-Konfiguration, Caching, Debug-Optionen
+- **Einstellungsdialog**: LLM-Konfiguration, Caching, Debug-Optionen, Dateinamen-Muster-Tab
 - **Info-Dialog** (Hilfe → Über): Version, GitHub-Link, Lizenzhinweis, LLM-Status, Lernstatistik
 - **Integriertes Logging-System** mit rotierenden Log-Dateien (AppData/logs/)
 - **SplashScreen** beim Programmstart
@@ -96,13 +101,12 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 - **Volltext-Suche**: SQLite FTS5-Index mit Filterleiste (Steuerjahr, Kategorie, Datumsbereich, Betrag)
 - **Buchhaltungs-/Steuerfelder**: Editierbare Metadaten-Sidebar; Steuer-Auswertung (Summen pro Jahr, CSV-Export)
 
-### KI-Erweiterungen (Phase 9, 11, 19–21)
+### KI-Erweiterungen (Phase 9, 19–21)
 
 - **Semi-Auto Workflow**: "(Semi)-Auto Rename"-Button für Batch-Umbenennung mit LLM-Bestätigung
 - **RAG-Chat**: Dokumente per natürlicher Sprache befragen (*"Was habe ich 2023 für Strom gezahlt?"*)
 - **Korrespondenten-Verwaltung**: Bekannte Absender als persistente Kontakte, filterbar
 - **Automatisierungs-Regeln**: WENN/DANN-Regeln für bekannte Absender (vollautomatische Sortierung)
-- **Lokales LLM (Ollama)**: Volle Datenschutzkontrolle, kein API-Key erforderlich (RTX 3060 Ti optimiert)
 
 ### Weitere Features (Phase 14–15)
 
@@ -168,14 +172,16 @@ PDF_Sortier_Meister/
 ├── run.py                          # Startskript
 ├── pyproject.toml                  # Paket-Konfiguration / PyInstaller
 ├── src/
-│   ├── main.py                     # Haupteinstiegspunkt (v0.8.0)
+│   ├── main.py                     # Haupteinstiegspunkt (v0.10.0)
 │   ├── gui/
 │   │   ├── main_window.py          # Hauptfenster
 │   │   ├── pdf_thumbnail.py        # Thumbnail-Widget (Drag & Drop)
 │   │   ├── folder_widget.py        # Zielordner-Widget
 │   │   ├── folder_tree_widget.py   # Hierarchische Baumansicht
 │   │   ├── rename_dialog.py        # Umbenennungsdialog mit KI-Vorschlägen
-│   │   └── settings_dialog.py      # Einstellungen & LLM-Konfiguration
+│   │   ├── detail_panel.py         # Detail-Panel mit Move-Only-Toggle
+│   │   ├── setup_wizard.py         # Erststart-Wizard (v0.10.0)
+│   │   └── settings_dialog.py      # Einstellungen, LLM, Dateinamen-Muster
 │   ├── core/
 │   │   ├── pdf_analyzer.py         # PDF-Analyse, OCR, Thumbnails, Metadaten
 │   │   ├── pdf_cache.py            # Persistenter Cache + LLM Pre-Caching
@@ -186,7 +192,8 @@ PDF_Sortier_Meister/
 │   │   ├── llm_provider.py         # Abstrakte Provider-Schnittstelle
 │   │   ├── claude_provider.py      # Anthropic Claude
 │   │   ├── openai_provider.py      # OpenAI GPT
-│   │   └── poe_provider.py         # Poe.com (Multi-Modell)
+│   │   ├── poe_provider.py         # Poe.com (Multi-Modell)
+│   │   └── ollama_provider.py      # Ollama (lokal, v0.10.0)
 │   └── utils/
 │       ├── config.py               # Konfigurationsverwaltung
 │       ├── database.py             # SQLite (Sortier- & Umbenennungshistorie)
