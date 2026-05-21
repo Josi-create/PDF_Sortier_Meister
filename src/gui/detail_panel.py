@@ -151,9 +151,11 @@ class DetailPanel(QWidget):
         metadata_fields = [
             ("subject", "Kategorie"),
             ("korrespondent", "Korrespondent"),
-            ("betrag", "Betrag"),
+            ("betrag_netto", "Betrag Netto"),
+            ("betrag_brutto", "Betrag Brutto"),
             ("waehrung", "Währung"),
             ("mwst_satz", "MwSt-Satz"),
+            ("iban", "IBAN"),
             ("steuerjahr", "Steuerjahr"),
             ("description", "Zusammenfassung"),
         ]
@@ -504,7 +506,9 @@ class DetailPanel(QWidget):
         field_map = {
             "subject": pdf_meta.subject,
             "korrespondent": pdf_meta.korrespondent,
-            "betrag": pdf_meta.betrag,
+            "betrag_netto": pdf_meta.betrag_netto,
+            "betrag_brutto": pdf_meta.betrag_brutto,
+            "iban": pdf_meta.iban,
             "waehrung": pdf_meta.waehrung,
             "mwst_satz": pdf_meta.mwst_satz,
             "steuerjahr": pdf_meta.steuerjahr,

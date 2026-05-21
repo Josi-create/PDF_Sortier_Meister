@@ -47,7 +47,10 @@ class SortingHistory(Base):
 
     # Dokument-Metadaten (Phase 16)
     korrespondent = Column(String(500), nullable=True)    # Firmenname/Absender
-    betrag = Column(String(50), nullable=True)            # Rechnungsbetrag
+    betrag = Column(String(50), nullable=True)            # Rechnungsbetrag (legacy)
+    betrag_netto = Column(String(50), nullable=True)      # Nettobetrag
+    betrag_brutto = Column(String(50), nullable=True)     # Bruttobetrag
+    iban = Column(String(50), nullable=True)              # IBAN des Absenders
     waehrung = Column(String(10), nullable=True)          # EUR/USD
     mwst_satz = Column(String(10), nullable=True)         # 7 / 19
     steuerjahr = Column(String(10), nullable=True)        # z.B. "2024"
@@ -189,6 +192,10 @@ class Database:
                 ("sorting_history", "steuerlich_absetzbar", "VARCHAR(20)"),
                 ("sorting_history", "kategorie", "VARCHAR(100)"),
                 ("sorting_history", "zusammenfassung", "VARCHAR(1000)"),
+                # Phase 18: Buchhaltungsfelder
+                ("sorting_history", "betrag_netto", "VARCHAR(50)"),
+                ("sorting_history", "betrag_brutto", "VARCHAR(50)"),
+                ("sorting_history", "iban", "VARCHAR(50)"),
             ]
 
             for table, column, sql_type in migrations:
@@ -418,10 +425,13 @@ class Database:
                 confidence=confidence,
             )
 
-            # Metadaten-Felder setzen (Phase 16)
+            # Metadaten-Felder setzen (Phase 16 + 18)
             if metadata:
                 entry.korrespondent = metadata.get("korrespondent")
-                entry.betrag = metadata.get("betrag")
+                entry.betrag = metadata.get("betrag_brutto") or metadata.get("betrag")
+                entry.betrag_netto = metadata.get("betrag_netto")
+                entry.betrag_brutto = metadata.get("betrag_brutto")
+                entry.iban = metadata.get("iban")
                 entry.waehrung = metadata.get("waehrung")
                 entry.mwst_satz = metadata.get("mwst_satz")
                 entry.steuerjahr = metadata.get("steuerjahr")
@@ -882,6 +892,63 @@ class Database:
             if entry.steuerlich_absetzbar:
                 result["steuerlich_absetzbar"] = entry.steuerlich_absetzbar
             return result if result else None
+        finally:
+            session.close()
+
+    def get_steuerauswertung(self) -> list[dict]:
+        """
+        Gibt eine Steuerauswertung pro Steuerjahr und Kategorie zurueck.
+
+        Returns:
+            Liste von Dicts mit steuerjahr, kategorie, anzahl,
+            summe_brutto, summe_netto, summe_absetzbar
+        """
+        session = self.get_session()
+        try:
+            entries = session.query(SortingHistory).filter(
+                SortingHistory.steuerjahr.isnot(None),
+                SortingHistory.steuerjahr != "",
+            ).all()
+
+            # Aggregieren nach (steuerjahr, kategorie)
+            agg: dict[tuple, dict] = {}
+            for e in entries:
+                key = (e.steuerjahr or "", e.kategorie or "Sonstiges")
+                if key not in agg:
+                    agg[key] = {
+                        "steuerjahr": e.steuerjahr,
+                        "kategorie": e.kategorie or "Sonstiges",
+                        "anzahl": 0,
+                        "summe_brutto": 0.0,
+                        "summe_netto": 0.0,
+                        "summe_absetzbar": 0.0,
+                    }
+                rec = agg[key]
+                rec["anzahl"] += 1
+
+                # Brutto
+                brutto_str = e.betrag_brutto or e.betrag or ""
+                try:
+                    rec["summe_brutto"] += float(brutto_str.replace(",", "."))
+                except (ValueError, AttributeError):
+                    pass
+
+                # Netto
+                netto_str = e.betrag_netto or ""
+                try:
+                    rec["summe_netto"] += float(netto_str.replace(",", "."))
+                except (ValueError, AttributeError):
+                    pass
+
+                # Steuerlich absetzbar: Bruttobetrag zählen wenn "ja"
+                if (e.steuerlich_absetzbar or "").lower() == "ja":
+                    try:
+                        rec["summe_absetzbar"] += float(brutto_str.replace(",", "."))
+                    except (ValueError, AttributeError):
+                        pass
+
+            result = sorted(agg.values(), key=lambda r: (r["steuerjahr"], r["kategorie"]))
+            return result
         finally:
             session.close()
 

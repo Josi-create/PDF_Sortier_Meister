@@ -281,9 +281,11 @@ BEGRÜNDUNG: [Kurze Begründung, max 1-2 Sätze]
 KONFIDENZ: [Zahl von 0-100]
 KATEGORIE: [Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges]
 KORRESPONDENT: [Firmenname oder Absender — NICHT der Dokumentbesitzer/Empfänger, sondern die ANDERE Partei, z.B. "Stadtwerke München GmbH"]
-BETRAG: [Rechnungsbetrag in Format 123.45 oder UNBEKANNT]
+BETRAG_NETTO: [Nettobetrag in Format 123.45 oder UNBEKANNT]
+BETRAG_BRUTTO: [Bruttobetrag in Format 123.45 oder UNBEKANNT]
 WAEHRUNG: [EUR/USD oder UNBEKANNT]
 MWST: [Mehrwertsteuersatz als Zahl: 7/19 oder UNBEKANNT]
+IBAN: [IBAN des Absenders z.B. DE12345678901234567890 oder UNBEKANNT]
 STEUERJAHR: [Steuerjahr als vierstellige Zahl, z.B. 2024, oder UNBEKANNT]
 ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
 
@@ -394,9 +396,11 @@ ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
         metadata_fields = {
             "KATEGORIE:": "subject",
             "KORRESPONDENT:": "korrespondent",
-            "BETRAG:": "betrag",
+            "BETRAG_NETTO:": "betrag_netto",
+            "BETRAG_BRUTTO:": "betrag_brutto",
             "WAEHRUNG:": "waehrung",
             "MWST:": "mwst_satz",
+            "IBAN:": "iban",
             "STEUERJAHR:": "steuerjahr",
             "ZUSAMMENFASSUNG:": "description",
         }

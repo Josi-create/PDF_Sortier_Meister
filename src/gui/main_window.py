@@ -634,6 +634,13 @@ class MainWindow(QMainWindow):
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
 
+        steuer_action = QAction("Steuerauswertung...", self)
+        steuer_action.setToolTip("Jahressummen nach Kategorie anzeigen und als CSV exportieren")
+        steuer_action.triggered.connect(self._open_steuerauswertung)
+        extras_menu.addAction(steuer_action)
+
+        extras_menu.addSeparator()
+
         index_folder_action = QAction("Ordner zum Suchindex hinzufügen...", self)
         index_folder_action.setToolTip("Bestehende PDF-Sammlung scannen und in den Suchindex aufnehmen")
         index_folder_action.triggered.connect(self._index_folder_dialog)
@@ -1429,8 +1436,12 @@ class MainWindow(QMainWindow):
                     metadata.subject = dialog_metadata["subject"]
                 if dialog_metadata.get("korrespondent"):
                     metadata.korrespondent = dialog_metadata["korrespondent"]
-                if dialog_metadata.get("betrag"):
-                    metadata.betrag = dialog_metadata["betrag"]
+                if dialog_metadata.get("betrag_netto"):
+                    metadata.betrag_netto = dialog_metadata["betrag_netto"]
+                if dialog_metadata.get("betrag_brutto"):
+                    metadata.betrag_brutto = dialog_metadata["betrag_brutto"]
+                if dialog_metadata.get("iban"):
+                    metadata.iban = dialog_metadata["iban"]
                 if dialog_metadata.get("waehrung"):
                     metadata.waehrung = dialog_metadata["waehrung"]
                 if dialog_metadata.get("mwst_satz"):
@@ -2479,6 +2490,12 @@ class MainWindow(QMainWindow):
                 self._populate_detail_panel(self.selected_pdf, cached, detected_date)
         else:
             self.detail_panel.clear()
+
+    def _open_steuerauswertung(self):
+        """Oeffnet den Steuerauswertungs-Dialog."""
+        from src.gui.steuerauswertung_dialog import SteuerauswertungDialog
+        dlg = SteuerauswertungDialog(self)
+        dlg.exec()
 
     def _index_folder_dialog(self):
         """Dialog: Ordner zum Suchindex hinzufügen."""

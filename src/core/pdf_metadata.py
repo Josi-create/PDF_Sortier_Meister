@@ -28,7 +28,10 @@ class PDFMetadata:
     korrespondent: Optional[str] = None    # Firmenname/Absender
     buchungsdatum: Optional[str] = None    # ISO: YYYY-MM-DD
     steuerjahr: Optional[str] = None       # z.B. "2024"
-    betrag: Optional[str] = None           # z.B. "142.50"
+    betrag: Optional[str] = None           # z.B. "142.50" (Brutto, Fallback)
+    betrag_netto: Optional[str] = None     # Nettobetrag z.B. "119.75"
+    betrag_brutto: Optional[str] = None    # Bruttobetrag z.B. "142.50"
+    iban: Optional[str] = None             # IBAN des Absenders
     waehrung: Optional[str] = None         # EUR/USD
     mwst_satz: Optional[str] = None        # 7 / 19
     steuerlich_absetzbar: Optional[str] = None  # ja / nein / teilweise
@@ -38,7 +41,8 @@ class PDFMetadata:
         return any([
             self.title, self.subject, self.description, self.keywords,
             self.korrespondent, self.buchungsdatum, self.steuerjahr,
-            self.betrag, self.waehrung, self.mwst_satz,
+            self.betrag, self.betrag_netto, self.betrag_brutto,
+            self.iban, self.waehrung, self.mwst_satz,
             self.steuerlich_absetzbar,
         ])
 
@@ -48,7 +52,8 @@ class PDFMetadata:
         for field_name in [
             "title", "subject", "description", "keywords",
             "korrespondent", "buchungsdatum", "steuerjahr",
-            "betrag", "waehrung", "mwst_satz", "steuerlich_absetzbar",
+            "betrag", "betrag_netto", "betrag_brutto", "iban",
+            "waehrung", "mwst_satz", "steuerlich_absetzbar",
         ]:
             value = getattr(self, field_name)
             if value:
@@ -146,6 +151,9 @@ def _write_custom_fields(pdf, metadata: PDFMetadata):
         "/Buchungsdatum": metadata.buchungsdatum,
         "/Steuerjahr": metadata.steuerjahr,
         "/Betrag": metadata.betrag,
+        "/BetragNetto": metadata.betrag_netto,
+        "/BetragBrutto": metadata.betrag_brutto,
+        "/IBAN": metadata.iban,
         "/Waehrung": metadata.waehrung,
         "/MwStSatz": metadata.mwst_satz,
         "/SteuerlichAbsetzbar": metadata.steuerlich_absetzbar,
@@ -169,6 +177,9 @@ def _read_custom_fields(pdf, metadata: PDFMetadata):
         "/Buchungsdatum": "buchungsdatum",
         "/Steuerjahr": "steuerjahr",
         "/Betrag": "betrag",
+        "/BetragNetto": "betrag_netto",
+        "/BetragBrutto": "betrag_brutto",
+        "/IBAN": "iban",
         "/Waehrung": "waehrung",
         "/MwStSatz": "mwst_satz",
         "/SteuerlichAbsetzbar": "steuerlich_absetzbar",
