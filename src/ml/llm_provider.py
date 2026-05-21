@@ -334,23 +334,41 @@ ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
             owner_name = config.get("owner_name", "")
             owner_variants = config.get("owner_name_variants", "")
             owner_company = config.get("owner_company", "")
+            owner_emails = config.get("owner_emails", "")
 
-            if not owner_name:
+            if not owner_name and not owner_emails:
                 return ""
 
-            names = [owner_name]
+            names = []
+            if owner_name:
+                names.append(owner_name)
             if owner_variants:
                 names.extend(v.strip() for v in owner_variants.split(",") if v.strip())
             if owner_company:
                 names.append(owner_company)
 
-            names_str = ", ".join(f'"{n}"' for n in names)
-            return (
-                f"\nWICHTIG - DOKUMENTBESITZER: Die folgenden Namen gehören dem Benutzer "
-                f"(Empfänger/Besitzer der Dokumente): {names_str}. "
-                f"Diese Namen sind NICHT der Korrespondent! "
-                f"Der Korrespondent ist immer der ABSENDER/die andere Partei."
+            emails = [
+                e.strip() for e in owner_emails.split(",") if e.strip()
+            ] if owner_emails else []
+
+            parts = ["\nWICHTIG - DOKUMENTBESITZER:"]
+            if names:
+                names_str = ", ".join(f'"{n}"' for n in names)
+                parts.append(
+                    f" Die folgenden Namen gehören dem Benutzer "
+                    f"(Empfänger/Besitzer der Dokumente): {names_str}."
+                )
+            if emails:
+                emails_str = ", ".join(f'"{e}"' for e in emails)
+                parts.append(
+                    f" Die folgenden E-Mail-Adressen gehören ebenfalls dem "
+                    f"Benutzer: {emails_str}."
+                )
+            parts.append(
+                " Diese Namen und Adressen sind NICHT der Korrespondent! "
+                "Der Korrespondent ist immer der ABSENDER/die andere Partei."
             )
+            return "".join(parts)
         except Exception:
             return ""
 

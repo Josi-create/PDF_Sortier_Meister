@@ -329,6 +329,18 @@ class SettingsDialog(QDialog):
         self.owner_address_input.setToolTip("Ihre Adresse (hilft bei der Erkennung auf Briefen)")
         user_layout.addRow("Adresse:", self.owner_address_input)
 
+        self.owner_emails_input = QLineEdit()
+        self.owner_emails_input.setPlaceholderText(
+            "z.B. ich@example.com, privat@example.com (kommagetrennt)"
+        )
+        self.owner_emails_input.setToolTip(
+            "Ihre eigenen E-Mail-Adressen (kommagetrennt).\n"
+            "Mehrere Adressen moeglich. Hilft der KI, Sie als Empfaenger\n"
+            "und nicht als Korrespondent zu erkennen, wenn die Adresse\n"
+            "auf einem Dokument steht."
+        )
+        user_layout.addRow("E-Mail-Adressen:", self.owner_emails_input)
+
         layout.addWidget(user_group)
 
         layout.addStretch()
@@ -713,6 +725,7 @@ class SettingsDialog(QDialog):
         self.owner_variants_input.setText(self.config.get("owner_name_variants", ""))
         self.owner_company_input.setText(self.config.get("owner_company", ""))
         self.owner_address_input.setText(self.config.get("owner_address", ""))
+        self.owner_emails_input.setText(self.config.get("owner_emails", ""))
 
         # Dateinamen-Muster
         self._load_filename_pattern()
@@ -792,6 +805,7 @@ class SettingsDialog(QDialog):
         self.config.set("owner_name_variants", self.owner_variants_input.text().strip())
         self.config.set("owner_company", self.owner_company_input.text().strip())
         self.config.set("owner_address", self.owner_address_input.text().strip())
+        self.config.set("owner_emails", self.owner_emails_input.text().strip())
 
         # Dateinamen-Muster speichern
         self.config.set("filename_pattern", self._collect_filename_pattern())

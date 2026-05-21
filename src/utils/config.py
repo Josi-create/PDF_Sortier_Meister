@@ -31,6 +31,7 @@ class Config:
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
         "owner_company": "",        # Eigene Firma (falls vorhanden)
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
+        "owner_emails": "",         # Eigene E-Mail-Adressen (kommagetrennt)
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",
