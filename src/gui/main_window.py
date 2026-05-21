@@ -2152,6 +2152,29 @@ class MainWindow(QMainWindow):
 
     # --- Ordner-Navigation ---
 
+    def handle_external_folder(self, folder_path: str):
+        """
+        Wird vom SingleInstanceServer aufgerufen, wenn ein zweiter
+        Programmstart einen Ordner uebergibt (z.B. aus dem Explorer-
+        Kontextmenue). Holt das Fenster nach vorne und wechselt den
+        Scan-Ordner, falls ein gueltiger Pfad uebergeben wurde.
+        """
+        # Fenster nach vorne holen.
+        if self.isMinimized():
+            self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+        if not folder_path:
+            return
+        try:
+            p = Path(folder_path)
+        except OSError:
+            return
+        if not p.exists() or not p.is_dir():
+            return
+        self._navigate_to_folder(p.resolve())
+
     def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True):
         """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking."""
         current = self.config.get_scan_folder()

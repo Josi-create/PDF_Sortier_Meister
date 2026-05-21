@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+import sys
+
 from src.utils.config import get_config
 
 
@@ -391,6 +393,31 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(cache_group)
 
+        # Windows-Explorer-Integration (nur unter Windows sinnvoll)
+        if sys.platform == "win32":
+            explorer_group = QGroupBox("Windows-Explorer-Integration")
+            explorer_layout = QVBoxLayout(explorer_group)
+
+            self.explorer_menu_checkbox = QCheckBox(
+                "Im Rechtsklick-Menue des Explorers anzeigen "
+                "(\"PDF Sortier Meister von hier oeffnen\")"
+            )
+            self.explorer_menu_checkbox.setToolTip(
+                "Fuegt einen Eintrag zum Kontextmenue hinzu, wenn Sie auf\n"
+                "einen Ordner oder dessen Hintergrund rechtsklicken.\n"
+                "Der Eintrag oeffnet PDF Sortier Meister mit dem gewaehlten\n"
+                "Ordner als Scan-Ordner. Laeuft das Programm bereits,\n"
+                "wird der Ordner an die offene Instanz uebergeben."
+            )
+            explorer_layout.addWidget(self.explorer_menu_checkbox)
+
+            self.explorer_info_label = QLabel("")
+            self.explorer_info_label.setStyleSheet("color: gray;")
+            self.explorer_info_label.setWordWrap(True)
+            explorer_layout.addWidget(self.explorer_info_label)
+
+            layout.addWidget(explorer_group)
+
         # Debug-Bereich
         debug_group = QGroupBox("Debug / Zurücksetzen")
         debug_layout = QVBoxLayout(debug_group)
@@ -695,6 +722,20 @@ class SettingsDialog(QDialog):
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
         self._update_cache_stats()
 
+        # Explorer-Integration: aktuellen Stand aus der Registry lesen.
+        if sys.platform == "win32":
+            try:
+                from src.utils.explorer_integration import is_context_menu_registered
+                registered = is_context_menu_registered()
+            except Exception:
+                registered = False
+            self.explorer_menu_checkbox.setChecked(registered)
+            self._explorer_initial_state = registered
+            self.explorer_info_label.setText(
+                "Aktuell aktiviert." if registered else
+                "Aktuell nicht eingerichtet."
+            )
+
     def _save_settings(self):
         """Speichert die Einstellungen."""
         # LLM-Einstellungen
@@ -755,8 +796,36 @@ class SettingsDialog(QDialog):
         # Dateinamen-Muster speichern
         self.config.set("filename_pattern", self._collect_filename_pattern())
 
+        # Explorer-Integration nur bei Aenderung anwenden.
+        if sys.platform == "win32":
+            self._apply_explorer_integration_change()
+
         self.settings_changed.emit()
         self.accept()
+
+    def _apply_explorer_integration_change(self):
+        """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""
+        desired = self.explorer_menu_checkbox.isChecked()
+        current = getattr(self, "_explorer_initial_state", False)
+        if desired == current:
+            return
+
+        try:
+            from src.utils.explorer_integration import (
+                register_context_menu,
+                unregister_context_menu,
+            )
+            if desired:
+                register_context_menu()
+            else:
+                unregister_context_menu()
+            self._explorer_initial_state = desired
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Explorer-Integration",
+                f"Die Aenderung konnte nicht angewendet werden:\n{e}"
+            )
 
     def _load_filename_pattern(self):
         """Stellt die gespeicherte Pattern-Auswahl im Tab wieder her."""

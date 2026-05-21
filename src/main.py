@@ -30,9 +30,32 @@ from src.gui.main_window import MainWindow
 from src.gui.setup_wizard import SetupWizard
 from src.utils.config import get_config
 from src.utils.logging_config import setup_logging, get_logger
+from src.utils.single_instance import (
+    SingleInstanceServer,
+    try_send_to_running_instance,
+)
+from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
 __version__ = "0.10.0"
+
+
+def _extract_folder_arg(argv: list[str]) -> str:
+    """
+    Liefert das erste Argument, das auf einen existierenden Ordner zeigt,
+    oder einen leeren String. Damit kann der Explorer den geklickten
+    Ordner als positionales Argument uebergeben (siehe launcher.cmd).
+    """
+    for arg in argv[1:]:
+        if not arg or arg.startswith("-"):
+            continue
+        try:
+            p = Path(arg)
+        except OSError:
+            continue
+        if p.exists() and p.is_dir():
+            return str(p.resolve())
+    return ""
 
 
 def main():
@@ -41,6 +64,25 @@ def main():
     setup_logging()
     logger = get_logger("main")
     logger.info(f"Version {__version__}")
+
+    # Ggf. uebergebener Ordner aus Kommandozeile (Explorer-Kontextmenue).
+    folder_arg = _extract_folder_arg(sys.argv)
+
+    # Falls bereits eine Instanz laeuft, den Ordner dorthin schicken und
+    # ohne UI beenden. Wenn kein Ordner uebergeben wurde, trotzdem
+    # versuchen, die laufende Instanz nach vorne zu holen (leerer Pfad
+    # signalisiert "nur aktivieren").
+    if try_send_to_running_instance(folder_arg):
+        logger.info("Laufende Instanz benachrichtigt, beende Zweitstart.")
+        sys.exit(0)
+
+    # Launcher-Skript fuer das Explorer-Kontextmenue aktualisieren.
+    # Das passiert bei jedem Start, damit der Registry-Eintrag stets auf
+    # die aktuell verwendete .exe bzw. python-Installation zeigt.
+    try:
+        update_launcher_script()
+    except Exception as e:
+        logger.debug(f"Launcher-Skript konnte nicht aktualisiert werden: {e}")
 
     # High-DPI Skalierung aktivieren
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -105,6 +147,18 @@ def main():
 
     # Hauptfenster erstellen
     window = MainWindow()
+
+    # Single-Instance-Server starten: spaetere Aufrufe (Explorer-
+    # Kontextmenue) kommen als folder_received-Signal hier an.
+    instance_server = SingleInstanceServer(window)
+    if instance_server.start():
+        instance_server.folder_received.connect(window.handle_external_folder)
+
+    # Wurde ein Ordner als Argument uebergeben (Erststart aus dem
+    # Explorer), diesen direkt als Scan-Ordner setzen.
+    if folder_arg:
+        config = get_config()
+        config.set_scan_folder(folder_arg)
 
     # Hauptfenster anzeigen (unter dem SplashScreen)
     window.show()

@@ -11,10 +11,13 @@ Fuehrt den Benutzer beim ersten Start durch:
 Der Wizard kann auch ueber das Extras-Menue erneut geoeffnet werden.
 """
 
+import sys
+
 from PyQt6.QtWidgets import (
     QWizard, QWizardPage, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog,
-    QRadioButton, QButtonGroup, QWidget,
+    QRadioButton, QButtonGroup, QWidget, QCheckBox,
+    QDialog,
 )
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFont
@@ -383,7 +386,36 @@ class DonePage(QWizardPage):
         )
         text.setWordWrap(True)
         layout.addWidget(text)
+
+        # Optional: Eintrag im Windows-Explorer-Kontextmenue (nur Windows).
+        self.explorer_checkbox = None
+        if sys.platform == "win32":
+            self.explorer_checkbox = QCheckBox(
+                "PDF Sortier Meister im Rechtsklick-Menue des Explorers "
+                "anzeigen"
+            )
+            self.explorer_checkbox.setToolTip(
+                "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\n"
+                "hinzu, wenn Sie einen Ordner oder dessen Hintergrund\n"
+                "rechtsklicken. Aenderbar unter Extras -> Einstellungen."
+            )
+            layout.addWidget(self.explorer_checkbox)
+
         layout.addStretch()
+
+    def initializePage(self):
+        """Setzt die Explorer-Checkbox als Empfehlung auf 'an'."""
+        if self.explorer_checkbox is None:
+            return
+        # Default: aktiv. Bei einem zweiten Wizard-Lauf koennte man hier
+        # den Registry-Stand spiegeln, aber die Empfehlung "an" ist
+        # sowieso identisch zu beiden Faellen.
+        self.explorer_checkbox.setChecked(True)
+
+    def wants_context_menu(self) -> bool:
+        if self.explorer_checkbox is None:
+            return False
+        return self.explorer_checkbox.isChecked()
 
 
 class SetupWizard(QWizard):
@@ -458,3 +490,17 @@ class SetupWizard(QWizard):
             api_key = self._api_key_page.get_api_key()
             if api_key:
                 config.set_llm_api_key(api_key)
+
+        # Explorer-Integration: nur bei "Fertig" (Accepted) anwenden,
+        # nicht bei "Spaeter"/Schliessen - dort waere eine Registry-
+        # Aenderung ueberraschend.
+        if result == QDialog.DialogCode.Accepted and sys.platform == "win32":
+            if self._done_page.wants_context_menu():
+                try:
+                    from src.utils.explorer_integration import register_context_menu
+                    register_context_menu()
+                except Exception:
+                    # Bewusst still: ein fehlgeschlagener Registry-Eintrag
+                    # darf den Wizard nicht zum Crash bringen. Der User
+                    # kann es spaeter unter Einstellungen erneut versuchen.
+                    pass
