@@ -215,7 +215,7 @@ class DetailPanel(QWidget):
         self.rename_and_save_btn.clicked.connect(self.rename_and_save_metadata_requested)
         btn_row.addWidget(self.rename_and_save_btn)
 
-        self.llm_btn = QPushButton("KI-Metadaten generieren")
+        self.llm_btn = QPushButton("KI-Metadaten neu generieren")
         self.llm_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
@@ -778,4 +778,4 @@ class DetailPanel(QWidget):
             print(f"LLM-Metadaten Fehler: {e}")
         finally:
             self.llm_btn.setEnabled(True)
-            self.llm_btn.setText("KI-Metadaten generieren")
+            self.llm_btn.setText("KI-Metadaten neu generieren")

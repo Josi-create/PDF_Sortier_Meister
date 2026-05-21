@@ -222,7 +222,7 @@ class RenameDialog(QDialog):
         # Button: KI-Metadaten neu generieren
         llm_btn_row = QHBoxLayout()
         llm_btn_row.addStretch()
-        self.llm_metadata_btn = QPushButton("KI-Metadaten generieren")
+        self.llm_metadata_btn = QPushButton("KI-Metadaten neu generieren")
         self.llm_metadata_btn.setToolTip("LLM erneut aufrufen um Metadaten zu extrahieren")
         self.llm_metadata_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
@@ -478,7 +478,7 @@ class RenameDialog(QDialog):
             QMessageBox.warning(self, "Fehler", f"LLM-Aufruf fehlgeschlagen:\n{e}")
         finally:
             self.llm_metadata_btn.setEnabled(True)
-            self.llm_metadata_btn.setText("KI-Metadaten generieren")
+            self.llm_metadata_btn.setText("KI-Metadaten neu generieren")
 
     def get_new_name(self) -> Optional[str]:
         """Gibt den neuen Dateinamen zurück."""
