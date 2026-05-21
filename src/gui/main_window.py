@@ -2152,12 +2152,15 @@ class MainWindow(QMainWindow):
 
     # --- Ordner-Navigation ---
 
-    def handle_external_folder(self, folder_path: str):
+    def handle_external_path(self, external_path: str):
         """
         Wird vom SingleInstanceServer aufgerufen, wenn ein zweiter
-        Programmstart einen Ordner uebergibt (z.B. aus dem Explorer-
-        Kontextmenue). Holt das Fenster nach vorne und wechselt den
-        Scan-Ordner, falls ein gueltiger Pfad uebergeben wurde.
+        Programmstart einen Pfad uebergibt (z.B. aus dem Explorer-
+        Kontextmenue). Akzeptiert einen Ordner ODER eine .pdf-Datei.
+
+        - Ordner: Scan-Ordner wechseln.
+        - PDF-Datei: enthaltenden Ordner setzen, die Datei selektieren
+          und direkt den Rename-Dialog (inkl. LLM-Vorschlag) oeffnen.
         """
         # Fenster nach vorne holen.
         if self.isMinimized():
@@ -2165,15 +2168,58 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
-        if not folder_path:
+        if not external_path:
             return
         try:
-            p = Path(folder_path)
+            p = Path(external_path)
         except OSError:
             return
-        if not p.exists() or not p.is_dir():
+        if not p.exists():
             return
-        self._navigate_to_folder(p.resolve())
+
+        if p.is_dir():
+            self._navigate_to_folder(p.resolve())
+            return
+
+        if p.is_file() and p.suffix.lower() == ".pdf":
+            pdf = p.resolve()
+            parent = pdf.parent
+
+            # Nur wechseln, wenn wir noch nicht im richtigen Ordner sind
+            # (vermeidet unnoetiges Neuladen aller PDFs).
+            current = self.config.get_scan_folder()
+            if not current or Path(current).resolve() != parent:
+                self._navigate_to_folder(parent)
+
+            # Auto-Selektion + Rename-Dialog leicht verzoegert, damit
+            # load_pdfs() die Widgets erstellt hat und das UI rendern
+            # kann, bevor der modale Dialog erscheint.
+            QTimer.singleShot(
+                150,
+                lambda path=pdf: self._select_pdf_and_open_rename(path),
+            )
+
+    def _select_pdf_and_open_rename(self, pdf_path: Path):
+        """
+        Hilfsmethode fuer handle_external_path: selektiert eine PDF
+        im Thumbnail-Grid und oeffnet danach den Umbenennungsdialog.
+        """
+        if not pdf_path.exists():
+            return
+        # Pruefen ob die PDF tatsaechlich im aktuellen Ordner ist
+        # (z.B. weil load_pdfs noch nicht durch ist).
+        found = any(w.pdf_path == pdf_path for w in self.pdf_widgets)
+        if not found:
+            # Nochmal kurz warten und erneut versuchen.
+            QTimer.singleShot(
+                200,
+                lambda: self._select_pdf_and_open_rename(pdf_path),
+            )
+            return
+        self.on_pdf_clicked(pdf_path)
+        # Rename-Dialog im naechsten Event-Loop-Durchgang oeffnen,
+        # damit das Selektions-Highlight schon sichtbar ist.
+        QTimer.singleShot(0, lambda: self.on_pdf_rename(pdf_path))
 
     def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True):
         """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking."""

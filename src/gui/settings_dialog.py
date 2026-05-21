@@ -415,11 +415,13 @@ class SettingsDialog(QDialog):
                 "(\"PDF Sortier Meister von hier oeffnen\")"
             )
             self.explorer_menu_checkbox.setToolTip(
-                "Fuegt einen Eintrag zum Kontextmenue hinzu, wenn Sie auf\n"
-                "einen Ordner oder dessen Hintergrund rechtsklicken.\n"
-                "Der Eintrag oeffnet PDF Sortier Meister mit dem gewaehlten\n"
-                "Ordner als Scan-Ordner. Laeuft das Programm bereits,\n"
-                "wird der Ordner an die offene Instanz uebergeben."
+                "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n"
+                "  - Ordner (Rechtsklick auf Ordner-Icon)\n"
+                "  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n"
+                "  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n"
+                "    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\n"
+                "Laeuft das Programm bereits, wird der Pfad an die offene\n"
+                "Instanz uebergeben statt eine zweite zu starten."
             )
             explorer_layout.addWidget(self.explorer_menu_checkbox)
 

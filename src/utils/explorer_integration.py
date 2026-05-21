@@ -114,12 +114,17 @@ def _ensure_winreg():
     return winreg
 
 
-# Beide Pfade werden gesetzt:
-#  - Directory\shell:            Rechtsklick AUF einen Ordner
-#  - Directory\Background\shell: Rechtsklick IM leeren Bereich eines Ordners
+# Drei Registry-Pfade werden gesetzt:
+#  - Directory\shell:                       Rechtsklick AUF einen Ordner
+#  - Directory\Background\shell:            Rechtsklick IM leeren Bereich
+#  - SystemFileAssociations\.pdf\shell:     Rechtsklick auf eine .pdf-Datei
+# SystemFileAssociations ist robust gegenueber der konkreten Datei-Class
+# (z.B. AcroExch.Document) und funktioniert auch ohne installierten
+# PDF-Reader.
 _REGISTRY_PATHS = [
     (r"Software\Classes\Directory\shell\{name}", "%1"),
     (r"Software\Classes\Directory\Background\shell\{name}", "%V"),
+    (r"Software\Classes\SystemFileAssociations\.pdf\shell\{name}", "%1"),
 ]
 
 

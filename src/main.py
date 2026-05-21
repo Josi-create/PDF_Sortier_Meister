@@ -40,11 +40,12 @@ from src.utils.explorer_integration import update_launcher_script
 __version__ = "0.10.0"
 
 
-def _extract_folder_arg(argv: list[str]) -> str:
+def _extract_path_arg(argv: list[str]) -> str:
     """
-    Liefert das erste Argument, das auf einen existierenden Ordner zeigt,
-    oder einen leeren String. Damit kann der Explorer den geklickten
-    Ordner als positionales Argument uebergeben (siehe launcher.cmd).
+    Liefert das erste Argument, das auf einen existierenden Ordner ODER
+    eine .pdf-Datei zeigt, oder einen leeren String. Damit kann der
+    Explorer entweder einen geklickten Ordner oder eine geklickte PDF
+    als positionales Argument uebergeben (siehe launcher.cmd).
     """
     for arg in argv[1:]:
         if not arg or arg.startswith("-"):
@@ -53,7 +54,11 @@ def _extract_folder_arg(argv: list[str]) -> str:
             p = Path(arg)
         except OSError:
             continue
-        if p.exists() and p.is_dir():
+        if not p.exists():
+            continue
+        if p.is_dir():
+            return str(p.resolve())
+        if p.is_file() and p.suffix.lower() == ".pdf":
             return str(p.resolve())
     return ""
 
@@ -65,14 +70,15 @@ def main():
     logger = get_logger("main")
     logger.info(f"Version {__version__}")
 
-    # Ggf. uebergebener Ordner aus Kommandozeile (Explorer-Kontextmenue).
-    folder_arg = _extract_folder_arg(sys.argv)
+    # Ggf. uebergebener Pfad aus Kommandozeile (Explorer-Kontextmenue):
+    # entweder ein Ordner ODER eine .pdf-Datei.
+    path_arg = _extract_path_arg(sys.argv)
 
-    # Falls bereits eine Instanz laeuft, den Ordner dorthin schicken und
-    # ohne UI beenden. Wenn kein Ordner uebergeben wurde, trotzdem
+    # Falls bereits eine Instanz laeuft, den Pfad dorthin schicken und
+    # ohne UI beenden. Wenn kein Pfad uebergeben wurde, trotzdem
     # versuchen, die laufende Instanz nach vorne zu holen (leerer Pfad
     # signalisiert "nur aktivieren").
-    if try_send_to_running_instance(folder_arg):
+    if try_send_to_running_instance(path_arg):
         logger.info("Laufende Instanz benachrichtigt, beende Zweitstart.")
         sys.exit(0)
 
@@ -152,13 +158,17 @@ def main():
     # Kontextmenue) kommen als folder_received-Signal hier an.
     instance_server = SingleInstanceServer(window)
     if instance_server.start():
-        instance_server.folder_received.connect(window.handle_external_folder)
+        instance_server.folder_received.connect(window.handle_external_path)
 
-    # Wurde ein Ordner als Argument uebergeben (Erststart aus dem
-    # Explorer), diesen direkt als Scan-Ordner setzen.
-    if folder_arg:
+    # Wurde ein Pfad als Argument uebergeben (Erststart aus dem
+    # Explorer), den Scan-Ordner setzen. Ist das Argument eine PDF,
+    # wird der enthaltende Ordner verwendet; die Auto-Selektion der
+    # Datei passiert nach window.show() weiter unten.
+    if path_arg:
         config = get_config()
-        config.set_scan_folder(folder_arg)
+        arg_path = Path(path_arg)
+        scan_target = arg_path if arg_path.is_dir() else arg_path.parent
+        config.set_scan_folder(str(scan_target))
 
     # Hauptfenster anzeigen (unter dem SplashScreen)
     window.show()
@@ -193,6 +203,17 @@ def main():
         # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner aktualisieren
         if config.get_scan_folder():
             window.initial_load()
+
+    # Falls als Argument eine PDF-Datei uebergeben wurde, diese nach dem
+    # initialen Laden auswaehlen und den Rename-Dialog oeffnen. Kurze
+    # Verzoegerung, damit load_pdfs() die Widgets erstellt hat.
+    if path_arg:
+        arg_path = Path(path_arg)
+        if arg_path.is_file() and arg_path.suffix.lower() == ".pdf":
+            QTimer.singleShot(
+                300,
+                lambda p=arg_path: window.handle_external_path(str(p)),
+            )
 
     # Anwendungsschleife starten
     sys.exit(app.exec())
