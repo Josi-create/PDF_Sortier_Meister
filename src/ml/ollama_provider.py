@@ -56,6 +56,9 @@ class OllamaProvider(LLMProvider):
             config: Konfiguration mit Modellname und (optional) base_url
         """
         super().__init__(config)
+        # Einmaliger Auto-Start-Versuch pro Provider-Instanz: verhindert,
+        # dass jeder Verbindungsfehler erneut 10s wartet.
+        self._autostart_attempted = False
         self._initialize_client()
 
     def _initialize_client(self):
@@ -131,8 +134,42 @@ class OllamaProvider(LLMProvider):
         """
         Schickt einen Chat-Request an Ollama.
 
+        Bei einem Verbindungsfehler wird EINMAL pro Provider-Instanz
+        versucht, den lokalen Ollama-Server automatisch zu starten und
+        der Request danach wiederholt. So bleibt der Programmstart
+        schnell und der User muss Ollama nicht von Hand starten.
+
         Returns:
             (response_text, error_message). Genau eins ist None.
+        """
+        result, error = self._do_chat(system_prompt, user_prompt)
+        if result is not None or error is None:
+            return result, error
+
+        # Nur bei "echtem" Verbindungsfehler (URLError) Auto-Start
+        # versuchen, und nur einmalig pro Provider-Lebenszeit.
+        if self._autostart_attempted or not error.startswith("Keine Verbindung"):
+            return result, error
+
+        self._autostart_attempted = True
+        try:
+            from src.ml.ollama_launcher import ensure_running
+        except ImportError:
+            return result, error
+
+        ok, msg = ensure_running(self._get_base_url())
+        if not ok:
+            return None, (
+                f"Ollama nicht erreichbar und Auto-Start fehlgeschlagen.\n"
+                f"{msg}"
+            )
+
+        # Server laeuft jetzt - Request wiederholen.
+        return self._do_chat(system_prompt, user_prompt)
+
+    def _do_chat(self, system_prompt: str, user_prompt: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Eigentlicher HTTP-Request an /api/chat (ohne Retry-Logik).
         """
         url = f"{self._get_base_url()}/api/chat"
         payload = {
