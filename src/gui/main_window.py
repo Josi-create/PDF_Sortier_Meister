@@ -330,6 +330,8 @@ class MainWindow(QMainWindow):
             widget.move_requested.connect(self.on_pdf_move)
             widget.copy_requested.connect(self.on_pdf_copy)
             widget.batch_rename_requested.connect(self.on_batch_rename)
+            widget.split_requested.connect(self.on_pdf_split)
+            widget.merge_requested.connect(self.on_pdf_merge)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
 
@@ -1813,6 +1815,76 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Kopieren fehlgeschlagen:\n{e}")
+
+    def on_pdf_split(self, pdf_path: Path):
+        """Wird aufgerufen wenn eine PDF getrennt werden soll."""
+        from src.gui.split_pdf_dialog import SplitPDFDialog
+
+        # Seitenanzahl ermitteln
+        try:
+            import fitz
+            with fitz.open(str(pdf_path)) as doc:
+                page_count = len(doc)
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"PDF konnte nicht geöffnet werden:\n{e}")
+            return
+
+        if page_count < 2:
+            QMessageBox.information(
+                self, "PDF trennen",
+                f"'{pdf_path.name}' hat nur eine Seite und kann nicht getrennt werden."
+            )
+            return
+
+        dialog = SplitPDFDialog(pdf_path, page_count, parent=self)
+        if dialog.exec() != SplitPDFDialog.DialogCode.Accepted:
+            return
+
+        pages = dialog.get_pages()
+        target_folder = pdf_path.parent
+
+        try:
+            output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
+            n = len(output_files)
+            self.statusbar.showMessage(f"PDF getrennt: {n} Datei(en) erstellt", 4000)
+            self.load_pdfs()
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
+
+    def on_pdf_merge(self):
+        """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
+        pdfs_to_merge = list(self.selected_pdfs)
+        if len(pdfs_to_merge) < 2:
+            QMessageBox.information(
+                self, "PDFs zusammenfügen",
+                "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+            )
+            return
+
+        # Standard-Ausgabename vorschlagen
+        first_stem = pdfs_to_merge[0].stem
+        default_name = f"{first_stem}_zusammengefuegt.pdf"
+
+        new_name, ok = QInputDialog.getText(
+            self,
+            "PDFs zusammenfügen",
+            f"{len(pdfs_to_merge)} PDFs zusammenfügen.\n\nName der Zieldatei:",
+            text=default_name,
+        )
+
+        if not ok or not new_name.strip():
+            return
+
+        new_name = new_name.strip()
+        target_folder = pdfs_to_merge[0].parent
+
+        try:
+            merged_path = self.file_manager.merge_pdfs(pdfs_to_merge, target_folder, new_name)
+            self.statusbar.showMessage(f"Zusammengefügt: {merged_path.name}", 4000)
+            self.selected_pdfs = []
+            self.load_pdfs()
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Zusammenfügen fehlgeschlagen:\n{e}")
 
     # --- Undo-Funktionalität ---
 
