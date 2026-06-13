@@ -5,7 +5,7 @@ Hauptfenster der PDF Sortier Meister Anwendung
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QDate, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -25,6 +25,11 @@ from PyQt6.QtWidgets import (
     QApplication,
     QPushButton,
     QLineEdit,
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
+    QDoubleSpinBox,
+    QToolButton,
 )
 
 from src.utils.config import get_config
@@ -98,12 +103,18 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Hauptlayout
-        main_layout = QHBoxLayout(central_widget)
+        # Hauptlayout (vertikal: Filterleiste + Inhalt)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Filterleiste (initial ausgeblendet, Phase 18)
+        self.filter_bar = self._create_filter_bar()
+        main_layout.addWidget(self.filter_bar)
 
         # Splitter für flexible Größenanpassung
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(splitter, 1)
 
         # Linke Spalte: PDF-Thumbnails
         pdf_panel = self.create_pdf_panel()
@@ -728,6 +739,15 @@ class MainWindow(QMainWindow):
         clear_search_action.setToolTip("Suchfilter zurücksetzen")
         clear_search_action.triggered.connect(self._clear_search)
         toolbar.addAction(clear_search_action)
+
+        # Filter-Leiste Toggle (Phase 18)
+        self.filter_toggle_btn = QToolButton()
+        self.filter_toggle_btn.setText("Filter ▼")
+        self.filter_toggle_btn.setToolTip("Erweiterte Filter ein-/ausblenden")
+        self.filter_toggle_btn.setCheckable(True)
+        self.filter_toggle_btn.setChecked(False)
+        self.filter_toggle_btn.toggled.connect(self._toggle_filter_bar)
+        toolbar.addWidget(self.filter_toggle_btn)
 
     def setup_statusbar(self):
         """Erstellt die Statusleiste."""
@@ -2531,25 +2551,215 @@ class MainWindow(QMainWindow):
             self.load_folders()
             self.statusbar.showMessage(f"Zielordner hinzugefügt: {folder_path.name}", 3000)
 
-    # === Volltextsuche (Phase 17) ===
+    # === Volltextsuche mit kombinierbaren Filtern (Phase 17/18) ===
+
+    def _create_filter_bar(self) -> QWidget:
+        """Erstellt die ausklappbare Filterleiste."""
+        bar = QWidget()
+        bar.setVisible(False)
+        bar.setStyleSheet(
+            "QWidget { background: #f5f5f5; border-bottom: 1px solid #ccc; }"
+        )
+
+        layout = QGridLayout(bar)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
+
+        # Zeile 0: Steuerjahr, Kategorie, Korrespondent
+        layout.addWidget(QLabel("Steuerjahr:"), 0, 0)
+        self.filter_steuerjahr = QComboBox()
+        self.filter_steuerjahr.addItem("Alle")
+        self.filter_steuerjahr.setMinimumWidth(90)
+        layout.addWidget(self.filter_steuerjahr, 0, 1)
+
+        layout.addWidget(QLabel("Kategorie:"), 0, 2)
+        self.filter_kategorie = QComboBox()
+        self.filter_kategorie.addItem("Alle")
+        self.filter_kategorie.setMinimumWidth(130)
+        layout.addWidget(self.filter_kategorie, 0, 3)
+
+        layout.addWidget(QLabel("Korrespondent:"), 0, 4)
+        self.filter_korrespondent = QComboBox()
+        self.filter_korrespondent.addItem("Alle")
+        self.filter_korrespondent.setMinimumWidth(150)
+        layout.addWidget(self.filter_korrespondent, 0, 5)
+
+        # Reset-Button (Zeile 0–1, letzte Spalte)
+        reset_btn = QPushButton("Filter zurücksetzen")
+        reset_btn.clicked.connect(self._reset_filters)
+        layout.addWidget(reset_btn, 0, 6, 2, 1)
+
+        # Zeile 1: Datum, Betrag
+        self.filter_datum_von_cb = QCheckBox("Datum von:")
+        layout.addWidget(self.filter_datum_von_cb, 1, 0)
+        self.filter_datum_von = QDateEdit()
+        self.filter_datum_von.setCalendarPopup(True)
+        self.filter_datum_von.setDate(QDate.currentDate().addYears(-1))
+        self.filter_datum_von.setEnabled(False)
+        layout.addWidget(self.filter_datum_von, 1, 1)
+
+        self.filter_datum_bis_cb = QCheckBox("Datum bis:")
+        layout.addWidget(self.filter_datum_bis_cb, 1, 2)
+        self.filter_datum_bis = QDateEdit()
+        self.filter_datum_bis.setCalendarPopup(True)
+        self.filter_datum_bis.setDate(QDate.currentDate())
+        self.filter_datum_bis.setEnabled(False)
+        layout.addWidget(self.filter_datum_bis, 1, 3)
+
+        betrag_label = QLabel("Betrag (€):")
+        layout.addWidget(betrag_label, 1, 4)
+        betrag_widget = QWidget()
+        betrag_layout = QHBoxLayout(betrag_widget)
+        betrag_layout.setContentsMargins(0, 0, 0, 0)
+        betrag_layout.setSpacing(4)
+        self.filter_betrag_von = QDoubleSpinBox()
+        self.filter_betrag_von.setRange(0, 999999.99)
+        self.filter_betrag_von.setDecimals(2)
+        self.filter_betrag_von.setSpecialValueText("ab –")
+        self.filter_betrag_von.setValue(0.0)
+        self.filter_betrag_von.setMinimumWidth(80)
+        betrag_layout.addWidget(self.filter_betrag_von)
+        self.filter_betrag_bis = QDoubleSpinBox()
+        self.filter_betrag_bis.setRange(0, 999999.99)
+        self.filter_betrag_bis.setDecimals(2)
+        self.filter_betrag_bis.setSpecialValueText("bis –")
+        self.filter_betrag_bis.setValue(0.0)
+        self.filter_betrag_bis.setMinimumWidth(80)
+        betrag_layout.addWidget(self.filter_betrag_bis)
+        layout.addWidget(betrag_widget, 1, 5)
+
+        # Signals verdrahten
+        self.filter_steuerjahr.currentTextChanged.connect(self._execute_search)
+        self.filter_kategorie.currentTextChanged.connect(self._execute_search)
+        self.filter_korrespondent.currentTextChanged.connect(self._execute_search)
+        self.filter_datum_von_cb.toggled.connect(self.filter_datum_von.setEnabled)
+        self.filter_datum_von_cb.toggled.connect(self._execute_search)
+        self.filter_datum_von.dateChanged.connect(self._execute_search)
+        self.filter_datum_bis_cb.toggled.connect(self.filter_datum_bis.setEnabled)
+        self.filter_datum_bis_cb.toggled.connect(self._execute_search)
+        self.filter_datum_bis.dateChanged.connect(self._execute_search)
+        self.filter_betrag_von.valueChanged.connect(self._execute_search)
+        self.filter_betrag_bis.valueChanged.connect(self._execute_search)
+
+        return bar
+
+    def _toggle_filter_bar(self, checked: bool):
+        """Blendet die Filterleiste ein oder aus."""
+        self.filter_bar.setVisible(checked)
+        self.filter_toggle_btn.setText("Filter ▲" if checked else "Filter ▼")
+        if checked:
+            self._populate_filter_dropdowns()
+
+    def _populate_filter_dropdowns(self):
+        """Befüllt die Filter-Dropdowns mit aktuellen Datenbankwerten."""
+        for combo, getter in (
+            (self.filter_steuerjahr, self.db.get_distinct_steuerjahre),
+            (self.filter_kategorie, self.db.get_distinct_kategorien),
+            (self.filter_korrespondent, self.db.get_distinct_korrespondenten),
+        ):
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("Alle")
+            combo.addItems(getter())
+            idx = combo.findText(current)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            combo.blockSignals(False)
+
+    def _has_active_filters(self) -> bool:
+        """Prüft ob mindestens ein Filter aktiv ist."""
+        if not hasattr(self, 'filter_steuerjahr'):
+            return False
+        if self.filter_steuerjahr.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_kategorie.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_korrespondent.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_datum_von_cb.isChecked() or self.filter_datum_bis_cb.isChecked():
+            return True
+        if self.filter_betrag_von.value() > 0 or self.filter_betrag_bis.value() > 0:
+            return True
+        return False
+
+    def _reset_filters(self):
+        """Setzt alle Filterfelder zurück."""
+        widgets = [
+            self.filter_steuerjahr, self.filter_kategorie, self.filter_korrespondent,
+            self.filter_datum_von_cb, self.filter_datum_bis_cb,
+            self.filter_betrag_von, self.filter_betrag_bis,
+        ]
+        for w in widgets:
+            w.blockSignals(True)
+        self.filter_steuerjahr.setCurrentIndex(0)
+        self.filter_kategorie.setCurrentIndex(0)
+        self.filter_korrespondent.setCurrentIndex(0)
+        self.filter_datum_von_cb.setChecked(False)
+        self.filter_datum_von.setEnabled(False)
+        self.filter_datum_bis_cb.setChecked(False)
+        self.filter_datum_bis.setEnabled(False)
+        self.filter_betrag_von.setValue(0.0)
+        self.filter_betrag_bis.setValue(0.0)
+        for w in widgets:
+            w.blockSignals(False)
+        self._execute_search()
 
     def _on_search_text_changed(self, text: str):
         """Live-Suche bei Texteingabe (mit Verzögerung)."""
         if not text.strip():
-            self._clear_search()
+            if not self._has_active_filters():
+                self._clear_search()
+                return
+            self._execute_search()
             return
-        # Suche erst ab 2 Zeichen auslösen
         if len(text.strip()) >= 2:
             self._execute_search()
 
     def _execute_search(self):
-        """Führt die Volltextsuche aus und zeigt Ergebnisse."""
+        """Führt die Volltextsuche mit allen aktiven Filtern aus."""
         query = self.search_input.text().strip()
-        if not query:
+
+        # Filter-Werte sammeln
+        steuerjahr = ""
+        kategorie = ""
+        korrespondent = ""
+        datum_von = ""
+        datum_bis = ""
+        betrag_von = 0.0
+        betrag_bis = 0.0
+
+        if hasattr(self, 'filter_steuerjahr'):
+            val = self.filter_steuerjahr.currentText()
+            steuerjahr = "" if val == "Alle" else val
+            val = self.filter_kategorie.currentText()
+            kategorie = "" if val == "Alle" else val
+            val = self.filter_korrespondent.currentText()
+            korrespondent = "" if val == "Alle" else val
+            if self.filter_datum_von_cb.isChecked():
+                datum_von = self.filter_datum_von.date().toString("yyyy-MM-dd")
+            if self.filter_datum_bis_cb.isChecked():
+                datum_bis = self.filter_datum_bis.date().toString("yyyy-MM-dd")
+            betrag_von = self.filter_betrag_von.value()
+            betrag_bis = self.filter_betrag_bis.value()
+
+        has_filters = any([steuerjahr, kategorie, korrespondent,
+                           datum_von, datum_bis, betrag_von > 0, betrag_bis > 0])
+
+        if not query and not has_filters:
             self._clear_search()
             return
 
-        results = self.db.search_documents(query, limit=50)
+        results = self.db.search_documents(
+            query,
+            limit=50,
+            steuerjahr=steuerjahr,
+            kategorie=kategorie,
+            korrespondent=korrespondent,
+            datum_von=datum_von,
+            datum_bis=datum_bis,
+            betrag_von=betrag_von,
+            betrag_bis=betrag_bis,
+        )
 
         if results:
             self.search_count_label.setText(f"{len(results)} Treffer")
@@ -2557,11 +2767,10 @@ class MainWindow(QMainWindow):
         else:
             self.search_count_label.setText("Keine Treffer")
             self.detail_panel.clear()
-            self.statusbar.showMessage(f"Keine Dokumente gefunden für '{query}'", 3000)
+            self.statusbar.showMessage("Keine Dokumente gefunden", 3000)
 
     def _show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse im Detail-Panel an."""
-        # Suchergebnisse als HTML im Detail-Panel darstellen
         self.detail_panel.show_search_results(results)
 
     def _clear_search(self):

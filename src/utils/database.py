@@ -296,49 +296,106 @@ class Database:
         except Exception as e:
             print(f"FTS5-Indexierung Fehler: {e}")
 
-    def search_documents(self, query: str, limit: int = 50) -> list[dict]:
+    def search_documents(
+        self,
+        query: str,
+        limit: int = 50,
+        steuerjahr: str = "",
+        kategorie: str = "",
+        korrespondent: str = "",
+        datum_von: str = "",
+        datum_bis: str = "",
+        betrag_von: float = 0.0,
+        betrag_bis: float = 0.0,
+    ) -> list[dict]:
         """
         Durchsucht alle indexierten Dokumente per Volltextsuche.
 
-        Args:
-            query: Suchbegriff(e)
-            limit: Maximale Anzahl Ergebnisse
-
-        Returns:
-            Liste von Dicts mit file_path, filename, snippet, etc.
+        query ist optional – wenn leer aber Filter gesetzt, werden alle
+        passenden Dokumente zurückgegeben. datum_von/datum_bis (YYYY-MM-DD)
+        werden gegen das Steuerjahr verglichen (Jahresanteil).
+        betrag_von/betrag_bis = 0 bedeutet inaktiv.
         """
         import sqlite3
 
-        if not query or not query.strip():
+        has_text = bool(query and query.strip())
+        has_filter = any([
+            steuerjahr, kategorie, korrespondent,
+            datum_von, datum_bis,
+            betrag_von > 0, betrag_bis > 0,
+        ])
+
+        if not has_text and not has_filter:
             return []
 
         try:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
-            # Suchbegriffe für FTS5 vorbereiten
-            # Jedes Wort mit * für Präfix-Suche ergänzen
-            terms = query.strip().split()
-            fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
+            conditions: list[str] = []
+            params: list = []
 
+            if has_text:
+                terms = query.strip().split()
+                fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
+                conditions.append("document_search MATCH ?")
+                params.append(fts_query)
+
+            if steuerjahr:
+                conditions.append("steuerjahr = ?")
+                params.append(steuerjahr)
+
+            if kategorie:
+                conditions.append("kategorie = ?")
+                params.append(kategorie)
+
+            if korrespondent:
+                conditions.append("korrespondent = ?")
+                params.append(korrespondent)
+
+            if datum_von:
+                conditions.append("steuerjahr >= ?")
+                params.append(datum_von[:4])
+
+            if datum_bis:
+                conditions.append("steuerjahr <= ?")
+                params.append(datum_bis[:4])
+
+            if betrag_von > 0:
+                conditions.append("CAST(NULLIF(betrag, '') AS REAL) >= ?")
+                params.append(betrag_von)
+
+            if betrag_bis > 0:
+                conditions.append("CAST(NULLIF(betrag, '') AS REAL) <= ?")
+                params.append(betrag_bis)
+
+            where_clause = " AND ".join(conditions)
+
+            if has_text:
+                snippet_expr = "snippet(document_search, 2, '>>>', '<<<', '...', 30)"
+                order_clause = "ORDER BY rank"
+            else:
+                snippet_expr = "''"
+                order_clause = "ORDER BY filename"
+
+            params.append(limit)
             cursor.execute(f"""
                 SELECT
                     file_path,
                     filename,
-                    snippet(document_search, 2, '>>>', '<<<', '...', 30) as text_snippet,
+                    {snippet_expr} as text_snippet,
                     keywords,
                     korrespondent,
                     kategorie,
                     steuerjahr,
                     betrag,
                     zusammenfassung,
-                    target_folder,
-                    rank
+                    target_folder
                 FROM document_search
-                WHERE document_search MATCH ?
-                ORDER BY rank
+                WHERE {where_clause}
+                {order_clause}
                 LIMIT ?
-            """, (fts_query, limit))
+            """, params)
 
             results = []
             for row in cursor.fetchall():
@@ -360,6 +417,54 @@ class Database:
 
         except Exception as e:
             print(f"FTS5-Suche Fehler: {e}")
+            return []
+
+    def get_distinct_steuerjahre(self) -> list[str]:
+        """Gibt sortierte Liste eindeutiger Steuerjahre zurück."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT DISTINCT steuerjahr FROM document_search "
+                "WHERE steuerjahr != '' ORDER BY steuerjahr DESC"
+            )
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception:
+            return []
+
+    def get_distinct_kategorien(self) -> list[str]:
+        """Gibt sortierte Liste eindeutiger Kategorien zurück."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT DISTINCT kategorie FROM document_search "
+                "WHERE kategorie != '' ORDER BY kategorie"
+            )
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception:
+            return []
+
+    def get_distinct_korrespondenten(self) -> list[str]:
+        """Gibt sortierte Liste eindeutiger Korrespondenten zurück."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT DISTINCT korrespondent FROM document_search "
+                "WHERE korrespondent != '' ORDER BY korrespondent"
+            )
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception:
             return []
 
     def get_search_index_count(self) -> int:
