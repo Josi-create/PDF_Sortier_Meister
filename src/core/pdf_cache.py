@@ -758,6 +758,17 @@ class PDFCache(QObject):
                 return result.llm_suggestions
         return []
 
+    def update_llm_suggestions(self, pdf_path: Path, suggestions: list):
+        """Schreibt LLM-Vorschläge in den Cache und persistiert sie."""
+        pdf_path = Path(pdf_path)
+        with self._lock:
+            if pdf_path not in self._cache:
+                return
+            self._cache[pdf_path].llm_suggestions = suggestions
+            self._cache[pdf_path].llm_fetched = True
+            result = self._cache[pdf_path]
+        self._save_to_db(result)
+
     def has_llm_suggestions(self, pdf_path: Path) -> bool:
         """Prüft ob LLM-Vorschläge für eine PDF gecacht sind."""
         pdf_path = Path(pdf_path)

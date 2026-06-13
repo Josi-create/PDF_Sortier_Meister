@@ -732,7 +732,7 @@ class DetailPanel(QWidget):
                 pass
 
             # Aktuellen extrahierten Text aus dem Cache holen
-            from src.core.pdf_cache import get_pdf_cache
+            from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
             cached = get_pdf_cache().get(self._current_pdf)
             extracted_text = cached.extracted_text if cached else ""
             keywords = cached.keywords if cached else []
@@ -748,6 +748,7 @@ class DetailPanel(QWidget):
 
             for s in suggestions:
                 if s.source == "llm" and s.metadata:
+                    self.name_input.setText(s.filename.replace('.pdf', ''))
                     self._loading_metadata = True
                     for key, value in s.metadata.items():
                         widget = self._metadata_inputs.get(key)
@@ -777,6 +778,18 @@ class DetailPanel(QWidget):
                     self._metadata_source = "llm"
                     self._refresh_save_btn()
                     break
+            else:
+                for s in suggestions:
+                    if s.source == "llm":
+                        self.name_input.setText(s.filename.replace('.pdf', ''))
+                        break
+
+            llm_cached = [
+                CacheLLMSuggestion(filename=s.filename, confidence=s.confidence, source=s.source, metadata=s.metadata)
+                for s in suggestions if s.source == "llm"
+            ]
+            if llm_cached:
+                get_pdf_cache().update_llm_suggestions(self._current_pdf, llm_cached)
 
         except Exception as e:
             print(f"LLM-Metadaten Fehler: {e}")

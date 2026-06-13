@@ -1696,6 +1696,23 @@ class MainWindow(QMainWindow):
                     # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
                     self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
 
+                    # Gewählten LLM-Vorschlag für neuen Pfad im Cache speichern
+                    from src.core.pdf_cache import LLMSuggestion as CacheLLMSuggestion
+                    chosen_conf = 0.85
+                    for s in suggestions:
+                        if (s.name or '').replace('.pdf', '') == new_name and "KI" in (s.reason or ''):
+                            chosen_conf = s.confidence
+                            break
+                    self.pdf_cache.update_llm_suggestions(new_path, [CacheLLMSuggestion(
+                        filename=new_path.name,
+                        confidence=chosen_conf,
+                        source="llm",
+                        metadata=dialog_metadata,
+                    )])
+                    if self.detail_panel._current_pdf == pdf_path:
+                        self.detail_panel._current_pdf = new_path
+                        self.detail_panel.header_label.setText(f"Original: {new_path.name}")
+
                     # Metadaten in PDF schreiben (Phase 16)
                     self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
 
