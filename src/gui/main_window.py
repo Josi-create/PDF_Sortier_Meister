@@ -5,14 +5,15 @@ Hauptfenster der PDF Sortier Meister Anwendung
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QDate, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt, QDate, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QSplitter,
+    QTabWidget,
     QLabel,
     QScrollArea,
     QFrame,
@@ -45,6 +46,7 @@ from src.core.file_manager import FileManager, FolderManager
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier
+from src.gui.chat_view import ChatView
 
 
 class MainWindow(QMainWindow):
@@ -112,9 +114,19 @@ class MainWindow(QMainWindow):
         self.filter_bar = self._create_filter_bar()
         main_layout.addWidget(self.filter_bar)
 
+        # Center-Bereich: QTabWidget mit Tabs "Vorschau" + "Chat" (Phase 19)
+        self.center_tabs = QTabWidget()
+        main_layout.addWidget(self.center_tabs, 1)
+
+        # Tab "Vorschau": der bisherige 3-Spalten-Splitter
+        preview_container = QWidget()
+        preview_layout = QVBoxLayout(preview_container)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(0)
+
         # Splitter für flexible Größenanpassung
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter, 1)
+        preview_layout.addWidget(splitter, 1)
 
         # Linke Spalte: PDF-Thumbnails
         pdf_panel = self.create_pdf_panel()
@@ -135,6 +147,32 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 4)  # Mitte: 40%
         splitter.setStretchFactor(2, 3)  # Rechts: 30%
         splitter.setSizes([300, 400, 300])
+
+        self.center_tabs.addTab(preview_container, "Vorschau")
+
+        # Tab "Chat": RAG-Chat (Phase 19 / M2)
+        self.chat_view = ChatView(
+            self.db,
+            self.hybrid_classifier,
+            self.config.get_chat_config(),
+        )
+        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.center_tabs.addTab(self.chat_view, "Chat")
+
+        # LLM-Status aktualisieren, wenn der Chat-Tab gewaehlt wird
+        self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
+
+    def _on_center_tab_changed(self, index: int) -> None:
+        """Aktualisiert den LLM-Status, wenn der Chat-Tab sichtbar wird."""
+        widget = self.center_tabs.widget(index)
+        if widget is self.chat_view:
+            self.chat_view.refresh_llm_status()
+
+    def _open_pdf_external(self, file_path: str) -> None:
+        """Oeffnet eine PDF im System-Viewer (cross-platform)."""
+        if not file_path:
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
 
     def create_pdf_panel(self) -> QWidget:
         """Erstellt das Panel für die PDF-Anzeige."""
