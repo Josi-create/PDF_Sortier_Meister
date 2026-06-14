@@ -75,6 +75,10 @@ class CitationParser:
         """
         if not raw_answer:
             return "", [], []
+        # Defensiv: ``None`` wird als leere Liste behandelt, damit Caller
+        # nicht aus Versehen einen TypeError ausloesen.
+        if retrieved_docs is None:
+            retrieved_docs = []
 
         # Whitelist der gueltigen Indizes + filename/file_path.
         whitelist: dict[int, dict] = {}

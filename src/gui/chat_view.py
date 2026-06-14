@@ -13,7 +13,7 @@ MIT License - Copyright (c) 2026
 from html import escape
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
     QWidget,
@@ -315,8 +315,12 @@ class ChatView(QWidget):
                 self.db, llm_provider, self.chat_config
             )
 
-        # UI in den Lade-Zustand versetzen
+        # UI in den Lade-Zustand versetzen.
+        # Busy: Cancel-Button enabled (Label "Abbrechen"), Senden-Logik
+        # deaktiviert (input_edit disabled, reset disabled). Der
+        # send_btn bleibt klickbar, loest dann aber ``_cancel_current`` aus.
         self.input_edit.setEnabled(False)
+        self.send_btn.setEnabled(True)
         self.send_btn.setText("Abbrechen")
         self.reset_btn.setEnabled(False)
         self.status_label.setText("Suche läuft…")
@@ -339,6 +343,12 @@ class ChatView(QWidget):
 
     def _on_worker_finished(self, response) -> None:
         """Rendert die Antwort und raeumt den Thread auf."""
+        # Signal-Safety (M3-Hardening): Wenn der Sender nicht mehr der
+        # aktuelle Worker ist, wurde der Aufruf bereits abgebrochen.
+        # Das Signal ist dann stale und darf das Rendering nicht
+        # ueberschreiben.
+        if self._chat_worker is None or self.sender() is not self._chat_worker:
+            return
         self._teardown_thread()
         self._reset_input_state()
 
@@ -418,17 +428,38 @@ class ChatView(QWidget):
 
     def _on_worker_failed(self, error: str) -> None:
         """Zeigt eine Fehler-Bubble und raeumt den Thread auf."""
+        # Signal-Safety (M3-Hardening): Stale-Signal-Schutz (siehe finished).
+        if self._chat_worker is None or self.sender() is not self._chat_worker:
+            return
         self._teardown_thread()
         self._reset_input_state()
         self._add_bubble(f"Fehler: {error}", "error")
 
     def _cancel_current(self) -> None:
-        """Bricht den laufenden Aufruf ab (verwirft das Ergebnis)."""
+        """Bricht den laufenden Aufruf ab (verwirft das Ergebnis).
+
+        M3-Hardening:
+        * send_btn wird sofort deaktiviert, damit kein Doppel-Klick
+          einen zweiten Cancel-Vorgang startet.
+        * Erst nach einem kurzen Cooldown (500ms) wird der Button
+          wieder aktiviert, sodass der User Zeit hat, die Aktion
+          visuell zu verarbeiten.
+        * ``_reset_input_state`` wird aufgerufen, damit das
+          Eingabefeld sofort wieder nutzbar ist.
+        """
         if self._chat_worker is not None:
             self._chat_worker.cancel()
         self.status_label.setText("Abgebrochen.")
+        # Cancel-Button sofort deaktivieren (Cooldown)
+        self.send_btn.setEnabled(False)
         self._teardown_thread()
         self._reset_input_state()
+        # Cooldown: nach 500ms den Button wieder aktivieren
+        QTimer.singleShot(500, self._re_enable_send_btn)
+
+    def _re_enable_send_btn(self) -> None:
+        """Weckt den send_btn nach dem Cancel-Cooldown wieder auf."""
+        self.send_btn.setEnabled(True)
 
     def _teardown_thread(self) -> None:
         """Stoppt den QThread und gibt die Referenzen frei."""
@@ -444,8 +475,15 @@ class ChatView(QWidget):
             worker.deleteLater()
 
     def _reset_input_state(self) -> None:
-        """Setzt Eingabe + Buttons in den Ruhezustand."""
+        """Setzt Eingabe + Buttons in den Ruhezustand.
+
+        M3-Hardening: ``input_edit`` wird immer reaktiviert (auch wenn
+        ``_reset_input_state`` aus dem Cancel-Pfad aufgerufen wurde) und
+        der send_btn wird aktiviert, damit der User sofort eine neue
+        Frage stellen kann.
+        """
         self.input_edit.setEnabled(True)
+        self.send_btn.setEnabled(True)
         self.send_btn.setText("Senden")
         self.reset_btn.setEnabled(True)
         self.status_label.setText("")

@@ -107,10 +107,21 @@ class RAGController:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
-        # 2) Retrieval (immer, auch ohne LLM fuer Offline-Fallback)
+        # 2) Datenbank-Leerlauf pruefen (M3-Hardening).
+        # Wenn ueberhaupt nichts indexiert ist, brauchen wir weder Retrieval
+        # noch LLM und liefern eine ehrliche Antwort.
+        if not self._has_indexed_documents():
+            return RAGResponse(
+                answer_text="Keine Dokumente indiziert.",
+                citations=[],
+                retrieved_docs=[],
+                used_llm=False,
+            )
+
+        # 3) Retrieval (immer, auch ohne LLM fuer Offline-Fallback)
         k = getattr(self.chat_config, "max_context_docs", 8) or 8
         try:
-            retrieved = self.retrieval.retrieve(question, k=k)
+            retrieved = self.retrieval.retrieve(question, k=k) or []
         except Exception as e:
             return RAGResponse(
                 answer_text=f"Suche fehlgeschlagen: {e}",
@@ -119,10 +130,21 @@ class RAGController:
                 used_llm=False,
             )
 
-        # 3) LLM-Aufruf wenn verfuegbar
-        if self.llm_provider is not None and self.llm_provider.is_available():
+        # 4) LLM-Aufruf wenn verfuegbar
+        if self.llm_provider is not None and self._is_llm_available():
             response = self._ask_llm(question, retrieved)
+        elif not retrieved:
+            # Offline-Modus UND keine Quellen gefunden: ehrliche
+            # Standard-Antwort statt leerer Text (M3-Hardening).
+            response = RAGResponse(
+                answer_text="Keine passenden Dokumente gefunden.",
+                citations=[],
+                retrieved_docs=[],
+                used_llm=False,
+            )
         else:
+            # Offline-Modus MIT Quellen: bisheriges Verhalten (leerer
+            # answer_text, damit die GUI die Treffer-Liste anzeigen kann).
             response = RAGResponse(
                 answer_text="",
                 citations=[],
@@ -130,7 +152,7 @@ class RAGController:
                 used_llm=False,
             )
 
-        # 4) Turn in ChatSession protokollieren
+        # 5) Turn in ChatSession protokollieren
         self.chat_session.add_turn(ChatTurn(
             role="user",
             content=question,
@@ -152,7 +174,7 @@ class RAGController:
                 timestamp=datetime.now(),
             ))
 
-        # 5) LRU-Cache schreiben
+        # 6) LRU-Cache schreiben
         self._cache_put(cache_key, response)
         return response
 
@@ -164,6 +186,36 @@ class RAGController:
     # ------------------------------------------------------------------ #
     # Intern
     # ------------------------------------------------------------------ #
+
+    def _has_indexed_documents(self) -> bool:
+        """True, wenn die DB mindestens ein indexiertes Dokument enthaelt.
+
+        Defensiv: wenn die DB fehlt oder die Methode nicht existiert,
+        wird True angenommen, damit der normale Flow weiterlaeuft
+        (sonst wuerde ein falsches "Keine Dokumente indiziert." entstehen).
+        """
+        db = self.db
+        if db is None:
+            return True
+        count_fn = getattr(db, "get_search_index_count", None)
+        if not callable(count_fn):
+            return True
+        try:
+            return bool(count_fn() > 0)
+        except Exception:  # noqa: BLE001 - defensiv
+            return True
+
+    def _is_llm_available(self) -> bool:
+        """True, wenn der LLM-Provider verfuegbar ist (defensiv gewrappt)."""
+        if self.llm_provider is None:
+            return False
+        avail_fn = getattr(self.llm_provider, "is_available", None)
+        if not callable(avail_fn):
+            return False
+        try:
+            return bool(avail_fn())
+        except Exception:  # noqa: BLE001 - defensiv
+            return False
 
     def _ask_llm(self, question: str, retrieved: list[RetrievedDoc]) -> RAGResponse:
         """Baut Prompts, ruft das LLM und parst Citations."""

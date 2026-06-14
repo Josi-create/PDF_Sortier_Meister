@@ -50,6 +50,11 @@ class ChatWorker(QObject):
         self.question = question
         self._cancel_event = threading.Event()
         self._cancelled = False
+        # Signal-Safety (M3-Hardening): ``finished`` und ``failed`` duerfen
+        # jeweils nur EINMAL emittiert werden, damit nach ``cancel()`` kein
+        # Zombie-Ergebnis mehr an die GUI geht.
+        self._finished_emitted = False
+        self._failed_emitted = False
 
     @pyqtSlot()
     def run(self) -> None:
@@ -60,18 +65,26 @@ class ChatWorker(QObject):
         daher nur, dass ``finished`` nach Rueckkehr noch ausgewertet
         wird (das ``_cancelled``-Flag wird geprueft).
         """
+        # Doppel-Start verhindern (z.B. wenn ``started`` zweimal emittiert wird)
+        if self._finished_emitted or self._failed_emitted:
+            return
         self.started.emit()
         try:
             self.progress.emit("LLM antwortet…")
             response = self.controller.ask(self.question)
         except Exception as exc:  # noqa: BLE001 - Fehler an GUI melden
-            if not self._cancelled:
+            if not self._cancelled and not self._failed_emitted:
+                self._failed_emitted = True
                 self.failed.emit(str(exc))
             return
 
         if self._cancelled:
             # Abgebrochen: Ergebnis verwerfen, kein finished emittieren.
             return
+        if self._finished_emitted:
+            # Doppelt-Emit verhindern (Race mit cancel() waehrend emit)
+            return
+        self._finished_emitted = True
         self.finished.emit(response)
 
     def cancel(self) -> None:
@@ -79,8 +92,11 @@ class ChatWorker(QObject):
 
         Setzt ein ``threading.Event`` und ein ``_cancelled``-Flag. Nach
         Rueckkehr aus ``ask()`` wird ``finished`` dann nicht mehr
-        emittiert.
+        emittiert. ``cancel()`` ist idempotent: ein zweiter Aufruf
+        waehrend des Cancel-Vorgangs hat keine negativen Auswirkungen.
         """
+        if self._cancelled:
+            return  # idempotent
         self._cancelled = True
         self._cancel_event.set()
 
@@ -88,3 +104,12 @@ class ChatWorker(QObject):
     def is_cancelled(self) -> bool:
         """True, wenn der Worker abgebrochen wurde."""
         return self._cancelled
+
+    @property
+    def is_finished(self) -> bool:
+        """True, wenn ``finished`` oder ``failed`` bereits emittiert wurde.
+
+        Nuetzlich fuer die GUI, um nach ``cancel()`` keine
+        Zombie-Slots mehr zu triggern.
+        """
+        return self._finished_emitted or self._failed_emitted
