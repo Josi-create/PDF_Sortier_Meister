@@ -593,6 +593,63 @@ class SettingsDialog(QDialog):
         except Exception:
             self.cache_stats_label.setText("")
 
+    # Vorgegebene Default-Modelle pro Provider (Fallback wenn kein Cache existiert)
+    _PROVIDER_DEFAULT_MODELS = {
+        "claude": [
+            "haiku-3.5 (günstig, älter)",
+            "haiku-4.5 (schnell & günstig)",
+            "sonnet-3.5 (günstig, älter)",
+            "sonnet-4 (ausgewogen)",
+            "sonnet-4.5 (beste Qualität)",
+            "opus-4 (premium)",
+        ],
+        "openai": [
+            "gpt-4o-mini (günstig, älter)",
+            "gpt-4.1-nano (schnellstes)",
+            "gpt-4.1-mini (schnell & günstig)",
+            "gpt-4o (ausgewogen)",
+            "gpt-4.1 (beste Qualität)",
+            "o3-mini (Reasoning, günstig)",
+            "o3 (Reasoning)",
+            "o4-mini (Reasoning, neu)",
+        ],
+        "poe": [
+            "GPT-4o-Mini (schnell & günstig)",
+            "GPT-4o (OpenAI)",
+            "GPT-4.1-Mini (OpenAI, neu)",
+            "GPT-4.1 (OpenAI, neu)",
+            "o3-Mini (Reasoning)",
+            "o4-Mini (Reasoning, neu)",
+            "Claude-3.5-Haiku (schnell)",
+            "Claude-3.5-Sonnet (Anthropic)",
+            "Claude-Sonnet-4 (Anthropic, neu)",
+            "Claude-Sonnet-4.5 (Anthropic, neuestes)",
+            "Claude-Opus-4 (Anthropic, premium)",
+            "Gemini-2-Flash (Google)",
+            "Gemini-2.5-Flash (Google, neu)",
+            "Gemini-2.5-Pro (Google, premium)",
+            "Llama-3.1-405B (Meta)",
+            "Mistral-Large (Mistral)",
+        ],
+        "ollama": [
+            "llama3.1 (Meta, ausgewogen)",
+            "llama3.2 (Meta, klein & schnell)",
+            "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
+            "mistral (Mistral, klein)",
+            "gemma3 (Google)",
+            "phi3 (Microsoft, sehr klein)",
+        ],
+    }
+
+    _PROVIDER_NAME_BY_INDEX = {1: "claude", 2: "openai", 3: "poe", 4: "ollama"}
+
+    def _models_for_provider(self, provider_name: str) -> list[str]:
+        """Liefert gecachte Modelle oder Defaults fuer einen Provider."""
+        cached = self.config.get_cached_models(provider_name)
+        if cached:
+            return cached
+        return self._PROVIDER_DEFAULT_MODELS.get(provider_name, [])
+
     def _on_provider_changed(self, index: int):
         """Wird aufgerufen wenn der Provider geändert wird."""
         # Modelle je nach Provider aktualisieren
@@ -606,73 +663,24 @@ class SettingsDialog(QDialog):
             self.api_key_input.setEnabled(False)
             self.model_combo.setEnabled(False)
             self.test_button.setEnabled(False)
-        elif index == 1:  # Claude
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "haiku-3.5 (günstig, älter)",
-                "haiku-4.5 (schnell & günstig)",
-                "sonnet-3.5 (günstig, älter)",
-                "sonnet-4 (ausgewogen)",
-                "sonnet-4.5 (beste Qualität)",
-                "opus-4 (premium)",
-            ])
+            return
+
+        # Provider 1-4: API-/Modell-Felder freischalten
+        self.api_key_input.setEnabled(index != 4)
+        self.model_combo.setEnabled(True)
+        self.test_button.setEnabled(True)
+
+        provider_name = self._PROVIDER_NAME_BY_INDEX.get(index, "")
+        self.model_combo.addItems(self._models_for_provider(provider_name))
+
+        if index == 1:
             self.api_key_input.setPlaceholderText("sk-ant-...")
-        elif index == 2:  # OpenAI
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "gpt-4o-mini (günstig, älter)",
-                "gpt-4.1-nano (schnellstes)",
-                "gpt-4.1-mini (schnell & günstig)",
-                "gpt-4o (ausgewogen)",
-                "gpt-4.1 (beste Qualität)",
-                "o3-mini (Reasoning, günstig)",
-                "o3 (Reasoning)",
-                "o4-mini (Reasoning, neu)",
-            ])
+        elif index == 2:
             self.api_key_input.setPlaceholderText("sk-...")
-        elif index == 3:  # Poe
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "GPT-4o-Mini (schnell & günstig)",
-                "GPT-4o (OpenAI)",
-                "GPT-4.1-Mini (OpenAI, neu)",
-                "GPT-4.1 (OpenAI, neu)",
-                "o3-Mini (Reasoning)",
-                "o4-Mini (Reasoning, neu)",
-                "Claude-3.5-Haiku (schnell)",
-                "Claude-3.5-Sonnet (Anthropic)",
-                "Claude-Sonnet-4 (Anthropic, neu)",
-                "Claude-Sonnet-4.5 (Anthropic, neuestes)",
-                "Claude-Opus-4 (Anthropic, premium)",
-                "Gemini-2-Flash (Google)",
-                "Gemini-2.5-Flash (Google, neu)",
-                "Gemini-2.5-Pro (Google, premium)",
-                "Llama-3.1-405B (Meta)",
-                "Mistral-Large (Mistral)",
-            ])
+        elif index == 3:
             self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
-        elif index == 4:  # Ollama (lokal)
-            # Kein API-Key noetig, aber URL und Modell
-            self.api_key_input.setEnabled(False)
+        elif index == 4:
             self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            # Vorinstallierte Vorschlaege - per "Modelle aktualisieren" werden
-            # die tatsaechlich vorhandenen Modelle vom Server gelesen.
-            self.model_combo.addItems([
-                "llama3.1 (Meta, ausgewogen)",
-                "llama3.2 (Meta, klein & schnell)",
-                "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
-                "mistral (Mistral, klein)",
-                "gemma3 (Google)",
-                "phi3 (Microsoft, sehr klein)",
-            ])
 
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
@@ -1001,9 +1009,15 @@ class SettingsDialog(QDialog):
                 base_url="https://api.poe.com/v1",
             )
 
+            # Claude-Modelle via Poe aktivieren Thinking automatisch.
+            # Wir brauchen genug max_tokens (>=2048), damit budget_tokens >= 1024
+            # nach Abzug der Response-Reserve.
+            is_claude = "claude" in model.lower()
+            max_tokens = 2048 if is_claude else 20
+
             response = client.chat.completions.create(
                 model=model,
-                max_tokens=20,  # Poe erfordert mindestens 16 Tokens
+                max_tokens=max_tokens,
                 messages=[
                     {"role": "user", "content": "Sage 'OK'"}
                 ]
@@ -1130,6 +1144,11 @@ class SettingsDialog(QDialog):
                     if self.model_combo.itemText(i).startswith(current_model):
                         self.model_combo.setCurrentIndex(i)
                         break
+
+                # Liste persistieren, damit sie nach Neustart erhalten bleibt
+                provider_name = self._PROVIDER_NAME_BY_INDEX.get(provider_index, "")
+                if provider_name:
+                    self.config.set_cached_models(provider_name, models)
 
                 QMessageBox.information(
                     self, "Erfolg",
