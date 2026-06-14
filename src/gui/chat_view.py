@@ -14,6 +14,7 @@ from html import escape
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -45,6 +46,31 @@ _BANNER_TEXT = (
     "Kein LLM verfügbar. Du bekommst nur Dokument-Treffer, "
     "keine synthetisierte Antwort."
 )
+
+
+class _ChatInput(QTextEdit):
+    """Mehrzeiliges Eingabefeld mit Chat-typischer Tastenbelegung.
+
+    * ``Return`` / ``Enter`` (ohne Modifier) sendet die Frage ab
+      (emittiert :attr:`submit`).
+    * ``Shift+Return`` fuegt einen Zeilenumbruch ein (Standard-Verhalten).
+
+    Damit verhaelt sich das Feld wie gaengige Chat-Eingaben (z.B. Slack,
+    WhatsApp Web) statt wie ein normales Textfeld.
+    """
+
+    submit = pyqtSignal()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt-API)
+        is_return = event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        shift_held = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        if is_return and not shift_held:
+            # Return ohne Shift -> absenden, Event nicht weiterreichen
+            event.accept()
+            self.submit.emit()
+            return
+        # Shift+Return (oder jede andere Taste) -> normales Verhalten
+        super().keyPressEvent(event)
 
 
 class ChatView(QWidget):
@@ -150,14 +176,15 @@ class ChatView(QWidget):
 
         # Untere Zeile: Eingabe + Buttons
         input_row = QHBoxLayout()
-        self.input_edit = QTextEdit()
+        self.input_edit = _ChatInput()
         self.input_edit.setPlaceholderText(
-            "Frage zu deinen Dokumenten eingeben…"
+            "Frage eingeben…  (Return = senden, Shift+Return = neue Zeile)"
         )
         self.input_edit.setMaximumHeight(80)
         self.input_edit.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self.input_edit.submit.connect(self._on_send)
         input_row.addWidget(self.input_edit, 1)
 
         button_col = QVBoxLayout()
