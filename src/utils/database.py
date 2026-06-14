@@ -453,10 +453,18 @@ class Database:
             params: list = []
 
             if has_text:
-                terms = query.strip().split()
-                fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
-                conditions.append("document_search MATCH ?")
-                params.append(fts_query)
+                # Wenn die Query bereits FTS5-Operatoren (OR, AND, NEAR, NOT) enthaelt,
+                # nutzen wir sie direkt. Andernfalls behandeln wir sie als Whitespace-
+                # getrennte Terme und joinen mit AND (Default-Verhalten).
+                q = query.strip()
+                if any(op in q for op in (" OR ", " AND ", " NEAR ", " NOT ")):
+                    fts_query = q
+                else:
+                    terms = q.split()
+                    fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
+                if fts_query:
+                    conditions.append("document_search MATCH ?")
+                    params.append(fts_query)
 
             if steuerjahr:
                 conditions.append("steuerjahr = ?")
