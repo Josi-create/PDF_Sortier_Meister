@@ -131,6 +131,28 @@ class KorrespondentMetadata(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+
+
+# Maximale Laenge des extrahierten Textes pro Row in document_search
+# (RAG-Chat / Phase 19 / Architektur-Entscheidung Q3).
+MAX_EXTRACTED_TEXT_LENGTH = 5000
+
+
+def _truncate_extracted_text(text, max_len: int = MAX_EXTRACTED_TEXT_LENGTH):
+    """Begrenzt den FTS5-indexierten Text auf ``max_len`` Zeichen.
+
+    Verhindert, dass sehr grosse PDFs das DB-Wachstum und den
+    Token-Verbrauch im RAG-Retrieval sprengen.
+    """
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "...[truncated]"
+
+
+
+
 class Database:
     """Datenbankverbindung und -operationen."""
 
@@ -286,7 +308,7 @@ class Database:
                  zusammenfassung, target_folder)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                file_path, filename, extracted_text or "", keywords or "",
+                file_path, filename, _truncate_extracted_text(extracted_text or ""), keywords or "",
                 korrespondent or "", kategorie or "", steuerjahr or "",
                 betrag or "", zusammenfassung or "", target_folder or "",
             ))

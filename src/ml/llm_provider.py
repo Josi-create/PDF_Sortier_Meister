@@ -50,6 +50,10 @@ class LLMConfig:
     # Optional: Basis-URL fuer lokale/selbst-gehostete Provider (z.B. Ollama).
     # Bei Cloud-Providern bleibt der Wert leer und wird ignoriert.
     base_url: str = ""
+    # Kontext-Fenster des Modells in Tokens. Wird fuer RAG-Budget-Berechnungen
+    # verwendet (Phase 19 / RAG-Chat, M1). Default 8000 ist ein konservativer
+    # Wert, der mit lokalen 8B-Modellen und kleinen Cloud-Modellen funktioniert.
+    context_window: int = 8000
 
 
 class LLMProvider(ABC):
@@ -129,6 +133,40 @@ class LLMProvider(ABC):
 
         Returns:
             True wenn der Provider verwendet werden kann
+        """
+        pass
+
+    @abstractmethod
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext bereitgestellter Dokumente (RAG).
+
+        Wird in Phase 19 (RAG-Chat, M1) eingefuehrt. Die Implementierung
+        baut aus ``context_docs`` und dem ``system_prompt`` einen Chat-Request
+        an den Provider und liefert die rohe LLM-Antwort als String zurueck
+        (inkl. eventueller ``[N]``-Citation-Marker). Das Parsen der
+        Citation-Marker uebernimmt spaeter der ``CitationParser`` (M3).
+
+        Args:
+            system_prompt: System-Prompt mit Anweisungen + ggf. Citation-Regeln.
+            context_docs: Liste von Dicts mit den Feldern
+                ``index`` (int, 1-basiert), ``filename``, ``kategorie``,
+                ``steuerjahr``, ``betrag``, ``korrespondent`` und
+                ``text_snippet``. ``index`` ist der Identifier, auf den
+                die ``[N]``-Marker im Antworttext verweisen.
+            user_question: Die konkrete Nutzerfrage.
+            max_tokens: Max. Tokens fuer die Antwort (Provider-spezifisch).
+
+        Returns:
+            Die rohe LLM-Antwort als String. Bei Fehlern sollte ein
+            leerer String (oder eine sinnvolle Fehlermeldung als Klartext)
+            zurueckgegeben werden.
         """
         pass
 

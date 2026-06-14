@@ -281,3 +281,66 @@ class OllamaProvider(LLMProvider):
     def _find_similar_folder(self, suggested: str, available: list[str]) -> Optional[str]:
         # Placeholder
         return None
+
+    # ------------------------------------------------------------------ #
+    # RAG-Chat (Phase 19, M1)                                            #
+    # ------------------------------------------------------------------ #
+
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext der uebergebenen Dokumente.
+
+        Sendet einen Chat-Request an ``/api/chat`` mit System- und
+        User-Message. ``format:json`` ist bewusst deaktiviert, damit
+        das Modell ``[N]``-Citation-Marker im natuerlichen Text
+        ausgeben kann. Die Verarbeitung der Marker uebernimmt der
+        ``CitationParser`` in M3.
+
+        Timeout: ``REQUEST_TIMEOUT`` (120s).
+        """
+        if not self.is_available():
+            return ""
+
+        from src.rag.prompts import build_context_block, build_user_prompt
+
+        context_block = build_context_block(context_docs)
+        user_prompt = build_user_prompt(user_question, context_block=context_block)
+
+        payload = {
+            "model": self._get_model_id(),
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        # KEIN format:json - wir wollen natuerliche Sprache mit [N]-Markern.
+
+        body = json.dumps(payload).encode("utf-8")
+        url = f"{self._get_base_url()}/api/chat"
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.URLError as e:
+            return f"[Ollama nicht erreichbar: {e.reason}]"
+        except Exception as e:
+            return f"[Ollama-Fehler: {e}]"
+
+        message = data.get("message") or {}
+        return message.get("content", "") or ""

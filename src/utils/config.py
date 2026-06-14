@@ -5,10 +5,37 @@ Konfigurationsverwaltung für PDF Sortier Meister
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("pdf_sortier_meister.config")
+
+
+@dataclass
+class ChatConfig:
+    """Konfiguration fuer das RAG-Chat-Feature (Phase 19 / M1).
+
+    Werte sind so gewaehlt, dass das System auch mit kleinen lokalen
+    Modellen (z.B. llama3.1 8B via Ollama) sicher laeuft.
+
+    Attributes:
+        max_context_docs: Maximale Anzahl an Dokumenten im Kontext
+            (Top-K). Default 8 (Architektur-Vorgabe).
+        max_history_turns: Anzahl der Konversations-Turns, die im
+            Prompt beruecksichtigt werden (= N/2 Frage-Antwort-Paare).
+            Default 4.
+        snippet_max_chars: Maximale Laenge des Text-Snippets pro
+            retrieved Document. Default 2000.
+        cache_size: Anzahl der Q&A-Paare im LRU-Cache. Default 100.
+        max_text_length: Maximale Laenge des ``extracted_text``-Felds
+            beim Bulk-Index/Insert (Architektur-Entscheidung Q3, 5000).
+    """
+    max_context_docs: int = 8
+    max_history_turns: int = 4
+    snippet_max_chars: int = 2000
+    cache_size: int = 100
+    max_text_length: int = 5000
 
 
 class Config:
@@ -44,6 +71,8 @@ class Config:
             "temperature": 0.3,
             "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
             "base_url": "",  # nur fuer Ollama (lokaler Server)
+            # Gecachte Modell-Liste pro Provider (gefuellt durch "Modelle aktualisieren")
+            "cached_models": {},
         },
     }
 
@@ -227,6 +256,20 @@ class Config:
         llm_config["auto_use"] = auto_use
         self.set("llm", llm_config)
 
+    def get_cached_models(self, provider: str) -> list[str]:
+        """Gibt die gecachte Modell-Liste fuer einen Provider zurueck."""
+        llm_config = self.get_llm_config()
+        cached = llm_config.get("cached_models", {})
+        return cached.get(provider, [])
+
+    def set_cached_models(self, provider: str, models: list[str]) -> None:
+        """Speichert die abgerufene Modell-Liste fuer einen Provider."""
+        llm_config = self.get_llm_config()
+        cached = llm_config.get("cached_models", {})
+        cached[provider] = list(models)
+        llm_config["cached_models"] = cached
+        self.set("llm", llm_config)
+
     def is_llm_configured(self) -> bool:
         """Prüft ob ein LLM-Provider konfiguriert ist."""
         llm_config = self.get_llm_config()
@@ -234,6 +277,23 @@ class Config:
             llm_config.get("provider", "none") != "none"
             and bool(llm_config.get("api_key", ""))
         )
+
+    # ChatConfig (RAG-Chat, Phase 19 / M1)
+    def get_chat_config(self) -> ChatConfig:
+        """Gibt die Chat/RAG-Konfiguration zurueck.
+
+        Liest den ``"chat"``-Block aus der JSON-Config und merged ihn
+        mit den ``ChatConfig``-Defaults. Fehlt der Block komplett,
+        werden die Defaults unveraendert zurueckgegeben.
+        """
+        raw = self.get("chat", {}) or {}
+        if not isinstance(raw, dict):
+            raw = {}
+        # Nur bekannte Felder uebernehmen, damit Tippfehler in der JSON
+        # nicht zu stillen Defaultueberschreibungen werden.
+        known = {f for f in ChatConfig.__dataclass_fields__}
+        cleaned = {k: raw[k] for k in raw if k in known}
+        return ChatConfig(**cleaned)
 
 
 # Globale Konfigurationsinstanz

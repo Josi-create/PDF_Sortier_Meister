@@ -8,6 +8,9 @@ class _StubProvider(LLMProvider):
     def classify_document(self, *a, **kw): pass
     def suggest_filename(self, *a, **kw): pass
     def is_available(self): return True
+    # Phase 19 / M1: RAG-Chat. Stub-Implementierung damit die Klasse
+    # weiterhin instanziierbar bleibt.
+    def answer_with_context(self, *a, **kw): return ""
 
 
 @pytest.fixture
