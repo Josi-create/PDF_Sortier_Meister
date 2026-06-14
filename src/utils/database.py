@@ -4,6 +4,7 @@ Datenbank-Modul für PDF Sortier Meister
 Speichert die Sortierhistorie für das lernfähige Klassifikationssystem.
 """
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -131,6 +132,38 @@ class KorrespondentMetadata(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Korrespondent(Base):
+    """Verwaltungstabelle fuer bekannte Korrespondenten (Phase 20 / Issue #21).
+
+    Separates Konzept zu ``KorrespondentMetadata`` (gelernte Defaults pro
+    Korrespondent): diese Tabelle haelt kuratierte Stammdaten
+    (Name, Aliasse, Kategorie, Farbe, Notizen) und ist die
+    Hauptansicht der Sidebar in der GUI.
+
+    Felder:
+        id: Primaerschluessel
+        name: Anzeigename (eindeutig)
+        aliases: JSON-Liste alternativer Namen (z.B. '["ista", "IST"]')
+        kategorie: Zuordnung (Energie, Versicherung, Telekommunikation, Steuer, Sonstiges)
+        farbe: Hex-String fuer Sidebar-Markierung (z.B. "#FF5733")
+        notizen: Freitext
+        usage_count: Wie oft der Korrespondent in sorting_history vorkam
+        created_at/updated_at: Zeitstempel
+    """
+
+    __tablename__ = "korrespondenten"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(500), nullable=False, unique=True)
+    aliases = Column(Text, nullable=True)  # JSON-String
+    kategorie = Column(String(100), nullable=True)
+    farbe = Column(String(20), nullable=True)
+    notizen = Column(Text, nullable=True)
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 
 
 # Maximale Laenge des extrahierten Textes pro Row in document_search
@@ -199,7 +232,7 @@ class Database:
         from sqlalchemy import text
 
         with self.engine.connect() as conn:
-            # Prüfe und füge fehlende Spalten hinzu
+            # Pruefen und fuege fehlende Spalten hinzu
             migrations = [
                 # (Tabelle, Spalte, SQL-Typ)
                 ("sorting_history", "target_relative_path", "VARCHAR(1000)"),
@@ -222,12 +255,12 @@ class Database:
 
             for table, column, sql_type in migrations:
                 try:
-                    # Prüfen ob Spalte existiert
+                    # Pruefen ob Spalte existiert
                     result = conn.execute(text(f"PRAGMA table_info({table})"))
                     columns = [row[1] for row in result.fetchall()]
 
                     if column not in columns:
-                        # Spalte hinzufügen
+                        # Spalte hinzufuegen
                         conn.execute(text(
                             f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"
                         ))
@@ -235,6 +268,30 @@ class Database:
                         print(f"Migration: Spalte '{column}' zu '{table}' hinzugefügt")
                 except Exception as e:
                     print(f"Migration-Warnung für {table}.{column}: {e}")
+
+            # Phase 20 (Issue #21): Korrespondenten-Verwaltungstabelle.
+            # Base.metadata.create_all() legt die Tabelle fuer NEUE Datenbanken
+            # automatisch an, aber als idempotente Sicherheitsmassnahme
+            # fuer bestehende Datenbanken (z.B. externe SQLite-Files, die
+            # nicht von Base.metadata.create_all() erfasst wurden) hier
+            # nochmal explizit CREATE TABLE IF NOT EXISTS.
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS korrespondenten (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(500) NOT NULL UNIQUE,
+                        aliases TEXT,
+                        kategorie VARCHAR(100),
+                        farbe VARCHAR(20),
+                        notizen TEXT,
+                        usage_count INTEGER DEFAULT 0,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                """))
+                conn.commit()
+            except Exception as e:
+                print(f"Migration-Warnung fuer korrespondenten-Tabelle: {e}")
 
     def _create_fts_index(self):
         """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17)."""
@@ -1261,6 +1318,435 @@ class Database:
             return [e.korrespondent for e in entries]
         finally:
             session.close()
+
+    # === Korrespondenten-Verwaltung (Phase 20 / Issue #21) ===
+
+    # Standard-Kategorien fuer die GUI-Kombobox
+    KORRESPONDENT_KATEGORIEN: list[str] = [
+        "Energie",
+        "Versicherung",
+        "Telekommunikation",
+        "Steuer",
+        "Bank",
+        "Behoerde",
+        "Vermieter",
+        "Sonstiges",
+    ]
+
+    def list_korrespondenten(self) -> list[dict]:
+        """Gibt alle verwalteten Korrespondenten zurueck.
+
+        Sortiert nach ``usage_count`` (absteigend), dann nach ``name``.
+
+        Returns:
+            Liste von Dicts mit allen Feldern (id, name, aliases, kategorie,
+            farbe, notizen, usage_count, created_at, updated_at). ``aliases``
+            ist als Python-Liste deserialisiert; leere Werte sind ``None``.
+        """
+        session = self.get_session()
+        try:
+            entries = (
+                session.query(Korrespondent)
+                .order_by(Korrespondent.usage_count.desc(), Korrespondent.name.asc())
+                .all()
+            )
+            return [self._korrespondent_to_dict(e) for e in entries]
+        finally:
+            session.close()
+
+    def get_korrespondent(self, name: str) -> Optional[dict]:
+        """Gibt einen einzelnen Korrespondenten per Name zurueck.
+
+        Args:
+            name: Anzeigename (case-sensitive, exakter Match)
+
+        Returns:
+            Dict oder ``None`` falls nicht gefunden.
+        """
+        if not name or not name.strip():
+            return None
+        session = self.get_session()
+        try:
+            entry = (
+                session.query(Korrespondent)
+                .filter(Korrespondent.name == name.strip())
+                .first()
+            )
+            return self._korrespondent_to_dict(entry) if entry else None
+        finally:
+            session.close()
+
+    def add_or_update_korrespondent(
+        self,
+        name: str,
+        aliases: Optional[list[str]] = None,
+        kategorie: Optional[str] = None,
+        farbe: Optional[str] = None,
+        notizen: Optional[str] = None,
+    ) -> dict:
+        """Legt einen Korrespondenten neu an oder aktualisiert ihn.
+
+        Idempotent:
+            * Existiert der Name noch nicht: INSERT, ``usage_count`` bleibt 0.
+            * Existiert der Name: UPDATE, ``usage_count`` wird um 1 erhoeht.
+
+        ``aliases`` wird als JSON-String persistiert (Liste). Wird ``None``
+        uebergeben und der Eintrag existiert bereits, bleiben die
+        vorhandenen Aliasse unveraendert (partielles Update).
+
+        Args:
+            name: Anzeigename (eindeutig)
+            aliases: Optionale Liste alternativer Namen
+            kategorie: Optionale Kategorie
+            farbe: Optionaler Hex-String (z.B. ``"#FF5733"``)
+            notizen: Optionaler Freitext
+
+        Returns:
+            Dict des gespeicherten Korrespondenten
+        """
+        if not name or not name.strip():
+            raise ValueError("Korrespondent-Name darf nicht leer sein")
+
+        name = name.strip()
+        aliases_json = self._serialize_aliases(aliases)
+
+        session = self.get_session()
+        try:
+            existing = (
+                session.query(Korrespondent)
+                .filter(Korrespondent.name == name)
+                .first()
+            )
+            if existing is None:
+                # INSERT
+                entry = Korrespondent(
+                    name=name,
+                    aliases=aliases_json,
+                    kategorie=kategorie,
+                    farbe=farbe,
+                    notizen=notizen,
+                    usage_count=0,
+                )
+                session.add(entry)
+                session.commit()
+                return self._korrespondent_to_dict(entry)
+
+            # UPDATE: usage_count++, Felder nur ueberschreiben wenn nicht None
+            existing.usage_count = (existing.usage_count or 0) + 1
+            existing.updated_at = datetime.utcnow()
+            if aliases_json is not None:
+                existing.aliases = aliases_json
+            if kategorie is not None:
+                existing.kategorie = kategorie
+            if farbe is not None:
+                existing.farbe = farbe
+            if notizen is not None:
+                existing.notizen = notizen
+            session.commit()
+            return self._korrespondent_to_dict(existing)
+        finally:
+            session.close()
+
+    def delete_korrespondent(self, name: str) -> bool:
+        """Loescht einen Korrespondenten.
+
+        Args:
+            name: Name des Korrespondenten
+
+        Returns:
+            ``True`` wenn geloescht, ``False`` wenn nicht gefunden.
+        """
+        if not name or not name.strip():
+            return False
+        session = self.get_session()
+        try:
+            entry = (
+                session.query(Korrespondent)
+                .filter(Korrespondent.name == name.strip())
+                .first()
+            )
+            if not entry:
+                return False
+            session.delete(entry)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def merge_korrespondenten(
+        self, primary_name: str, secondary_names: list[str]
+    ) -> None:
+        """Fuehrt mehrere Korrespondenten zu einem Primaerkorrespondenten zusammen.
+
+        Verhalten:
+            * ``primary_name`` bleibt erhalten; ``usage_count`` wird um die
+              usage_counts der Sekundaere aufsummiert.
+            * Alle Sekundaer-Eintraege werden geloescht.
+            * Sekundaer-Namen werden als Aliasse in den Primaer-Eintrag
+              gemerged (Duplikate werden gefiltert, Reihenfolge bleibt stabil).
+            * FTS5-Eintraege (``document_search``) mit
+              ``korrespondent = secondary`` werden auf ``primary_name``
+              umgeschrieben.
+            * ``sorting_history.korrespondent`` wird ebenfalls aktualisiert.
+            * ``KorrespondentMetadata.korrespondent`` (gelernte Defaults)
+              wird umbenannt, sodass vorhandene Lerneffekte erhalten bleiben.
+
+        Args:
+            primary_name: Name des Primaerkorrespondenten (muss existieren)
+            secondary_names: Liste von Sekundaernamen (werden geloescht)
+        """
+        import sqlite3
+
+        if not primary_name or not primary_name.strip():
+            raise ValueError("primary_name darf nicht leer sein")
+        primary_name = primary_name.strip()
+        secondary_names = [s.strip() for s in (secondary_names or []) if s and s.strip()]
+        if primary_name in secondary_names:
+            secondary_names = [s for s in secondary_names if s != primary_name]
+
+        session = self.get_session()
+        try:
+            primary = (
+                session.query(Korrespondent)
+                .filter(Korrespondent.name == primary_name)
+                .first()
+            )
+            if primary is None:
+                raise ValueError(
+                    f"Primaerkorrespondent '{primary_name}' existiert nicht"
+                )
+
+            # Bestehende Aliasse des Primaers laden
+            existing_aliases = self._deserialize_aliases(primary.aliases)
+            merged_aliases = list(existing_aliases)
+
+            total_usage = primary.usage_count or 0
+
+            for sec_name in secondary_names:
+                sec_entry = (
+                    session.query(Korrespondent)
+                    .filter(Korrespondent.name == sec_name)
+                    .first()
+                )
+                if sec_entry is None:
+                    continue
+                total_usage += sec_entry.usage_count or 0
+                # Sekundaer-Aliasse mergen
+                sec_aliases = self._deserialize_aliases(sec_entry.aliases)
+                for a in sec_aliases:
+                    if a not in merged_aliases and a != primary_name:
+                        merged_aliases.append(a)
+                if sec_name not in merged_aliases and sec_name != primary_name:
+                    merged_aliases.append(sec_name)
+                session.delete(sec_entry)
+
+            primary.usage_count = total_usage
+            primary.aliases = self._serialize_aliases(merged_aliases)
+            primary.updated_at = datetime.utcnow()
+
+            session.commit()
+        finally:
+            session.close()
+
+        # FTS5 + sorting_history + KorrespondentMetadata ausserhalb der
+        # SQLAlchemy-Session aktualisieren (FTS5 ist eine virtuelle Tabelle
+        # und sorting_history hat ggf. NULL-Werte).
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            for sec_name in secondary_names:
+                if not sec_name:
+                    continue
+                # FTS5: alten Eintrag loeschen, mit neuem Korrespondent neu einfuegen
+                cursor.execute(
+                    "SELECT file_path, filename, extracted_text, keywords, "
+                    "kategorie, steuerjahr, betrag, zusammenfassung, target_folder "
+                    "FROM document_search WHERE korrespondent = ?",
+                    (sec_name,),
+                )
+                rows = cursor.fetchall()
+                for row in rows:
+                    (file_path, filename, text_, kw, kat, jahr, betrag, zus, folder) = row
+                    cursor.execute(
+                        "DELETE FROM document_search WHERE file_path = ?",
+                        (file_path,),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO document_search
+                        (file_path, filename, extracted_text, keywords,
+                         korrespondent, kategorie, steuerjahr, betrag,
+                         zusammenfassung, target_folder)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            file_path, filename, text_ or "", kw or "",
+                            primary_name, kat or "", jahr or "",
+                            betrag or "", zus or "", folder or "",
+                        ),
+                    )
+
+                # sorting_history: schlichte Umbenennung der Spalte
+                cursor.execute(
+                    "UPDATE sorting_history SET korrespondent = ? "
+                    "WHERE korrespondent = ?",
+                    (primary_name, sec_name),
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"merge_korrespondenten FTS5-Update Warnung: {e}")
+
+        # KorrespondentMetadata (gelernte Defaults) - Lookup-Name beibehalten,
+        # aber den Primaer-Namen mitverwenden damit get_korrespondent_metadata
+        # weiterhin die Defaults findet.
+        try:
+            session = self.get_session()
+            try:
+                # Wenn ein Metadata-Eintrag fuer einen sekundaer Namen
+                # existiert und KEINER fuer den Primaer -> primaer befuellen.
+                for sec_name in secondary_names:
+                    sec_meta = (
+                        session.query(KorrespondentMetadata)
+                        .filter(KorrespondentMetadata.korrespondent == sec_name)
+                        .first()
+                    )
+                    if sec_meta is None:
+                        continue
+                    primary_meta = (
+                        session.query(KorrespondentMetadata)
+                        .filter(KorrespondentMetadata.korrespondent == primary_name)
+                        .first()
+                    )
+                    if primary_meta is None:
+                        # Sekundaer-Metadaten auf Primaer umbenennen
+                        sec_meta.korrespondent = primary_name
+                    else:
+                        # Primaer hat schon eigene Defaults - sekundaer loeschen
+                        # (oder Felder primaer einverleiben - wir wählen Loeschen
+                        # fuer deterministisches Verhalten)
+                        session.delete(sec_meta)
+                session.commit()
+            finally:
+                session.close()
+        except Exception as e:
+            print(f"merge_korrespondenten Metadata-Update Warnung: {e}")
+
+    def auto_collect_from_history(self) -> int:
+        """Extrahiert alle Korrespondenten aus ``sorting_history`` und
+        legt fehlende Eintraege in der Verwaltungstabelle an.
+
+        Bestehende Eintraege (per Name) werden nicht ueberschrieben -
+        ``usage_count`` wird aus der History gelesen, NICHT inkrementiert.
+
+        Returns:
+            Anzahl NEU angelegter Eintraege.
+        """
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT korrespondent, COUNT(*) FROM sorting_history "
+                "WHERE korrespondent IS NOT NULL AND korrespondent != '' "
+                "GROUP BY korrespondent"
+            )
+            history_counts: dict[str, int] = {
+                row[0]: row[1] for row in cursor.fetchall()
+            }
+            conn.close()
+        except Exception:
+            return 0
+
+        new_count = 0
+        for name, count in history_counts.items():
+            session = self.get_session()
+            try:
+                existing = (
+                    session.query(Korrespondent)
+                    .filter(Korrespondent.name == name)
+                    .first()
+                )
+                if existing is None:
+                    entry = Korrespondent(
+                        name=name,
+                        usage_count=count,
+                        kategorie=None,
+                        farbe=None,
+                        notizen=None,
+                        aliases=None,
+                    )
+                    session.add(entry)
+                    new_count += 1
+                else:
+                    # Usage-Count aus History uebernehmen wenn hoeher
+                    if count > (existing.usage_count or 0):
+                        existing.usage_count = count
+                        existing.updated_at = datetime.utcnow()
+                session.commit()
+            finally:
+                session.close()
+
+        return new_count
+
+    # === Interne Helper (Korrespondent) ===
+
+    @staticmethod
+    def _serialize_aliases(aliases) -> Optional[str]:
+        """Serialisiert eine Alias-Liste in einen JSON-String.
+
+        Akzeptiert:
+            * ``None`` → ``None``
+            * Liste → ``json.dumps`` der Liste
+            * Bereits ein String → wird unveraendert zurueckgegeben
+              (idempotent gegen Mehrfachspeicherung)
+        """
+        if aliases is None:
+            return None
+        if isinstance(aliases, str):
+            return aliases
+        if isinstance(aliases, (list, tuple)):
+            cleaned = [str(a).strip() for a in aliases if a and str(a).strip()]
+            return json.dumps(cleaned, ensure_ascii=False)
+        return str(aliases)
+
+    @staticmethod
+    def _deserialize_aliases(value) -> list[str]:
+        """Deserialisiert einen Alias-JSON-String in eine Python-Liste.
+
+        Robust gegen kaputte/leere Werte.
+        """
+        if not value:
+            return []
+        if isinstance(value, (list, tuple)):
+            return [str(a) for a in value]
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(a) for a in parsed]
+            return [str(parsed)]
+        except (ValueError, TypeError):
+            # Fallback: versuch als Komma-getrennte Liste zu interpretieren
+            return [a.strip() for a in str(value).split(",") if a.strip()]
+
+    @staticmethod
+    def _korrespondent_to_dict(entry: Optional[Korrespondent]) -> Optional[dict]:
+        """Konvertiert ein ``Korrespondent``-ORM-Objekt in ein serialisierbares Dict."""
+        if entry is None:
+            return None
+        return {
+            "id": entry.id,
+            "name": entry.name,
+            "aliases": Database._deserialize_aliases(entry.aliases),
+            "aliases_raw": entry.aliases,
+            "kategorie": entry.kategorie,
+            "farbe": entry.farbe,
+            "notizen": entry.notizen,
+            "usage_count": entry.usage_count or 0,
+            "created_at": entry.created_at,
+            "updated_at": entry.updated_at,
+        }
 
 
 # Globale Datenbankinstanz

@@ -42,6 +42,7 @@ from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_renam
 from src.gui.detail_panel import DetailPanel
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
+from src.gui.korrespondent_sidebar import KorrespondentSidebar
 from src.core.file_manager import FileManager, FolderManager
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
@@ -243,13 +244,22 @@ class MainWindow(QMainWindow):
         return panel
 
     def create_folder_panel(self) -> QWidget:
-        """Erstellt das Panel für die Zielordner."""
+        """Erstellt das Panel für die Zielordner und Korrespondenten (Phase 20).
+
+        Inhalt:
+            * Kopfzeile (Titel + Buttons)
+            * Vorschlagsbereich
+            * Trennlinie
+            * QTabWidget mit zwei Tabs:
+                - "Zielordner"   -> FolderTreeWidget (bisheriges Verhalten)
+                - "Korrespondenten" -> KorrespondentSidebar (Phase 20)
+        """
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
         # Überschrift mit Buttons
         header_layout = QHBoxLayout()
-        header = QLabel("Zielordner")
+        header = QLabel("Zielordner & Korrespondenten")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(header)
         header_layout.addStretch()
@@ -299,13 +309,24 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
+        # Tab-Widget: Zielordner + Korrespondenten (Phase 20 / Issue #21)
+        self.right_panel_tabs = QTabWidget()
+        self.right_panel_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self.right_panel_tabs.setStyleSheet("QTabBar::tab { padding: 4px 10px; }")
+
+        # --- Tab "Zielordner" (bisheriges Verhalten) ---
+        folder_tree_container = QWidget()
+        ft_layout = QVBoxLayout(folder_tree_container)
+        ft_layout.setContentsMargins(0, 0, 0, 0)
+        ft_layout.setSpacing(0)
+
         # NEU: Ordner-Baumansicht für hierarchische Struktur
         self.folder_tree = FolderTreeWidget()
         self.folder_tree.folder_selected.connect(self.on_tree_folder_selected)
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
-        layout.addWidget(self.folder_tree, stretch=1)
+        ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
         self.folder_container = QWidget()
@@ -313,9 +334,85 @@ class MainWindow(QMainWindow):
         self.folder_layout.setSpacing(10)
         self.folder_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.folder_container.hide()  # Grid-Ansicht versteckt
-        layout.addWidget(self.folder_container)
+        ft_layout.addWidget(self.folder_container)
+
+        self.right_panel_tabs.addTab(folder_tree_container, "Zielordner")
+
+        # --- Tab "Korrespondenten" (Phase 20 / Issue #21) ---
+        self.korrespondent_sidebar = KorrespondentSidebar(self.db, parent=self)
+        self.korrespondent_sidebar.korrespondent_selected.connect(
+            self._on_korrespondent_sidebar_selected
+        )
+        self.right_panel_tabs.addTab(self.korrespondent_sidebar, "Korrespondenten")
+
+        layout.addWidget(self.right_panel_tabs, stretch=1)
 
         return panel
+
+    def _on_korrespondent_sidebar_selected(self, name_or_none) -> None:
+        """Wird aufgerufen, wenn in der Korrespondenten-Sidebar ein Eintrag
+        angeklickt wird. Setzt den Korrespondent-Filter in der Filterleiste
+        und loest eine Suche aus.
+
+        Args:
+            name_or_none: Name des Korrespondenten oder ``None`` fuer "Alle".
+        """
+        if not hasattr(self, "filter_korrespondent"):
+            return
+        # Filter-Dropdown aktualisieren
+        self.filter_korrespondent.blockSignals(True)
+        if name_or_none is None:
+            # "Alle" -> ersten Eintrag
+            self.filter_korrespondent.setCurrentIndex(0)
+        else:
+            # Dropdown neu befuellen, falls der Name fehlt
+            current = self.filter_korrespondent.currentText()
+            items = [self.filter_korrespondent.itemText(i)
+                     for i in range(self.filter_korrespondent.count())]
+            if name_or_none not in items:
+                self.filter_korrespondent.addItem(name_or_none)
+            idx = self.filter_korrespondent.findText(name_or_none)
+            if idx >= 0:
+                self.filter_korrespondent.setCurrentIndex(idx)
+            else:
+                self.filter_korrespondent.setCurrentIndex(0)
+        self.filter_korrespondent.blockSignals(False)
+        # Suche ausloesen
+        if hasattr(self, "_execute_search"):
+            self._execute_search()
+        # Statusmeldung
+        if name_or_none:
+            self.statusbar.showMessage(
+                f"Filter: Korrespondent '{name_or_none}'", 3000
+            )
+        else:
+            self.statusbar.showMessage("Filter aufgehoben (Alle)", 2000)
+
+    def _auto_collect_korrespondenten(self) -> None:
+        """Phase 20: Sammelt Korrespondenten aus der Sortierhistorie
+        in die Verwaltungstabelle und refresht die Sidebar.
+
+        Wird nach jedem PDF-Move aufgerufen. Idempotent: bereits
+        vorhandene Korrespondenten werden nicht doppelt angelegt.
+        Wir cachen den letzten Collection-Status (pro Session), um
+        in schnellen Bulk-Moves nicht jedes Mal die DB zu scannen.
+        """
+        if not hasattr(self, "_auto_collect_done"):
+            self._auto_collect_done = False
+        if self._auto_collect_done:
+            return
+        try:
+            new_count = self.db.auto_collect_from_history()
+            if new_count > 0 and hasattr(self, "korrespondent_sidebar"):
+                self.korrespondent_sidebar.refresh()
+            # Nach dem ersten Sammeln pro Session sind alle
+            # bisherigen Korrespondenten erfasst; neue Moves
+            # fuegen nur weitere hinzu (was auto_collect_from_history
+            # ebenfalls korrekt behandelt). Wir setzen den Flag
+            # NICHT permanent, damit z.B. nach einem
+            # historisch-Import die Liste neu befuellt wird.
+        except Exception as e:
+            print(f"Auto-Collect Korrespondenten Warnung: {e}")
 
     def initial_load(self):
         """Lädt die initialen Daten nach dem Start."""
@@ -1301,6 +1398,8 @@ class MainWindow(QMainWindow):
             self.remove_pdf_widget(pdf_path)
             self.detail_panel.clear()
             self.load_folders()
+            # Phase 20: Korrespondenten aus Historie in Verwaltungstabelle sammeln
+            self._auto_collect_korrespondenten()
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -1368,6 +1467,9 @@ class MainWindow(QMainWindow):
 
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self.load_folders()
+
+                # Phase 20: Korrespondenten aus Historie sammeln
+                self._auto_collect_korrespondenten()
 
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -1864,6 +1966,8 @@ class MainWindow(QMainWindow):
                 self.remove_pdf_widget(pdf_path)
                 # Ordneransicht aktualisieren
                 self.load_folders()
+                # Phase 20: Korrespondenten aus Historie sammeln
+                self._auto_collect_korrespondenten()
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
