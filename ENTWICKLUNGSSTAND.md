@@ -1,11 +1,18 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 14.06.2026
-**Aktuelle Version:** 0.11.0 (in Entwicklung)
+**Aktuelle Version:** 0.12.0 (in Entwicklung)
 
-> **Was ist neu in v0.11.0?** Siehe [Changelog v0.11.0](#changelog-v0110) am Ende des Dokuments.
+> **Was ist neu in v0.12.0?** Siehe [Changelog v0.12.0](#changelog-v0120) am Ende des Dokuments.
 
 ---
+### v0.12.0 (2026-06-14) - Phase 19 RAG-Chat abgeschlossen
+- Chat-Tab mit FTS5-Retrieval + LLM-Synthese + Citations
+- Offline-Fallback, Cancel-Flow, Return-UX-Polish
+- M3-Hardening: Signal-Safety, CitationParser-Edge-Cases, Defensiv-Guards
+- Bugfix: Cancel-Cooldown wurde durch _reset_input_state ueberschrieben
+- 112/112 Tests gruen (35 neu fuer RAG-Pipeline)
+
 
 ## Abgeschlossene Phasen
 
@@ -200,7 +207,7 @@
 - [x] **Dokumentation** *(v0.11.0, in Arbeit)*
   - Diese Datei (`ENTWICKLUNGSSTAND.md`) wird mit jedem Sprint aktualisiert
   - README.md vorhanden
-  - Changelog inline unter [Changelog v0.11.0](#changelog-v0110)
+  - Changelog inline unter [Changelog v0.12.0](#changelog-v0120)
 - [ ] Startbildschirm optimieren (schnellere Thumbnail-Ladung, Caching vom letzten Start)
 ### Phase 9: Semi-Automatischer Workflow (offen)
 - [ ] **Schaltfläche "(Semi)-Auto Rename"** in der Toolbar
@@ -313,6 +320,8 @@ Dedizierte Felder für deutschen Steuerbüro-Workflow — Feature das paperless-
 
 ### Phase 19: RAG-Chat / Dokumentensuche per natürlicher Sprache (NEU - Mittlere Priorität)
 
+**Status:** ✅ fertig (M1 Foundation + M2 GUI + M3 Hardening + M4 Tests+Polish)
+
 **Paperless-ai's stärkstes Feature** — Fragen wie:
 - *"Was habe ich 2023 für Strom bezahlt?"*
 - *"Zeig alle Verträge mit der GEZ"*
@@ -418,7 +427,8 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | paperless-ai Funktionsvergleich + Roadmap Phase 16–21 | ✅ | März 2026 - ENTWICKLUNGSSTAND.md aktualisiert |
 | Undo für Verschiebungen (alle Codepfade) | ✅ | v0.9.0 - Ctrl+Z, Undo-Stack mit 20 Einträgen |
 | Umbenennung rückgängig (Ctrl+Z) | ✅ | v0.9.0 - Gemeinsamer Undo-Stack für Move+Rename |
-| F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut |
+| F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut || Phase 19 RAG-Chat abgeschlossen (Issue #20) | ✅ | v0.12.0 - Chat-Tab, FTS5-Retrieval, LLM-Synthese, Citations, Offline-Fallback, Cancel, 112/112 Tests |
+
 | De-Selektion (Klick auf leere Fläche / Escape) | ✅ | v0.9.0 - mousePressEvent + Escape-Shortcut |
 | Zurück-Button (Ordner-History) | ✅ | v0.9.0 - ⬅ Button + Alt+Left + Menü |
 | Phase 16: PDF-XMP-Metadaten schreiben | ✅ | v0.9.0 - pikepdf + LLM-Extraktion + Umbenennungsdialog |
@@ -431,6 +441,7 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | Filter-Kombinationen in Volltext-Suche (Issue #18) | ✅ | v0.11.0 - 5 Dropdown-Filter + Datums-/Betrags-Range, kombinierbar |
 | Bulk-Index-Funktion für Verzeichnisse (RAG-Vorbereitung) | ✅ | v0.11.0 - bulk_index_directory() mit analyze=True/False |
 | Test-Infrastruktur aufgebaut | ✅ | v0.11.0 - 34 pytest-Tests in 3 Suiten, alle grün |
+| Phase 19 RAG-Chat (Issue #20) abgeschlossen | ✅ | v0.12.0 - Chat-Tab, FTS5-Retrieval, LLM-Synthese, Citations, Offline-Fallback, Cancel-Flow, 112/112 Tests |
 
 ---
 
@@ -610,7 +621,7 @@ python run.py
 
 ---
 
-## Changelog v0.11.0
+## Changelog v0.12.0
 
 **Release-Datum:** 14.06.2026
 **Fokus:** Robustheit, LLM-Metadaten-Extraktion, Such-Filter, Test-Grundlage

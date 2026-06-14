@@ -444,16 +444,26 @@ class ChatView(QWidget):
         * Erst nach einem kurzen Cooldown (500ms) wird der Button
           wieder aktiviert, sodass der User Zeit hat, die Aktion
           visuell zu verarbeiten.
-        * ``_reset_input_state`` wird aufgerufen, damit das
-          Eingabefeld sofort wieder nutzbar ist.
+
+        Wichtig: Hier wird bewusst NICHT ``_reset_input_state`` gerufen,
+        weil dieses den send_btn sofort wieder aktiviert und damit den
+        Cooldown aushebelt. Stattdessen nur das noetige Mindest-Reset
+        (input_edit freigeben, Status-Label setzen, Button-Text
+        zuruecksetzen). Das Aktivieren des send_btn uebernimmt dann
+        ``_re_enable_send_btn`` nach Ablauf des Cooldowns.
         """
         if self._chat_worker is not None:
             self._chat_worker.cancel()
         self.status_label.setText("Abgebrochen.")
-        # Cancel-Button sofort deaktivieren (Cooldown)
+        # Cancel-Button sofort deaktivieren (Cooldown startet)
         self.send_btn.setEnabled(False)
+        # Minimal-Reset: input_edit freigeben, Button-Text zurueck,
+        # reset_btn wieder aktivieren. send_btn bleibt disabled.
+        self.input_edit.setEnabled(True)
+        self.input_edit.setFocus()
+        self.send_btn.setText("Senden")
+        self.reset_btn.setEnabled(True)
         self._teardown_thread()
-        self._reset_input_state()
         # Cooldown: nach 500ms den Button wieder aktivieren
         QTimer.singleShot(500, self._re_enable_send_btn)
 
