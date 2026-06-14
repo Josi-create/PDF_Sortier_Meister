@@ -1,8 +1,19 @@
+import sqlite3
 from pathlib import Path
 
+import fitz
 import pytest
 
 from src.utils.database import Database
+
+
+def _create_pdf(path: Path) -> None:
+    doc = fitz.open()
+    try:
+        doc.new_page()
+        doc.save(str(path))
+    finally:
+        doc.close()
 
 
 def _make_db(tmp_path: Path) -> Database:
@@ -172,3 +183,125 @@ def test_betrag_text_storage_handles_non_numeric(tmp_path: Path) -> None:
     filenames = [r["filename"] for r in results]
     assert "unbekannt.pdf" not in filenames
     assert "rechnung_telekom.pdf" in filenames
+
+
+# === update_pdf_path tests ===
+
+def test_update_pdf_path_noop_same_path(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    db.index_document(file_path="/docs/a.pdf", filename="a.pdf", korrespondent="NoopFirma")
+    result = db.update_pdf_path("/docs/a.pdf", "/docs/a.pdf", None)
+    assert result is False
+    rows = db.search_documents(query="", korrespondent="NoopFirma")
+    assert len(rows) == 1
+    assert rows[0]["file_path"] == "/docs/a.pdf"
+
+
+def test_update_pdf_path_preserves_metadata(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    db.index_document(
+        file_path="/old/a.pdf",
+        filename="old.pdf",
+        extracted_text="Alter Text",
+        keywords="kw1,kw2",
+        korrespondent="MetaFirma",
+        kategorie="Rechnung",
+        steuerjahr="2024",
+        betrag="99.00",
+        zusammenfassung="Alte Zusammenfassung",
+        target_folder="/old/folder",
+    )
+    result = db.update_pdf_path("/old/a.pdf", "/new/b.pdf", "new.pdf")
+    assert result is True
+    rows = db.search_documents(query="", korrespondent="MetaFirma")
+    assert len(rows) == 1
+    assert rows[0]["file_path"] == "/new/b.pdf"
+    assert rows[0]["korrespondent"] == "MetaFirma"
+    assert rows[0]["kategorie"] == "Rechnung"
+    assert rows[0]["steuerjahr"] == "2024"
+    assert rows[0]["betrag"] == "99.00"
+    assert rows[0]["zusammenfassung"] == "Alte Zusammenfassung"
+
+
+def test_update_pdf_path_with_new_filename(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    db.index_document(file_path="/old/a.pdf", filename="old.pdf", korrespondent="RenameFirma")
+    db.update_pdf_path("/old/a.pdf", "/new/b.pdf", "new.pdf")
+    rows = db.search_documents(query="", korrespondent="RenameFirma")
+    assert len(rows) == 1
+    assert rows[0]["filename"] == "new.pdf"
+
+
+def test_update_pdf_path_no_old_row(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    result = db.update_pdf_path("/nonexistent.pdf", "/new/b.pdf", "b.pdf")
+    assert result is True
+    assert db.get_search_index_count() == 1
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    cursor = conn.cursor()
+    cursor.execute("SELECT file_path FROM document_search WHERE file_path = ?", ("/new/b.pdf",))
+    row = cursor.fetchone()
+    conn.close()
+    assert row is not None
+
+
+# === bulk_index_directory tests ===
+
+def test_bulk_index_directory_analyze_false(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    for name in ("one.pdf", "two.pdf", "three.pdf"):
+        _create_pdf(tmp_path / name)
+    summary = db.bulk_index_directory(str(tmp_path), analyze=False, recursive=True)
+    assert summary == {"scanned": 3, "indexed": 3, "skipped": 0, "errors": []}
+    assert db.get_search_index_count() == 3
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    cursor = conn.cursor()
+    cursor.execute("SELECT extracted_text FROM document_search")
+    rows = cursor.fetchall()
+    conn.close()
+    assert all(row[0] == "" for row in rows)
+
+
+def test_bulk_index_directory_skips_existing(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    p1 = tmp_path / "x.pdf"
+    p2 = tmp_path / "y.pdf"
+    _create_pdf(p1)
+    _create_pdf(p2)
+    db.index_document(file_path=str(p1), filename=p1.name)
+    db.index_document(file_path=str(p2), filename=p2.name)
+    summary = db.bulk_index_directory(str(tmp_path))
+    assert summary["skipped"] == 2
+    assert summary["indexed"] == 0
+    assert summary["errors"] == []
+
+
+def test_bulk_index_directory_non_recursive(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    _create_pdf(tmp_path / "top1.pdf")
+    _create_pdf(tmp_path / "top2.pdf")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    _create_pdf(sub / "deep.pdf")
+    summary = db.bulk_index_directory(str(tmp_path), recursive=False)
+    assert summary["scanned"] == 2
+    assert summary["indexed"] == 2
+
+
+def test_bulk_index_directory_progress_callback_called(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        _create_pdf(tmp_path / name)
+    calls = []
+    db.bulk_index_directory(str(tmp_path), progress_callback=lambda c, t, f: calls.append((c, t)))
+    assert len(calls) == 3
+
+
+def test_bulk_index_directory_ignores_non_pdf(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    _create_pdf(tmp_path / "real1.pdf")
+    _create_pdf(tmp_path / "real2.pdf")
+    (tmp_path / "notes.txt").write_text("not a pdf")
+    summary = db.bulk_index_directory(str(tmp_path))
+    assert summary["scanned"] == 2
+    assert summary["indexed"] == 2

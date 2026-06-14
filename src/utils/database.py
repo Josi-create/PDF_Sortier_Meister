@@ -296,6 +296,101 @@ class Database:
         except Exception as e:
             print(f"FTS5-Indexierung Fehler: {e}")
 
+    def update_pdf_path(
+        self,
+        old_path: str,
+        new_path: str,
+        new_filename: str = None,
+        extracted_text: str = None,
+        keywords: str = None,
+        korrespondent: str = None,
+        kategorie: str = None,
+        steuerjahr: str = None,
+        betrag: str = None,
+        zusammenfassung: str = None,
+        target_folder: str = None,
+    ) -> bool:
+        """Verschiebt einen Suchindex-Eintrag atomar von old_path zu new_path.
+
+        Felder aus dem alten Eintrag werden kopiert; explizit übergebene
+        Parameter überschreiben die kopierten Werte. Gibt True zurück wenn
+        Daten migriert/angelegt wurden, False bei No-op.
+        """
+        import sqlite3
+
+        if old_path == new_path and new_filename is None:
+            return False
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT filename, extracted_text, keywords, korrespondent, "
+                "kategorie, steuerjahr, betrag, zusammenfassung, target_folder "
+                "FROM document_search WHERE file_path = ?",
+                (old_path,)
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                cursor.execute("""
+                    INSERT INTO document_search
+                    (file_path, filename, extracted_text, keywords,
+                     korrespondent, kategorie, steuerjahr, betrag,
+                     zusammenfassung, target_folder)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    new_path,
+                    new_filename or Path(new_path).name,
+                    extracted_text or "",
+                    keywords or "",
+                    korrespondent or "",
+                    kategorie or "",
+                    steuerjahr or "",
+                    betrag or "",
+                    zusammenfassung or "",
+                    target_folder or "",
+                ))
+                conn.commit()
+                conn.close()
+                return True
+
+            old_fn, old_text, old_kw, old_korr, old_kat, old_jahr, old_betrag, old_zus, old_folder = row
+
+            final_filename = new_filename if new_filename is not None else old_fn
+            final_text = extracted_text if extracted_text is not None else (old_text or "")
+            final_kw = keywords if keywords is not None else (old_kw or "")
+            final_korr = korrespondent if korrespondent is not None else (old_korr or "")
+            final_kat = kategorie if kategorie is not None else (old_kat or "")
+            final_jahr = steuerjahr if steuerjahr is not None else (old_jahr or "")
+            final_betrag = betrag if betrag is not None else (old_betrag or "")
+            final_zus = zusammenfassung if zusammenfassung is not None else (old_zus or "")
+            final_folder = target_folder if target_folder is not None else (old_folder or "")
+
+            cursor.execute(
+                "DELETE FROM document_search WHERE file_path = ?",
+                (old_path,)
+            )
+            cursor.execute("""
+                INSERT INTO document_search
+                (file_path, filename, extracted_text, keywords,
+                 korrespondent, kategorie, steuerjahr, betrag,
+                 zusammenfassung, target_folder)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                new_path, final_filename, final_text, final_kw,
+                final_korr, final_kat, final_jahr, final_betrag,
+                final_zus, final_folder,
+            ))
+            conn.commit()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"update_pdf_path Fehler: {e}")
+            return False
+
     def search_documents(
         self,
         query: str,
@@ -479,6 +574,75 @@ class Database:
             return count
         except Exception:
             return 0
+
+    def bulk_index_directory(
+        self,
+        folder: str,
+        recursive: bool = True,
+        analyze: bool = False,
+        progress_callback=None,
+    ) -> dict:
+        """Indiziert alle PDFs in einem Verzeichnis in den Volltext-Suchindex.
+
+        Returns:
+            Dict mit scanned, indexed, skipped, errors.
+        """
+        import sqlite3
+
+        folder_path = Path(folder)
+        pattern = "**/*.pdf" if recursive else "*.pdf"
+        pdf_files = sorted(folder_path.glob(pattern))
+        total = len(pdf_files)
+
+        indexed = 0
+        skipped = 0
+        errors = []
+
+        for i, path in enumerate(pdf_files):
+            if progress_callback is not None:
+                progress_callback(i + 1, total, path)
+
+            try:
+                conn = sqlite3.connect(str(self.db_path))
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM document_search WHERE file_path = ?",
+                    (str(path),)
+                )
+                already_indexed = cursor.fetchone()[0] > 0
+                conn.close()
+
+                if already_indexed:
+                    skipped += 1
+                    continue
+
+                extracted_text = ""
+                kw_str = ""
+
+                if analyze:
+                    from src.core.pdf_analyzer import PDFAnalyzer
+                    with PDFAnalyzer(path) as analyzer:
+                        extracted_text = analyzer.extract_text() or ""
+                        kw_list = analyzer.extract_keywords() or []
+                        kw_str = ", ".join(kw_list)
+
+                self.index_document(
+                    file_path=str(path),
+                    filename=path.name,
+                    extracted_text=extracted_text,
+                    keywords=kw_str,
+                )
+                indexed += 1
+
+            except Exception as e:
+                errors.append((str(path), str(e)))
+
+        return {
+            "scanned": total,
+            "indexed": indexed,
+            "skipped": skipped,
+            "errors": errors,
+        }
 
     # === Sortierhistorie ===
 

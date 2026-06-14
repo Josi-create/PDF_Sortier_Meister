@@ -1234,9 +1234,10 @@ class MainWindow(QMainWindow):
                 )
 
             # Volltext-Suchindex befüllen (Phase 17)
-            self.db.index_document(
-                file_path=str(new_path),
-                filename=new_path.name,
+            self.db.update_pdf_path(
+                old_path=str(pdf_path),
+                new_path=str(new_path),
+                new_filename=new_path.name,
                 extracted_text=self.selected_pdf_text or "",
                 keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
                 korrespondent=metadata.get("korrespondent", "") if metadata else "",
@@ -1312,9 +1313,10 @@ class MainWindow(QMainWindow):
                     self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
 
                 # Volltext-Suchindex befüllen (Phase 17)
-                self.db.index_document(
-                    file_path=str(new_path),
-                    filename=new_path.name,
+                self.db.update_pdf_path(
+                    old_path=str(pdf_path),
+                    new_path=str(new_path),
+                    new_filename=new_path.name,
                     extracted_text=self.selected_pdf_text or "",
                     keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
                     target_folder=relative_path,
