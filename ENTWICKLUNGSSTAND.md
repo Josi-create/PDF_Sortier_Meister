@@ -1,9 +1,9 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 14.06.2026
-**Aktuelle Version:** 0.12.0 (in Entwicklung)
+**Aktuelle Version:** 0.13.0 (in Entwicklung)
 
-> **Was ist neu in v0.12.0?** Siehe [Changelog v0.12.0](#changelog-v0120) am Ende des Dokuments.
+> **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
 ### v0.12.0 (2026-06-14) - Phase 19 RAG-Chat abgeschlossen
@@ -12,6 +12,13 @@
 - M3-Hardening: Signal-Safety, CitationParser-Edge-Cases, Defensiv-Guards
 - Bugfix: Cancel-Cooldown wurde durch _reset_input_state ueberschrieben
 - 112/112 Tests gruen (35 neu fuer RAG-Pipeline)
+
+### v0.13.0 (2026-06-17) - Phase 20+21 abgeschlossen + 5/5 INTEL fertig
+- Phase 20 Korrespondenten-Verwaltung: DB-Tabelle + Sidebar + Edit/Merge-Dialoge
+- Phase 21 Automatisierungs-Regeln: RuleEngine + Settings-Tab mit visuellem Editor
+- 4 Issues geschlossen (#15, #17, #18, #24 - waren vergessen worden)
+- 285/285 Tests gruen (262 -> 285, 23 neue in dieser Version)
+- ENTWICKLUNGSSTAND.md auf v0.13.0
 
 
 ## Abgeschlossene Phasen
@@ -207,7 +214,7 @@
 - [x] **Dokumentation** *(v0.11.0, in Arbeit)*
   - Diese Datei (`ENTWICKLUNGSSTAND.md`) wird mit jedem Sprint aktualisiert
   - README.md vorhanden
-  - Changelog inline unter [Changelog v0.12.0](#changelog-v0120)
+  - Changelog inline unter [Changelog v0.13.0](#changelog-v0130)
 - [ ] Startbildschirm optimieren (schnellere Thumbnail-Ladung, Caching vom letzten Start)
 ### Phase 9: Semi-Automatischer Workflow (offen)
 - [ ] **Schaltfläche "(Semi)-Auto Rename"** in der Toolbar
@@ -336,6 +343,8 @@ Dedizierte Felder für deutschen Steuerbüro-Workflow — Feature das paperless-
 
 ### Phase 20: Korrespondenten-Verwaltung (NEU - Mittlere Priorität)
 
+**Status:** ✅ fertig (Issue #21 closed)
+
 Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
 
 - [ ] **Korrespondenten-Liste** aus Sortierhistorie automatisch aufbauen
@@ -345,6 +354,8 @@ Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
 - [ ] Wird in PDF-XMP-Metadaten als `custom:Korrespondent` persistiert
 
 ### Phase 21: Automatisierungs-Regeln (NEU - Mittlere Priorität)
+
+**Status:** ✅ fertig (Issue #22 closed)
 
 Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisches Sortieren:
 
@@ -442,6 +453,9 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | Bulk-Index-Funktion für Verzeichnisse (RAG-Vorbereitung) | ✅ | v0.11.0 - bulk_index_directory() mit analyze=True/False |
 | Test-Infrastruktur aufgebaut | ✅ | v0.11.0 - 34 pytest-Tests in 3 Suiten, alle grün |
 | Phase 19 RAG-Chat (Issue #20) abgeschlossen | ✅ | v0.12.0 - Chat-Tab, FTS5-Retrieval, LLM-Synthese, Citations, Offline-Fallback, Cancel-Flow, 112/112 Tests |
+| Phase 20 Korrespondenten-Verwaltung (Issue #21) abgeschlossen | ✅ | v0.13.0 - DB `korrespondenten` + Sidebar + Edit/Merge-Dialoge, auto_collect, 34 neue Tests |
+| Phase 21 Automatisierungs-Regeln (Issue #22) abgeschlossen | ✅ | v0.13.0 - RuleEngine (5 Condition, 4 Action-Typen, Confidence) + Settings-Tab mit Editor, 23 neue Tests |
+
 
 ---
 
@@ -621,7 +635,7 @@ python run.py
 
 ---
 
-## Changelog v0.12.0
+## Changelog v0.13.0
 
 **Release-Datum:** 14.06.2026
 **Fokus:** Robustheit, LLM-Metadaten-Extraktion, Such-Filter, Test-Grundlage

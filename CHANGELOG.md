@@ -7,6 +7,44 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-17
+
+### Hinzugefuegt
+- **Phase 20: Korrespondenten-Verwaltung (Issue #21)** - Verwaltungstabelle + GUI-Sidebar
+  - Neue SQLAlchemy-Tabelle `korrespondenten` (Name, Aliase, Kategorie, Farbe, Notizen, usage_count)
+  - CRUD + merge_korrespondenten (FTS5-Update) + auto_collect_from_history
+  - GUI: KorrespondentSidebar im rechten Bereich (Tab "Korrespondenten")
+  - GUI: KorrespondentEditDialog + KorrespondentMergeDialog
+  - Klick auf Korrespondent filtert PDF-Liste
+- **Phase 21: Automatisierungs-Regeln (Issue #22)** - WENN-DANN-Regeln
+  - DB-Tabelle `automation_rules` (priority, enabled, conditions_json, actions_json)
+  - `RuleEngine.evaluate()` + `apply_actions()` mit 5 Condition-Typen
+    (korrespondent, kategorie, betrag, datum, keywords) und 4 Action-Typen
+    (target_folder, filename_pattern, metadata_field, tag)
+  - Platzhalter: {datum}, {steuerjahr}, {korrespondent}, {kategorie},
+    {betrag_brutto}
+  - Confidence-Berechnung (1.0 exakt, 0.8 bei contains, N/M partial)
+  - Settings-Tab "Automatisierungs-Regeln" mit visuellem Rule-Editor
+- **STAB-Block: pytest-qt GUI-Tests** fuer die bestehende Haupt-GUI
+  - 39 neue Tests: FolderWidget (14), RenameDialog (12), MainWindow (13)
+  - Phase-20: 34 neue Tests fuer Korrespondenten-Verwaltung
+  - Phase-21: 23 neue Tests fuer Rule-Edit-Dialog und Settings-Tab
+
+### Geaendert
+- `ENTWICKLUNGSSTAND.md` -> v0.13.0 (Phase 20+21 abgeschlossen)
+
+### Behoben
+- Phase-21: replace_all=true hatte `main_window.py` zwischenzeitlich
+  zerschossen -> via `git checkout` zurueckgesetzt und 3 Move-Pfade
+  sauber einzeln nachgepatcht (kein Produktion-Regression, war vor Commit)
+- Cancel-Cooldown aus M4-Regression nochmal verifiziert (war schon im
+  M4-Commit gefixt)
+
+### Migration
+- Neue Tabelle `korrespondenten` und `automation_rules` werden via
+  idempotenter `CREATE TABLE IF NOT EXISTS`-Migration angelegt -
+  kein Eingriff noetig fuer bestehende Datenbanken
+- CHANGELOG.md-Header v0.12.0 zeigt RAG-Chat (Phase 19)
 ## [0.12.0] - 2026-06-14
 
 ### Hinzugefuegt
@@ -61,3 +99,4 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 [Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.12.0...HEAD
 [0.12.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.10.0...v0.11.0
+[0.13.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.12.0...v0.13.0
