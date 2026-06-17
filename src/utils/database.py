@@ -391,36 +391,162 @@ class Database:
             except Exception as e:
                 print(f"Migration-Warnung fuer pdfs-Tabelle: {e}")
 
+    # Volltext-Suchindex-Schemata (Phase 17 / Issue #25 Phase 2).
+    # Die ``document_search``-Tabelle hat in Phase 2 eine zusaetzliche
+    # ``pdf_id``-Spalte (UNINDEXED) als Verknuepfung zur ``pdfs``-
+    # Master-Tabelle. ``file_path`` bleibt in der Tabelle, damit
+    # bestehende search_documents-Aufrufer unveraendert funktionieren.
+    # Aeltere DBs (vor Phase 2) muessen migriert werden.
+    _FTS5_NEW_SCHEMA: str = """
+        CREATE VIRTUAL TABLE document_search
+        USING fts5(
+            pdf_id UNINDEXED,
+            file_path,
+            filename,
+            extracted_text,
+            keywords,
+            korrespondent,
+            kategorie,
+            steuerjahr,
+            betrag,
+            zusammenfassung,
+            target_folder,
+            tokenize='unicode61'
+        )
+    """
+
     def _create_fts_index(self):
-        """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17)."""
+        """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17).
+
+        Delegiert an ``_migrate_document_search`` (Phase 2 / Issue #25),
+        das idempotent sowohl neue Datenbanken mit dem aktuellen
+        Schema anlegt als auch bestehende Datenbanken von der
+        Phase-1-Schema-Version migriert.
+        """
+        self._migrate_document_search()
+
+    def _migrate_document_search(self) -> None:
+        """Stellt sicher, dass die FTS5-Tabelle das aktuelle Schema hat.
+
+        Drei Faelle (alle idempotent):
+
+        1. Tabelle existiert nicht:
+           - CREATE VIRTUAL TABLE mit aktuellem Schema (inkl. ``pdf_id``)
+        2. Tabelle existiert und hat bereits eine ``pdf_id``-Spalte:
+           - Nichts tun (Migration bereits gelaufen)
+        3. Tabelle existiert ohne ``pdf_id``-Spalte (Phase-1-Schema):
+           - ALTER TABLE RENAME -> ``document_search_v1``
+           - CREATE VIRTUAL TABLE mit aktuellem Schema
+           - Datenmigration: fuer jede Zeile aus ``document_search_v1``
+             wird die ``pdf_id`` aus ``pdfs`` (per ``file_path``)
+             nachgeschlagen oder eine neue UUID angelegt.
+           - ``document_search_v1`` wird gedroppt.
+
+        Die Migration laeuft in einer einzigen Transaktion, damit bei
+        einem Fehler kein halbfertiger Zustand zurueckbleibt.
+        """
         import sqlite3
 
+        conn = sqlite3.connect(str(self.db_path))
         try:
-            conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
-            # FTS5 Virtual Table für Volltextsuche
-            cursor.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS document_search
-                USING fts5(
-                    file_path,
-                    filename,
-                    extracted_text,
-                    keywords,
-                    korrespondent,
-                    kategorie,
-                    steuerjahr,
-                    betrag,
-                    zusammenfassung,
-                    target_folder,
-                    tokenize='unicode61'
-                )
-            """)
+            # 1) Existiert die Tabelle ueberhaupt?
+            cursor.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='document_search'"
+            )
+            table_exists = cursor.fetchone() is not None
 
-            conn.commit()
-            conn.close()
+            if not table_exists:
+                # Frische Datenbank: aktuelles Schema anlegen.
+                cursor.execute(self._FTS5_NEW_SCHEMA)
+                conn.commit()
+                return
+
+            # 2) Hat die existierende Tabelle schon eine pdf_id-Spalte?
+            cursor.execute("PRAGMA table_info(document_search)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "pdf_id" in columns:
+                # Schema ist aktuell: nichts tun.
+                return
+
+            # 3) Migration vom alten (Phase-1-)Schema auf neues Schema.
+            # Alles in einer Transaktion.
+            cursor.execute("BEGIN")
+            try:
+                cursor.execute(
+                    "ALTER TABLE document_search RENAME TO document_search_v1"
+                )
+                cursor.execute(self._FTS5_NEW_SCHEMA)
+
+                # Datenmigration: pro Zeile aus v1 die pdf_id
+                # nachschlagen (per file_path in pdfs) oder neu erzeugen.
+                cursor.execute(
+                    "SELECT rowid, file_path, filename, extracted_text, "
+                    "keywords, korrespondent, kategorie, steuerjahr, "
+                    "betrag, zusammenfassung, target_folder "
+                    "FROM document_search_v1"
+                )
+                now_iso = datetime.utcnow().isoformat()
+                for v1_row in cursor.fetchall():
+                    (
+                        _v1_rowid,
+                        v1_path,
+                        v1_filename,
+                        v1_text,
+                        v1_kw,
+                        v1_korr,
+                        v1_kat,
+                        v1_jahr,
+                        v1_betrag,
+                        v1_zus,
+                        v1_folder,
+                    ) = v1_row
+
+                    # pdf_id aus Master-Tabelle (Phase 1) holen oder neu anlegen.
+                    pdfs_row = self._get_pdf_row_by_path(cursor, v1_path)
+                    if pdfs_row is not None:
+                        pdf_id = pdfs_row[0]
+                    else:
+                        pdf_id = self._ensure_pdf_id(
+                            cursor,
+                            v1_path,
+                            v1_filename or Path(v1_path).name if v1_path else "",
+                            None,
+                            now_iso,
+                        )
+
+                    cursor.execute(
+                        "INSERT INTO document_search "
+                        "(pdf_id, file_path, filename, extracted_text, keywords, "
+                        "korrespondent, kategorie, steuerjahr, betrag, "
+                        "zusammenfassung, target_folder) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            pdf_id,
+                            v1_path or "",
+                            v1_filename or "",
+                            v1_text or "",
+                            v1_kw or "",
+                            v1_korr or "",
+                            v1_kat or "",
+                            v1_jahr or "",
+                            v1_betrag or "",
+                            v1_zus or "",
+                            v1_folder or "",
+                        ),
+                    )
+
+                cursor.execute("DROP TABLE document_search_v1")
+                cursor.execute("COMMIT")
+            except Exception:
+                cursor.execute("ROLLBACK")
+                raise
         except Exception as e:
-            print(f"FTS5-Index Warnung: {e}")
+            print(f"FTS5-Migration Warnung: {e}")
+        finally:
+            conn.close()
 
     # === Volltextsuche (Phase 17) ===
 
@@ -442,6 +568,13 @@ class Database:
 
         Wird beim Verschieben/Sortieren aufgerufen, damit das Dokument
         später per Suche gefunden werden kann.
+
+        Phase 2 (Issue #25): Vor dem INSERT in ``document_search`` wird
+        ueber ``get_or_create_pdf_id`` sichergestellt, dass ein
+        passender ``pdfs``-Master-Eintrag existiert. Die ``pdf_id``
+        wird in der FTS5-Tabelle als UNINDEXED-Spalte persistiert,
+        damit Suchergebnisse eine stabile Identitaet haben (ueberlebt
+        Moves und Renames).
         """
         import sqlite3
 
@@ -449,21 +582,24 @@ class Database:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
 
+            # Phase 2: stabile pdf_id aus Master-Tabelle (oder neu anlegen).
+            pdf_id = self.get_or_create_pdf_id(file_path, filename)
+
             # Alten Eintrag für diesen Pfad löschen (falls vorhanden)
             cursor.execute(
                 "DELETE FROM document_search WHERE file_path = ?",
                 (file_path,)
             )
 
-            # Neuen Eintrag einfügen
+            # Neuen Eintrag einfügen (Phase 2: inkl. pdf_id)
             cursor.execute("""
                 INSERT INTO document_search
-                (file_path, filename, extracted_text, keywords,
+                (pdf_id, file_path, filename, extracted_text, keywords,
                  korrespondent, kategorie, steuerjahr, betrag,
                  zusammenfassung, target_folder)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                file_path, filename, _truncate_extracted_text(extracted_text or ""), keywords or "",
+                pdf_id, file_path, filename, _truncate_extracted_text(extracted_text or ""), keywords or "",
                 korrespondent or "", kategorie or "", steuerjahr or "",
                 betrag or "", zusammenfassung or "", target_folder or "",
             ))
@@ -530,11 +666,12 @@ class Database:
 
                 cursor.execute("""
                     INSERT INTO document_search
-                    (file_path, filename, extracted_text, keywords,
+                    (pdf_id, file_path, filename, extracted_text, keywords,
                      korrespondent, kategorie, steuerjahr, betrag,
                      zusammenfassung, target_folder)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
+                    pdf_id,
                     new_path,
                     new_filename or Path(new_path).name,
                     _truncate_extracted_text(extracted_text or ""),
@@ -570,16 +707,26 @@ class Database:
             final_zus = zusammenfassung if zusammenfassung is not None else (old_zus or "")
             final_folder = target_folder if target_folder is not None else (old_folder or "")
 
+            # pdfs-Master-Eintrag: erzeugen falls fehlt, dann Pfad/Filename updaten.
+            # Die ``pdf_id`` wird hier gleich mitermittelt, damit das
+            # nachfolgende document_search-UPDATE sie in Phase 2 mitschreiben
+            # kann (sonst waere der Eintrag nach dem Update ohne pdf_id).
+            pdf_id = self._ensure_pdf_id(
+                cursor, old_path, old_fn, pdfs_row, now_iso
+            )
+
             # UPDATE statt DELETE+INSERT: Metadaten (z.B. LLM-Suggestionen)
             # bleiben erhalten. file_path/filename werden ueberschrieben;
             # explizit uebergebene Metadaten ueberschreiben die alten Werte.
+            # Phase 2: ``pdf_id`` wird explizit mitgeschrieben.
             cursor.execute("""
                 UPDATE document_search
-                SET file_path = ?, filename = ?, extracted_text = ?, keywords = ?,
-                    korrespondent = ?, kategorie = ?, steuerjahr = ?, betrag = ?,
-                    zusammenfassung = ?, target_folder = ?
+                SET pdf_id = ?, file_path = ?, filename = ?, extracted_text = ?,
+                    keywords = ?, korrespondent = ?, kategorie = ?, steuerjahr = ?,
+                    betrag = ?, zusammenfassung = ?, target_folder = ?
                 WHERE rowid = ?
             """, (
+                pdf_id,
                 new_path, final_filename,
                 _truncate_extracted_text(final_text), final_kw,
                 final_korr, final_kat, final_jahr, final_betrag,
@@ -587,10 +734,6 @@ class Database:
                 rowid,
             ))
 
-            # pdfs-Master-Eintrag: erzeugen falls fehlt, dann Pfad/Filename updaten
-            pdf_id = self._ensure_pdf_id(
-                cursor, old_path, old_fn, pdfs_row, now_iso
-            )
             self._update_pdf_master(
                 cursor, pdf_id, file_path=new_path,
                 filename=new_filename, now_iso=now_iso,
@@ -841,6 +984,7 @@ class Database:
         datum_bis: str = "",
         betrag_von: float = 0.0,
         betrag_bis: float = 0.0,
+        pdf_id: str = "",
     ) -> list[dict]:
         """
         Durchsucht alle indexierten Dokumente per Volltextsuche.
@@ -849,6 +993,11 @@ class Database:
         passenden Dokumente zurückgegeben. datum_von/datum_bis (YYYY-MM-DD)
         werden gegen das Steuerjahr verglichen (Jahresanteil).
         betrag_von/betrag_bis = 0 bedeutet inaktiv.
+
+        Phase 2 (Issue #25): Jedes Result enthaelt zusaetzlich ``pdf_id``
+        (stabile UUID aus der ``pdfs``-Master-Tabelle) und es kann
+        optional nach einer konkreten ``pdf_id`` gefiltert werden
+        (exakter Match; rueckwaertskompatibel - Default ``""`` = inaktiv).
         """
         import sqlite3
 
@@ -857,6 +1006,7 @@ class Database:
             steuerjahr, kategorie, korrespondent,
             datum_von, datum_bis,
             betrag_von > 0, betrag_bis > 0,
+            pdf_id,
         ])
 
         if not has_text and not has_filter:
@@ -911,6 +1061,10 @@ class Database:
                 conditions.append("CAST(NULLIF(betrag, '') AS REAL) <= ?")
                 params.append(betrag_bis)
 
+            if pdf_id:
+                conditions.append("pdf_id = ?")
+                params.append(pdf_id)
+
             where_clause = " AND ".join(conditions)
 
             if has_text:
@@ -923,6 +1077,7 @@ class Database:
             params.append(limit)
             cursor.execute(f"""
                 SELECT
+                    pdf_id,
                     file_path,
                     filename,
                     {snippet_expr} as text_snippet,
@@ -942,16 +1097,17 @@ class Database:
             results = []
             for row in cursor.fetchall():
                 results.append({
-                    "file_path": row[0],
-                    "filename": row[1],
-                    "text_snippet": row[2],
-                    "keywords": row[3],
-                    "korrespondent": row[4],
-                    "kategorie": row[5],
-                    "steuerjahr": row[6],
-                    "betrag": row[7],
-                    "zusammenfassung": row[8],
-                    "target_folder": row[9],
+                    "pdf_id": row[0],
+                    "file_path": row[1],
+                    "filename": row[2],
+                    "text_snippet": row[3],
+                    "keywords": row[4],
+                    "korrespondent": row[5],
+                    "kategorie": row[6],
+                    "steuerjahr": row[7],
+                    "betrag": row[8],
+                    "zusammenfassung": row[9],
+                    "target_folder": row[10],
                 })
 
             conn.close()
