@@ -5,6 +5,7 @@ Speichert die Sortierhistorie für das lernfähige Klassifikationssystem.
 """
 
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -192,6 +193,36 @@ class AutomationRule(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PDFMaster(Base):
+    """Master-Tabelle fuer eindeutige PDF-Identitaet (Issue #25 / Phase 1).
+
+    Bildet eine physische PDF-Datei ueber ihren Lebenszyklus (Index,
+    Verschieben, Umbenennen) auf eine stabile ``pdf_id`` (UUID) ab.
+    ``file_path`` und ``filename`` werden bei Moves aktualisiert;
+    die ``pdf_id`` bleibt konstant und ist der primaere Schluessel
+    fuer Verknuepfungen mit anderen Tabellen (LLM-Cache, Historie, etc.).
+
+    Felder:
+        pdf_id: Primaerschluessel (UUID als Hex-String)
+        file_path: Aktueller absoluter Pfad (eindeutig; aendert sich bei Move)
+        filename: Aktueller Dateiname (aendert sich bei Rename)
+        indexed_at: ISO-Datetime der ersten Indizierung
+        last_seen_at: ISO-Datetime der letzten Sichtung (Move/Rename)
+        size_bytes: Dateigroesse in Bytes (optional)
+        page_count: Seitenzahl (optional)
+    """
+
+    __tablename__ = "pdfs"
+
+    pdf_id = Column(String(36), primary_key=True, nullable=False)
+    file_path = Column(String(2000), nullable=False, unique=True)
+    filename = Column(String(500), nullable=False)
+    indexed_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+    size_bytes = Column(Integer, nullable=True)
+    page_count = Column(Integer, nullable=True)
+
+
 
 
 # Maximale Laenge des extrahierten Textes pro Row in document_search
@@ -340,6 +371,26 @@ class Database:
             except Exception as e:
                 print(f"Migration-Warnung fuer automation_rules-Tabelle: {e}")
 
+            # Phase 1 (Issue #25): Master-Tabelle fuer PDF-Identitaet.
+            # Jede indizierte PDF erhaelt eine stabile UUID (pdf_id), die
+            # Verschieben und Umbenennen ueberlebt. file_path/filename
+            # werden bei Moves aktualisiert (idempotente Anlage).
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS pdfs (
+                        pdf_id TEXT PRIMARY KEY,
+                        file_path TEXT UNIQUE NOT NULL,
+                        filename TEXT NOT NULL,
+                        indexed_at TEXT,
+                        last_seen_at TEXT,
+                        size_bytes INTEGER,
+                        page_count INTEGER
+                    )
+                """))
+                conn.commit()
+            except Exception as e:
+                print(f"Migration-Warnung fuer pdfs-Tabelle: {e}")
+
     def _create_fts_index(self):
         """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17)."""
         import sqlite3
@@ -438,9 +489,14 @@ class Database:
     ) -> bool:
         """Verschiebt einen Suchindex-Eintrag atomar von old_path zu new_path.
 
-        Felder aus dem alten Eintrag werden kopiert; explizit übergebene
+        Felder aus dem alten Eintrag werden beibehalten; explizit übergebene
         Parameter überschreiben die kopierten Werte. Gibt True zurück wenn
         Daten migriert/angelegt wurden, False bei No-op.
+
+        Phase 1 (Issue #25): Statt DELETE+INSERT wird der vorhandene Eintrag
+        per UPDATE migriert, damit Metadaten und LLM-bezogene Felder
+        erhalten bleiben. Die Master-Tabelle ``pdfs`` wird konsistent
+        mitgepflegt (file_path/filename/last_seen_at aktualisiert).
         """
         import sqlite3
 
@@ -452,14 +508,26 @@ class Database:
             cursor = conn.cursor()
 
             cursor.execute(
-                "SELECT filename, extracted_text, keywords, korrespondent, "
+                "SELECT rowid, filename, extracted_text, keywords, korrespondent, "
                 "kategorie, steuerjahr, betrag, zusammenfassung, target_folder "
                 "FROM document_search WHERE file_path = ?",
                 (old_path,)
             )
             row = cursor.fetchone()
 
+            # pdfs-Master-Eintrag (Lookup by old_path) - koennte bereits
+            # durch get_or_create_pdf_id angelegt worden sein.
+            pdfs_row = self._get_pdf_row_by_path(cursor, old_path)
+
+            now_iso = datetime.utcnow().isoformat()
+
             if row is None:
+                # Kein alter document_search-Eintrag: neuen anlegen,
+                # ggf. pdfs-Master neu erzeugen oder den vorhandenen wiederverwenden.
+                pdf_id = self._ensure_pdf_id(
+                    cursor, old_path, new_filename, pdfs_row, now_iso
+                )
+
                 cursor.execute("""
                     INSERT INTO document_search
                     (file_path, filename, extracted_text, keywords,
@@ -469,7 +537,7 @@ class Database:
                 """, (
                     new_path,
                     new_filename or Path(new_path).name,
-                    extracted_text or "",
+                    _truncate_extracted_text(extracted_text or ""),
                     keywords or "",
                     korrespondent or "",
                     kategorie or "",
@@ -478,11 +546,19 @@ class Database:
                     zusammenfassung or "",
                     target_folder or "",
                 ))
+
+                # pdfs-Pfad konsistent halten (kann alter Pfad gewesen sein)
+                if old_path != new_path or new_filename is not None:
+                    self._update_pdf_master(
+                        cursor, pdf_id, file_path=new_path,
+                        filename=new_filename, now_iso=now_iso,
+                    )
+
                 conn.commit()
                 conn.close()
                 return True
 
-            old_fn, old_text, old_kw, old_korr, old_kat, old_jahr, old_betrag, old_zus, old_folder = row
+            rowid, old_fn, old_text, old_kw, old_korr, old_kat, old_jahr, old_betrag, old_zus, old_folder = row
 
             final_filename = new_filename if new_filename is not None else old_fn
             final_text = extracted_text if extracted_text is not None else (old_text or "")
@@ -494,21 +570,32 @@ class Database:
             final_zus = zusammenfassung if zusammenfassung is not None else (old_zus or "")
             final_folder = target_folder if target_folder is not None else (old_folder or "")
 
-            cursor.execute(
-                "DELETE FROM document_search WHERE file_path = ?",
-                (old_path,)
-            )
+            # UPDATE statt DELETE+INSERT: Metadaten (z.B. LLM-Suggestionen)
+            # bleiben erhalten. file_path/filename werden ueberschrieben;
+            # explizit uebergebene Metadaten ueberschreiben die alten Werte.
             cursor.execute("""
-                INSERT INTO document_search
-                (file_path, filename, extracted_text, keywords,
-                 korrespondent, kategorie, steuerjahr, betrag,
-                 zusammenfassung, target_folder)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                UPDATE document_search
+                SET file_path = ?, filename = ?, extracted_text = ?, keywords = ?,
+                    korrespondent = ?, kategorie = ?, steuerjahr = ?, betrag = ?,
+                    zusammenfassung = ?, target_folder = ?
+                WHERE rowid = ?
             """, (
-                new_path, final_filename, final_text, final_kw,
+                new_path, final_filename,
+                _truncate_extracted_text(final_text), final_kw,
                 final_korr, final_kat, final_jahr, final_betrag,
                 final_zus, final_folder,
+                rowid,
             ))
+
+            # pdfs-Master-Eintrag: erzeugen falls fehlt, dann Pfad/Filename updaten
+            pdf_id = self._ensure_pdf_id(
+                cursor, old_path, old_fn, pdfs_row, now_iso
+            )
+            self._update_pdf_master(
+                cursor, pdf_id, file_path=new_path,
+                filename=new_filename, now_iso=now_iso,
+            )
+
             conn.commit()
             conn.close()
             return True
@@ -516,6 +603,232 @@ class Database:
         except Exception as e:
             print(f"update_pdf_path Fehler: {e}")
             return False
+
+    # === pdfs Master-Tabelle (Issue #25 / Phase 1) ===
+
+    def _generate_pdf_id(self) -> str:
+        """Erzeugt eine neue UUID fuer die pdfs-Master-Tabelle.
+
+        Verwendet ``uuid.uuid4().hex`` (32 Zeichen ohne Bindestriche),
+        das als PRIMARY KEY in ``pdfs`` dient. Hex-Form ist in
+        Logs und URLs handlicher als die Standard-URN-Darstellung.
+        """
+        return uuid.uuid4().hex
+
+    def get_or_create_pdf_id(self, file_path: str, filename: str) -> str:
+        """Gibt die stabile ``pdf_id`` fuer ``file_path`` zurueck.
+
+        Existiert bereits ein Eintrag in ``pdfs`` mit diesem Pfad,
+        wird der vorhandene ``pdf_id`` ohne Update zurueckgegeben
+        (idempotent). Andernfalls wird ein neuer Eintrag mit
+        frischer UUID angelegt und ``indexed_at`` auf jetzt gesetzt.
+
+        Args:
+            file_path: Aktueller absoluter Pfad der PDF.
+            filename: Aktueller Dateiname (zur Initial-Anlage).
+
+        Returns:
+            Die ``pdf_id`` (32-Zeichen-Hex-UUID) als String.
+        """
+        import sqlite3
+
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT pdf_id FROM pdfs WHERE file_path = ?",
+                (file_path,)
+            )
+            row = cursor.fetchone()
+            if row is not None:
+                return row[0]
+
+            pdf_id = self._generate_pdf_id()
+            now_iso = datetime.utcnow().isoformat()
+            cursor.execute(
+                "INSERT INTO pdfs (pdf_id, file_path, filename, indexed_at, last_seen_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pdf_id, file_path, filename, now_iso, now_iso),
+            )
+            conn.commit()
+            return pdf_id
+
+    def update_pdf_metadata(
+        self,
+        pdf_id: str,
+        file_path: Optional[str] = None,
+        filename: Optional[str] = None,
+    ) -> bool:
+        """Aktualisiert ``file_path`` und/oder ``filename`` fuer eine ``pdf_id``.
+
+        Setzt ``last_seen_at`` immer auf die aktuelle Zeit. Wenn
+        ``pdf_id`` noch nicht existiert, wird ein neuer Eintrag mit
+        ``indexed_at = last_seen_at = now`` angelegt (UPSERT-Verhalten
+        fuer Edge-Cases, in denen ``get_or_create_pdf_id`` noch nicht
+        gelaufen ist).
+
+        Args:
+            pdf_id: Primaerschluessel der Master-Tabelle.
+            file_path: Optional, neuer Pfad.
+            filename: Optional, neuer Dateiname.
+
+        Returns:
+            ``True`` bei Erfolg, ``False`` bei DB-Fehler.
+        """
+        import sqlite3
+
+        try:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                cursor = conn.cursor()
+                now_iso = datetime.utcnow().isoformat()
+
+                cursor.execute(
+                    "SELECT 1 FROM pdfs WHERE pdf_id = ?",
+                    (pdf_id,)
+                )
+                exists = cursor.fetchone() is not None
+
+                if exists:
+                    sets = ["last_seen_at = ?"]
+                    params: list = [now_iso]
+                    if file_path is not None:
+                        sets.append("file_path = ?")
+                        params.append(file_path)
+                    if filename is not None:
+                        sets.append("filename = ?")
+                        params.append(filename)
+                    params.append(pdf_id)
+                    cursor.execute(
+                        f"UPDATE pdfs SET {', '.join(sets)} WHERE pdf_id = ?",
+                        params,
+                    )
+                else:
+                    # UPSERT: neuen Eintrag anlegen
+                    cursor.execute(
+                        "INSERT INTO pdfs (pdf_id, file_path, filename, "
+                        "indexed_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+                        (
+                            pdf_id,
+                            file_path if file_path is not None else "",
+                            filename if filename is not None else "",
+                            now_iso,
+                            now_iso,
+                        ),
+                    )
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"update_pdf_metadata Fehler: {e}")
+            return False
+
+    def get_pdf_by_path(self, file_path: str) -> Optional[dict]:
+        """Liefert den pdfs-Master-Eintrag fuer ``file_path`` als Dict.
+
+        Args:
+            file_path: Aktueller absoluter Pfad der PDF.
+
+        Returns:
+            Dict mit den Schluesseln ``pdf_id``, ``file_path``,
+            ``filename``, ``indexed_at``, ``last_seen_at``,
+            ``size_bytes``, ``page_count`` oder ``None`` falls
+            kein Eintrag existiert.
+        """
+        import sqlite3
+
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT pdf_id, file_path, filename, indexed_at, last_seen_at, "
+                "size_bytes, page_count FROM pdfs WHERE file_path = ?",
+                (file_path,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return {
+                "pdf_id": row["pdf_id"],
+                "file_path": row["file_path"],
+                "filename": row["filename"],
+                "indexed_at": row["indexed_at"],
+                "last_seen_at": row["last_seen_at"],
+                "size_bytes": row["size_bytes"],
+                "page_count": row["page_count"],
+            }
+
+    # === Interne Helfer fuer pdfs-Master (Issue #25 / Phase 1) ===
+
+    @staticmethod
+    def _get_pdf_row_by_path(cursor, file_path: str) -> Optional[tuple]:
+        """Lookup in ``pdfs`` per ``file_path``. Gibt ``(pdf_id, filename)`` oder ``None`` zurueck.
+
+        Wird intern von ``update_pdf_path`` verwendet, um zu entscheiden ob
+        der Master-Eintrag wiederverwendet oder neu angelegt wird.
+        """
+        cursor.execute(
+            "SELECT pdf_id, filename FROM pdfs WHERE file_path = ?",
+            (file_path,)
+        )
+        return cursor.fetchone()
+
+    @staticmethod
+    def _ensure_pdf_id(
+        cursor,
+        old_path: str,
+        fallback_filename: Optional[str],
+        existing_pdfs_row: Optional[tuple],
+        now_iso: str,
+    ) -> str:
+        """Stellt sicher, dass ein pdfs-Eintrag existiert und liefert die pdf_id.
+
+        Verwendet ``existing_pdfs_row`` wenn vorhanden, sonst wird ein
+        neuer Eintrag angelegt. ``old_path`` wird als initialer Pfad
+        genutzt; ein spaeteres ``_update_pdf_master``-Call setzt den
+        finalen neuen Pfad.
+        """
+        if existing_pdfs_row is not None:
+            return existing_pdfs_row[0]
+
+        pdf_id = uuid.uuid4().hex
+        cursor.execute(
+            "INSERT INTO pdfs (pdf_id, file_path, filename, indexed_at, last_seen_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                pdf_id,
+                old_path,
+                fallback_filename or "",
+                now_iso,
+                now_iso,
+            ),
+        )
+        return pdf_id
+
+    @staticmethod
+    def _update_pdf_master(
+        cursor,
+        pdf_id: str,
+        file_path: Optional[str] = None,
+        filename: Optional[str] = None,
+        now_iso: Optional[str] = None,
+    ) -> None:
+        """Aktualisiert den pdfs-Eintrag fuer ``pdf_id`` (Path/Filename/last_seen_at).
+
+        Wird von ``update_pdf_path`` aufgerufen. Setzt nur Felder die
+        explizit uebergeben wurden (``None`` = nicht aendern, ausser
+        ``last_seen_at`` welches immer aktualisiert wird).
+        """
+        sets = ["last_seen_at = ?"]
+        params: list = [now_iso or datetime.utcnow().isoformat()]
+        if file_path is not None:
+            sets.append("file_path = ?")
+            params.append(file_path)
+        if filename is not None:
+            sets.append("filename = ?")
+            params.append(filename)
+        params.append(pdf_id)
+        cursor.execute(
+            f"UPDATE pdfs SET {', '.join(sets)} WHERE pdf_id = ?",
+            params,
+        )
 
     def search_documents(
         self,
