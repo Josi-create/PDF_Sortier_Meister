@@ -30,11 +30,15 @@ class Citation:
             Marker ohne Footer-Zeile gefunden wurde und der Index
             nicht in den retrieved docs liegt).
         file_path: Absoluter Dateipfad, sofern ermittelbar.
+        pdf_id: Stabile 32-stellige Hex-UUID aus der ``pdfs``-Master-
+            Tabelle (Phase 3, Issue #25). Default leerer String, damit
+            alte Aufrufer (ohne DB-Lookup) nicht brechen.
         valid: ``True`` wenn der Index zu einem retrieved Doc passt.
     """
     index: int
     filename: str = ""
     file_path: str = ""
+    pdf_id: str = ""
     valid: bool = False
 
 
@@ -87,18 +91,20 @@ class CitationParser:
                 idx = doc.get("index")
                 fn = doc.get("filename", "")
                 fp = doc.get("file_path", "")
+                pid = doc.get("pdf_id", "")
             else:
                 # RetrievedDoc-Instanz
                 idx = getattr(doc, "index", None)
                 fn = getattr(doc, "filename", "")
                 fp = getattr(doc, "file_path", "")
+                pid = getattr(doc, "pdf_id", "")
             if idx is None:
                 continue
             try:
                 idx = int(idx)
             except (TypeError, ValueError):
                 continue
-            whitelist[idx] = {"filename": fn, "file_path": fp}
+            whitelist[idx] = {"filename": fn, "file_path": fp, "pdf_id": pid}
 
         # 1) Footer-Zeilen einsammeln (fuer zusaetzliche Whitelist-Updates).
         for m in self.FOOTER_PATTERN.finditer(raw_answer):
@@ -143,6 +149,9 @@ class CitationParser:
                     index=idx,
                     filename=entry.get("filename", ""),
                     file_path=entry.get("file_path", ""),
+                    # Phase 3 (Issue #25): pdf_id aus der Whitelist
+                    # uebernehmen (default "", wenn nicht vorhanden).
+                    pdf_id=entry.get("pdf_id", ""),
                     valid=True,
                 ))
             else:
@@ -150,6 +159,7 @@ class CitationParser:
                     index=idx,
                     filename="",
                     file_path="",
+                    pdf_id="",
                     valid=False,
                 ))
 

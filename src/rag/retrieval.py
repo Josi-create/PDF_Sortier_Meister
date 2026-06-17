@@ -99,6 +99,10 @@ class RetrievedDoc:
     steuerjahr: str = ""
     betrag: str = ""
     korrespondent: str = ""
+    # Phase 3 (Issue #25): stabile 32-stellige Hex-UUID aus der
+    # ``pdfs``-Master-Tabelle. Default leerer String, damit alte
+    # Aufrufer (ohne DB-Lookup) nicht brechen.
+    pdf_id: str = ""
     # Optional: Score aus FTS5 (rank). Niedriger = besser.
     extra: dict = field(default_factory=dict)
 
@@ -256,6 +260,10 @@ class RetrievalService:
             steuerjahr=raw.get("steuerjahr", "") or "",
             betrag=raw.get("betrag", "") or "",
             korrespondent=raw.get("korrespondent", "") or "",
+            # Phase 3 (Issue #25): pdf_id aus dem DB-Dict uebernehmen.
+            # Default "", damit alte Aufrufer ohne pdf_id-Feld nicht
+            # brechen (rueckwaertskompatibel).
+            pdf_id=raw.get("pdf_id", "") or "",
         )
 
     @staticmethod

@@ -233,8 +233,16 @@ class ChatView(QWidget):
 
         if citations:
             bubble.setText(self._render_citations(text, citations))
-            # Mapping index -> file_path fuer linkActivated
-            cite_map = {str(c.index): c.file_path for c in citations}
+            # Phase 3 (Issue #25): Mapping index -> {"file_path", "pdf_id"}.
+            # Aelterer Aufrufer (nur file_path als String) wird in
+            # ``_on_citation_link`` defensiv gehandhabt.
+            cite_map = {
+                str(c.index): {
+                    "file_path": c.file_path,
+                    "pdf_id": getattr(c, "pdf_id", "") or "",
+                }
+                for c in citations
+            }
             bubble.linkActivated.connect(
                 lambda href, m=cite_map: self._on_citation_link(href, m)
             )
@@ -513,22 +521,93 @@ class ChatView(QWidget):
             label = f"D{doc.index}: {doc.filename}"
             if meta_parts:
                 label += f"  ({' | '.join(meta_parts)})"
+            # Phase 3 (Issue #25): gekuerzte pdf_id im Label, sofern vorhanden.
+            pdf_id = getattr(doc, "pdf_id", "") or ""
+            if pdf_id:
+                short_id = pdf_id[:8] if len(pdf_id) >= 8 else pdf_id
+                label += f"  [#{short_id}…]"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, doc.file_path)
-            item.setToolTip(doc.file_path)
+            # Phase 3 (Issue #25): pdf_id in einer zusaetzlichen Rolle
+            # speichern, damit _on_source_clicked sie bevorzugt
+            # auswerten kann.
+            if pdf_id:
+                item.setData(Qt.ItemDataRole.UserRole + 1, pdf_id)
+            # toolTip enthaelt Pfad + pdf_id (falls vorhanden)
+            tooltip = doc.file_path
+            if pdf_id:
+                tooltip = (
+                    f"{tooltip}\npdf_id: {pdf_id}" if tooltip
+                    else f"pdf_id: {pdf_id}"
+                )
+            item.setToolTip(tooltip)
             self.sources_list.addItem(item)
 
     def _on_source_clicked(self, item: QListWidgetItem) -> None:
-        """Oeffnet die zum Quellen-Eintrag gehoerende PDF."""
+        """Oeffnet die zum Quellen-Eintrag gehoerende PDF.
+
+        Phase 3 (Issue #25): Wenn der Eintrag eine ``pdf_id`` hat,
+        wird diese bevorzugt (DB-Lookup holt den aktuellen Pfad),
+        damit z.B. nach einem Move die korrekte Datei geoeffnet wird.
+        Fallback: ``file_path`` (alter Pfad) wird verwendet.
+        """
         file_path = item.data(Qt.ItemDataRole.UserRole)
-        if file_path:
-            self.open_pdf_requested.emit(file_path)
+        pdf_id = item.data(Qt.ItemDataRole.UserRole + 1)
+        resolved = self._resolve_file_path(file_path, pdf_id)
+        if resolved:
+            self.open_pdf_requested.emit(resolved)
 
     def _on_citation_link(self, href: str, cite_map: dict) -> None:
-        """Mappt einen geklickten Citation-Link auf eine PDF."""
-        file_path = cite_map.get(href)
-        if file_path:
-            self.open_pdf_requested.emit(file_path)
+        """Mappt einen geklickten Citation-Link auf eine PDF.
+
+        Phase 3 (Issue #25): ``cite_map`` enthaelt jetzt optional die
+        ``pdf_id`` als Value (siehe ``_add_bubble``). Wenn vorhanden,
+        wird die pdf_id bevorzugt (DB-Lookup), sonst der alte
+        ``file_path``-Wert. So funktionieren alte Aufrufer weiterhin.
+        """
+        if not cite_map:
+            return
+        entry = cite_map.get(href)
+        if not entry:
+            return
+        # Rueckwaertskompatibel: alter Aufrufer uebergibt einen
+        # reinen ``file_path``-String, neue Aufrufer ein Dict mit
+        # ``file_path`` und ``pdf_id``.
+        if isinstance(entry, dict):
+            file_path = entry.get("file_path", "")
+            pdf_id = entry.get("pdf_id", "")
+        else:
+            file_path = entry
+            pdf_id = ""
+        resolved = self._resolve_file_path(file_path, pdf_id)
+        if resolved:
+            self.open_pdf_requested.emit(resolved)
+
+    def _resolve_file_path(
+        self, file_path: str = "", pdf_id: str = ""
+    ) -> str:
+        """Loest einen zu oeffnenden Dateipfad auf.
+
+        Reihenfolge:
+        1. ``pdf_id`` (falls gesetzt) -> DB-Lookup via
+           ``db.search_documents(pdf_id=...)`` -> nimmt den
+           ``file_path`` des ersten Treffers.
+        2. ``file_path`` (Fallback) -> direkt verwenden.
+
+        Defensiv: DB-Fehler werden geschluckt, damit der Fallback
+        greift. Liefert einen leeren String, wenn beides fehlschlaegt.
+        """
+        if pdf_id:
+            try:
+                if self.db is not None and hasattr(self.db, "search_documents"):
+                    results = self.db.search_documents("", pdf_id=pdf_id) or []
+                    if results:
+                        rp = results[0].get("file_path", "")
+                        if rp:
+                            return rp
+            except Exception:  # noqa: BLE001 - defensiv
+                pass
+        return file_path or ""
 
     def _toggle_sources(self) -> None:
         """Blendet die Quellen-Liste ein/aus (collapsible)."""

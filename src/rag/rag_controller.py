@@ -168,6 +168,10 @@ class RAGController:
                         "index": c.index,
                         "filename": c.filename,
                         "file_path": c.file_path,
+                        # Phase 3 (Issue #25): pdf_id in der Historie
+                        # mitschreiben, damit spaetere Folgefragen den
+                        # stabilen Identitaetsanker haben.
+                        "pdf_id": c.pdf_id,
                     }
                     for c in response.citations
                 ],
@@ -289,6 +293,9 @@ class RAGController:
             "betrag": getattr(doc, "betrag", ""),
             "korrespondent": getattr(doc, "korrespondent", ""),
             "text_snippet": getattr(doc, "text_snippet", ""),
+            # Phase 3 (Issue #25): pdf_id in den Prompt-Dict
+            # durchreichen, damit LLM-Provider sie ebenfalls sehen.
+            "pdf_id": getattr(doc, "pdf_id", ""),
         }
 
     def _cache_key(self, question: str) -> str:

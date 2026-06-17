@@ -307,6 +307,134 @@ def test_open_pdf_requested_signal_for_source_click(qtbot, chat_view):
 
 
 # --------------------------------------------------------------------- #
+# 6) Phase 3 (Issue #25): pdf_id-Preferenz beim PDF-Oeffnen
+# --------------------------------------------------------------------- #
+
+
+def test_source_click_uses_pdf_id_via_db_lookup(qtbot, tmp_path):
+    """Klick auf einen Quellen-Eintrag mit gesetzter ``pdf_id`` loest
+    einen DB-Lookup aus und emittiert den aktuellen ``file_path`` aus
+    der DB (nicht den ggf. veralteten Wert im Item).
+
+    Phase 3 (Issue #25): pdf_id ist der stabile Identitaetsanker.
+    """
+    from src.utils.database import Database
+    from src.gui.chat_view import ChatView
+    from src.utils.config import ChatConfig
+    from PyQt6.QtWidgets import QListWidgetItem
+    from PyQt6.QtCore import Qt as _Qt
+
+    # Echte DB mit einem Dokument
+    db = Database(db_path=str(tmp_path / "chatview_pdfid.db"))
+    db.index_document(
+        file_path="/real/path/to/aktuell.pdf",
+        filename="aktuell.pdf",
+        extracted_text="Aktueller Inhalt",
+    )
+    # pdf_id dieses Dokuments holen
+    raw = db.search_documents("aktuell", limit=1)
+    assert raw, "Test-Setup fehlerhaft: kein DB-Treffer"
+    pid = raw[0]["pdf_id"]
+    assert len(pid) == 32
+
+    view = ChatView(db=db, hybrid_classifier=_StubLLM(),
+                    chat_config=ChatConfig())
+    qtbot.addWidget(view)
+
+    # Quellen-Item mit (alter) file_path + pdf_id simulieren.
+    # Der alte file_path weicht bewusst vom echten DB-Pfad ab,
+    # damit der Test prueft, dass die pdf_id bevorzugt wird.
+    item = QListWidgetItem(f"D1: aktuell.pdf  [#{pid[:8]}…]")
+    item.setData(_Qt.ItemDataRole.UserRole, "/alter/falscher/pfad.pdf")
+    item.setData(_Qt.ItemDataRole.UserRole + 1, pid)
+    view.sources_list.addItem(item)
+
+    # Klick -> open_pdf_requested muss den DB-Pfad liefern, NICHT
+    # den veralteten file_path.
+    with qtbot.waitSignal(
+        view.open_pdf_requested, timeout=2000
+    ) as signal:
+        view.sources_list.itemClicked.emit(item)
+
+    args = signal.args
+    # Der DB-Pfad wurde aufgeloest
+    assert args == ["/real/path/to/aktuell.pdf"]
+
+
+def test_source_click_falls_back_to_file_path_when_no_pdf_id(qtbot, chat_view):
+    """Ohne ``pdf_id`` im Item faellt der Lookup auf ``file_path``
+    zurueck (alte Aufrufer-Kompatibilitaet)."""
+    from PyQt6.QtCore import Qt as _Qt
+    from PyQt6.QtWidgets import QListWidgetItem
+
+    item = QListWidgetItem("D1: legacy.pdf")
+    item.setData(_Qt.ItemDataRole.UserRole, "/pfad/legacy.pdf")
+    # Keine pdf_id gesetzt
+    chat_view.sources_list.addItem(item)
+
+    with qtbot.waitSignal(
+        chat_view.open_pdf_requested, timeout=1000
+    ) as signal:
+        chat_view.sources_list.itemClicked.emit(item)
+
+    assert signal.args == ["/pfad/legacy.pdf"]
+
+
+def test_resolve_file_path_prefers_pdf_id(tmp_path):
+    """_resolve_file_path bevorzugt pdf_id bei DB-Treffer."""
+    from src.utils.database import Database
+    from src.gui.chat_view import ChatView
+    from src.utils.config import ChatConfig
+    from src.ml.hybrid_classifier import HybridClassifier
+
+    db = Database(db_path=str(tmp_path / "resolve_test.db"))
+    db.index_document(
+        file_path="/resolved/path.pdf",
+        filename="path.pdf",
+        extracted_text="hello",
+    )
+    raw = db.search_documents("hello", limit=1)
+    pid = raw[0]["pdf_id"]
+
+    # HybridClassifier-Stub, der nur das noetige bietet
+    class _StubHC:
+        llm_provider = None
+        def is_llm_available(self):
+            return False
+
+    view = ChatView(db=db, hybrid_classifier=_StubHC(),
+                    chat_config=ChatConfig())
+    # Wenn pdf_id gesetzt ist, wird der DB-Pfad zurueckgegeben
+    assert view._resolve_file_path("/old/path.pdf", pid) == "/resolved/path.pdf"
+    # Wenn nur file_path: bleibt er
+    assert view._resolve_file_path("/only/path.pdf", "") == "/only/path.pdf"
+    # Wenn beides leer: leerer String
+    assert view._resolve_file_path("", "") == ""
+
+
+def test_resolve_file_path_unknown_pdf_id_falls_back(tmp_path):
+    """Unbekannte pdf_id -> Fallback auf file_path, kein Crash."""
+    from src.utils.database import Database
+    from src.gui.chat_view import ChatView
+    from src.utils.config import ChatConfig
+    import uuid as _uuid
+
+    db = Database(db_path=str(tmp_path / "resolve_fallback.db"))
+
+    class _StubHC:
+        llm_provider = None
+        def is_llm_available(self):
+            return False
+
+    view = ChatView(db=db, hybrid_classifier=_StubHC(),
+                    chat_config=ChatConfig())
+    unknown_pid = _uuid.uuid4().hex
+    # Unbekannte pdf_id -> Fallback auf file_path
+    result = view._resolve_file_path("/fallback/path.pdf", unknown_pid)
+    assert result == "/fallback/path.pdf"
+
+
+# --------------------------------------------------------------------- #
 # Helper: minimaler Signal-Spy (kein extra pytest-qt-Feature noetig)
 # --------------------------------------------------------------------- #
 
