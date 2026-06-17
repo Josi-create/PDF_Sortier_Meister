@@ -388,6 +388,44 @@ class MainWindow(QMainWindow):
         else:
             self.statusbar.showMessage("Filter aufgehoben (Alle)", 2000)
 
+    def _check_automation_rules(self, pdf_path: Path, metadata: dict = None) -> None:
+        """Phase 21: Prueft Automatisierungs-Regeln VOR dem Verschieben.
+
+        Wenn eine Regel mit hoher Konfidenz (>= 0.9) und target_folder-Aktion
+        matcht, wird der Zielordner als Vorschlag im Statusbar angezeigt
+        (KEIN Auto-Move ohne User-Bestaetigung in v1).
+        """
+        try:
+            from src.utils.database import get_database
+            from src.core.rule_engine import RuleEngine
+
+            db = get_database()
+            engine = RuleEngine(db)
+            md = dict(metadata or {})
+            md.setdefault("dateiname", pdf_path.name)
+            matches = engine.evaluate(md)
+            if matches:
+                top = matches[0]
+                folders = []
+                for a in top.matched_actions:
+                    if a.get("type") == "target_folder":
+                        tmpl = a.get("template", "")
+                        try:
+                            resolved = engine.apply_actions([a], md).get(
+                                "target_folder", tmpl
+                            )
+                        except Exception:
+                            resolved = tmpl
+                        folders.append(resolved)
+                if folders:
+                    self.statusbar.showMessage(
+                        f"Regel '{top.rule['name']}' wuerde vorschlagen: "
+                        f"{', '.join(folders)}",
+                        5000,
+                    )
+        except Exception:
+            pass
+
     def _auto_collect_korrespondenten(self) -> None:
         """Phase 20: Sammelt Korrespondenten aus der Sortierhistorie
         in die Verwaltungstabelle und refresht die Sidebar.
@@ -1398,6 +1436,10 @@ class MainWindow(QMainWindow):
             self.remove_pdf_widget(pdf_path)
             self.detail_panel.clear()
             self.load_folders()
+            # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+            self._check_automation_rules(
+                pdf_path, metadata=self.detail_panel.get_metadata()
+            )
             # Phase 20: Korrespondenten aus Historie in Verwaltungstabelle sammeln
             self._auto_collect_korrespondenten()
 
@@ -1468,6 +1510,8 @@ class MainWindow(QMainWindow):
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self.load_folders()
 
+                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+                self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
                 self._auto_collect_korrespondenten()
 
@@ -1966,6 +2010,8 @@ class MainWindow(QMainWindow):
                 self.remove_pdf_widget(pdf_path)
                 # Ordneransicht aktualisieren
                 self.load_folders()
+                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+                self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
                 self._auto_collect_korrespondenten()
             except Exception as e:

@@ -164,6 +164,34 @@ class Korrespondent(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AutomationRule(Base):
+    """Regeln fuer automatische Sortierung (Phase 21 / Issue #22).
+
+    Bedingungen (``conditions_json``) und Aktionen (``actions_json``)
+    werden als JSON-Listen persistiert und vom ``RuleEngine`` ausgewertet.
+
+    Felder:
+        id: Primaerschluessel
+        name: Anzeigename (eindeutig)
+        priority: Hoeher = wichtiger (fuer Sortierung in evaluate())
+        enabled: Deaktivierte Regeln werden uebersprungen
+        conditions_json: JSON-String der Bedingungs-Liste
+        actions_json: JSON-String der Aktions-Liste
+        created_at/updated_at: Zeitstempel
+    """
+
+    __tablename__ = "automation_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, unique=True)
+    priority = Column(Integer, default=0)
+    enabled = Column(Integer, default=1)  # 0/1 (SQLite hat kein BOOLEAN)
+    conditions_json = Column(Text, nullable=True)
+    actions_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 
 
 # Maximale Laenge des extrahierten Textes pro Row in document_search
@@ -292,6 +320,25 @@ class Database:
                 conn.commit()
             except Exception as e:
                 print(f"Migration-Warnung fuer korrespondenten-Tabelle: {e}")
+
+            # Phase 21 (Issue #22): Automatisierungs-Regeln fuer die
+            # RuleEngine. Idempotente Anlage auch fuer externe DBs.
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS automation_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(255) NOT NULL UNIQUE,
+                        priority INTEGER DEFAULT 0,
+                        enabled INTEGER DEFAULT 1,
+                        conditions_json TEXT,
+                        actions_json TEXT,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                """))
+                conn.commit()
+            except Exception as e:
+                print(f"Migration-Warnung fuer automation_rules-Tabelle: {e}")
 
     def _create_fts_index(self):
         """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17)."""
@@ -1690,6 +1737,229 @@ class Database:
 
         return new_count
 
+    # === Automatisierungs-Regeln (Phase 21 / Issue #22) ===
+
+    # Konfigurierbare Bedingungs-/Aktionstypen fuer den GUI-Editor.
+    # Werden vom RuleEngine unterstuetzt; weitere Typen koennen in
+    # ``src/core/rule_engine.py`` ergaenzt werden.
+    AVAILABLE_CONDITION_TYPES: list[str] = [
+        "korrespondent",   # operator: equals, contains
+        "kategorie",       # operator: equals, in
+        "betrag",          # operator: gt, gte, lt, lte, between
+        "datum",           # operator: after, before, between (ISO-String)
+        "keywords",        # operator: any, all
+    ]
+
+    AVAILABLE_ACTION_TYPES: list[str] = [
+        "target_folder",       # template: Zielordner mit Platzhaltern
+        "filename_pattern",    # template: Dateinamenmuster mit Platzhaltern
+        "metadata_field",      # field + value: Metadatenfeld setzen
+        "tag",                 # value: Tag zur Tag-Liste hinzufuegen
+    ]
+
+    def list_rules(self, enabled_only: bool = False) -> list[dict]:
+        """Gibt alle Automatisierungs-Regeln zurueck.
+
+        Sortierung: ``priority`` DESC, dann ``id`` ASC (deterministisch).
+
+        Args:
+            enabled_only: Wenn ``True``, werden nur aktivierte Regeln
+                zurueckgegeben.
+
+        Returns:
+            Liste von Dicts mit allen Feldern (``id``, ``name``,
+            ``priority``, ``enabled``, ``conditions``, ``actions``,
+            ``created_at``, ``updated_at``). ``conditions`` und
+            ``actions`` sind als Python-Listen deserialisiert.
+        """
+        session = self.get_session()
+        try:
+            query = session.query(AutomationRule).order_by(
+                AutomationRule.priority.desc(),
+                AutomationRule.id.asc(),
+            )
+            if enabled_only:
+                query = query.filter(AutomationRule.enabled == 1)
+            return [self._rule_to_dict(r) for r in query.all()]
+        finally:
+            session.close()
+
+    def get_rule(self, rule_id: int) -> Optional[dict]:
+        """Gibt eine einzelne Regel per ID zurueck.
+
+        Args:
+            rule_id: Primaerschluessel der Regel
+
+        Returns:
+            Dict oder ``None`` falls nicht gefunden.
+        """
+        session = self.get_session()
+        try:
+            entry = (
+                session.query(AutomationRule)
+                .filter(AutomationRule.id == rule_id)
+                .first()
+            )
+            return self._rule_to_dict(entry) if entry else None
+        finally:
+            session.close()
+
+    def add_rule(
+        self,
+        name: str,
+        priority: int = 0,
+        enabled: bool = True,
+        conditions: Optional[list[dict]] = None,
+        actions: Optional[list[dict]] = None,
+    ) -> dict:
+        """Legt eine neue Automatisierungs-Regel an.
+
+        Args:
+            name: Anzeigename (eindeutig, NOT NULL)
+            priority: Hoeher = wichtiger (Default 0)
+            enabled: Aktiv/Inaktiv (Default True)
+            conditions: Liste von Bedingungs-Dicts (Default [])
+            actions: Liste von Aktions-Dicts (Default [])
+
+        Returns:
+            Vollstaendiges Dict der gespeicherten Regel (inkl. ``id``)
+
+        Raises:
+            ValueError: Wenn ``name`` leer ist.
+            sqlalchemy.exc.IntegrityError: Wenn ``name`` bereits existiert.
+        """
+        if not name or not str(name).strip():
+            raise ValueError("Regelname darf nicht leer sein")
+
+        name = str(name).strip()
+        conditions_json = json.dumps(conditions or [], ensure_ascii=False)
+        actions_json = json.dumps(actions or [], ensure_ascii=False)
+
+        session = self.get_session()
+        try:
+            entry = AutomationRule(
+                name=name,
+                priority=int(priority) if priority is not None else 0,
+                enabled=1 if enabled else 0,
+                conditions_json=conditions_json,
+                actions_json=actions_json,
+            )
+            session.add(entry)
+            session.commit()
+            return self._rule_to_dict(entry)
+        finally:
+            session.close()
+
+    def update_rule(self, rule_id: int, **kwargs) -> dict:
+        """Aktualisiert eine vorhandene Regel (partielles Update).
+
+        Akzeptierte Keyword-Argumente:
+            ``name`` (str), ``priority`` (int), ``enabled`` (bool),
+            ``conditions`` (list[dict]), ``actions`` (list[dict]).
+
+        ``conditions`` und ``actions`` werden automatisch JSON-serialisiert.
+
+        Args:
+            rule_id: Primaerschluessel der zu aendernden Regel
+
+        Returns:
+            Aktualisiertes Dict der Regel.
+
+        Raises:
+            ValueError: Wenn die Regel nicht existiert oder ein
+                unbekannter Parameter uebergeben wird.
+        """
+        allowed = {"name", "priority", "enabled", "conditions", "actions"}
+        unknown = set(kwargs) - allowed
+        if unknown:
+            raise ValueError(
+                f"Unbekannte Parameter fuer update_rule: {sorted(unknown)}"
+            )
+
+        session = self.get_session()
+        try:
+            entry = (
+                session.query(AutomationRule)
+                .filter(AutomationRule.id == rule_id)
+                .first()
+            )
+            if entry is None:
+                raise ValueError(f"Regel mit id={rule_id} existiert nicht")
+
+            if "name" in kwargs:
+                new_name = kwargs["name"]
+                if not new_name or not str(new_name).strip():
+                    raise ValueError("Regelname darf nicht leer sein")
+                entry.name = str(new_name).strip()
+            if "priority" in kwargs:
+                entry.priority = int(kwargs["priority"]) if kwargs["priority"] is not None else 0
+            if "enabled" in kwargs:
+                entry.enabled = 1 if kwargs["enabled"] else 0
+            if "conditions" in kwargs:
+                entry.conditions_json = json.dumps(
+                    kwargs["conditions"] or [], ensure_ascii=False
+                )
+            if "actions" in kwargs:
+                entry.actions_json = json.dumps(
+                    kwargs["actions"] or [], ensure_ascii=False
+                )
+            entry.updated_at = datetime.utcnow()
+            session.commit()
+            return self._rule_to_dict(entry)
+        finally:
+            session.close()
+
+    def delete_rule(self, rule_id: int) -> bool:
+        """Loescht eine Regel.
+
+        Args:
+            rule_id: Primaerschluessel der Regel
+
+        Returns:
+            ``True`` wenn geloescht, ``False`` wenn nicht gefunden.
+        """
+        session = self.get_session()
+        try:
+            entry = (
+                session.query(AutomationRule)
+                .filter(AutomationRule.id == rule_id)
+                .first()
+            )
+            if entry is None:
+                return False
+            session.delete(entry)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def reorder_rules(self, rule_ids_in_new_order: list[int]) -> None:
+        """Setzt die Prioritaeten in der angegebenen Reihenfolge.
+
+        Die erste ID erhaelt ``priority=100``, die zweite ``99``, usw.
+        Nicht in der Liste enthaltene Regeln behalten ihre Prioritaet.
+
+        Args:
+            rule_ids_in_new_order: Liste der Regel-IDs in der
+                gewuenschten Reihenfolge (Index 0 = hoechste Prio).
+        """
+        if not rule_ids_in_new_order:
+            return
+
+        session = self.get_session()
+        try:
+            for new_pos, rule_id in enumerate(rule_ids_in_new_order):
+                priority = 100 - new_pos
+                session.query(AutomationRule).filter(
+                    AutomationRule.id == rule_id
+                ).update({
+                    "priority": priority,
+                    "updated_at": datetime.utcnow(),
+                })
+            session.commit()
+        finally:
+            session.close()
+
     # === Interne Helper (Korrespondent) ===
 
     @staticmethod
@@ -1729,6 +1999,41 @@ class Database:
         except (ValueError, TypeError):
             # Fallback: versuch als Komma-getrennte Liste zu interpretieren
             return [a.strip() for a in str(value).split(",") if a.strip()]
+
+    @staticmethod
+    def _rule_to_dict(entry: Optional[AutomationRule]) -> Optional[dict]:
+        """Konvertiert ein ``AutomationRule``-ORM-Objekt in ein Dict.
+
+        ``conditions_json`` und ``actions_json`` werden als Listen
+        deserialisiert; korrupte Werte werden durch ``[]`` ersetzt
+        (defensiv, damit der RuleEngine nicht abstuerzt).
+        """
+        if entry is None:
+            return None
+
+        def _safe_load(value) -> list:
+            if not value:
+                return []
+            if isinstance(value, (list, tuple)):
+                return [dict(x) if isinstance(x, dict) else x for x in value]
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [dict(x) if isinstance(x, dict) else x for x in parsed]
+                return []
+            except (ValueError, TypeError):
+                return []
+
+        return {
+            "id": entry.id,
+            "name": entry.name,
+            "priority": entry.priority if entry.priority is not None else 0,
+            "enabled": bool(entry.enabled),
+            "conditions": _safe_load(entry.conditions_json),
+            "actions": _safe_load(entry.actions_json),
+            "created_at": entry.created_at,
+            "updated_at": entry.updated_at,
+        }
 
     @staticmethod
     def _korrespondent_to_dict(entry: Optional[Korrespondent]) -> Optional[dict]:

@@ -60,6 +60,10 @@ class SettingsDialog(QDialog):
         general_tab = self._create_general_tab()
         tab_widget.addTab(general_tab, "Allgemein")
 
+        # Automatisierungs-Regeln Tab (Phase 21)
+        rules_tab = self._create_rules_tab()
+        tab_widget.addTab(rules_tab, "Automatisierungs-Regeln")
+
         layout.addWidget(tab_widget)
 
         # Buttons
@@ -465,6 +469,157 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
         return tab
+
+    def _create_rules_tab(self) -> QWidget:
+        """Tab fuer die Verwaltung der Automatisierungs-Regeln (Phase 21).
+
+        Zeigt alle Regeln (sortiert nach Prioritaet) und bietet Buttons
+        zum Neu-Anlegen, Bearbeiten, Loeschen, Aktivieren/Deaktivieren
+        und Reihenfolge-Aendern.
+        """
+        from PyQt6.QtWidgets import (
+            QCheckBox, QHBoxLayout, QListWidget, QPushButton, QVBoxLayout,
+        )
+        from src.gui.rule_edit_dialog import RuleEditDialog
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Erklaerung
+        info = QLabel(
+            "Regeln werden vor jedem manuellen Eingriff geprueft. "
+            "Hoehere Prioritaet gewinnt. Bedingungen sind UND-verknuepft. "
+            "Platzhalter: {datum} {steuerjahr} {korrespondent} {kategorie} {betrag_brutto}"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #555; padding: 6px;")
+        layout.addWidget(info)
+
+        # Liste
+        self.rules_list = QListWidget()
+        layout.addWidget(self.rules_list)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        self.rule_new_btn = QPushButton("+ Neu")
+        self.rule_new_btn.clicked.connect(self._on_rule_new)
+        self.rule_edit_btn = QPushButton("Bearbeiten")
+        self.rule_edit_btn.clicked.connect(self._on_rule_edit)
+        self.rule_delete_btn = QPushButton("Loeschen")
+        self.rule_delete_btn.clicked.connect(self._on_rule_delete)
+        self.rule_up_btn = QPushButton("hoeher")
+        self.rule_up_btn.clicked.connect(self._on_rule_up)
+        self.rule_down_btn = QPushButton("tiefer")
+        self.rule_down_btn.clicked.connect(self._on_rule_down)
+        self.rule_toggle_btn = QPushButton("Aktivieren/Deaktivieren")
+        self.rule_toggle_btn.clicked.connect(self._on_rule_toggle)
+        for b in (self.rule_new_btn, self.rule_edit_btn, self.rule_delete_btn,
+                  self.rule_up_btn, self.rule_down_btn, self.rule_toggle_btn):
+            btn_row.addWidget(b)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        # Initial befuellen
+        self._refresh_rules_list()
+
+        return tab
+
+    def _refresh_rules_list(self):
+        """Laedt die Regeln neu in die QListWidget."""
+        from src.utils.database import get_database
+        try:
+            db = get_database()
+            rules = db.list_rules()
+            self.rules_list.clear()
+            for r in rules:
+                status = "AN" if r["enabled"] else "AUS"
+                cond_n = len(r.get("conditions", []))
+                act_n = len(r.get("actions", []))
+                text = f"[{status}] P{r['priority']:>3}  {r['name']}  ({cond_n} Bed., {act_n} Akt.)"
+                from PyQt6.QtWidgets import QListWidgetItem
+                item = QListWidgetItem(text)
+                item.setData(Qt.ItemDataRole.UserRole, r)
+                self.rules_list.addItem(item)
+        except Exception as e:
+            # DB noch nicht initialisiert oder Tabelle fehlt -> still ignorieren
+            pass
+
+    def _on_rule_new(self):
+        from src.gui.rule_edit_dialog import RuleEditDialog
+        dlg = RuleEditDialog(initial_data=None, title="Neue Regel")
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+            if data:
+                from src.utils.database import get_database
+                get_database().add_rule(**data)
+                self._refresh_rules_list()
+
+    def _on_rule_edit(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        from src.gui.rule_edit_dialog import RuleEditDialog
+        dlg = RuleEditDialog(initial_data=rule, title=f"Regel '{rule['name']}' bearbeiten")
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+            if data:
+                from src.utils.database import get_database
+                get_database().update_rule(rule["id"], **data)
+                self._refresh_rules_list()
+
+    def _on_rule_delete(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        if QMessageBox.question(
+            self, "Loeschen bestaetigen",
+            f"Regel '{rule['name']}' wirklich loeschen?",
+        ) == QMessageBox.StandardButton.Yes:
+            from src.utils.database import get_database
+            get_database().delete_rule(rule["id"])
+            self._refresh_rules_list()
+
+    def _on_rule_up(self):
+        """Verschiebt die ausgewaehlte Regel in der Prioritaet nach oben."""
+        from src.utils.database import get_database
+        db = get_database()
+        rules = db.list_rules()
+        row = self.rules_list.currentRow()
+        if row <= 0 or row >= len(rules):
+            return
+        # Tausche Reihenfolge
+        new_order = [r["id"] for r in rules]
+        new_order[row], new_order[row - 1] = new_order[row - 1], new_order[row]
+        db.reorder_rules(new_order)
+        self._refresh_rules_list()
+        self.rules_list.setCurrentRow(row - 1)
+
+    def _on_rule_down(self):
+        from src.utils.database import get_database
+        db = get_database()
+        rules = db.list_rules()
+        row = self.rules_list.currentRow()
+        if row < 0 or row >= len(rules) - 1:
+            return
+        new_order = [r["id"] for r in rules]
+        new_order[row], new_order[row + 1] = new_order[row + 1], new_order[row]
+        db.reorder_rules(new_order)
+        self._refresh_rules_list()
+        self.rules_list.setCurrentRow(row + 1)
+
+    def _on_rule_toggle(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        from src.utils.database import get_database
+        get_database().update_rule(rule["id"], enabled=not rule["enabled"])
+        self._refresh_rules_list()
+
+    def _selected_rule(self):
+        item = self.rules_list.currentItem()
+        if item is None:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
 
     def _clear_learned_data(self):
         """Löscht alle gelernten Ordnervorschläge aus der Datenbank."""
