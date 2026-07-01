@@ -225,7 +225,25 @@ Siehe [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) für eine detai
 
 ## Lizenz
 
-MIT License — siehe [LICENSE](LICENSE)
+**GPL-3.0-or-later** — siehe [LICENSE](LICENSE)
+
+Dieses Programm ist Freie/Open-Source-Software und steht unter der GNU General
+Public License v3 (oder neuer). Du darfst es nutzen, weitergeben und verändern.
+
+> **Warum GPL statt MIT?** Zwei Kernbibliotheken sind Copyleft: **PyQt6** (GPLv3)
+> und **PyMuPDF** (AGPLv3). Ein daraus gebautes Gesamtwerk muss dieselbe Freiheit
+> weitergeben — GPL-3.0-or-later ist die korrekte, ehrliche Lizenz dafür.
+
+### Dritt-Bibliotheken (Lizenzübersicht)
+
+| Bibliothek | Lizenz |
+|------------|--------|
+| PyQt6 | GPL v3 / kommerziell (Riverbank) |
+| PyMuPDF | AGPL v3 / kommerziell (Artifex) |
+| pikepdf | MPL-2.0 |
+| scikit-learn, SQLAlchemy, numpy, python-dateutil, watchdog | BSD / permissiv |
+| pytesseract | Apache-2.0 |
+| anthropic, openai (optional) | MIT / Apache-2.0 |
 
 ---
 

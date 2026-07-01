@@ -1,11 +1,19 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 14.06.2026
-**Aktuelle Version:** 0.13.0 (in Entwicklung)
+**Datum:** 01.07.2026
+**Aktuelle Version:** 0.13.1 (in Entwicklung)
 
 > **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
+### v0.13.1 (2026-07-01) - Lizenz-Korrektur (Monetarisierungs-Fundament)
+- Lizenz von MIT auf **GPL-3.0-or-later** korrigiert (Pfad A der Monetarisierungs-Roadmap)
+- Grund: PyQt6 (GPLv3) + PyMuPDF (AGPLv3) sind Copyleft -> MIT war rechtlich nicht haltbar
+- LICENSE-Datei (GPLv3-Volltext) im Projekt-Root ergaenzt (fehlte zuvor komplett)
+- pyproject.toml: license + OSI-Classifier auf GPLv3+ umgestellt
+- README: Lizenz-Abschnitt + Dritt-Bibliotheken-Uebersicht ergaenzt
+- Geschaeftsmodell-Basis: Open Source (GPL) + Verkauf von Installer/Komfort/Support
+- Keine Code-Aenderung -> 285/285 Tests unveraendert gruen
 ### v0.12.0 (2026-06-14) - Phase 19 RAG-Chat abgeschlossen
 - Chat-Tab mit FTS5-Retrieval + LLM-Synthese + Citations
 - Offline-Fallback, Cancel-Flow, Return-UX-Polish
