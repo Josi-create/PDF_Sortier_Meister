@@ -15,6 +15,15 @@ from typing import Optional, Any
 from enum import Enum
 
 
+# Provider, die Dokumenteninhalte an externe (Cloud-)Dienste uebertragen.
+CLOUD_PROVIDERS = frozenset({"claude", "openai", "poe"})
+
+
+def is_cloud_provider(provider_type: str) -> bool:
+    """True, wenn der Provider Daten an einen externen Dienst sendet."""
+    return str(provider_type).lower() in CLOUD_PROVIDERS
+
+
 class LLMProviderType(Enum):
     """Unterstützte LLM-Anbieter."""
     CLAUDE = "claude"
