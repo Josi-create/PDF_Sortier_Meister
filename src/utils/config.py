@@ -73,6 +73,7 @@ class Config:
             "base_url": "",  # nur fuer Ollama (lokaler Server)
             # Gecachte Modell-Liste pro Provider (gefuellt durch "Modelle aktualisieren")
             "cached_models": {},
+            "cloud_consent": False,  # Opt-in fuer Cloud-Uebertragung von PDF-Inhalten
         },
     }
 
