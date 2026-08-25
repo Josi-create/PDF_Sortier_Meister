@@ -269,3 +269,50 @@ def test_breadcrumb_lists_path_segments(main_window, fresh_singletons):
     assert [b.text() for b in buttons][-2:] == ["Dokumente", "FrischGescannt"]
     assert not buttons[-1].isEnabled()  # aktueller Ordner nicht klickbar
     assert buttons[-2].isEnabled()
+
+
+
+# --------------------------------------------------------------------- #
+# Erster Klick nach dem Start: nicht blockieren, sondern nachziehen
+# --------------------------------------------------------------------- #
+
+
+def test_click_before_model_ready_defers_and_applies_later(main_window, fresh_singletons, qtbot, monkeypatch):
+    from src.core.pdf_cache import PDFAnalysisResult
+    from PyQt6.QtWidgets import QApplication
+
+    pdf = fresh_singletons["tmp_path"] / "x.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    main_window.selected_pdf = pdf
+    result = PDFAnalysisResult(pdf_path=pdf, extracted_text="rechnung", keywords=["rechnung"])
+
+    ready = {"v": False}
+    monkeypatch.setattr(main_window.classifier, "is_model_ready", lambda: ready["v"])
+    applied = []
+    monkeypatch.setattr(main_window, "display_suggestions", lambda s: applied.append(s))
+
+    main_window._apply_analysis_result(pdf, result)
+    assert applied == []                      # noch nichts angewendet ...
+    assert main_window._model_wait_active     # ... aber Wartezustand aktiv
+    assert QApplication.overrideCursor() is not None
+    assert "geladen" in main_window.statusbar.currentMessage()
+
+    ready["v"] = True
+    qtbot.waitUntil(lambda: bool(applied), timeout=2000)
+    assert not main_window._model_wait_active
+    assert QApplication.overrideCursor() is None
+
+
+def test_model_wait_cancelled_when_selection_changes(main_window, fresh_singletons, qtbot, monkeypatch):
+    from src.core.pdf_cache import PDFAnalysisResult
+    from PyQt6.QtWidgets import QApplication
+
+    pdf = fresh_singletons["tmp_path"] / "y.pdf"; pdf.write_bytes(b"%PDF-1.4")
+    main_window.selected_pdf = pdf
+    monkeypatch.setattr(main_window.classifier, "is_model_ready", lambda: False)
+    main_window._apply_analysis_result(pdf, PDFAnalysisResult(pdf_path=pdf))
+    assert main_window._model_wait_active
+
+    main_window.selected_pdf = None  # Nutzer hat abgewaehlt
+    qtbot.waitUntil(lambda: not main_window._model_wait_active, timeout=2000)
+    assert QApplication.overrideCursor() is None

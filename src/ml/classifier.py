@@ -94,6 +94,10 @@ class PDFClassifier:
     def training_entries(self, value):
         self._model = (self._model[0], self._model[1], value)
 
+    def is_model_ready(self) -> bool:
+        """True, sobald das Hintergrund-Laden des Modells abgeschlossen ist."""
+        return self._model_ready.is_set()
+
     def _ensure_model(self):
         """Wartet, bis das Hintergrund-Laden des Modells abgeschlossen ist."""
         if not self._model_ready.is_set():
