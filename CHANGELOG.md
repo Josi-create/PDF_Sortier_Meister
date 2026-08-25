@@ -8,6 +8,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Geaendert
+- **OneDrive-Wartezeiten aus dem UI-Thread geholt (Log-Analyse 25./26.08.)**
+  - XMP-Metadaten der angeklickten PDF werden im Hintergrund gelesen und nachgetragen
+    ("Files On-Demand" laedt die Datei erst beim ersten Zugriff: 2-8 s pro Klick)
+  - Ordner-Cache des Klassifikators (rglob ueber alle Zielordner, 16,8 s beim ersten
+    Klick) wird nach dem Start vorgewaermt und bei Aenderungen im Hintergrund neu gebaut
+  - Zielordner-Baum wird in einem Worker gescannt und erst dann befuellt (Start und
+    Neuaufbau blockieren nicht mehr); neue Zielordner werden inkrementell eingehaengt
 - **Erster Klick nach dem Start**: blockiert nicht mehr, bis das KI-Modell geladen ist.
   Stattdessen Wartecursor + Statusmeldung "KI-Modell wird geladen, Vorschlaege folgen
   gleich..."; die Vorschlaege werden automatisch nachgezogen. pikepdf und die

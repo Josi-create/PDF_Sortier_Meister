@@ -9,7 +9,7 @@ und klickt rechts auf einen Zielordner zum Verschieben+Umbenennen.
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QWidget,
@@ -28,6 +28,29 @@ from PyQt6.QtWidgets import (
 )
 
 from src.gui.rename_dialog import RenameSuggestion
+
+
+class _PdfMetadataReader(QThread):
+    """Liest XMP-Metadaten einer PDF im Hintergrund.
+
+    Der Lesezugriff kann auf OneDrive ("Files On-Demand") mehrere Sekunden
+    dauern, weil die Datei erst heruntergeladen wird - das darf den Klick
+    nicht blockieren (Issue #28).
+    """
+
+    finished_meta = pyqtSignal(object, object)  # (pdf_path, PDFMetadata | None)
+
+    def __init__(self, pdf_path: Path, parent=None):
+        super().__init__(parent)
+        self._pdf_path = pdf_path
+
+    def run(self):
+        try:
+            from src.core.pdf_metadata import read_metadata
+            meta = read_metadata(self._pdf_path)
+        except Exception:
+            meta = None
+        self.finished_meta.emit(self._pdf_path, meta)
 
 
 class DetailPanel(QWidget):
@@ -316,9 +339,11 @@ class DetailPanel(QWidget):
         # Metadaten vorbefüllen
         self._metadata = {}
 
-        # 1. Bereits gespeicherte XMP-Metadaten aus der PDF laden (höchste Priorität als Basis)
-        self.load_metadata_from_pdf(pdf_path)
-        pdf_had_data = bool(self._saved_metadata_snapshot)
+        # 1. Gespeicherte XMP-Metadaten werden im Hintergrund gelesen und danach
+        #    nachgetragen (siehe _on_pdf_metadata_read). Bis dahin: Basis aus Analyse.
+        self._saved_metadata_snapshot = {}
+        pdf_had_data = False
+        self._start_metadata_reader(pdf_path)
 
         # 2. Nur wenn keine PDF-Metadaten vorhanden: Basis aus Analyse
         if not pdf_had_data:
@@ -509,14 +534,35 @@ class DetailPanel(QWidget):
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
 
+    def _start_metadata_reader(self, pdf_path: Path):
+        """Startet das Hintergrund-Lesen der XMP-Metadaten fuer pdf_path."""
+        reader = _PdfMetadataReader(pdf_path, self)
+        reader.finished_meta.connect(self._on_pdf_metadata_read)
+        reader.finished.connect(reader.deleteLater)
+        self._metadata_reader = reader
+        reader.start()
+
+    def _on_pdf_metadata_read(self, pdf_path: Path, pdf_meta):
+        """Traegt gelesene PDF-Metadaten nach - nur, wenn die PDF noch ausgewaehlt ist."""
+        if self._current_pdf != pdf_path:
+            return
+        if self._metadata_source == "user":
+            return  # Nutzer hat inzwischen editiert - nicht ueberschreiben
+        self._apply_pdf_metadata(pdf_meta)
+        if self._saved_metadata_snapshot:
+            self.metadata_group.setTitle("Metadaten (aus PDF gelesen, werden in PDF gespeichert)")
+
     def load_metadata_from_pdf(self, pdf_path: Path):
-        """Liest XMP-Metadaten aus der PDF und befüllt die Felder. Setzt Quelle auf 'pdf'."""
+        """Liest XMP-Metadaten synchron aus der PDF und befüllt die Felder (Tests/Sonderfaelle)."""
         try:
             from src.core.pdf_metadata import read_metadata
             pdf_meta = read_metadata(pdf_path)
         except Exception:
             pdf_meta = None
+        self._apply_pdf_metadata(pdf_meta)
 
+    def _apply_pdf_metadata(self, pdf_meta):
+        """Uebertraegt PDFMetadata in die Felder und setzt Quelle auf 'pdf'."""
         if pdf_meta is None or not pdf_meta.has_any_data():
             self._saved_metadata_snapshot = {}
             return

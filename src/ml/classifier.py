@@ -54,6 +54,8 @@ class PDFClassifier:
         self._retrain_timer: Optional[threading.Timer] = None
         self._retrain_lock = threading.Lock()
         self._retrain_pending = False
+        self._folder_cache_lock = threading.Lock()
+        self._folder_cache_building = False
 
         # Modell-Pfad
         self.model_path = self.config.model_dir / "classifier.pkl"
@@ -132,30 +134,69 @@ class PDFClassifier:
         if not target_folders:
             return None
 
-        # Cache invalidieren wenn Zielordner sich geändert haben
+        # Cache veraltet (Zielordner geaendert)? Dann im Hintergrund neu aufbauen.
+        # Der rglob ueber alle Zielordner kann auf OneDrive viele Sekunden dauern
+        # (Issue #28: 16,8 s beim ersten Klick) - hier wird nie blockiert.
         if self._folder_cache_roots != target_folders:
-            self._folder_cache = {}
-            self._folder_cache_roots = target_folders.copy()
-            self._build_folder_cache(target_folders)
+            self._start_folder_cache_build(target_folders)
+            return None
 
         return self._folder_cache.get(folder_name.lower())
 
-    def _build_folder_cache(self, root_folders: list[Path]):
-        """Baut den Ordner-Cache für schnelle Suche auf."""
-        self._folder_cache = {}
+    def _start_folder_cache_build(self, target_folders: list[Path]):
+        with self._folder_cache_lock:
+            if self._folder_cache_building:
+                return
+            self._folder_cache_building = True
+        roots = [Path(f) for f in target_folders]
+
+        def _run():
+            try:
+                cache = self._scan_folder_cache(roots)
+                self._folder_cache = cache
+                self._folder_cache_roots = roots.copy()
+            except Exception as e:
+                logger.error(f"Ordner-Cache konnte nicht aufgebaut werden: {e}")
+            finally:
+                with self._folder_cache_lock:
+                    self._folder_cache_building = False
+
+        threading.Thread(target=_run, name="folder-cache", daemon=True).start()
+
+    def warm_folder_cache(self):
+        """Baut den Ordner-Cache synchron auf (fuer den Warm-up-Thread nach dem Start)."""
+        roots = [Path(f) for f in self.config.get_target_folders()]
+        with self._folder_cache_lock:
+            if self._folder_cache_building:
+                return
+            self._folder_cache_building = True
+        try:
+            self._folder_cache = self._scan_folder_cache(roots)
+            self._folder_cache_roots = roots.copy()
+        finally:
+            with self._folder_cache_lock:
+                self._folder_cache_building = False
+
+    @staticmethod
+    def _scan_folder_cache(root_folders: list[Path]) -> dict[str, Path]:
+        """Sammelt alle Ordnernamen (lowercase) unterhalb der Zielordner."""
+        cache: dict[str, Path] = {}
         for root_folder in root_folders:
             if not root_folder.exists():
                 continue
             try:
-                # Root-Ordner selbst auch hinzufügen
-                self._folder_cache[root_folder.name.lower()] = root_folder
-                # Alle Unterordner
+                cache[root_folder.name.lower()] = root_folder
                 for folder in root_folder.rglob("*"):
                     if folder.is_dir() and not folder.name.startswith('.'):
-                        # Lowercase für case-insensitive Matching
-                        self._folder_cache[folder.name.lower()] = folder
-            except PermissionError:
+                        cache[folder.name.lower()] = folder
+            except (PermissionError, OSError):
                 pass
+        return cache
+
+    def _build_folder_cache(self, root_folders: list[Path]):
+        """Synchroner Aufbau (Tests/Kompatibilitaet)."""
+        self._folder_cache = self._scan_folder_cache([Path(f) for f in root_folders])
+        self._folder_cache_roots = [Path(f) for f in root_folders]
 
     def _resolve_folder_path(self, learned_folder: str, learned_name: str) -> Optional[Path]:
         """
