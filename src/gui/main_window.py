@@ -747,6 +747,8 @@ class MainWindow(QMainWindow):
             try:
                 import pikepdf  # noqa: F401  (Detail-Panel liest Metadaten aus der PDF)
                 import sklearn.metrics.pairwise  # noqa: F401  (erste Aehnlichkeitssuche)
+                # Ordner-Cache des Klassifikators (rglob ueber alle Zielordner) vorab
+                self.classifier.warm_folder_cache()
             except Exception:
                 pass
 
@@ -792,8 +794,11 @@ class MainWindow(QMainWindow):
         """
         target_folder = Path(target_folder)
         if not self.folder_tree.has_folder(target_folder):
-            self.load_folders()
-            return
+            # Neuer Ordner: unter dem Elternteil einhaengen; nur wenn auch der
+            # fehlt, den Baum neu scannen (laeuft im Hintergrund, blockiert nicht)
+            if not self.folder_tree.add_folder_incremental(target_folder):
+                self.folder_tree.refresh_tree()
+                return
         self.folder_tree.refresh_counts({target_folder, *(Path(f) for f in source_folders if f)})
 
     def _write_pdf_metadata_async(self, pdf_path: Path, new_name: str,

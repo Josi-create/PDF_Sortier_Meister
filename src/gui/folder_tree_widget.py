@@ -7,10 +7,11 @@ Unterstützt Unterordner und zeigt PDF-Anzahlen an.
 MIT License - Copyright (c) 2026
 """
 
+import os
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QTreeWidget,
@@ -27,6 +28,51 @@ from PyQt6.QtWidgets import (
 )
 
 
+class _TreeScanThread(QThread):
+    """Listet die Zielordner-Hierarchie im Hintergrund (Issue #28).
+
+    Auf OneDrive/Netzlaufwerken dauert das Listen aller Ordner 3 Ebenen tief
+    inkl. PDF-Zaehlung viele Sekunden - im UI-Thread friert dabei alles ein.
+    Ergebnis: Liste von (folder_path, parent_path | None, pdf_count).
+    """
+
+    scanned = pyqtSignal(int, list)  # (generation, entries)
+
+    def __init__(self, roots: list[Path], generation: int, max_depth: int = 3, parent=None):
+        super().__init__(parent)
+        self._roots = roots
+        self._generation = generation
+        self._max_depth = max_depth
+
+    def run(self):
+        entries: list[tuple[Path, Optional[Path], int]] = []
+
+        def scan(folder: Path, parent: Optional[Path], depth: int):
+            pdf_count = 0
+            subfolders = []
+            try:
+                with os.scandir(folder) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_file() and entry.name.lower().endswith('.pdf'):
+                                pdf_count += 1
+                            elif entry.is_dir() and not entry.name.startswith('.'):
+                                subfolders.append(Path(entry.path))
+                        except OSError:
+                            continue
+            except (PermissionError, OSError):
+                pass
+            entries.append((folder, parent, pdf_count))
+            if depth < self._max_depth:
+                for sub in sorted(subfolders):
+                    scan(sub, folder, depth + 1)
+
+        for root in self._roots:
+            if root.exists():
+                scan(root, None, 0)
+        self.scanned.emit(self._generation, entries)
+
+
 class FolderTreeWidget(QWidget):
     """Widget zur hierarchischen Anzeige von Zielordnern."""
 
@@ -35,11 +81,15 @@ class FolderTreeWidget(QWidget):
     folder_double_clicked = pyqtSignal(Path)  # Ordner wurde doppelgeklickt
     pdf_dropped = pyqtSignal(Path, Path)  # PDF auf Ordner gezogen (pdf_path, folder_path)
     folder_removed = pyqtSignal(Path)  # Ordner aus Liste entfernt
+    scan_finished = pyqtSignal()  # Baum wurde (neu) befuellt
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_folders: list[Path] = []
         self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
+        self._scan_generation = 0  # verwirft Ergebnisse veralteter Scans
+        self._scan_thread: Optional[_TreeScanThread] = None
+        self.async_scan = True  # Tests koennen synchron scannen
         self._selected_folder: Optional[Path] = None
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
         self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
@@ -161,16 +211,72 @@ class FolderTreeWidget(QWidget):
         self._update_item_styles()
 
     def refresh_tree(self):
-        """Aktualisiert die gesamte Baumstruktur."""
+        """Baut den Baum neu auf - das Verzeichnis-Listing laeuft im Hintergrund."""
+        self._scan_generation += 1
+        roots = [r for r in self._root_folders if r.exists()]
+        if not self.async_scan:
+            thread = _TreeScanThread(roots, self._scan_generation)
+            thread.scanned.connect(self._on_scan_finished)
+            thread.run()  # synchron, im aktuellen Thread
+            return
+
+        # Sofort etwas zeigen: Wurzeln ohne Zaehler, Rest folgt nach dem Scan
         self.tree.clear()
         self._items.clear()
+        for root in roots:
+            item = QTreeWidgetItem(self.tree)
+            item.setText(0, f"📁 {root.name}  …")
+            item.setData(0, Qt.ItemDataRole.UserRole, str(root))
+            item.setToolTip(0, f"{root}\nOrdner werden geladen…")
+            self._items[root] = item
 
-        for root_folder in self._root_folders:
-            if root_folder.exists():
-                self._add_folder_item(root_folder, None)
+        thread = _TreeScanThread(roots, self._scan_generation, parent=self)
+        thread.scanned.connect(self._on_scan_finished)
+        thread.finished.connect(thread.deleteLater)
+        self._scan_thread = thread
+        thread.start()
+
+    def _on_scan_finished(self, generation: int, entries: list):
+        """Befuellt den Baum aus dem Scan-Ergebnis (UI-Thread)."""
+        if generation != self._scan_generation:
+            return  # veralteter Scan
+        self.tree.clear()
+        self._items.clear()
+        for folder_path, parent_path, pdf_count in entries:
+            parent_item = self._items.get(parent_path) if parent_path else None
+            if parent_path is not None and parent_item is None:
+                continue
+            item = QTreeWidgetItem(self.tree) if parent_item is None else QTreeWidgetItem(parent_item)
+            item.setText(0, self._item_text(folder_path, pdf_count))
+            item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
+            item.setToolTip(0, str(folder_path))
+            if folder_path in self._suggestion_folders:
+                item.setBackground(0, Qt.GlobalColor.green)
+            self._items[folder_path] = item
 
         # Alle Einträge expandieren (erste Ebene)
         self.tree.expandToDepth(0)
+        self.scan_finished.emit()
+
+    @staticmethod
+    def _item_text(folder_path: Path, pdf_count: int) -> str:
+        return f"📁 {folder_path.name}  [{pdf_count}]" if pdf_count > 0 else f"📁 {folder_path.name}"
+
+    def add_folder_incremental(self, folder_path: Path) -> bool:
+        """Fuegt einen einzelnen Ordner unter seinem (vorhandenen) Elternteil ein."""
+        folder_path = Path(folder_path)
+        if folder_path in self._items:
+            return True
+        parent_item = self._items.get(folder_path.parent)
+        if parent_item is None:
+            return False
+        item = QTreeWidgetItem(parent_item)
+        item.setText(0, self._item_text(folder_path, self._count_pdfs(folder_path)))
+        item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
+        item.setToolTip(0, str(folder_path))
+        self._items[folder_path] = item
+        parent_item.sortChildren(0, Qt.SortOrder.AscendingOrder)
+        return True
 
     def _add_folder_item(
         self,
@@ -256,11 +362,7 @@ class FolderTreeWidget(QWidget):
             if item is None:
                 continue
             folder_path = Path(folder)
-            pdf_count = self._count_pdfs(folder_path)
-            if pdf_count > 0:
-                item.setText(0, f"📁 {folder_path.name}  [{pdf_count}]")
-            else:
-                item.setText(0, f"📁 {folder_path.name}")
+            item.setText(0, self._item_text(folder_path, self._count_pdfs(folder_path)))
             updated += 1
         return updated
 

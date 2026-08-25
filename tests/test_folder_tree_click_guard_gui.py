@@ -7,6 +7,7 @@ def _tree_with_folder(qtbot, tmp_path):
     root.mkdir()
     w = FolderTreeWidget()
     qtbot.addWidget(w)
+    w.async_scan = False
     w.set_root_folders([root])
     item = w.tree.topLevelItem(0)
     assert item is not None
