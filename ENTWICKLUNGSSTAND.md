@@ -1,11 +1,20 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 25.08.2026
-**Aktuelle Version:** 0.14.0 (+ Sprint 1 Explorer-Gefuehl in Entwicklung)
+**Aktuelle Version:** 0.15.0
 
 > **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
+### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
+- Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;
+  Doppelklick im Zielordner-Baum verschiebt nicht mehr vorher die PDF
+- Sprint 2 (#30): Jahres-Variante gelernter Vorschlaege ("Steuer 2025" -> "Steuer 2026"),
+  wenn der Ordner existiert; steht vorn, wenn das Dokumentjahr passt
+- Sprint 2 (#28): Verschieben 455 -> 10 ms (TF-IDF-Retraining entprellt im Hintergrund),
+  Import des Hauptfensters 2,0 -> 0,56 s (sklearn lazy), Thumbnail-Disk-Cache (18 -> 5 ms/PDF)
+- tests/conftest.py: patch_singletons() - GUI-Tests laufen nie mehr gegen die echte Config
+- 370/370 Tests gruen
 ### v0.14.0 (2026-08-25) - OpenRouter, Keys pro Provider, Consent-UI, Release-Hygiene
 - OpenRouter als 5. LLM-Provider (Einstellungen + Wizard)
 - API-Keys pro Provider mit Kennzeichnung im Dialog (Issue #11 erledigt)

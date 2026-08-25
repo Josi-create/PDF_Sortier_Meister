@@ -446,16 +446,43 @@ def get_thumbnail(pdf_path: Path | str, width: int = 150, height: int = 200) -> 
     """
     pdf_path = Path(pdf_path)
 
-    # Aus Cache holen
+    # 1) RAM-Cache
     cached = _thumbnail_cache.get(pdf_path)
     if cached is not None:
         return cached
 
-    # Neu generieren
+    # 2) Disk-Cache (Issue #28): Rendern kostet ~15-20 ms pro PDF, Laden ~1 ms
+    disk_file = _thumbnail_disk_path(pdf_path, width, height)
+    if disk_file is not None and disk_file.exists():
+        pixmap = QPixmap(str(disk_file))
+        if not pixmap.isNull():
+            _thumbnail_cache.put(pdf_path, pixmap)
+            return pixmap
+
+    # 3) Neu generieren
     with PDFAnalyzer(pdf_path) as analyzer:
         thumbnail = analyzer.generate_thumbnail(width=width, height=height)
         _thumbnail_cache.put(pdf_path, thumbnail)
+        if disk_file is not None:
+            try:
+                disk_file.parent.mkdir(parents=True, exist_ok=True)
+                thumbnail.save(str(disk_file), "PNG")
+            except Exception:
+                pass  # Cache ist optional
         return thumbnail
+
+
+def _thumbnail_disk_path(pdf_path: Path, width: int, height: int) -> Optional[Path]:
+    """Pfad der gecachten PNG-Datei; Schluessel = Pfad + Groesse + mtime + Masse."""
+    try:
+        import hashlib
+        from src.utils.config import get_config
+        st = pdf_path.stat()
+        key = f"{pdf_path.resolve()}|{st.st_size}|{int(st.st_mtime)}|{width}x{height}"
+        digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+        return get_config().data_dir / "thumbnails" / f"{digest}.png"
+    except Exception:
+        return None
 
 
 def analyze_pdf(pdf_path: Path | str) -> dict:

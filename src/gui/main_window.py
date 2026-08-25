@@ -1101,6 +1101,12 @@ class MainWindow(QMainWindow):
         for widget in self.pdf_widgets:
             widget.cleanup()
 
+        # Ausstehendes Hintergrund-Training des Klassifikators abschliessen
+        try:
+            self.classifier.flush_training(timeout=10)
+        except Exception:
+            pass
+
         # PDF-Cache Worker stoppen
         self.pdf_cache.stop_worker()
         self.pdf_cache.stop_llm_worker()
