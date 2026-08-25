@@ -10,7 +10,7 @@ MIT License - Copyright (c) 2026
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QTreeWidget,
@@ -42,6 +42,15 @@ class FolderTreeWidget(QWidget):
         self._selected_folder: Optional[Path] = None
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
         self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
+
+        # Einfachklick verzoegert ausfuehren, damit ein Doppelklick (Navigation)
+        # nicht vorher die selektierte PDF verschiebt (Issue #23/#26).
+        self._pending_click_item: Optional[QTreeWidgetItem] = None
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        from PyQt6.QtWidgets import QApplication
+        self._click_timer.setInterval(QApplication.doubleClickInterval())
+        self._click_timer.timeout.connect(self._fire_pending_click)
 
         self.setup_ui()
 
@@ -249,13 +258,24 @@ class FolderTreeWidget(QWidget):
             update_recursive(self.tree.topLevelItem(i))
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
-        """Behandelt Klicks auf Items."""
+        """Merkt den Klick vor; ausgefuehrt wird er erst, wenn kein Doppelklick folgt."""
+        self._pending_click_item = item
+        self._click_timer.start()
+
+    def _fire_pending_click(self):
+        """Fuehrt den vorgemerkten Einfachklick aus (Auswahl -> PDF verschieben)."""
+        item = self._pending_click_item
+        self._pending_click_item = None
+        if item is None:
+            return
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
         self._selected_folder = folder_path
         self.folder_selected.emit(folder_path)
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
-        """Behandelt Doppelklicks auf Items."""
+        """Doppelklick = Ordner links oeffnen; der vorgemerkte Klick verfaellt."""
+        self._click_timer.stop()
+        self._pending_click_item = None
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
         self.folder_double_clicked.emit(folder_path)
 
@@ -268,8 +288,12 @@ class FolderTreeWidget(QWidget):
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
         menu = QMenu(self)
 
+        # Links im Scan-Bereich oeffnen (wie Doppelklick)
+        goto_action = menu.addAction("📁 Ordner links öffnen")
+        goto_action.triggered.connect(lambda: self.folder_double_clicked.emit(folder_path))
+
         # Im Explorer öffnen
-        open_action = menu.addAction("📂 Im Explorer öffnen")
+        open_action = menu.addAction("📂 Im Windows-Explorer öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer(folder_path))
 
         menu.addSeparator()

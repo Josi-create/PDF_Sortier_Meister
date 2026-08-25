@@ -43,16 +43,20 @@ def fresh_singletons(monkeypatch, tmp_path):
     from src.ml import hybrid_classifier as hc_mod
     from src.core import pdf_cache as pc_mod
 
-    # Frische Config-Instanz pro Test
+    # Frische Config-Instanz pro Test. Die Fabriken werden in ALLEN src-Modulen
+    # ersetzt (siehe conftest.patch_singletons) - sonst haengt es von der
+    # Import-Reihenfolge ab, welche Config MainWindow tatsaechlich sieht.
+    from tests.conftest import patch_singletons
     fresh_config = cfg_mod.Config(config_path=tmp_path / "config.json")
-    monkeypatch.setattr(cfg_mod, "get_config", lambda: fresh_config)
-    monkeypatch.setattr(db_mod, "get_database",
-                        lambda: db_mod.Database(db_path=str(db_path)))
-    monkeypatch.setattr(cl_mod, "get_classifier", cl_mod.PDFClassifier)
-    monkeypatch.setattr(hc_mod, "get_hybrid_classifier",
-                        hc_mod.HybridClassifier)
-    # PDFCache: parameterlose Fabrik, liest Pfad aus Config
-    monkeypatch.setattr(pc_mod, "get_pdf_cache", pc_mod.PDFCache)
+    fresh_config.set("persist_pdf_cache", False)
+    monkeypatch.setattr(pc_mod.PDFCache, "_instance", None)
+    patch_singletons(monkeypatch, {
+        "get_config": lambda: fresh_config,
+        "get_database": lambda: db_mod.Database(db_path=str(db_path)),
+        "get_classifier": cl_mod.PDFClassifier,
+        "get_hybrid_classifier": hc_mod.HybridClassifier,
+        "get_pdf_cache": pc_mod.PDFCache,
+    })
 
     return {"config": fresh_config, "tmp_path": tmp_path}
 
@@ -209,3 +213,59 @@ def test_main_window_handles_multiple_construction(qtbot, fresh_singletons):
     qtbot.addWidget(win2)
     # Beide haben unabhängige Tab-Widgets
     assert win1.center_tabs is not win2.center_tabs
+
+
+# --------------------------------------------------------------------- #
+# Explorer-Gefuehl (Sprint 1, Issues #29/#26): Ordner-Kacheln + Breadcrumb
+# --------------------------------------------------------------------- #
+
+
+def _scan_tree(tmp_path):
+    scan = tmp_path / "Dokumente" / "FrischGescannt"
+    (scan / "Steuer 2026").mkdir(parents=True)
+    (scan / "Banken").mkdir()
+    (scan / ".versteckt").mkdir()
+    (scan / "Banken" / "kontoauszug.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+    return scan
+
+
+def test_load_pdfs_shows_parent_and_subfolder_tiles(main_window, fresh_singletons):
+    scan = _scan_tree(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+
+    tiles = main_window.folder_tiles
+    assert [t.name_label.text() for t in tiles] == ["..", "Banken", "Steuer 2026"]
+    assert tiles[0].is_parent and tiles[0].folder_path == scan.parent
+    assert tiles[1].count_label.text() == "1 PDF"
+    assert main_window.pdf_scroll_area.isVisibleTo(main_window)  # trotz 0 PDFs sichtbar
+    assert "2 Ordner" in main_window.pdf_folder_count_label.text()
+
+
+def test_tile_double_click_navigates_into_folder(main_window, fresh_singletons):
+    scan = _scan_tree(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+
+    banken = next(t for t in main_window.folder_tiles if t.name_label.text() == "Banken")
+    banken.double_clicked.emit(banken.folder_path)
+
+    assert fresh_singletons["config"].get_scan_folder() == scan / "Banken"
+    assert len(main_window.pdf_widgets) == 1
+    assert main_window._folder_history[-1] == scan
+    # ".." fuehrt wieder nach oben
+    assert main_window.folder_tiles[0].is_parent
+    assert main_window.folder_tiles[0].folder_path == scan
+
+
+def test_breadcrumb_lists_path_segments(main_window, fresh_singletons):
+    from PyQt6.QtWidgets import QToolButton
+    scan = _scan_tree(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+
+    buttons = [
+        main_window.breadcrumb_layout.itemAt(i).widget()
+        for i in range(main_window.breadcrumb_layout.count())
+        if isinstance(main_window.breadcrumb_layout.itemAt(i).widget(), QToolButton)
+    ]
+    assert [b.text() for b in buttons][-2:] == ["Dokumente", "FrischGescannt"]
+    assert not buttons[-1].isEnabled()  # aktueller Ordner nicht klickbar
+    assert buttons[-2].isEnabled()

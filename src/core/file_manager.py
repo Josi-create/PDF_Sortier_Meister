@@ -451,6 +451,17 @@ class FolderManager:
             "parent": str(folder.parent),
         }
 
+    def count_pdfs(self, folder: Path | str) -> int:
+        """Anzahl der PDFs direkt in einem Ordner (ohne Unterordner)."""
+        folder = Path(folder)
+        try:
+            return sum(
+                1 for p in folder.iterdir()
+                if p.is_file() and p.suffix.lower() == ".pdf"
+            )
+        except (PermissionError, OSError):
+            return 0
+
     def get_subfolders(self, parent: Path | str) -> list[Path]:
         """
         Gibt alle Unterordner eines Ordners zurück.
@@ -466,7 +477,15 @@ class FolderManager:
         if not parent.exists():
             return []
 
-        return [p for p in parent.iterdir() if p.is_dir()]
+        try:
+            folders = [
+                p for p in parent.iterdir()
+                if p.is_dir() and not p.name.startswith((".", "$", "~"))
+            ]
+        except (PermissionError, OSError):
+            return []
+        folders.sort(key=lambda p: p.name.lower())
+        return folders
 
     def get_all_subfolders_recursive(
         self,

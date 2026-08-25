@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
+from src.gui.folder_tile import FolderTileWidget
 from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -207,7 +208,7 @@ class MainWindow(QMainWindow):
         # Nach-oben-Button (ein Verzeichnis höher)
         self.navigate_up_btn = QPushButton("⬆")
         self.navigate_up_btn.setFixedSize(28, 28)
-        self.navigate_up_btn.setToolTip("Ein Verzeichnis nach oben (übergeordneter Ordner)")
+        self.navigate_up_btn.setToolTip("Ein Verzeichnis nach oben (Alt+Up)")
         self.navigate_up_btn.clicked.connect(self.on_navigate_up)
         header_layout.addWidget(self.navigate_up_btn)
 
@@ -225,6 +226,13 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.pdf_folder_count_label)
 
         layout.addLayout(header_layout)
+
+        # Breadcrumb: klickbarer Pfad zum aktuellen Scan-Ordner (Explorer-Gefuehl)
+        self.breadcrumb_layout = QHBoxLayout()
+        self.breadcrumb_layout.setContentsMargins(6, 0, 6, 2)
+        self.breadcrumb_layout.setSpacing(2)
+        self.breadcrumb_layout.addStretch()
+        layout.addLayout(self.breadcrumb_layout)
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
@@ -488,10 +496,16 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
         self.pdf_widgets.clear()
 
-        # PDFs laden
+        # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
         pdf_files = self.file_manager.get_pdf_files()
+        scan_folder = self.file_manager.scan_folder
+        subfolders = self.folder_manager.get_subfolders(scan_folder) if scan_folder else []
+        parent_folder = None
+        if scan_folder and scan_folder.parent != scan_folder and scan_folder.parent.exists():
+            parent_folder = scan_folder.parent
+        self._update_breadcrumb(scan_folder)
 
-        if not pdf_files:
+        if not pdf_files and not subfolders and parent_folder is None:
             self.empty_label.setText(
                 "Keine PDFs im Scan-Ordner gefunden.\n\n"
                 f"Ordner: {self.file_manager.scan_folder}"
@@ -509,7 +523,36 @@ class MainWindow(QMainWindow):
         self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
         count = len(pdf_files)
-        self.pdf_folder_count_label.setText(f"{count} {'Datei' if count == 1 else 'Dateien'}")
+        count_text = f"{count} {'Datei' if count == 1 else 'Dateien'}"
+        if subfolders:
+            count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
+        self.pdf_folder_count_label.setText(count_text)
+
+        # Ordner-Kacheln zuerst (".." und Unterordner), dann die PDFs
+        self.folder_tiles = []
+        tile_folders = ([(parent_folder, True)] if parent_folder else []) + [
+            (f, False) for f in subfolders
+        ]
+        for folder, is_parent in tile_folders:
+            tile = FolderTileWidget(
+                folder,
+                pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
+                is_parent=is_parent,
+            )
+            tile.double_clicked.connect(self.on_folder_tile_double_clicked)
+            tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            idx = len(self.folder_tiles)
+            self.pdf_layout.addWidget(tile, idx // 3, idx % 3)
+            self.folder_tiles.append(tile)
+        tile_offset = len(self.folder_tiles)
+
+        if not pdf_files:
+            self.pdf_count_label.setText("PDFs: 0")
+            self._pending_thumbnails = 0
+            self._thumbnails_signal_emitted = True
+            self.thumbnails_loaded.emit()
+            QTimer.singleShot(500, lambda: self._start_pre_caching([]))
+            return
 
         # Thumbnail-Ladetracking initialisieren
         self._pending_thumbnails = len(pdf_files)
@@ -532,8 +575,8 @@ class MainWindow(QMainWindow):
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
 
-            row = i // 3
-            col = i % 3
+            row = (i + tile_offset) // 3
+            col = (i + tile_offset) % 3
             self.pdf_layout.addWidget(widget, row, col)
             self.pdf_widgets.append(widget)
 
@@ -886,6 +929,12 @@ class MainWindow(QMainWindow):
         back_action.setToolTip("Zum vorherigen Scan-Ordner zurückkehren")
         back_action.triggered.connect(self.on_navigate_back)
         view_menu.addAction(back_action)
+
+        up_action = QAction("Übergeordneter Ordner", self)
+        up_action.setShortcut("Alt+Up")
+        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Windows-Explorer)")
+        up_action.triggered.connect(self.on_navigate_up)
+        view_menu.addAction(up_action)
 
         view_menu.addSeparator()
 
@@ -2651,6 +2700,53 @@ class MainWindow(QMainWindow):
         # Wenn eine PDF ausgewählt ist, diese verschieben
         if self.selected_pdf:
             self.move_selected_pdf_to_folder(folder_path)
+
+    def on_folder_tile_double_clicked(self, folder_path: Path):
+        """Doppelklick auf eine Ordner-Kachel im Scan-Bereich: hineinwechseln."""
+        if not folder_path.exists():
+            self.statusbar.showMessage(f"Ordner existiert nicht mehr: {folder_path}", 3000)
+            self.load_pdfs()
+            return
+        self._navigate_to_folder(folder_path)
+        self.statusbar.showMessage(f"Ordner geöffnet: {folder_path.name}", 3000)
+
+    def _update_breadcrumb(self, folder: Optional[Path]):
+        """Baut den klickbaren Pfad zum aktuellen Scan-Ordner neu auf."""
+        while self.breadcrumb_layout.count() > 1:  # letzter Eintrag ist der Stretch
+            item = self.breadcrumb_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if not folder:
+            return
+        parts = list(Path(folder).parts)
+        max_parts = 5
+        start = max(0, len(parts) - max_parts)
+        pos = 0
+        if start > 0:
+            ellipsis = QLabel("…")
+            ellipsis.setStyleSheet("color: #888; padding: 0 2px;")
+            self.breadcrumb_layout.insertWidget(pos, ellipsis)
+            pos += 1
+        for i in range(start, len(parts)):
+            target = Path(*parts[: i + 1])
+            is_last = i == len(parts) - 1
+            btn = QToolButton()
+            btn.setAutoRaise(True)
+            btn.setText(parts[i].rstrip("\\/") or parts[i])
+            btn.setToolTip(str(target))
+            btn.setEnabled(not is_last)
+            btn.setStyleSheet(
+                "QToolButton { padding: 1px 4px; font-size: 11px; }"
+                + (" QToolButton:disabled { color: #222; font-weight: bold; }" if is_last else "")
+            )
+            btn.clicked.connect(lambda _=False, p=target: self.on_folder_tile_double_clicked(p))
+            self.breadcrumb_layout.insertWidget(pos, btn)
+            pos += 1
+            if not is_last:
+                sep = QLabel("›")
+                sep.setStyleSheet("color: #999;")
+                self.breadcrumb_layout.insertWidget(pos, sep)
+                pos += 1
 
     def on_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner doppelgeklickt wird."""
