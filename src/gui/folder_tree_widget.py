@@ -39,6 +39,7 @@ class FolderTreeWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_folders: list[Path] = []
+        self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
         self._selected_folder: Optional[Path] = None
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
         self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
@@ -162,6 +163,7 @@ class FolderTreeWidget(QWidget):
     def refresh_tree(self):
         """Aktualisiert die gesamte Baumstruktur."""
         self.tree.clear()
+        self._items.clear()
 
         for root_folder in self._root_folders:
             if root_folder.exists():
@@ -208,6 +210,7 @@ class FolderTreeWidget(QWidget):
         item.setText(0, display_text)
         item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
         item.setToolTip(0, str(folder_path))
+        self._items[folder_path] = item
 
         # Styling für Vorschläge
         if folder_path in self._suggestion_folders:
@@ -231,6 +234,35 @@ class FolderTreeWidget(QWidget):
                 pass  # Keine Berechtigung, überspringen
 
         return item
+
+    def has_folder(self, folder: Path) -> bool:
+        """True, wenn der Ordner als Item im Baum vorhanden ist."""
+        return Path(folder) in self._items
+
+    def refresh_counts(self, folders) -> int:
+        """
+        Aktualisiert nur die PDF-Zaehler der angegebenen Ordner (Issue #28).
+
+        Nach einem Verschieben aendern sich nur Quell- und Zielordner - ein
+        kompletter Neuaufbau (alle Ordner 3 Ebenen tief listen) ist auf
+        OneDrive/Netzlaufwerken der teuerste Teil des Vorgangs.
+
+        Returns:
+            Anzahl der aktualisierten Items
+        """
+        updated = 0
+        for folder in folders:
+            item = self._items.get(Path(folder))
+            if item is None:
+                continue
+            folder_path = Path(folder)
+            pdf_count = self._count_pdfs(folder_path)
+            if pdf_count > 0:
+                item.setText(0, f"📁 {folder_path.name}  [{pdf_count}]")
+            else:
+                item.setText(0, f"📁 {folder_path.name}")
+            updated += 1
+        return updated
 
     def _count_pdfs(self, folder: Path) -> int:
         """Zählt PDFs in einem Ordner (nicht rekursiv)."""
