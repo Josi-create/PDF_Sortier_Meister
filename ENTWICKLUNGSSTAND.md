@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
 **Datum:** 25.08.2026
-**Aktuelle Version:** 0.14.0
+**Aktuelle Version:** 0.14.0 (+ Sprint 1 Explorer-Gefuehl in Entwicklung)
 
 > **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 

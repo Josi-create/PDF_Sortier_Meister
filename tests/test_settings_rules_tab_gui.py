@@ -30,14 +30,17 @@ def fresh_singletons(monkeypatch, tmp_path):
     from src.ml import hybrid_classifier as hc_mod
     from src.core import pdf_cache as pc_mod
 
+    from tests.conftest import patch_singletons
     fresh_config = cfg_mod.Config(config_path=tmp_path / "config.json")
-    monkeypatch.setattr(cfg_mod, "get_config", lambda: fresh_config)
-    monkeypatch.setattr(db_mod, "get_database",
-                        lambda: db_mod.Database(db_path=str(db_path)))
-    monkeypatch.setattr(cl_mod, "get_classifier", cl_mod.PDFClassifier)
-    monkeypatch.setattr(hc_mod, "get_hybrid_classifier",
-                        hc_mod.HybridClassifier)
-    monkeypatch.setattr(pc_mod, "get_pdf_cache", pc_mod.PDFCache)
+    fresh_config.set("persist_pdf_cache", False)
+    monkeypatch.setattr(pc_mod.PDFCache, "_instance", None)
+    patch_singletons(monkeypatch, {
+        "get_config": lambda: fresh_config,
+        "get_database": lambda: db_mod.Database(db_path=str(db_path)),
+        "get_classifier": cl_mod.PDFClassifier,
+        "get_hybrid_classifier": hc_mod.HybridClassifier,
+        "get_pdf_cache": pc_mod.PDFCache,
+    })
     return {"config": fresh_config, "tmp_path": tmp_path}
 
 

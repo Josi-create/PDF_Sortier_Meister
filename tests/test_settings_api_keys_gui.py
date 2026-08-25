@@ -14,18 +14,18 @@ def fresh_config(monkeypatch, tmp_path):
     from src.ml import hybrid_classifier as hc_mod
     from src.core import pdf_cache as pc_mod
 
-    from src.gui import settings_dialog as sd_mod
+    from tests.conftest import patch_singletons
 
     fresh = cfg_mod.Config(config_path=tmp_path / "config.json")
-    monkeypatch.setattr(cfg_mod, "get_config", lambda: fresh)
-    # SettingsDialog hat get_config auf Modulebene importiert -> dort patchen,
-    # sonst laeuft der Test gegen die echte Nutzer-Config in %APPDATA%.
-    monkeypatch.setattr(sd_mod, "get_config", lambda: fresh)
-    monkeypatch.setattr(db_mod, "get_database",
-                        lambda: db_mod.Database(db_path=str(tmp_path / "t.db")))
-    monkeypatch.setattr(cl_mod, "get_classifier", cl_mod.PDFClassifier)
-    monkeypatch.setattr(hc_mod, "get_hybrid_classifier", hc_mod.HybridClassifier)
-    monkeypatch.setattr(pc_mod, "get_pdf_cache", pc_mod.PDFCache)
+    fresh.set("persist_pdf_cache", False)
+    monkeypatch.setattr(pc_mod.PDFCache, "_instance", None)
+    patch_singletons(monkeypatch, {
+        "get_config": lambda: fresh,
+        "get_database": lambda: db_mod.Database(db_path=str(tmp_path / "t.db")),
+        "get_classifier": cl_mod.PDFClassifier,
+        "get_hybrid_classifier": hc_mod.HybridClassifier,
+        "get_pdf_cache": pc_mod.PDFCache,
+    })
     return fresh
 
 

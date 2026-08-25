@@ -7,6 +7,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Explorer-Gefuehl im Scan-Bereich (Sprint 1, Issues #29/#26/#23)**
+  - Ordner-Kacheln im PDF-Raster: ".." (uebergeordneter Ordner) und alle Unterordner
+    mit PDF-Anzahl; Doppelklick wechselt hinein, PDFs lassen sich per Drag & Drop
+    direkt in eine Kachel verschieben
+  - Klickbarer Breadcrumb-Pfad unter der Kopfzeile; Menue Ansicht -> "Uebergeordneter
+    Ordner" (Alt+Up), wie im Windows-Explorer
+  - Zielordner-Baum: Doppelklick oeffnet den Ordner links, ohne vorher die selektierte
+    PDF zu verschieben (Einfachklick wird erst nach dem Doppelklick-Intervall ausgefuehrt);
+    Kontextmenue "Ordner links oeffnen"
+  - Versteckte Ordner (., $, ~) werden ausgeblendet, Unterordner alphabetisch sortiert
+
+### Tests
+- `tests/conftest.py`: `patch_singletons()` ersetzt Singleton-Fabriken in allen src-Modulen
+  (GUI-Tests liefen je nach Import-Reihenfolge gegen die echte Nutzer-Config)
+
 ## [0.14.0] - 2026-08-25
 
 ### Hinzugefuegt
