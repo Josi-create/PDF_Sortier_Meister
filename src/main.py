@@ -24,7 +24,7 @@ if str(src_path) not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QSplashScreen
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QPalette, QColor
+from PyQt6.QtGui import QPixmap, QPalette, QColor, QIcon
 
 from src.gui.main_window import MainWindow
 from src.gui.setup_wizard import SetupWizard
@@ -97,6 +97,25 @@ def main():
 
     # Anwendung erstellen
     app = QApplication(sys.argv)
+
+    # App-Icon (Fenster + Taskleiste). Unter Windows zusaetzlich eine eigene
+    # AppUserModelID setzen, sonst zeigt die Taskleiste im Dev-Modus das
+    # Python-Icon statt unseres.
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "JosiCreate.PDFSortierMeister"
+            )
+        except Exception:
+            pass
+    icon_candidates = [
+        Path(getattr(sys, "_MEIPASS", src_path)) / "icon.png",
+        src_path / "icon.png",
+    ]
+    icon_path = next((p for p in icon_candidates if p.exists()), None)
+    if icon_path is not None:
+        app.setWindowIcon(QIcon(str(icon_path)))
     app.setApplicationName("PDF Sortier Meister")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("PDF Sortier Meister")

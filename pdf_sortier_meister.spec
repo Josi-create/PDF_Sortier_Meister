@@ -27,6 +27,9 @@ if SPLASH_IMG.exists():
     # Splashbild auch als Datei mitliefern, damit der Fallback-Qt-Splash
     # (z.B. bei Python-Direktstart) ebenfalls funktioniert.
     datas.append((str(SPLASH_IMG), "."))
+if (ROOT_DIR / "icon.png").exists():
+    # Fenster-/Taskleisten-Icon zur Laufzeit (app.setWindowIcon)
+    datas.append((str(ROOT_DIR / "icon.png"), "."))
 
 # Hidden imports fuer PyQt6 und sklearn
 hiddenimports = [
