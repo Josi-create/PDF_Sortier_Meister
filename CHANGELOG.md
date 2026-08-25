@@ -8,6 +8,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Geaendert
+- **Erster Klick nach dem Start**: blockiert nicht mehr, bis das KI-Modell geladen ist.
+  Stattdessen Wartecursor + Statusmeldung "KI-Modell wird geladen, Vorschlaege folgen
+  gleich..."; die Vorschlaege werden automatisch nachgezogen. pikepdf und die
+  sklearn-Aehnlichkeitssuche werden direkt nach dem Start im Hintergrund vorgewaermt.
+- Verzoegerte Timer (Pre-Caching, Modell-Warteschleife) sind an das Fenster gebunden
+  und feuern nicht mehr nach dessen Schliessen.
 - **Verschieben im echten Betrieb (Issue #28, Nachschlag)**
   - Nach einem Verschieben wird der Zielordner-Baum nicht mehr komplett neu aufgebaut
     (alle Ordner 3 Ebenen tief listen + PDFs zaehlen, auf OneDrive der teuerste Teil);

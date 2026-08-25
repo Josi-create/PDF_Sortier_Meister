@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
 
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
+        QTimer.singleShot(300, self._start_warmup)
 
     def setup_ui(self):
         """Initialisiert die Haupt-UI-Komponenten."""
@@ -554,7 +555,7 @@ class MainWindow(QMainWindow):
             self._pending_thumbnails = 0
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
-            QTimer.singleShot(500, lambda: self._start_pre_caching([]))
+            self._schedule_pre_caching([])
             return
 
         # Thumbnail-Ladetracking initialisieren
@@ -594,7 +595,22 @@ class MainWindow(QMainWindow):
 
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
-        QTimer.singleShot(500, lambda: self._start_pre_caching(pdf_files))
+        self._schedule_pre_caching(pdf_files)
+
+    def _schedule_pre_caching(self, pdf_files: list[Path], delay_ms: int = 500):
+        """Startet das Pre-Caching verzoegert ueber einen fenstergebundenen Timer.
+
+        Ein freies QTimer.singleShot(lambda) wuerde auch nach dem Schliessen des
+        Fensters noch feuern und auf geloeschte Widgets zugreifen.
+        """
+        if not hasattr(self, "_precache_timer"):
+            self._precache_timer = QTimer(self)
+            self._precache_timer.setSingleShot(True)
+            self._precache_timer.timeout.connect(
+                lambda: self._start_pre_caching(self._precache_pending or [])
+            )
+        self._precache_pending = list(pdf_files)
+        self._precache_timer.start(delay_ms)
 
     def _start_pre_caching(self, pdf_files: list[Path]):
         """Startet das Pre-Caching für alle PDFs im Hintergrund."""
@@ -722,6 +738,50 @@ class MainWindow(QMainWindow):
                     self.selected_pdfs.append(new_path)
 
                 break
+
+    def _start_warmup(self):
+        """Laedt teure Module im Hintergrund vor, damit der erste Klick nicht wartet."""
+        import threading
+
+        def _run():
+            try:
+                import pikepdf  # noqa: F401  (Detail-Panel liest Metadaten aus der PDF)
+                import sklearn.metrics.pairwise  # noqa: F401  (erste Aehnlichkeitssuche)
+            except Exception:
+                pass
+
+        threading.Thread(target=_run, name="warmup", daemon=True).start()
+
+    def _wait_for_model_then_apply(self, pdf_path: Path, result: PDFAnalysisResult):
+        """
+        Der Klassifikator laedt nach dem Start noch im Hintergrund. Statt den
+        UI-Thread zu blockieren: Wartecursor + Statusmeldung, und sobald das
+        Modell da ist, werden die Vorschlaege nachgezogen.
+        """
+        if self.selected_pdf != pdf_path:
+            self._end_model_wait()
+            return
+        if self.classifier.is_model_ready():
+            self._end_model_wait()
+            self._apply_analysis_result(pdf_path, result)
+            return
+        if not getattr(self, "_model_wait_active", False):
+            self._model_wait_active = True
+            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+            self.statusbar.showMessage("KI-Modell wird geladen, Vorschläge folgen gleich…")
+        if not hasattr(self, "_model_wait_timer"):
+            self._model_wait_timer = QTimer(self)
+            self._model_wait_timer.setSingleShot(True)
+            self._model_wait_timer.timeout.connect(
+                lambda: self._wait_for_model_then_apply(*self._model_wait_args)
+            )
+        self._model_wait_args = (pdf_path, result)
+        self._model_wait_timer.start(100)
+
+    def _end_model_wait(self):
+        if getattr(self, "_model_wait_active", False):
+            self._model_wait_active = False
+            QApplication.restoreOverrideCursor()
 
     def _refresh_after_move(self, target_folder: Path, *source_folders: Path):
         """Aktualisiert nach einem Verschieben nur die betroffenen Zaehler (Issue #28).
@@ -1335,6 +1395,9 @@ class MainWindow(QMainWindow):
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
+        if not self.classifier.is_model_ready():
+            self._wait_for_model_then_apply(pdf_path, result)
+            return
         try:
             # Ergebnisse speichern
             self.selected_pdf_text = result.extracted_text
