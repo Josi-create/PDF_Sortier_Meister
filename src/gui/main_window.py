@@ -37,6 +37,7 @@ from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.folder_tile import FolderTileWidget
+from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -106,6 +107,8 @@ class MainWindow(QMainWindow):
         self.pdf_cache.llm_suggestions_ready.connect(self._on_llm_suggestions_ready)
         self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
         self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
+        # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
+        self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
@@ -720,6 +723,41 @@ class MainWindow(QMainWindow):
 
                 break
 
+    def _refresh_after_move(self, target_folder: Path, *source_folders: Path):
+        """Aktualisiert nach einem Verschieben nur die betroffenen Zaehler (Issue #28).
+
+        Der Scan-Ordner (Quelle) ist meist kein Zielordner und daher nicht im
+        Baum - das ist kein Grund fuer einen Voll-Neuaufbau. Nur wenn der
+        Zielordner selbst fehlt (z.B. gerade neu angelegt), wird neu geladen.
+        """
+        target_folder = Path(target_folder)
+        if not self.folder_tree.has_folder(target_folder):
+            self.load_folders()
+            return
+        self.folder_tree.refresh_counts({target_folder, *(Path(f) for f in source_folders if f)})
+
+    def _write_pdf_metadata_async(self, pdf_path: Path, new_name: str,
+                                  keywords: list[str] = None, dialog_metadata: dict = None):
+        """Schreibt XMP-Metadaten im Hintergrund; Undo wartet ggf. darauf."""
+        import threading
+
+        def _run():
+            try:
+                self._write_pdf_metadata(pdf_path, new_name, keywords, dialog_metadata)
+            finally:
+                self._pending_metadata_writes.pop(pdf_path, None)
+
+        t = threading.Thread(target=_run, name="pdf-metadata-write", daemon=True)
+        self._pending_metadata_writes[pdf_path] = t
+        t.start()
+
+    def _wait_for_metadata_writes(self, paths, timeout: float = 15.0):
+        """Wartet, bis Hintergrund-Schreibvorgaenge fuer diese Pfade fertig sind."""
+        for p in paths:
+            t = self._pending_metadata_writes.get(Path(p))
+            if t is not None:
+                t.join(timeout)
+
     def load_folders(self):
         """Lädt die Zielordner in die Baumansicht."""
         # Ordner laden
@@ -1140,7 +1178,10 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}")
 
         # PDF analysieren und Vorschläge aktualisieren
+        self._click_timer = StepTimer("Klick")
         self.update_suggestions_for_pdf(pdf_path)
+        self._click_timer.step("vorschlaege+detail")
+        self._click_timer.done()
 
     def on_pdf_ctrl_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF mit Ctrl angeklickt wird (Mehrfachauswahl)."""
@@ -1309,6 +1350,7 @@ class MainWindow(QMainWindow):
                 else:
                     detected_date = str(first_date)
 
+            timer = getattr(self, "_click_timer", None) or StepTimer("Vorschlaege")
             # Vorschläge mit hierarchischen Pfaden holen
             suggestions = self.classifier.suggest_with_subfolders(
                 text=self.selected_pdf_text,
@@ -1317,16 +1359,20 @@ class MainWindow(QMainWindow):
                 root_folders=self.folder_manager.target_folders,
                 max_suggestions=self.config.get("max_suggestions", 5),
             )
+            timer.step("suggest")
 
             # Vorschläge anzeigen (alte grüne Buttons)
             self.display_suggestions(suggestions)
+            timer.step("buttons")
 
             # Vorgeschlagene Ordner in der Baumansicht hervorheben
             suggested_folders = [s.folder_path for s in suggestions]
             self.folder_tree.set_suggestion_folders(suggested_folders)
+            timer.step("baum")
 
             # Detail-Panel befüllen (3-Spalten-Layout)
             self._populate_detail_panel(pdf_path, result, detected_date)
+            timer.step("detail")
 
             if suggestions:
                 self.statusbar.showMessage(
@@ -1481,22 +1527,27 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        timer = StepTimer("Verschieben")
         try:
             # Datei verschieben (mit optionalem neuen Namen)
             new_path = self.file_manager.move_file(pdf_path, folder_path, new_name=new_name)
+            timer.step("move")
 
             # Cache-Eintrag migrieren
             self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
+            timer.step("cache")
 
-            # Metadaten in PDF schreiben
+            # Metadaten in PDF schreiben (pikepdf schreibt die Datei komplett neu
+            # -> auf OneDrive/Netzlaufwerken langsam, daher im Hintergrund)
             if metadata:
-                self._write_pdf_metadata(new_path, new_path.name,
-                                         self.selected_pdf_keywords, metadata)
+                self._write_pdf_metadata_async(new_path, new_path.name,
+                                               self.selected_pdf_keywords, metadata)
                 # Korrespondent-Zuordnung lernen
                 if metadata.get("korrespondent"):
                     self.db.learn_korrespondent_metadata(
                         metadata["korrespondent"], metadata
                     )
+            timer.step("metadata")
 
             # Undo-Eintrag
             desc = f"{pdf_path.name} → {relative_path}"
@@ -1517,6 +1568,7 @@ class MainWindow(QMainWindow):
                     keywords=self.selected_pdf_keywords,
                     relative_path=relative_path,
                 )
+            timer.step("learn")
 
             # Umbenennung lernen (falls Name geändert)
             if name_changed:
@@ -1549,6 +1601,7 @@ class MainWindow(QMainWindow):
                 zusammenfassung=metadata.get("description", "") if metadata else "",
                 target_folder=relative_path,
             )
+            timer.step("index")
 
             # Status
             training_count = self.classifier.get_training_count()
@@ -1564,13 +1617,18 @@ class MainWindow(QMainWindow):
             self.config.add_to_last_used(folder_path)
             self.remove_pdf_widget(pdf_path)
             self.detail_panel.clear()
-            self.load_folders()
+            timer.step("ui")
+            self._refresh_after_move(folder_path, pdf_path.parent)
+            timer.step("tree")
             # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
             self._check_automation_rules(
                 pdf_path, metadata=self.detail_panel.get_metadata()
             )
+            timer.step("rules")
             # Phase 20: Korrespondenten aus Historie in Verwaltungstabelle sammeln
             self._auto_collect_korrespondenten()
+            timer.step("korrespondenten")
+            timer.done()
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -1637,7 +1695,7 @@ class MainWindow(QMainWindow):
                 self.remove_pdf_widget(pdf_path)
 
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
-                self.load_folders()
+                self._refresh_after_move(folder_path, pdf_path.parent)
 
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
                 self._check_automation_rules(pdf_path)
@@ -1733,7 +1791,7 @@ class MainWindow(QMainWindow):
         self.config.add_to_last_used(folder_path)
 
         # Ordneransicht aktualisieren
-        self.load_folders()
+        self._refresh_after_move(folder_path, *{p.parent for p in pdf_paths})
 
         # Vorschläge leeren
         self.clear_suggestions()
@@ -2138,7 +2196,7 @@ class MainWindow(QMainWindow):
                 # Nur das verschobene PDF-Widget entfernen
                 self.remove_pdf_widget(pdf_path)
                 # Ordneransicht aktualisieren
-                self.load_folders()
+                self._refresh_after_move(folder_path, pdf_path.parent)
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
                 self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
@@ -2347,6 +2405,9 @@ class MainWindow(QMainWindow):
         """Macht eine Verschiebe-Aktion rückgängig."""
         moves = entry["moves"]
         desc = entry["description"]
+
+        # Laufende Hintergrund-Schreibvorgaenge (XMP) erst abschliessen lassen
+        self._wait_for_metadata_writes([dest for _, dest in moves])
 
         # Prüfen ob alle Dateien noch existieren (am Zielort)
         missing = [dest for _, dest in moves if not dest.exists()]
@@ -2861,7 +2922,7 @@ class MainWindow(QMainWindow):
         self.config.add_to_last_used(folder_path)
 
         # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
-        self.load_folders()
+        self._refresh_after_move(folder_path, *{p.parent for p in pdfs_to_move})
 
     def on_folder_remove(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner aus der Liste entfernt werden soll."""

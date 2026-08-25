@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geaendert
+- **Verschieben im echten Betrieb (Issue #28, Nachschlag)**
+  - Nach einem Verschieben wird der Zielordner-Baum nicht mehr komplett neu aufgebaut
+    (alle Ordner 3 Ebenen tief listen + PDFs zaehlen, auf OneDrive der teuerste Teil);
+    nur Quell- und Zielordner werden neu gezaehlt (`FolderTreeWidget.refresh_counts`).
+  - XMP-Metadaten werden im Hintergrund in die PDF geschrieben (pikepdf schreibt die
+    Datei komplett neu); Rueckgaengig wartet auf laufende Schreibvorgaenge.
+  - Stoppuhren: `Klick ...` und `Verschieben ...` erscheinen als INFO-Zeilen im Log
+    (`%APPDATA%\PDF_Sortier_Meister\logs`), sobald ein Vorgang >= 100 ms dauert -
+    mit Aufschluesselung pro Schritt (move | cache | metadata | learn | index | tree ...).
+
 ## [0.15.0] - 2026-08-25
 
 ### Geaendert
