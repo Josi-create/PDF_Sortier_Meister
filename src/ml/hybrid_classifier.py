@@ -81,6 +81,18 @@ class HybridClassifier:
             self.llm_enabled = False
             return
 
+        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
+        from src.ml.llm_provider import is_cloud_provider
+        if is_cloud_provider(provider_type) and not llm_config.get("cloud_consent", False):
+            import logging
+            logging.getLogger(__name__).warning(
+                "Cloud-Provider '%s' konfiguriert, aber keine Einwilligung "
+                "zur Datenuebertragung erteilt. LLM bleibt deaktiviert.",
+                provider_type,
+            )
+            self.llm_enabled = False
+            return
+
         # Ollama laeuft lokal und braucht keinen API-Key.
         # Alle anderen Provider brauchen einen.
         if provider_type != "ollama" and not api_key:
@@ -120,7 +132,7 @@ class HybridClassifier:
         api_key: str,
         model: str = "",
         base_url: str = "",
-    ):
+    ) -> bool:
         """
         Setzt den LLM-Provider zur Laufzeit.
 
@@ -129,17 +141,30 @@ class HybridClassifier:
             api_key: API-Key (bei Ollama ignoriert)
             model: Modellname (optional)
             base_url: Server-URL (nur fuer Ollama relevant)
+
+        Returns:
+            True wenn der Provider erfolgreich aktiviert wurde.
         """
         if provider_type == LLMProviderType.NONE:
             self.llm_provider = None
             self.llm_enabled = False
-            return
+            return False
+
+        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
+        from src.ml.llm_provider import is_cloud_provider
+        pt = provider_type.value if hasattr(provider_type, "value") else str(provider_type)
+        if is_cloud_provider(pt):
+            consent = self.config.get("llm", {}).get("cloud_consent", False)
+            if not consent:
+                self.llm_provider = None
+                self.llm_enabled = False
+                return False
 
         # Ollama laeuft lokal und braucht keinen API-Key.
         if provider_type != LLMProviderType.OLLAMA and not api_key:
             self.llm_provider = None
             self.llm_enabled = False
-            return
+            return False
 
         # Standard-Modell je nach Provider
         default_models = {
@@ -171,6 +196,8 @@ class HybridClassifier:
         except Exception as e:
             print(f"Fehler bei LLM-Konfiguration: {e}")
             self.llm_enabled = False
+
+        return self.llm_enabled
 
     def suggest_folders(
         self,
