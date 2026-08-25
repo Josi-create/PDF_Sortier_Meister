@@ -7,7 +7,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-25
+
+### Geaendert
+- **Geschwindigkeit (Issue #28)** - gemessen mit 900 Verlaufseintraegen / 100 PDFs
+  - Verschieben blockiert nicht mehr: `classifier.learn()` trainierte TF-IDF bei jedem
+    Vorgang synchron neu (~450 ms bei 900 Eintraegen). Jetzt entprellt (1,5 s) im
+    Hintergrund-Thread mit atomarem Modell-Tausch; beim Beenden wird ausstehendes
+    Training abgeschlossen.
+  - scikit-learn/numpy werden nicht mehr beim Programmstart importiert (~1,3 s); das
+    Modell laedt in einem Hintergrund-Thread, Vorschlaege warten bei Bedarf darauf.
+  - Thumbnails werden als PNG unter `<Datenordner>/thumbnails/` gecacht (Schluessel:
+    Pfad, Groesse, mtime); Rendern ~17 ms -> Laden ~1 ms pro PDF.
+
 ### Hinzugefuegt
+- **Jahres-Variante bei Ordnervorschlaegen (Issue #30)**: Zu einem gelernten Vorschlag wie
+  "Steuer 2025/Medikamente" wird zusaetzlich "Steuer 2026/Medikamente" angeboten, wenn der
+  Ordner existiert. Passt das im Dokument erkannte Jahr, steht die Variante vorn; ohne
+  erkanntes Jahr dahinter. Der gelernte Ordner bleibt immer erhalten (nichts wird
+  stillschweigend umgeschrieben). Relative Pfade in Vorschlaegen nutzen jetzt einheitlich "/".
 - **Explorer-Gefuehl im Scan-Bereich (Sprint 1, Issues #29/#26/#23)**
   - Ordner-Kacheln im PDF-Raster: ".." (uebergeordneter Ordner) und alle Unterordner
     mit PDF-Anzahl; Doppelklick wechselt hinein, PDFs lassen sich per Drag & Drop
@@ -146,7 +164,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.13.0...v0.14.0
 [0.12.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.10.0...v0.11.0

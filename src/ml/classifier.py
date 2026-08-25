@@ -10,14 +10,14 @@ Unterstützt hierarchische Ordnerstrukturen und Jahres-Muster-Erkennung.
 import logging
 import pickle
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 from dataclasses import dataclass
 
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+# numpy/scikit-learn werden erst bei Bedarf importiert (Issue #28):
+# der Import kostet ~1,3 s und wuerde sonst den Programmstart blockieren.
 
 from src.utils.config import get_config
 from src.utils.database import get_database, SortingHistory
@@ -47,10 +47,13 @@ class PDFClassifier:
         self.config = get_config()
         self.db = get_database()
 
-        # TF-IDF Vectorizer für Textähnlichkeit
-        self.vectorizer: Optional[TfidfVectorizer] = None
-        self.tfidf_matrix = None
-        self.training_entries: list[SortingHistory] = []
+        # TF-IDF-Modell als ein Tupel (vectorizer, matrix, entries), damit ein
+        # Hintergrund-Retraining es atomar austauschen kann (Issue #28).
+        self._model: tuple[Optional[Any], Any, list[SortingHistory]] = (None, None, [])
+        self._model_ready = threading.Event()
+        self._retrain_timer: Optional[threading.Timer] = None
+        self._retrain_lock = threading.Lock()
+        self._retrain_pending = False
 
         # Modell-Pfad
         self.model_path = self.config.model_dir / "classifier.pkl"
@@ -59,8 +62,52 @@ class PDFClassifier:
         self._folder_cache: dict[str, Path] = {}
         self._folder_cache_roots: list[Path] = []
 
-        # Modell laden oder neu erstellen
-        self._load_or_create_model()
+        # Modell im Hintergrund laden (sklearn-Import + Pickle), damit das
+        # Fenster sofort erscheint. suggest()/learn() warten bei Bedarf darauf.
+        threading.Thread(
+            target=self._load_or_create_model, name="classifier-load", daemon=True
+        ).start()
+
+    # --- Modellzustand ---------------------------------------------------
+
+    @property
+    def vectorizer(self):
+        return self._model[0]
+
+    @vectorizer.setter
+    def vectorizer(self, value):
+        self._model = (value, self._model[1], self._model[2])
+
+    @property
+    def tfidf_matrix(self):
+        return self._model[1]
+
+    @tfidf_matrix.setter
+    def tfidf_matrix(self, value):
+        self._model = (self._model[0], value, self._model[2])
+
+    @property
+    def training_entries(self) -> list[SortingHistory]:
+        return self._model[2]
+
+    @training_entries.setter
+    def training_entries(self, value):
+        self._model = (self._model[0], self._model[1], value)
+
+    def _ensure_model(self):
+        """Wartet, bis das Hintergrund-Laden des Modells abgeschlossen ist."""
+        if not self._model_ready.is_set():
+            self._model_ready.wait()
+
+    @staticmethod
+    def _new_vectorizer():
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        return TfidfVectorizer(
+            max_features=5000,
+            ngram_range=(1, 2),  # Uni- und Bigrams
+            min_df=1,
+            stop_words=None,  # Deutsche Stopwords werden manuell behandelt
+        )
 
     def _find_folder_by_name(self, folder_name: str) -> Optional[Path]:
         """
@@ -131,24 +178,24 @@ class PDFClassifier:
 
     def _load_or_create_model(self):
         """Lädt ein bestehendes Modell oder erstellt ein neues."""
-        if self.model_path.exists():
-            try:
-                self._load_model()
-                logger.info(f"Klassifikator geladen mit {len(self.training_entries)} Einträgen")
-            except Exception as e:
-                logger.error(f"Fehler beim Laden des Modells: {e}")
+        try:
+            if self.model_path.exists():
+                try:
+                    self._load_model()
+                    logger.info(f"Klassifikator geladen mit {len(self.training_entries)} Einträgen")
+                except Exception as e:
+                    logger.error(f"Fehler beim Laden des Modells: {e}")
+                    self._create_new_model()
+            else:
                 self._create_new_model()
-        else:
-            self._create_new_model()
+        except Exception as e:
+            logger.error(f"Klassifikator konnte nicht initialisiert werden: {e}")
+        finally:
+            self._model_ready.set()
 
     def _create_new_model(self):
         """Erstellt ein neues Modell basierend auf der Datenbank."""
-        self.vectorizer = TfidfVectorizer(
-            max_features=5000,
-            ngram_range=(1, 2),  # Uni- und Bigrams
-            min_df=1,
-            stop_words=None,  # Deutsche Stopwords werden manuell behandelt
-        )
+        self.vectorizer = self._new_vectorizer()
 
         # Trainiere mit bestehenden Daten
         self._retrain()
@@ -157,9 +204,7 @@ class PDFClassifier:
         """Lädt das Modell von der Festplatte."""
         with open(self.model_path, "rb") as f:
             data = pickle.load(f)
-            self.vectorizer = data["vectorizer"]
-            self.tfidf_matrix = data["tfidf_matrix"]
-            self.training_entries = data["training_entries"]
+            self._model = (data["vectorizer"], data["tfidf_matrix"], data["training_entries"])
 
     def _save_model(self):
         """Speichert das Modell auf der Festplatte."""
@@ -172,22 +217,57 @@ class PDFClassifier:
             pickle.dump(data, f)
 
     def _retrain(self):
-        """Trainiert das Modell mit allen Daten aus der Datenbank."""
-        entries = self.db.get_entries_with_text()
+        """Trainiert das Modell synchron mit allen Daten aus der Datenbank.
 
-        if not entries:
-            self.training_entries = []
-            self.tfidf_matrix = None
-            return
+        Es wird ein NEUER Vectorizer gefittet und das Modell danach atomar
+        getauscht, damit ein gleichzeitig laufendes suggest() nie einen halb
+        trainierten Zustand sieht.
+        """
+        with self._retrain_lock:
+            self._retrain_pending = False
+            entries = self.db.get_entries_with_text()
 
-        self.training_entries = entries
-        texts = [self._preprocess_text(e.extracted_text) for e in entries]
+            if not entries:
+                self._model = (self.vectorizer or self._new_vectorizer(), None, [])
+                return
 
-        if texts and any(texts):
-            self.tfidf_matrix = self.vectorizer.fit_transform(texts)
-            self._save_model()
-        else:
-            self.tfidf_matrix = None
+            texts = [self._preprocess_text(e.extracted_text) for e in entries]
+            if texts and any(texts):
+                vectorizer = self._new_vectorizer()
+                matrix = vectorizer.fit_transform(texts)
+                self._model = (vectorizer, matrix, entries)
+                self._save_model()
+            else:
+                self._model = (self.vectorizer or self._new_vectorizer(), None, entries)
+
+    # Wartezeit nach dem letzten learn(), bevor im Hintergrund trainiert wird.
+    RETRAIN_DELAY_S = 1.5
+
+    def _schedule_retrain(self):
+        """Entprellt: mehrere Verschiebungen kurz nacheinander -> ein Training."""
+        with self._retrain_lock:
+            self._retrain_pending = True
+            if self._retrain_timer is not None:
+                self._retrain_timer.cancel()
+            self._retrain_timer = threading.Timer(self.RETRAIN_DELAY_S, self._retrain_in_background)
+            self._retrain_timer.daemon = True
+            self._retrain_timer.start()
+
+    def _retrain_in_background(self):
+        try:
+            self._retrain()
+            logger.debug("Klassifikator im Hintergrund neu trainiert (%d Eintraege)", len(self.training_entries))
+        except Exception as e:
+            logger.error(f"Hintergrund-Training fehlgeschlagen: {e}")
+
+    def flush_training(self, timeout: float = 30.0):
+        """Fuehrt ein ausstehendes Training sofort aus (z.B. beim Beenden, in Tests)."""
+        timer = self._retrain_timer
+        if timer is not None:
+            timer.cancel()
+        self._ensure_model()
+        if self._retrain_pending:
+            self._retrain()
 
     def _preprocess_text(self, text: str) -> str:
         """
@@ -257,8 +337,10 @@ class PDFClassifier:
             target_relative_path=relative_path,
         )
 
-        # Modell neu trainieren
-        self._retrain()
+        # Modell im Hintergrund neu trainieren (entprellt) - das Verschieben
+        # selbst wartet nicht mehr auf das TF-IDF-Fitting (Issue #28).
+        self._ensure_model()
+        self._schedule_retrain()
 
     def suggest(
         self,
@@ -277,6 +359,7 @@ class PDFClassifier:
         Returns:
             Liste von Sortiervorschlägen, sortiert nach Konfidenz
         """
+        self._ensure_model()
         suggestions = []
 
         # 1. Textbasierte Ähnlichkeit (wenn Trainingsdaten vorhanden)
@@ -310,7 +393,9 @@ class PDFClassifier:
         self, text: str, max_suggestions: int
     ) -> list[Suggestion]:
         """Schlägt Ordner basierend auf Textähnlichkeit vor."""
-        if self.tfidf_matrix is None or not self.training_entries:
+        # Modell einmal lesen -> konsistent, auch wenn im Hintergrund getauscht wird
+        vectorizer, tfidf_matrix, training_entries = self._model
+        if tfidf_matrix is None or not training_entries:
             return []
 
         # Text vektorisieren
@@ -319,19 +404,20 @@ class PDFClassifier:
             return []
 
         try:
-            query_vector = self.vectorizer.transform([processed_text])
+            query_vector = vectorizer.transform([processed_text])
         except Exception:
             return []
 
         # Ähnlichkeiten berechnen
-        similarities = cosine_similarity(query_vector, self.tfidf_matrix)[0]
+        from sklearn.metrics.pairwise import cosine_similarity
+        similarities = cosine_similarity(query_vector, tfidf_matrix)[0]
 
         # Beste Übereinstimmungen finden - gruppiert nach Ordnernamen
         # (nicht nach absolutem Pfad, damit Wechsel des Zielordners funktioniert)
         folder_scores: dict[str, tuple[str, list[float]]] = {}  # name -> (learned_path, scores)
         for idx, similarity in enumerate(similarities):
             if similarity > 0.1:  # Mindest-Ähnlichkeit
-                entry = self.training_entries[idx]
+                entry = training_entries[idx]
                 folder_name = entry.target_folder_name
                 if folder_name not in folder_scores:
                     folder_scores[folder_name] = (entry.target_folder, [])
@@ -340,7 +426,7 @@ class PDFClassifier:
         # Durchschnittliche Ähnlichkeit pro Ordner
         suggestions = []
         for folder_name, (learned_path, scores) in folder_scores.items():
-            avg_score = np.mean(scores)
+            avg_score = sum(scores) / len(scores)
             max_score = max(scores)
             # Gewichteter Score: 70% max, 30% avg
             combined_score = 0.7 * max_score + 0.3 * avg_score
@@ -452,33 +538,53 @@ class PDFClassifier:
         current_year = datetime.now().year
         detected_year = self._extract_year_from_date(detected_date)
 
+        target_year = detected_year or current_year
+
         suggestions = []
+
+        def _add(candidate: Suggestion):
+            if not any(e.folder_path == candidate.folder_path for e in suggestions):
+                suggestions.append(candidate)
+
         for s in base_suggestions:
-            # Relativen Pfad berechnen
             relative_path = self._get_relative_path(s.folder_path, root_folders)
-
-            # Jahres-Muster aktualisieren
-            updated_path, updated_relative = self._update_year_pattern(
-                s.folder_path,
-                relative_path,
-                detected_year or current_year
-            )
-
-            # Neuen Suggestion mit rel. Pfad erstellen
-            updated_suggestion = Suggestion(
-                folder_path=updated_path,
-                folder_name=updated_path.name,
+            original = Suggestion(
+                folder_path=s.folder_path,
+                folder_name=s.folder_path.name,
                 confidence=s.confidence,
                 reason=s.reason,
-                relative_path=updated_relative
+                relative_path=relative_path,
             )
 
-            # Duplikate vermeiden
-            if not any(
-                existing.folder_path == updated_suggestion.folder_path
-                for existing in suggestions
-            ):
-                suggestions.append(updated_suggestion)
+            # Jahres-Variante (Issue #30): "Steuer 2025/Medikamente" -> "Steuer 2026/Medikamente",
+            # nur wenn der Ordner existiert. Der gelernte Vorschlag bleibt immer erhalten;
+            # die Variante steht vorn, wenn das im Dokument erkannte Jahr zu ihr passt.
+            variant = self._year_variant(s.folder_path, relative_path, target_year)
+            if variant is None:
+                _add(original)
+                continue
+
+            variant_path, variant_relative = variant
+            year_matches = detected_year is not None
+            if year_matches:
+                reason = f'Jahr {target_year} im Dokument erkannt - Variante von "{relative_path}"'
+                confidence = min(1.0, s.confidence + 0.05)
+            else:
+                reason = f'Aktuelles Jahr {target_year} - Variante von "{relative_path}"'
+                confidence = max(0.0, s.confidence - 0.05)
+            variant_suggestion = Suggestion(
+                folder_path=variant_path,
+                folder_name=variant_path.name,
+                confidence=confidence,
+                reason=reason,
+                relative_path=variant_relative,
+            )
+            if year_matches:
+                _add(variant_suggestion)
+                _add(original)
+            else:
+                _add(original)
+                _add(variant_suggestion)
 
         return suggestions[:max_suggestions]
 
@@ -496,7 +602,7 @@ class PDFClassifier:
                 relative = folder_path.relative_to(root)
                 if str(relative) == '.':
                     return root.name
-                return f"{root.name}/{relative}"
+                return f"{root.name}/{relative.as_posix()}"
             except ValueError:
                 continue
 
@@ -513,32 +619,44 @@ class PDFClassifier:
             return int(year_match.group())
         return None
 
-    def _update_year_pattern(
-        self,
+    @staticmethod
+    def _year_variant(
         folder_path: Path,
         relative_path: str,
-        target_year: int
-    ) -> tuple[Path, str]:
+        target_year: int,
+    ) -> Optional[tuple[Path, str]]:
         """
-        NICHT automatisch Jahreszahlen aktualisieren!
+        Liefert die Jahres-Variante eines Ordners, falls sie existiert (Issue #30).
 
-        Ein Dokument mit Datum 2026 kann trotzdem für "Steuer 2025" sein
-        (z.B. Lohnsteuerbescheinigung 2025 kommt im Januar 2026).
-
-        Stattdessen: Originalen Vorschlag behalten. Die Jahres-Variante
-        wird separat als Alternative angeboten wenn verfügbar.
-
-        Args:
-            folder_path: Absoluter Pfad
-            relative_path: Relativer Pfad
-            target_year: Zieljahr (aus Dokument-Datum)
+        Jahreszahlen (20xx) in den Pfadsegmenten unterhalb des Laufwerks werden
+        durch ``target_year`` ersetzt. Es wird NICHT automatisch umgeschrieben -
+        der Aufrufer bietet die Variante zusaetzlich zum gelernten Ordner an,
+        denn ein Dokument mit Datum 2026 kann trotzdem zu "Steuer 2025" gehoeren
+        (z.B. Lohnsteuerbescheinigung 2025 im Januar 2026).
 
         Returns:
-            Tuple (Original-Pfad, Original-relativer-Pfad) - NICHT geändert
+            (variant_path, variant_relative_path) oder None, wenn der Pfad keine
+            andere Jahreszahl enthaelt oder der Variantenordner nicht existiert.
         """
-        # Keine automatische Jahresanpassung mehr!
-        # Der Benutzer entscheidet selbst, ob das Dokument für 2025 oder 2026 ist.
-        return folder_path, relative_path
+        year_re = re.compile(r"(?<!\d)20\d{2}(?!\d)")
+        parts = list(folder_path.parts)
+        changed = False
+        for i in range(1, len(parts)):  # Teil 0 ist Laufwerk/Wurzel
+            new_part = year_re.sub(str(target_year), parts[i])
+            if new_part != parts[i]:
+                parts[i] = new_part
+                changed = True
+        if not changed:
+            return None
+
+        variant_path = Path(*parts)
+        if variant_path == folder_path or not variant_path.is_dir():
+            return None
+
+        variant_relative = (
+            year_re.sub(str(target_year), relative_path) if relative_path else variant_path.name
+        )
+        return variant_path, variant_relative
 
     def suggest_subfolder_for_parent(
         self,
