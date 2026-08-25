@@ -8,6 +8,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Hinzugefuegt
+- **Jahres-Variante bei Ordnervorschlaegen (Issue #30)**: Zu einem gelernten Vorschlag wie
+  "Steuer 2025/Medikamente" wird zusaetzlich "Steuer 2026/Medikamente" angeboten, wenn der
+  Ordner existiert. Passt das im Dokument erkannte Jahr, steht die Variante vorn; ohne
+  erkanntes Jahr dahinter. Der gelernte Ordner bleibt immer erhalten (nichts wird
+  stillschweigend umgeschrieben). Relative Pfade in Vorschlaegen nutzen jetzt einheitlich "/".
 - **Explorer-Gefuehl im Scan-Bereich (Sprint 1, Issues #29/#26/#23)**
   - Ordner-Kacheln im PDF-Raster: ".." (uebergeordneter Ordner) und alle Unterordner
     mit PDF-Anzahl; Doppelklick wechselt hinein, PDFs lassen sich per Drag & Drop

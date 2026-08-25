@@ -452,33 +452,53 @@ class PDFClassifier:
         current_year = datetime.now().year
         detected_year = self._extract_year_from_date(detected_date)
 
+        target_year = detected_year or current_year
+
         suggestions = []
+
+        def _add(candidate: Suggestion):
+            if not any(e.folder_path == candidate.folder_path for e in suggestions):
+                suggestions.append(candidate)
+
         for s in base_suggestions:
-            # Relativen Pfad berechnen
             relative_path = self._get_relative_path(s.folder_path, root_folders)
-
-            # Jahres-Muster aktualisieren
-            updated_path, updated_relative = self._update_year_pattern(
-                s.folder_path,
-                relative_path,
-                detected_year or current_year
-            )
-
-            # Neuen Suggestion mit rel. Pfad erstellen
-            updated_suggestion = Suggestion(
-                folder_path=updated_path,
-                folder_name=updated_path.name,
+            original = Suggestion(
+                folder_path=s.folder_path,
+                folder_name=s.folder_path.name,
                 confidence=s.confidence,
                 reason=s.reason,
-                relative_path=updated_relative
+                relative_path=relative_path,
             )
 
-            # Duplikate vermeiden
-            if not any(
-                existing.folder_path == updated_suggestion.folder_path
-                for existing in suggestions
-            ):
-                suggestions.append(updated_suggestion)
+            # Jahres-Variante (Issue #30): "Steuer 2025/Medikamente" -> "Steuer 2026/Medikamente",
+            # nur wenn der Ordner existiert. Der gelernte Vorschlag bleibt immer erhalten;
+            # die Variante steht vorn, wenn das im Dokument erkannte Jahr zu ihr passt.
+            variant = self._year_variant(s.folder_path, relative_path, target_year)
+            if variant is None:
+                _add(original)
+                continue
+
+            variant_path, variant_relative = variant
+            year_matches = detected_year is not None
+            if year_matches:
+                reason = f'Jahr {target_year} im Dokument erkannt - Variante von "{relative_path}"'
+                confidence = min(1.0, s.confidence + 0.05)
+            else:
+                reason = f'Aktuelles Jahr {target_year} - Variante von "{relative_path}"'
+                confidence = max(0.0, s.confidence - 0.05)
+            variant_suggestion = Suggestion(
+                folder_path=variant_path,
+                folder_name=variant_path.name,
+                confidence=confidence,
+                reason=reason,
+                relative_path=variant_relative,
+            )
+            if year_matches:
+                _add(variant_suggestion)
+                _add(original)
+            else:
+                _add(original)
+                _add(variant_suggestion)
 
         return suggestions[:max_suggestions]
 
@@ -496,7 +516,7 @@ class PDFClassifier:
                 relative = folder_path.relative_to(root)
                 if str(relative) == '.':
                     return root.name
-                return f"{root.name}/{relative}"
+                return f"{root.name}/{relative.as_posix()}"
             except ValueError:
                 continue
 
@@ -513,32 +533,44 @@ class PDFClassifier:
             return int(year_match.group())
         return None
 
-    def _update_year_pattern(
-        self,
+    @staticmethod
+    def _year_variant(
         folder_path: Path,
         relative_path: str,
-        target_year: int
-    ) -> tuple[Path, str]:
+        target_year: int,
+    ) -> Optional[tuple[Path, str]]:
         """
-        NICHT automatisch Jahreszahlen aktualisieren!
+        Liefert die Jahres-Variante eines Ordners, falls sie existiert (Issue #30).
 
-        Ein Dokument mit Datum 2026 kann trotzdem für "Steuer 2025" sein
-        (z.B. Lohnsteuerbescheinigung 2025 kommt im Januar 2026).
-
-        Stattdessen: Originalen Vorschlag behalten. Die Jahres-Variante
-        wird separat als Alternative angeboten wenn verfügbar.
-
-        Args:
-            folder_path: Absoluter Pfad
-            relative_path: Relativer Pfad
-            target_year: Zieljahr (aus Dokument-Datum)
+        Jahreszahlen (20xx) in den Pfadsegmenten unterhalb des Laufwerks werden
+        durch ``target_year`` ersetzt. Es wird NICHT automatisch umgeschrieben -
+        der Aufrufer bietet die Variante zusaetzlich zum gelernten Ordner an,
+        denn ein Dokument mit Datum 2026 kann trotzdem zu "Steuer 2025" gehoeren
+        (z.B. Lohnsteuerbescheinigung 2025 im Januar 2026).
 
         Returns:
-            Tuple (Original-Pfad, Original-relativer-Pfad) - NICHT geändert
+            (variant_path, variant_relative_path) oder None, wenn der Pfad keine
+            andere Jahreszahl enthaelt oder der Variantenordner nicht existiert.
         """
-        # Keine automatische Jahresanpassung mehr!
-        # Der Benutzer entscheidet selbst, ob das Dokument für 2025 oder 2026 ist.
-        return folder_path, relative_path
+        year_re = re.compile(r"(?<!\d)20\d{2}(?!\d)")
+        parts = list(folder_path.parts)
+        changed = False
+        for i in range(1, len(parts)):  # Teil 0 ist Laufwerk/Wurzel
+            new_part = year_re.sub(str(target_year), parts[i])
+            if new_part != parts[i]:
+                parts[i] = new_part
+                changed = True
+        if not changed:
+            return None
+
+        variant_path = Path(*parts)
+        if variant_path == folder_path or not variant_path.is_dir():
+            return None
+
+        variant_relative = (
+            year_re.sub(str(target_year), relative_path) if relative_path else variant_path.name
+        )
+        return variant_path, variant_relative
 
     def suggest_subfolder_for_parent(
         self,
