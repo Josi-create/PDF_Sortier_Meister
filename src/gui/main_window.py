@@ -5,14 +5,15 @@ Hauptfenster der PDF Sortier Meister Anwendung
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt, QDate, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QSplitter,
+    QTabWidget,
     QLabel,
     QScrollArea,
     QFrame,
@@ -25,6 +26,11 @@ from PyQt6.QtWidgets import (
     QApplication,
     QPushButton,
     QLineEdit,
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
+    QDoubleSpinBox,
+    QToolButton,
 )
 
 from src.utils.config import get_config
@@ -36,10 +42,22 @@ from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_renam
 from src.gui.detail_panel import DetailPanel
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
+from src.gui.korrespondent_sidebar import KorrespondentSidebar
 from src.core.file_manager import FileManager, FolderManager
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier
+from src.gui.chat_view import ChatView
+
+
+class _ClickableLabel(QLabel):
+    """QLabel, das bei Doppelklick ein Signal sendet (Statusleiste)."""
+
+    doubleClicked = pyqtSignal()
+
+    def mouseDoubleClickEvent(self, event):
+        self.doubleClicked.emit()
+        super().mouseDoubleClickEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -84,6 +102,9 @@ class MainWindow(QMainWindow):
 
         # PDF-Cache Signale verbinden
         self.pdf_cache.pdf_analyzed.connect(self._on_pdf_analyzed)
+        self.pdf_cache.llm_suggestions_ready.connect(self._on_llm_suggestions_ready)
+        self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
+        self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
 
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
@@ -98,12 +119,28 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Hauptlayout
-        main_layout = QHBoxLayout(central_widget)
+        # Hauptlayout (vertikal: Filterleiste + Inhalt)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Filterleiste (initial ausgeblendet, Phase 18)
+        self.filter_bar = self._create_filter_bar()
+        main_layout.addWidget(self.filter_bar)
+
+        # Center-Bereich: QTabWidget mit Tabs "Vorschau" + "Chat" (Phase 19)
+        self.center_tabs = QTabWidget()
+        main_layout.addWidget(self.center_tabs, 1)
+
+        # Tab "Vorschau": der bisherige 3-Spalten-Splitter
+        preview_container = QWidget()
+        preview_layout = QVBoxLayout(preview_container)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(0)
 
         # Splitter für flexible Größenanpassung
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter)
+        preview_layout.addWidget(splitter, 1)
 
         # Linke Spalte: PDF-Thumbnails
         pdf_panel = self.create_pdf_panel()
@@ -124,6 +161,32 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 4)  # Mitte: 40%
         splitter.setStretchFactor(2, 3)  # Rechts: 30%
         splitter.setSizes([300, 400, 300])
+
+        self.center_tabs.addTab(preview_container, "Vorschau")
+
+        # Tab "Chat": RAG-Chat (Phase 19 / M2)
+        self.chat_view = ChatView(
+            self.db,
+            self.hybrid_classifier,
+            self.config.get_chat_config(),
+        )
+        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.center_tabs.addTab(self.chat_view, "Chat")
+
+        # LLM-Status aktualisieren, wenn der Chat-Tab gewaehlt wird
+        self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
+
+    def _on_center_tab_changed(self, index: int) -> None:
+        """Aktualisiert den LLM-Status, wenn der Chat-Tab sichtbar wird."""
+        widget = self.center_tabs.widget(index)
+        if widget is self.chat_view:
+            self.chat_view.refresh_llm_status()
+
+    def _open_pdf_external(self, file_path: str) -> None:
+        """Oeffnet eine PDF im System-Viewer (cross-platform)."""
+        if not file_path:
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
 
     def create_pdf_panel(self) -> QWidget:
         """Erstellt das Panel für die PDF-Anzeige."""
@@ -194,13 +257,22 @@ class MainWindow(QMainWindow):
         return panel
 
     def create_folder_panel(self) -> QWidget:
-        """Erstellt das Panel für die Zielordner."""
+        """Erstellt das Panel für die Zielordner und Korrespondenten (Phase 20).
+
+        Inhalt:
+            * Kopfzeile (Titel + Buttons)
+            * Vorschlagsbereich
+            * Trennlinie
+            * QTabWidget mit zwei Tabs:
+                - "Zielordner"   -> FolderTreeWidget (bisheriges Verhalten)
+                - "Korrespondenten" -> KorrespondentSidebar (Phase 20)
+        """
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
         # Überschrift mit Buttons
         header_layout = QHBoxLayout()
-        header = QLabel("Zielordner")
+        header = QLabel("Zielordner & Korrespondenten")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(header)
         header_layout.addStretch()
@@ -250,13 +322,24 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
+        # Tab-Widget: Zielordner + Korrespondenten (Phase 20 / Issue #21)
+        self.right_panel_tabs = QTabWidget()
+        self.right_panel_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self.right_panel_tabs.setStyleSheet("QTabBar::tab { padding: 4px 10px; }")
+
+        # --- Tab "Zielordner" (bisheriges Verhalten) ---
+        folder_tree_container = QWidget()
+        ft_layout = QVBoxLayout(folder_tree_container)
+        ft_layout.setContentsMargins(0, 0, 0, 0)
+        ft_layout.setSpacing(0)
+
         # NEU: Ordner-Baumansicht für hierarchische Struktur
         self.folder_tree = FolderTreeWidget()
         self.folder_tree.folder_selected.connect(self.on_tree_folder_selected)
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
-        layout.addWidget(self.folder_tree, stretch=1)
+        ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
         self.folder_container = QWidget()
@@ -264,9 +347,123 @@ class MainWindow(QMainWindow):
         self.folder_layout.setSpacing(10)
         self.folder_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.folder_container.hide()  # Grid-Ansicht versteckt
-        layout.addWidget(self.folder_container)
+        ft_layout.addWidget(self.folder_container)
+
+        self.right_panel_tabs.addTab(folder_tree_container, "Zielordner")
+
+        # --- Tab "Korrespondenten" (Phase 20 / Issue #21) ---
+        self.korrespondent_sidebar = KorrespondentSidebar(self.db, parent=self)
+        self.korrespondent_sidebar.korrespondent_selected.connect(
+            self._on_korrespondent_sidebar_selected
+        )
+        self.right_panel_tabs.addTab(self.korrespondent_sidebar, "Korrespondenten")
+
+        layout.addWidget(self.right_panel_tabs, stretch=1)
 
         return panel
+
+    def _on_korrespondent_sidebar_selected(self, name_or_none) -> None:
+        """Wird aufgerufen, wenn in der Korrespondenten-Sidebar ein Eintrag
+        angeklickt wird. Setzt den Korrespondent-Filter in der Filterleiste
+        und loest eine Suche aus.
+
+        Args:
+            name_or_none: Name des Korrespondenten oder ``None`` fuer "Alle".
+        """
+        if not hasattr(self, "filter_korrespondent"):
+            return
+        # Filter-Dropdown aktualisieren
+        self.filter_korrespondent.blockSignals(True)
+        if name_or_none is None:
+            # "Alle" -> ersten Eintrag
+            self.filter_korrespondent.setCurrentIndex(0)
+        else:
+            # Dropdown neu befuellen, falls der Name fehlt
+            current = self.filter_korrespondent.currentText()
+            items = [self.filter_korrespondent.itemText(i)
+                     for i in range(self.filter_korrespondent.count())]
+            if name_or_none not in items:
+                self.filter_korrespondent.addItem(name_or_none)
+            idx = self.filter_korrespondent.findText(name_or_none)
+            if idx >= 0:
+                self.filter_korrespondent.setCurrentIndex(idx)
+            else:
+                self.filter_korrespondent.setCurrentIndex(0)
+        self.filter_korrespondent.blockSignals(False)
+        # Suche ausloesen
+        if hasattr(self, "_execute_search"):
+            self._execute_search()
+        # Statusmeldung
+        if name_or_none:
+            self.statusbar.showMessage(
+                f"Filter: Korrespondent '{name_or_none}'", 3000
+            )
+        else:
+            self.statusbar.showMessage("Filter aufgehoben (Alle)", 2000)
+
+    def _check_automation_rules(self, pdf_path: Path, metadata: dict = None) -> None:
+        """Phase 21: Prueft Automatisierungs-Regeln VOR dem Verschieben.
+
+        Wenn eine Regel mit hoher Konfidenz (>= 0.9) und target_folder-Aktion
+        matcht, wird der Zielordner als Vorschlag im Statusbar angezeigt
+        (KEIN Auto-Move ohne User-Bestaetigung in v1).
+        """
+        try:
+            from src.utils.database import get_database
+            from src.core.rule_engine import RuleEngine
+
+            db = get_database()
+            engine = RuleEngine(db)
+            md = dict(metadata or {})
+            md.setdefault("dateiname", pdf_path.name)
+            matches = engine.evaluate(md)
+            if matches:
+                top = matches[0]
+                folders = []
+                for a in top.matched_actions:
+                    if a.get("type") == "target_folder":
+                        tmpl = a.get("template", "")
+                        try:
+                            resolved = engine.apply_actions([a], md).get(
+                                "target_folder", tmpl
+                            )
+                        except Exception:
+                            resolved = tmpl
+                        folders.append(resolved)
+                if folders:
+                    self.statusbar.showMessage(
+                        f"Regel '{top.rule['name']}' wuerde vorschlagen: "
+                        f"{', '.join(folders)}",
+                        5000,
+                    )
+        except Exception:
+            pass
+
+    def _auto_collect_korrespondenten(self) -> None:
+        """Phase 20: Sammelt Korrespondenten aus der Sortierhistorie
+        in die Verwaltungstabelle und refresht die Sidebar.
+
+        Wird nach jedem PDF-Move aufgerufen. Idempotent: bereits
+        vorhandene Korrespondenten werden nicht doppelt angelegt.
+        Wir cachen den letzten Collection-Status (pro Session), um
+        in schnellen Bulk-Moves nicht jedes Mal die DB zu scannen.
+        """
+        if not hasattr(self, "_auto_collect_done"):
+            self._auto_collect_done = False
+        if self._auto_collect_done:
+            return
+        try:
+            new_count = self.db.auto_collect_from_history()
+            if new_count > 0 and hasattr(self, "korrespondent_sidebar"):
+                self.korrespondent_sidebar.refresh()
+            # Nach dem ersten Sammeln pro Session sind alle
+            # bisherigen Korrespondenten erfasst; neue Moves
+            # fuegen nur weitere hinzu (was auto_collect_from_history
+            # ebenfalls korrekt behandelt). Wir setzen den Flag
+            # NICHT permanent, damit z.B. nach einem
+            # historisch-Import die Liste neu befuellt wird.
+        except Exception as e:
+            print(f"Auto-Collect Korrespondenten Warnung: {e}")
 
     def initial_load(self):
         """Lädt die initialen Daten nach dem Start."""
@@ -330,6 +527,8 @@ class MainWindow(QMainWindow):
             widget.move_requested.connect(self.on_pdf_move)
             widget.copy_requested.connect(self.on_pdf_copy)
             widget.batch_rename_requested.connect(self.on_batch_rename)
+            widget.split_requested.connect(self.on_pdf_split)
+            widget.merge_requested.connect(self.on_pdf_merge)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
 
@@ -353,9 +552,74 @@ class MainWindow(QMainWindow):
 
     def _start_pre_caching(self, pdf_files: list[Path]):
         """Startet das Pre-Caching für alle PDFs im Hintergrund."""
-        self.pdf_cache.pre_cache(pdf_files)
-        self.cache_status_label.setText(f"Analyse: 0/{len(pdf_files)} PDFs...")
-        self.statusbar.showMessage(f"Analysiere {len(pdf_files)} PDFs im Hintergrund...", 2000)
+        analysis_n, llm_n = self.pdf_cache.pre_cache(pdf_files)
+        self._update_cache_status()
+        if analysis_n:
+            self.statusbar.showMessage(f"Analysiere {analysis_n} PDFs im Hintergrund...", 2000)
+        elif llm_n:
+            self.statusbar.showMessage(f"Hole KI-Vorschläge für {llm_n} PDFs im Hintergrund...", 2000)
+
+    def _precache_progress(self) -> tuple[int, int, int]:
+        """Liefert (analysiert, mit KI-Vorschlägen, gesamt) für die geladenen PDFs."""
+        total = analyzed = llm_done = 0
+        for widget in self.pdf_widgets:
+            total += 1
+            result = self.pdf_cache.get(widget.pdf_path)
+            if result:
+                analyzed += 1
+                if result.llm_fetched:
+                    llm_done += 1
+        return analyzed, llm_done, total
+
+    def _update_cache_status(self):
+        """Aktualisiert die Fortschrittsanzeige der Hintergrund-Analyse."""
+        analyzed, llm_done, total = self._precache_progress()
+        if total == 0:
+            self.cache_status_label.setText("")
+            return
+        parts = []
+        if analyzed < total:
+            parts.append(f"Analyse: {analyzed}/{total}")
+        llm_active = (
+            self.hybrid_classifier.is_llm_available()
+            and self.config.get("llm_precache_enabled", True)
+        )
+        if llm_active and llm_done < total:
+            parts.append(f"KI-Vorschläge: {llm_done}/{total}")
+        if self._last_llm_error:
+            parts.append("⚠ Fehler")
+        self.cache_status_label.setText(" | ".join(parts))
+
+    def _on_llm_suggestions_ready(self, pdf_path: Path):
+        """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
+        self._update_cache_status()
+
+    def _on_llm_suggestions_failed(self, pdf_path: Path, error: str):
+        """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
+        self._last_llm_error = (pdf_path.name, error)
+        self._update_cache_status()
+
+    def _show_precache_details(self):
+        """Zeigt Details zur Hintergrund-Analyse (Doppelklick auf Statuslabel)."""
+        from src.utils.logging_config import get_log_directory
+        analyzed, llm_done, total = self._precache_progress()
+        if self.hybrid_classifier.is_llm_available():
+            llm_state = f"aktiv ({self.hybrid_classifier.get_llm_provider_name()})"
+        else:
+            llm_state = "aus"
+        precache = "an" if self.config.get("llm_precache_enabled", True) else "aus"
+        lines = [
+            f"PDFs im Ordner: {total}",
+            f"Analysiert (Text/Datum): {analyzed}/{total}",
+            f"KI-Vorschläge vorhanden: {llm_done}/{total}",
+            f"KI-Assistent: {llm_state}",
+            f"KI-Vorabfrage im Hintergrund: {precache}",
+        ]
+        if self._last_llm_error:
+            name, error = self._last_llm_error
+            lines.append(f"\nLetzter KI-Fehler ({name}):\n{error}")
+        lines.append(f"\nLog-Datei: {get_log_directory() / 'pdf_sortier_meister.log'}")
+        QMessageBox.information(self, "Hintergrund-Analyse", "\n".join(lines))
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -727,6 +991,15 @@ class MainWindow(QMainWindow):
         clear_search_action.triggered.connect(self._clear_search)
         toolbar.addAction(clear_search_action)
 
+        # Filter-Leiste Toggle (Phase 18)
+        self.filter_toggle_btn = QToolButton()
+        self.filter_toggle_btn.setText("Filter ▼")
+        self.filter_toggle_btn.setToolTip("Erweiterte Filter ein-/ausblenden")
+        self.filter_toggle_btn.setCheckable(True)
+        self.filter_toggle_btn.setChecked(False)
+        self.filter_toggle_btn.toggled.connect(self._toggle_filter_bar)
+        toolbar.addWidget(self.filter_toggle_btn)
+
     def setup_statusbar(self):
         """Erstellt die Statusleiste."""
         self.statusbar = QStatusBar()
@@ -743,12 +1016,15 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self.training_label)
 
         # Cache-Status (Pre-Caching-Fortschritt)
-        self.cache_status_label = QLabel("")
+        self.cache_status_label = _ClickableLabel("")
         self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.cache_status_label.setToolTip("Doppelklick zeigt Details zur Hintergrund-Analyse.")
+        self.cache_status_label.doubleClicked.connect(self._show_precache_details)
         self.statusbar.addPermanentWidget(self.cache_status_label)
 
         # LLM-Status anzeigen
-        self.llm_status_label = QLabel("")
+        self.llm_status_label = _ClickableLabel("")
+        self.llm_status_label.doubleClicked.connect(self.open_settings)
         self._update_llm_status()
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
@@ -959,14 +1235,7 @@ class MainWindow(QMainWindow):
 
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
-        stats = self.pdf_cache.get_stats()
-        total_pdfs = len(self.pdf_widgets)
-        cached = stats.get("cached_count", 0)
-
-        if total_pdfs > 0 and cached < total_pdfs:
-            self.cache_status_label.setText(f"Analyse: {pdf_path.name[:30]}... ({cached}/{total_pdfs})")
-        else:
-            self.cache_status_label.setText("")
+        self._update_cache_status()
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
@@ -1212,9 +1481,10 @@ class MainWindow(QMainWindow):
                 )
 
             # Volltext-Suchindex befüllen (Phase 17)
-            self.db.index_document(
-                file_path=str(new_path),
-                filename=new_path.name,
+            self.db.update_pdf_path(
+                old_path=str(pdf_path),
+                new_path=str(new_path),
+                new_filename=new_path.name,
                 extracted_text=self.selected_pdf_text or "",
                 keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
                 korrespondent=metadata.get("korrespondent", "") if metadata else "",
@@ -1240,6 +1510,12 @@ class MainWindow(QMainWindow):
             self.remove_pdf_widget(pdf_path)
             self.detail_panel.clear()
             self.load_folders()
+            # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+            self._check_automation_rules(
+                pdf_path, metadata=self.detail_panel.get_metadata()
+            )
+            # Phase 20: Korrespondenten aus Historie in Verwaltungstabelle sammeln
+            self._auto_collect_korrespondenten()
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -1290,9 +1566,10 @@ class MainWindow(QMainWindow):
                     self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
 
                 # Volltext-Suchindex befüllen (Phase 17)
-                self.db.index_document(
-                    file_path=str(new_path),
-                    filename=new_path.name,
+                self.db.update_pdf_path(
+                    old_path=str(pdf_path),
+                    new_path=str(new_path),
+                    new_filename=new_path.name,
                     extracted_text=self.selected_pdf_text or "",
                     keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
                     target_folder=relative_path,
@@ -1306,6 +1583,11 @@ class MainWindow(QMainWindow):
 
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self.load_folders()
+
+                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+                self._check_automation_rules(pdf_path)
+                # Phase 20: Korrespondenten aus Historie sammeln
+                self._auto_collect_korrespondenten()
 
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
@@ -1694,6 +1976,23 @@ class MainWindow(QMainWindow):
                     # Cache-Eintrag migrieren (behält LLM-Vorschläge bei)
                     self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
 
+                    # Gewählten LLM-Vorschlag für neuen Pfad im Cache speichern
+                    from src.core.pdf_cache import LLMSuggestion as CacheLLMSuggestion
+                    chosen_conf = 0.85
+                    for s in suggestions:
+                        if (s.name or '').replace('.pdf', '') == new_name and "KI" in (s.reason or ''):
+                            chosen_conf = s.confidence
+                            break
+                    self.pdf_cache.update_llm_suggestions(new_path, [CacheLLMSuggestion(
+                        filename=new_path.name,
+                        confidence=chosen_conf,
+                        source="llm",
+                        metadata=dialog_metadata,
+                    )])
+                    if self.detail_panel._current_pdf == pdf_path:
+                        self.detail_panel._current_pdf = new_path
+                        self.detail_panel.header_label.setText(f"Original: {new_path.name}")
+
                     # Metadaten in PDF schreiben (Phase 16)
                     self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
 
@@ -1785,6 +2084,10 @@ class MainWindow(QMainWindow):
                 self.remove_pdf_widget(pdf_path)
                 # Ordneransicht aktualisieren
                 self.load_folders()
+                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
+                self._check_automation_rules(pdf_path)
+                # Phase 20: Korrespondenten aus Historie sammeln
+                self._auto_collect_korrespondenten()
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
@@ -1813,6 +2116,76 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Kopieren fehlgeschlagen:\n{e}")
+
+    def on_pdf_split(self, pdf_path: Path):
+        """Wird aufgerufen wenn eine PDF getrennt werden soll."""
+        from src.gui.split_pdf_dialog import SplitPDFDialog
+
+        # Seitenanzahl ermitteln
+        try:
+            import fitz
+            with fitz.open(str(pdf_path)) as doc:
+                page_count = len(doc)
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"PDF konnte nicht geöffnet werden:\n{e}")
+            return
+
+        if page_count < 2:
+            QMessageBox.information(
+                self, "PDF trennen",
+                f"'{pdf_path.name}' hat nur eine Seite und kann nicht getrennt werden."
+            )
+            return
+
+        dialog = SplitPDFDialog(pdf_path, page_count, parent=self)
+        if dialog.exec() != SplitPDFDialog.DialogCode.Accepted:
+            return
+
+        pages = dialog.get_pages()
+        target_folder = pdf_path.parent
+
+        try:
+            output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
+            n = len(output_files)
+            self.statusbar.showMessage(f"PDF getrennt: {n} Datei(en) erstellt", 4000)
+            self.load_pdfs()
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
+
+    def on_pdf_merge(self):
+        """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
+        pdfs_to_merge = list(self.selected_pdfs)
+        if len(pdfs_to_merge) < 2:
+            QMessageBox.information(
+                self, "PDFs zusammenfügen",
+                "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+            )
+            return
+
+        # Standard-Ausgabename vorschlagen
+        first_stem = pdfs_to_merge[0].stem
+        default_name = f"{first_stem}_zusammengefuegt.pdf"
+
+        new_name, ok = QInputDialog.getText(
+            self,
+            "PDFs zusammenfügen",
+            f"{len(pdfs_to_merge)} PDFs zusammenfügen.\n\nName der Zieldatei:",
+            text=default_name,
+        )
+
+        if not ok or not new_name.strip():
+            return
+
+        new_name = new_name.strip()
+        target_folder = pdfs_to_merge[0].parent
+
+        try:
+            merged_path = self.file_manager.merge_pdfs(pdfs_to_merge, target_folder, new_name)
+            self.statusbar.showMessage(f"Zusammengefügt: {merged_path.name}", 4000)
+            self.selected_pdfs = []
+            self.load_pdfs()
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Zusammenfügen fehlgeschlagen:\n{e}")
 
     # --- Undo-Funktionalität ---
 
@@ -2434,6 +2807,7 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(
             self,
             "Zielordner auswählen",
+            self.config.dialog_start_dir(),
         )
         if folder:
             folder_path = Path(folder)
@@ -2442,25 +2816,215 @@ class MainWindow(QMainWindow):
             self.load_folders()
             self.statusbar.showMessage(f"Zielordner hinzugefügt: {folder_path.name}", 3000)
 
-    # === Volltextsuche (Phase 17) ===
+    # === Volltextsuche mit kombinierbaren Filtern (Phase 17/18) ===
+
+    def _create_filter_bar(self) -> QWidget:
+        """Erstellt die ausklappbare Filterleiste."""
+        bar = QWidget()
+        bar.setVisible(False)
+        bar.setStyleSheet(
+            "QWidget { background: #f5f5f5; border-bottom: 1px solid #ccc; }"
+        )
+
+        layout = QGridLayout(bar)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
+
+        # Zeile 0: Steuerjahr, Kategorie, Korrespondent
+        layout.addWidget(QLabel("Steuerjahr:"), 0, 0)
+        self.filter_steuerjahr = QComboBox()
+        self.filter_steuerjahr.addItem("Alle")
+        self.filter_steuerjahr.setMinimumWidth(90)
+        layout.addWidget(self.filter_steuerjahr, 0, 1)
+
+        layout.addWidget(QLabel("Kategorie:"), 0, 2)
+        self.filter_kategorie = QComboBox()
+        self.filter_kategorie.addItem("Alle")
+        self.filter_kategorie.setMinimumWidth(130)
+        layout.addWidget(self.filter_kategorie, 0, 3)
+
+        layout.addWidget(QLabel("Korrespondent:"), 0, 4)
+        self.filter_korrespondent = QComboBox()
+        self.filter_korrespondent.addItem("Alle")
+        self.filter_korrespondent.setMinimumWidth(150)
+        layout.addWidget(self.filter_korrespondent, 0, 5)
+
+        # Reset-Button (Zeile 0–1, letzte Spalte)
+        reset_btn = QPushButton("Filter zurücksetzen")
+        reset_btn.clicked.connect(self._reset_filters)
+        layout.addWidget(reset_btn, 0, 6, 2, 1)
+
+        # Zeile 1: Datum, Betrag
+        self.filter_datum_von_cb = QCheckBox("Datum von:")
+        layout.addWidget(self.filter_datum_von_cb, 1, 0)
+        self.filter_datum_von = QDateEdit()
+        self.filter_datum_von.setCalendarPopup(True)
+        self.filter_datum_von.setDate(QDate.currentDate().addYears(-1))
+        self.filter_datum_von.setEnabled(False)
+        layout.addWidget(self.filter_datum_von, 1, 1)
+
+        self.filter_datum_bis_cb = QCheckBox("Datum bis:")
+        layout.addWidget(self.filter_datum_bis_cb, 1, 2)
+        self.filter_datum_bis = QDateEdit()
+        self.filter_datum_bis.setCalendarPopup(True)
+        self.filter_datum_bis.setDate(QDate.currentDate())
+        self.filter_datum_bis.setEnabled(False)
+        layout.addWidget(self.filter_datum_bis, 1, 3)
+
+        betrag_label = QLabel("Betrag (€):")
+        layout.addWidget(betrag_label, 1, 4)
+        betrag_widget = QWidget()
+        betrag_layout = QHBoxLayout(betrag_widget)
+        betrag_layout.setContentsMargins(0, 0, 0, 0)
+        betrag_layout.setSpacing(4)
+        self.filter_betrag_von = QDoubleSpinBox()
+        self.filter_betrag_von.setRange(0, 999999.99)
+        self.filter_betrag_von.setDecimals(2)
+        self.filter_betrag_von.setSpecialValueText("ab –")
+        self.filter_betrag_von.setValue(0.0)
+        self.filter_betrag_von.setMinimumWidth(80)
+        betrag_layout.addWidget(self.filter_betrag_von)
+        self.filter_betrag_bis = QDoubleSpinBox()
+        self.filter_betrag_bis.setRange(0, 999999.99)
+        self.filter_betrag_bis.setDecimals(2)
+        self.filter_betrag_bis.setSpecialValueText("bis –")
+        self.filter_betrag_bis.setValue(0.0)
+        self.filter_betrag_bis.setMinimumWidth(80)
+        betrag_layout.addWidget(self.filter_betrag_bis)
+        layout.addWidget(betrag_widget, 1, 5)
+
+        # Signals verdrahten
+        self.filter_steuerjahr.currentTextChanged.connect(self._execute_search)
+        self.filter_kategorie.currentTextChanged.connect(self._execute_search)
+        self.filter_korrespondent.currentTextChanged.connect(self._execute_search)
+        self.filter_datum_von_cb.toggled.connect(self.filter_datum_von.setEnabled)
+        self.filter_datum_von_cb.toggled.connect(self._execute_search)
+        self.filter_datum_von.dateChanged.connect(self._execute_search)
+        self.filter_datum_bis_cb.toggled.connect(self.filter_datum_bis.setEnabled)
+        self.filter_datum_bis_cb.toggled.connect(self._execute_search)
+        self.filter_datum_bis.dateChanged.connect(self._execute_search)
+        self.filter_betrag_von.valueChanged.connect(self._execute_search)
+        self.filter_betrag_bis.valueChanged.connect(self._execute_search)
+
+        return bar
+
+    def _toggle_filter_bar(self, checked: bool):
+        """Blendet die Filterleiste ein oder aus."""
+        self.filter_bar.setVisible(checked)
+        self.filter_toggle_btn.setText("Filter ▲" if checked else "Filter ▼")
+        if checked:
+            self._populate_filter_dropdowns()
+
+    def _populate_filter_dropdowns(self):
+        """Befüllt die Filter-Dropdowns mit aktuellen Datenbankwerten."""
+        for combo, getter in (
+            (self.filter_steuerjahr, self.db.get_distinct_steuerjahre),
+            (self.filter_kategorie, self.db.get_distinct_kategorien),
+            (self.filter_korrespondent, self.db.get_distinct_korrespondenten),
+        ):
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("Alle")
+            combo.addItems(getter())
+            idx = combo.findText(current)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            combo.blockSignals(False)
+
+    def _has_active_filters(self) -> bool:
+        """Prüft ob mindestens ein Filter aktiv ist."""
+        if not hasattr(self, 'filter_steuerjahr'):
+            return False
+        if self.filter_steuerjahr.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_kategorie.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_korrespondent.currentText() not in ("", "Alle"):
+            return True
+        if self.filter_datum_von_cb.isChecked() or self.filter_datum_bis_cb.isChecked():
+            return True
+        if self.filter_betrag_von.value() > 0 or self.filter_betrag_bis.value() > 0:
+            return True
+        return False
+
+    def _reset_filters(self):
+        """Setzt alle Filterfelder zurück."""
+        widgets = [
+            self.filter_steuerjahr, self.filter_kategorie, self.filter_korrespondent,
+            self.filter_datum_von_cb, self.filter_datum_bis_cb,
+            self.filter_betrag_von, self.filter_betrag_bis,
+        ]
+        for w in widgets:
+            w.blockSignals(True)
+        self.filter_steuerjahr.setCurrentIndex(0)
+        self.filter_kategorie.setCurrentIndex(0)
+        self.filter_korrespondent.setCurrentIndex(0)
+        self.filter_datum_von_cb.setChecked(False)
+        self.filter_datum_von.setEnabled(False)
+        self.filter_datum_bis_cb.setChecked(False)
+        self.filter_datum_bis.setEnabled(False)
+        self.filter_betrag_von.setValue(0.0)
+        self.filter_betrag_bis.setValue(0.0)
+        for w in widgets:
+            w.blockSignals(False)
+        self._execute_search()
 
     def _on_search_text_changed(self, text: str):
         """Live-Suche bei Texteingabe (mit Verzögerung)."""
         if not text.strip():
-            self._clear_search()
+            if not self._has_active_filters():
+                self._clear_search()
+                return
+            self._execute_search()
             return
-        # Suche erst ab 2 Zeichen auslösen
         if len(text.strip()) >= 2:
             self._execute_search()
 
     def _execute_search(self):
-        """Führt die Volltextsuche aus und zeigt Ergebnisse."""
+        """Führt die Volltextsuche mit allen aktiven Filtern aus."""
         query = self.search_input.text().strip()
-        if not query:
+
+        # Filter-Werte sammeln
+        steuerjahr = ""
+        kategorie = ""
+        korrespondent = ""
+        datum_von = ""
+        datum_bis = ""
+        betrag_von = 0.0
+        betrag_bis = 0.0
+
+        if hasattr(self, 'filter_steuerjahr'):
+            val = self.filter_steuerjahr.currentText()
+            steuerjahr = "" if val == "Alle" else val
+            val = self.filter_kategorie.currentText()
+            kategorie = "" if val == "Alle" else val
+            val = self.filter_korrespondent.currentText()
+            korrespondent = "" if val == "Alle" else val
+            if self.filter_datum_von_cb.isChecked():
+                datum_von = self.filter_datum_von.date().toString("yyyy-MM-dd")
+            if self.filter_datum_bis_cb.isChecked():
+                datum_bis = self.filter_datum_bis.date().toString("yyyy-MM-dd")
+            betrag_von = self.filter_betrag_von.value()
+            betrag_bis = self.filter_betrag_bis.value()
+
+        has_filters = any([steuerjahr, kategorie, korrespondent,
+                           datum_von, datum_bis, betrag_von > 0, betrag_bis > 0])
+
+        if not query and not has_filters:
             self._clear_search()
             return
 
-        results = self.db.search_documents(query, limit=50)
+        results = self.db.search_documents(
+            query,
+            limit=50,
+            steuerjahr=steuerjahr,
+            kategorie=kategorie,
+            korrespondent=korrespondent,
+            datum_von=datum_von,
+            datum_bis=datum_bis,
+            betrag_von=betrag_von,
+            betrag_bis=betrag_bis,
+        )
 
         if results:
             self.search_count_label.setText(f"{len(results)} Treffer")
@@ -2468,11 +3032,10 @@ class MainWindow(QMainWindow):
         else:
             self.search_count_label.setText("Keine Treffer")
             self.detail_panel.clear()
-            self.statusbar.showMessage(f"Keine Dokumente gefunden für '{query}'", 3000)
+            self.statusbar.showMessage("Keine Dokumente gefunden", 3000)
 
     def _show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse im Detail-Panel an."""
-        # Suchergebnisse als HTML im Detail-Panel darstellen
         self.detail_panel.show_search_results(results)
 
     def _clear_search(self):
@@ -2686,13 +3249,34 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage("Ansicht aktualisiert", 3000)
 
     def check_backup_status(self):
-        """Überprüft den Backup-Status."""
-        # TODO: Macrium Reflect Integration (Phase 7)
-        QMessageBox.information(
-            self,
-            "Backup-Status",
-            "Backup-Prüfung wird in Phase 7 implementiert.",
+        """Zeigt den Backup-Hinweis (Menue). Macrium-Log-Parsing: Issue #14."""
+        self.show_backup_hint(force=True)
+
+    def show_backup_hint(self, force: bool = False):
+        """
+        Erinnert daran, dass die App Dateien veraendert und ein Backup
+        ratsam ist (Issue #7). Erscheint beim Start, bis der Nutzer
+        "nicht mehr anzeigen" abhakt; ueber das Menue jederzeit erneut.
+        """
+        if not force and self.config.get("backup_hint_dismissed", False):
+            return
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Backup empfohlen")
+        box.setText("PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten "
+                    "direkt in Ihre PDF-Dateien.")
+        box.setInformativeText(
+            "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per "
+            "Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie "
+            "Macrium Reflect.\n\n"
+            "Rueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
         )
+        dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
+        dismiss.setChecked(self.config.get("backup_hint_dismissed", False))
+        box.setCheckBox(dismiss)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+        self.config.set("backup_hint_dismissed", dismiss.isChecked())
 
     def open_setup_wizard(self):
         """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""
@@ -2717,6 +3301,13 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier._init_llm_provider()
         self._update_llm_status()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
+        # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
+        # uebersprungen wurden, werden jetzt eingereiht.
+        self._last_llm_error = None
+        if self.pdf_widgets and self.hybrid_classifier.is_llm_available():
+            self._start_pre_caching([w.pdf_path for w in self.pdf_widgets])
+        else:
+            self._update_cache_status()
 
     def _update_llm_status(self):
         """Aktualisiert die LLM-Statusanzeige."""
@@ -2724,12 +3315,21 @@ class MainWindow(QMainWindow):
             provider = self.hybrid_classifier.get_llm_provider_name()
             self.llm_status_label.setText(f"LLM: {provider}")
             self.llm_status_label.setStyleSheet("color: green;")
-            self.llm_status_label.setToolTip(f"KI-Assistent aktiv ({provider})")
+            self.llm_status_label.setToolTip(
+                f"KI-Assistent aktiv ({provider}).\nDoppelklick öffnet die Einstellungen."
+            )
         else:
+            from src.ml.llm_provider import is_cloud_provider
+            llm_cfg = self.config.get_llm_config()
+            if (is_cloud_provider(llm_cfg.get("provider", "none"))
+                    and not llm_cfg.get("cloud_consent", False)):
+                reason = "Keine Einwilligung zur Datenübertragung erteilt."
+            else:
+                reason = "Nicht konfiguriert."
             self.llm_status_label.setText("LLM: Aus")
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                "KI-Assistent deaktiviert. In Einstellungen konfigurieren."
+                f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
             )
 
     def show_about(self):

@@ -1,9 +1,44 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 19.05.2026
-**Aktuelle Version:** 0.10.0
+**Datum:** 25.08.2026
+**Aktuelle Version:** 0.14.0
+
+> **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
+### v0.14.0 (2026-08-25) - OpenRouter, Keys pro Provider, Consent-UI, Release-Hygiene
+- OpenRouter als 5. LLM-Provider (Einstellungen + Wizard)
+- API-Keys pro Provider mit Kennzeichnung im Dialog (Issue #11 erledigt)
+- Datenschutz-Einwilligung als Checkbox; Statusleisten-Doppelklicks; Analyse-Fortschritt
+- Backup-Hinweis beim Start (Issue #7); App-Icon aus dem Splash
+- Issue #25 (stabile pdf_id) und #12 (Merge/Split) abgeschlossen und geschlossen
+- Fixes: Einstellungen verwarfen cloud_consent/cached_models; DEFAULTS-Shallow-Copy;
+  KI-Vorabfrage nach Consent-Aenderung; LLM-Queue-Dedupe
+- 339/339 Tests gruen; `main` wieder auf Stand (Release v0.14.0 mit .exe)
+- Naechster Sprint: Explorer-Gefuehl (#29, #26, #23) - Entscheidung: rechtes Panel
+  verhaelt sich wie der Windows-Explorer, Vorschlaege bleiben oben
+### v0.13.1 (2026-07-01) - Lizenz-Korrektur (Monetarisierungs-Fundament)
+- Lizenz von MIT auf **GPL-3.0-or-later** korrigiert (Pfad A der Monetarisierungs-Roadmap)
+- Grund: PyQt6 (GPLv3) + PyMuPDF (AGPLv3) sind Copyleft -> MIT war rechtlich nicht haltbar
+- LICENSE-Datei (GPLv3-Volltext) im Projekt-Root ergaenzt (fehlte zuvor komplett)
+- pyproject.toml: license + OSI-Classifier auf GPLv3+ umgestellt
+- README: Lizenz-Abschnitt + Dritt-Bibliotheken-Uebersicht ergaenzt
+- Geschaeftsmodell-Basis: Open Source (GPL) + Verkauf von Installer/Komfort/Support
+- Keine Code-Aenderung -> 285/285 Tests unveraendert gruen
+### v0.12.0 (2026-06-14) - Phase 19 RAG-Chat abgeschlossen
+- Chat-Tab mit FTS5-Retrieval + LLM-Synthese + Citations
+- Offline-Fallback, Cancel-Flow, Return-UX-Polish
+- M3-Hardening: Signal-Safety, CitationParser-Edge-Cases, Defensiv-Guards
+- Bugfix: Cancel-Cooldown wurde durch _reset_input_state ueberschrieben
+- 112/112 Tests gruen (35 neu fuer RAG-Pipeline)
+
+### v0.13.0 (2026-06-17) - Phase 20+21 abgeschlossen + 5/5 INTEL fertig
+- Phase 20 Korrespondenten-Verwaltung: DB-Tabelle + Sidebar + Edit/Merge-Dialoge
+- Phase 21 Automatisierungs-Regeln: RuleEngine + Settings-Tab mit visuellem Editor
+- 4 Issues geschlossen (#15, #17, #18, #24 - waren vergessen worden)
+- 285/285 Tests gruen (262 -> 285, 23 neue in dieser Version)
+- ENTWICKLUNGSSTAND.md auf v0.13.0
+
 
 ## Abgeschlossene Phasen
 
@@ -56,6 +91,13 @@
 - [x] **LLM-Textlimit konfigurierbar** (500-5000 Zeichen, Default: 1500)
 - [x] **LLM erkennt Rechnungsnummern und Betreff** bei Rechnungen (nicht nur Firmennamen)
 - [x] **Fallback auf Scandatum** wenn kein Datum im PDF gefunden wird (kein Phantasiedatum mehr)
+- [x] **Strukturierte JSON-Antworten mit Metadaten-Extraktion** *(v0.11.0)*
+  - Alle LLM-Provider (Claude, OpenAI, Poe, Ollama) liefern strukturiertes JSON statt Freitext
+  - Erweitertes Metadaten-Schema: `kategorie`, `korrespondent`, `betrag_netto`, `betrag_brutto`, `waehrung`, `mwst`, `iban`, `steuerjahr`, `beschreibung`
+  - **Robuster JSON-Parser** (`_parse_json_response` in `llm_provider.py`): Regex-basierte Extraktion aus LL-M-Output, immun gegen "Plauder-Text" vor/nach dem JSON
+  - **Ollama JSON-Mode**: Lokales Modell nutzt `"format": "json"` für deterministische Antworten
+  - **Sichere f-string-Templates**: Alle JSON-Beispiele in Prompts doppelt escaped (`{{` / `}}`) — Syntax-Bug-Fix der die Pipeline lauffähig gemacht hat
+  - **Lebenszyklus**: JSON wird geparst → in `LLMResponse.metadata` gemappt → in der GUI angezeigt → in der DB indexiert
 
 ### Phase 12: Hierarchische Ordnerstruktur (100% fertig)
 - [x] Ordner-Baumansicht Widget (`src/gui/folder_tree_widget.py`)
@@ -109,8 +151,8 @@
 - [x] **Kopieren-Option** *(erledigt in v0.8.0)*
   - Rechtsklick → "Kopie erstellen" im Kontextmenü
 
-- [ ] **Zielordner-Dialog Startpfad**
-  - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
+- [x] **Zielordner-Dialog Startpfad** *(erledigt in v0.14.0)*
+  - "+ Zielordner" öffnet im übergeordneten Ordner des Scan-Ordners
 
 - [x] **Zurück-Button** *(erledigt in v0.9.0)*
   - ⬅ Button im Header navigiert zum vorherigen Scan-Ordner
@@ -139,19 +181,19 @@
   - F2 öffnet Umbenennungsdialog für ausgewählte PDF (Windows-Standard)
   - Menüeintrag unter Bearbeiten → Umbenennen...
 
-- [ ] **Mehrere LLM API-Keys verwalten**
-  - In den Einstellungen mehrere API-Keys für verschiedene Provider speichern
+- [x] **Mehrere LLM API-Keys verwalten** *(erledigt in v0.14.0)*
+  - Keys werden pro Provider gespeichert, Label zeigt den Besitzer
   - Schnelles Umschalten des aktiven LLM-Modells ohne erneute Key-Eingabe
 
 ### Phase 14: PDF-Bearbeitung (NEU - Mittlere Priorität)
 
 **Inspiriert von Nuance PaperPort (to do #13-15):**
 
-- [ ] **PDFs zusammenfügen** (to do #13)
+- [x] **PDFs zusammenfügen** *(erledigt, Issue #12)*
   - Zwei PDFs per Drag & Drop zusammenfügen
   - Nützlich für mehrseitige Scans die getrennt wurden
 
-- [ ] **PDFs trennen** (to do #15)
+- [x] **PDFs trennen** *(erledigt, Issue #12)*
   - Mehrseitiges PDF in einzelne Seiten aufteilen
   - Rechtsklick → "PDF trennen"
 
@@ -170,18 +212,30 @@
   - Animiertes Highlight für Top-Vorschläge
 
 ### Phase 7: Backup-Integration (offen - Niedrige Priorität)
-- [ ] Macrium Reflect Log-Dateien finden
+- [x] Backup-Hinweis beim Start, abhakbar *(v0.14.0, Issue #7)*
+- [ ] Macrium Reflect Log-Dateien finden (Issue #14)
 - [ ] Backup-Status parsen
 - [ ] Warnung bei veraltetem Backup anzeigen
 - [ ] Statusleiste-Integration
 
-### Phase 8: Testing & Polishing (offen)
-- [ ] Unit Tests für Kernfunktionen
-- [ ] Error Handling verbessern
-- [ ] Installer erstellen (PyInstaller)
-- [ ] Dokumentation
-- [ ] Startbildschirm optimieren (schnellere Thumbnail-Ladung, Caching vom letzten Start)
+### Phase 8: Testing & Polishing (in Arbeit)
 
+- [x] **Unit Tests für Kernfunktionen** *(v0.11.0, in Arbeit)*
+  - **pytest als dev-dependency** installiert (war vorher verwaist im venv)
+  - **34 Tests aktuell grün** (Laufzeit: ~4 Sekunden)
+  - **Test-Suiten**:
+    - `tests/test_file_manager.py` (3 Tests): PDF-Merge, PDF-Split, Fehlerbehandlung
+    - `tests/test_llm_metadata_extraction.py` (10 Tests): JSON-Parser, Prompt-Builder
+    - `tests/test_database_filters.py` (21 Tests): FTS5-Suche, alle Filter, Distinct-Helfer, Index-Replacement, `update_pdf_path`, `bulk_index_directory`
+  - **End-to-End Smoke-Test**: Bislang manuell vor jedem Commit (sollte automatisiert werden)
+  - **Was noch fehlt**: Tests für `HybridClassifier` (Herzstück der ML/LLM-Logik), `FileManager` (Move/Rename-Pfade), GUI-Tests (erfordern pytest-qt)
+- [ ] Error Handling verbessern (laufend)
+- [ ] Installer erstellen (PyInstaller) — `installer.iss` existiert bereits, Build-Skript fehlt
+- [x] **Dokumentation** *(v0.11.0, in Arbeit)*
+  - Diese Datei (`ENTWICKLUNGSSTAND.md`) wird mit jedem Sprint aktualisiert
+  - README.md vorhanden
+  - Changelog inline unter [Changelog v0.13.0](#changelog-v0130)
+- [ ] Startbildschirm optimieren (schnellere Thumbnail-Ladung, Caching vom letzten Start)
 ### Phase 9: Semi-Automatischer Workflow (offen)
 - [ ] **Schaltfläche "(Semi)-Auto Rename"** in der Toolbar
 - [ ] Erkennung von PDFs mit "nichtssagenden" Dateinamen (z.B. `YYYY-MM-DD-001.pdf`)
@@ -258,12 +312,20 @@ Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in d
 - [x] **Suche über alle Felder**: Dateiinhalt, Dateiname, alle Metadaten
 - [x] **Index wird beim Verschieben/Sortieren automatisch befüllt** *(v0.9.0)*
   - Sowohl im neuen 3-Spalten-Workflow als auch bei Drag&Drop
-- [ ] **Filter-Kombinationen** (noch offen):
-  - Steuerjahr (Dropdown)
-  - Kategorie (Dropdown)
-  - Korrespondent (Dropdown aus bekannten)
-  - Datumsbereich (Von/Bis)
-  - Betrag (Von/Bis)
+- [x] **Filter-Kombinationen** *(v0.11.0)* — Issue #18
+  - **Ein-/ausklappbare Filterleiste** in der Toolbar (standardmäßig zugeklappt)
+  - **Steuerjahr-Dropdown**, befüllt mit echten Werten aus der DB (`get_distinct_steuerjahre`)
+  - **Kategorie-Dropdown** (`get_distinct_kategorien`)
+  - **Korrespondent-Dropdown** (`get_distinct_korrespondenten`)
+  - **Datumsbereich** (Von/Bis) mit aktivierbaren QDateEdit-Widgets
+  - **Betragsbereich** (Von/Bis in €) via QDoubleSpinBox
+  - **UND-Verknüpfung** aller aktiven Filter
+  - **Live-Aktualisierung**: Treffer-Zähler aktualisiert sich in Echtzeit
+  - **Wichtige Eigenschaft**: Text-Query ist *optional* — Filtern funktioniert auch ohne Suchwort
+  - **Betrags-Cast**: TEXT-Spalte `betrag` wird via `CAST(NULLIF(betrag,'') AS REAL)` verglichen (robust gegen Leerwerte/Nicht-Zahlen)
+  - **"Filter zurücksetzen"-Button** setzt alle Filter mit einem Klick zurück
+  - Persistenz + Re-Index bei Sortier-Operationen
+  - 12 Unit-Tests sichern die Logik ab (siehe Phase 8)
 
 ### Phase 18: Buchhaltungs- und Steuerfelder (NEU - Hohe Priorität)
 
@@ -285,6 +347,8 @@ Dedizierte Felder für deutschen Steuerbüro-Workflow — Feature das paperless-
 
 ### Phase 19: RAG-Chat / Dokumentensuche per natürlicher Sprache (NEU - Mittlere Priorität)
 
+**Status:** ✅ fertig (M1 Foundation + M2 GUI + M3 Hardening + M4 Tests+Polish)
+
 **Paperless-ai's stärkstes Feature** — Fragen wie:
 - *"Was habe ich 2023 für Strom bezahlt?"*
 - *"Zeig alle Verträge mit der GEZ"*
@@ -299,6 +363,8 @@ Dedizierte Felder für deutschen Steuerbüro-Workflow — Feature das paperless-
 
 ### Phase 20: Korrespondenten-Verwaltung (NEU - Mittlere Priorität)
 
+**Status:** ✅ fertig (Issue #21 closed)
+
 Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
 
 - [ ] **Korrespondenten-Liste** aus Sortierhistorie automatisch aufbauen
@@ -308,6 +374,8 @@ Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
 - [ ] Wird in PDF-XMP-Metadaten als `custom:Korrespondent` persistiert
 
 ### Phase 21: Automatisierungs-Regeln (NEU - Mittlere Priorität)
+
+**Status:** ✅ fertig (Issue #22 closed)
 
 Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisches Sortieren:
 
@@ -324,10 +392,15 @@ Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisch
 - [ ] Aktionen: Zielordner setzen, Tag hinzufügen, Feld setzen, umbenennen
 - [ ] Regeln werden **vor** manuellem Eingriff geprüft (vollautomatisch wenn Konfidenz >90%)
 
-### Phase 11: Lokales LLM / Ollama (offen)
-- [ ] Neuer Provider: `OllamaProvider` für lokale Modelle
-- [ ] API-Endpunkt: `http://localhost:11434/v1/chat/completions`
-- [ ] Kein API-Key erforderlich, volle Datenschutz-Kontrolle
+### Phase 11: Lokales LLM / Ollama (100% fertig)
+
+- [x] **Provider `OllamaProvider`** für lokale Modelle (`src/ml/ollama_provider.py`)
+- [x] **Native HTTP-API** (`http://localhost:11434`) — kein API-Key, volle Datenhoheit
+- [x] **Auto-Start-Helper** (`src/ml/ollama_launcher.py`): Startet lokalen Server auf Wunsch
+- [x] **JSON-Mode**: `"format": "json"` für deterministische strukturierte Antworten (v0.11.0)
+- [x] **Robuste HTTP-Kommunikation** mit `urllib` (keine zusätzliche Dependency)
+- [x] Timeout 120s (lokale Modelle brauchen auf Consumer-Hardware länger)
+- [x] Modell-Liste via `/api/tags` zur Auswahl in den Einstellungen
 
 **Empfohlene Modelle für RTX 3060 Ti (8GB VRAM):**
 
@@ -385,13 +458,24 @@ Die folgenden Punkte aus `to do.md` wurden bereits umgesetzt:
 | paperless-ai Funktionsvergleich + Roadmap Phase 16–21 | ✅ | März 2026 - ENTWICKLUNGSSTAND.md aktualisiert |
 | Undo für Verschiebungen (alle Codepfade) | ✅ | v0.9.0 - Ctrl+Z, Undo-Stack mit 20 Einträgen |
 | Umbenennung rückgängig (Ctrl+Z) | ✅ | v0.9.0 - Gemeinsamer Undo-Stack für Move+Rename |
-| F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut |
+| F2-Taste für Umbenennen | ✅ | v0.9.0 - Windows-Standard-Shortcut || Phase 19 RAG-Chat abgeschlossen (Issue #20) | ✅ | v0.12.0 - Chat-Tab, FTS5-Retrieval, LLM-Synthese, Citations, Offline-Fallback, Cancel, 112/112 Tests |
+
 | De-Selektion (Klick auf leere Fläche / Escape) | ✅ | v0.9.0 - mousePressEvent + Escape-Shortcut |
 | Zurück-Button (Ordner-History) | ✅ | v0.9.0 - ⬅ Button + Alt+Left + Menü |
 | Phase 16: PDF-XMP-Metadaten schreiben | ✅ | v0.9.0 - pikepdf + LLM-Extraktion + Umbenennungsdialog |
 | LLM extrahiert Betrag/MwSt/Steuerjahr/Korrespondent | ✅ | v0.9.0 - Erweiterter Prompt für alle 3 Provider |
 | SortingHistory um 8 Metadaten-Felder erweitert | ✅ | v0.9.0 - Automatische Migration |
 | Metadaten-Panel im Umbenennungsdialog | ✅ | v0.9.0 - 7 editierbare Felder |
+| Bugfix: 'Neuer Dateiname' zeigte ML- statt LLM-Namen (Issue #24) | ✅ | v0.11.0 - name_input.setText + Cache-Rückschreibung in detail_panel |
+| Bugfix: Orphan-Rows beim Verschieben (Pfad nicht aktualisiert) | ✅ | v0.11.0 - update_pdf_path() löst DELETE-old + INSERT-new atomar |
+| LLM-Metadaten-Extraktion mit JSON-Mode + robustem Parser | ✅ | v0.11.0 - Regex-Parser, Ollama-Format-JSON, f-string-Fix |
+| Filter-Kombinationen in Volltext-Suche (Issue #18) | ✅ | v0.11.0 - 5 Dropdown-Filter + Datums-/Betrags-Range, kombinierbar |
+| Bulk-Index-Funktion für Verzeichnisse (RAG-Vorbereitung) | ✅ | v0.11.0 - bulk_index_directory() mit analyze=True/False |
+| Test-Infrastruktur aufgebaut | ✅ | v0.11.0 - 34 pytest-Tests in 3 Suiten, alle grün |
+| Phase 19 RAG-Chat (Issue #20) abgeschlossen | ✅ | v0.12.0 - Chat-Tab, FTS5-Retrieval, LLM-Synthese, Citations, Offline-Fallback, Cancel-Flow, 112/112 Tests |
+| Phase 20 Korrespondenten-Verwaltung (Issue #21) abgeschlossen | ✅ | v0.13.0 - DB `korrespondenten` + Sidebar + Edit/Merge-Dialoge, auto_collect, 34 neue Tests |
+| Phase 21 Automatisierungs-Regeln (Issue #22) abgeschlossen | ✅ | v0.13.0 - RuleEngine (5 Condition, 4 Action-Typen, Confidence) + Settings-Tab mit Editor, 23 neue Tests |
+
 
 ---
 
@@ -508,10 +592,11 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 ## Nächste Schritte (Empfehlung)
 
-### Sofort (Phase 13 - verbleibende UX-Verbesserungen):
+### Sofort (Sprint 1 - Explorer-Gefühl, Issues #29/#26/#23):
 
-1. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
-2. **Mehrere LLM API-Keys verwalten** - Schnelles Umschalten zwischen Providern
+1. **Linkes Panel als Dateimanager** - "..", Unterordner, Doppelklick wechselt hinein
+2. **Zielordner rechts wie im Explorer** - Doppelklick navigiert links; Vorschläge bleiben oben
+3. **Drag & Drop Haptik** - Visuelles Feedback im Ordnerbaum (#10, Sprint 4)
 
 ### Nächstes (Phase 17+18 - Suche & Steuerfelder):
 
@@ -556,6 +641,8 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 1. OCR funktioniert nur mit installiertem Tesseract
 2. LLM-Nutzung erfordert API-Key und verursacht Kosten
 3. Grüne Vorschlagsordner können bei vielen Ordnern unübersichtlich werden
+4. **DB-Architektur ist path-zentriert** (Issue #25): Bei einem Pfadwechsel müssen alle Metadaten migriert werden. Stabile `pdf_id` als Refactoring geplant (nach Phase 19).
+5. **Lokal laufendes Ollama kann bei großen Texten langsam sein** — Timeout in `ollama_provider.py` auf 120s gesetzt
 
 ---
 
@@ -565,3 +652,74 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 cd "..\\PDF_Sortier_Meister"
 python run.py
 ```
+
+
+---
+
+## Changelog v0.13.0
+
+**Release-Datum:** 14.06.2026
+**Fokus:** Robustheit, LLM-Metadaten-Extraktion, Such-Filter, Test-Grundlage
+
+### ✨ Neue Features
+
+- **Strukturierte JSON-LLM-Antworten** (Phase 6)
+  - Alle Provider (Claude, OpenAI, Poe, Ollama) liefern JSON statt Freitext
+  - Erweitertes Metadaten-Schema inkl. Steuer-/Buchhaltungs-Feldern
+  - Ollama nutzt nativen `format: json` Mode
+- **Filter-Kombinationen in der Volltext-Suche** (Issue #18, Phase 17)
+  - 5 kombinierbare Filter: Steuerjahr, Kategorie, Korrespondent, Datumsbereich, Betragsbereich
+  - Ein-/ausklappbare Filterleiste mit Live-Trefferzähler
+  - Filter funktionieren auch ohne Suchwort
+- **Bulk-Import für Verzeichnisse** (Vorbereitung Phase 19 RAG)
+  - `Database.bulk_index_directory(folder, recursive, analyze)` — scannt Tausende bereits getaggte PDFs
+  - Zwei Modi: `analyze=True` (volle Pipeline) oder `analyze=False` (nur Registrierung, schnell)
+- **Move-Pfad-Update mit Metadaten-Erhalt** (DB)
+  - `Database.update_pdf_path(old, new, new_filename)` — atomar, erhält alle Metadaten
+  - Behebt den Orphan-Row-Bug beim Verschieben
+
+### 🐛 Bugfixes
+
+- **Issue #24**: Mittleres Panel zeigte schlechten ML- statt LLM-Namen
+  - Fix: `name_input.setText()` mit LLM-Filename in `_request_llm_metadata()`
+  - LLM-Vorschläge werden in PDF-Cache zurückgeschrieben
+- **Orphan-Row-Bug beim Verschieben**: Alte Pfad-Einträge blieben im FTS5-Index stehen
+  - Fix: `update_pdf_path()` mit atomarer DELETE-old + INSERT-new Transaktion
+- **f-string Syntax-Fehler in LLM-Prompts**: JSON-Schemas mit ungeschweiften Klammern
+  - Fix: Alle literalen `{`/`}` in f-strings jetzt korrekt als `{{`/`}}` escaped
+
+### 🧪 Tests & Qualitätssicherung
+
+- **34/34 Unit-Tests grün** (Laufzeit: ~4s)
+- Neue Test-Suiten:
+  - `tests/test_llm_metadata_extraction.py` (10 Tests): JSON-Parser, Prompt-Builder
+  - `tests/test_database_filters.py` (21 Tests): Filter-Logik, Distinct-Helfer, Bulk-Import
+- `pytest` als dev-dependency hinzugefügt
+
+### 🏗 Architektur-Entscheidungen
+
+- **Option A umgesetzt** (path-basiert + Update-Helper) — Quick Win
+- **Option B dokumentiert** (Issue #25): Master-Tabelle `pdfs` mit stabiler `pdf_id` als FK-Referenz
+  - Geplant für NACH Phase 19 (RAG-Chat)
+  - 2-3 Sprints Aufwand
+  - Breaking-Change in der DB-Struktur, aber API-kompatibel
+
+### 📝 Geänderte Dateien (Commits seit v0.10.0)
+
+| Commit | Beschreibung |
+|:--|:--|
+| `4fa559b` | Phase 16 + LLM-Dateiname-Sync (#24) |
+| `a2d1baf` | Phase 17: Filter-Kombinationen Volltext-Suche (#18) |
+| `60ab155` | STAB: Move-Bugfix + bulk_index_directory (Vorbereitung RAG) |
+
+### 🔗 Neue/aktualisierte GitHub-Issues
+
+- **#18** Phase 17: Filter-Kombinationen in der Volltext-Suche — ✅ geschlossen
+- **#24** Bugfix: 'Neuer Dateiname' im mittleren Panel — ✅ geschlossen
+- **#25** Refactoring: 'pdfs' Master-Tabelle mit stabiler pdf_id — 📋 offen (Backlog)
+
+### ⚠️ Bekannte Mängel / Ausblick
+
+- Filter-Dropdowns laden erst beim ersten Aufklappen der Filterleiste
+- HybridClassifier hat noch keine dedizierten Unit-Tests (nächster STAB-Sprint)
+- Pfad-zentrierte DB-Architektur (Refactoring in #25 geplant)

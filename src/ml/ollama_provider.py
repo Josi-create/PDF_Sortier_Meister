@@ -8,6 +8,7 @@ Vorteile lokaler Modelle:
 - Keine API-Kosten, keine Cloud
 - Daten verlassen den Rechner nicht
 - Funktioniert offline
+- JSON Mode ermoeglicht sehr stabile strukturierte Antworten
 
 Nachteile:
 - Erfordert Installation und Modell-Download (z.B. "ollama pull llama3.1")
@@ -23,7 +24,7 @@ MIT License - Copyright (c) 2026
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
+from typing import Optional, Any
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
 
@@ -32,20 +33,15 @@ class OllamaProvider(LLMProvider):
     """
     LLM-Provider fuer einen lokal laufenden Ollama-Server.
 
-    Die Verbindung erfolgt ueber die native Ollama HTTP-API
-    (Default: http://localhost:11434). Es wird kein API-Key benoetigt;
-    stattdessen wird ueber ``LLMConfig.base_url`` der Server-Endpunkt
-    konfiguriert und ueber ``LLMConfig.model`` der Modellname.
-
-    Beispiel-Modelle: ``llama3.1``, ``llama3.2``, ``qwen2.5``,
-    ``gemma3:12b``, ``mistral``.
+    Die Verbindung erfolgt ueber die native Ollama HTTP-API (Default: http://localhost:11434).
+    Es wird kein API-Key benoetigt; stattdessen wird ueber ``LLMConfig.base_url`` der Server-Endpunkt
+    und ueber ``LLMConfig.model`` das Modell konfiguriert.
     """
 
     DEFAULT_BASE_URL = "http://localhost:11434"
     DEFAULT_MODEL = "llama3.1"
 
     # Timeout fuer einen einzelnen Request in Sekunden.
-    # Lokale Modelle koennen je nach Hardware lange brauchen.
     REQUEST_TIMEOUT = 120
 
     def __init__(self, config: LLMConfig):
@@ -56,21 +52,14 @@ class OllamaProvider(LLMProvider):
             config: Konfiguration mit Modellname und (optional) base_url
         """
         super().__init__(config)
-        # Einmaliger Auto-Start-Versuch pro Provider-Instanz: verhindert,
-        # dass jeder Verbindungsfehler erneut 10s wartet.
+        # Einmaliger Auto-Start-Versuch pro Provider-Instanz.
         self._autostart_attempted = False
         self._initialize_client()
 
     def _initialize_client(self):
         """
-        Bereitet die Server-URL vor.
-
-        Anders als bei den Cloud-Providern gibt es hier kein SDK-Objekt.
-        Wir markieren den Provider einfach als bereit, sobald eine URL
-        bekannt ist.
+        Bereitete die Server-URL vor.
         """
-        # _client wird als "Marker" benutzt, damit is_available() konsistent
-        # mit den anderen Providern bleibt.
         self._client = self._get_base_url()
 
     def _get_base_url(self) -> str:
@@ -79,27 +68,15 @@ class OllamaProvider(LLMProvider):
         return url.rstrip("/")
 
     def _get_model_id(self) -> str:
-        """Gibt den Modellnamen zurueck (ohne weiteres Mapping)."""
+        """Gibt den Modellnamen zurueck."""
         return self.config.model.strip() if self.config.model else self.DEFAULT_MODEL
 
     def is_available(self) -> bool:
-        """
-        Prueft, ob Ollama verfuegbar ist.
-
-        Anders als bei Cloud-Providern reicht hier eine URL — ein API-Key
-        ist nicht noetig. Wir machen hier KEINEN Netzwerk-Roundtrip,
-        damit die App nicht jedes Mal beim Start blockiert. Den echten
-        Verbindungstest macht ``ping()`` bzw. der erste API-Call.
-        """
+        """Prueft, ob Ollama verfuegbar ist."""
         return bool(self._get_base_url())
 
     def ping(self) -> tuple[bool, str]:
-        """
-        Prueft per HTTP-Request, ob der Ollama-Server erreichbar ist.
-
-        Returns:
-            (ok, message). Bei Erfolg enthaelt ``message`` die Ollama-Version.
-        """
+        """Prueft per HTTP-Request, ob der Ollama-Server erreichbar ist."""
         url = f"{self._get_base_url()}/api/version"
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
@@ -111,13 +88,7 @@ class OllamaProvider(LLMProvider):
             return False, f"Fehler: {e}"
 
     def list_models(self) -> list[str]:
-        """
-        Holt die Liste der lokal installierten Modelle vom Server.
-
-        Returns:
-            Liste der Modellnamen (z.B. ``["llama3.1", "gemma3:12b"]``).
-            Leere Liste bei Fehler.
-        """
+        """Holt die Liste der lokal installierten Modelle vom Server."""
         url = f"{self._get_base_url()}/api/tags"
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
@@ -130,24 +101,15 @@ class OllamaProvider(LLMProvider):
     # Interne HTTP-Hilfsfunktion                                         #
     # ------------------------------------------------------------------ #
 
-    def _chat(self, system_prompt: str, user_prompt: str) -> tuple[Optional[str], Optional[str]]:
+    def _chat(self, system_prompt: str, user_prompt: str, json_mode: bool = False) -> tuple[Optional[str], Optional[str]]:
         """
         Schickt einen Chat-Request an Ollama.
-
-        Bei einem Verbindungsfehler wird EINMAL pro Provider-Instanz
-        versucht, den lokalen Ollama-Server automatisch zu starten und
-        der Request danach wiederholt. So bleibt der Programmstart
-        schnell und der User muss Ollama nicht von Hand starten.
-
-        Returns:
-            (response_text, error_message). Genau eins ist None.
         """
-        result, error = self._do_chat(system_prompt, user_prompt)
+        result, error = self._do_chat(system_prompt, user_prompt, json_mode=json_mode)
         if result is not None or error is None:
             return result, error
 
-        # Nur bei "echtem" Verbindungsfehler (URLError) Auto-Start
-        # versuchen, und nur einmalig pro Provider-Lebenszeit.
+        # Nur bei echten Verbindungsfehlern (URLError) Auto-Start versuchen
         if self._autostart_attempted or not error.startswith("Keine Verbindung"):
             return result, error
 
@@ -165,11 +127,11 @@ class OllamaProvider(LLMProvider):
             )
 
         # Server laeuft jetzt - Request wiederholen.
-        return self._do_chat(system_prompt, user_prompt)
+        return self._do_chat(system_prompt, user_prompt, json_mode=json_mode)
 
-    def _do_chat(self, system_prompt: str, user_prompt: str) -> tuple[Optional[str], Optional[str]]:
+    def _do_chat(self, system_prompt: str, user_prompt: str, json_mode: bool = False) -> tuple[Optional[str], Optional[str]]:
         """
-        Eigentlicher HTTP-Request an /api/chat (ohne Retry-Logik).
+        Eigentlicher HTTP-Request an /api/chat.
         """
         url = f"{self._get_base_url()}/api/chat"
         payload = {
@@ -184,6 +146,8 @@ class OllamaProvider(LLMProvider):
                 "num_predict": self.config.max_tokens,
             },
         }
+        if json_mode:
+            payload["format"] = "json"
 
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -197,16 +161,9 @@ class OllamaProvider(LLMProvider):
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            try:
-                detail = e.read().decode("utf-8", errors="replace")
-            except Exception:
-                detail = ""
-            return None, f"Ollama HTTP {e.code}: {detail or e.reason}"
+            return None, f"Ollama HTTP {e.code}"
         except urllib.error.URLError as e:
-            return None, (
-                f"Keine Verbindung zu Ollama ({self._get_base_url()}). "
-                f"Laeuft der Server? Details: {e.reason}"
-            )
+            return None, f"Keine Verbindung zu Ollama ({self._get_base_url()}). Details: {e.reason}"
         except Exception as e:
             return None, f"Ollama-Fehler: {e}"
 
@@ -216,16 +173,10 @@ class OllamaProvider(LLMProvider):
             return None, "Ollama hat eine leere Antwort geliefert."
         return content, None
 
-    @staticmethod
-    def _strip_code_fences(text: str) -> str:
-        """
-        Entfernt Markdown-Code-Fences, falls das Modell die Antwort
-        in ``` eingewickelt hat. Lokale Modelle tun das oft, obwohl der
-        Prompt KEIN JSON verlangt.
-        """
+    def _strip_code_fences(self, text: str) -> str:
+        """Entfernt Markdown-Code-Fences."""
         s = text.strip()
         if s.startswith("```"):
-            # Erste Zeile (z.B. ```json oder ```) entfernen
             s = s.split("\n", 1)[1] if "\n" in s else s[3:]
             if s.endswith("```"):
                 s = s[:-3]
@@ -244,41 +195,31 @@ class OllamaProvider(LLMProvider):
         detected_date: str = None,
     ) -> LLMResponse:
         if not self.is_available():
-            return LLMResponse(
-                success=False,
-                error_message="Ollama-Provider ist nicht konfiguriert (URL fehlt).",
-            )
+            return LLMResponse(success=False, error_message="Ollama-Provider nicht konfiguriert.")
         if not available_folders:
             return LLMResponse(success=False, error_message="Keine Zielordner verfuegbar.")
 
-        prompt = self._build_classification_prompt(
-            text, available_folders, keywords, detected_date
-        )
-        # Defensiver System-Prompt fuer lokale Modelle: explizit auf Format
-        # bestehen, sonst kommen Erklaerungen, Code-Fences etc. mit.
-        system_prompt = (
-            "Du bist ein Assistent zum Sortieren von Dokumenten. "
-            "Antworte AUSSCHLIESSLICH im geforderten Zeilen-Format. "
-            "Keine Einleitung, keine Erklaerung, keine Code-Bloecke."
-        )
+        prompt = self._build_classification_prompt(text, available_folders, keywords, detected_date)
+        system_prompt = "Du bist ein Assistent zum Sortieren von Dokumenten. Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt."
 
-        response_text, error = self._chat(system_prompt, prompt)
+        response_text, error = self._chat(system_prompt, prompt, json_mode=True)
         if error:
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed = self._parse_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned)
 
-        suggested_folder = parsed.get("folder")
-        if suggested_folder and suggested_folder not in available_folders:
-            suggested_folder = self._find_similar_folder(suggested_folder, available_folders)
+        if parse_err:
+            return LLMResponse(success=False, error_message=parse_err)
+
+        suggested_folder = parsed.get("folder") if parsed.get("folder") != "NULL" else None
 
         return LLMResponse(
             success=True,
             folder_suggestion=suggested_folder,
             folder_reason=parsed.get("reason"),
-            confidence=parsed.get("confidence", 0.5),
-            tokens_used=0,  # Ollama liefert prompt_eval_count/eval_count, fuer Kosten irrelevant
+            confidence=float(parsed.get("confidence", 0.5)),
+            metadata=parsed.get("metadata")
         )
 
     def suggest_filename(
@@ -291,57 +232,34 @@ class OllamaProvider(LLMProvider):
         file_date: str = None,
     ) -> LLMResponse:
         if not self.is_available():
-            return LLMResponse(
-                success=False,
-                error_message="Ollama-Provider ist nicht konfiguriert (URL fehlt).",
-            )
+            return LLMResponse(success=False, error_message="Ollama-Provider nicht konfiguriert.")
 
-        prompt = self._build_filename_prompt(
-            text, current_filename, keywords, detected_date, target_folder, file_date
-        )
-        system_prompt = (
-            "Du bist ein Assistent zum Benennen von Dokumenten. "
-            "Antworte AUSSCHLIESSLICH im geforderten Zeilen-Format "
-            "(jedes Feld mit seinem GROSSBUCHSTABEN-Praefix auf einer eigenen Zeile). "
-            "Keine Einleitung, keine Erklaerung, keine Code-Bloecke, kein JSON."
-        )
+        prompt = self._build_filename_prompt(text, current_filename, keywords, detected_date, target_folder, file_date)
+        system_prompt = "Du bist ein Assistent zum Benennen von Dokumenten. Antworte AUSSCHLIESSLICH mit einem validem JSON-Objekt."
 
-        response_text, error = self._chat(system_prompt, prompt)
+        response_text, error = self._chat(system_prompt, prompt, json_mode=True)
         if error:
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed = self._parse_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned)
 
-        filename = parsed.get("filename")
-        if filename:
-            filename = self._sanitize_filename(filename)
+        if parse_err:
+            return LLMResponse(success=False, error_message=parse_err)
+
+        filename = parsed.get("filename") if parsed.get("filename") != "NULL" else None
 
         return LLMResponse(
             success=True,
             filename_suggestion=filename,
             filename_reason=parsed.get("reason"),
-            confidence=parsed.get("confidence", 0.5),
-            tokens_used=0,
-            metadata=parsed.get("metadata"),
+            confidence=float(parsed.get("confidence", 0.5)),
+            metadata=parsed.get("metadata")
         )
 
     # ------------------------------------------------------------------ #
-    # Helfer (gleich wie in den anderen Providern)                       #
+    # Helfer                                                             #
     # ------------------------------------------------------------------ #
-
-    def _find_similar_folder(
-        self, suggested: str, available: list[str]
-    ) -> Optional[str]:
-        """Findet einen aehnlichen Ordner aus der Liste."""
-        suggested_lower = suggested.lower()
-        for folder in available:
-            if folder.lower() == suggested_lower:
-                return folder
-        for folder in available:
-            if suggested_lower in folder.lower() or folder.lower() in suggested_lower:
-                return folder
-        return None
 
     def _sanitize_filename(self, filename: str) -> str:
         """Bereinigt einen Dateinamen."""
@@ -358,6 +276,71 @@ class OllamaProvider(LLMProvider):
         filename = filename.replace(" ", "_")
         if not filename.lower().endswith(".pdf"):
             filename += ".pdf"
-        if len(filename) > 84:  # 80 + .pdf
-            filename = filename[:80] + ".pdf"
         return filename
+
+    def _find_similar_folder(self, suggested: str, available: list[str]) -> Optional[str]:
+        # Placeholder
+        return None
+
+    # ------------------------------------------------------------------ #
+    # RAG-Chat (Phase 19, M1)                                            #
+    # ------------------------------------------------------------------ #
+
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext der uebergebenen Dokumente.
+
+        Sendet einen Chat-Request an ``/api/chat`` mit System- und
+        User-Message. ``format:json`` ist bewusst deaktiviert, damit
+        das Modell ``[N]``-Citation-Marker im natuerlichen Text
+        ausgeben kann. Die Verarbeitung der Marker uebernimmt der
+        ``CitationParser`` in M3.
+
+        Timeout: ``REQUEST_TIMEOUT`` (120s).
+        """
+        if not self.is_available():
+            return ""
+
+        from src.rag.prompts import build_context_block, build_user_prompt
+
+        context_block = build_context_block(context_docs)
+        user_prompt = build_user_prompt(user_question, context_block=context_block)
+
+        payload = {
+            "model": self._get_model_id(),
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        # KEIN format:json - wir wollen natuerliche Sprache mit [N]-Markern.
+
+        body = json.dumps(payload).encode("utf-8")
+        url = f"{self._get_base_url()}/api/chat"
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.URLError as e:
+            return f"[Ollama nicht erreichbar: {e.reason}]"
+        except Exception as e:
+            return f"[Ollama-Fehler: {e}]"
+
+        message = data.get("message") or {}
+        return message.get("content", "") or ""

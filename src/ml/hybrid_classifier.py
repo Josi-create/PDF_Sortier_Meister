@@ -16,6 +16,7 @@ from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProvider
 from src.ml.claude_provider import ClaudeProvider
 from src.ml.openai_provider import OpenAIProvider
 from src.ml.poe_provider import PoeProvider
+from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider
 from src.utils.config import get_config
 
@@ -81,6 +82,18 @@ class HybridClassifier:
             self.llm_enabled = False
             return
 
+        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
+        from src.ml.llm_provider import is_cloud_provider
+        if is_cloud_provider(provider_type) and not llm_config.get("cloud_consent", False):
+            import logging
+            logging.getLogger(__name__).warning(
+                "Cloud-Provider '%s' konfiguriert, aber keine Einwilligung "
+                "zur Datenuebertragung erteilt. LLM bleibt deaktiviert.",
+                provider_type,
+            )
+            self.llm_enabled = False
+            return
+
         # Ollama laeuft lokal und braucht keinen API-Key.
         # Alle anderen Provider brauchen einen.
         if provider_type != "ollama" and not api_key:
@@ -103,6 +116,8 @@ class HybridClassifier:
                 self.llm_provider = OpenAIProvider(config)
             elif provider_type == "poe":
                 self.llm_provider = PoeProvider(config)
+            elif provider_type == "openrouter":
+                self.llm_provider = OpenRouterProvider(config)
             elif provider_type == "ollama":
                 self.llm_provider = OllamaProvider(config)
 
@@ -120,32 +135,46 @@ class HybridClassifier:
         api_key: str,
         model: str = "",
         base_url: str = "",
-    ):
+    ) -> bool:
         """
         Setzt den LLM-Provider zur Laufzeit.
 
         Args:
-            provider_type: Art des Providers (claude, openai, poe, ollama, none)
+            provider_type: Art des Providers (claude, openai, poe, openrouter, ollama, none)
             api_key: API-Key (bei Ollama ignoriert)
             model: Modellname (optional)
             base_url: Server-URL (nur fuer Ollama relevant)
+
+        Returns:
+            True wenn der Provider erfolgreich aktiviert wurde.
         """
         if provider_type == LLMProviderType.NONE:
             self.llm_provider = None
             self.llm_enabled = False
-            return
+            return False
+
+        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
+        from src.ml.llm_provider import is_cloud_provider
+        pt = provider_type.value if hasattr(provider_type, "value") else str(provider_type)
+        if is_cloud_provider(pt):
+            consent = self.config.get("llm", {}).get("cloud_consent", False)
+            if not consent:
+                self.llm_provider = None
+                self.llm_enabled = False
+                return False
 
         # Ollama laeuft lokal und braucht keinen API-Key.
         if provider_type != LLMProviderType.OLLAMA and not api_key:
             self.llm_provider = None
             self.llm_enabled = False
-            return
+            return False
 
         # Standard-Modell je nach Provider
         default_models = {
             LLMProviderType.CLAUDE: "haiku",
             LLMProviderType.OPENAI: "gpt-4o-mini",
             LLMProviderType.POE: "GPT-4o-Mini",
+            LLMProviderType.OPENROUTER: OpenRouterProvider.DEFAULT_MODEL,
             LLMProviderType.OLLAMA: OllamaProvider.DEFAULT_MODEL,
         }
         config = LLMConfig(
@@ -161,6 +190,8 @@ class HybridClassifier:
                 self.llm_provider = OpenAIProvider(config)
             elif provider_type == LLMProviderType.POE:
                 self.llm_provider = PoeProvider(config)
+            elif provider_type == LLMProviderType.OPENROUTER:
+                self.llm_provider = OpenRouterProvider(config)
             elif provider_type == LLMProviderType.OLLAMA:
                 self.llm_provider = OllamaProvider(config)
 
@@ -171,6 +202,8 @@ class HybridClassifier:
         except Exception as e:
             print(f"Fehler bei LLM-Konfiguration: {e}")
             self.llm_enabled = False
+
+        return self.llm_enabled
 
     def suggest_folders(
         self,
@@ -489,6 +522,8 @@ class HybridClassifier:
             return "Keiner"
         if isinstance(self.llm_provider, ClaudeProvider):
             return "Claude"
+        if isinstance(self.llm_provider, OpenRouterProvider):
+            return "OpenRouter"
         if isinstance(self.llm_provider, OpenAIProvider):
             return "OpenAI"
         if isinstance(self.llm_provider, PoeProvider):

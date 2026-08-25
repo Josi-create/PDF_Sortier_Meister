@@ -48,3 +48,9 @@ data/
 
 # Logs
 *.log
+
+# Hermes agent workspace (monetization roadmap etc.)
+.hermes/
+
+# Local helper scripts
+ollama_vlad.bat

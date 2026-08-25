@@ -7,10 +7,21 @@ Bietet eine einheitliche Schnittstelle für verschiedene LLM-Anbieter
 MIT License - Copyright (c) 2026
 """
 
+import json
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum
+
+
+# Provider, die Dokumenteninhalte an externe (Cloud-)Dienste uebertragen.
+CLOUD_PROVIDERS = frozenset({"claude", "openai", "poe", "openrouter"})
+
+
+def is_cloud_provider(provider_type: str) -> bool:
+    """True, wenn der Provider Daten an einen externen Dienst sendet."""
+    return str(provider_type).lower() in CLOUD_PROVIDERS
 
 
 class LLMProviderType(Enum):
@@ -18,6 +29,7 @@ class LLMProviderType(Enum):
     CLAUDE = "claude"
     OPENAI = "openai"
     POE = "poe"  # Poe.com - Zugang zu vielen Modellen
+    OPENROUTER = "openrouter"  # OpenRouter.ai - viele Modelle, OpenAI-kompatibel
     OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     NONE = "none"  # Kein LLM verwenden
 
@@ -48,6 +60,10 @@ class LLMConfig:
     # Optional: Basis-URL fuer lokale/selbst-gehostete Provider (z.B. Ollama).
     # Bei Cloud-Providern bleibt der Wert leer und wird ignoriert.
     base_url: str = ""
+    # Kontext-Fenster des Modells in Tokens. Wird fuer RAG-Budget-Berechnungen
+    # verwendet (Phase 19 / RAG-Chat, M1). Default 8000 ist ein konservativer
+    # Wert, der mit lokalen 8B-Modellen und kleinen Cloud-Modellen funktioniert.
+    context_window: int = 8000
 
 
 class LLMProvider(ABC):
@@ -85,7 +101,7 @@ class LLMProvider(ABC):
 
         Args:
             text: Extrahierter Text aus dem Dokument (gekürzt)
-            available_folders: Liste der verfügbaren Zielordner
+            available_folders: Liste der verfügbare Zielordner
             keywords: Erkannte Schlüsselwörter
             detected_date: Erkanntes Datum im Dokument
 
@@ -130,6 +146,40 @@ class LLMProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext bereitgestellter Dokumente (RAG).
+
+        Wird in Phase 19 (RAG-Chat, M1) eingefuehrt. Die Implementierung
+        baut aus ``context_docs`` und dem ``system_prompt`` einen Chat-Request
+        an den Provider und liefert die rohe LLM-Antwort als String zurueck
+        (inkl. eventueller ``[N]``-Citation-Marker). Das Parsen der
+        Citation-Marker uebernimmt spaeter der ``CitationParser`` (M3).
+
+        Args:
+            system_prompt: System-Prompt mit Anweisungen + ggf. Citation-Regeln.
+            context_docs: Liste von Dicts mit den Feldern
+                ``index`` (int, 1-basiert), ``filename``, ``kategorie``,
+                ``steuerjahr``, ``betrag``, ``korrespondent`` und
+                ``text_snippet``. ``index`` ist der Identifier, auf den
+                die ``[N]``-Marker im Antworttext verweisen.
+            user_question: Die konkrete Nutzerfrage.
+            max_tokens: Max. Tokens fuer die Antwort (Provider-spezifisch).
+
+        Returns:
+            Die rohe LLM-Antwort als String. Bei Fehlern sollte ein
+            leerer String (oder eine sinnvolle Fehlermeldung als Klartext)
+            zurueckgegeben werden.
+        """
+        pass
+
     def _truncate_text(self, text: str, max_chars: int = None) -> str:
         """
         Kürzt Text auf eine maximale Länge für API-Calls.
@@ -167,10 +217,10 @@ class LLMProvider(ABC):
             text: Dokumenttext
             available_folders: Verfügbare Ordner
             keywords: Schlüsselwörter
-            detected_date: Erkanntes Datum
+            detected_date: Erkanntes Datum im Dokument
 
         Returns:
-            Formatierter Prompt
+            Formatierter Prompt (JSON Format gefordert)
         """
         folder_list = "\n".join(f"- {folder}" for folder in available_folders)
 
@@ -182,9 +232,7 @@ class LLMProvider(ABC):
         if detected_date:
             date_info = f"\nErkanntes Datum im Dokument: {detected_date}"
 
-        return f"""Du bist ein Assistent zum Sortieren von Dokumenten.
-
-Analysiere das folgende Dokument und wähle den passendsten Zielordner aus der Liste.
+        return f"""Du bist ein Assistent zum Sortieren von Dokumenten. Analysiere das folgende Dokument und wähle den passendsten Zielordner aus der Liste.
 
 VERFÜGBARE ORDNER:
 {folder_list}
@@ -194,14 +242,27 @@ DOKUMENTINHALT:
 {keyword_info}{date_info}
 
 AUFGABE:
-1. Analysiere den Dokumentinhalt
-2. Wähle den passendsten Ordner aus der Liste
-3. Begründe deine Wahl kurz
+1. Analysiere den Dokumentinhalt.
+2. Wähle den passendsten Ordner aus der Liste (exakter Name).
+3. Begründe deine Wahl kurz.
 
-Antworte im folgenden Format:
-ORDNER: [Exakter Ordnername aus der Liste]
-BEGRÜNDUNG: [Kurze Begründung, max 1-2 Sätze]
-KONFIDENZ: [Zahl von 0-100]"""
+Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
+{{
+  "folder": "Exakter Ordnername aus der Liste oder NULL",
+  "reason": "Kurze Begründung (max 2 Sätze)",
+  "confidence": 0.9,
+  "metadata": {{
+    "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
+    "korrespondent": "Firmenname des Absenders",
+    "betrag_netto": "123.45 oder UNBEKANNT",
+    "betrag_brutto": "123.45 oder UNBEKANNT",
+    "waehrung": "EUR/USD oder UNBEKANNT",
+    "mwst": 7,
+    "iban": "IBAN oder UNBEKANNT",
+    "steuerjahr": 2024,
+    "beschreibung": "Zusammenfassung des Dokuments in einem Satz"
+  }}
+}}"""
 
     def _build_filename_prompt(
         self,
@@ -219,12 +280,12 @@ KONFIDENZ: [Zahl von 0-100]"""
             text: Dokumenttext
             current_filename: Aktueller Dateiname
             keywords: Schlüsselwörter
-            detected_date: Erkanntes Datum
-            target_folder: Zielordner
-            file_date: Änderungsdatum der Datei (Fallback)
+            detected_date: Erkanntes Datum im Dokument
+            target_folder: Zielordner (falls bekannt)
+            file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
 
         Returns:
-            Formatierter Prompt
+            Formatierter Prompt (JSON Format gefordert)
         """
         keyword_info = ""
         if keywords:
@@ -242,16 +303,10 @@ KONFIDENZ: [Zahl von 0-100]"""
         if target_folder:
             folder_info = f"\nZielordner: {target_folder}"
 
-        # Benutzer-Identität laden (damit LLM den Besitzer nicht als Korrespondent erkennt)
         owner_info = self._build_owner_info()
-
-        # Benutzerdefiniertes Dateinamen-Muster (optional)
         pattern_info = self._build_filename_pattern_info()
 
-        return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten.
-
-Analysiere das folgende Dokument und schlage einen aussagekräftigen Dateinamen vor.
-Extrahiere außerdem wichtige Metadaten aus dem Dokument.
+        return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}
 AKTUELLER DATEINAME: {current_filename}
 
@@ -259,50 +314,33 @@ DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}
 {pattern_info}
-REGELN FÜR DEN DATEINAMEN:
-1. Format: YYYY-MM-DD_Kategorie_Beschreibung.pdf (wenn Datum vorhanden)
-2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden
-3. Keine Sonderzeichen, keine Leerzeichen, keine Umlaute
-4. Maximal 80 Zeichen (ohne .pdf)
-5. Aussagekräftig und prägnant
-6. WICHTIG bei Rechnungen: Füge unterscheidende Details hinzu wie:
-   - Rechnungsnummer (z.B. RE-12345)
-   - Leistung/Betreff (z.B. Heizungswartung, Rohrbruch)
-   - Nicht nur den Firmennamen, da mehrere Rechnungen vom selben Absender existieren können
-   Beispiel: 2024-03-15_Rechnung_Meyer-Sanitaer_RE12345_Heizungswartung.pdf
-7. WICHTIG zum Datum:
-   - Verwende das Datum AUS DEM DOKUMENT (Rechnungsdatum, Briefdatum, etc.)
-   - Wenn KEIN Datum im Dokument steht, verwende das Änderungsdatum der Datei (Scandatum)
-   - NIEMALS ein Datum erfinden! Kein 2023 oder andere Phantasiedaten!
 
-Antworte im folgenden Format (jedes Feld in einer eigenen Zeile):
-DATEINAME: [Vorgeschlagener Dateiname mit .pdf]
-BEGRÜNDUNG: [Kurze Begründung, max 1-2 Sätze]
-KONFIDENZ: [Zahl von 0-100]
-KATEGORIE: [Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges]
-KORRESPONDENT: [Firmenname oder Absender — NICHT der Dokumentbesitzer/Empfänger, sondern die ANDERE Partei, z.B. "Stadtwerke München GmbH"]
-BETRAG_NETTO: [Nettobetrag in Format 123.45 oder UNBEKANNT]
-BETRAG_BRUTTO: [Bruttobetrag in Format 123.45 oder UNBEKANNT]
-WAEHRUNG: [EUR/USD oder UNBEKANNT]
-MWST: [Mehrwertsteuersatz als Zahl: 7/19 oder UNBEKANNT]
-IBAN: [IBAN des Absenders z.B. DE12345678901234567890 oder UNBEKANNT]
-STEUERJAHR: [Steuerjahr als vierstellige Zahl, z.B. 2024, oder UNBEKANNT]
-ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
+REGELN FÜR DEN DATEINAMEN:
+1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
+2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute/Leerzeichen.
+3. Maximal 80 Zeichen (ohne .pdf).
+4. Datum aus dem Dokument verwenden! Wenn kein Datum vorhanden, nutze das Scandatum.
+
+Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
+{{
+  "filename": "Vorgeschlagener_Dateiname.pdf",
+  "reason": "Kurze Begründung für den Dateinamen",
+  "confidence": 0.9,
+  "metadata": {{
+    "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
+    "korrespondent": "Firmenname des Absenders",
+    "betrag_netto": "123.45 oder UNBEKANNT",
+    "betrag_brutto": "123.45 oder UNBEKANNT",
+    "waehrung": "EUR/USD oder UNBEKANNT",
+    "mwst": 7,
+    "iban": "IBAN oder UNBEKANNT",
+    "steuerjahr": 2024,
+    "beschreibung": "Zusammenfassung in einem Satz"
+  }}
+}}"""
 
     def _build_filename_pattern_info(self) -> str:
-        """
-        Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt, der dem LLM
-        ein vom Benutzer gewaehltes Namens-Muster vorgibt.
-
-        Das LLM soll das Muster als STRUKTUR-VORLAGE behandeln (Reihenfolge der
-        Bestandteile, Trennzeichen, Platzhalter-Bedeutung) und es mit den
-        tatsaechlichen Werten aus dem Dokument fuellen — nicht woertlich
-        uebernehmen. Wenn kein Muster gesetzt ist, wird ein leerer String
-        zurueckgegeben und der Default-Prompt greift.
-
-        Returns:
-            Prompt-Abschnitt (kann leer sein)
-        """
+        """Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt."""
         try:
             from src.utils.config import get_config
             pattern = get_config().get("filename_pattern", "").strip()
@@ -313,19 +351,9 @@ ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
             return ""
 
         return (
-            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER (HOECHSTE PRIORITAET):\n"
+            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER:\n"
             f"    {pattern}\n"
-            "Der Benutzer hat dieses Muster als Vorlage fuer die Benennung\n"
-            "festgelegt. IMITIERE die Struktur (Reihenfolge der Bestandteile,\n"
-            "Trennzeichen wie '_' oder '-', Gross-/Kleinschreibung) und fuelle\n"
-            "die Platzhalter mit den tatsaechlichen Werten aus dem Dokument.\n"
-            "Uebernimm das Muster NICHT woertlich — die Platzhalter (z.B.\n"
-            "YYYY-MM-DD, Kontakt, Betreff, PROJEKTNUMMER, AKTENZEICHEN,\n"
-            "INITIALIEN) sind durch konkrete Werte zu ersetzen. Wenn ein\n"
-            "Platzhalter im Dokument nicht ermittelbar ist, lasse den\n"
-            "zugehoerigen Bestandteil samt zugehoerigem Trennzeichen weg.\n"
-            "Die allgemeinen Regeln weiter unten (erlaubte Zeichen, Laenge,\n"
-            "Datum nicht erfinden) gelten weiterhin und schlagen das Muster.\n"
+            "Nutze dieses Muster als Strukturvorlage für den Dateinamen.\n"
         )
 
     def _build_owner_info(self) -> str:
@@ -374,15 +402,51 @@ ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
         except Exception:
             return ""
 
-    def _parse_response(self, response_text: str) -> dict:
+    def _truncate_text(self, text: str, max_chars: int = None) -> str:
+        """Kürzt Text auf eine maximale Länge für API-Calls."""
+        if not text:
+            return ""
+        if max_chars is None:
+            max_chars = self.config.text_limit
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars] + "\n[... Text gekürzt ...]"
+
+    def _parse_json_response(self, response_text: str) -> tuple[Optional[dict], Optional[str]]:
         """
-        Parst die LLM-Antwort inkl. Metadaten-Felder.
+        Extrahiert und parst das JSON aus einer Antwort.
 
         Args:
-            response_text: Rohe Antwort vom LLM
+            response_text: Der rohe Text vom LLM (kann Text vor/nach dem JSON enthalten).
 
         Returns:
-            Dictionary mit geparsten Werten
+            Ein Tupel (erfolgreiches_dict, fehlermeldung). Bei Fehler ist dict None.
+        """
+        try:
+            # Suche nach dem ersten '{' und dem letzten '}' um den JSON-Block zu finden
+            match = re.search(r"(\{.*\})", response_text, re.DOTALL | re.MULTILINE)
+            if not match:
+                return None, "Kein gültiges JSON im Antworttext gefunden."
+
+            json_str = match.group(1)
+            data = json.loads(json_str)
+
+            if not isinstance(data, dict):
+                return None, "JSON ist kein Objekt (Dictionary)."
+
+            return data, None
+        except json.JSONDecodeError as e:
+            return None, f"JSON Parsing Fehler: {str(e)}"
+        except Exception as e:
+            return None, f"Fehler beim Extrahieren von JSON: {str(e)}"
+
+    def _parse_response(self, response_text: str) -> dict:
+        """
+        Parst die (JSON-)Antwort des LLMs in das von den Cloud-Providern
+        erwartete Dictionary-Format (folder/filename/reason/confidence/metadata).
+
+        Nutzt intern die robuste JSON-Extraktion. Schlaegt das Parsen fehl,
+        wird ein leeres Default-Dict zurueckgegeben.
         """
         result = {
             "folder": None,
@@ -392,43 +456,20 @@ ZUSAMMENFASSUNG: [Kurze Zusammenfassung des Dokuments in einem Satz]"""
             "metadata": {},
         }
 
-        # Mapping von LLM-Ausgabefeldern zu Metadaten-Keys
-        metadata_fields = {
-            "KATEGORIE:": "subject",
-            "KORRESPONDENT:": "korrespondent",
-            "BETRAG_NETTO:": "betrag_netto",
-            "BETRAG_BRUTTO:": "betrag_brutto",
-            "WAEHRUNG:": "waehrung",
-            "MWST:": "mwst_satz",
-            "IBAN:": "iban",
-            "STEUERJAHR:": "steuerjahr",
-            "ZUSAMMENFASSUNG:": "description",
-        }
+        data, error = self._parse_json_response(response_text)
+        if error or not data:
+            return result
 
-        lines = response_text.strip().split("\n")
-        for line in lines:
-            line = line.strip()
-            if line.startswith("ORDNER:"):
-                result["folder"] = line.replace("ORDNER:", "").strip()
-            elif line.startswith("DATEINAME:"):
-                result["filename"] = line.replace("DATEINAME:", "").strip()
-            elif line.startswith("BEGRÜNDUNG:"):
-                result["reason"] = line.replace("BEGRÜNDUNG:", "").strip()
-            elif line.startswith("KONFIDENZ:"):
-                try:
-                    conf_str = line.replace("KONFIDENZ:", "").strip()
-                    conf_str = conf_str.replace("%", "")
-                    result["confidence"] = float(conf_str) / 100.0
-                except ValueError:
-                    result["confidence"] = 0.5
-            else:
-                # Metadaten-Felder parsen
-                for prefix, key in metadata_fields.items():
-                    if line.startswith(prefix):
-                        value = line.replace(prefix, "").strip()
-                        # "UNBEKANNT" oder leere Werte ignorieren
-                        if value and value.upper() not in ("UNBEKANNT", "KEINE", "N/A", "-", ""):
-                            result["metadata"][key] = value
-                        break
+        folder = data.get("folder")
+        result["folder"] = folder if folder != "NULL" else None
+        filename = data.get("filename")
+        result["filename"] = filename if filename != "NULL" else None
+        result["reason"] = data.get("reason")
+        try:
+            result["confidence"] = float(data.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            result["confidence"] = 0.5
+        if isinstance(data.get("metadata"), dict):
+            result["metadata"] = data["metadata"]
 
         return result

@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import sys
 
 from src.utils.config import get_config
+from src.ml.llm_provider import is_cloud_provider
 
 
 class SettingsDialog(QDialog):
@@ -60,6 +61,10 @@ class SettingsDialog(QDialog):
         general_tab = self._create_general_tab()
         tab_widget.addTab(general_tab, "Allgemein")
 
+        # Automatisierungs-Regeln Tab (Phase 21)
+        rules_tab = self._create_rules_tab()
+        tab_widget.addTab(rules_tab, "Automatisierungs-Regeln")
+
         layout.addWidget(tab_widget)
 
         # Buttons
@@ -90,6 +95,10 @@ class SettingsDialog(QDialog):
         provider_group = QGroupBox("LLM-Provider")
         provider_layout = QFormLayout(provider_group)
 
+        # API-Keys pro Provider (Puffer, bis "Speichern" gedrueckt wird)
+        self._api_keys: dict[str, str] = {}
+        self._key_provider = ""  # Provider, dessen Key gerade im Feld steht
+
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([
             "Keiner (nur lokale Klassifikation)",
@@ -97,6 +106,7 @@ class SettingsDialog(QDialog):
             "OpenAI GPT",
             "Poe.com (viele Modelle)",
             "Ollama (lokal, kein API-Key noetig)",
+            "OpenRouter (viele Modelle, ein API-Key)",
         ])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
@@ -110,7 +120,8 @@ class SettingsDialog(QDialog):
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("sk-... oder anthropic-...")
-        api_layout.addRow("API-Key:", self.api_key_input)
+        self.api_key_label = QLabel("API-Key:")
+        api_layout.addRow(self.api_key_label, self.api_key_input)
 
         # Show/Hide Button für API-Key
         key_button_layout = QHBoxLayout()
@@ -147,6 +158,20 @@ class SettingsDialog(QDialog):
         api_layout.addRow("Modell:", model_row_layout)
 
         layout.addWidget(api_group)
+
+        # Datenschutz: Einwilligung fuer Cloud-Provider
+        consent_group = QGroupBox("Datenschutz")
+        consent_layout = QVBoxLayout(consent_group)
+        self.cloud_consent_check = QCheckBox(
+            "Ich willige ein, dass Textauszüge meiner Dokumente an den\n"
+            "gewählten Cloud-Anbieter übertragen werden."
+        )
+        self.cloud_consent_check.toggled.connect(self._update_consent_hint)
+        consent_layout.addWidget(self.cloud_consent_check)
+        self.consent_hint_label = QLabel("")
+        self.consent_hint_label.setWordWrap(True)
+        consent_layout.addWidget(self.consent_hint_label)
+        layout.addWidget(consent_group)
 
         # Erweiterte Einstellungen
         advanced_group = QGroupBox("Erweiterte Einstellungen")
@@ -466,6 +491,157 @@ class SettingsDialog(QDialog):
 
         return tab
 
+    def _create_rules_tab(self) -> QWidget:
+        """Tab fuer die Verwaltung der Automatisierungs-Regeln (Phase 21).
+
+        Zeigt alle Regeln (sortiert nach Prioritaet) und bietet Buttons
+        zum Neu-Anlegen, Bearbeiten, Loeschen, Aktivieren/Deaktivieren
+        und Reihenfolge-Aendern.
+        """
+        from PyQt6.QtWidgets import (
+            QCheckBox, QHBoxLayout, QListWidget, QPushButton, QVBoxLayout,
+        )
+        from src.gui.rule_edit_dialog import RuleEditDialog
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Erklaerung
+        info = QLabel(
+            "Regeln werden vor jedem manuellen Eingriff geprueft. "
+            "Hoehere Prioritaet gewinnt. Bedingungen sind UND-verknuepft. "
+            "Platzhalter: {datum} {steuerjahr} {korrespondent} {kategorie} {betrag_brutto}"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #555; padding: 6px;")
+        layout.addWidget(info)
+
+        # Liste
+        self.rules_list = QListWidget()
+        layout.addWidget(self.rules_list)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        self.rule_new_btn = QPushButton("+ Neu")
+        self.rule_new_btn.clicked.connect(self._on_rule_new)
+        self.rule_edit_btn = QPushButton("Bearbeiten")
+        self.rule_edit_btn.clicked.connect(self._on_rule_edit)
+        self.rule_delete_btn = QPushButton("Loeschen")
+        self.rule_delete_btn.clicked.connect(self._on_rule_delete)
+        self.rule_up_btn = QPushButton("hoeher")
+        self.rule_up_btn.clicked.connect(self._on_rule_up)
+        self.rule_down_btn = QPushButton("tiefer")
+        self.rule_down_btn.clicked.connect(self._on_rule_down)
+        self.rule_toggle_btn = QPushButton("Aktivieren/Deaktivieren")
+        self.rule_toggle_btn.clicked.connect(self._on_rule_toggle)
+        for b in (self.rule_new_btn, self.rule_edit_btn, self.rule_delete_btn,
+                  self.rule_up_btn, self.rule_down_btn, self.rule_toggle_btn):
+            btn_row.addWidget(b)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        # Initial befuellen
+        self._refresh_rules_list()
+
+        return tab
+
+    def _refresh_rules_list(self):
+        """Laedt die Regeln neu in die QListWidget."""
+        from src.utils.database import get_database
+        try:
+            db = get_database()
+            rules = db.list_rules()
+            self.rules_list.clear()
+            for r in rules:
+                status = "AN" if r["enabled"] else "AUS"
+                cond_n = len(r.get("conditions", []))
+                act_n = len(r.get("actions", []))
+                text = f"[{status}] P{r['priority']:>3}  {r['name']}  ({cond_n} Bed., {act_n} Akt.)"
+                from PyQt6.QtWidgets import QListWidgetItem
+                item = QListWidgetItem(text)
+                item.setData(Qt.ItemDataRole.UserRole, r)
+                self.rules_list.addItem(item)
+        except Exception as e:
+            # DB noch nicht initialisiert oder Tabelle fehlt -> still ignorieren
+            pass
+
+    def _on_rule_new(self):
+        from src.gui.rule_edit_dialog import RuleEditDialog
+        dlg = RuleEditDialog(initial_data=None, title="Neue Regel")
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+            if data:
+                from src.utils.database import get_database
+                get_database().add_rule(**data)
+                self._refresh_rules_list()
+
+    def _on_rule_edit(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        from src.gui.rule_edit_dialog import RuleEditDialog
+        dlg = RuleEditDialog(initial_data=rule, title=f"Regel '{rule['name']}' bearbeiten")
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+            if data:
+                from src.utils.database import get_database
+                get_database().update_rule(rule["id"], **data)
+                self._refresh_rules_list()
+
+    def _on_rule_delete(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        if QMessageBox.question(
+            self, "Loeschen bestaetigen",
+            f"Regel '{rule['name']}' wirklich loeschen?",
+        ) == QMessageBox.StandardButton.Yes:
+            from src.utils.database import get_database
+            get_database().delete_rule(rule["id"])
+            self._refresh_rules_list()
+
+    def _on_rule_up(self):
+        """Verschiebt die ausgewaehlte Regel in der Prioritaet nach oben."""
+        from src.utils.database import get_database
+        db = get_database()
+        rules = db.list_rules()
+        row = self.rules_list.currentRow()
+        if row <= 0 or row >= len(rules):
+            return
+        # Tausche Reihenfolge
+        new_order = [r["id"] for r in rules]
+        new_order[row], new_order[row - 1] = new_order[row - 1], new_order[row]
+        db.reorder_rules(new_order)
+        self._refresh_rules_list()
+        self.rules_list.setCurrentRow(row - 1)
+
+    def _on_rule_down(self):
+        from src.utils.database import get_database
+        db = get_database()
+        rules = db.list_rules()
+        row = self.rules_list.currentRow()
+        if row < 0 or row >= len(rules) - 1:
+            return
+        new_order = [r["id"] for r in rules]
+        new_order[row], new_order[row + 1] = new_order[row + 1], new_order[row]
+        db.reorder_rules(new_order)
+        self._refresh_rules_list()
+        self.rules_list.setCurrentRow(row + 1)
+
+    def _on_rule_toggle(self):
+        rule = self._selected_rule()
+        if not rule:
+            return
+        from src.utils.database import get_database
+        get_database().update_rule(rule["id"], enabled=not rule["enabled"])
+        self._refresh_rules_list()
+
+    def _selected_rule(self):
+        item = self.rules_list.currentItem()
+        if item is None:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
+
     def _clear_learned_data(self):
         """Löscht alle gelernten Ordnervorschläge aus der Datenbank."""
         try:
@@ -593,8 +769,98 @@ class SettingsDialog(QDialog):
         except Exception:
             self.cache_stats_label.setText("")
 
+    # Vorgegebene Default-Modelle pro Provider (Fallback wenn kein Cache existiert)
+    _PROVIDER_DEFAULT_MODELS = {
+        "claude": [
+            "haiku-3.5 (günstig, älter)",
+            "haiku-4.5 (schnell & günstig)",
+            "sonnet-3.5 (günstig, älter)",
+            "sonnet-4 (ausgewogen)",
+            "sonnet-4.5 (beste Qualität)",
+            "opus-4 (premium)",
+        ],
+        "openai": [
+            "gpt-4o-mini (günstig, älter)",
+            "gpt-4.1-nano (schnellstes)",
+            "gpt-4.1-mini (schnell & günstig)",
+            "gpt-4o (ausgewogen)",
+            "gpt-4.1 (beste Qualität)",
+            "o3-mini (Reasoning, günstig)",
+            "o3 (Reasoning)",
+            "o4-mini (Reasoning, neu)",
+        ],
+        "poe": [
+            "GPT-4o-Mini (schnell & günstig)",
+            "GPT-4o (OpenAI)",
+            "GPT-4.1-Mini (OpenAI, neu)",
+            "GPT-4.1 (OpenAI, neu)",
+            "o3-Mini (Reasoning)",
+            "o4-Mini (Reasoning, neu)",
+            "Claude-3.5-Haiku (schnell)",
+            "Claude-3.5-Sonnet (Anthropic)",
+            "Claude-Sonnet-4 (Anthropic, neu)",
+            "Claude-Sonnet-4.5 (Anthropic, neuestes)",
+            "Claude-Opus-4 (Anthropic, premium)",
+            "Gemini-2-Flash (Google)",
+            "Gemini-2.5-Flash (Google, neu)",
+            "Gemini-2.5-Pro (Google, premium)",
+            "Llama-3.1-405B (Meta)",
+            "Mistral-Large (Mistral)",
+        ],
+        "ollama": [
+            "llama3.1 (Meta, ausgewogen)",
+            "llama3.2 (Meta, klein & schnell)",
+            "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
+            "mistral (Mistral, klein)",
+            "gemma3 (Google)",
+            "phi3 (Microsoft, sehr klein)",
+        ],
+        "openrouter": [
+            "openai/gpt-4.1-nano (schnell & günstig)",
+            "openai/gpt-4.1-mini (ausgewogen)",
+            "openai/gpt-4o-mini (OpenAI, älter)",
+            "anthropic/claude-3.5-haiku (Anthropic, schnell)",
+            "anthropic/claude-sonnet-4 (Anthropic)",
+            "google/gemini-2.5-flash (Google)",
+            "meta-llama/llama-3.1-70b-instruct (Meta)",
+            "mistralai/mistral-small (Mistral)",
+        ],
+    }
+
+    _PROVIDER_NAME_BY_INDEX = {1: "claude", 2: "openai", 3: "poe", 4: "ollama", 5: "openrouter"}
+    _KEY_PROVIDER_LABELS = {
+        "claude": "Anthropic Claude",
+        "openai": "OpenAI",
+        "poe": "Poe.com",
+        "openrouter": "OpenRouter",
+    }
+
+    def _stash_api_key(self):
+        """Merkt sich den Feldinhalt fuer den Provider, dem er gehoert."""
+        if self._key_provider:
+            self._api_keys[self._key_provider] = self.api_key_input.text().strip()
+
+    def _models_for_provider(self, provider_name: str) -> list[str]:
+        """Liefert gecachte Modelle oder Defaults fuer einen Provider."""
+        cached = self.config.get_cached_models(provider_name)
+        if cached:
+            return cached
+        return self._PROVIDER_DEFAULT_MODELS.get(provider_name, [])
+
     def _on_provider_changed(self, index: int):
         """Wird aufgerufen wenn der Provider geändert wird."""
+        # Key des bisherigen Providers sichern, Key des neuen laden
+        self._stash_api_key()
+        new_provider = self._PROVIDER_NAME_BY_INDEX.get(index, "")
+        key_label = self._KEY_PROVIDER_LABELS.get(new_provider, "")
+        self._key_provider = new_provider if key_label else ""
+        self.api_key_input.setText(self._api_keys.get(self._key_provider, ""))
+        self.api_key_label.setText(
+            f"API-Key ({key_label}):" if key_label else "API-Key:"
+        )
+        self.cloud_consent_check.setEnabled(is_cloud_provider(new_provider))
+        self._update_consent_hint()
+
         # Modelle je nach Provider aktualisieren
         self.model_combo.clear()
 
@@ -606,73 +872,44 @@ class SettingsDialog(QDialog):
             self.api_key_input.setEnabled(False)
             self.model_combo.setEnabled(False)
             self.test_button.setEnabled(False)
-        elif index == 1:  # Claude
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "haiku-3.5 (günstig, älter)",
-                "haiku-4.5 (schnell & günstig)",
-                "sonnet-3.5 (günstig, älter)",
-                "sonnet-4 (ausgewogen)",
-                "sonnet-4.5 (beste Qualität)",
-                "opus-4 (premium)",
-            ])
+            return
+
+        # Provider 1-5: API-/Modell-Felder freischalten (nur Ollama ohne Key)
+        self.api_key_input.setEnabled(index != 4)
+        self.model_combo.setEnabled(True)
+        self.test_button.setEnabled(True)
+
+        provider_name = self._PROVIDER_NAME_BY_INDEX.get(index, "")
+        self.model_combo.addItems(self._models_for_provider(provider_name))
+
+        if index == 1:
             self.api_key_input.setPlaceholderText("sk-ant-...")
-        elif index == 2:  # OpenAI
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "gpt-4o-mini (günstig, älter)",
-                "gpt-4.1-nano (schnellstes)",
-                "gpt-4.1-mini (schnell & günstig)",
-                "gpt-4o (ausgewogen)",
-                "gpt-4.1 (beste Qualität)",
-                "o3-mini (Reasoning, günstig)",
-                "o3 (Reasoning)",
-                "o4-mini (Reasoning, neu)",
-            ])
+        elif index == 2:
             self.api_key_input.setPlaceholderText("sk-...")
-        elif index == 3:  # Poe
-            self.api_key_input.setEnabled(True)
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.model_combo.addItems([
-                "GPT-4o-Mini (schnell & günstig)",
-                "GPT-4o (OpenAI)",
-                "GPT-4.1-Mini (OpenAI, neu)",
-                "GPT-4.1 (OpenAI, neu)",
-                "o3-Mini (Reasoning)",
-                "o4-Mini (Reasoning, neu)",
-                "Claude-3.5-Haiku (schnell)",
-                "Claude-3.5-Sonnet (Anthropic)",
-                "Claude-Sonnet-4 (Anthropic, neu)",
-                "Claude-Sonnet-4.5 (Anthropic, neuestes)",
-                "Claude-Opus-4 (Anthropic, premium)",
-                "Gemini-2-Flash (Google)",
-                "Gemini-2.5-Flash (Google, neu)",
-                "Gemini-2.5-Pro (Google, premium)",
-                "Llama-3.1-405B (Meta)",
-                "Mistral-Large (Mistral)",
-            ])
+        elif index == 3:
             self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
-        elif index == 4:  # Ollama (lokal)
-            # Kein API-Key noetig, aber URL und Modell
-            self.api_key_input.setEnabled(False)
+        elif index == 4:
             self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
-            self.model_combo.setEnabled(True)
-            self.test_button.setEnabled(True)
-            # Vorinstallierte Vorschlaege - per "Modelle aktualisieren" werden
-            # die tatsaechlich vorhandenen Modelle vom Server gelesen.
-            self.model_combo.addItems([
-                "llama3.1 (Meta, ausgewogen)",
-                "llama3.2 (Meta, klein & schnell)",
-                "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
-                "mistral (Mistral, klein)",
-                "gemma3 (Google)",
-                "phi3 (Microsoft, sehr klein)",
-            ])
+        elif index == 5:
+            self.api_key_input.setPlaceholderText("sk-or-... von openrouter.ai/keys")
+
+    def _update_consent_hint(self):
+        """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
+        provider = self._PROVIDER_NAME_BY_INDEX.get(self.provider_combo.currentIndex(), "")
+        if not is_cloud_provider(provider):
+            self.consent_hint_label.setText(
+                "Nur für Cloud-Anbieter relevant (Ollama läuft lokal)."
+            )
+            self.consent_hint_label.setStyleSheet("color: gray;")
+        elif self.cloud_consent_check.isChecked():
+            self.consent_hint_label.setText("Einwilligung erteilt.")
+            self.consent_hint_label.setStyleSheet("color: green;")
+        else:
+            self.consent_hint_label.setText(
+                "Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
+                "(Statusleiste: \"LLM: Aus\")."
+            )
+            self.consent_hint_label.setStyleSheet("color: #c0392b;")
 
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
@@ -689,6 +926,12 @@ class SettingsDialog(QDialog):
         llm_config = self.config.get_llm_config()
         provider = llm_config.get("provider", "none")
 
+        self._key_provider = ""  # verhindert Stash eines leeren Felds
+        self._api_keys = dict(llm_config.get("api_keys", {}))
+        legacy_key = llm_config.get("api_key", "")
+        if legacy_key and provider in self._KEY_PROVIDER_LABELS:
+            self._api_keys.setdefault(provider, legacy_key)
+
         if provider == "claude":
             self.provider_combo.setCurrentIndex(1)
         elif provider == "openai":
@@ -697,10 +940,13 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(3)
         elif provider == "ollama":
             self.provider_combo.setCurrentIndex(4)
+        elif provider == "openrouter":
+            self.provider_combo.setCurrentIndex(5)
         else:
             self.provider_combo.setCurrentIndex(0)
+        # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
+        self._on_provider_changed(self.provider_combo.currentIndex())
 
-        self.api_key_input.setText(llm_config.get("api_key", ""))
         self.base_url_input.setText(llm_config.get("base_url", ""))
 
         model = llm_config.get("model", "")
@@ -717,6 +963,7 @@ class SettingsDialog(QDialog):
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
         self.auto_use_check.setChecked(llm_config.get("auto_use", False))
         self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
+        self.cloud_consent_check.setChecked(llm_config.get("cloud_consent", False))
 
         # Allgemeine Einstellungen
         self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
@@ -763,6 +1010,8 @@ class SettingsDialog(QDialog):
             provider = "openai"
         elif provider_index == 3:
             provider = "poe"
+        elif provider_index == 5:
+            provider = "openrouter"
         else:
             provider = "ollama"
 
@@ -770,15 +1019,23 @@ class SettingsDialog(QDialog):
         model_text = self.model_combo.currentText()
         model = model_text.split(" ")[0] if model_text else ""
 
+        self._stash_api_key()
+        api_keys = {k: v for k, v in self._api_keys.items() if v}
+
+        # Bestehende Werte (cloud_consent, cached_models, ...) erhalten,
+        # nur die Dialog-Felder ueberschreiben.
         llm_config = {
+            **self.config.get_llm_config(),
             "provider": provider,
-            "api_key": self.api_key_input.text().strip(),
+            "api_key": api_keys.get(provider, ""),
+            "api_keys": api_keys,
             "model": model,
             "max_tokens": self.max_tokens_spin.value(),
             "temperature": self.temperature_spin.value(),
             "auto_use": self.auto_use_check.isChecked(),
             "text_limit": self.text_limit_spin.value(),
             "base_url": self.base_url_input.text().strip(),
+            "cloud_consent": self.cloud_consent_check.isChecked(),
         }
         self.config.set("llm", llm_config)
 
@@ -906,6 +1163,8 @@ class SettingsDialog(QDialog):
                 self._test_poe(api_key, model)
             elif provider_index == 4:  # Ollama
                 self._test_ollama(base_url, model)
+            elif provider_index == 5:  # OpenRouter
+                self._test_openrouter(api_key, model)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -1001,9 +1260,15 @@ class SettingsDialog(QDialog):
                 base_url="https://api.poe.com/v1",
             )
 
+            # Claude-Modelle via Poe aktivieren Thinking automatisch.
+            # Wir brauchen genug max_tokens (>=2048), damit budget_tokens >= 1024
+            # nach Abzug der Response-Reserve.
+            is_claude = "claude" in model.lower()
+            max_tokens = 2048 if is_claude else 20
+
             response = client.chat.completions.create(
                 model=model,
-                max_tokens=20,  # Poe erfordert mindestens 16 Tokens
+                max_tokens=max_tokens,
                 messages=[
                     {"role": "user", "content": "Sage 'OK'"}
                 ]
@@ -1082,6 +1347,49 @@ class SettingsDialog(QDialog):
                 f"Verbindungsfehler: {str(e)}"
             )
 
+    def _test_openrouter(self, api_key: str, model: str):
+        """Testet die OpenRouter API (OpenAI-kompatibel)."""
+        try:
+            import openai
+            from src.ml.openrouter_provider import OpenRouterProvider
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url=OpenRouterProvider.BASE_URL,
+            )
+            model_id = model or OpenRouterProvider.DEFAULT_MODEL
+
+            response = client.chat.completions.create(
+                model=model_id,
+                max_tokens=10,
+                messages=[
+                    {"role": "user", "content": "Sage 'OK'"}
+                ]
+            )
+
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu OpenRouter erfolgreich!\n"
+                f"Modell: {model_id}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except ImportError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai"
+            )
+        except openai.AuthenticationError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Ungültiger OpenRouter API-Key.\n"
+                "Holen Sie Ihren Key von: openrouter.ai/keys"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Verbindungsfehler: {str(e)}"
+            )
+
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
         provider_index = self.provider_combo.currentIndex()
@@ -1118,6 +1426,8 @@ class SettingsDialog(QDialog):
             elif provider_index == 4:  # Ollama (lokal)
                 base_url = self.base_url_input.text().strip() or "http://localhost:11434"
                 models = self._fetch_ollama_models(base_url)
+            elif provider_index == 5:  # OpenRouter
+                models = self._fetch_openrouter_models(api_key)
             else:
                 models = []
 
@@ -1130,6 +1440,11 @@ class SettingsDialog(QDialog):
                     if self.model_combo.itemText(i).startswith(current_model):
                         self.model_combo.setCurrentIndex(i)
                         break
+
+                # Liste persistieren, damit sie nach Neustart erhalten bleibt
+                provider_name = self._PROVIDER_NAME_BY_INDEX.get(provider_index, "")
+                if provider_name:
+                    self.config.set_cached_models(provider_name, models)
 
                 QMessageBox.information(
                     self, "Erfolg",
@@ -1191,6 +1506,20 @@ class SettingsDialog(QDialog):
         for model in models_response.data:
             models.append(model.id)
 
+        models.sort()
+        return models
+
+    def _fetch_openrouter_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare Modelle von der OpenRouter API ab."""
+        import openai
+        from src.ml.openrouter_provider import OpenRouterProvider
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url=OpenRouterProvider.BASE_URL,
+        )
+
+        models_response = client.models.list()
+        models = [model.id for model in models_response.data]
         models.sort()
         return models
 

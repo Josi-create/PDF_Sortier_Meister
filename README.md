@@ -56,6 +56,7 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
   - **OpenAI GPT** (GPT-4o-mini, GPT-4o, GPT-4-turbo)
   - **Poe.com** (ein Account, viele Modelle: GPT, Claude, Gemini, Llama, Mistral)
   - **Ollama** (lokal, kein API-Key, volle Datenschutzkontrolle — *neu in v0.10.0*)
+  - **OpenRouter** (ein API-Key für Modelle von OpenAI, Anthropic, Google, Meta, Mistral — *neu in v0.14.0*)
 - **Benutzerdefiniertes Dateinamen-Muster** *(neu in v0.10.0)*: zwei vorgefertigte Vorlagen oder freier Freitext-Template, das die LLM beim Benennen imitiert
 - **LLM Pre-Caching**: LLM-Vorschläge werden im Hintergrund vorgeladen
 - **Konfigurierbares Text-Limit**: 500–5000 Zeichen pro LLM-Anfrage (Default: 1500)
@@ -90,7 +91,6 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 - **Umbenennung rückgängig**: Rechtsklick auf Thumbnail → Original-Dateiname wiederherstellen
 - **De-Selektion**: Klick auf leere Fläche oder nochmaliges Anklicken hebt Selektion auf
 - **F2 für Umbenennen**: Windows-Standard-Shortcut für ausgewähltes PDF
-- **Mehrere LLM API-Keys**: Schnelles Umschalten zwischen gespeicherten Profilen
 - **Umbenennungsdialog**: LLM-Modell direkt im Dialog wählen + "Neu generieren"-Button
 - **3 LLM-Vorschläge** statt ML-Vorschläge im Umbenennungsdialog (ML bleibt intern für Sortierung)
 
@@ -110,8 +110,8 @@ Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von g
 
 ### Weitere Features (Phase 14–15)
 
-- **PDF-Bearbeitung**: Merge (Drag & Drop zweier PDFs) und Split (mehrseitiges PDF aufteilen)
 - **Layout**: Responsive Grid-Spalten, Explorer-ähnliche Listenansicht, Konfidenz-Visualisierung
+- **Explorer-Gefühl**: Scan-Ordner-Panel als Dateimanager ("..", Unterordner), Zielordner wie im Windows-Explorer
 
 ---
 
@@ -225,7 +225,25 @@ Siehe [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) für eine detai
 
 ## Lizenz
 
-MIT License — siehe [LICENSE](LICENSE)
+**GPL-3.0-or-later** — siehe [LICENSE](LICENSE)
+
+Dieses Programm ist Freie/Open-Source-Software und steht unter der GNU General
+Public License v3 (oder neuer). Du darfst es nutzen, weitergeben und verändern.
+
+> **Warum GPL statt MIT?** Zwei Kernbibliotheken sind Copyleft: **PyQt6** (GPLv3)
+> und **PyMuPDF** (AGPLv3). Ein daraus gebautes Gesamtwerk muss dieselbe Freiheit
+> weitergeben — GPL-3.0-or-later ist die korrekte, ehrliche Lizenz dafür.
+
+### Dritt-Bibliotheken (Lizenzübersicht)
+
+| Bibliothek | Lizenz |
+|------------|--------|
+| PyQt6 | GPL v3 / kommerziell (Riverbank) |
+| PyMuPDF | AGPL v3 / kommerziell (Artifex) |
+| pikepdf | MPL-2.0 |
+| scikit-learn, SQLAlchemy, numpy, python-dateutil, watchdog | BSD / permissiv |
+| pytesseract | Apache-2.0 |
+| anthropic, openai (optional) | MIT / Apache-2.0 |
 
 ---
 

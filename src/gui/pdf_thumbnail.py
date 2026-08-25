@@ -54,6 +54,8 @@ class PDFThumbnailWidget(QFrame):
     move_requested = pyqtSignal(Path)  # Verschieben angefordert
     copy_requested = pyqtSignal(Path)  # Kopie erstellen angefordert
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
+    split_requested = pyqtSignal(Path)  # PDF trennen angefordert
+    merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     def __init__(self, pdf_path: Path, parent=None):
@@ -222,6 +224,17 @@ class PDFThumbnailWidget(QFrame):
         # Kopie erstellen
         copy_action = menu.addAction("Kopie erstellen")
         copy_action.triggered.connect(lambda: self.copy_requested.emit(self.pdf_path))
+
+        menu.addSeparator()
+
+        # PDF trennen
+        split_action = menu.addAction("PDF trennen...")
+        split_action.triggered.connect(lambda: self.split_requested.emit(self.pdf_path))
+
+        # PDFs zusammenfügen wenn mehrere ausgewählt
+        if selection_count > 1:
+            merge_action = menu.addAction(f"Ausgewählte ({selection_count}) PDFs zusammenfügen...")
+            merge_action.triggered.connect(lambda: self.merge_requested.emit())
 
         menu.addSeparator()
 

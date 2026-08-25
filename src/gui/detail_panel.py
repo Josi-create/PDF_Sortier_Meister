@@ -394,6 +394,10 @@ class DetailPanel(QWidget):
             steuerjahr = r.get("steuerjahr", "")
             target = r.get("target_folder", "")
             snippet = r.get("text_snippet", "")
+            # Phase 3 (Issue #25): pdf_id aus dem DB-Dict (32-stellige
+            # Hex-UUID). Optional - nicht-gesetzte Werte werden
+            # toleriert (alter Aufruf).
+            pdf_id = r.get("pdf_id", "") or ""
 
             # Mehrzeilige Anzeige
             line1 = filename
@@ -408,12 +412,21 @@ class DetailPanel(QWidget):
                 details.append(f"SJ {steuerjahr}")
             line2 = " | ".join(details) if details else ""
             line3 = f"Ordner: {target}" if target else ""
+            # Phase 3 (Issue #25): ID-Zeile mit gekuerzter pdf_id (falls
+            # vorhanden). Vollstaendige UUID steht im toolTip.
+            if pdf_id:
+                short_id = pdf_id[:8] if len(pdf_id) >= 8 else pdf_id
+                line4 = f"ID: {short_id}…"
+            else:
+                line4 = ""
 
             display = line1
             if line2:
                 display += f"\n  {line2}"
             if line3:
                 display += f"\n  {line3}"
+            if line4:
+                display += f"\n  {line4}"
             if snippet:
                 # >>> und <<< aus FTS5-Snippet entfernen
                 clean_snippet = snippet.replace(">>>", "[").replace("<<<", "]")
@@ -421,7 +434,13 @@ class DetailPanel(QWidget):
 
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, r.get("file_path", ""))
-            item.setToolTip(r.get("file_path", ""))
+            # Phase 3 (Issue #25): toolTip enthaelt den vollstaendigen
+            # Pfad UND die pdf_id (falls vorhanden). Damit der
+            # Anwender die UUID per Hover einsehen / kopieren kann.
+            tooltip = r.get("file_path", "")
+            if pdf_id:
+                tooltip = f"{tooltip}\npdf_id: {pdf_id}" if tooltip else f"pdf_id: {pdf_id}"
+            item.setToolTip(tooltip)
             self.search_results_list.addItem(item)
 
     def _on_search_result_double_clicked(self, item: QListWidgetItem):
@@ -732,7 +751,7 @@ class DetailPanel(QWidget):
                 pass
 
             # Aktuellen extrahierten Text aus dem Cache holen
-            from src.core.pdf_cache import get_pdf_cache
+            from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
             cached = get_pdf_cache().get(self._current_pdf)
             extracted_text = cached.extracted_text if cached else ""
             keywords = cached.keywords if cached else []
@@ -748,6 +767,7 @@ class DetailPanel(QWidget):
 
             for s in suggestions:
                 if s.source == "llm" and s.metadata:
+                    self.name_input.setText(s.filename.replace('.pdf', ''))
                     self._loading_metadata = True
                     for key, value in s.metadata.items():
                         widget = self._metadata_inputs.get(key)
@@ -777,6 +797,18 @@ class DetailPanel(QWidget):
                     self._metadata_source = "llm"
                     self._refresh_save_btn()
                     break
+            else:
+                for s in suggestions:
+                    if s.source == "llm":
+                        self.name_input.setText(s.filename.replace('.pdf', ''))
+                        break
+
+            llm_cached = [
+                CacheLLMSuggestion(filename=s.filename, confidence=s.confidence, source=s.source, metadata=s.metadata)
+                for s in suggestions if s.source == "llm"
+            ]
+            if llm_cached:
+                get_pdf_cache().update_llm_suggestions(self._current_pdf, llm_cached)
 
         except Exception as e:
             print(f"LLM-Metadaten Fehler: {e}")

@@ -33,25 +33,28 @@ PAGE_API_KEY = 3
 PAGE_DONE = 4
 
 # Provider-Konstanten (Index -> interner Name)
-_PROVIDER_IDS = ["none", "claude", "openai", "poe", "ollama"]
+_PROVIDER_IDS = ["none", "claude", "openai", "poe", "ollama", "openrouter"]
 _PROVIDER_LABELS = [
     "Kein KI-Assistent (nur klassische Erkennung)",
     "Anthropic Claude (empfohlen)",
     "OpenAI GPT",
     "Poe.com (viele KI-Modelle, ein Account)",
     "Ollama (lokal auf Ihrem PC, kostenlos)",
+    "OpenRouter (viele KI-Modelle, ein API-Key)",
 ]
 _PROVIDER_URLS = {
     "claude": "https://console.anthropic.com/settings/keys",
     "openai": "https://platform.openai.com/api-keys",
     "poe":    "https://poe.com/api_key",
     "ollama": "https://ollama.com/download",
+    "openrouter": "https://openrouter.ai/keys",
 }
 _PROVIDER_KEY_HINTS = {
     "claude": 'Beginnt mit "sk-ant-..."',
     "openai": 'Beginnt mit "sk-..."',
     "poe":    "Zu finden auf poe.com/api_key",
     "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
+    "openrouter": 'Beginnt mit "sk-or-..."',
 }
 
 
@@ -268,6 +271,7 @@ class ApiKeyPage(QWizardPage):
             "openai": "OpenAI GPT",
             "poe":    "Poe.com",
             "ollama": "Ollama",
+            "openrouter": "OpenRouter",
         }
         name = provider_labels.get(self._provider_id, self._provider_id)
 
@@ -340,6 +344,13 @@ class ApiKeyPage(QWizardPage):
                 "4. Die Server-URL unten koennen Sie leer lassen — Standard ist\n"
                 "   http://localhost:11434. Modell waehlen Sie spaeter unter\n"
                 "   Extras -> Einstellungen aus."
+            ),
+            "openrouter": (
+                "1. Oeffnen Sie den Link unten (oder gehen Sie zu openrouter.ai).\n"
+                "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
+                "3. Unter 'Keys' einen neuen API-Key erstellen und kopieren.\n"
+                "4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n"
+                "   Extras -> Einstellungen (z.B. openai/gpt-4.1-nano)."
             ),
         }
         self._info_label.setText(info_texts.get(self._provider_id, ""))

@@ -6,6 +6,9 @@ Implementiert die LLM-Schnittstelle für OpenAI's GPT API.
 MIT License - Copyright (c) 2026
 """
 
+import json
+import urllib.error
+import urllib.request
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
@@ -32,6 +35,9 @@ class OpenAIProvider(LLMProvider):
 
     DEFAULT_MODEL = "gpt-4.1-nano"  # Günstigstes aktuelles Modell
 
+    # Anzeigename in Fehlermeldungen (Subklassen ueberschreiben)
+    API_NAME = "OpenAI"
+
     def __init__(self, config: LLMConfig):
         """
         Initialisiert den OpenAI Provider.
@@ -57,7 +63,7 @@ class OpenAIProvider(LLMProvider):
                   "Installieren mit: pip install openai")
             self._client = None
         except Exception as e:
-            print(f"Fehler bei OpenAI-Initialisierung: {e}")
+            print(f"Fehler bei {self.API_NAME}-Initialisierung: {e}")
             self._client = None
 
     def is_available(self) -> bool:
@@ -96,7 +102,7 @@ class OpenAIProvider(LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="OpenAI API nicht verfügbar. API-Key prüfen."
+                error_message=f"{self.API_NAME} API nicht verfügbar. API-Key prüfen."
             )
 
         if not available_folders:
@@ -147,22 +153,22 @@ class OpenAIProvider(LLMProvider):
         except self._openai.APIConnectionError:
             return LLMResponse(
                 success=False,
-                error_message="Keine Verbindung zur OpenAI API."
+                error_message=f"Keine Verbindung zur {self.API_NAME} API."
             )
         except self._openai.RateLimitError:
             return LLMResponse(
                 success=False,
-                error_message="OpenAI API Rate-Limit erreicht. Bitte später versuchen."
+                error_message=f"{self.API_NAME} API Rate-Limit erreicht. Bitte später versuchen."
             )
         except self._openai.AuthenticationError:
             return LLMResponse(
                 success=False,
-                error_message="Ungültiger OpenAI API-Key."
+                error_message=f"Ungültiger {self.API_NAME} API-Key."
             )
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"OpenAI API Fehler: {str(e)}"
+                error_message=f"{self.API_NAME} API Fehler: {str(e)}"
             )
 
     def suggest_filename(
@@ -191,7 +197,7 @@ class OpenAIProvider(LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="OpenAI API nicht verfügbar. API-Key prüfen."
+                error_message=f"{self.API_NAME} API nicht verfügbar. API-Key prüfen."
             )
 
         prompt = self._build_filename_prompt(
@@ -235,7 +241,7 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"OpenAI API Fehler: {str(e)}"
+                error_message=f"{self.API_NAME} API Fehler: {str(e)}"
             )
 
     def _find_similar_folder(
@@ -301,3 +307,84 @@ class OpenAIProvider(LLMProvider):
             filename = filename[:80] + ".pdf"
 
         return filename
+
+    # ------------------------------------------------------------------ #
+    # RAG-Chat (Phase 19, M1)                                            #
+    # ------------------------------------------------------------------ #
+
+    CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+    REQUEST_TIMEOUT = 120
+
+    def _http_post_json(
+        self,
+        url: str,
+        body: dict,
+        headers: dict,
+        timeout: int = None,
+    ) -> tuple[Optional[dict], Optional[str]]:
+        """
+        Minimaler HTTP-POST-Wrapper. Liefert (parsed_dict, error_str).
+        Bei urllib-Fehlern wird ``(None, fehlertext)`` zurueckgegeben.
+        """
+        if timeout is None:
+            timeout = self.REQUEST_TIMEOUT
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8")), None
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail = ""
+            return None, f"{self.API_NAME} HTTP {e.code}: {detail}"
+        except urllib.error.URLError as e:
+            return None, f"Keine Verbindung zur {self.API_NAME} API: {e.reason}"
+        except Exception as e:
+            return None, f"{self.API_NAME}-Fehler: {e}"
+
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext der uebergebenen Dokumente.
+
+        Verwendet die OpenAI ``chat/completions`` API mit System- und
+        User-Message. Es wird bewusst ``urllib`` benutzt (kein openai
+        SDK noetig), um keine zusaetzliche Dependency einzufuehren.
+        """
+        if not self.config.api_key:
+            return ""
+
+        from src.rag.prompts import build_context_block, build_user_prompt
+
+        context_block = build_context_block(context_docs)
+        user_prompt = build_user_prompt(user_question, context_block=context_block)
+
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": max_tokens,
+            "temperature": self.config.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.config.api_key}",
+        }
+        data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers)
+        if error or not data:
+            return f"[{self.API_NAME}-Fehler: {error}]"
+
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        return message.get("content", "") or ""

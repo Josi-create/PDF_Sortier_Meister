@@ -8,6 +8,9 @@ Poe bietet Zugang zu verschiedenen Modellen (GPT, Claude, Gemini, etc.)
 MIT License - Copyright (c) 2026
 """
 
+import json
+import urllib.error
+import urllib.request
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
@@ -101,6 +104,17 @@ class PoeProvider(LLMProvider):
 
         return self.DEFAULT_MODEL
 
+    def _get_max_tokens(self) -> int:
+        """Gibt max_tokens zurück.
+
+        Claude-Modelle via Poe aktivieren Thinking automatisch. Damit Poe's
+        intern abgeleitetes budget_tokens >= 1024 ist, muss max_tokens deutlich
+        höher sein (Response-Reserve wird vorher abgezogen).
+        """
+        model_id = self._get_model_id().lower()
+        min_tokens = 2048 if "claude" in model_id else 0
+        return max(self.config.max_tokens, min_tokens)
+
     def classify_document(
         self,
         text: str,
@@ -139,7 +153,7 @@ class PoeProvider(LLMProvider):
         try:
             response = self._client.chat.completions.create(
                 model=self._get_model_id(),
-                max_tokens=self.config.max_tokens,
+                max_tokens=self._get_max_tokens(),
                 temperature=self.config.temperature,
                 messages=[
                     {
@@ -228,7 +242,7 @@ class PoeProvider(LLMProvider):
         try:
             response = self._client.chat.completions.create(
                 model=self._get_model_id(),
-                max_tokens=self.config.max_tokens,
+                max_tokens=self._get_max_tokens(),
                 temperature=self.config.temperature,
                 messages=[
                     {
@@ -338,3 +352,85 @@ class PoeProvider(LLMProvider):
             Liste von (display_name, model_id) Tupeln
         """
         return [(f"{v} ({k})", v) for k, v in cls.MODELS.items()]
+
+    # ------------------------------------------------------------------ #
+    # RAG-Chat (Phase 19, M1)                                            #
+    # ------------------------------------------------------------------ #
+
+    REQUEST_TIMEOUT = 120
+
+    def _http_post_json(
+        self,
+        url: str,
+        body: dict,
+        headers: dict,
+        timeout: int = None,
+    ) -> tuple[Optional[dict], Optional[str]]:
+        """
+        Minimaler HTTP-POST-Wrapper. Liefert (parsed_dict, error_str).
+        Bei urllib-Fehlern wird ``(None, fehlertext)`` zurueckgegeben.
+        """
+        if timeout is None:
+            timeout = self.REQUEST_TIMEOUT
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8")), None
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail = ""
+            return None, f"Poe HTTP {e.code}: {detail}"
+        except urllib.error.URLError as e:
+            return None, f"Keine Verbindung zur Poe API: {e.reason}"
+        except Exception as e:
+            return None, f"Poe-Fehler: {e}"
+
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext der uebergebenen Dokumente.
+
+        Poe nutzt eine OpenAI-kompatible ``chat/completions`` API -
+        der einzige Unterschied ist die Basis-URL (``self.BASE_URL``).
+        Wir gehen ebenfalls ueber ``urllib``, um keine zusaetzliche
+        Dependency einzufuehren.
+        """
+        if not self.config.api_key:
+            return ""
+
+        from src.rag.prompts import build_context_block, build_user_prompt
+
+        context_block = build_context_block(context_docs)
+        user_prompt = build_user_prompt(user_question, context_block=context_block)
+
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": self._get_max_tokens(),
+            "temperature": self.config.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.config.api_key}",
+        }
+        url = f"{self.BASE_URL}/chat/completions"
+        data, error = self._http_post_json(url, body, headers)
+        if error or not data:
+            return f"[Poe-Fehler: {error}]"
+
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        return message.get("content", "") or ""

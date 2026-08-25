@@ -6,6 +6,9 @@ Implementiert die LLM-Schnittstelle für Anthropic's Claude API.
 MIT License - Copyright (c) 2026
 """
 
+import json
+import urllib.error
+import urllib.request
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
@@ -290,3 +293,88 @@ class ClaudeProvider(LLMProvider):
             filename = filename[:80] + ".pdf"
 
         return filename
+
+    # ------------------------------------------------------------------ #
+    # RAG-Chat (Phase 19, M1)                                            #
+    # ------------------------------------------------------------------ #
+
+    # Anthropic Messages API URL (konfigurierbar fuer Proxies)
+    MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+    # Aktuelle API-Version (Stand 2026)
+    ANTHROPIC_VERSION = "2023-06-01"
+
+    def _http_post_json(
+        self,
+        url: str,
+        body: dict,
+        headers: dict,
+        timeout: int = 120,
+    ) -> tuple[Optional[dict], Optional[str]]:
+        """
+        Minimaler HTTP-POST-Wrapper. Liefert (parsed_dict, error_str).
+        Bei urllib-Fehlern wird ``(None, fehlertext)`` zurueckgegeben.
+        """
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8")), None
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail = ""
+            return None, f"Claude HTTP {e.code}: {detail}"
+        except urllib.error.URLError as e:
+            return None, f"Keine Verbindung zur Claude API: {e.reason}"
+        except Exception as e:
+            return None, f"Claude-Fehler: {e}"
+
+    def answer_with_context(
+        self,
+        system_prompt: str,
+        context_docs: list[dict],
+        user_question: str,
+        max_tokens: int = 1000,
+    ) -> str:
+        """
+        Beantwortet eine Nutzerfrage im Kontext der uebergebenen Dokumente.
+
+        Verwendet die Anthropic ``messages`` API. Der ``system``-Parameter
+        wird separat uebergeben (nicht in ``messages``). Wir nutzen
+        bewusst ``urllib`` (kein anthropic SDK noetig), damit keine
+        zusaetzliche Dependency eingefuehrt wird - das Verhalten ist
+        identisch zu dem der anderen Provider.
+        """
+        if not self.config.api_key:
+            return ""
+
+        from src.rag.prompts import build_context_block, build_user_prompt
+
+        context_block = build_context_block(context_docs)
+        user_prompt = build_user_prompt(user_question, context_block=context_block)
+
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": max_tokens,
+            "temperature": self.config.temperature,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.config.api_key,
+            "anthropic-version": self.ANTHROPIC_VERSION,
+        }
+        data, error = self._http_post_json(self.MESSAGES_URL, body, headers)
+        if error or not data:
+            return f"[Claude-Fehler: {error}]"
+
+        content = data.get("content") or []
+        # Antwort ist eine Liste von Bloecken; wir suchen den ersten text-Block.
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                return block.get("text", "") or ""
+        return ""
