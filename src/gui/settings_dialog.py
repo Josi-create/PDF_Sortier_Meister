@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import sys
 
 from src.utils.config import get_config
+from src.ml.llm_provider import is_cloud_provider
 
 
 class SettingsDialog(QDialog):
@@ -94,6 +95,10 @@ class SettingsDialog(QDialog):
         provider_group = QGroupBox("LLM-Provider")
         provider_layout = QFormLayout(provider_group)
 
+        # API-Keys pro Provider (Puffer, bis "Speichern" gedrueckt wird)
+        self._api_keys: dict[str, str] = {}
+        self._key_provider = ""  # Provider, dessen Key gerade im Feld steht
+
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([
             "Keiner (nur lokale Klassifikation)",
@@ -101,6 +106,7 @@ class SettingsDialog(QDialog):
             "OpenAI GPT",
             "Poe.com (viele Modelle)",
             "Ollama (lokal, kein API-Key noetig)",
+            "OpenRouter (viele Modelle, ein API-Key)",
         ])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
@@ -114,7 +120,8 @@ class SettingsDialog(QDialog):
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("sk-... oder anthropic-...")
-        api_layout.addRow("API-Key:", self.api_key_input)
+        self.api_key_label = QLabel("API-Key:")
+        api_layout.addRow(self.api_key_label, self.api_key_input)
 
         # Show/Hide Button für API-Key
         key_button_layout = QHBoxLayout()
@@ -151,6 +158,20 @@ class SettingsDialog(QDialog):
         api_layout.addRow("Modell:", model_row_layout)
 
         layout.addWidget(api_group)
+
+        # Datenschutz: Einwilligung fuer Cloud-Provider
+        consent_group = QGroupBox("Datenschutz")
+        consent_layout = QVBoxLayout(consent_group)
+        self.cloud_consent_check = QCheckBox(
+            "Ich willige ein, dass Textauszüge meiner Dokumente an den\n"
+            "gewählten Cloud-Anbieter übertragen werden."
+        )
+        self.cloud_consent_check.toggled.connect(self._update_consent_hint)
+        consent_layout.addWidget(self.cloud_consent_check)
+        self.consent_hint_label = QLabel("")
+        self.consent_hint_label.setWordWrap(True)
+        consent_layout.addWidget(self.consent_hint_label)
+        layout.addWidget(consent_group)
 
         # Erweiterte Einstellungen
         advanced_group = QGroupBox("Erweiterte Einstellungen")
@@ -794,9 +815,30 @@ class SettingsDialog(QDialog):
             "gemma3 (Google)",
             "phi3 (Microsoft, sehr klein)",
         ],
+        "openrouter": [
+            "openai/gpt-4.1-nano (schnell & günstig)",
+            "openai/gpt-4.1-mini (ausgewogen)",
+            "openai/gpt-4o-mini (OpenAI, älter)",
+            "anthropic/claude-3.5-haiku (Anthropic, schnell)",
+            "anthropic/claude-sonnet-4 (Anthropic)",
+            "google/gemini-2.5-flash (Google)",
+            "meta-llama/llama-3.1-70b-instruct (Meta)",
+            "mistralai/mistral-small (Mistral)",
+        ],
     }
 
-    _PROVIDER_NAME_BY_INDEX = {1: "claude", 2: "openai", 3: "poe", 4: "ollama"}
+    _PROVIDER_NAME_BY_INDEX = {1: "claude", 2: "openai", 3: "poe", 4: "ollama", 5: "openrouter"}
+    _KEY_PROVIDER_LABELS = {
+        "claude": "Anthropic Claude",
+        "openai": "OpenAI",
+        "poe": "Poe.com",
+        "openrouter": "OpenRouter",
+    }
+
+    def _stash_api_key(self):
+        """Merkt sich den Feldinhalt fuer den Provider, dem er gehoert."""
+        if self._key_provider:
+            self._api_keys[self._key_provider] = self.api_key_input.text().strip()
 
     def _models_for_provider(self, provider_name: str) -> list[str]:
         """Liefert gecachte Modelle oder Defaults fuer einen Provider."""
@@ -807,6 +849,18 @@ class SettingsDialog(QDialog):
 
     def _on_provider_changed(self, index: int):
         """Wird aufgerufen wenn der Provider geändert wird."""
+        # Key des bisherigen Providers sichern, Key des neuen laden
+        self._stash_api_key()
+        new_provider = self._PROVIDER_NAME_BY_INDEX.get(index, "")
+        key_label = self._KEY_PROVIDER_LABELS.get(new_provider, "")
+        self._key_provider = new_provider if key_label else ""
+        self.api_key_input.setText(self._api_keys.get(self._key_provider, ""))
+        self.api_key_label.setText(
+            f"API-Key ({key_label}):" if key_label else "API-Key:"
+        )
+        self.cloud_consent_check.setEnabled(is_cloud_provider(new_provider))
+        self._update_consent_hint()
+
         # Modelle je nach Provider aktualisieren
         self.model_combo.clear()
 
@@ -820,7 +874,7 @@ class SettingsDialog(QDialog):
             self.test_button.setEnabled(False)
             return
 
-        # Provider 1-4: API-/Modell-Felder freischalten
+        # Provider 1-5: API-/Modell-Felder freischalten (nur Ollama ohne Key)
         self.api_key_input.setEnabled(index != 4)
         self.model_combo.setEnabled(True)
         self.test_button.setEnabled(True)
@@ -836,6 +890,26 @@ class SettingsDialog(QDialog):
             self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
         elif index == 4:
             self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
+        elif index == 5:
+            self.api_key_input.setPlaceholderText("sk-or-... von openrouter.ai/keys")
+
+    def _update_consent_hint(self):
+        """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
+        provider = self._PROVIDER_NAME_BY_INDEX.get(self.provider_combo.currentIndex(), "")
+        if not is_cloud_provider(provider):
+            self.consent_hint_label.setText(
+                "Nur für Cloud-Anbieter relevant (Ollama läuft lokal)."
+            )
+            self.consent_hint_label.setStyleSheet("color: gray;")
+        elif self.cloud_consent_check.isChecked():
+            self.consent_hint_label.setText("Einwilligung erteilt.")
+            self.consent_hint_label.setStyleSheet("color: green;")
+        else:
+            self.consent_hint_label.setText(
+                "Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
+                "(Statusleiste: \"LLM: Aus\")."
+            )
+            self.consent_hint_label.setStyleSheet("color: #c0392b;")
 
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
@@ -852,6 +926,12 @@ class SettingsDialog(QDialog):
         llm_config = self.config.get_llm_config()
         provider = llm_config.get("provider", "none")
 
+        self._key_provider = ""  # verhindert Stash eines leeren Felds
+        self._api_keys = dict(llm_config.get("api_keys", {}))
+        legacy_key = llm_config.get("api_key", "")
+        if legacy_key and provider in self._KEY_PROVIDER_LABELS:
+            self._api_keys.setdefault(provider, legacy_key)
+
         if provider == "claude":
             self.provider_combo.setCurrentIndex(1)
         elif provider == "openai":
@@ -860,10 +940,13 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(3)
         elif provider == "ollama":
             self.provider_combo.setCurrentIndex(4)
+        elif provider == "openrouter":
+            self.provider_combo.setCurrentIndex(5)
         else:
             self.provider_combo.setCurrentIndex(0)
+        # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
+        self._on_provider_changed(self.provider_combo.currentIndex())
 
-        self.api_key_input.setText(llm_config.get("api_key", ""))
         self.base_url_input.setText(llm_config.get("base_url", ""))
 
         model = llm_config.get("model", "")
@@ -880,6 +963,7 @@ class SettingsDialog(QDialog):
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
         self.auto_use_check.setChecked(llm_config.get("auto_use", False))
         self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
+        self.cloud_consent_check.setChecked(llm_config.get("cloud_consent", False))
 
         # Allgemeine Einstellungen
         self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
@@ -926,6 +1010,8 @@ class SettingsDialog(QDialog):
             provider = "openai"
         elif provider_index == 3:
             provider = "poe"
+        elif provider_index == 5:
+            provider = "openrouter"
         else:
             provider = "ollama"
 
@@ -933,15 +1019,23 @@ class SettingsDialog(QDialog):
         model_text = self.model_combo.currentText()
         model = model_text.split(" ")[0] if model_text else ""
 
+        self._stash_api_key()
+        api_keys = {k: v for k, v in self._api_keys.items() if v}
+
+        # Bestehende Werte (cloud_consent, cached_models, ...) erhalten,
+        # nur die Dialog-Felder ueberschreiben.
         llm_config = {
+            **self.config.get_llm_config(),
             "provider": provider,
-            "api_key": self.api_key_input.text().strip(),
+            "api_key": api_keys.get(provider, ""),
+            "api_keys": api_keys,
             "model": model,
             "max_tokens": self.max_tokens_spin.value(),
             "temperature": self.temperature_spin.value(),
             "auto_use": self.auto_use_check.isChecked(),
             "text_limit": self.text_limit_spin.value(),
             "base_url": self.base_url_input.text().strip(),
+            "cloud_consent": self.cloud_consent_check.isChecked(),
         }
         self.config.set("llm", llm_config)
 
@@ -1069,6 +1163,8 @@ class SettingsDialog(QDialog):
                 self._test_poe(api_key, model)
             elif provider_index == 4:  # Ollama
                 self._test_ollama(base_url, model)
+            elif provider_index == 5:  # OpenRouter
+                self._test_openrouter(api_key, model)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -1251,6 +1347,49 @@ class SettingsDialog(QDialog):
                 f"Verbindungsfehler: {str(e)}"
             )
 
+    def _test_openrouter(self, api_key: str, model: str):
+        """Testet die OpenRouter API (OpenAI-kompatibel)."""
+        try:
+            import openai
+            from src.ml.openrouter_provider import OpenRouterProvider
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url=OpenRouterProvider.BASE_URL,
+            )
+            model_id = model or OpenRouterProvider.DEFAULT_MODEL
+
+            response = client.chat.completions.create(
+                model=model_id,
+                max_tokens=10,
+                messages=[
+                    {"role": "user", "content": "Sage 'OK'"}
+                ]
+            )
+
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu OpenRouter erfolgreich!\n"
+                f"Modell: {model_id}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except ImportError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai"
+            )
+        except openai.AuthenticationError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Ungültiger OpenRouter API-Key.\n"
+                "Holen Sie Ihren Key von: openrouter.ai/keys"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Verbindungsfehler: {str(e)}"
+            )
+
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
         provider_index = self.provider_combo.currentIndex()
@@ -1287,6 +1426,8 @@ class SettingsDialog(QDialog):
             elif provider_index == 4:  # Ollama (lokal)
                 base_url = self.base_url_input.text().strip() or "http://localhost:11434"
                 models = self._fetch_ollama_models(base_url)
+            elif provider_index == 5:  # OpenRouter
+                models = self._fetch_openrouter_models(api_key)
             else:
                 models = []
 
@@ -1365,6 +1506,20 @@ class SettingsDialog(QDialog):
         for model in models_response.data:
             models.append(model.id)
 
+        models.sort()
+        return models
+
+    def _fetch_openrouter_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare Modelle von der OpenRouter API ab."""
+        import openai
+        from src.ml.openrouter_provider import OpenRouterProvider
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url=OpenRouterProvider.BASE_URL,
+        )
+
+        models_response = client.models.list()
+        models = [model.id for model in models_response.data]
         models.sort()
         return models
 

@@ -2,6 +2,7 @@
 Konfigurationsverwaltung für PDF Sortier Meister
 """
 
+import copy
 import json
 import logging
 import os
@@ -64,8 +65,9 @@ class Config:
         "filename_pattern": "",
         # LLM-Konfiguration
         "llm": {
-            "provider": "none",  # "none", "claude", "openai", "poe", "ollama"
-            "api_key": "",
+            "provider": "none",  # "none", "claude", "openai", "poe", "openrouter", "ollama"
+            "api_key": "",  # Key des aktiven Providers (Spiegel von api_keys)
+            "api_keys": {},  # API-Keys pro Provider, z.B. {"poe": "...", "openrouter": "..."}
             "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"
             "max_tokens": 500,
             "temperature": 0.3,
@@ -93,7 +95,7 @@ class Config:
         else:
             self.config_path = Path(config_path)
 
-        self._config = self.DEFAULTS.copy()
+        self._config = copy.deepcopy(self.DEFAULTS)
         self.load()
 
     def load(self) -> None:
@@ -103,10 +105,10 @@ class Config:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
                     # Merge mit Defaults (für neue Konfigurationsoptionen)
-                    self._config = {**self.DEFAULTS, **loaded}
+                    self._config = {**copy.deepcopy(self.DEFAULTS), **loaded}
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(f"Fehler beim Laden der Konfiguration: {e}")
-                self._config = self.DEFAULTS.copy()
+                self._config = copy.deepcopy(self.DEFAULTS)
 
     def save(self) -> None:
         """Speichert die Konfiguration in die Datei."""
@@ -233,6 +235,11 @@ class Config:
         """
         llm_config = self.get_llm_config()
         llm_config["api_key"] = api_key
+        provider = llm_config.get("provider", "none")
+        if provider not in ("none", "ollama"):
+            api_keys = dict(llm_config.get("api_keys", {}))
+            api_keys[provider] = api_key
+            llm_config["api_keys"] = api_keys
         self.set("llm", llm_config)
 
     def set_llm_model(self, model: str) -> None:

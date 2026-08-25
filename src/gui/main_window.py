@@ -50,6 +50,16 @@ from src.ml.hybrid_classifier import get_hybrid_classifier
 from src.gui.chat_view import ChatView
 
 
+class _ClickableLabel(QLabel):
+    """QLabel, das bei Doppelklick ein Signal sendet (Statusleiste)."""
+
+    doubleClicked = pyqtSignal()
+
+    def mouseDoubleClickEvent(self, event):
+        self.doubleClicked.emit()
+        super().mouseDoubleClickEvent(event)
+
+
 class MainWindow(QMainWindow):
     """Hauptfenster der Anwendung."""
 
@@ -92,6 +102,9 @@ class MainWindow(QMainWindow):
 
         # PDF-Cache Signale verbinden
         self.pdf_cache.pdf_analyzed.connect(self._on_pdf_analyzed)
+        self.pdf_cache.llm_suggestions_ready.connect(self._on_llm_suggestions_ready)
+        self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
+        self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
 
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
@@ -539,9 +552,74 @@ class MainWindow(QMainWindow):
 
     def _start_pre_caching(self, pdf_files: list[Path]):
         """Startet das Pre-Caching für alle PDFs im Hintergrund."""
-        self.pdf_cache.pre_cache(pdf_files)
-        self.cache_status_label.setText(f"Analyse: 0/{len(pdf_files)} PDFs...")
-        self.statusbar.showMessage(f"Analysiere {len(pdf_files)} PDFs im Hintergrund...", 2000)
+        analysis_n, llm_n = self.pdf_cache.pre_cache(pdf_files)
+        self._update_cache_status()
+        if analysis_n:
+            self.statusbar.showMessage(f"Analysiere {analysis_n} PDFs im Hintergrund...", 2000)
+        elif llm_n:
+            self.statusbar.showMessage(f"Hole KI-Vorschläge für {llm_n} PDFs im Hintergrund...", 2000)
+
+    def _precache_progress(self) -> tuple[int, int, int]:
+        """Liefert (analysiert, mit KI-Vorschlägen, gesamt) für die geladenen PDFs."""
+        total = analyzed = llm_done = 0
+        for widget in self.pdf_widgets:
+            total += 1
+            result = self.pdf_cache.get(widget.pdf_path)
+            if result:
+                analyzed += 1
+                if result.llm_fetched:
+                    llm_done += 1
+        return analyzed, llm_done, total
+
+    def _update_cache_status(self):
+        """Aktualisiert die Fortschrittsanzeige der Hintergrund-Analyse."""
+        analyzed, llm_done, total = self._precache_progress()
+        if total == 0:
+            self.cache_status_label.setText("")
+            return
+        parts = []
+        if analyzed < total:
+            parts.append(f"Analyse: {analyzed}/{total}")
+        llm_active = (
+            self.hybrid_classifier.is_llm_available()
+            and self.config.get("llm_precache_enabled", True)
+        )
+        if llm_active and llm_done < total:
+            parts.append(f"KI-Vorschläge: {llm_done}/{total}")
+        if self._last_llm_error:
+            parts.append("⚠ Fehler")
+        self.cache_status_label.setText(" | ".join(parts))
+
+    def _on_llm_suggestions_ready(self, pdf_path: Path):
+        """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
+        self._update_cache_status()
+
+    def _on_llm_suggestions_failed(self, pdf_path: Path, error: str):
+        """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
+        self._last_llm_error = (pdf_path.name, error)
+        self._update_cache_status()
+
+    def _show_precache_details(self):
+        """Zeigt Details zur Hintergrund-Analyse (Doppelklick auf Statuslabel)."""
+        from src.utils.logging_config import get_log_directory
+        analyzed, llm_done, total = self._precache_progress()
+        if self.hybrid_classifier.is_llm_available():
+            llm_state = f"aktiv ({self.hybrid_classifier.get_llm_provider_name()})"
+        else:
+            llm_state = "aus"
+        precache = "an" if self.config.get("llm_precache_enabled", True) else "aus"
+        lines = [
+            f"PDFs im Ordner: {total}",
+            f"Analysiert (Text/Datum): {analyzed}/{total}",
+            f"KI-Vorschläge vorhanden: {llm_done}/{total}",
+            f"KI-Assistent: {llm_state}",
+            f"KI-Vorabfrage im Hintergrund: {precache}",
+        ]
+        if self._last_llm_error:
+            name, error = self._last_llm_error
+            lines.append(f"\nLetzter KI-Fehler ({name}):\n{error}")
+        lines.append(f"\nLog-Datei: {get_log_directory() / 'pdf_sortier_meister.log'}")
+        QMessageBox.information(self, "Hintergrund-Analyse", "\n".join(lines))
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -938,12 +1016,15 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self.training_label)
 
         # Cache-Status (Pre-Caching-Fortschritt)
-        self.cache_status_label = QLabel("")
+        self.cache_status_label = _ClickableLabel("")
         self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.cache_status_label.setToolTip("Doppelklick zeigt Details zur Hintergrund-Analyse.")
+        self.cache_status_label.doubleClicked.connect(self._show_precache_details)
         self.statusbar.addPermanentWidget(self.cache_status_label)
 
         # LLM-Status anzeigen
-        self.llm_status_label = QLabel("")
+        self.llm_status_label = _ClickableLabel("")
+        self.llm_status_label.doubleClicked.connect(self.open_settings)
         self._update_llm_status()
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
@@ -1154,14 +1235,7 @@ class MainWindow(QMainWindow):
 
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
-        stats = self.pdf_cache.get_stats()
-        total_pdfs = len(self.pdf_widgets)
-        cached = stats.get("cached_count", 0)
-
-        if total_pdfs > 0 and cached < total_pdfs:
-            self.cache_status_label.setText(f"Analyse: {pdf_path.name[:30]}... ({cached}/{total_pdfs})")
-        else:
-            self.cache_status_label.setText("")
+        self._update_cache_status()
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
@@ -3205,6 +3279,13 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier._init_llm_provider()
         self._update_llm_status()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
+        # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
+        # uebersprungen wurden, werden jetzt eingereiht.
+        self._last_llm_error = None
+        if self.pdf_widgets and self.hybrid_classifier.is_llm_available():
+            self._start_pre_caching([w.pdf_path for w in self.pdf_widgets])
+        else:
+            self._update_cache_status()
 
     def _update_llm_status(self):
         """Aktualisiert die LLM-Statusanzeige."""
@@ -3212,12 +3293,21 @@ class MainWindow(QMainWindow):
             provider = self.hybrid_classifier.get_llm_provider_name()
             self.llm_status_label.setText(f"LLM: {provider}")
             self.llm_status_label.setStyleSheet("color: green;")
-            self.llm_status_label.setToolTip(f"KI-Assistent aktiv ({provider})")
+            self.llm_status_label.setToolTip(
+                f"KI-Assistent aktiv ({provider}).\nDoppelklick öffnet die Einstellungen."
+            )
         else:
+            from src.ml.llm_provider import is_cloud_provider
+            llm_cfg = self.config.get_llm_config()
+            if (is_cloud_provider(llm_cfg.get("provider", "none"))
+                    and not llm_cfg.get("cloud_consent", False)):
+                reason = "Keine Einwilligung zur Datenübertragung erteilt."
+            else:
+                reason = "Nicht konfiguriert."
             self.llm_status_label.setText("LLM: Aus")
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                "KI-Assistent deaktiviert. In Einstellungen konfigurieren."
+                f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
             )
 
     def show_about(self):

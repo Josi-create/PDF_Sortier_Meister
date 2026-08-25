@@ -141,6 +141,7 @@ class LLMSuggestionWorker(QThread):
     # Signale
     suggestions_complete = pyqtSignal(Path, list)  # (pdf_path, list[LLMSuggestion])
     suggestions_error = pyqtSignal(Path, str)  # (pdf_path, error_message)
+    suggestions_skipped = pyqtSignal(Path)  # LLM nicht verfuegbar -> nicht abgerufen
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -190,6 +191,7 @@ class LLMSuggestionWorker(QThread):
                     # Prüfen ob LLM überhaupt verfügbar ist
                     if not self._hybrid_classifier.is_llm_available():
                         logger.debug(f"LLM-Pre-Cache: LLM nicht verfügbar, überspringe {pdf_path.name}")
+                        self.suggestions_skipped.emit(pdf_path)
                         continue
 
                     # LLM-Vorschläge abrufen
@@ -250,6 +252,7 @@ class PDFCache(QObject):
     # Signale
     pdf_analyzed = pyqtSignal(Path)  # PDF wurde analysiert (aus Cache oder neu)
     llm_suggestions_ready = pyqtSignal(Path)  # LLM-Vorschläge wurden abgerufen
+    llm_suggestions_failed = pyqtSignal(Path, str)  # LLM-Abruf fehlgeschlagen
     cache_ready = pyqtSignal()  # Alle PDFs im Pre-Cache analysiert
 
     _instance = None
@@ -269,6 +272,7 @@ class PDFCache(QObject):
         self._lock = Lock()
         self._worker: Optional[PDFAnalysisWorker] = None
         self._llm_worker: Optional[LLMSuggestionWorker] = None
+        self._llm_queued: set[Path] = set()  # PDFs, die in der LLM-Queue stehen
         self._pending_callbacks: dict[Path, list[Callable]] = {}
         self._persist_cache = True  # Standardmäßig persistenten Cache nutzen
         self._db_path: Optional[Path] = None
@@ -491,6 +495,7 @@ class PDFCache(QObject):
             self._llm_worker = LLMSuggestionWorker()
             self._llm_worker.suggestions_complete.connect(self._on_llm_suggestions_complete)
             self._llm_worker.suggestions_error.connect(self._on_llm_suggestions_error)
+            self._llm_worker.suggestions_skipped.connect(self._on_llm_suggestions_skipped)
             self._llm_worker.start()
 
     def stop_worker(self):
@@ -588,15 +593,19 @@ class PDFCache(QObject):
 
         return None
 
-    def pre_cache(self, pdf_paths: list[Path]):
+    def pre_cache(self, pdf_paths: list[Path]) -> tuple[int, int]:
         """
         Startet Pre-Caching für eine Liste von PDFs.
 
         Args:
             pdf_paths: Liste von PDF-Pfaden
+
+        Returns:
+            (Anzahl zur Analyse eingereiht, Anzahl zur LLM-Queue eingereiht)
         """
         self.start_worker()
 
+        analysis_queue_count = 0
         llm_queue_count = 0
         for pdf_path in pdf_paths:
             pdf_path = Path(pdf_path)
@@ -605,13 +614,15 @@ class PDFCache(QObject):
             if not cached:
                 # Noch nicht analysiert - zur Analyse-Queue
                 self._worker.add_background(pdf_path)
+                analysis_queue_count += 1
             elif self._llm_precache_enabled and not cached.llm_fetched:
                 # Bereits analysiert, aber LLM noch nicht abgerufen
-                self._request_llm_suggestions(pdf_path, cached)
-                llm_queue_count += 1
+                if self._request_llm_suggestions(pdf_path, cached):
+                    llm_queue_count += 1
 
         if llm_queue_count > 0:
             logger.info(f"LLM-Pre-Cache: {llm_queue_count} PDFs zur LLM-Queue hinzugefügt")
+        return analysis_queue_count, llm_queue_count
 
     def _on_analysis_complete(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wird aufgerufen wenn eine Analyse abgeschlossen ist."""
@@ -638,16 +649,22 @@ class PDFCache(QObject):
         if self._llm_precache_enabled and not result.llm_fetched:
             self._request_llm_suggestions(pdf_path, result)
 
-    def _request_llm_suggestions(self, pdf_path: Path, analysis_result: PDFAnalysisResult):
-        """Fordert LLM-Vorschläge im Hintergrund an."""
+    def _request_llm_suggestions(self, pdf_path: Path, analysis_result: PDFAnalysisResult) -> bool:
+        """Fordert LLM-Vorschläge im Hintergrund an. False, wenn bereits eingereiht."""
+        with self._lock:
+            if pdf_path in self._llm_queued:
+                return False
+            self._llm_queued.add(pdf_path)
         logger.debug(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}")
         self.start_llm_worker()
         self._llm_worker.add_task(pdf_path, analysis_result, priority=10)
+        return True
 
     def _on_llm_suggestions_complete(self, pdf_path: Path, suggestions: list):
         """Wird aufgerufen wenn LLM-Vorschläge abgerufen wurden."""
         logger.debug(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name}")
         with self._lock:
+            self._llm_queued.discard(pdf_path)
             if pdf_path in self._cache:
                 self._cache[pdf_path].llm_suggestions = suggestions
                 self._cache[pdf_path].llm_fetched = True
@@ -661,6 +678,14 @@ class PDFCache(QObject):
     def _on_llm_suggestions_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn LLM-Abruf fehlschlägt."""
         logger.warning(f"LLM-Pre-Cache Fehler für {pdf_path.name}: {error}")
+        with self._lock:
+            self._llm_queued.discard(pdf_path)
+        self.llm_suggestions_failed.emit(pdf_path, error)
+
+    def _on_llm_suggestions_skipped(self, pdf_path: Path):
+        """LLM war nicht verfügbar - Eintrag kann später erneut eingereiht werden."""
+        with self._lock:
+            self._llm_queued.discard(pdf_path)
 
     def _on_analysis_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn eine Analyse fehlschlägt."""
