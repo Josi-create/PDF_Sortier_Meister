@@ -37,7 +37,7 @@ from src.utils.single_instance import (
 from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 
 def _extract_path_arg(argv: list[str]) -> str:
@@ -211,6 +211,8 @@ def main():
                 pass
         window.raise_()
         window.activateWindow()
+        # Backup-Hinweis (Issue #7) erst zeigen, wenn der Splash weg ist
+        QTimer.singleShot(300, window.show_backup_hint)
 
     window.thumbnails_loaded.connect(close_splash)
     QTimer.singleShot(15000, close_splash)

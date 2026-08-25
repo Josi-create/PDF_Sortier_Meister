@@ -2807,6 +2807,7 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(
             self,
             "Zielordner auswählen",
+            self.config.dialog_start_dir(),
         )
         if folder:
             folder_path = Path(folder)
@@ -3248,13 +3249,34 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage("Ansicht aktualisiert", 3000)
 
     def check_backup_status(self):
-        """Überprüft den Backup-Status."""
-        # TODO: Macrium Reflect Integration (Phase 7)
-        QMessageBox.information(
-            self,
-            "Backup-Status",
-            "Backup-Prüfung wird in Phase 7 implementiert.",
+        """Zeigt den Backup-Hinweis (Menue). Macrium-Log-Parsing: Issue #14."""
+        self.show_backup_hint(force=True)
+
+    def show_backup_hint(self, force: bool = False):
+        """
+        Erinnert daran, dass die App Dateien veraendert und ein Backup
+        ratsam ist (Issue #7). Erscheint beim Start, bis der Nutzer
+        "nicht mehr anzeigen" abhakt; ueber das Menue jederzeit erneut.
+        """
+        if not force and self.config.get("backup_hint_dismissed", False):
+            return
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Backup empfohlen")
+        box.setText("PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten "
+                    "direkt in Ihre PDF-Dateien.")
+        box.setInformativeText(
+            "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per "
+            "Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie "
+            "Macrium Reflect.\n\n"
+            "Rueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
         )
+        dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
+        dismiss.setChecked(self.config.get("backup_hint_dismissed", False))
+        box.setCheckBox(dismiss)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+        self.config.set("backup_hint_dismissed", dismiss.isChecked())
 
     def open_setup_wizard(self):
         """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""

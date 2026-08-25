@@ -7,6 +7,40 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-25
+
+### Hinzugefuegt
+- **OpenRouter** als LLM-Provider (OpenAI-kompatible API, viele Modelle mit einem Key)
+  - Einstellungen, Setup-Wizard, HybridClassifier, Consent-Gate
+- **API-Keys pro Provider** (Issue #11): Keys bleiben beim Provider-Wechsel erhalten,
+  Label zeigt den Besitzer ("API-Key (OpenRouter):")
+- **Datenschutz-Einwilligung** in den KI-Einstellungen (Checkbox + Hinweis); vorher gab
+  es keine Bedienoberflaeche fuer das Consent-Gate
+- **Statusleiste**: Doppelklick auf "LLM:" oeffnet die Einstellungen; Doppelklick auf
+  den Analyse-Fortschritt zeigt Details (Fortschritt, letzter KI-Fehler, Log-Pfad)
+- **Fortschritt der Hintergrund-Analyse**: "Analyse: x/n | KI-Vorschlaege: y/n" mit
+  Fehlermarkierung; KI-Vorabfrage wird nach Einstellungsaenderung neu angestossen
+- **Backup-Hinweis** beim Start, abhakbar (Issue #7); Macrium-Log-Parsing bleibt #14
+- **App-Icon** (Mann aus dem Splash) fuer Fenster, Taskleiste und .exe
+- "+ Zielordner" startet im uebergeordneten Ordner des Scan-Ordners (Issue #11)
+- **pdfs-Master-Tabelle mit stabiler pdf_id** (Issue #25, Phasen 1-3)
+- **Consent-Gate** fuer Cloud-Provider in HybridClassifier (`llm.cloud_consent`)
+
+### Geaendert
+- Lizenz: MIT -> **GPL-3.0-or-later** (PyQt6/PyMuPDF Copyleft), LICENSE-Datei ergaenzt
+- `OpenAIProvider`: Fehlermeldungen ueber `API_NAME` parametrisiert (fuer Subklassen)
+
+### Behoben
+- Einstellungen speichern verwarf `cloud_consent` und `cached_models`
+- `Config.DEFAULTS` wurde flach kopiert (verschachtelte Dicts instanzuebergreifend geteilt)
+- Analyse-Fortschritt blieb bei "0/n" haengen, wenn alle PDFs bereits im Cache waren
+- KI-Vorabfrage lief ins Leere, wenn das LLM beim Einreihen noch deaktiviert war
+- LLM-Queue dedupliziert (keine doppelten API-Aufrufe bei erneutem Pre-Cache)
+
+### Tests
+- 339 Tests (285 -> 339): OpenRouter-Provider, Keys/Consent-GUI, Cache-LLM-Queue,
+  pdf_id-Propagation, Consent-Gate
+
 ## [0.13.0] - 2026-06-17
 
 ### Hinzugefuegt
@@ -96,7 +130,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.13.0...v0.14.0
 [0.12.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.10.0...v0.11.0
 [0.13.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.12.0...v0.13.0

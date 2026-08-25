@@ -27,3 +27,8 @@ def test_set_llm_api_key_ollama_not_stored_per_provider(tmp_path):
     cfg.set_llm_provider("ollama")
     cfg.set_llm_api_key("")
     assert cfg.get_llm_config()["api_keys"] == {}
+
+
+def test_backup_hint_default_not_dismissed():
+    from src.utils.config import Config
+    assert Config.DEFAULTS["backup_hint_dismissed"] is False

@@ -1,11 +1,22 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 01.07.2026
-**Aktuelle Version:** 0.13.1 (in Entwicklung)
+**Datum:** 25.08.2026
+**Aktuelle Version:** 0.14.0
 
 > **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
+### v0.14.0 (2026-08-25) - OpenRouter, Keys pro Provider, Consent-UI, Release-Hygiene
+- OpenRouter als 5. LLM-Provider (Einstellungen + Wizard)
+- API-Keys pro Provider mit Kennzeichnung im Dialog (Issue #11 erledigt)
+- Datenschutz-Einwilligung als Checkbox; Statusleisten-Doppelklicks; Analyse-Fortschritt
+- Backup-Hinweis beim Start (Issue #7); App-Icon aus dem Splash
+- Issue #25 (stabile pdf_id) und #12 (Merge/Split) abgeschlossen und geschlossen
+- Fixes: Einstellungen verwarfen cloud_consent/cached_models; DEFAULTS-Shallow-Copy;
+  KI-Vorabfrage nach Consent-Aenderung; LLM-Queue-Dedupe
+- 339/339 Tests gruen; `main` wieder auf Stand (Release v0.14.0 mit .exe)
+- Naechster Sprint: Explorer-Gefuehl (#29, #26, #23) - Entscheidung: rechtes Panel
+  verhaelt sich wie der Windows-Explorer, Vorschlaege bleiben oben
 ### v0.13.1 (2026-07-01) - Lizenz-Korrektur (Monetarisierungs-Fundament)
 - Lizenz von MIT auf **GPL-3.0-or-later** korrigiert (Pfad A der Monetarisierungs-Roadmap)
 - Grund: PyQt6 (GPLv3) + PyMuPDF (AGPLv3) sind Copyleft -> MIT war rechtlich nicht haltbar
@@ -140,8 +151,8 @@
 - [x] **Kopieren-Option** *(erledigt in v0.8.0)*
   - Rechtsklick → "Kopie erstellen" im Kontextmenü
 
-- [ ] **Zielordner-Dialog Startpfad**
-  - "+ Zielordner" öffnet im aktuellen/übergeordneten Ordner
+- [x] **Zielordner-Dialog Startpfad** *(erledigt in v0.14.0)*
+  - "+ Zielordner" öffnet im übergeordneten Ordner des Scan-Ordners
 
 - [x] **Zurück-Button** *(erledigt in v0.9.0)*
   - ⬅ Button im Header navigiert zum vorherigen Scan-Ordner
@@ -170,19 +181,19 @@
   - F2 öffnet Umbenennungsdialog für ausgewählte PDF (Windows-Standard)
   - Menüeintrag unter Bearbeiten → Umbenennen...
 
-- [ ] **Mehrere LLM API-Keys verwalten**
-  - In den Einstellungen mehrere API-Keys für verschiedene Provider speichern
+- [x] **Mehrere LLM API-Keys verwalten** *(erledigt in v0.14.0)*
+  - Keys werden pro Provider gespeichert, Label zeigt den Besitzer
   - Schnelles Umschalten des aktiven LLM-Modells ohne erneute Key-Eingabe
 
 ### Phase 14: PDF-Bearbeitung (NEU - Mittlere Priorität)
 
 **Inspiriert von Nuance PaperPort (to do #13-15):**
 
-- [ ] **PDFs zusammenfügen** (to do #13)
+- [x] **PDFs zusammenfügen** *(erledigt, Issue #12)*
   - Zwei PDFs per Drag & Drop zusammenfügen
   - Nützlich für mehrseitige Scans die getrennt wurden
 
-- [ ] **PDFs trennen** (to do #15)
+- [x] **PDFs trennen** *(erledigt, Issue #12)*
   - Mehrseitiges PDF in einzelne Seiten aufteilen
   - Rechtsklick → "PDF trennen"
 
@@ -201,7 +212,8 @@
   - Animiertes Highlight für Top-Vorschläge
 
 ### Phase 7: Backup-Integration (offen - Niedrige Priorität)
-- [ ] Macrium Reflect Log-Dateien finden
+- [x] Backup-Hinweis beim Start, abhakbar *(v0.14.0, Issue #7)*
+- [ ] Macrium Reflect Log-Dateien finden (Issue #14)
 - [ ] Backup-Status parsen
 - [ ] Warnung bei veraltetem Backup anzeigen
 - [ ] Statusleiste-Integration
@@ -580,10 +592,11 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 
 ## Nächste Schritte (Empfehlung)
 
-### Sofort (Phase 13 - verbleibende UX-Verbesserungen):
+### Sofort (Sprint 1 - Explorer-Gefühl, Issues #29/#26/#23):
 
-1. **Drag & Drop Haptik** - Visuelles Feedback in Listenansicht
-2. **Mehrere LLM API-Keys verwalten** - Schnelles Umschalten zwischen Providern
+1. **Linkes Panel als Dateimanager** - "..", Unterordner, Doppelklick wechselt hinein
+2. **Zielordner rechts wie im Explorer** - Doppelklick navigiert links; Vorschläge bleiben oben
+3. **Drag & Drop Haptik** - Visuelles Feedback im Ordnerbaum (#10, Sprint 4)
 
 ### Nächstes (Phase 17+18 - Suche & Steuerfelder):
 

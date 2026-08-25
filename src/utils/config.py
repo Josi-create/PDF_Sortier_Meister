@@ -77,6 +77,8 @@ class Config:
             "cached_models": {},
             "cloud_consent": False,  # Opt-in fuer Cloud-Uebertragung von PDF-Inhalten
         },
+        # Backup-Hinweis beim Start (Issue #7) abgehakt?
+        "backup_hint_dismissed": False,
     }
 
     def __init__(self, config_path: str = None):
@@ -214,6 +216,17 @@ class Config:
     def get_llm_config(self) -> dict:
         """Gibt die LLM-Konfiguration zurück."""
         return self.get("llm", self.DEFAULTS["llm"])
+
+    def dialog_start_dir(self) -> str:
+        """Startverzeichnis fuer Ordner-Dialoge: Parent des Scan-Ordners (Issue #11)."""
+        scan = self.get_scan_folder()
+        if not scan:
+            return ""
+        scan = Path(scan)
+        parent = scan.parent
+        if parent != scan and parent.exists():
+            return str(parent)
+        return str(scan) if scan.exists() else ""
 
     def set_llm_provider(self, provider: str) -> None:
         """
