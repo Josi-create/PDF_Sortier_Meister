@@ -134,7 +134,7 @@ python run.py
 - Python 3.10+, Windows 10/11
 - OCR im Quellcode-Betrieb: Tesseract installieren (`winget install UB-Mannheim.TesseractOCR`) — die App
   findet es in den Standardordnern; in den Builds ist es gebündelt
-- Tests: `python -m pytest tests -q` (388 Tests, pytest-qt)
+- Tests: `python -m pytest tests -q` (428 Tests, pytest-qt)
 - Windows-Build: `build.bat` — PyInstaller (`pdf_sortier_meister.spec`), kopiert Tesseract nach `vendor/`
   und baut mit Inno Setup 6 den Installer (`scripts/build_installer.py`)
 
