@@ -54,3 +54,6 @@ data/
 
 # Local helper scripts
 ollama_vlad.bat
+
+# Gebuendelte Drittanbieter-Binaries (scripts/prepare_tesseract.py)
+vendor/

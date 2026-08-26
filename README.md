@@ -23,19 +23,22 @@ Datenbank-Silo, kein Docker, kein Server.
 
 ---
 
-## ⚡ Installation in 3 Schritten
+## ⚡ Installation
 
-**Kein Python. Keine Konsole. Nur Doppelklick.**
+**Kein Python. Keine Konsole. Keine Admin-Rechte.**
 
-1. **Herunterladen:** 👉 [Neueste Version (`PDF_Sortier_Meister-vX.Y.Z-win64.zip`)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest) *(ca. 150 MB)*
-2. **Entpacken** irgendwo hin, z. B. nach `Dokumente\PDF_Sortier_Meister\`
-3. **Doppelklick** auf `PDF_Sortier_Meister.exe` — der Einrichtungs-Assistent führt durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
+1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup_X.Y.Z.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
+2. **Doppelklick** auf die Setup-Datei → Weiter → Fertig
+3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
+
+Texterkennung (OCR, Tesseract) ist **enthalten** — Scans ohne Textebene funktionieren ohne weitere Installation.
+Deinstallation wie gewohnt über *Apps & Features*; eine neue Version wird einfach drüberinstalliert.
 
 > 🛡️ **Windows SmartScreen warnt?** *„Weitere Informationen“ → „Trotzdem ausführen“.* Das passiert bei
 > unsignierten Programmen — der Quellcode ist hier öffentlich einsehbar.
 >
-> 🔤 **Für gescannte Bilder ohne Textebene** (OCR) zusätzlich Tesseract installieren:
-> `winget install UB-Mannheim.TesseractOCR`. PDFs mit Textebene funktionieren ohne.
+> 📦 **Lieber ohne Installation?** Auf der [Release-Seite](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
+> liegt auch ein portables ZIP: entpacken, `PDF_Sortier_Meister.exe` starten.
 
 ---
 
@@ -125,9 +128,11 @@ python run.py
 ```
 
 - Python 3.10+, Windows 10/11
-- OCR optional: `winget install UB-Mannheim.TesseractOCR`
-- Tests: `python -m pytest tests -q` (383 Tests, pytest-qt)
-- Windows-Build: `build.bat` (PyInstaller, siehe `pdf_sortier_meister.spec`)
+- OCR im Quellcode-Betrieb: Tesseract installieren (`winget install UB-Mannheim.TesseractOCR`) — die App
+  findet es in den Standardordnern; in den Builds ist es gebündelt
+- Tests: `python -m pytest tests -q` (388 Tests, pytest-qt)
+- Windows-Build: `build.bat` — PyInstaller (`pdf_sortier_meister.spec`), kopiert Tesseract nach `vendor/`
+  und baut mit Inno Setup 6 den Installer (`scripts/build_installer.py`)
 
 Architektur und Entscheidungen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 Versionshistorie: [CHANGELOG.md](CHANGELOG.md) ·

@@ -1,8 +1,10 @@
 ; ============================================================
 ; PDF Sortier Meister - Inno Setup Installer Script
 ;
-; Kompilieren mit:
-;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+; Kompilieren mit (Version wird aus src/main.py gelesen):
+;   venv\Scripts\python.exe scripts\build_installer.py
+; oder direkt:
+;   ISCC.exe /DMyAppVersion=0.15.1 installer.iss
 ;
 ; Inno Setup 6 kostenlos: https://jrsoftware.org/isinfo.php
 ;
@@ -11,7 +13,9 @@
 ; ============================================================
 
 #define MyAppName "PDF Sortier Meister"
-#define MyAppVersion "0.10.0"
+#ifndef MyAppVersion
+  #error MyAppVersion fehlt - bitte /DMyAppVersion=x.y.z uebergeben oder scripts/build_installer.py verwenden
+#endif
 #define MyAppPublisher "PDF Sortier Meister"
 #define MyAppExeName "PDF_Sortier_Meister.exe"
 
@@ -33,6 +37,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupIconFile=icon.ico
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"

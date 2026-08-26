@@ -22,6 +22,13 @@ echo Loesche alte Build-Dateien...
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 
+REM Tesseract-Laufzeit fuer gebuendelte OCR bereitstellen (vendor\tesseract)
+if not exist "vendor\tesseract\tesseract.exe" (
+    echo Kopiere Tesseract nach vendor\tesseract ...
+    python scripts\prepare_tesseract.py
+    if errorlevel 1 goto :fail
+)
+
 REM Build starten
 echo.
 echo Starte Build (onedir, nativer Splash aus Bootloader)...
@@ -42,8 +49,11 @@ if exist "dist\PDF_Sortier_Meister\PDF_Sortier_Meister.exe" (
     echo Ordnergroesse:
     for /f "tokens=3" %%A in ('dir /s /-c "dist\PDF_Sortier_Meister" ^| findstr /C:"Datei(en)"') do echo   %%A Bytes
     echo.
-    echo Optional: Installer bauen ^(benoetigt Inno Setup 6^)
-    echo   "%%ProgramFiles(x86)%%\Inno Setup 6\ISCC.exe" installer.iss
+    echo Installer bauen ^(benoetigt Inno Setup 6^)...
+    python scripts\build_installer.py
+    if errorlevel 1 (
+        echo Installer uebersprungen - siehe Meldung oben.
+    )
     echo.
     goto :eof
 )

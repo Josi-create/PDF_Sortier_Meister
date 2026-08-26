@@ -37,7 +37,7 @@ from src.utils.single_instance import (
 from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
-__version__ = "0.15.0"
+__version__ = "0.15.1"
 
 
 def _extract_path_arg(argv: list[str]) -> str:
