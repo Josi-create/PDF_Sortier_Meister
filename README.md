@@ -25,8 +25,6 @@ Datenbank-Silo, kein Docker, kein Server.
 
 ## ⚡ Installation
 
-**Kein Python. Keine Konsole. Keine Admin-Rechte.**
-
 1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup_X.Y.Z.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
 2. **Doppelklick** auf die Setup-Datei → Weiter → Fertig
 3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
