@@ -1,0 +1,17 @@
+name: 💡 Wunsch / Idee
+description: Etwas fehlt, ist umständlich oder könnte besser sein
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Was möchtest du erreichen — und was steht im Weg?
+      description: Beschreib den Ablauf, nicht die Lösung. Der "Umweg", den du heute gehst, ist oft der beste Hinweis.
+      placeholder: |
+        Ich bekomme jeden Monat 10 Rechnungen vom gleichen Absender und muss jedes Mal ...
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Hast du eine Idee, wie es aussehen könnte? (optional)

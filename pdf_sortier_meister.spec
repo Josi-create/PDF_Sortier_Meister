@@ -30,6 +30,14 @@ if SPLASH_IMG.exists():
 if (ROOT_DIR / "icon.png").exists():
     # Fenster-/Taskleisten-Icon zur Laufzeit (app.setWindowIcon)
     datas.append((str(ROOT_DIR / "icon.png"), "."))
+# Gebuendelte Tesseract-Laufzeit (vorher scripts/prepare_tesseract.py ausfuehren).
+# Landet in _internal/tesseract/ und wird von find_tesseract() zuerst gefunden.
+TESSERACT_DIR = ROOT_DIR / "vendor" / "tesseract"
+if (TESSERACT_DIR / "tesseract.exe").exists():
+    datas.append((str(TESSERACT_DIR), "tesseract"))
+else:
+    print("HINWEIS: vendor/tesseract fehlt - Build ohne gebuendelte OCR "
+          "(scripts/prepare_tesseract.py ausfuehren).")
 
 # Hidden imports fuer PyQt6 und sklearn
 hiddenimports = [

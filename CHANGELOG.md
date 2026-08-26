@@ -7,6 +7,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-08-26
+
+### Hinzugefuegt
+- **Windows-Installer** (`PDF_Sortier_Meister_Setup_<version>.exe`, Inno Setup): installiert
+  ohne Admin-Rechte nach `%LocalAppData%\Programs`, Startmenue-Eintrag, Deinstallation ueber
+  "Apps & Features", Update durch Drueberinstallieren. Das portable ZIP bleibt erhalten.
+  Bauen: `build.bat` (ruft `scripts/build_installer.py`, Version aus `src/main.py`).
+- **Tesseract OCR wird mitgeliefert**: `scripts/prepare_tesseract.py` kopiert tesseract.exe,
+  die benoetigten DLLs und die Sprachdaten deu/eng nach `vendor/tesseract`; PyInstaller
+  buendelt sie nach `_internal/tesseract`. OCR funktioniert damit ohne separate Installation.
+
+### Behoben
+- **OCR fand Tesseract nicht**: `pytesseract` wurde ohne Pfad aufgerufen und verliess sich auf
+  den PATH, in den der Tesseract-Installer nichts eintraegt - OCR schlug still fehl.
+  `find_tesseract()` sucht jetzt gebuendelt -> `Programme\Tesseract-OCR` ->
+  `%LocalAppData%\Programs\Tesseract-OCR` -> PATH und setzt `TESSDATA_PREFIX`.
+
 ### Geaendert
 - **OneDrive-Wartezeiten aus dem UI-Thread geholt (Log-Analyse 25./26.08.)**
   - XMP-Metadaten der angeklickten PDF werden im Hintergrund gelesen und nachgetragen
@@ -188,7 +205,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.13.0...v0.14.0
 [0.12.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.11.0...v0.12.0

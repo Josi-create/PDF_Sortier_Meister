@@ -7,7 +7,10 @@ Funktionen:
 - Metadaten-Extraktion
 """
 
+import os
 import re
+import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -151,6 +154,16 @@ class PDFAnalyzer:
             from PIL import Image
             import io
 
+            tesseract_cmd = find_tesseract()
+            if tesseract_cmd is None:
+                print("Warnung: tesseract.exe nicht gefunden. OCR nicht verfügbar.")
+                return ""
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+            # Sprachdaten neben der .exe (gebuendelt oder Standardinstallation)
+            tessdata = Path(tesseract_cmd).parent / "tessdata"
+            if tessdata.is_dir():
+                os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+
             self.open()
             text_parts = []
 
@@ -178,6 +191,33 @@ class PDFAnalyzer:
         except Exception as e:
             print(f"OCR-Fehler: {e}")
             return ""
+
+
+def find_tesseract() -> Optional[str]:
+    """
+    Sucht tesseract.exe in dieser Reihenfolge:
+    1. Mit der App gebuendelt (PyInstaller: <_internal>/tesseract/)
+    2. Standard-Installationsordner (Programme, LocalAppData)
+    3. PATH
+
+    Returns:
+        Voller Pfad zu tesseract.exe oder None
+    """
+    candidates = []
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        candidates.append(Path(bundle_root) / "tesseract" / "tesseract.exe")
+    for env_var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        base = os.environ.get(env_var)
+        if not base:
+            continue
+        candidates.append(Path(base) / "Tesseract-OCR" / "tesseract.exe")
+        if env_var == "LOCALAPPDATA":
+            candidates.append(Path(base) / "Programs" / "Tesseract-OCR" / "tesseract.exe")
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which("tesseract")
 
     def get_metadata(self) -> dict:
         """
