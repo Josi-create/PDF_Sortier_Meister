@@ -65,7 +65,7 @@ class Config:
         "filename_pattern": "",
         # LLM-Konfiguration
         "llm": {
-            "provider": "none",  # "none", "claude", "openai", "poe", "openrouter", "ollama"
+            "provider": "none",  # "none", "claude", "openai", "poe", "openrouter", "ollama", "ollama_cloud"
             "api_key": "",  # Key des aktiven Providers (Spiegel von api_keys)
             "api_keys": {},  # API-Keys pro Provider, z.B. {"poe": "...", "openrouter": "..."}
             "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"

@@ -71,6 +71,13 @@ class OllamaProvider(LLMProvider):
         """Gibt den Modellnamen zurueck."""
         return self.config.model.strip() if self.config.model else self.DEFAULT_MODEL
 
+    def _headers(self) -> dict[str, str]:
+        """HTTP-Header; mit Bearer-Token, wenn ein API-Key konfiguriert ist."""
+        headers = {"Content-Type": "application/json"}
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        return headers
+
     def is_available(self) -> bool:
         """Prueft, ob Ollama verfuegbar ist."""
         return bool(self._get_base_url())
@@ -78,8 +85,9 @@ class OllamaProvider(LLMProvider):
     def ping(self) -> tuple[bool, str]:
         """Prueft per HTTP-Request, ob der Ollama-Server erreichbar ist."""
         url = f"{self._get_base_url()}/api/version"
+        req = urllib.request.Request(url, headers=self._headers())
         try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return True, data.get("version", "unbekannt")
         except urllib.error.URLError as e:
@@ -90,8 +98,9 @@ class OllamaProvider(LLMProvider):
     def list_models(self) -> list[str]:
         """Holt die Liste der lokal installierten Modelle vom Server."""
         url = f"{self._get_base_url()}/api/tags"
+        req = urllib.request.Request(url, headers=self._headers())
         try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
         except Exception:
@@ -153,7 +162,7 @@ class OllamaProvider(LLMProvider):
         req = urllib.request.Request(
             url,
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=self._headers(),
             method="POST",
         )
 
@@ -331,7 +340,7 @@ class OllamaProvider(LLMProvider):
         req = urllib.request.Request(
             url,
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=self._headers(),
             method="POST",
         )
         try:
@@ -344,3 +353,44 @@ class OllamaProvider(LLMProvider):
 
         message = data.get("message") or {}
         return message.get("content", "") or ""
+
+class OllamaCloudProvider(OllamaProvider):
+    """
+    Ollama-Modelle in der Cloud (https://ollama.com) - gleiche API wie der
+    lokale Server, aber mit API-Key (Bearer-Token) und ohne eigene Hardware.
+
+    Gedacht fuer Rechner ohne dedizierte Grafikkarte: Dokumentinhalte werden
+    dabei an ollama.com uebertragen, der Provider zaehlt deshalb als
+    Cloud-Provider (Einwilligung noetig).
+    """
+
+    DEFAULT_BASE_URL = "https://ollama.com"
+    DEFAULT_MODEL = "gpt-oss:120b"
+
+    # Bekannte Cloud-Modelle (Stand 2026); die Liste dient als Fallback,
+    # falls /api/tags auf ollama.com nicht erreichbar ist.
+    CLOUD_MODELS = [
+        "gpt-oss:120b",
+        "gpt-oss:20b",
+        "qwen3-coder:480b",
+        "deepseek-v3.1:671b",
+        "kimi-k2:1t",
+        "glm-4.6",
+        "minimax-m2",
+    ]
+
+    def _get_base_url(self) -> str:
+        # Eine in der Config verbliebene lokale URL (Wechsel von Ollama lokal)
+        # darf hier nicht greifen.
+        return self.DEFAULT_BASE_URL
+
+    def is_available(self) -> bool:
+        return bool(self.config.api_key)
+
+    def list_models(self) -> list[str]:
+        models = super().list_models()
+        return models or list(self.CLOUD_MODELS)
+
+    def _chat(self, system_prompt: str, user_prompt: str, json_mode: bool = False):
+        # Kein Auto-Start eines lokalen Servers bei Verbindungsfehlern.
+        return self._do_chat(system_prompt, user_prompt, json_mode=json_mode)

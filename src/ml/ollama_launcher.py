@@ -14,6 +14,7 @@ Strategie:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -23,7 +24,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger("pdf_sortier_meister.ollama_launcher")
 
@@ -59,6 +60,77 @@ def quick_ping(base_url: str, timeout: float = 1.0) -> bool:
             return True
     except Exception:
         return False
+
+
+def list_models(base_url: str, timeout: float = 5.0) -> list[str]:
+    """Namen der lokal installierten Modelle (leer bei Fehler)."""
+    url = f"{base_url.rstrip('/')}/api/tags"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
+    return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+
+
+def pull_model(
+    base_url: str,
+    model: str,
+    progress_cb: Optional[Callable[[int, str], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> tuple[bool, str]:
+    """
+    Laedt ein Modell ueber ``POST /api/pull`` (Streaming) herunter.
+
+    Args:
+        progress_cb: wird mit (Prozent 0-100, Statustext) aufgerufen
+        should_cancel: liefert True, wenn der Download abgebrochen werden soll
+
+    Returns:
+        (ok, message)
+    """
+    url = f"{base_url.rstrip('/')}/api/pull"
+    body = json.dumps({"name": model, "stream": True}).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return _consume_pull_stream(resp, progress_cb, should_cancel)
+    except urllib.error.HTTPError as e:
+        return False, f"Ollama HTTP {e.code}"
+    except urllib.error.URLError as e:
+        return False, f"Keine Verbindung zu Ollama ({base_url}): {e.reason}"
+    except Exception as e:
+        return False, f"Download-Fehler: {e}"
+
+
+def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]:
+    """Verarbeitet die NDJSON-Zeilen von /api/pull (auch fuer Tests nutzbar)."""
+    last_status = ""
+    for raw in stream:
+        if should_cancel and should_cancel():
+            return False, "Download abgebrochen."
+        line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("error"):
+            return False, str(event["error"])
+        status = event.get("status", "")
+        total = event.get("total") or 0
+        completed = event.get("completed") or 0
+        percent = int(completed * 100 / total) if total else (100 if status == "success" else 0)
+        if progress_cb and (status != last_status or total):
+            progress_cb(percent, status)
+        last_status = status
+        if status == "success":
+            return True, "Modell installiert."
+    return False, "Download unvollstaendig (Verbindung beendet)."
 
 
 def _start_server_process(exe_path: str) -> bool:
