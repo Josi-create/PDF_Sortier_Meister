@@ -1,6 +1,6 @@
 # PDF Sortier Meister
 
-**Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen Windows-PC, ohne Server, optional mit KI.**
+**Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen Windows-PC, ohne Server, mit lokaler KI.**
 
 [![Release](https://img.shields.io/github/v/release/Josi-create/PDF_Sortier_Meister?label=Download&color=brightgreen)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Josi-create/PDF_Sortier_Meister/total)](https://github.com/Josi-create/PDF_Sortier_Meister/releases)
@@ -73,9 +73,15 @@ Deinstallation wie gewohnt über *Apps & Features*; eine neue Version wird einfa
 - Ohne KI: alles oben funktioniert mit dem lokalen Klassifikator
 - Mit KI: bessere Ordner- und Namensvorschläge, automatische Metadaten-Extraktion und ein
   **Chat über die eigenen Dokumente** (*„Was habe ich 2025 für Strom gezahlt?“* — mit klickbaren Quellen)
-- Anbieter: **Ollama** (lokal, kein API-Key, startet bei Bedarf automatisch), **OpenRouter**,
-  **Anthropic Claude**, **OpenAI**, **Poe**
+- Anbieter: **Ollama** (lokal, kein API-Key, startet bei Bedarf automatisch), **Ollama Cloud**
+  (dieselben Modelle auf ollama.com — für PCs ohne Grafikkarte), **OpenRouter**, **Anthropic Claude**,
+  **OpenAI**, **Poe**
+- Der Einrichtungs-Assistent **prüft die Grafikkarte** und empfiehlt danach: ein passendes lokales
+  Modell (gemma3 4b/12b/27b je nach Grafikspeicher) — oder, ohne dedizierte Grafikkarte, Ollama Cloud.
+  Er erkennt eine vorhandene Ollama-Installation, zeigt die installierten Modelle und lädt das
+  empfohlene Modell per Klick herunter (kein Terminal nötig)
 - Der lokale Klassifikator hat immer Vorrang; die KI wird nur bei niedriger Konfidenz hinzugezogen
+
 
 ---
 
@@ -87,7 +93,7 @@ Das ist ein Desktop-Programm. Ohne konfigurierten Cloud-Anbieter verlässt **nic
 |---|---|
 | Kein KI-Anbieter (Standard) | nichts |
 | **Ollama** (lokal) | nichts — das Modell läuft auf deinem PC |
-| Cloud-Anbieter (OpenRouter, Claude, OpenAI, Poe) | ein **Textauszug** der PDF (einstellbar 500–5000 Zeichen, Standard 1500) — *nur* nach ausdrücklicher Einwilligung in den Einstellungen; die PDF-Datei selbst wird nie hochgeladen |
+| Cloud-Anbieter (Ollama Cloud, OpenRouter, Claude, OpenAI, Poe) | ein **Textauszug** der PDF (einstellbar 500–5000 Zeichen, Standard 1500) — *nur* nach ausdrücklicher Einwilligung in den Einstellungen; die PDF-Datei selbst wird nie hochgeladen |
 
 Alle Daten (Konfiguration, Lernhistorie, Index, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
 Es gibt keine Telemetrie und keinen Auto-Update-Mechanismus.

@@ -7,6 +7,24 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Einrichtungs-Assistent erkennt Ollama und die Hardware**
+  - Provider-Seite zeigt, ob Ollama installiert ist bzw. laeuft, und prueft die
+    Grafikkarte (nvidia-smi, sonst Registry-Display-Adapter) - `src/utils/hardware.py`
+  - Empfehlung nach Grafikspeicher: gemma3:4b (ab 4 GB), gemma3:12b (ab 10 GB),
+    gemma3:27b (ab 20 GB). Ohne dedizierte Grafikkarte (nur integrierte Grafik /
+    Shared Memory), unter 4 GB oder mit Intel-GPU: Ollama lokal **nicht** empfohlen,
+    stattdessen Ollama Cloud. Die Empfehlung wird vorausgewaehlt, solange noch kein
+    Provider konfiguriert ist.
+  - Ollama-Seite listet die installierten Modelle (`/api/tags`, Server wird bei Bedarf
+    gestartet) und laedt das empfohlene Modell per Klick mit Fortschrittsbalken
+    (`/api/pull`, abbrechbar) - kein Terminal mehr noetig. Gewaehltes Modell wird gespeichert.
+- **Ollama Cloud** als Provider (`ollama_cloud`): dieselbe API wie lokal, aber gegen
+  https://ollama.com mit API-Key (Bearer). Gilt als Cloud-Provider (Einwilligung noetig).
+  Standardmodell gpt-oss:120b; Einstellungen-Dialog mit Modell-Liste, "Modelle
+  aktualisieren" und Verbindungstest.
+- `OllamaProvider` sendet `Authorization: Bearer <key>`, wenn ein API-Key gesetzt ist.
+
 ## [0.15.1] - 2026-08-26
 
 ### Hinzugefuegt

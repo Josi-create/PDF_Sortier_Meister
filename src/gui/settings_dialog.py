@@ -107,6 +107,7 @@ class SettingsDialog(QDialog):
             "Poe.com (viele Modelle)",
             "Ollama (lokal, kein API-Key noetig)",
             "OpenRouter (viele Modelle, ein API-Key)",
+            "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
         ])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
@@ -825,14 +826,26 @@ class SettingsDialog(QDialog):
             "meta-llama/llama-3.1-70b-instruct (Meta)",
             "mistralai/mistral-small (Mistral)",
         ],
+        "ollama_cloud": [
+            "gpt-oss:120b (OpenAI, gross, empfohlen)",
+            "gpt-oss:20b (OpenAI, schnell)",
+            "qwen3-coder:480b (Alibaba)",
+            "deepseek-v3.1:671b (DeepSeek)",
+            "kimi-k2:1t (Moonshot)",
+            "glm-4.6 (Zhipu)",
+            "minimax-m2 (MiniMax)",
+        ],
     }
 
-    _PROVIDER_NAME_BY_INDEX = {1: "claude", 2: "openai", 3: "poe", 4: "ollama", 5: "openrouter"}
+    _PROVIDER_NAME_BY_INDEX = {
+        1: "claude", 2: "openai", 3: "poe", 4: "ollama", 5: "openrouter", 6: "ollama_cloud",
+    }
     _KEY_PROVIDER_LABELS = {
         "claude": "Anthropic Claude",
         "openai": "OpenAI",
         "poe": "Poe.com",
         "openrouter": "OpenRouter",
+        "ollama_cloud": "Ollama Cloud",
     }
 
     def _stash_api_key(self):
@@ -874,7 +887,7 @@ class SettingsDialog(QDialog):
             self.test_button.setEnabled(False)
             return
 
-        # Provider 1-5: API-/Modell-Felder freischalten (nur Ollama ohne Key)
+        # Provider 1-6: API-/Modell-Felder freischalten (nur Ollama lokal ohne Key)
         self.api_key_input.setEnabled(index != 4)
         self.model_combo.setEnabled(True)
         self.test_button.setEnabled(True)
@@ -892,6 +905,8 @@ class SettingsDialog(QDialog):
             self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
         elif index == 5:
             self.api_key_input.setPlaceholderText("sk-or-... von openrouter.ai/keys")
+        elif index == 6:
+            self.api_key_input.setPlaceholderText("API-Key von ollama.com/settings/keys")
 
     def _update_consent_hint(self):
         """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
@@ -942,6 +957,8 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(4)
         elif provider == "openrouter":
             self.provider_combo.setCurrentIndex(5)
+        elif provider == "ollama_cloud":
+            self.provider_combo.setCurrentIndex(6)
         else:
             self.provider_combo.setCurrentIndex(0)
         # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
@@ -1012,6 +1029,8 @@ class SettingsDialog(QDialog):
             provider = "poe"
         elif provider_index == 5:
             provider = "openrouter"
+        elif provider_index == 6:
+            provider = "ollama_cloud"
         else:
             provider = "ollama"
 
@@ -1165,6 +1184,8 @@ class SettingsDialog(QDialog):
                 self._test_ollama(base_url, model)
             elif provider_index == 5:  # OpenRouter
                 self._test_openrouter(api_key, model)
+            elif provider_index == 6:  # Ollama Cloud
+                self._test_ollama_cloud(api_key, model)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -1298,6 +1319,35 @@ class SettingsDialog(QDialog):
                 f"Verbindungsfehler: {str(e)}"
             )
 
+    def _test_ollama_cloud(self, api_key: str, model: str):
+        """Testet Ollama Cloud (ollama.com) mit einem Mini-Request."""
+        try:
+            from src.ml.ollama_provider import OllamaCloudProvider
+            from src.ml.llm_provider import LLMConfig
+
+            provider = OllamaCloudProvider(LLMConfig(
+                api_key=api_key,
+                model=model or OllamaCloudProvider.DEFAULT_MODEL,
+                max_tokens=5,
+            ))
+            answer, error = provider._do_chat("Antworte nur mit OK.", "Test")
+            if error:
+                QMessageBox.critical(
+                    self, "Fehler",
+                    f"Ollama Cloud antwortet nicht:\n{error}\n\n"
+                    "Pruefen Sie den API-Key (ollama.com/settings/keys) "
+                    "und den Modellnamen."
+                )
+                return
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu Ollama Cloud erfolgreich!\n"
+                f"Modell: {model or OllamaCloudProvider.DEFAULT_MODEL}\n"
+                f"Antwort: {answer.strip()[:60]}"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Verbindungsfehler: {e}")
+
     def _test_ollama(self, base_url: str, model: str):
         """Testet die Verbindung zu einem lokalen Ollama-Server."""
         try:
@@ -1428,6 +1478,10 @@ class SettingsDialog(QDialog):
                 models = self._fetch_ollama_models(base_url)
             elif provider_index == 5:  # OpenRouter
                 models = self._fetch_openrouter_models(api_key)
+            elif provider_index == 6:  # Ollama Cloud
+                from src.ml.ollama_provider import OllamaCloudProvider
+                from src.ml.llm_provider import LLMConfig
+                models = OllamaCloudProvider(LLMConfig(api_key=api_key, model="")).list_models()
             else:
                 models = []
 

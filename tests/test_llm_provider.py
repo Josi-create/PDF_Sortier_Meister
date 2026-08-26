@@ -8,5 +8,6 @@ def test_cloud_providers_set():
     assert is_cloud_provider("openai") is True
     assert is_cloud_provider("poe") is True
     assert is_cloud_provider("openrouter") is True
+    assert is_cloud_provider("ollama_cloud") is True
     assert is_cloud_provider("ollama") is False
     assert is_cloud_provider("none") is False
