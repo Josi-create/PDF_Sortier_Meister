@@ -1,204 +1,146 @@
 # PDF Sortier Meister
 
-Ein intelligentes Desktop-Programm zum Sortieren, Umbenennen und Verwalten von gescannten PDF-Dokumenten — mit lernfähiger KI-Klassifikation und optionaler LLM-Integration.
+**Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen Windows-PC, ohne Server, optional mit KI.**
 
+[![Release](https://img.shields.io/github/v/release/Josi-create/PDF_Sortier_Meister?label=Download&color=brightgreen)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Josi-create/PDF_Sortier_Meister/total)](https://github.com/Josi-create/PDF_Sortier_Meister/releases)
+![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?logo=windows)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Version](https://img.shields.io/badge/Version-0.10.0-orange.svg)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+
+![Hauptfenster: PDF-Vorschau links, Vorschläge und Metadaten in der Mitte, Zielordner rechts](docs/screenshots/hauptfenster.png)
+
+Der Scanner legt `scan_0042.pdf` ab — und dann? PDF Sortier Meister zeigt die Scans als
+Vorschau, schlägt Zielordner und einen sprechenden Dateinamen vor, schreibt Kategorie,
+Betrag und Steuerjahr als Metadaten **in die PDF selbst** und lernt aus jeder Entscheidung.
+Die Dateien bleiben ganz normale PDFs in ganz normalen Ordnern (auch OneDrive) — kein
+Datenbank-Silo, kein Docker, kein Server.
+
+> 🧪 **Beta — Tester gesucht!** Das Programm ist funktionsfähig und wird täglich benutzt,
+> aber bisher nur von wenigen Leuten. Wenn du Belege scannst und Ordnung willst, probier es
+> aus und sag mir, was nervt. Siehe [Beta-Tester werden](#-beta-tester-werden).
 
 ---
 
-## ⚡ Schnellinstallation für DAUs
+## ⚡ Installation in 3 Schritten
 
-**Kein Python. Keine Konsole. Kein Ärger.** Nur Doppelklick.
+**Kein Python. Keine Konsole. Nur Doppelklick.**
 
-### 📥 In 3 Schritten startklar
-
-1. **Herunterladen:** 👉 [**PDF_Sortier_Meister_v0.10.0.zip**](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_v0.10.0.zip) *(ca. 150 MB)*
+1. **Herunterladen:** 👉 [Neueste Version (`PDF_Sortier_Meister-vX.Y.Z-win64.zip`)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest) *(ca. 150 MB)*
 2. **Entpacken** irgendwo hin, z. B. nach `Dokumente\PDF_Sortier_Meister\`
-3. **Doppelklick** auf `PDF_Sortier_Meister.exe` → fertig! 🎉
+3. **Doppelklick** auf `PDF_Sortier_Meister.exe` — der Einrichtungs-Assistent führt durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
 
-> 💡 Beim ersten Start erscheint sofort der Splash-Screen, während im Hintergrund die KI-Komponenten geladen werden.
+> 🛡️ **Windows SmartScreen warnt?** *„Weitere Informationen“ → „Trotzdem ausführen“.* Das passiert bei
+> unsignierten Programmen — der Quellcode ist hier öffentlich einsehbar.
 >
-> 🛡️ **Windows SmartScreen warnt?** Klick auf *"Weitere Informationen"* → *"Trotzdem ausführen"*. Das passiert bei unsignierten Apps — der Code ist auf GitHub öffentlich einsehbar.
->
-> 🔗 Alle Versionen: [Releases-Seite](https://github.com/Josi-create/PDF_Sortier_Meister/releases)
+> 🔤 **Für gescannte Bilder ohne Textebene** (OCR) zusätzlich Tesseract installieren:
+> `winget install UB-Mannheim.TesseractOCR`. PDFs mit Textebene funktionieren ohne.
 
 ---
 
-## Features
+## Was das Programm kann
 
-### Kernfunktionen
+### Sortieren wie im Explorer, nur mit Vorschlägen
+- **Scan-Ordner als Dateimanager**: Ordner-Kacheln, Breadcrumb, `Alt+↑`, Doppelklick in Unterordner
+- **Zielordner-Vorschläge** aus dem PDF-Inhalt, lernend (TF-IDF, lokal, offline) — grün hervorgehoben.
+  Erkennt das Jahr im Dokument, wird z. B. neben `Steuer 2025/Belege` auch `Steuer 2026/Belege` angeboten
+- **Ein Klick** auf den Zielordner verschiebt, benennt um und speichert die Metadaten in einem Rutsch;
+  **„Nur verschieben“**-Schalter, wenn der Dateiname bleiben soll
+- **Drag & Drop**, Mehrfachauswahl (Shift/Ctrl+Klick), **Rückgängig** (`Ctrl+Z`), Kopie in mehrere Ordner
+- **Explorer-Kontextmenü**: Rechtsklick auf einen Ordner oder eine PDF → „PDF Sortier Meister von hier öffnen“
 
-- **PDF-Vorschau**: Thumbnails aller PDFs im Scan-Ordner als responsives Grid
-- **Intelligente Sortierung**: Vorschläge für Zielordner basierend auf PDF-Inhalt (TF-IDF + optional LLM)
-- **Lernfähig**: Das System lernt aus jeder Sortier- und Umbenennungsentscheidung und verbessert seine Vorschläge kontinuierlich
-- **Hierarchische Ordnerstruktur**: Vollständige Unterstützung für verschachtelte Ordner mit Baumansicht
-- **Intelligente Umbenennung**: Automatische Namensvorschläge aus:
-  - Erkannten Datumsangaben (deutsch: TT.MM.JJJJ, geschriebene Monate, ISO)
-  - Dokumentkategorien (Rechnung, Vertrag, Steuer, Versicherung, Bank, Gehalt, ...)
-  - Firmen- und Absendernamen (Regex-basiert)
-  - Gelernten Mustern aus der Umbenennungshistorie
-- **OCR-Unterstützung**: Texterkennung für gescannte Dokumente via Tesseract (Deutsch)
-- **Drag & Drop**: PDFs per Drag & Drop in Zielordner verschieben — mit visuellem Feedback
-- **Mehrfachauswahl**: Shift+Klick für Bereichsauswahl, Ctrl+Klick für Einzelauswahl; Batch-Verschieben und Batch-Umbenennung per LLM
-- **Kopieren**: Rechtsklick → "Kopie erstellen" für Ablage in mehreren Ordnern (z.B. Versicherung UND Steuer)
+### Umbenennen mit Verstand
+- Vorschläge aus erkanntem **Datum** (12.03.2026, „März 2026“, ISO), **Kategorie** (Rechnung, Vertrag,
+  Versicherung, Bank, Gehalt, Steuer …), **Absender** und den eigenen bisherigen Umbenennungen
+- Eigenes **Dateinamen-Muster** vorgeben, das die KI imitiert (`F2` öffnet den Dialog)
+- **PDF trennen**: alle Seiten einzeln oder einen Seitenbereich extrahieren
 
-### KI & Klassifikation
+### Metadaten in der PDF, nicht in einer Datenbank
+- Kategorie, Korrespondent, Betrag (netto/brutto), MwSt, IBAN, Steuerjahr, Zusammenfassung werden als
+  **XMP-Metadaten in die PDF geschrieben** — ISO-Standard, bleiben beim Kopieren/Umziehen erhalten
+- Zusätzlich ein lokaler **SQLite-Volltext-Index** (FTS5) für schnelle Suche
+- **Suche** (`Ctrl+F`) mit Filtern: Steuerjahr, Kategorie, Korrespondent, Datums- und Betragsbereich
+- **Steuerauswertung**: Jahressummen nach Kategorie (brutto/netto/absetzbar) mit **CSV-Export**
 
-- **Hybrid-Klassifikator**: Kombiniert lokales TF-IDF mit optionalem LLM
-  - Lokales Modell immer zuerst (schnell, kostenlos, offline)
-  - LLM automatisch hinzugezogen wenn lokale Konfidenz < 60%
-  - Gewichtung: 60% lokal + 40% LLM bei Übereinstimmung
-- **LLM-Provider** (optional):
-  - **Anthropic Claude** (Haiku, Sonnet, Opus)
-  - **OpenAI GPT** (GPT-4o-mini, GPT-4o, GPT-4-turbo)
-  - **Poe.com** (ein Account, viele Modelle: GPT, Claude, Gemini, Llama, Mistral)
-  - **Ollama** (lokal, kein API-Key, volle Datenschutzkontrolle — *neu in v0.10.0*)
-  - **OpenRouter** (ein API-Key für Modelle von OpenAI, Anthropic, Google, Meta, Mistral — *neu in v0.14.0*)
-- **Benutzerdefiniertes Dateinamen-Muster** *(neu in v0.10.0)*: zwei vorgefertigte Vorlagen oder freier Freitext-Template, das die LLM beim Benennen imitiert
-- **LLM Pre-Caching**: LLM-Vorschläge werden im Hintergrund vorgeladen
-- **Konfigurierbares Text-Limit**: 500–5000 Zeichen pro LLM-Anfrage (Default: 1500)
+### Korrespondenten und Regeln
+- **Korrespondenten-Verwaltung** (Absender mit Aliasen, Kategorie, Farbe) — Klick filtert die PDF-Liste
+- **WENN-DANN-Regeln**: z. B. *Korrespondent = Stadtwerke → Ordner `Wohnung/Nebenkosten`,
+  Dateiname `{datum} Stadtwerke {betrag_brutto}`* — mit Prioritäten und visuellem Editor
 
-### Performance & Caching
-
-- **Persistenter Analyse-Cache** (SQLite): Bereits analysierte PDFs werden nicht erneut verarbeitet — bleibt über Programmende erhalten
-- **Hintergrund-Worker** mit Prioritätswarteschlange: UI bleibt immer reaktionsfähig
-- **LRU-Thumbnail-Cache**: Flüssiges Scrollen durch viele PDFs
-
-### GUI
-
-- **Baumansicht** für hierarchische Ordnerstruktur mit Kontextmenü (Neuer Unterordner)
-- **Doppelklick** auf Ordner wechselt den Scan-Ordner
-- **Grün hervorgehobene** Vorschlagsordner mit dreizeiligen Ordnernamen (auch bei langen Pfaden)
-- **Erststart-Wizard** *(neu in v0.10.0)*: geführte 5-Seiten-Einrichtung beim ersten Start (Scan-Ordner, LLM-Provider, API-Key) — auch jederzeit über Extras → Einrichtungs-Assistent erneut aufrufbar
-- **"Nur verschieben"-Toggle** *(neu in v0.10.0)*: roter Schiebeschalter im Detail-Panel — wenn aktiv, wird beim Klick auf einen Zielordner nur verschoben, ohne Umbenennen und ohne Metadaten-Schreiben
-- **Helle Palette erzwungen** *(neu in v0.10.0)*: App ignoriert dunkle System-Themes und bleibt durchgängig lesbar (Fix für Issue #1)
-- **Statusleiste**: Trainingsstand, PDF-Anzahl, LLM-Status
-- **Einstellungsdialog**: LLM-Konfiguration, Caching, Debug-Optionen, Dateinamen-Muster-Tab
-- **Info-Dialog** (Hilfe → Über): Version, GitHub-Link, Lizenzhinweis, LLM-Status, Lernstatistik
-- **Integriertes Logging-System** mit rotierenden Log-Dateien (AppData/logs/)
-- **SplashScreen** beim Programmstart
+### KI — optional, lokal oder Cloud
+- Ohne KI: alles oben funktioniert mit dem lokalen Klassifikator
+- Mit KI: bessere Ordner- und Namensvorschläge, automatische Metadaten-Extraktion und ein
+  **Chat über die eigenen Dokumente** (*„Was habe ich 2025 für Strom gezahlt?“* — mit klickbaren Quellen)
+- Anbieter: **Ollama** (lokal, kein API-Key, startet bei Bedarf automatisch), **OpenRouter**,
+  **Anthropic Claude**, **OpenAI**, **Poe**
+- Der lokale Klassifikator hat immer Vorrang; die KI wird nur bei niedriger Konfidenz hinzugezogen
 
 ---
 
-## Geplante Features (Roadmap)
+## 🔒 Datenschutz
 
-### UX & Umbenennungsdialog (Phase 13 + 10)
+Das ist ein Desktop-Programm. Ohne konfigurierten Cloud-Anbieter verlässt **nichts** den Rechner.
 
-- **Undo für Verschiebungen**: History-Stack, Ctrl+Z oder Rechtsklick → "Rückgängig"
-- **Umbenennung rückgängig**: Rechtsklick auf Thumbnail → Original-Dateiname wiederherstellen
-- **De-Selektion**: Klick auf leere Fläche oder nochmaliges Anklicken hebt Selektion auf
-- **F2 für Umbenennen**: Windows-Standard-Shortcut für ausgewähltes PDF
-- **Umbenennungsdialog**: LLM-Modell direkt im Dialog wählen + "Neu generieren"-Button
-- **3 LLM-Vorschläge** statt ML-Vorschläge im Umbenennungsdialog (ML bleibt intern für Sortierung)
+| Einstellung | Was den Rechner verlässt |
+|---|---|
+| Kein KI-Anbieter (Standard) | nichts |
+| **Ollama** (lokal) | nichts — das Modell läuft auf deinem PC |
+| Cloud-Anbieter (OpenRouter, Claude, OpenAI, Poe) | ein **Textauszug** der PDF (einstellbar 500–5000 Zeichen, Standard 1500) — *nur* nach ausdrücklicher Einwilligung in den Einstellungen; die PDF-Datei selbst wird nie hochgeladen |
 
-### Metadaten & Suche (Phase 16–18)
-
-- **PDF-XMP-Metadaten schreiben**: Schlagworte, Kategorie, Korrespondent, Steuerjahr, Betrag direkt in die PDF-Datei einbetten — portabel, ISO-Standard, unabhängig vom Programm (Dual-Layer mit SQLite-Index)
-- **Metadaten beim Umbenennen**: LLM schlägt gleichzeitig Steuerjahr, Betrag, Kategorie vor; Lerneffekt verbessert Genauigkeit über Zeit
-- **Volltext-Suche**: SQLite FTS5-Index mit Filterleiste (Steuerjahr, Kategorie, Datumsbereich, Betrag)
-- **Buchhaltungs-/Steuerfelder**: Editierbare Metadaten-Sidebar; Steuer-Auswertung (Summen pro Jahr, CSV-Export)
-
-### KI-Erweiterungen (Phase 9, 19–21)
-
-- **Semi-Auto Workflow**: "(Semi)-Auto Rename"-Button für Batch-Umbenennung mit LLM-Bestätigung
-- **RAG-Chat**: Dokumente per natürlicher Sprache befragen (*"Was habe ich 2023 für Strom gezahlt?"*)
-- **Korrespondenten-Verwaltung**: Bekannte Absender als persistente Kontakte, filterbar
-- **Automatisierungs-Regeln**: WENN/DANN-Regeln für bekannte Absender (vollautomatische Sortierung)
-
-### Weitere Features (Phase 14–15)
-
-- **Layout**: Responsive Grid-Spalten, Explorer-ähnliche Listenansicht, Konfidenz-Visualisierung
-- **Explorer-Gefühl**: Scan-Ordner-Panel als Dateimanager ("..", Unterordner), Zielordner wie im Windows-Explorer
+Alle Daten (Konfiguration, Lernhistorie, Index, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
+Es gibt keine Telemetrie und keinen Auto-Update-Mechanismus.
 
 ---
 
-## Installation
+## 🧪 Beta-Tester werden
 
-### Voraussetzungen
+Ich suche Leute, die das Programm mit *ihren* Scans ausprobieren — Privathaushalt, Selbstständige,
+Buchhaltung, Steuerbüro. Du brauchst keine Technikkenntnisse.
 
-- Python 3.10 oder höher
-- Windows 10/11
+**So geht's:**
+1. ZIP herunterladen, entpacken, starten (siehe oben)
+2. **Mit Kopien testen.** Das Programm verschiebt und benennt Dateien wirklich um. `Ctrl+Z` macht das
+   rückgängig, aber für den Anfang: Kopiere einen Ordner mit Scans und arbeite darauf.
+3. Ein paar Tage normal damit arbeiten
+4. Rückmeldung geben — alles ist willkommen: Abstürze, „das habe ich nicht verstanden“, „das fehlt mir“
 
-### Abhängigkeiten installieren
+**Rückmeldung:**
+- 🐛 [Fehler melden](https://github.com/Josi-create/PDF_Sortier_Meister/issues/new?template=bug_report.yml)
+- 💡 [Wunsch / Idee](https://github.com/Josi-create/PDF_Sortier_Meister/issues/new?template=feature_request.yml)
+- Bei Fehlern hilft die Log-Datei enorm: `%APPDATA%\PDF_Sortier_Meister\logs\pdf_sortier_meister.log`
+  (im Explorer die Adresszeile einfügen). Die Datei enthält Dateinamen, aber keine Dokumentinhalte oder API-Keys.
+
+---
+
+## Aus dem Quellcode starten (Entwickler)
 
 ```bash
-git clone https://github.com/YOURUSERNAME/PDF_Sortier_Meister.git
+git clone https://github.com/Josi-create/PDF_Sortier_Meister.git
 cd PDF_Sortier_Meister
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-### OCR (optional, für gescannte Dokumente)
-
-```bash
-winget install UB-Mannheim.TesseractOCR
-```
-
-### LLM-Integration (optional)
-
-```bash
-pip install anthropic openai
-```
-
-### Starten
-
-```bash
 python run.py
 ```
 
----
+- Python 3.10+, Windows 10/11
+- OCR optional: `winget install UB-Mannheim.TesseractOCR`
+- Tests: `python -m pytest tests -q` (383 Tests, pytest-qt)
+- Windows-Build: `build.bat` (PyInstaller, siehe `pdf_sortier_meister.spec`)
 
-## Verwendung
-
-1. **Scan-Ordner wählen**: Toolbar → "Scan-Ordner" → Ordner mit gescannten PDFs auswählen
-2. **Zielordner hinzufügen**: "+ Zielordner" oder Rechtsklick in der Baumansicht → "Neuer Unterordner"
-3. **PDF auswählen**: Klick auf Thumbnail → Sortiervorschläge erscheinen (grün hervorgehoben)
-4. **Sortieren**:
-   - Klick auf einen vorgeschlagenen Ordner, oder
-   - Drag & Drop auf beliebigen Ordner
-5. **Umbenennen**: Rechtsklick → "Umbenennen..." → KI-Vorschläge mit Konfidenz auswählen
-6. **LLM konfigurieren**: Extras → Einstellungen → KI-Assistent
-
-Das System lernt aus jeder Entscheidung und verbessert seine Vorschläge kontinuierlich.
+Architektur und Entscheidungen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
+Versionshistorie: [CHANGELOG.md](CHANGELOG.md) ·
+Offene Vorhaben: [Issues](https://github.com/Josi-create/PDF_Sortier_Meister/issues)
 
 ---
 
-## Projektstruktur
+## Abgrenzung zu paperless-ngx
 
-```
-PDF_Sortier_Meister/
-├── run.py                          # Startskript
-├── pyproject.toml                  # Paket-Konfiguration / PyInstaller
-├── src/
-│   ├── main.py                     # Haupteinstiegspunkt (v0.10.0)
-│   ├── gui/
-│   │   ├── main_window.py          # Hauptfenster
-│   │   ├── pdf_thumbnail.py        # Thumbnail-Widget (Drag & Drop)
-│   │   ├── folder_widget.py        # Zielordner-Widget
-│   │   ├── folder_tree_widget.py   # Hierarchische Baumansicht
-│   │   ├── rename_dialog.py        # Umbenennungsdialog mit KI-Vorschlägen
-│   │   ├── detail_panel.py         # Detail-Panel mit Move-Only-Toggle
-│   │   ├── setup_wizard.py         # Erststart-Wizard (v0.10.0)
-│   │   └── settings_dialog.py      # Einstellungen, LLM, Dateinamen-Muster
-│   ├── core/
-│   │   ├── pdf_analyzer.py         # PDF-Analyse, OCR, Thumbnails, Metadaten
-│   │   ├── pdf_cache.py            # Persistenter Cache + LLM Pre-Caching
-│   │   └── file_manager.py         # Datei- und Ordner-Operationen
-│   ├── ml/
-│   │   ├── classifier.py           # TF-IDF Klassifikator (lernfähig)
-│   │   ├── hybrid_classifier.py    # Hybrid TF-IDF + LLM
-│   │   ├── llm_provider.py         # Abstrakte Provider-Schnittstelle
-│   │   ├── claude_provider.py      # Anthropic Claude
-│   │   ├── openai_provider.py      # OpenAI GPT
-│   │   ├── poe_provider.py         # Poe.com (Multi-Modell)
-│   │   └── ollama_provider.py      # Ollama (lokal, v0.10.0)
-│   └── utils/
-│       ├── config.py               # Konfigurationsverwaltung
-│       ├── database.py             # SQLite (Sortier- & Umbenennungshistorie)
-│       └── logging_config.py       # Logging-System
-```
+paperless-ngx ist ein Server-System mit eigener Dokumentenablage; PDF Sortier Meister ist ein
+Desktop-Werkzeug, das **deine bestehende Ordnerstruktur** beibehält und die Metadaten in die PDFs
+selbst schreibt. Beides lässt sich kombinieren (erst hier sortieren, dann in paperless importieren).
+Details: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md)
 
 ---
 
@@ -206,38 +148,25 @@ PDF_Sortier_Meister/
 
 | Bibliothek | Zweck |
 |---|---|
-| PyQt6 | Moderne Desktop-GUI |
-| PyMuPDF (fitz) | PDF-Rendering, Textextraktion, Metadaten |
-| pytesseract | OCR für gescannte Dokumente (Deutsch) |
-| scikit-learn | TF-IDF Vektorisierung, Kosinus-Ähnlichkeit |
-| SQLAlchemy | ORM für SQLite-Lernhistorie |
-| anthropic | Claude API (optional) |
-| openai | OpenAI / Poe.com API (optional) |
-| pikepdf | PDF-XMP-Metadaten schreiben (geplant, Phase 16) |
-
----
-
-## Vergleich mit paperless-ngx
-
-Siehe [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) für eine detaillierte Gegenüberstellung beider Programme.
+| PyQt6 | Desktop-GUI |
+| PyMuPDF | PDF-Rendering, Textextraktion |
+| pikepdf | XMP-Metadaten in PDFs schreiben |
+| pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch) |
+| scikit-learn | TF-IDF-Klassifikator (lokal, lernend) |
+| SQLAlchemy + SQLite FTS5 | Lernhistorie, Metadaten-Index, Volltextsuche |
+| anthropic / openai (optional) | Cloud-KI-Anbieter |
 
 ---
 
 ## Lizenz
 
-**GPL-3.0-or-later** — siehe [LICENSE](LICENSE)
+**GPL-3.0-or-later** — siehe [LICENSE](LICENSE). Freie Software: nutzen, weitergeben, verändern.
 
-Dieses Programm ist Freie/Open-Source-Software und steht unter der GNU General
-Public License v3 (oder neuer). Du darfst es nutzen, weitergeben und verändern.
-
-> **Warum GPL statt MIT?** Zwei Kernbibliotheken sind Copyleft: **PyQt6** (GPLv3)
-> und **PyMuPDF** (AGPLv3). Ein daraus gebautes Gesamtwerk muss dieselbe Freiheit
-> weitergeben — GPL-3.0-or-later ist die korrekte, ehrliche Lizenz dafür.
-
-### Dritt-Bibliotheken (Lizenzübersicht)
+> Warum GPL? Zwei Kernbibliotheken sind Copyleft — **PyQt6** (GPLv3) und **PyMuPDF** (AGPLv3).
+> Ein daraus gebautes Programm muss dieselbe Freiheit weitergeben.
 
 | Bibliothek | Lizenz |
-|------------|--------|
+|---|---|
 | PyQt6 | GPL v3 / kommerziell (Riverbank) |
 | PyMuPDF | AGPL v3 / kommerziell (Artifex) |
 | pikepdf | MPL-2.0 |

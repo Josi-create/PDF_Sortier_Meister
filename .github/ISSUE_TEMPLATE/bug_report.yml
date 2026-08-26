@@ -1,0 +1,60 @@
+name: 🐛 Fehler melden
+description: Etwas funktioniert nicht, stürzt ab oder verhält sich unerwartet
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Melden! Je konkreter, desto schneller lässt es sich beheben.
+        Keine Sorge um die Form — Stichworte reichen.
+  - type: textarea
+    id: what
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, was hast du erwartet, was kam stattdessen?
+      placeholder: |
+        1. PDF im Scan-Ordner angeklickt
+        2. Rechts auf "Steuer 2025/Belege" geklickt
+        3. Erwartet: Datei wird verschoben. Stattdessen: Fehlermeldung "..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Steht unter Hilfe → Über, oder im Namen der ZIP-Datei
+      placeholder: z. B. 0.15.0
+    validations:
+      required: true
+  - type: dropdown
+    id: llm
+    attributes:
+      label: KI-Anbieter
+      options:
+        - Keiner
+        - Ollama (lokal)
+        - OpenRouter
+        - Anthropic Claude
+        - OpenAI
+        - Poe
+        - Weiß ich nicht
+    validations:
+      required: true
+  - type: dropdown
+    id: storage
+    attributes:
+      label: Wo liegen die Ordner?
+      options:
+        - Lokale Festplatte
+        - OneDrive
+        - Netzlaufwerk / NAS
+        - Andere Cloud (Dropbox, Google Drive, ...)
+        - Weiß ich nicht
+  - type: textarea
+    id: log
+    attributes:
+      label: Log-Auszug (optional, aber sehr hilfreich)
+      description: |
+        Datei: `%APPDATA%\PDF_Sortier_Meister\logs\pdf_sortier_meister.log` (Pfad in die Explorer-Adresszeile einfügen).
+        Die letzten 30–50 Zeilen reichen meistens. Die Datei enthält Dateinamen, aber keine Dokumentinhalte oder API-Keys.
+      render: text
