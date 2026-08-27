@@ -25,12 +25,18 @@ Datenbank-Silo, kein Docker, kein Server.
 
 ## ⚡ Installation
 
-1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup_X.Y.Z.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
+1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_Setup.exe) — dieser Link zeigt immer auf die **neueste Version**
 2. **Doppelklick** auf die Setup-Datei → Weiter → Fertig
 3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
 
 Texterkennung (OCR, Tesseract) ist **enthalten** — Scans ohne Textebene funktionieren ohne weitere Installation.
-Deinstallation wie gewohnt über *Apps & Features*; eine neue Version wird einfach drüberinstalliert.
+
+**Update:** Neue Version einfach über die alte drüberinstallieren (gleicher Link oben) — Einstellungen und
+Lerndaten bleiben dabei erhalten, Reste der Vorversion werden automatisch aufgeräumt.
+
+**Deinstallation:** Wie gewohnt über *Windows-Einstellungen → Apps* (bzw. *Apps & Features*). Einstellungen und
+Lerndaten bleiben dabei absichtlich erhalten (praktisch bei Neuinstallation); wer alles restlos entfernen
+möchte, löscht danach noch den Ordner `%APPDATA%\PDF_Sortier_Meister`.
 
 > 🛡️ **Windows SmartScreen warnt?** *„Weitere Informationen“ → „Trotzdem ausführen“.* Das passiert bei
 > unsignierten Programmen — der Quellcode ist hier öffentlich einsehbar.

@@ -28,7 +28,10 @@ DefaultDirName={autopf}\PDF Sortier Meister
 DefaultGroupName=PDF Sortier Meister
 DisableProgramGroupPage=yes
 OutputDir=dist\installer
-OutputBaseFilename=PDF_Sortier_Meister_Setup_{#MyAppVersion}
+; Fester Dateiname (ohne Version), damit der GitHub-Link
+; releases/latest/download/PDF_Sortier_Meister_Setup.exe immer auf die
+; neueste Version zeigt (Issue #49). Die Version steckt in AppVersion.
+OutputBaseFilename=PDF_Sortier_Meister_Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -38,6 +41,12 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=icon.ico
+
+[InstallDelete]
+; Beim Drueber-Installieren die PyInstaller-Dateien der Vorversion
+; entfernen, damit keine veralteten DLLs/Module zurueckbleiben (Issue #48).
+; Nutzerdaten liegen in %APPDATA%\PDF_Sortier_Meister und bleiben unberuehrt.
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"

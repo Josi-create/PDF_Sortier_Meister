@@ -3,7 +3,9 @@ Baut den Windows-Installer (Inno Setup) aus dist/PDF_Sortier_Meister/.
 
 Liest die Version aus src/main.py (__version__), sucht ISCC.exe und ruft
     ISCC.exe /DMyAppVersion=<version> installer.iss
-auf. Ergebnis: dist/installer/PDF_Sortier_Meister_Setup_<version>.exe
+auf. Ergebnis: dist/installer/PDF_Sortier_Meister_Setup.exe
+(fester Name ohne Version, damit der GitHub-releases/latest-Direktlink
+stabil bleibt, Issue #49; die Version steckt in den Datei-Eigenschaften)
 
 Aufruf (nach build.bat bzw. PyInstaller):
     venv\\Scripts\\python.exe scripts\\build_installer.py
@@ -54,7 +56,7 @@ def main() -> None:
     )
     if result.returncode != 0:
         sys.exit(result.returncode)
-    print(f"\nInstaller: dist\\installer\\PDF_Sortier_Meister_Setup_{version}.exe")
+    print("\nInstaller: dist\\installer\\PDF_Sortier_Meister_Setup.exe")
 
 
 if __name__ == "__main__":
