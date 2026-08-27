@@ -85,7 +85,9 @@ class DetailPanel(QWidget):
         # Scroll-Bereich für den gesamten Inhalt
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # AsNeeded statt AlwaysOff: Wenn die Felder nicht in die Spalte passen
+        # (z.B. 125% Windows-Skalierung), wird sonst rechts abgeschnitten (Issue #50)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         container = QWidget()
         layout = QVBoxLayout(container)

@@ -219,6 +219,9 @@ def main():
 
     # Beim ersten Start: Einrichtungs-Wizard anzeigen
     if not config.get_scan_folder():
+        # Splash sofort schliessen: ohne Scan-Ordner feuert thumbnails_loaded
+        # nie und der Splash laege 15s ueber dem Wizard (Issue #50)
+        close_splash()
         wizard = SetupWizard(window)
         wizard.exec()
         # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner aktualisieren
