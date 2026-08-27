@@ -666,13 +666,13 @@ class MainWindow(QMainWindow):
             return
         parts = []
         if analyzed < total:
-            parts.append(f"Analyse: {analyzed}/{total}")
+            parts.append(f"Durchsuche PDFs… {analyzed}/{total}")
         llm_active = (
             self.hybrid_classifier.is_llm_available()
             and self.config.get("llm_precache_enabled", True)
         )
         if llm_active and llm_done < total:
-            parts.append(f"KI-Vorschläge: {llm_done}/{total}")
+            parts.append(f"KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen")
         if self._last_llm_error:
             parts.append("⚠ Fehler")
         self.cache_status_label.setText(" | ".join(parts))
