@@ -259,16 +259,9 @@ class PDFThumbnailWidget(QFrame):
 
     def _open_pdf(self):
         """Öffnet die PDF mit dem Standardprogramm."""
-        import os
-        import subprocess
-        import sys
+        from src.utils.platform_paths import open_with_default_app
 
-        if sys.platform == 'win32':
-            os.startfile(str(self.pdf_path))
-        elif sys.platform == 'darwin':
-            subprocess.run(['open', str(self.pdf_path)])
-        else:
-            subprocess.run(['xdg-open', str(self.pdf_path)])
+        open_with_default_app(self.pdf_path)
 
     def cleanup(self):
         """Bereinigt Ressourcen."""

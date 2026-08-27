@@ -34,9 +34,17 @@ _WINDOWS_RELATIVE_PATHS = [
     "Programs/Ollama/ollama.exe",
 ]
 
+# Standard-Installationsorte unter macOS (Ollama.app bzw. Homebrew).
+# Aus dem Finder gestartete Apps haben Homebrew nicht im PATH.
+_MACOS_PATHS = [
+    "/Applications/Ollama.app/Contents/Resources/ollama",
+    "/opt/homebrew/bin/ollama",
+    "/usr/local/bin/ollama",
+]
+
 
 def find_ollama_executable() -> Optional[str]:
-    """Liefert den Pfad zur ollama.exe oder None, wenn nicht gefunden."""
+    """Liefert den Pfad zur Ollama-Binary oder None, wenn nicht gefunden."""
     if sys.platform == "win32":
         local_appdata = os.environ.get("LOCALAPPDATA", "")
         if local_appdata:
@@ -44,6 +52,10 @@ def find_ollama_executable() -> Optional[str]:
                 p = Path(local_appdata) / rel
                 if p.exists():
                     return str(p)
+    elif sys.platform == "darwin":
+        for candidate in _MACOS_PATHS:
+            if Path(candidate).exists():
+                return candidate
 
     # Fallback: ollama im PATH
     found = shutil.which("ollama")
@@ -162,7 +174,7 @@ def _start_server_process(exe_path: str) -> bool:
             )
         return True
     except OSError as e:
-        logger.warning(f"Konnte ollama.exe nicht starten: {e}")
+        logger.warning(f"Konnte Ollama nicht starten: {e}")
         return False
 
 
@@ -185,12 +197,12 @@ def ensure_running(base_url: str, max_wait: float = 10.0) -> tuple[bool, str]:
     exe = find_ollama_executable()
     if not exe:
         return False, (
-            "ollama.exe wurde nicht gefunden. Bitte Ollama installieren "
+            "Ollama wurde nicht gefunden. Bitte Ollama installieren "
             "(https://ollama.com) oder das Programm in den PATH legen."
         )
 
     if not _start_server_process(exe):
-        return False, f"ollama.exe ({exe}) konnte nicht gestartet werden."
+        return False, f"Ollama ({exe}) konnte nicht gestartet werden."
 
     logger.info(f"Ollama-Server gestartet: {exe}")
 

@@ -1060,7 +1060,7 @@ class MainWindow(QMainWindow):
 
         up_action = QAction("Übergeordneter Ordner", self)
         up_action.setShortcut("Alt+Up")
-        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Windows-Explorer)")
+        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Dateimanager)")
         up_action.triggered.connect(self.on_navigate_up)
         view_menu.addAction(up_action)
 
@@ -1952,8 +1952,7 @@ class MainWindow(QMainWindow):
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
         # PDF mit Standardprogramm öffnen
-        import os
-        os.startfile(str(pdf_path))
+        self._open_pdf_external(str(pdf_path))
 
     def _write_pdf_metadata(
         self,

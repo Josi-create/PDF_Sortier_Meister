@@ -438,8 +438,9 @@ class FolderTreeWidget(QWidget):
         goto_action = menu.addAction("📁 Ordner links öffnen")
         goto_action.triggered.connect(lambda: self.folder_double_clicked.emit(folder_path))
 
-        # Im Explorer öffnen
-        open_action = menu.addAction("📂 Im Windows-Explorer öffnen")
+        # Im Dateimanager öffnen
+        from src.utils.platform_paths import file_manager_name
+        open_action = menu.addAction(f"📂 Im {file_manager_name()} öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer(folder_path))
 
         menu.addSeparator()
@@ -458,17 +459,10 @@ class FolderTreeWidget(QWidget):
         menu.exec(self.tree.mapToGlobal(position))
 
     def _open_in_explorer(self, folder_path: Path):
-        """Öffnet den Ordner im Explorer."""
-        import os
-        import subprocess
-        import sys
+        """Öffnet den Ordner im Dateimanager des Systems."""
+        from src.utils.platform_paths import open_with_default_app
 
-        if sys.platform == 'win32':
-            os.startfile(str(folder_path))
-        elif sys.platform == 'darwin':
-            subprocess.run(['open', str(folder_path)])
-        else:
-            subprocess.run(['xdg-open', str(folder_path)])
+        open_with_default_app(folder_path)
 
     def _create_subfolder(self, parent_folder: Path):
         """Erstellt einen neuen Unterordner."""

@@ -3,7 +3,9 @@
   "permissions": {
     "allow": [
       "Bash(git push origin main)",
-      "Bash(git push origin main:*)"
+      "Bash(git push origin main:*)",
+      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m pytest tests/test_platform_paths.py tests/test_tesseract_locator.py -q 2>&1)",
+      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m pytest -q 2>&1)"
     ]
   }
 }
