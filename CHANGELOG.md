@@ -7,6 +7,43 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-27
+
+### Hinzugefuegt
+- **Dateiname aus Ordnerstruktur** (Issue #42, Opt-in unter Einstellungen >
+  Dateinamen-Muster): Beim Verschieben wird der Dateiname nach einer konfigurierbaren
+  Vorlage aus dem Zielordner-Pfad aufgebaut. Platzhalter: `{initialen}`,
+  `{ordnernummern}` (Nummernkette aus dem Zielordner-Namen, z.B. "069-03-05"),
+  `{ordnerpfad}`, `{datum}` (JJJJMMTT), `{datum_iso}`, `{text}` (bisheriger Name ohne
+  Datum). Default-Vorlage `{initialen} {ordnernummern}-{datum}-{text}` ergibt z.B.
+  `JK 069-03-05-20260512-Rechnung.pdf` (Kernlogik: `src/core/folder_naming.py`).
+- **Tooltips fuer den Kern-Workflow** (Issue #51): Zielordner-Baum und -Kacheln
+  erklaeren Einfachklick (PDF verschieben) vs. Doppelklick (Ordner oeffnen);
+  Thumbnails, Metadaten-Felder, Filterleiste und Tabs haben erklaerende Tooltips.
+- **"Erste Schritte"-Hinweis** (Issue #51): einmaliger Dialog nach dem Start erklaert
+  den 3-Spalten-Workflow, mit "Nicht mehr anzeigen"-Checkbox; jederzeit erneut ueber
+  Hilfe > Erste Schritte.
+
+### Behoben (Beta-Feedback, Issue #50)
+- Die "uebergeordneter Ordner"-Kachel (`..`) reagiert jetzt auf Einfachklick (mit
+  Zeitfenster-Guard, damit ein Doppelklick nicht zwei Ebenen springt).
+- 125% Windows-Skalierung: Das PDF-Raster passt die Spaltenzahl der Panelbreite an
+  (statt fix 3 Spalten, die abgeschnitten wurden); horizontale Scrollbalken erscheinen
+  bei Bedarf (linkes Panel und Detail-Panel).
+- Fenstergeometrie: Der maximierte Zustand wird als eigenes Flag gespeichert, die
+  Normalgroesse nicht mehr mit der Bildschirmgroesse ueberschrieben und beim Start auf
+  den verfuegbaren Bildschirm begrenzt ("Titelleiste breiter als das Fenster").
+- Splashscreen wird beim Erststart geschlossen, bevor der Einrichtungs-Assistent
+  erscheint (lag vorher bis zu 15 s darueber).
+
+### Geaendert
+- Installer heisst jetzt fest `PDF_Sortier_Meister_Setup.exe`, damit der Link
+  `releases/latest/download/PDF_Sortier_Meister_Setup.exe` immer auf die neueste
+  Version zeigt (Issue #49).
+- Beim Drueber-Installieren entfernt der Installer die `_internal`-Dateien der
+  Vorversion; README dokumentiert Update und Deinstallation inkl. verbleibender
+  Nutzerdaten in `%APPDATA%\PDF_Sortier_Meister` (Issue #48).
+
 ## [0.16.0] - 2026-08-26
 
 ### Hinzugefuegt
