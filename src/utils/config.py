@@ -5,10 +5,11 @@ Konfigurationsverwaltung für PDF Sortier Meister
 import copy
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from src.utils.platform_paths import get_app_data_dir
 
 logger = logging.getLogger("pdf_sortier_meister.config")
 
@@ -97,9 +98,7 @@ class Config:
                         Standard: AppData/PDF_Sortier_Meister/config.json
         """
         if config_path is None:
-            app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
-            config_dir = Path(app_data) / "PDF_Sortier_Meister"
-            config_dir.mkdir(parents=True, exist_ok=True)
+            config_dir = get_app_data_dir()
             self.config_path = config_dir / "config.json"
         else:
             self.config_path = Path(config_path)

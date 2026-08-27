@@ -501,10 +501,10 @@ class DetailPanel(QWidget):
         file_path = item.data(Qt.ItemDataRole.UserRole)
         if file_path:
             try:
-                import os
+                from src.utils.platform_paths import open_with_default_app
                 path = Path(file_path)
                 if path.exists():
-                    os.startfile(str(path))
+                    open_with_default_app(path)
                 else:
                     from PyQt6.QtWidgets import QMessageBox
                     QMessageBox.warning(

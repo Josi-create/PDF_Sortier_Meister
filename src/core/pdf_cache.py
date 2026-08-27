@@ -132,7 +132,8 @@ class PDFAnalysisWorker(QThread):
                         self._current_pdf = None
 
             except Exception:
-                pass  # Worker soll nicht abstürzen
+                # Worker soll nicht abstürzen, aber Fehler nicht verschlucken
+                logger.exception("PDFAnalysisWorker: unerwarteter Fehler")
 
 
 class LLMSuggestionWorker(QThread):
@@ -234,7 +235,8 @@ class LLMSuggestionWorker(QThread):
                         self._current_pdf = None
 
             except Exception:
-                pass  # Worker soll nicht abstürzen
+                # Worker soll nicht abstürzen, aber Fehler nicht verschlucken
+                logger.exception("LLMSuggestionWorker: unerwarteter Fehler")
 
 
 class PDFCache(QObject):
@@ -689,6 +691,7 @@ class PDFCache(QObject):
 
     def _on_analysis_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn eine Analyse fehlschlägt."""
+        logger.warning(f"PDF-Analyse fehlgeschlagen für {pdf_path.name}: {error}")
         with self._lock:
             # Callbacks mit leerem Ergebnis aufrufen
             callbacks = self._pending_callbacks.pop(pdf_path, [])

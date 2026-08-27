@@ -6,11 +6,12 @@ Logs werden sowohl in die Konsole als auch in eine Datei geschrieben.
 """
 
 import logging
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
+
+from src.utils.platform_paths import get_app_data_dir
 
 
 # Globale Logger-Instanz
@@ -19,8 +20,7 @@ _logger: logging.Logger | None = None
 
 def get_log_directory() -> Path:
     """Gibt das Log-Verzeichnis zurück (im AppData-Ordner)."""
-    app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
-    log_dir = Path(app_data) / "PDF_Sortier_Meister" / "logs"
+    log_dir = get_app_data_dir() / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 

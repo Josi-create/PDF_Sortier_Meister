@@ -17,6 +17,14 @@ if errorlevel 1 (
     pip install pyinstaller
 )
 
+REM Die LLM-Pakete sind in requirements.txt optional, muessen im Release aber
+REM enthalten sein - sonst fehlt die Cloud-KI (OpenRouter/OpenAI/Claude) im Build.
+python -c "import openai, anthropic" 2>NUL
+if errorlevel 1 (
+    echo LLM-Pakete nicht gefunden. Installiere openai + anthropic...
+    pip install openai anthropic
+)
+
 REM Alte Build-Artefakte loeschen
 echo Loesche alte Build-Dateien...
 if exist "build" rmdir /s /q "build"

@@ -152,8 +152,9 @@ class FolderWidget(QFrame):
         """Zeigt das Kontextmenü an."""
         menu = QMenu(self)
 
-        # Im Explorer öffnen
-        open_action = menu.addAction("Im Explorer öffnen")
+        # Im Dateimanager öffnen
+        from src.utils.platform_paths import file_manager_name
+        open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer())
 
         menu.addSeparator()
@@ -165,17 +166,10 @@ class FolderWidget(QFrame):
         menu.exec(event.globalPos())
 
     def _open_in_explorer(self):
-        """Öffnet den Ordner im Explorer."""
-        import os
-        import subprocess
-        import sys
+        """Öffnet den Ordner im Dateimanager des Systems."""
+        from src.utils.platform_paths import open_with_default_app
 
-        if sys.platform == 'win32':
-            os.startfile(str(self.folder_path))
-        elif sys.platform == 'darwin':
-            subprocess.run(['open', str(self.folder_path)])
-        else:
-            subprocess.run(['xdg-open', str(self.folder_path)])
+        open_with_default_app(self.folder_path)
 
     # Drag & Drop Unterstützung
     def dragEnterEvent(self, event: QDragEnterEvent):

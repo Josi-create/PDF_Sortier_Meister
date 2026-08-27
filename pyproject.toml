@@ -19,6 +19,7 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -49,6 +50,8 @@ dev = [
     "pyinstaller>=6.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    # Build-Zeit-Abhaengigkeit von scripts/prepare_tesseract.py (DLL-Analyse)
+    "pefile>=2023.2.7; sys_platform == 'win32'",
 ]
 all = [
     "pdf-sortier-meister[llm,dev]",
