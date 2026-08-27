@@ -79,6 +79,11 @@ class PDFThumbnailWidget(QFrame):
         # Hover-Effekt
         self.setMouseTracking(True)
         self._update_style()
+        self.setToolTip(
+            "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
+            "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
+            "Doppelklick öffnet die PDF im Standardprogramm."
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)

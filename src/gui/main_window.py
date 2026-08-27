@@ -168,6 +168,9 @@ class MainWindow(QMainWindow):
         splitter.setSizes([300, 400, 300])
 
         self.center_tabs.addTab(preview_container, "Vorschau")
+        self.center_tabs.setTabToolTip(
+            0, "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
+        )
 
         # Tab "Chat": RAG-Chat (Phase 19 / M2)
         self.chat_view = ChatView(
@@ -177,6 +180,7 @@ class MainWindow(QMainWindow):
         )
         self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
         self.center_tabs.addTab(self.chat_view, "Chat")
+        self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
         # LLM-Status aktualisieren, wenn der Chat-Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
@@ -362,6 +366,9 @@ class MainWindow(QMainWindow):
         ft_layout.addWidget(self.folder_container)
 
         self.right_panel_tabs.addTab(folder_tree_container, "Zielordner")
+        self.right_panel_tabs.setTabToolTip(
+            0, "Zielordner-Baum: hier klicken, um die ausgewählte PDF zu verschieben"
+        )
 
         # --- Tab "Korrespondenten" (Phase 20 / Issue #21) ---
         self.korrespondent_sidebar = KorrespondentSidebar(self.db, parent=self)
@@ -369,6 +376,9 @@ class MainWindow(QMainWindow):
             self._on_korrespondent_sidebar_selected
         )
         self.right_panel_tabs.addTab(self.korrespondent_sidebar, "Korrespondenten")
+        self.right_panel_tabs.setTabToolTip(
+            1, "Bekannte Korrespondenten - anklicken filtert die Dokumente danach"
+        )
 
         layout.addWidget(self.right_panel_tabs, stretch=1)
 
@@ -1081,6 +1091,11 @@ class MainWindow(QMainWindow):
         # Hilfe-Menü
         help_menu = menubar.addMenu("Hilfe")
 
+        first_steps_action = QAction("Erste Schritte", self)
+        first_steps_action.setToolTip("Zeigt die Kurzanleitung zum 3-Spalten-Workflow erneut an")
+        first_steps_action.triggered.connect(lambda: self.show_first_steps_hint(force=True))
+        help_menu.addAction(first_steps_action)
+
         about_action = QAction("Über PDF Sortier Meister", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1531,7 +1546,8 @@ class MainWindow(QMainWindow):
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
             tooltip += f"{suggestion.reason}\n"
-            tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%"
+            tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
+            tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
             widget.setToolTip(tooltip)
 
             # Konfidenz im Namen anzeigen
@@ -3066,27 +3082,32 @@ class MainWindow(QMainWindow):
         self.filter_steuerjahr = QComboBox()
         self.filter_steuerjahr.addItem("Alle")
         self.filter_steuerjahr.setMinimumWidth(90)
+        self.filter_steuerjahr.setToolTip("Nur Dokumente aus diesem Steuerjahr anzeigen")
         layout.addWidget(self.filter_steuerjahr, 0, 1)
 
         layout.addWidget(QLabel("Kategorie:"), 0, 2)
         self.filter_kategorie = QComboBox()
         self.filter_kategorie.addItem("Alle")
         self.filter_kategorie.setMinimumWidth(130)
+        self.filter_kategorie.setToolTip("Nur Dokumente dieser Kategorie anzeigen")
         layout.addWidget(self.filter_kategorie, 0, 3)
 
         layout.addWidget(QLabel("Korrespondent:"), 0, 4)
         self.filter_korrespondent = QComboBox()
         self.filter_korrespondent.addItem("Alle")
         self.filter_korrespondent.setMinimumWidth(150)
+        self.filter_korrespondent.setToolTip("Nur Dokumente dieses Korrespondenten anzeigen")
         layout.addWidget(self.filter_korrespondent, 0, 5)
 
         # Reset-Button (Zeile 0–1, letzte Spalte)
         reset_btn = QPushButton("Filter zurücksetzen")
+        reset_btn.setToolTip("Alle Filter dieser Leiste auf 'Alle' zurücksetzen")
         reset_btn.clicked.connect(self._reset_filters)
         layout.addWidget(reset_btn, 0, 6, 2, 1)
 
         # Zeile 1: Datum, Betrag
         self.filter_datum_von_cb = QCheckBox("Datum von:")
+        self.filter_datum_von_cb.setToolTip("Aktivieren, um nur Dokumente ab diesem Datum anzuzeigen")
         layout.addWidget(self.filter_datum_von_cb, 1, 0)
         self.filter_datum_von = QDateEdit()
         self.filter_datum_von.setCalendarPopup(True)
@@ -3095,6 +3116,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.filter_datum_von, 1, 1)
 
         self.filter_datum_bis_cb = QCheckBox("Datum bis:")
+        self.filter_datum_bis_cb.setToolTip("Aktivieren, um nur Dokumente bis zu diesem Datum anzuzeigen")
         layout.addWidget(self.filter_datum_bis_cb, 1, 2)
         self.filter_datum_bis = QDateEdit()
         self.filter_datum_bis.setCalendarPopup(True)
@@ -3114,6 +3136,7 @@ class MainWindow(QMainWindow):
         self.filter_betrag_von.setSpecialValueText("ab –")
         self.filter_betrag_von.setValue(0.0)
         self.filter_betrag_von.setMinimumWidth(80)
+        self.filter_betrag_von.setToolTip("Nur Dokumente mit mindestens diesem Betrag anzeigen")
         betrag_layout.addWidget(self.filter_betrag_von)
         self.filter_betrag_bis = QDoubleSpinBox()
         self.filter_betrag_bis.setRange(0, 999999.99)
@@ -3121,6 +3144,7 @@ class MainWindow(QMainWindow):
         self.filter_betrag_bis.setSpecialValueText("bis –")
         self.filter_betrag_bis.setValue(0.0)
         self.filter_betrag_bis.setMinimumWidth(80)
+        self.filter_betrag_bis.setToolTip("Nur Dokumente bis zu diesem Betrag anzeigen")
         betrag_layout.addWidget(self.filter_betrag_bis)
         layout.addWidget(betrag_widget, 1, 5)
 
@@ -3482,6 +3506,34 @@ class MainWindow(QMainWindow):
     def check_backup_status(self):
         """Zeigt den Backup-Hinweis (Menue). Macrium-Log-Parsing: Issue #14."""
         self.show_backup_hint(force=True)
+
+    def show_first_steps_hint(self, force: bool = False):
+        """
+        Erklaert den 3-Spalten-Workflow beim ersten Start (Issue #51).
+        Erscheint vor dem Backup-Hinweis, bis der Nutzer "nicht mehr
+        anzeigen" abhakt; ueber das Hilfe-Menue jederzeit erneut.
+        """
+        if not force and self.config.get("first_steps_hint_dismissed", False):
+            return
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Erste Schritte")
+        box.setText("So sortieren Sie eine PDF in drei Schritten:")
+        box.setInformativeText(
+            "1. Links: Ein PDF anklicken, um es auszuwaehlen.\n"
+            "2. Mitte: Vorgeschlagenen Namen und Metadaten pruefen und bei "
+            "Bedarf anpassen.\n"
+            "3. Rechts: Auf einen Zielordner klicken - das PDF wird dorthin "
+            "verschoben, umbenannt und die Metadaten werden gespeichert.\n\n"
+            "Doppelklick auf einen Ordner im Baum (rechts) oeffnet ihn nur "
+            "zur Ansicht links, ohne etwas zu verschieben."
+        )
+        dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
+        dismiss.setChecked(self.config.get("first_steps_hint_dismissed", False))
+        box.setCheckBox(dismiss)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+        self.config.set("first_steps_hint_dismissed", dismiss.isChecked())
 
     def show_backup_hint(self, force: bool = False):
         """

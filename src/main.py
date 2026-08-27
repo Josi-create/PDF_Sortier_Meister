@@ -211,8 +211,15 @@ def main():
                 pass
         window.raise_()
         window.activateWindow()
-        # Backup-Hinweis (Issue #7) erst zeigen, wenn der Splash weg ist
-        QTimer.singleShot(300, window.show_backup_hint)
+
+        def show_startup_hints():
+            # Erste-Schritte-Hinweis (Issue #51) vor dem Backup-Hinweis zeigen,
+            # weil der Workflow wichtiger ist als die Backup-Erinnerung.
+            window.show_first_steps_hint()
+            window.show_backup_hint()
+
+        # Hinweise erst zeigen, wenn der Splash weg ist
+        QTimer.singleShot(300, show_startup_hints)
 
     window.thumbnails_loaded.connect(close_splash)
     QTimer.singleShot(15000, close_splash)

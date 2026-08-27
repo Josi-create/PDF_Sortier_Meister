@@ -32,3 +32,8 @@ def test_set_llm_api_key_ollama_not_stored_per_provider(tmp_path):
 def test_backup_hint_default_not_dismissed():
     from src.utils.config import Config
     assert Config.DEFAULTS["backup_hint_dismissed"] is False
+
+
+def test_first_steps_hint_default_not_dismissed():
+    from src.utils.config import Config
+    assert Config.DEFAULTS["first_steps_hint_dismissed"] is False
