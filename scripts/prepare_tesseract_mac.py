@@ -91,31 +91,38 @@ def _homebrew_lib_dirs() -> list[Path]:
     return [p for p in (Path("/opt/homebrew/lib"), Path("/usr/local/lib")) if p.is_dir()]
 
 
-def collect_files(exe: Path) -> dict[str, Path]:
-    """Alle zu buendelnden Dateien: Binary + transitiv alle Nicht-System-dylibs."""
+def collect_files(exe: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Alle zu buendelnden Dateien: Binary + transitiv alle Nicht-System-dylibs.
+
+    Liefert zusaetzlich ein Mapping Referenzname -> Bundle-Dateiname, weil
+    Homebrew-Referenzen oft auf Symlinks zeigen (z.B. libgif.dylib), waehrend
+    gebuendelt der aufgeloeste reale Name liegt (libgif.7.2.0.dylib).
+    """
     needed: dict[str, Path] = {exe.name: exe}
+    alias: dict[str, str] = {}
     todo = [exe]
     while todo:
         current = todo.pop()
         for dep in linked_libs(current):
             real = resolve_dep(dep, current)
+            alias[Path(dep).name] = real.name
             if real.name in needed:
                 continue
             if not real.is_file():
                 sys.exit(f"Abhaengigkeit nicht gefunden: {dep} -> {real}")
             needed[real.name] = real
             todo.append(real)
-    return needed
+    return needed, alias
 
 
-def rewrite_load_paths(target_file: Path, bundled_names: set[str]) -> None:
+def rewrite_load_paths(target_file: Path, alias: dict[str, str]) -> None:
     """Setzt id und alle gebuendelten Referenzen auf @loader_path/<name>."""
     if target_file.suffix == ".dylib" or ".dylib" in target_file.name:
         _run("install_name_tool", "-id", f"@loader_path/{target_file.name}", str(target_file))
     for dep in linked_libs(target_file):
-        name = Path(dep).name
-        if name in bundled_names and not dep.startswith("@loader_path/"):
-            _run("install_name_tool", "-change", dep, f"@loader_path/{name}", str(target_file))
+        bundled = alias.get(Path(dep).name)
+        if bundled and not dep.startswith("@loader_path/"):
+            _run("install_name_tool", "-change", dep, f"@loader_path/{bundled}", str(target_file))
 
 
 def copy_tessdata(source_exe: Path) -> None:
@@ -126,14 +133,22 @@ def copy_tessdata(source_exe: Path) -> None:
     candidates = [source_exe.parent.parent / "share" / "tessdata"]
     for prefix in ("/opt/homebrew", "/usr/local"):
         candidates.append(Path(prefix) / "share" / "tessdata")
-    tessdata_source = next((c for c in candidates if c.is_dir()), None)
-    if tessdata_source is None:
+    tessdata_dirs = [c for c in candidates if c.is_dir()]
+    if not tessdata_dirs:
         sys.exit("Kein tessdata-Verzeichnis gefunden (brew install tesseract).")
+    # deu.traineddata liegt im tesseract-lang-Keg, nicht im tesseract-Keg -
+    # daher pro Sprache alle Kandidaten durchsuchen.
     for lang in LANGUAGES:
-        src = tessdata_source / f"{lang}.traineddata"
-        if not src.is_file():
+        src = next(
+            (d / f"{lang}.traineddata" for d in tessdata_dirs
+             if (d / f"{lang}.traineddata").is_file()),
+            None,
+        )
+        if src is None:
             sys.exit(
-                f"{src} fehlt. Fuer deutsche Sprachdaten bitte "
+                f"{lang}.traineddata in keinem tessdata-Verzeichnis gefunden "
+                f"({', '.join(str(d) for d in tessdata_dirs)}). "
+                "Fuer deutsche Sprachdaten bitte "
                 "'brew install tesseract-lang' ausfuehren."
             )
         shutil.copy2(src, tessdata_target / src.name)
@@ -151,16 +166,26 @@ def main() -> None:
         shutil.rmtree(TARGET)
     TARGET.mkdir(parents=True)
 
-    files = collect_files(source_exe)
-    bundled_names = set(files)
+    files, alias = collect_files(source_exe)
     for name, src in sorted(files.items()):
         dest = TARGET / name
         shutil.copy2(src, dest)
         os.chmod(dest, 0o755)
-        rewrite_load_paths(dest, bundled_names)
+        rewrite_load_paths(dest, alias)
         # Umschreiben invalidiert die Signatur - ad-hoc neu signieren.
         _run("codesign", "--force", "-s", "-", str(dest))
         print(f"  {name}")
+
+    # Relokation verifizieren: --version allein reicht nicht, weil auf dem
+    # Build-Rechner die Homebrew-Pfade noch existieren und Fehler kaschieren.
+    leftovers = [
+        f"  {name}: {dep}"
+        for name in sorted(files)
+        for dep in linked_libs(TARGET / name)
+        if not dep.startswith(("@loader_path/",) + _SYSTEM_PREFIXES)
+    ]
+    if leftovers:
+        sys.exit("Nicht relozierte Referenzen:\n" + "\n".join(leftovers))
 
     copy_tessdata(source_exe)
 
