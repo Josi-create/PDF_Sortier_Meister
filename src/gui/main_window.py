@@ -96,6 +96,13 @@ class MainWindow(QMainWindow):
         # Ordner-Navigations-Historie für Zurück-Button
         self._folder_history: list[Path] = []
 
+        # Debounce-Timer: Raster-Spaltenzahl an Panelbreite anpassen (Issue #50)
+        self._grid_relayout_timer = QTimer(self)
+        self._grid_relayout_timer.setSingleShot(True)
+        self._grid_relayout_timer.setInterval(150)
+        self._grid_relayout_timer.timeout.connect(self._relayout_pdf_grid)
+        self._grid_cols = 3
+
         self.setup_ui()
         self.setup_menu()
         self.setup_toolbar()
@@ -118,7 +125,7 @@ class MainWindow(QMainWindow):
         """Initialisiert die Haupt-UI-Komponenten."""
         self.setWindowTitle("PDF Sortier Meister")
         self.setMinimumSize(800, 600)
-        self.showMaximized()
+        # Anzeige (maximiert oder gespeicherte Groesse) entscheidet load_settings()
 
         # Zentrales Widget
         central_widget = QWidget()
@@ -166,6 +173,8 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 4)  # Mitte: 40%
         splitter.setStretchFactor(2, 3)  # Rechts: 30%
         splitter.setSizes([300, 400, 300])
+        # Beim Verschieben des Splitters die Raster-Spalten anpassen (Issue #50)
+        splitter.splitterMoved.connect(lambda *_: self._grid_relayout_timer.start())
 
         self.center_tabs.addTab(preview_container, "Vorschau")
 
@@ -252,7 +261,7 @@ class MainWindow(QMainWindow):
         self.pdf_scroll_area = QScrollArea()
         self.pdf_scroll_area.setWidgetResizable(True)
         self.pdf_scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
         # Container für Thumbnails
@@ -533,6 +542,7 @@ class MainWindow(QMainWindow):
         self.pdf_folder_count_label.setText(count_text)
 
         # Ordner-Kacheln zuerst (".." und Unterordner), dann die PDFs
+        self._grid_cols = self._pdf_grid_columns()
         self.folder_tiles = []
         tile_folders = ([(parent_folder, True)] if parent_folder else []) + [
             (f, False) for f in subfolders
@@ -546,7 +556,7 @@ class MainWindow(QMainWindow):
             tile.double_clicked.connect(self.on_folder_tile_double_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
             idx = len(self.folder_tiles)
-            self.pdf_layout.addWidget(tile, idx // 3, idx % 3)
+            self.pdf_layout.addWidget(tile, idx // self._grid_cols, idx % self._grid_cols)
             self.folder_tiles.append(tile)
         tile_offset = len(self.folder_tiles)
 
@@ -579,8 +589,8 @@ class MainWindow(QMainWindow):
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
 
-            row = (i + tile_offset) // 3
-            col = (i + tile_offset) % 3
+            row = (i + tile_offset) // self._grid_cols
+            col = (i + tile_offset) % self._grid_cols
             self.pdf_layout.addWidget(widget, row, col)
             self.pdf_widgets.append(widget)
 
@@ -1189,12 +1199,26 @@ class MainWindow(QMainWindow):
         """Lädt die gespeicherten Einstellungen."""
         width = self.config.get("window_width", 1200)
         height = self.config.get("window_height", 800)
+        # Auf den verfügbaren Bildschirm begrenzen: gespeicherte Größen von
+        # einem anderen Monitor / anderer Windows-Skalierung würden sonst
+        # über den Bildschirmrand hinausragen (Issue #50, Titelleiste)
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            available = screen.availableGeometry()
+            width = min(width, available.width())
+            height = min(height, available.height())
         self.resize(width, height)
+        if self.config.get("window_maximized", True):
+            self.showMaximized()
 
     def save_settings(self):
         """Speichert die aktuellen Einstellungen."""
-        self.config.set("window_width", self.width(), auto_save=False)
-        self.config.set("window_height", self.height(), auto_save=True)
+        # Im maximierten Zustand die normale (wiederhergestellte) Größe
+        # speichern, nicht die Bildschirmgröße (Issue #50)
+        size = self.normalGeometry().size() if self.isMaximized() else self.size()
+        self.config.set("window_width", size.width(), auto_save=False)
+        self.config.set("window_maximized", self.isMaximized(), auto_save=False)
+        self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):
         """Wird beim Schließen des Fensters aufgerufen."""
@@ -1215,6 +1239,31 @@ class MainWindow(QMainWindow):
         self.pdf_cache.stop_llm_worker()
 
         event.accept()
+
+    def resizeEvent(self, event):
+        """Passt bei Größenänderung die Raster-Spaltenzahl an (Issue #50)."""
+        super().resizeEvent(event)
+        if hasattr(self, "_grid_relayout_timer"):
+            self._grid_relayout_timer.start()
+
+    def _pdf_grid_columns(self) -> int:
+        """Spaltenzahl fürs PDF-Raster aus der sichtbaren Panelbreite.
+
+        Kacheln und Thumbnails sind max. 180 px breit plus 10 px Abstand.
+        """
+        width = self.pdf_scroll_area.viewport().width()
+        return max(1, width // 190)
+
+    def _relayout_pdf_grid(self):
+        """Ordnet Ordner-Kacheln und Thumbnails neu an, wenn sich die
+        nutzbare Spaltenzahl geändert hat (Issue #50)."""
+        cols = self._pdf_grid_columns()
+        if cols == self._grid_cols:
+            return
+        self._grid_cols = cols
+        widgets = getattr(self, "folder_tiles", []) + self.pdf_widgets
+        for i, widget in enumerate(widgets):
+            self.pdf_layout.addWidget(widget, i // cols, i % cols)
 
     # === PDF-Aktionen ===
 
