@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 class FolderTileWidget(QFrame):
     """Kachel für einen Ordner im Scan-Bereich."""
 
+    clicked = pyqtSignal(Path)  # Einfachklick (nur fuer ".." verbunden, Issue #50)
     double_clicked = pyqtSignal(Path)  # In den Ordner wechseln
     pdf_dropped = pyqtSignal(Path, Path)  # (pdf_path, folder_path)
 
@@ -78,12 +79,16 @@ class FolderTileWidget(QFrame):
         layout.addWidget(self.count_label)
         layout.addStretch()
 
-        tip = (
-            f"Übergeordneter Ordner: {self.folder_path}"
-            if self.is_parent
-            else str(self.folder_path)
-        )
-        self.setToolTip(f"{tip}\nDoppelklick öffnet den Ordner, PDFs hierher ziehen verschiebt sie.")
+        if self.is_parent:
+            self.setToolTip(
+                f"Übergeordneter Ordner: {self.folder_path}\n"
+                "Klick wechselt nach oben, PDFs hierher ziehen verschiebt sie."
+            )
+        else:
+            self.setToolTip(
+                f"{self.folder_path}\n"
+                "Doppelklick öffnet den Ordner, PDFs hierher ziehen verschiebt sie."
+            )
 
     def _count_text(self) -> str:
         if self.is_parent:
@@ -93,6 +98,14 @@ class FolderTileWidget(QFrame):
         return f"{self._pdf_count} {'PDF' if self._pdf_count == 1 else 'PDFs'}"
 
     # --- Maus -----------------------------------------------------------
+
+    def mouseReleaseEvent(self, event):
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        ):
+            self.clicked.emit(self.folder_path)
+        super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

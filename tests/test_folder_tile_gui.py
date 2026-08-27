@@ -53,6 +53,17 @@ def test_double_click_emits_folder(qtbot, tmp_path):
     assert blocker.args == [tmp_path]
 
 
+def test_single_click_emits_clicked(qtbot, tmp_path):
+    """Issue #50: Einfachklick loest das clicked-Signal aus (fuer die ".."-Kachel)."""
+    from PyQt6.QtCore import Qt
+    tile = FolderTileWidget(tmp_path, is_parent=True)
+    qtbot.addWidget(tile)
+    tile.show()
+    with qtbot.waitSignal(tile.clicked, timeout=1000) as blocker:
+        qtbot.mouseClick(tile, Qt.MouseButton.LeftButton)
+    assert blocker.args == [tmp_path]
+
+
 def test_drop_emits_only_pdfs(qtbot, tmp_path):
     tile = FolderTileWidget(tmp_path)
     qtbot.addWidget(tile)

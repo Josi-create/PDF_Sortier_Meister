@@ -2,6 +2,7 @@
 Hauptfenster der PDF Sortier Meister Anwendung
 """
 
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -545,6 +546,9 @@ class MainWindow(QMainWindow):
                 is_parent=is_parent,
             )
             tile.double_clicked.connect(self.on_folder_tile_double_clicked)
+            if is_parent:
+                # Die ".."-Kachel wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
+                tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
             idx = len(self.folder_tiles)
             self.pdf_layout.addWidget(tile, idx // 3, idx % 3)
@@ -2851,6 +2855,20 @@ class MainWindow(QMainWindow):
         # Wenn eine PDF ausgewählt ist, diese verschieben
         if self.selected_pdf:
             self.move_selected_pdf_to_folder(folder_path)
+
+    def on_parent_tile_clicked(self, folder_path: Path):
+        """Einfachklick auf die ".."-Kachel: eine Ebene nach oben (Issue #50).
+
+        Zeitfenster-Guard: Nach dem Wechsel wird das Raster neu aufgebaut und
+        die neue ".."-Kachel liegt an derselben Stelle - der zweite Klick eines
+        Doppelklicks wuerde sonst gleich zwei Ebenen nach oben springen.
+        """
+        now = time.monotonic()
+        last = getattr(self, "_last_parent_tile_click", 0.0)
+        if (now - last) * 1000 < QApplication.doubleClickInterval():
+            return
+        self._last_parent_tile_click = now
+        self.on_folder_tile_double_clicked(folder_path)
 
     def on_folder_tile_double_clicked(self, folder_path: Path):
         """Doppelklick auf eine Ordner-Kachel im Scan-Bereich: hineinwechseln."""
