@@ -304,6 +304,49 @@ class SettingsDialog(QDialog):
         hint_label.setStyleSheet("color: gray;")
         layout.addWidget(hint_label)
 
+        # Dateiname aus Ordnerstruktur (Issue #42)
+        folder_group = QGroupBox("Dateiname aus Ordnerstruktur (beim Verschieben)")
+        folder_layout = QVBoxLayout(folder_group)
+
+        self.folder_naming_check = QCheckBox(
+            "Dateinamen beim Verschieben aus dem Zielordner-Pfad aufbauen"
+        )
+        folder_layout.addWidget(self.folder_naming_check)
+
+        folder_form = QFormLayout()
+        self.folder_naming_initials_input = QLineEdit()
+        self.folder_naming_initials_input.setPlaceholderText("z.B. JK")
+        folder_form.addRow("Initialen:", self.folder_naming_initials_input)
+
+        self.folder_naming_template_input = QLineEdit()
+        self.folder_naming_template_input.setPlaceholderText(
+            "{initialen} {ordnernummern}-{datum}-{text}"
+        )
+        folder_form.addRow("Vorlage:", self.folder_naming_template_input)
+        folder_layout.addLayout(folder_form)
+
+        folder_info = QLabel(
+            "Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem "
+            "Zielordner-Namen, z.B. \"069-03-05\"), {ordnerpfad} (Ordnernamen "
+            "mit \"-\" verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), "
+            "{text} (bisheriger Name ohne Datum).\n"
+            "Beispiel: Ordner \"JK 069-03-05-Auftrag\" ergibt "
+            "\"JK 069-03-05-20260512-Rechnung.pdf\"."
+        )
+        folder_info.setWordWrap(True)
+        folder_info.setStyleSheet("color: #555; font-size: 11px;")
+        folder_layout.addWidget(folder_info)
+
+        layout.addWidget(folder_group)
+
+        # Eingabefelder nur bei aktivierter Funktion bedienbar
+        self.folder_naming_check.toggled.connect(
+            self.folder_naming_initials_input.setEnabled
+        )
+        self.folder_naming_check.toggled.connect(
+            self.folder_naming_template_input.setEnabled
+        )
+
         layout.addStretch()
         return tab
 
@@ -996,6 +1039,18 @@ class SettingsDialog(QDialog):
         # Dateinamen-Muster
         self._load_filename_pattern()
 
+        # Dateiname aus Ordnerstruktur (Issue #42)
+        folder_naming_enabled = self.config.get("folder_naming_enabled", False)
+        self.folder_naming_check.setChecked(folder_naming_enabled)
+        self.folder_naming_initials_input.setText(
+            self.config.get("folder_naming_initials", "")
+        )
+        self.folder_naming_template_input.setText(
+            self.config.get("folder_naming_template", "")
+        )
+        self.folder_naming_initials_input.setEnabled(folder_naming_enabled)
+        self.folder_naming_template_input.setEnabled(folder_naming_enabled)
+
         # Cache-Einstellungen
         self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
@@ -1087,6 +1142,18 @@ class SettingsDialog(QDialog):
 
         # Dateinamen-Muster speichern
         self.config.set("filename_pattern", self._collect_filename_pattern())
+
+        # Dateiname aus Ordnerstruktur speichern (Issue #42)
+        self.config.set("folder_naming_enabled", self.folder_naming_check.isChecked())
+        self.config.set(
+            "folder_naming_initials",
+            self.folder_naming_initials_input.text().strip(),
+        )
+        template = self.folder_naming_template_input.text().strip()
+        self.config.set(
+            "folder_naming_template",
+            template or self.config.DEFAULTS["folder_naming_template"],
+        )
 
         # Explorer-Integration nur bei Aenderung anwenden.
         if sys.platform == "win32":

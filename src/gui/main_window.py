@@ -46,6 +46,7 @@ from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
 from src.core.file_manager import FileManager, FolderManager
+from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier
@@ -1574,6 +1575,21 @@ class MainWindow(QMainWindow):
         else:
             new_name = self.detail_panel.get_new_name()
             metadata = self.detail_panel.get_metadata()
+
+            # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
+            if self.config.get("folder_naming_enabled", False):
+                fallback_date = (
+                    coerce_date(self.selected_pdf_dates[0])
+                    if self.selected_pdf_dates else None
+                )
+                new_name = build_folder_based_name(
+                    new_name or pdf_path.name,
+                    folder_path,
+                    relative_path,
+                    template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
+                    initials=self.config.get("folder_naming_initials", ""),
+                    fallback_date=fallback_date,
+                )
 
         # Prüfen ob umbenannt wird
         name_changed = new_name and new_name != pdf_path.name

@@ -63,6 +63,10 @@ class Config:
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",
+        # Dateiname aus Ordnerstruktur beim Verschieben (Issue #42), Opt-in.
+        "folder_naming_enabled": False,
+        "folder_naming_template": "{initialen} {ordnernummern}-{datum}-{text}",
+        "folder_naming_initials": "",
         # LLM-Konfiguration
         "llm": {
             "provider": "none",  # "none", "claude", "openai", "poe", "openrouter", "ollama", "ollama_cloud"
