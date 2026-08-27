@@ -4,6 +4,8 @@
     "allow": [
       "Bash(git push origin main)",
       "Bash(git push origin main:*)",
+      "Bash(gh release *)",
+      "Bash(git push *)",
       "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m pytest tests/test_platform_paths.py tests/test_tesseract_locator.py -q 2>&1)",
       "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m pytest -q 2>&1)",
       "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -c \"compile\\(open\\('pdf_sortier_meister.spec', encoding='utf-8'\\).read\\(\\), 'spec', 'exec'\\); print\\('Spec-Syntax OK'\\)\")",
