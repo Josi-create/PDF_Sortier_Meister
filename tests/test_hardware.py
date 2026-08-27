@@ -6,6 +6,16 @@ from src.utils import hardware
 from src.utils.hardware import GpuInfo, classify_gpu_name, parse_nvidia_smi, recommend
 
 
+@pytest.fixture(autouse=True)
+def _no_apple_silicon(monkeypatch):
+    """Die Tests beschreiben den Windows-Pfad (dedizierte GPU vs. integriert).
+
+    ``recommend()`` prueft zuerst ``is_apple_silicon()`` - auf den macOS-CI-Runnern
+    (Apple Silicon) wuerde sonst jeder Test in den Unified-Memory-Zweig laufen.
+    """
+    monkeypatch.setattr(hardware, "is_apple_silicon", lambda: False)
+
+
 def _gpu(name, vram_mb, dedicated=True, vendor="nvidia"):
     return GpuInfo(name=name, vram_mb=vram_mb, dedicated=dedicated, vendor=vendor)
 
