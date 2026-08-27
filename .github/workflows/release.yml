@@ -46,6 +46,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pefile
+          pip install openai anthropic
 
       - name: Tesseract-Laufzeit buendeln
         run: python scripts\prepare_tesseract.py
@@ -97,6 +98,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          pip install openai anthropic
 
       - name: Signatur-Zertifikat importieren
         if: env.MACOS_CERTIFICATE_P12 != ''

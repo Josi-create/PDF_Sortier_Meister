@@ -34,6 +34,13 @@ if ! "$PYTHON" -c "import PyInstaller" 2>/dev/null; then
     "$PYTHON" -m pip install pyinstaller
 fi
 
+# Die LLM-Pakete sind in requirements.txt optional, muessen im Release aber
+# enthalten sein - sonst fehlt die Cloud-KI (OpenRouter/OpenAI/Claude) im Build.
+if ! "$PYTHON" -c "import openai, anthropic" 2>/dev/null; then
+    echo "LLM-Pakete nicht gefunden. Installiere openai + anthropic..."
+    "$PYTHON" -m pip install openai anthropic
+fi
+
 echo "Loesche alte Build-Dateien..."
 rm -rf build dist
 
