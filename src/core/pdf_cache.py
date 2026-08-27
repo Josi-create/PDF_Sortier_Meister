@@ -274,6 +274,11 @@ class PDFCache(QObject):
         self._lock = Lock()
         self._worker: Optional[PDFAnalysisWorker] = None
         self._llm_worker: Optional[LLMSuggestionWorker] = None
+        # Worker, die nach stop_worker() noch laufen (z.B. mitten in einer
+        # Analyse). Die Referenz muss erhalten bleiben: gibt der GC das
+        # Python-Objekt eines laufenden QThread frei, loescht Qt den Thread im
+        # Betrieb -> Absturz (Access Violation).
+        self._stopping_workers: list[QThread] = []
         self._llm_queued: set[Path] = set()  # PDFs, die in der LLM-Queue stehen
         self._pending_callbacks: dict[Path, list[Callable]] = {}
         self._persist_cache = True  # Standardmäßig persistenten Cache nutzen
@@ -504,15 +509,24 @@ class PDFCache(QObject):
         """Stoppt den Hintergrund-Worker."""
         if self._worker and self._worker.isRunning():
             self._worker.stop()
-            self._worker.wait(2000)
+            if not self._worker.wait(2000):
+                self._keep_until_finished(self._worker)
             self._worker = None
 
     def stop_llm_worker(self):
         """Stoppt den LLM-Hintergrund-Worker."""
         if self._llm_worker and self._llm_worker.isRunning():
             self._llm_worker.stop()
-            self._llm_worker.wait(2000)
+            if not self._llm_worker.wait(2000):
+                self._keep_until_finished(self._llm_worker)
             self._llm_worker = None
+
+    def _keep_until_finished(self, worker: QThread):
+        """Haelt einen nach dem Stop noch laufenden Thread referenziert (siehe __init__)."""
+        logger.warning(
+            f"{type(worker).__name__} laeuft nach Stop noch - wird im Hintergrund beendet"
+        )
+        self._stopping_workers.append(worker)
 
     def get(self, pdf_path: Path) -> Optional[PDFAnalysisResult]:
         """
