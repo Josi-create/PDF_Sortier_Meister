@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PyQt6 import sip
 from PyQt6.QtWidgets import QTabWidget, QStatusBar, QWidget
 
 
@@ -75,8 +76,15 @@ def main_window(qtbot, fresh_singletons, monkeypatch):
     monkeypatch.setattr(mw_mod.QMainWindow, "show", lambda self: None)
 
     win = mw_mod.MainWindow()
-    qtbot.addWidget(win)
-    return win
+    yield win
+
+    # Bewusst nicht qtbot.addWidget(): das raeumt nur per deleteLater() auf,
+    # und MainWindow haengt in einem Referenzzyklus - das alte Fenster lebte
+    # so bis zum naechsten GC-Lauf weiter, mitsamt scharfer Timer, die dann
+    # waehrend eines spaeteren Tests auf ein halb zerstoertes Fenster feuerten
+    # (Access Violation auf langsamen CI-Runnern). Deshalb sofort zerstoeren.
+    win.close()
+    sip.delete(win)
 
 
 # --------------------------------------------------------------------- #
@@ -316,6 +324,45 @@ def test_model_wait_cancelled_when_selection_changes(main_window, fresh_singleto
     main_window.selected_pdf = None  # Nutzer hat abgewaehlt
     qtbot.waitUntil(lambda: not main_window._model_wait_active, timeout=2000)
     assert QApplication.overrideCursor() is None
+
+
+def test_close_stops_window_timers(main_window, fresh_singletons):
+    """Nach close() darf kein fenstergebundener Timer mehr feuern.
+
+    Sonst trifft z.B. der 500-ms-Pre-Caching-Timer auf ein bereits (teil-)
+    zerstoertes Fenster - auf langsamen CI-Runnern ein harter Absturz.
+    """
+    main_window._schedule_pre_caching([fresh_singletons["tmp_path"] / "a.pdf"])
+    main_window._grid_relayout_timer.start()
+    assert main_window._precache_timer.isActive()
+
+    main_window.close()
+
+    assert not main_window._precache_timer.isActive()
+    assert not main_window._grid_relayout_timer.isActive()
+
+
+def test_close_waits_for_child_threads(main_window):
+    """close() laesst QThreads mit Widget-Parent zu Ende laufen.
+
+    Ordner-Scan und Metadaten-Leser haengen als Kinder am Fenster. Wird das
+    Fenster zerstoert, waehrend so ein Thread laeuft, bricht Qt den Prozess
+    hart ab - auf langsamen CI-Runnern regelmaessig beim Aufraeumen.
+    """
+    import time
+    from PyQt6.QtCore import QThread
+
+    class _Slow(QThread):
+        def run(self):
+            time.sleep(0.3)
+
+    thread = _Slow(main_window.detail_panel)
+    thread.start()
+    assert thread.isRunning()
+
+    main_window.close()
+
+    assert thread.isFinished()
 
 
 # --------------------------------------------------------------------- #

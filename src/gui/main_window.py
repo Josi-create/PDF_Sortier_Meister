@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QDate, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import Qt, QDate, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -1244,9 +1244,23 @@ class MainWindow(QMainWindow):
         """Wird beim Schließen des Fensters aufgerufen."""
         self.save_settings()
 
+        # Fenstergebundene Timer anhalten: Nach dem Schliessen darf kein
+        # verzoegerter Callback (Pre-Caching, Modell-Warten, Raster-Relayout)
+        # mehr auf ein halb zerstoertes Fenster treffen.
+        for name in ("_precache_timer", "_model_wait_timer", "_grid_relayout_timer"):
+            timer = getattr(self, name, None)
+            if timer is not None:
+                timer.stop()
+
         # Thumbnail-Threads beenden
         for widget in self.pdf_widgets:
             widget.cleanup()
+
+        # Kind-Threads (Ordner-Scan, Metadaten-Leser) zu Ende laufen lassen.
+        # Wird ein noch laufender QThread mitsamt seinem Eltern-Widget
+        # zerstoert, bricht Qt den Prozess hart ab.
+        for thread in self.findChildren(QThread):
+            thread.wait(5000)
 
         # Ausstehendes Hintergrund-Training des Klassifikators abschliessen
         try:
