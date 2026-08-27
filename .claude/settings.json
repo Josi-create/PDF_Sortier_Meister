@@ -3,7 +3,9 @@
   "permissions": {
     "allow": [
       "Bash(git push origin main)",
-      "Bash(git push origin main:*)"
+      "Bash(git push origin main:*)",
+      "Bash(gh release *)",
+      "Bash(git push *)"
     ]
   }
 }
