@@ -30,4 +30,6 @@ jobs:
       - name: Tests ausfuehren
         env:
           QT_QPA_PLATFORM: offscreen
+          PYTHONMALLOC: debug
+          PYTHONFAULTHANDLER: "1"
         run: pytest tests/test_main_window_gui.py -v -s --log-cli-level=DEBUG
