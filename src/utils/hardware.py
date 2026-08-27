@@ -14,6 +14,10 @@ Quellen (Windows):
 Integrierte GPUs (Intel UHD/Iris, AMD Radeon Graphics in APUs) melden zwar
 einen Speicherwert, teilen sich aber den Arbeitsspeicher - fuer Ollama zaehlt
 das nicht als Grafikspeicher.
+
+macOS: ``sysctl hw.memsize`` liefert den Arbeitsspeicher; auf Apple Silicon
+zaehlt der gemeinsame Speicher (Unified Memory) als Grafikspeicher, weil
+Ollama ihn ueber Metal direkt nutzt.
 """
 
 from __future__ import annotations
@@ -197,8 +201,24 @@ def detect_gpus() -> list[GpuInfo]:
     return gpus
 
 
+def is_apple_silicon() -> bool:
+    """True auf Macs mit Apple-Silicon-Chip (M1 und neuer)."""
+    import platform
+
+    return sys.platform == "darwin" and platform.machine() == "arm64"
+
+
 def total_ram_mb() -> int:
     """Physischer Arbeitsspeicher in MB (0, wenn nicht ermittelbar)."""
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return int(result.stdout.strip()) // (1024 * 1024)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return 0
     if sys.platform != "win32":
         return 0
 
@@ -238,8 +258,29 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
       lokal nicht empfohlen -> Ollama Cloud
     - dedizierte Karte mit weniger als 4 GB: ebenfalls Cloud
     - Intel Arc: von Ollama unter Windows nicht unterstuetzt -> Cloud
+    - Apple Silicon: Unified Memory zaehlt als Grafikspeicher (Metal);
+      Ollama kann davon etwa zwei Drittel nutzen
     - sonst: groesstes Gemma-3-Modell, das in den Grafikspeicher passt
     """
+    if is_apple_silicon():
+        # Kein dediziertes VRAM, aber die GPU nutzt den gemeinsamen
+        # Speicher direkt - Ollama laeuft lokal ueber Metal.
+        usable_mb = (ram_mb * 2) // 3
+        gpu = GpuInfo("Apple Silicon (Unified Memory)", usable_mb, True, "apple")
+        for min_mb, model, size_gb in MODEL_TIERS:
+            if usable_mb >= min_mb:
+                reason = (
+                    f"Apple Silicon mit {_gb(ram_mb)} gemeinsamem Speicher erkannt - "
+                    f"empfohlenes Modell: {model} (Download ca. {size_gb:.0f} GB)."
+                )
+                return OllamaRecommendation(True, model, size_gb, reason, gpu)
+        return OllamaRecommendation(
+            False, None, 0.0,
+            f"Apple Silicon erkannt, aber mit {_gb(ram_mb)} Arbeitsspeicher zu wenig "
+            f"fuer ein brauchbares lokales Modell.",
+            gpu,
+        )
+
     dedicated = [g for g in gpus if g.dedicated]
     best = max(dedicated, key=lambda g: g.vram_mb) if dedicated else None
 

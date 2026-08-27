@@ -18,9 +18,10 @@ Stellt zwei Mechanismen bereit:
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from pathlib import Path
+
+from src.utils.platform_paths import get_app_data_dir
 
 logger = logging.getLogger("pdf_sortier_meister.explorer_integration")
 
@@ -32,10 +33,7 @@ CONTEXT_MENU_LABEL = "PDF Sortier Meister von hier oeffnen"
 
 def _app_data_dir() -> Path:
     """Liefert das Datenverzeichnis (gleich wie Config.data_dir)."""
-    app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
-    path = Path(app_data) / "PDF_Sortier_Meister"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return get_app_data_dir()
 
 
 def _launcher_cmd_path() -> Path:
@@ -73,15 +71,17 @@ def _current_launch_command() -> str:
     return f'"{python_exe}" "{run_script}"'
 
 
-def update_launcher_script() -> Path:
+def update_launcher_script() -> Path | None:
     """
     Schreibt/aktualisiert das Trampolin-Skript launcher.cmd mit dem
     AKTUELLEN Startbefehl. Wird bei jedem Programmstart aufgerufen, damit
     der Registry-Eintrag immer korrekt auflaeuft.
 
     Returns:
-        Den Pfad der geschriebenen cmd-Datei.
+        Den Pfad der geschriebenen cmd-Datei, None auf Nicht-Windows.
     """
+    if sys.platform != "win32":
+        return None
     cmd_path = _launcher_cmd_path()
     launch_cmd = _current_launch_command()
 

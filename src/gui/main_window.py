@@ -666,13 +666,13 @@ class MainWindow(QMainWindow):
             return
         parts = []
         if analyzed < total:
-            parts.append(f"Analyse: {analyzed}/{total}")
+            parts.append(f"Durchsuche PDFs… {analyzed}/{total}")
         llm_active = (
             self.hybrid_classifier.is_llm_available()
             and self.config.get("llm_precache_enabled", True)
         )
         if llm_active and llm_done < total:
-            parts.append(f"KI-Vorschläge: {llm_done}/{total}")
+            parts.append(f"KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen")
         if self._last_llm_error:
             parts.append("⚠ Fehler")
         self.cache_status_label.setText(" | ".join(parts))
@@ -1060,7 +1060,7 @@ class MainWindow(QMainWindow):
 
         up_action = QAction("Übergeordneter Ordner", self)
         up_action.setShortcut("Alt+Up")
-        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Windows-Explorer)")
+        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Dateimanager)")
         up_action.triggered.connect(self.on_navigate_up)
         view_menu.addAction(up_action)
 
@@ -1952,8 +1952,7 @@ class MainWindow(QMainWindow):
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
         # PDF mit Standardprogramm öffnen
-        import os
-        os.startfile(str(pdf_path))
+        self._open_pdf_external(str(pdf_path))
 
     def _write_pdf_metadata(
         self,

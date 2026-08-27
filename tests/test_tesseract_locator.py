@@ -4,12 +4,14 @@ import sys
 
 import pytest
 
-from src.core.pdf_analyzer import find_tesseract
+from src.core.pdf_analyzer import _tesseract_candidates, find_tesseract
 
 
 @pytest.fixture
 def isolated_env(tmp_path, monkeypatch):
-    """Keine echte Tesseract-Installation darf durchschlagen."""
+    """Keine echte Tesseract-Installation darf durchschlagen (win32-Sicht)."""
+    # Plattform pinnen, damit die Tests auch auf macOS/Linux-Runnern laufen.
+    monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.delattr(sys, "_MEIPASS", raising=False)
     for var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
         monkeypatch.setenv(var, str(tmp_path / var.replace("(", "").replace(")", "")))
@@ -52,3 +54,35 @@ def test_path_fallback(isolated_env, monkeypatch):
         "src.core.pdf_analyzer.shutil.which", lambda _name: r"D:\tools\tesseract.exe"
     )
     assert find_tesseract() == r"D:\tools\tesseract.exe"
+
+
+# --- macOS-Suchpfade ---
+
+
+@pytest.fixture
+def darwin_env(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.delattr(sys, "_MEIPASS", raising=False)
+    monkeypatch.setattr("src.core.pdf_analyzer.shutil.which", lambda _name: None)
+
+
+def test_darwin_candidates_contain_homebrew_paths(darwin_env):
+    candidates = [str(p) for p in _tesseract_candidates()]
+    assert "/opt/homebrew/bin/tesseract" in [c.replace("\\", "/") for c in candidates]
+    assert "/usr/local/bin/tesseract" in [c.replace("\\", "/") for c in candidates]
+
+
+def test_darwin_bundled_binary_first(darwin_env, tmp_path, monkeypatch):
+    bundle = tmp_path / "_internal"
+    monkeypatch.setattr(sys, "_MEIPASS", str(bundle), raising=False)
+    candidates = _tesseract_candidates()
+    assert candidates[0] == bundle / "tesseract" / "tesseract"
+
+
+def test_darwin_bundled_binary_found(darwin_env, tmp_path, monkeypatch):
+    bundle = tmp_path / "_internal"
+    bundled = bundle / "tesseract" / "tesseract"
+    bundled.parent.mkdir(parents=True)
+    bundled.write_bytes(b"")
+    monkeypatch.setattr(sys, "_MEIPASS", str(bundle), raising=False)
+    assert find_tesseract() == str(bundled)

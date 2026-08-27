@@ -1,0 +1,150 @@
+name: Release-Builds
+
+# Baut bei einem Versions-Tag (v*) die Release-Assets fuer Windows und
+# macOS (arm64 + x86_64) und haengt sie an ein Draft-Release. Der
+# bisherige manuelle Release-Flow (release/vX.Y.Z-Branch -> Tag) bleibt -
+# nur der Asset-Bau ist automatisiert.
+#
+# workflow_dispatch baut nur die Artefakte (zum Testen), ohne Release.
+#
+# Benoetigte Secrets fuer signierte macOS-Builds (ohne sie entsteht ein
+# unsignierter Build):
+#   MACOS_CERTIFICATE_P12        base64-kodiertes "Developer ID Application"-.p12
+#   MACOS_CERTIFICATE_PASSWORD   Passwort des .p12
+#   MACOS_CODESIGN_IDENTITY      z.B. "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD   Notarisierung
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Tesseract + Inno Setup installieren
+        run: |
+          choco install tesseract --no-progress -y
+          choco install innosetup --no-progress -y
+
+      - name: Deutsche Tesseract-Sprachdaten nachladen
+        # Chocolatey liefert nur eng/osd; deu aus tessdata_fast (Tag gepinnt).
+        run: |
+          curl -L -o "C:\Program Files\Tesseract-OCR\tessdata\deu.traineddata" `
+            https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata
+
+      - name: Dependencies installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pefile
+          pip install openai anthropic
+
+      - name: Tesseract-Laufzeit buendeln
+        run: python scripts\prepare_tesseract.py
+
+      - name: PyInstaller-Build
+        run: pyinstaller pdf_sortier_meister.spec --clean --noconfirm
+
+      - name: Installer bauen (Inno Setup)
+        run: python scripts\build_installer.py
+
+      - name: Portables Zip erstellen
+        run: |
+          $version = (Select-String -Path src/main.py -Pattern '^__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          Compress-Archive -Path dist\PDF_Sortier_Meister -DestinationPath "dist\installer\PDF_Sortier_Meister-v$version-win64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-assets
+          path: |
+            dist/installer/PDF_Sortier_Meister_Setup.exe
+            dist/installer/PDF_Sortier_Meister-v*-win64.zip
+          if-no-files-found: error
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest      # arm64 (Apple Silicon)
+            arch: arm64
+          - os: macos-15-intel    # x86_64 (letztes Intel-Image, bis 08/2027)
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Tesseract installieren
+        run: brew install tesseract tesseract-lang
+
+      - name: Dependencies installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pip install openai anthropic
+
+      - name: Signatur-Zertifikat importieren
+        if: env.MACOS_CERTIFICATE_P12 != ''
+        env:
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 3600 build.keychain
+          security import cert.p12 -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S "apple-tool:,apple:" \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm cert.p12
+
+      - name: Build (App + DMG, optional signiert/notarisiert)
+        env:
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/installer/PDF_Sortier_Meister-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Draft-Release mit Assets erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: assets/*

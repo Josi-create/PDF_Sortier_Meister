@@ -7,6 +7,26 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **macOS-Unterstuetzung** bei gemeinsamer Codebasis: Der Build erzeugt neben der
+  Windows-Version jetzt auch eine macOS-App (`.app` + DMG, Apple Silicon und Intel).
+  Tesseract-OCR ist wie unter Windows gebuendelt (`scripts/prepare_tesseract_mac.py`),
+  die DMGs werden mit Developer ID signiert und notarisiert. Lokaler Build: `./build.sh`.
+- **GitHub-Actions-CI**: Tests laufen bei jedem PR auf Windows und macOS; ein
+  Versions-Tag baut automatisch alle Release-Assets (Setup.exe, win64-Zip, zwei DMGs)
+  als Draft-Release.
+- Neues Modul `src/utils/platform_paths.py` buendelt alle plattformabhaengigen
+  Basisfunktionen (Datenverzeichnis, Dateien/Ordner oeffnen, Dateimanager-Name).
+  Unter macOS liegen Einstellungen/Lerndaten in `~/Library/Application Support/
+  PDF_Sortier_Meister`; unter Windows unveraendert `%APPDATA%\PDF_Sortier_Meister`.
+- Ollama-Empfehlung kennt Apple Silicon: Unified Memory zaehlt als Grafikspeicher
+  (Metal), RAM-Erkennung via `sysctl`.
+
+### Behoben
+- Doppelklick auf eine PDF haette die App unter macOS zum Absturz gebracht
+  (ungeschuetztes `os.startfile`); oeffnet jetzt plattformuebergreifend den
+  Standard-Viewer.
+
 ## [0.17.0] - 2026-08-27
 
 ### Hinzugefuegt
