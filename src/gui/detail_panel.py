@@ -128,6 +128,9 @@ class DetailPanel(QWidget):
 
         self.suggestions_list = QListWidget()
         self.suggestions_list.setMaximumHeight(120)
+        self.suggestions_list.setToolTip(
+            "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen."
+        )
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
         suggestions_layout.addWidget(self.suggestions_list)
 
@@ -139,6 +142,9 @@ class DetailPanel(QWidget):
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
+        self.name_input.setToolTip(
+            "Neuer Dateiname für die PDF - wird beim Klick auf einen Zielordner übernommen."
+        )
         self.name_input.textChanged.connect(self._update_preview)
         font = QFont()
         font.setPointSize(11)
@@ -184,6 +190,19 @@ class DetailPanel(QWidget):
             ("steuerjahr", "Steuerjahr"),
             ("description", "Zusammenfassung"),
         ]
+        # Kurze Erklärung je Feld (Issue #51) - hilft neuen Nutzern, die
+        # Bedeutung der Metadaten-Felder ohne Nachfragen zu verstehen.
+        field_tooltips = {
+            "subject": "Kategorie des Dokuments (z.B. Rechnung, Vertrag).",
+            "korrespondent": "Absender oder Firma des Dokuments.",
+            "betrag_netto": "Rechnungsbetrag ohne MwSt.",
+            "betrag_brutto": "Rechnungsbetrag inkl. MwSt.",
+            "waehrung": "Währung des Betrags (z.B. EUR).",
+            "mwst_satz": "Mehrwertsteuersatz in Prozent (z.B. 19).",
+            "iban": "IBAN, falls im Dokument vorhanden.",
+            "steuerjahr": "Steuerjahr, dem dieses Dokument zugeordnet wird.",
+            "description": "Kurze Zusammenfassung des Dokumentinhalts.",
+        }
 
         for field_key, field_label in metadata_fields:
             row = QHBoxLayout()
@@ -203,6 +222,9 @@ class DetailPanel(QWidget):
                 input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
+            tooltip = field_tooltips.get(field_key)
+            if tooltip:
+                input_field.setToolTip(tooltip)
             row.addWidget(input_field)
 
             if isinstance(input_field, QPlainTextEdit):
@@ -243,6 +265,9 @@ class DetailPanel(QWidget):
         btn_row.addWidget(self.rename_and_save_btn)
 
         self.llm_btn = QPushButton("KI-Metadaten neu generieren")
+        self.llm_btn.setToolTip(
+            "Metadaten und Dateinamen per KI erneut aus dem PDF-Text vorschlagen lassen"
+        )
         self.llm_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
@@ -305,6 +330,7 @@ class DetailPanel(QWidget):
 
         self.search_results_list = QListWidget()
         self.search_results_list.setStyleSheet("font-size: 11px;")
+        self.search_results_list.setToolTip("Doppelklick öffnet das Dokument im Standardprogramm.")
         self.search_results_list.itemDoubleClicked.connect(self._on_search_result_double_clicked)
         search_layout.addWidget(self.search_results_list)
 

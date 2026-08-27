@@ -84,6 +84,8 @@ class Config:
         },
         # Backup-Hinweis beim Start (Issue #7) abgehakt?
         "backup_hint_dismissed": False,
+        # Erste-Schritte-Hinweis beim Start (Issue #51) abgehakt?
+        "first_steps_hint_dismissed": False,
     }
 
     def __init__(self, config_path: str = None):

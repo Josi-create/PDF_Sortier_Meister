@@ -316,3 +316,47 @@ def test_model_wait_cancelled_when_selection_changes(main_window, fresh_singleto
     main_window.selected_pdf = None  # Nutzer hat abgewaehlt
     qtbot.waitUntil(lambda: not main_window._model_wait_active, timeout=2000)
     assert QApplication.overrideCursor() is None
+
+
+# --------------------------------------------------------------------- #
+# 5) Erste-Schritte-Hinweis (Issue #51)
+# --------------------------------------------------------------------- #
+
+
+def test_first_steps_hint_skipped_when_dismissed(main_window, monkeypatch):
+    """Bei gesetztem Config-Flag und ohne force wird kein Dialog gezeigt."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    main_window.config.set("first_steps_hint_dismissed", True)
+    calls = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: calls.append(True))
+
+    main_window.show_first_steps_hint()
+
+    assert calls == []
+
+
+def test_first_steps_hint_shown_when_not_dismissed(main_window, monkeypatch):
+    """Ohne gesetztes Flag erscheint der Dialog beim Start."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    main_window.config.set("first_steps_hint_dismissed", False)
+    calls = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: calls.append(True))
+
+    main_window.show_first_steps_hint()
+
+    assert calls == [True]
+
+
+def test_first_steps_hint_force_ignores_dismissed_flag(main_window, monkeypatch):
+    """Ueber das Hilfe-Menue (force=True) erscheint der Dialog immer."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    main_window.config.set("first_steps_hint_dismissed", True)
+    calls = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: calls.append(True))
+
+    main_window.show_first_steps_hint(force=True)
+
+    assert calls == [True]

@@ -76,6 +76,13 @@ class _TreeScanThread(QThread):
 class FolderTreeWidget(QWidget):
     """Widget zur hierarchischen Anzeige von Zielordnern."""
 
+    # Zusatztext fuer die Tooltips einzelner Ordner-Items: erklaert den
+    # Kern-Workflow, der sonst fuer neue Nutzer unsichtbar ist (Issue #51).
+    _CLICK_HINT = (
+        "\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\n"
+        "Doppelklick: als Scan-Ordner links oeffnen (Navigation)."
+    )
+
     # Signale
     folder_selected = pyqtSignal(Path)  # Ordner wurde ausgewählt
     folder_double_clicked = pyqtSignal(Path)  # Ordner wurde doppelgeklickt
@@ -136,6 +143,11 @@ class FolderTreeWidget(QWidget):
         self.tree.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
         self.tree.setAcceptDrops(True)
         self.tree.setDropIndicatorShown(True)
+        self.tree.setToolTip(
+            "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
+            "Doppelklick: Ordner links als Scan-Ordner oeffnen (Navigation).\n"
+            "PDFs koennen auch per Drag & Drop hierher gezogen werden."
+        )
 
         # Styling
         self.tree.setStyleSheet("""
@@ -249,7 +261,7 @@ class FolderTreeWidget(QWidget):
             item = QTreeWidgetItem(self.tree) if parent_item is None else QTreeWidgetItem(parent_item)
             item.setText(0, self._item_text(folder_path, pdf_count))
             item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
-            item.setToolTip(0, str(folder_path))
+            item.setToolTip(0, str(folder_path) + self._CLICK_HINT)
             if folder_path in self._suggestion_folders:
                 item.setBackground(0, Qt.GlobalColor.green)
             self._items[folder_path] = item
@@ -273,7 +285,7 @@ class FolderTreeWidget(QWidget):
         item = QTreeWidgetItem(parent_item)
         item.setText(0, self._item_text(folder_path, self._count_pdfs(folder_path)))
         item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
-        item.setToolTip(0, str(folder_path))
+        item.setToolTip(0, str(folder_path) + self._CLICK_HINT)
         self._items[folder_path] = item
         parent_item.sortChildren(0, Qt.SortOrder.AscendingOrder)
         return True
@@ -315,7 +327,7 @@ class FolderTreeWidget(QWidget):
 
         item.setText(0, display_text)
         item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
-        item.setToolTip(0, str(folder_path))
+        item.setToolTip(0, str(folder_path) + self._CLICK_HINT)
         self._items[folder_path] = item
 
         # Styling für Vorschläge

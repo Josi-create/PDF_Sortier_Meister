@@ -72,6 +72,10 @@ class FolderWidget(QFrame):
         self.name_label.setText(name)
         self.name_label.setToolTip(str(self.folder_path))
 
+        # Standard-Tooltip für die ganze Kachel (main_window.py setzt bei
+        # Vorschlägen einen ausführlicheren Tooltip, der diesen ersetzt).
+        self.setToolTip(f"{self.folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher.")
+
         layout.addWidget(self.name_label)
 
         # PDF-Anzahl
