@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-28
+
 ### Hinzugefuegt
 - **macOS-Unterstuetzung** bei gemeinsamer Codebasis: Der Build erzeugt neben der
   Windows-Version jetzt auch eine macOS-App (`.app` + DMG, Apple Silicon und Intel).
@@ -21,11 +23,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDF_Sortier_Meister`; unter Windows unveraendert `%APPDATA%\PDF_Sortier_Meister`.
 - Ollama-Empfehlung kennt Apple Silicon: Unified Memory zaehlt als Grafikspeicher
   (Metal), RAM-Erkennung via `sysctl`.
+- **Demo-PDFs fuer Beta-Tester** (Issue #52): `python scripts/generate_demo_pdfs.py`
+  erzeugt 23 fiktive Testdokumente (Rechnungen, Vertraege, Kontoauszug,
+  Gehaltsabrechnung, Steuerbescheid, gescannte Belege ohne Textebene, Sammelscan
+  zum Aufteilen) und packt sie als ZIP nach `data/demo/`.
 
 ### Behoben
 - Doppelklick auf eine PDF haette die App unter macOS zum Absturz gebracht
   (ungeschuetztes `os.startfile`); oeffnet jetzt plattformuebergreifend den
   Standard-Viewer.
+- **Absturz beim Schliessen** waehrend eines laufenden Ordner-Scans oder
+  Metadaten-Lesens: Das Hauptfenster stoppt beim Schliessen seine Timer und
+  wartet auf seine Hintergrund-Threads; der PDF-Cache haelt einen nach dem
+  Stop-Timeout noch laufenden Analyse-Thread referenziert, statt ihn Qt im
+  Betrieb loeschen zu lassen (harter Prozessabbruch).
+- CI-Testlauf auf Windows und macOS repariert (`pythonpath` fuer pytest,
+  Hardware-Tests unabhaengig vom Apple-Silicon-Runner).
 
 ## [0.17.0] - 2026-08-27
 
@@ -282,7 +295,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.14.0...v0.15.0
