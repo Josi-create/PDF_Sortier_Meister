@@ -1,10 +1,11 @@
 # PDF Sortier Meister
 
-**Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen Windows-PC, ohne Server, mit lokaler KI.**
+**Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen PC (Windows & macOS), ohne Server, mit lokaler KI.**
 
 [![Release](https://img.shields.io/github/v/release/Josi-create/PDF_Sortier_Meister?label=Download&color=brightgreen)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Josi-create/PDF_Sortier_Meister/total)](https://github.com/Josi-create/PDF_Sortier_Meister/releases)
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?logo=windows)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-black?logo=apple)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
@@ -25,6 +26,8 @@ Datenbank-Silo, kein Docker, kein Server.
 
 ## ⚡ Installation
 
+### Windows
+
 1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_Setup.exe) — dieser Link zeigt immer auf die **neueste Version**
 2. **Doppelklick** auf die Setup-Datei → Weiter → Fertig
 3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
@@ -43,6 +46,17 @@ möchte, löscht danach noch den Ordner `%APPDATA%\PDF_Sortier_Meister`.
 >
 > 📦 **Lieber ohne Installation?** Auf der [Release-Seite](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
 > liegt auch ein portables ZIP: entpacken, `PDF_Sortier_Meister.exe` starten.
+
+### macOS
+
+1. **Herunterladen** (je nach Chip, siehe * → Über diesen Mac*):
+   - Apple Silicon (M1–M4): 👉 [`PDF_Sortier_Meister-macos-arm64.dmg`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister-macos-arm64.dmg)
+   - Intel: 👉 [`PDF_Sortier_Meister-macos-x86_64.dmg`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister-macos-x86_64.dmg)
+2. DMG öffnen, **„PDF Sortier Meister" auf „Applications" ziehen**, fertig.
+3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
+
+Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Lerndaten liegen unter
+`~/Library/Application Support/PDF_Sortier_Meister`.
 
 ---
 
@@ -137,12 +151,19 @@ pip install -r requirements.txt
 python run.py
 ```
 
-- Python 3.10+, Windows 10/11
-- OCR im Quellcode-Betrieb: Tesseract installieren (`winget install UB-Mannheim.TesseractOCR`) — die App
-  findet es in den Standardordnern; in den Builds ist es gebündelt
-- Tests: `python -m pytest tests -q` (428 Tests, pytest-qt)
+- Python 3.10+, Windows 10/11 oder macOS (unter macOS: `source venv/bin/activate` statt `venv\Scripts\activate`)
+- OCR im Quellcode-Betrieb: Tesseract installieren — Windows: `winget install UB-Mannheim.TesseractOCR`,
+  macOS: `brew install tesseract tesseract-lang` — die App findet es in den Standardordnern;
+  in den Builds ist es gebündelt
+- Tests: `python -m pytest tests -q` (450+ Tests, pytest-qt); laufen per GitHub Actions auf Windows und macOS
 - Windows-Build: `build.bat` — PyInstaller (`pdf_sortier_meister.spec`), kopiert Tesseract nach `vendor/`
   und baut mit Inno Setup 6 den Installer (`scripts/build_installer.py`)
+- macOS-Build: `./build.sh` — gleicher PyInstaller-Spec, bündelt Tesseract (`scripts/prepare_tesseract_mac.py`,
+  benötigt Homebrew-Tesseract + Xcode Command Line Tools) und erzeugt `.app` + DMG. Mit gesetzten
+  Umgebungsvariablen `MACOS_CODESIGN_IDENTITY` bzw. `APPLE_ID`/`APPLE_TEAM_ID`/`APPLE_APP_SPECIFIC_PASSWORD`
+  wird signiert und notarisiert (in CI kommen diese aus den Repo-Secrets, siehe `.github/workflows/release.yml`)
+- Release-Builds: ein Tag-Push (`vX.Y.Z`) baut per GitHub Actions alle Assets (Setup.exe, win64-Zip,
+  zwei DMGs) und legt ein Draft-Release an
 
 Architektur und Entscheidungen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 Versionshistorie: [CHANGELOG.md](CHANGELOG.md) ·
