@@ -24,6 +24,81 @@ def is_cloud_provider(provider_type: str) -> bool:
     return str(provider_type).lower() in CLOUD_PROVIDERS
 
 
+# Kanonische Metadaten-Schluessel, wie sie Detail-Panel, Umbenennen-Dialog und
+# Datenbank erwarten. Der Prompt fragt teils deutsche Namen ab ("beschreibung",
+# "category", "mwst"), und Modelle halten sich unterschiedlich daran - deshalb
+# werden alle bekannten Varianten hier auf einen Satz Schluessel abgebildet.
+METADATA_KEY_ALIASES: dict[str, str] = {
+    "category": "subject",
+    "kategorie": "subject",
+    "subject": "subject",
+    "beschreibung": "description",
+    "zusammenfassung": "description",
+    "summary": "description",
+    "description": "description",
+    "mwst": "mwst_satz",
+    "mwst_satz": "mwst_satz",
+    "mehrwertsteuer": "mwst_satz",
+    "vat": "mwst_satz",
+    "korrespondent": "korrespondent",
+    "absender": "korrespondent",
+    "sender": "korrespondent",
+    "betrag_netto": "betrag_netto",
+    "betrag_brutto": "betrag_brutto",
+    "betrag": "betrag",
+    "waehrung": "waehrung",
+    "währung": "waehrung",
+    "currency": "waehrung",
+    "iban": "iban",
+    "steuerjahr": "steuerjahr",
+    "jahr": "steuerjahr",
+    "year": "steuerjahr",
+}
+
+# Platzhalter, die Modelle fuer "nicht vorhanden" liefern - werden verworfen
+_UNKNOWN_VALUES = {"", "unbekannt", "unknown", "null", "none", "n/a", "-"}
+
+
+def normalize_llm_metadata(metadata) -> dict:
+    """Bildet LLM-Metadaten auf die kanonischen Schluessel ab.
+
+    - Alias-Schluessel (``beschreibung`` -> ``description``, ``category`` ->
+      ``subject``, ``mwst`` -> ``mwst_satz``, ...) werden umbenannt; ein bereits
+      vorhandener kanonischer Wert hat Vorrang.
+    - Platzhalter wie ``UNBEKANNT``/``null`` und leere Werte fallen weg.
+    - Unbekannte Schluessel bleiben unveraendert erhalten; Werte werden nicht
+      umgedeutet (``betrag`` bleibt ``betrag``, kein Raten ob netto/brutto).
+
+    Gibt bei Nicht-Dicts ein leeres Dict zurueck.
+    """
+    if not isinstance(metadata, dict):
+        return {}
+    result: dict = {}
+
+    def _canonical(key) -> str:
+        k = str(key).strip().lower()
+        return METADATA_KEY_ALIASES.get(k, key)
+
+    # Kanonische Schluessel zuerst verarbeiten, damit sie unabhaengig von der
+    # Reihenfolge im JSON Vorrang vor Alias-Schluesseln haben.
+    ordered = sorted(
+        metadata.items(),
+        key=lambda kv: 0 if str(kv[0]).strip().lower() == _canonical(kv[0]) else 1,
+    )
+    for key, value in ordered:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            if value.lower() in _UNKNOWN_VALUES:
+                continue
+        canonical = _canonical(key)
+        if canonical in result and result[canonical] not in (None, ""):
+            continue  # kanonischer Wert war zuerst da / hat Vorrang
+        result[canonical] = value
+    return result
+
+
 class LLMProviderType(Enum):
     """Unterstützte LLM-Anbieter."""
     CLAUDE = "claude"
@@ -434,6 +509,10 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
             if not isinstance(data, dict):
                 return None, "JSON ist kein Objekt (Dictionary)."
+
+            # Metadaten-Schluessel vereinheitlichen (beschreibung -> description, ...)
+            if "metadata" in data:
+                data["metadata"] = normalize_llm_metadata(data.get("metadata"))
 
             return data, None
         except json.JSONDecodeError as e:
