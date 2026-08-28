@@ -27,7 +27,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, NamedTuple, Optional
 
 
 @dataclass
@@ -47,15 +47,41 @@ class OllamaRecommendation:
     gpu: Optional[GpuInfo]         # die massgebliche Grafikkarte
 
 
-# (min. Grafikspeicher in MB, Modell, Downloadgroesse in GB)
+# ---------------------------------------------------------------------------
+# Modell-Empfehlungen - zuletzt geprueft am 2026-08-28.
+#
+# Ollama-Modelle veralten schnell (neue Gemma-/Llama-Generationen, andere
+# Downloadgroessen). Diese Tabelle ist die EINE Stelle, die bei einem Update
+# angepasst werden muss - siehe docs/RELEASE_CHECKLISTE.md ("LLM-Modell-
+# Empfehlungen pruefen"). ``recommend()`` liest ausschliesslich daraus.
+#
 # Gemma 3 ist mehrsprachig stark (Deutsch) und liefert stabiles JSON.
-MODEL_TIERS = [
-    (20000, "gemma3:27b", 17.0),
-    (10000, "gemma3:12b", 8.1),
-    (4000, "gemma3:4b", 3.3),
-]
-MIN_VRAM_MB = MODEL_TIERS[-1][0]
+# ---------------------------------------------------------------------------
+MODEL_TIERS_CHECKED_ON = "2026-08-28"
 
+
+class ModelTier(NamedTuple):
+    min_vram_mb: int      # ab dieser Grafikspeicher-Groesse (MB) empfohlen
+    model: str             # Ollama-Modellname
+    size_gb: float          # Downloadgroesse in GB
+
+
+# (min. Grafikspeicher in MB, Modell, Downloadgroesse in GB) - absteigend
+MODEL_TIERS = [
+    ModelTier(20000, "gemma3:27b", 17.0),
+    ModelTier(10000, "gemma3:12b", 8.1),
+    ModelTier(4000, "gemma3:4b", 3.3),
+]
+MIN_VRAM_MB = MODEL_TIERS[-1].min_vram_mb
+
+# Laptops/Desktops ohne dedizierte Grafikkarte, aber mit genug Arbeitsspeicher
+# (z.B. schneller DDR5-Shared-RAM): das kleinste Gemma-3-Modell laeuft auch
+# rein auf der CPU. Spuerbar langsamer als mit GPU, aber fuer gelegentliche
+# Nutzung brauchbar - daher "moeglich", nicht die Standardempfehlung.
+RAM_ONLY_MIN_RAM_MB = 16000
+RAM_ONLY_MODEL = ModelTier(RAM_ONLY_MIN_RAM_MB, "gemma3:1b", 0.8)
+
+# Modell fuer Ollama Cloud (kein lokaler Download, benoetigt API-Key).
 CLOUD_MODEL = "gpt-oss:120b"
 
 _INTEGRATED_PATTERNS = (
@@ -255,7 +281,9 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
 
     Regeln:
     - keine dedizierte Grafikkarte (nur integrierte Grafik oder gar keine):
-      lokal nicht empfohlen -> Ollama Cloud
+      lokal nicht empfohlen -> Ollama Cloud, ausser es ist genug Arbeitsspeicher
+      vorhanden (RAM_ONLY_MIN_RAM_MB) - dann ist das kleinste Gemma-3-Modell
+      auf der CPU "moeglich, aber langsamer", mit Ollama Cloud als Alternative
     - dedizierte Karte mit weniger als 4 GB: ebenfalls Cloud
     - Intel Arc: von Ollama unter Windows nicht unterstuetzt -> Cloud
     - Apple Silicon: Unified Memory zaehlt als Grafikspeicher (Metal);
@@ -286,17 +314,35 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
 
     if best is None:
         integrated = next((g for g in gpus if not g.dedicated), None)
-        if integrated:
+        gpu_desc = (
+            f"Nur integrierte Grafik erkannt ({integrated.name})" if integrated
+            else "Keine Grafikkarte erkannt"
+        )
+        if ram_mb >= RAM_ONLY_MIN_RAM_MB:
+            # Kein dediziertes VRAM, aber genug Arbeitsspeicher fuer das
+            # kleinste Gemma-3-Modell auf der CPU (z.B. Laptop mit schnellem
+            # Shared-RAM) - moeglich, aber deutlich langsamer als mit GPU.
             reason = (
-                f"Nur integrierte Grafik erkannt ({integrated.name}), die sich den "
-                f"Arbeitsspeicher teilt. Ein lokales Modell wuerde auf dem Prozessor "
-                f"laufen - pro Dokument dauert das oft eine Minute oder laenger."
+                f"{gpu_desc}, aber {_gb(ram_mb)} Arbeitsspeicher vorhanden. "
+                f"{RAM_ONLY_MODEL.model} laeuft auch ohne Grafikkarte auf dem "
+                f"Prozessor - moeglich, aber je nach Dokument spuerbar langsamer "
+                f"als mit GPU. Alternative: Ollama Cloud (keine Wartezeit, aber "
+                f"Dokumentinhalte werden dabei an ollama.com uebertragen)."
             )
-        else:
-            reason = (
-                "Keine Grafikkarte erkannt. Ein lokales Modell wuerde auf dem "
-                "Prozessor laufen - pro Dokument dauert das oft eine Minute oder laenger."
+            return OllamaRecommendation(
+                True, RAM_ONLY_MODEL.model, RAM_ONLY_MODEL.size_gb, reason, integrated
             )
+        reason = (
+            f"{gpu_desc}"
+            + (
+                ", die sich den Arbeitsspeicher teilt. Ein lokales Modell wuerde "
+                "auf dem Prozessor laufen - pro Dokument dauert das oft eine "
+                "Minute oder laenger."
+                if integrated else
+                ". Ein lokales Modell wuerde auf dem Prozessor laufen - pro "
+                "Dokument dauert das oft eine Minute oder laenger."
+            )
+        )
         return OllamaRecommendation(False, None, 0.0, reason, integrated)
 
     if best.vendor == "intel":
