@@ -16,7 +16,7 @@ from enum import Enum
 
 
 # Provider, die Dokumenteninhalte an externe (Cloud-)Dienste uebertragen.
-CLOUD_PROVIDERS = frozenset({"claude", "openai", "openrouter", "ollama_cloud"})
+CLOUD_PROVIDERS = frozenset({"claude", "openai", "poe", "openrouter", "ollama_cloud"})
 
 
 def is_cloud_provider(provider_type: str) -> bool:
@@ -103,6 +103,7 @@ class LLMProviderType(Enum):
     """Unterstützte LLM-Anbieter."""
     CLAUDE = "claude"
     OPENAI = "openai"
+    POE = "poe"  # Poe.com - Zugang zu vielen Modellen
     OPENROUTER = "openrouter"  # OpenRouter.ai - viele Modelle, OpenAI-kompatibel
     OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama-Modelle in der Cloud (ollama.com, API-Key)

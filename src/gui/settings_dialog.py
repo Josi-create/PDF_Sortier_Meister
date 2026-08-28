@@ -36,6 +36,7 @@ class SettingsDialog(QDialog):
         ("ollama", "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
         ("ollama_cloud", "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
         ("openrouter", "OpenRouter (viele Modelle, ein API-Key)"),
+        ("poe", "Poe.com (viele KI-Modelle, ein API-Key)"),
         ("claude", "Anthropic Claude"),
         ("openai", "OpenAI GPT"),
         ("none", "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"),
@@ -907,6 +908,24 @@ class SettingsDialog(QDialog):
             "gemma3 (Google)",
             "phi3 (Microsoft, sehr klein)",
         ],
+        "poe": [
+            "GPT-4o-Mini (schnell & günstig)",
+            "GPT-4o (OpenAI)",
+            "GPT-4.1-Mini (OpenAI, neu)",
+            "GPT-4.1 (OpenAI, neu)",
+            "o3-Mini (Reasoning)",
+            "o4-Mini (Reasoning, neu)",
+            "Claude-3.5-Haiku (schnell)",
+            "Claude-3.5-Sonnet (Anthropic)",
+            "Claude-Sonnet-4 (Anthropic, neu)",
+            "Claude-Sonnet-4.5 (Anthropic, neuestes)",
+            "Claude-Opus-4 (Anthropic, premium)",
+            "Gemini-2-Flash (Google)",
+            "Gemini-2.5-Flash (Google, neu)",
+            "Gemini-2.5-Pro (Google, premium)",
+            "Llama-3.1-405B (Meta)",
+            "Mistral-Large (Mistral)",
+        ],
         "openrouter": [
             "openai/gpt-4.1-nano (schnell & günstig)",
             "openai/gpt-4.1-mini (ausgewogen)",
@@ -931,12 +950,14 @@ class SettingsDialog(QDialog):
     _KEY_PROVIDER_LABELS = {
         "claude": "Anthropic Claude",
         "openai": "OpenAI",
+        "poe": "Poe.com",
         "openrouter": "OpenRouter",
         "ollama_cloud": "Ollama Cloud",
     }
     _API_KEY_PLACEHOLDERS = {
         "claude": "sk-ant-...",
         "openai": "sk-...",
+        "poe": "Poe API-Key von poe.com/api_key",
         "ollama": "Nicht noetig fuer Ollama",
         "openrouter": "sk-or-... von openrouter.ai/keys",
         "ollama_cloud": "API-Key von ollama.com/settings/keys",
@@ -1308,6 +1329,8 @@ class SettingsDialog(QDialog):
                 self._test_claude(api_key, model)
             elif provider_id == "openai":
                 self._test_openai(api_key, model)
+            elif provider_id == "poe":
+                self._test_poe(api_key, model)
             elif provider_id == "ollama":
                 self._test_ollama(base_url, model)
             elif provider_id == "openrouter":
@@ -1393,6 +1416,54 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(
                 self, "Fehler",
                 "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler",
+                f"Verbindungsfehler: {str(e)}"
+            )
+
+    def _test_poe(self, api_key: str, model: str):
+        """Testet die Poe API (OpenAI-kompatibel)."""
+        try:
+            import openai
+            from src.ml.poe_provider import PoeProvider
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url=PoeProvider.BASE_URL,
+            )
+            model_id = model or PoeProvider.DEFAULT_MODEL
+
+            # Claude-Modelle via Poe aktivieren Thinking automatisch. max_tokens
+            # muss deshalb hoch genug sein (>=2048), damit Poe's abgeleitetes
+            # budget_tokens nach Abzug der Response-Reserve >= 1024 bleibt.
+            max_tokens = 2048 if "claude" in model_id.lower() else 20
+
+            response = client.chat.completions.create(
+                model=model_id,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "user", "content": "Sage 'OK'"}
+                ]
+            )
+
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu Poe erfolgreich!\n"
+                f"Modell: {model_id}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except ImportError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai"
+            )
+        except openai.AuthenticationError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Ungültiger Poe API-Key.\n"
+                "Holen Sie Ihren Key von: poe.com/api_key"
             )
         except Exception as e:
             QMessageBox.critical(
@@ -1552,6 +1623,8 @@ class SettingsDialog(QDialog):
                 models = self._fetch_claude_models(api_key)
             elif provider_id == "openai":
                 models = self._fetch_openai_models(api_key)
+            elif provider_id == "poe":
+                models = self._fetch_poe_models(api_key)
             elif provider_id == "ollama":
                 base_url = self.base_url_input.text().strip() or "http://localhost:11434"
                 models = self._fetch_ollama_models(base_url)
@@ -1622,6 +1695,20 @@ class SettingsDialog(QDialog):
             models.append(model_id)
 
         models.sort(reverse=True)
+        return models
+
+    def _fetch_poe_models(self, api_key: str) -> list[str]:
+        """Ruft verfügbare Modelle von der Poe API ab."""
+        import openai
+        from src.ml.poe_provider import PoeProvider
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url=PoeProvider.BASE_URL,
+        )
+
+        models_response = client.models.list()
+        models = [model.id for model in models_response.data]
+        models.sort()
         return models
 
     def _fetch_openrouter_models(self, api_key: str) -> list[str]:

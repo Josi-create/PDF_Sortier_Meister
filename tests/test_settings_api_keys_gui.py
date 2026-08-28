@@ -119,6 +119,45 @@ def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
     assert saved["cached_models"] == {"openrouter": ["openai/gpt-4.1-nano"]}
 
 
+def test_poe_is_selectable_with_own_key(qtbot, fresh_config):
+    """Issue #66: Poe.com ist wieder waehlbar und haelt einen eigenen Key."""
+    d = _dialog(qtbot)
+
+    _select(d, "poe")
+    assert d._provider_id_at(d.provider_combo.currentIndex()) == "poe"
+    assert d.api_key_label.text() == "API-Key (Poe.com):"
+    assert d.cloud_consent_check.isEnabled()  # Poe ist ein Cloud-Anbieter
+    d.api_key_input.setText("poe-key")
+
+    _select(d, "openrouter")
+    assert d.api_key_input.text() == ""  # Poe-Key darf nicht mitwandern
+    d.api_key_input.setText("sk-or-key")
+
+    _select(d, "poe")
+    assert d.api_key_input.text() == "poe-key"
+    d._save_settings()
+
+    llm = fresh_config.get_llm_config()
+    assert llm["provider"] == "poe"
+    assert llm["api_key"] == "poe-key"
+    assert llm["api_keys"] == {"poe": "poe-key", "openrouter": "sk-or-key"}
+
+
+def test_poe_provider_from_config_is_preselected(qtbot, fresh_config):
+    """Ein gespeicherter Poe-Provider wird beim Oeffnen wieder angezeigt."""
+    llm = fresh_config.get_llm_config()
+    llm.update({
+        "provider": "poe",
+        "api_key": "poe-key",
+        "api_keys": {"poe": "poe-key"},
+    })
+    fresh_config.set("llm", llm)
+
+    d = _dialog(qtbot)
+    assert d.provider_combo.currentIndex() == d._index_for_provider("poe")
+    assert d.api_key_input.text() == "poe-key"
+
+
 def test_consent_checkbox_only_for_cloud_providers(qtbot, fresh_config):
     d = _dialog(qtbot)
     _select(d, "ollama")
