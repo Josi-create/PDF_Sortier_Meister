@@ -224,12 +224,30 @@ def _default_store() -> LLMTimingStore:
         return LLMTimingStore(None)
 
 
+def _bind_to_main_thread(activity: LLMActivity) -> None:
+    """QObject in den GUI-Thread verschieben, egal welcher Thread es anlegt.
+
+    Der erste Aufruf kommt oft aus einem Worker-Thread (Pre-Cache); ein
+    QObject mit Affinitaet zu einem spaeter beendeten Thread darf weder
+    Signale queuen noch aus dem Hauptthread geloescht werden (Abort auf macOS).
+    """
+    try:
+        from PyQt6.QtCore import QCoreApplication
+
+        app = QCoreApplication.instance()
+        if app is not None and activity.thread() is not app.thread():
+            activity.moveToThread(app.thread())
+    except Exception:  # noqa: BLE001 - ohne QApplication (reine Unit-Tests) egal
+        pass
+
+
 def get_llm_activity() -> LLMActivity:
     """Prozessweite Instanz (lazy)."""
     global _activity
     with _activity_lock:
         if _activity is None:
             _activity = LLMActivity(_default_store())
+            _bind_to_main_thread(_activity)
         return _activity
 
 
@@ -238,4 +256,5 @@ def reset_llm_activity(store: LLMTimingStore | None = None) -> LLMActivity:
     global _activity
     with _activity_lock:
         _activity = LLMActivity(store or LLMTimingStore(None))
+        _bind_to_main_thread(_activity)
         return _activity
