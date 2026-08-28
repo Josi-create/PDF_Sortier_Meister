@@ -104,7 +104,6 @@ class SettingsDialog(QDialog):
             "Keiner (nur lokale Klassifikation)",
             "Anthropic Claude",
             "OpenAI GPT",
-            "Poe.com (viele Modelle)",
             "Ollama (lokal, kein API-Key noetig)",
             "OpenRouter (viele Modelle, ein API-Key)",
             "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
@@ -855,24 +854,6 @@ class SettingsDialog(QDialog):
             "o3 (Reasoning)",
             "o4-mini (Reasoning, neu)",
         ],
-        "poe": [
-            "GPT-4o-Mini (schnell & günstig)",
-            "GPT-4o (OpenAI)",
-            "GPT-4.1-Mini (OpenAI, neu)",
-            "GPT-4.1 (OpenAI, neu)",
-            "o3-Mini (Reasoning)",
-            "o4-Mini (Reasoning, neu)",
-            "Claude-3.5-Haiku (schnell)",
-            "Claude-3.5-Sonnet (Anthropic)",
-            "Claude-Sonnet-4 (Anthropic, neu)",
-            "Claude-Sonnet-4.5 (Anthropic, neuestes)",
-            "Claude-Opus-4 (Anthropic, premium)",
-            "Gemini-2-Flash (Google)",
-            "Gemini-2.5-Flash (Google, neu)",
-            "Gemini-2.5-Pro (Google, premium)",
-            "Llama-3.1-405B (Meta)",
-            "Mistral-Large (Mistral)",
-        ],
         "ollama": [
             "llama3.1 (Meta, ausgewogen)",
             "llama3.2 (Meta, klein & schnell)",
@@ -903,12 +884,11 @@ class SettingsDialog(QDialog):
     }
 
     _PROVIDER_NAME_BY_INDEX = {
-        1: "claude", 2: "openai", 3: "poe", 4: "ollama", 5: "openrouter", 6: "ollama_cloud",
+        1: "claude", 2: "openai", 3: "ollama", 4: "openrouter", 5: "ollama_cloud",
     }
     _KEY_PROVIDER_LABELS = {
         "claude": "Anthropic Claude",
         "openai": "OpenAI",
-        "poe": "Poe.com",
         "openrouter": "OpenRouter",
         "ollama_cloud": "Ollama Cloud",
     }
@@ -943,7 +923,7 @@ class SettingsDialog(QDialog):
         self.model_combo.clear()
 
         # Server-URL ist nur fuer Ollama relevant - standardmaessig deaktivieren
-        is_ollama = (index == 4)
+        is_ollama = (index == 3)
         self.base_url_input.setEnabled(is_ollama)
 
         if index == 0:  # Keiner
@@ -952,8 +932,8 @@ class SettingsDialog(QDialog):
             self.test_button.setEnabled(False)
             return
 
-        # Provider 1-6: API-/Modell-Felder freischalten (nur Ollama lokal ohne Key)
-        self.api_key_input.setEnabled(index != 4)
+        # Provider 1-5: API-/Modell-Felder freischalten (nur Ollama lokal ohne Key)
+        self.api_key_input.setEnabled(index != 3)
         self.model_combo.setEnabled(True)
         self.test_button.setEnabled(True)
 
@@ -965,12 +945,10 @@ class SettingsDialog(QDialog):
         elif index == 2:
             self.api_key_input.setPlaceholderText("sk-...")
         elif index == 3:
-            self.api_key_input.setPlaceholderText("Poe API-Key von poe.com/api_key")
-        elif index == 4:
             self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
-        elif index == 5:
+        elif index == 4:
             self.api_key_input.setPlaceholderText("sk-or-... von openrouter.ai/keys")
-        elif index == 6:
+        elif index == 5:
             self.api_key_input.setPlaceholderText("API-Key von ollama.com/settings/keys")
 
     def _update_consent_hint(self):
@@ -1016,14 +994,12 @@ class SettingsDialog(QDialog):
             self.provider_combo.setCurrentIndex(1)
         elif provider == "openai":
             self.provider_combo.setCurrentIndex(2)
-        elif provider == "poe":
-            self.provider_combo.setCurrentIndex(3)
         elif provider == "ollama":
-            self.provider_combo.setCurrentIndex(4)
+            self.provider_combo.setCurrentIndex(3)
         elif provider == "openrouter":
-            self.provider_combo.setCurrentIndex(5)
+            self.provider_combo.setCurrentIndex(4)
         elif provider == "ollama_cloud":
-            self.provider_combo.setCurrentIndex(6)
+            self.provider_combo.setCurrentIndex(5)
         else:
             self.provider_combo.setCurrentIndex(0)
         # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
@@ -1105,11 +1081,9 @@ class SettingsDialog(QDialog):
             provider = "claude"
         elif provider_index == 2:
             provider = "openai"
-        elif provider_index == 3:
-            provider = "poe"
-        elif provider_index == 5:
+        elif provider_index == 4:
             provider = "openrouter"
-        elif provider_index == 6:
+        elif provider_index == 5:
             provider = "ollama_cloud"
         else:
             provider = "ollama"
@@ -1252,7 +1226,7 @@ class SettingsDialog(QDialog):
         api_key = self.api_key_input.text().strip()
 
         # Ollama braucht keinen API-Key, aber eine URL.
-        if provider_index == 4:
+        if provider_index == 3:
             base_url = self.base_url_input.text().strip() or "http://localhost:11434"
         elif not api_key:
             QMessageBox.warning(
@@ -1273,13 +1247,11 @@ class SettingsDialog(QDialog):
                 self._test_claude(api_key, model)
             elif provider_index == 2:  # OpenAI
                 self._test_openai(api_key, model)
-            elif provider_index == 3:  # Poe
-                self._test_poe(api_key, model)
-            elif provider_index == 4:  # Ollama
+            elif provider_index == 3:  # Ollama
                 self._test_ollama(base_url, model)
-            elif provider_index == 5:  # OpenRouter
+            elif provider_index == 4:  # OpenRouter
                 self._test_openrouter(api_key, model)
-            elif provider_index == 6:  # Ollama Cloud
+            elif provider_index == 5:  # Ollama Cloud
                 self._test_ollama_cloud(api_key, model)
         finally:
             self.test_button.setEnabled(True)
@@ -1360,53 +1332,6 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(
                 self, "Fehler",
                 "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
-            )
-
-    def _test_poe(self, api_key: str, model: str):
-        """Testet die Poe API."""
-        try:
-            import openai
-            client = openai.OpenAI(
-                api_key=api_key,
-                base_url="https://api.poe.com/v1",
-            )
-
-            # Claude-Modelle via Poe aktivieren Thinking automatisch.
-            # Wir brauchen genug max_tokens (>=2048), damit budget_tokens >= 1024
-            # nach Abzug der Response-Reserve.
-            is_claude = "claude" in model.lower()
-            max_tokens = 2048 if is_claude else 20
-
-            response = client.chat.completions.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[
-                    {"role": "user", "content": "Sage 'OK'"}
-                ]
-            )
-
-            QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Poe erfolgreich!\n"
-                f"Modell: {model}\n"
-                f"Antwort: {response.choices[0].message.content}"
-            )
-        except ImportError:
-            QMessageBox.critical(
-                self, "Fehler",
-                "Das 'openai' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install openai"
-            )
-        except openai.AuthenticationError:
-            QMessageBox.critical(
-                self, "Fehler",
-                "Ungültiger Poe API-Key.\n"
-                "Holen Sie Ihren Key von: poe.com/api_key"
             )
         except Exception as e:
             QMessageBox.critical(
@@ -1548,7 +1473,7 @@ class SettingsDialog(QDialog):
             return
 
         # Ollama braucht keinen API-Key, alle anderen schon.
-        if provider_index != 4 and not api_key:
+        if provider_index != 3 and not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
@@ -1566,14 +1491,12 @@ class SettingsDialog(QDialog):
                 models = self._fetch_claude_models(api_key)
             elif provider_index == 2:  # OpenAI
                 models = self._fetch_openai_models(api_key)
-            elif provider_index == 3:  # Poe
-                models = self._fetch_poe_models(api_key)
-            elif provider_index == 4:  # Ollama (lokal)
+            elif provider_index == 3:  # Ollama (lokal)
                 base_url = self.base_url_input.text().strip() or "http://localhost:11434"
                 models = self._fetch_ollama_models(base_url)
-            elif provider_index == 5:  # OpenRouter
+            elif provider_index == 4:  # OpenRouter
                 models = self._fetch_openrouter_models(api_key)
-            elif provider_index == 6:  # Ollama Cloud
+            elif provider_index == 5:  # Ollama Cloud
                 from src.ml.ollama_provider import OllamaCloudProvider
                 from src.ml.llm_provider import LLMConfig
                 models = OllamaCloudProvider(LLMConfig(api_key=api_key, model="")).list_models()
@@ -1640,22 +1563,6 @@ class SettingsDialog(QDialog):
             models.append(model_id)
 
         models.sort(reverse=True)
-        return models
-
-    def _fetch_poe_models(self, api_key: str) -> list[str]:
-        """Ruft verfügbare Modelle von der Poe API ab."""
-        import openai
-        client = openai.OpenAI(
-            api_key=api_key,
-            base_url="https://api.poe.com/v1",
-        )
-
-        models_response = client.models.list()
-        models = []
-        for model in models_response.data:
-            models.append(model.id)
-
-        models.sort()
         return models
 
     def _fetch_openrouter_models(self, api_key: str) -> list[str]:
