@@ -235,6 +235,11 @@ def main():
         if config.get_scan_folder():
             window.initial_load()
 
+    # Update-Pruefung im Hintergrund, kurz nach dem Start (Issue #73).
+    # Bewusst hier und nicht im MainWindow-Konstruktor, damit Tests und
+    # Dialoge, die ein MainWindow erzeugen, keine Netzwerkzugriffe ausloesen.
+    window.schedule_update_check()
+
     # Falls als Argument eine PDF-Datei uebergeben wurde, diese nach dem
     # initialen Laden auswaehlen und den Rename-Dialog oeffnen. Kurze
     # Verzoegerung, damit load_pdfs() die Widgets erstellt hat.

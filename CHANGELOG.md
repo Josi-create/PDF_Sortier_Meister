@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Update-Pruefung** (Issue #73): Kurz nach dem Start fragt die App im Hintergrund
+  die Versionsnummer des neuesten GitHub-Releases ab (`src/utils/update_check.py`,
+  nur `releases/latest`, keine Nutzerdaten). Gibt es eine neuere Version, erscheint
+  ein Hinweis in der Statusleiste und ein Dialog mit "Download-Seite oeffnen",
+  "Diese Version ueberspringen" und "Spaeter". Manuell ueber Hilfe > Nach Updates
+  suchen; abschaltbar unter Einstellungen > Allgemein > Updates.
+
 ## [0.18.0] - 2026-08-28
 
 ### Hinzugefuegt
