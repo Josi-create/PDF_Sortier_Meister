@@ -27,6 +27,20 @@ class SettingsDialog(QDialog):
     # Signal wenn Einstellungen geändert wurden
     settings_changed = pyqtSignal()
 
+    # Provider-Combo: (provider_id, Anzeigetext) in Anzeige-Reihenfolge.
+    # Ollama (lokal, kein Key) zuerst, "Ohne KI" ganz unten (Issue #67 -
+    # KI ist ein Hauptfeature, nicht "optional"). Kein hartkodierter Index
+    # mehr noetig - siehe _provider_id_at()/_index_for_provider().
+    _LLM_PROVIDERS: list[tuple[str, str]] = [
+        ("ollama", "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
+        ("ollama_cloud", "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
+        ("openrouter", "OpenRouter (viele Modelle, ein API-Key)"),
+        ("claude", "Anthropic Claude"),
+        ("openai", "OpenAI GPT"),
+        ("none", "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"),
+    ]
+    _LLM_PROVIDER_INDEX = {pid: i for i, (pid, _) in enumerate(_LLM_PROVIDERS)}
+
     def __init__(self, parent=None):
         """Initialisiert den Einstellungsdialog."""
         super().__init__(parent)
@@ -100,14 +114,7 @@ class SettingsDialog(QDialog):
         self._key_provider = ""  # Provider, dessen Key gerade im Feld steht
 
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems([
-            "Keiner (nur lokale Klassifikation)",
-            "Anthropic Claude",
-            "OpenAI GPT",
-            "Ollama (lokal, kein API-Key noetig)",
-            "OpenRouter (viele Modelle, ein API-Key)",
-            "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
-        ])
+        self.provider_combo.addItems([label for _, label in self._LLM_PROVIDERS])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_layout.addRow("Provider:", self.provider_combo)
 
@@ -883,15 +890,29 @@ class SettingsDialog(QDialog):
         ],
     }
 
-    _PROVIDER_NAME_BY_INDEX = {
-        1: "claude", 2: "openai", 3: "ollama", 4: "openrouter", 5: "ollama_cloud",
-    }
     _KEY_PROVIDER_LABELS = {
         "claude": "Anthropic Claude",
         "openai": "OpenAI",
         "openrouter": "OpenRouter",
         "ollama_cloud": "Ollama Cloud",
     }
+    _API_KEY_PLACEHOLDERS = {
+        "claude": "sk-ant-...",
+        "openai": "sk-...",
+        "ollama": "Nicht noetig fuer Ollama",
+        "openrouter": "sk-or-... von openrouter.ai/keys",
+        "ollama_cloud": "API-Key von ollama.com/settings/keys",
+    }
+
+    def _provider_id_at(self, index: int) -> str:
+        """Liefert die Provider-ID fuer einen Combo-Index (leer wenn ungueltig)."""
+        if 0 <= index < len(self._LLM_PROVIDERS):
+            return self._LLM_PROVIDERS[index][0]
+        return ""
+
+    def _index_for_provider(self, provider_id: str) -> int:
+        """Liefert den Combo-Index fuer eine Provider-ID (Fallback: "none")."""
+        return self._LLM_PROVIDER_INDEX.get(provider_id, self._LLM_PROVIDER_INDEX["none"])
 
     def _stash_api_key(self):
         """Merkt sich den Feldinhalt fuer den Provider, dem er gehoert."""
@@ -909,7 +930,7 @@ class SettingsDialog(QDialog):
         """Wird aufgerufen wenn der Provider geändert wird."""
         # Key des bisherigen Providers sichern, Key des neuen laden
         self._stash_api_key()
-        new_provider = self._PROVIDER_NAME_BY_INDEX.get(index, "")
+        new_provider = self._provider_id_at(index)
         key_label = self._KEY_PROVIDER_LABELS.get(new_provider, "")
         self._key_provider = new_provider if key_label else ""
         self.api_key_input.setText(self._api_keys.get(self._key_provider, ""))
@@ -923,37 +944,29 @@ class SettingsDialog(QDialog):
         self.model_combo.clear()
 
         # Server-URL ist nur fuer Ollama relevant - standardmaessig deaktivieren
-        is_ollama = (index == 3)
+        is_ollama = (new_provider == "ollama")
         self.base_url_input.setEnabled(is_ollama)
 
-        if index == 0:  # Keiner
+        if new_provider == "none":
             self.api_key_input.setEnabled(False)
             self.model_combo.setEnabled(False)
             self.test_button.setEnabled(False)
             return
 
-        # Provider 1-5: API-/Modell-Felder freischalten (nur Ollama lokal ohne Key)
-        self.api_key_input.setEnabled(index != 3)
+        # Alle anderen Provider: API-/Modell-Felder freischalten
+        # (nur Ollama lokal kommt ohne Key aus).
+        self.api_key_input.setEnabled(not is_ollama)
         self.model_combo.setEnabled(True)
         self.test_button.setEnabled(True)
 
-        provider_name = self._PROVIDER_NAME_BY_INDEX.get(index, "")
-        self.model_combo.addItems(self._models_for_provider(provider_name))
-
-        if index == 1:
-            self.api_key_input.setPlaceholderText("sk-ant-...")
-        elif index == 2:
-            self.api_key_input.setPlaceholderText("sk-...")
-        elif index == 3:
-            self.api_key_input.setPlaceholderText("Nicht noetig fuer Ollama")
-        elif index == 4:
-            self.api_key_input.setPlaceholderText("sk-or-... von openrouter.ai/keys")
-        elif index == 5:
-            self.api_key_input.setPlaceholderText("API-Key von ollama.com/settings/keys")
+        self.model_combo.addItems(self._models_for_provider(new_provider))
+        self.api_key_input.setPlaceholderText(
+            self._API_KEY_PLACEHOLDERS.get(new_provider, "")
+        )
 
     def _update_consent_hint(self):
         """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
-        provider = self._PROVIDER_NAME_BY_INDEX.get(self.provider_combo.currentIndex(), "")
+        provider = self._provider_id_at(self.provider_combo.currentIndex())
         if not is_cloud_provider(provider):
             self.consent_hint_label.setText(
                 "Nur für Cloud-Anbieter relevant (Ollama läuft lokal)."
@@ -990,18 +1003,7 @@ class SettingsDialog(QDialog):
         if legacy_key and provider in self._KEY_PROVIDER_LABELS:
             self._api_keys.setdefault(provider, legacy_key)
 
-        if provider == "claude":
-            self.provider_combo.setCurrentIndex(1)
-        elif provider == "openai":
-            self.provider_combo.setCurrentIndex(2)
-        elif provider == "ollama":
-            self.provider_combo.setCurrentIndex(3)
-        elif provider == "openrouter":
-            self.provider_combo.setCurrentIndex(4)
-        elif provider == "ollama_cloud":
-            self.provider_combo.setCurrentIndex(5)
-        else:
-            self.provider_combo.setCurrentIndex(0)
+        self.provider_combo.setCurrentIndex(self._index_for_provider(provider))
         # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
         self._on_provider_changed(self.provider_combo.currentIndex())
 
@@ -1075,18 +1077,7 @@ class SettingsDialog(QDialog):
         """Speichert die Einstellungen."""
         # LLM-Einstellungen
         provider_index = self.provider_combo.currentIndex()
-        if provider_index == 0:
-            provider = "none"
-        elif provider_index == 1:
-            provider = "claude"
-        elif provider_index == 2:
-            provider = "openai"
-        elif provider_index == 4:
-            provider = "openrouter"
-        elif provider_index == 5:
-            provider = "ollama_cloud"
-        else:
-            provider = "ollama"
+        provider = self._provider_id_at(provider_index) or "none"
 
         # Modellname extrahieren (vor dem Klammerteil)
         model_text = self.model_combo.currentText()
@@ -1222,11 +1213,11 @@ class SettingsDialog(QDialog):
 
     def _test_connection(self):
         """Testet die Verbindung zum LLM-Provider."""
-        provider_index = self.provider_combo.currentIndex()
+        provider_id = self._provider_id_at(self.provider_combo.currentIndex())
         api_key = self.api_key_input.text().strip()
 
         # Ollama braucht keinen API-Key, aber eine URL.
-        if provider_index == 3:
+        if provider_id == "ollama":
             base_url = self.base_url_input.text().strip() or "http://localhost:11434"
         elif not api_key:
             QMessageBox.warning(
@@ -1243,15 +1234,15 @@ class SettingsDialog(QDialog):
         self.test_button.setText("Teste...")
 
         try:
-            if provider_index == 1:  # Claude
+            if provider_id == "claude":
                 self._test_claude(api_key, model)
-            elif provider_index == 2:  # OpenAI
+            elif provider_id == "openai":
                 self._test_openai(api_key, model)
-            elif provider_index == 3:  # Ollama
+            elif provider_id == "ollama":
                 self._test_ollama(base_url, model)
-            elif provider_index == 4:  # OpenRouter
+            elif provider_id == "openrouter":
                 self._test_openrouter(api_key, model)
-            elif provider_index == 5:  # Ollama Cloud
+            elif provider_id == "ollama_cloud":
                 self._test_ollama_cloud(api_key, model)
         finally:
             self.test_button.setEnabled(True)
@@ -1462,10 +1453,10 @@ class SettingsDialog(QDialog):
 
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
-        provider_index = self.provider_combo.currentIndex()
+        provider_id = self._provider_id_at(self.provider_combo.currentIndex())
         api_key = self.api_key_input.text().strip()
 
-        if provider_index == 0:
+        if provider_id == "none":
             QMessageBox.information(
                 self, "Hinweis",
                 "Bitte wählen Sie zuerst einen LLM-Provider aus."
@@ -1473,7 +1464,7 @@ class SettingsDialog(QDialog):
             return
 
         # Ollama braucht keinen API-Key, alle anderen schon.
-        if provider_index != 3 and not api_key:
+        if provider_id != "ollama" and not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
@@ -1487,16 +1478,16 @@ class SettingsDialog(QDialog):
         self.refresh_models_button.setText("Lade...")
 
         try:
-            if provider_index == 1:  # Claude
+            if provider_id == "claude":
                 models = self._fetch_claude_models(api_key)
-            elif provider_index == 2:  # OpenAI
+            elif provider_id == "openai":
                 models = self._fetch_openai_models(api_key)
-            elif provider_index == 3:  # Ollama (lokal)
+            elif provider_id == "ollama":
                 base_url = self.base_url_input.text().strip() or "http://localhost:11434"
                 models = self._fetch_ollama_models(base_url)
-            elif provider_index == 4:  # OpenRouter
+            elif provider_id == "openrouter":
                 models = self._fetch_openrouter_models(api_key)
-            elif provider_index == 5:  # Ollama Cloud
+            elif provider_id == "ollama_cloud":
                 from src.ml.ollama_provider import OllamaCloudProvider
                 from src.ml.llm_provider import LLMConfig
                 models = OllamaCloudProvider(LLMConfig(api_key=api_key, model="")).list_models()
@@ -1514,9 +1505,7 @@ class SettingsDialog(QDialog):
                         break
 
                 # Liste persistieren, damit sie nach Neustart erhalten bleibt
-                provider_name = self._PROVIDER_NAME_BY_INDEX.get(provider_index, "")
-                if provider_name:
-                    self.config.set_cached_models(provider_name, models)
+                self.config.set_cached_models(provider_id, models)
 
                 QMessageBox.information(
                     self, "Erfolg",
