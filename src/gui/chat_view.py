@@ -13,6 +13,8 @@ MIT License - Copyright (c) 2026
 from html import escape
 from typing import Optional
 
+import time
+
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (
@@ -106,6 +108,12 @@ class ChatView(QWidget):
         # Referenzen auf Thread + Worker, damit sie nicht vom GC
         # eingesammelt werden, solange der Aufruf laeuft (Architektur R3).
         self._chat_thread: Optional[QThread] = None
+        # Laufende Uhr in der Statuszeile waehrend eines KI-Aufrufs (Issue #68)
+        self._status_timer = QTimer(self)
+        self._status_timer.setInterval(1000)
+        self._status_timer.timeout.connect(self._tick_status)
+        self._status_base = ""
+        self._request_started = None
         self._chat_worker: Optional[ChatWorker] = None
 
         self._build_ui()
@@ -331,7 +339,10 @@ class ChatView(QWidget):
         self.send_btn.setEnabled(True)
         self.send_btn.setText("Abbrechen")
         self.reset_btn.setEnabled(False)
-        self.status_label.setText("Suche läuft…")
+        self._status_base = "Suche läuft…"
+        self._request_started = time.monotonic()
+        self._tick_status()
+        self._status_timer.start()
 
         # Thread + Worker aufsetzen (moveToThread-Pattern)
         self._chat_thread = QThread()
@@ -347,7 +358,22 @@ class ChatView(QWidget):
 
     def _on_worker_progress(self, message: str) -> None:
         """Aktualisiert die Status-Zeile waehrend des Aufrufs."""
-        self.status_label.setText(message)
+        self._status_base = message
+        self._tick_status()
+
+    def _tick_status(self) -> None:
+        """Statuszeile mit laufender Uhr und Schaetzung (Issue #68)."""
+        if self._request_started is None:
+            return
+        from src.core.llm_activity import (
+            KIND_CHAT, format_elapsed, format_estimate, get_llm_activity,
+        )
+        elapsed = time.monotonic() - self._request_started
+        text = f"{self._status_base} seit {format_elapsed(elapsed)}"
+        estimate = format_estimate(get_llm_activity().estimate(KIND_CHAT))
+        if estimate:
+            text += f" · {estimate}"
+        self.status_label.setText(text)
 
     def _on_worker_finished(self, response) -> None:
         """Rendert die Antwort und raeumt den Thread auf."""
@@ -481,6 +507,8 @@ class ChatView(QWidget):
 
     def _teardown_thread(self) -> None:
         """Stoppt den QThread und gibt die Referenzen frei."""
+        self._status_timer.stop()
+        self._request_started = None
         thread = self._chat_thread
         worker = self._chat_worker
         self._chat_thread = None

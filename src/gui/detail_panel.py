@@ -9,7 +9,9 @@ und klickt rechts auf einen Zielordner zum Verschieben+Umbenennen.
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QThread
+import time
+
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QWidget,
@@ -29,6 +31,12 @@ from PyQt6.QtWidgets import (
     QSplitter,
 )
 
+from src.core.llm_activity import (
+    KIND_SUGGEST,
+    format_elapsed,
+    format_estimate,
+    get_llm_activity,
+)
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.rename_dialog import RenameSuggestion
 
@@ -56,6 +64,49 @@ class _PdfMetadataReader(QThread):
         self.finished_meta.emit(self._pdf_path, meta)
 
 
+class _LLMMetadataWorker(QThread):
+    """Ruft die KI fuer Dateiname + Metadaten im Hintergrund auf (Issue #68).
+
+    Vorher lief der Aufruf im GUI-Thread und fror das Fenster fuer die Dauer
+    der Anfrage ein - auf langsamen Rechnern oder bei haengender Cloud
+    minutenlang, ohne dass man sah, ob noch etwas passiert.
+    """
+
+    # (pdf_path, suggestions, fehlertext)
+    result_ready = pyqtSignal(Path, list, str)
+
+    def __init__(self, classifier, pdf_path: Path, text: str, keywords: list,
+                 detected_date, file_date, parent=None):
+        super().__init__(parent)
+        self._classifier = classifier
+        self._pdf_path = pdf_path
+        self._text = text
+        self._keywords = keywords
+        self._detected_date = detected_date
+        self._file_date = file_date
+
+    def run(self):
+        activity = get_llm_activity()
+        token = activity.begin(KIND_SUGGEST, self._pdf_path.name)
+        ok = False
+        try:
+            suggestions = self._classifier.suggest_filename(
+                text=self._text,
+                current_filename=self._pdf_path.name,
+                keywords=self._keywords,
+                detected_date=self._detected_date,
+                use_llm=True,
+                file_date=self._file_date,
+            )
+            ok = True
+        except Exception as e:  # noqa: BLE001 - Fehler an die GUI melden
+            self.result_ready.emit(self._pdf_path, [], str(e))
+            return
+        finally:
+            activity.end(token, success=ok)
+        self.result_ready.emit(self._pdf_path, list(suggestions or []), "")
+
+
 class DetailPanel(QWidget):
     """Mittleres Panel: Zeigt Rename-Vorschläge + Metadaten für ausgewählte PDF."""
 
@@ -81,6 +132,12 @@ class DetailPanel(QWidget):
         self._saved_metadata_snapshot: dict = {}
         # Flag um textChanged-Signale während des programmatischen Füllens zu ignorieren
         self._loading_metadata: bool = False
+        # KI-Aufruf "Metadaten neu generieren" laeuft im Hintergrund (Issue #68)
+        self._llm_worker: Optional[_LLMMetadataWorker] = None
+        self._llm_started: Optional[float] = None
+        self._llm_timer = QTimer(self)
+        self._llm_timer.setInterval(1000)
+        self._llm_timer.timeout.connect(self._tick_llm_button)
 
         # Feste Größenpolitik: Panel ändert seine Größe nicht beim Befüllen
         from PyQt6.QtWidgets import QSizePolicy
@@ -848,9 +905,13 @@ class DetailPanel(QWidget):
 
         self.preview_label.setText(preview_name)
 
+    LLM_BTN_TEXT = "KI-Metadaten neu generieren"
+
     def _request_llm_metadata(self):
-        """Ruft das LLM erneut auf um Metadaten zu extrahieren."""
+        """Startet den KI-Aufruf fuer Metadaten im Hintergrund (Issue #68)."""
         if not self._current_pdf:
+            return
+        if self._llm_worker is not None and self._llm_worker.isRunning():
             return
 
         try:
@@ -859,10 +920,6 @@ class DetailPanel(QWidget):
             classifier = get_hybrid_classifier()
             if not classifier.is_llm_available():
                 return
-
-            self.llm_btn.setEnabled(False)
-            self.llm_btn.setText("KI arbeitet...")
-            QApplication.processEvents()
 
             detected_date = self._metadata.get("buchungsdatum")
 
@@ -875,20 +932,53 @@ class DetailPanel(QWidget):
                 pass
 
             # Aktuellen extrahierten Text aus dem Cache holen
-            from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
+            from src.core.pdf_cache import get_pdf_cache
             cached = get_pdf_cache().get(self._current_pdf)
             extracted_text = cached.extracted_text if cached else ""
             keywords = cached.keywords if cached else []
+        except Exception as e:
+            print(f"LLM-Metadaten Fehler: {e}")
+            return
 
-            suggestions = classifier.suggest_filename(
-                text=extracted_text,
-                current_filename=self._current_pdf.name,
-                keywords=keywords,
-                detected_date=detected_date,
-                use_llm=True,
-                file_date=file_date,
-            )
+        self.llm_btn.setEnabled(False)
+        self._llm_started = time.monotonic()
+        self._tick_llm_button()
+        self._llm_timer.start()
 
+        worker = _LLMMetadataWorker(
+            classifier, self._current_pdf, extracted_text, keywords,
+            detected_date, file_date, self,
+        )
+        worker.result_ready.connect(self._on_llm_metadata_ready)
+        worker.finished.connect(worker.deleteLater)
+        self._llm_worker = worker
+        worker.start()
+
+    def _tick_llm_button(self):
+        """Button zeigt laufende Uhr + Schaetzung, solange die KI arbeitet."""
+        if self._llm_started is None:
+            return
+        text = f"KI arbeitet… {format_elapsed(time.monotonic() - self._llm_started)}"
+        estimate = format_estimate(get_llm_activity().estimate(KIND_SUGGEST))
+        if estimate:
+            text += f" ({estimate})"
+        self.llm_btn.setText(text)
+
+    def _on_llm_metadata_ready(self, pdf_path: Path, suggestions: list, error: str):
+        """Traegt das KI-Ergebnis ein - nur, wenn die PDF noch ausgewaehlt ist."""
+        self._llm_timer.stop()
+        self._llm_started = None
+        self._llm_worker = None
+        self.llm_btn.setEnabled(True)
+        self.llm_btn.setText(self.LLM_BTN_TEXT)
+
+        if error:
+            print(f"LLM-Metadaten Fehler: {error}")
+            return
+        if pdf_path != self._current_pdf:
+            return
+
+        try:
             for s in suggestions:
                 if s.source == "llm" and s.metadata:
                     self.name_input.setText(s.filename.replace('.pdf', ''))
@@ -927,15 +1017,12 @@ class DetailPanel(QWidget):
                         self.name_input.setText(s.filename.replace('.pdf', ''))
                         break
 
+            from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
             llm_cached = [
                 CacheLLMSuggestion(filename=s.filename, confidence=s.confidence, source=s.source, metadata=s.metadata)
                 for s in suggestions if s.source == "llm"
             ]
             if llm_cached:
-                get_pdf_cache().update_llm_suggestions(self._current_pdf, llm_cached)
-
+                get_pdf_cache().update_llm_suggestions(pdf_path, llm_cached)
         except Exception as e:
             print(f"LLM-Metadaten Fehler: {e}")
-        finally:
-            self.llm_btn.setEnabled(True)
-            self.llm_btn.setText("KI-Metadaten neu generieren")
