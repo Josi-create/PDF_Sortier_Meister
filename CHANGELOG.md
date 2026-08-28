@@ -7,9 +7,34 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Ollama-Empfehlung fuer Laptops ohne dedizierte GPU** (Issue #62): hat das
+  System genug Arbeitsspeicher (ab 16 GB, z.B. schneller Shared-RAM), empfiehlt
+  der Einrichtungs-Assistent jetzt `gemma3:1b` lokal als "moeglich, aber
+  langsamer" statt direkt auf Ollama Cloud zu verweisen; Ollama Cloud bleibt
+  als Alternative im Empfehlungstext genannt. Bei wenig Arbeitsspeicher bleibt
+  es bei der bisherigen Cloud-Empfehlung.
+- `docs/RELEASE_CHECKLISTE.md`: Ablauf fuer Releases mit Pflichtpunkt
+  "LLM-Modell-Empfehlungen pruefen" (Issue #63), in README verlinkt.
+- **Einrichtungs-Assistent: Default-Ordner und Zielordner-Schritt** (Issues #61, #64):
+  Der Scan-Ordner-Schritt schlaegt jetzt automatisch `Dokumente/Scans` vor
+  (bzw. `~/Documents/Scans` unter macOS), sobald noch kein Ordner konfiguriert
+  ist - der Vorschlag kann per "Weiter" uebernommen oder ueber "Ordner
+  auswaehlen" ersetzt werden. Neuer Schritt "Zielordner" direkt danach mit
+  demselben Bedienkonzept (Default `Dokumente/PDF-Sammlung`); beide Ordner
+  werden beim Abschluss des Assistenten angelegt, falls sie noch nicht
+  existieren, der Zielordner wird zugleich als Zielordner registriert. Nach
+  dem Assistenten (Erststart wie auch erneuter Aufruf ueber Extras) zeigt das
+  Hauptfenster links den Scan-Ordner und rechts sofort den neuen Zielordner an.
+
 ### Geaendert
+- `src/utils/hardware.py`: Modell-Empfehlungstabelle (`MODEL_TIERS`,
+  `RAM_ONLY_MODEL`, `CLOUD_MODEL`) zu einer zentralen, kommentierten
+  Datenstruktur mit Pruefdatum (`MODEL_TIERS_CHECKED_ON`) zusammengefasst,
+  damit ein Update der LLM-Empfehlungen an einer Stelle passiert (Issue #63).
 - Poe.com ist wieder als KI-Anbieter waehlbar (poe.com vergibt wieder API-Keys;
   in 0.19.0 entfernt).
+
 
 ## [0.19.0] - 2026-08-28
 

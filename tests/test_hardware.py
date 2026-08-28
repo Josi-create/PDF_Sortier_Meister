@@ -44,18 +44,44 @@ def test_parse_nvidia_smi():
     assert all(g.dedicated and g.vendor == "nvidia" for g in gpus)
 
 
-def test_no_gpu_recommends_cloud():
-    rec = recommend([], ram_mb=32000)
+def test_no_gpu_low_ram_recommends_cloud():
+    rec = recommend([], ram_mb=8000)
     assert rec.local_ok is False
     assert rec.model is None
     assert "Keine Grafikkarte" in rec.reason
 
 
-def test_integrated_only_recommends_cloud_even_with_much_ram():
-    rec = recommend([_gpu("Intel(R) UHD Graphics 770", 0, dedicated=False, vendor="intel")], ram_mb=65536)
+def test_no_gpu_high_ram_recommends_small_local_model():
+    """Laptop/Desktop ohne GPU, aber genug Shared-RAM (Issue #62): kleines
+    lokales Modell als moeglich, aber langsamer - mit Cloud als Alternative."""
+    rec = recommend([], ram_mb=32000)
+    assert rec.local_ok is True
+    assert rec.model == "gemma3:1b"
+    assert rec.model_size_gb > 0
+    assert "langsamer" in rec.reason
+    assert "Cloud" in rec.reason
+
+
+def test_integrated_only_low_ram_recommends_cloud():
+    rec = recommend([_gpu("Intel(R) UHD Graphics 770", 0, dedicated=False, vendor="intel")], ram_mb=8000)
     assert rec.local_ok is False
     assert "integrierte Grafik" in rec.reason
     assert rec.gpu.name.startswith("Intel")
+
+
+def test_integrated_only_high_ram_recommends_small_local_model():
+    rec = recommend([_gpu("Intel(R) UHD Graphics 770", 0, dedicated=False, vendor="intel")], ram_mb=32000)
+    assert rec.local_ok is True
+    assert rec.model == "gemma3:1b"
+    assert "Cloud" in rec.reason
+    assert rec.gpu.name.startswith("Intel")
+
+
+def test_no_ram_info_defaults_to_cloud():
+    """ram_mb=0 (nicht ermittelbar) darf nicht versehentlich die RAM-Stufe treffen."""
+    rec = recommend([])
+    assert rec.local_ok is False
+    assert rec.model is None
 
 
 def test_small_vram_recommends_cloud():
