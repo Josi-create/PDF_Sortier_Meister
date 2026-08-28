@@ -97,6 +97,7 @@ class Config:
         "pdf_open_mode": "integrated",
         "pdf_open_command": "",  # Pfad zum eigenen Programm bei "custom"
         "preview_window_geometry": [],  # [x, y, w, h] des Vorschau-Fensters
+        "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
     }
 
     def __init__(self, config_path: str = None):

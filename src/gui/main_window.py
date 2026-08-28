@@ -195,6 +195,10 @@ class MainWindow(QMainWindow):
         self.detail_panel.open_pdf_requested.connect(self.open_pdf)
         self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
+        # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
+        saved_sizes = self.config.get("detail_splitter_sizes") or []
+        if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
+            self.detail_panel.splitter.setSizes(saved_sizes)
         splitter.addWidget(self.detail_panel)
 
         # Rechte Spalte: Zielordner
@@ -1351,6 +1355,10 @@ class MainWindow(QMainWindow):
         size = self.normalGeometry().size() if self.isMaximized() else self.size()
         self.config.set("window_width", size.width(), auto_save=False)
         self.config.set("window_maximized", self.isMaximized(), auto_save=False)
+        # Aufteilung Details/Vorschau im mittleren Panel (Issue #74)
+        sizes = self.detail_panel.splitter.sizes()
+        if len(sizes) == 2 and all(v > 0 for v in sizes):
+            self.config.set("detail_splitter_sizes", list(sizes), auto_save=False)
         self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):

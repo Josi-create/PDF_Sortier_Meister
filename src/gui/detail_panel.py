@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
+    QGridLayout,
     QSplitter,
 )
 
@@ -116,7 +117,7 @@ class DetailPanel(QWidget):
         # === Detail-Bereich (zunächst versteckt) ===
         self.detail_container = QWidget()
         detail_layout = QVBoxLayout(self.detail_container)
-        detail_layout.setSpacing(6)
+        detail_layout.setSpacing(4)
         detail_layout.setContentsMargins(0, 0, 0, 0)
 
         # Header: Aktueller Dateiname
@@ -132,9 +133,10 @@ class DetailPanel(QWidget):
         suggestions_group = QGroupBox("Vorschläge (zum Auswählen klicken)")
         suggestions_layout = QVBoxLayout(suggestions_group)
         suggestions_layout.setSpacing(2)
+        suggestions_layout.setContentsMargins(6, 4, 6, 6)
 
         self.suggestions_list = QListWidget()
-        self.suggestions_list.setMaximumHeight(120)
+        self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
         self.suggestions_list.setToolTip(
             "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen."
         )
@@ -146,6 +148,8 @@ class DetailPanel(QWidget):
         # Neuer Name
         name_group = QGroupBox("Neuer Dateiname")
         name_layout = QVBoxLayout(name_group)
+        name_layout.setSpacing(3)
+        name_layout.setContentsMargins(6, 4, 6, 6)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
@@ -161,7 +165,7 @@ class DetailPanel(QWidget):
         # Vorschau
         self.preview_label = QLabel()
         self.preview_label.setStyleSheet(
-            "font-family: monospace; padding: 6px; background-color: #e8f5e9; "
+            "font-family: monospace; padding: 3px 6px; background-color: #e8f5e9; "
             "border: 1px solid #a5d6a7; border-radius: 3px; font-size: 11px;"
         )
         self.preview_label.setWordWrap(True)
@@ -178,6 +182,7 @@ class DetailPanel(QWidget):
         self.metadata_group = QGroupBox("Metadaten (werden in PDF gespeichert)")
         metadata_layout = QVBoxLayout(self.metadata_group)
         metadata_layout.setSpacing(3)
+        metadata_layout.setContentsMargins(6, 4, 6, 6)
 
         # Statusanzeige: Quelle der Metadaten
         self.metadata_status_label = QLabel("")
@@ -211,35 +216,44 @@ class DetailPanel(QWidget):
             "description": "Kurze Zusammenfassung des Dokumentinhalts.",
         }
 
-        for field_key, field_label in metadata_fields:
-            row = QHBoxLayout()
+        # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
+        # Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt, IBAN|Steuerjahr;
+        # die Zusammenfassung laeuft ueber die volle Breite.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(3)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+
+        for idx, (field_key, field_label) in enumerate(metadata_fields):
             label = QLabel(f"{field_label}:")
-            label.setFixedWidth(100)
             label.setStyleSheet("color: #555; font-size: 10px;")
-            if field_key == "description":
-                label.setAlignment(Qt.AlignmentFlag.AlignTop)
-            row.addWidget(label)
 
             if field_key == "description":
                 input_field = QPlainTextEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
-                input_field.setStyleSheet("font-size: 12px; padding: 4px;")
-                input_field.setFixedHeight(90)
+                input_field.setStyleSheet("font-size: 11px; padding: 2px;")
+                input_field.setFixedHeight(58)  # drei Zeilen
+                label.setAlignment(Qt.AlignmentFlag.AlignTop)
+                row_idx = (idx + 1) // 2  # unter den Paaren
+                grid.addWidget(label, row_idx, 0)
+                grid.addWidget(input_field, row_idx, 1, 1, 3)
             else:
                 input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
+                row_idx, col = divmod(idx, 2)
+                grid.addWidget(label, row_idx, col * 2)
+                grid.addWidget(input_field, row_idx, col * 2 + 1)
+
             tooltip = field_tooltips.get(field_key)
             if tooltip:
                 input_field.setToolTip(tooltip)
-            row.addWidget(input_field)
-
-            if isinstance(input_field, QPlainTextEdit):
-                input_field.textChanged.connect(self._on_metadata_user_edit)
-            else:
-                input_field.textChanged.connect(self._on_metadata_user_edit)
+            input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
-            metadata_layout.addLayout(row)
+
+        metadata_layout.addLayout(grid)
 
         # Buttons: KI + Speichern
         btn_row = QHBoxLayout()
@@ -310,7 +324,7 @@ class DetailPanel(QWidget):
         self.hint_label = QLabel()
         self.hint_label.setWordWrap(True)
         self.hint_label.setStyleSheet(
-            "color: #1976d2; font-weight: bold; padding: 8px; "
+            "color: #1976d2; font-weight: bold; padding: 4px 6px; "
             "background-color: #e3f2fd; border-radius: 4px; font-size: 11px;"
         )
         hint_layout.addWidget(self.hint_label, stretch=1)
@@ -359,10 +373,10 @@ class DetailPanel(QWidget):
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.addWidget(scroll)
         self.splitter.addWidget(self.preview)
-        self.splitter.setStretchFactor(0, 3)
-        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
         self.splitter.setCollapsible(0, False)
-        self.splitter.setSizes([420, 320])
+        self.splitter.setSizes([440, 400])
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -757,6 +771,16 @@ class DetailPanel(QWidget):
                 item.setBackground(Qt.GlobalColor.yellow)
 
             self.suggestions_list.addItem(item)
+        self._fit_suggestions_height()
+
+    def _fit_suggestions_height(self):
+        """Liste nur so hoch wie noetig (max. ~4 Zeilen) - spart Platz fuer die Vorschau."""
+        count = max(1, self.suggestions_list.count())
+        row_h = self.suggestions_list.sizeHintForRow(0)
+        if row_h <= 0:
+            row_h = 22
+        frame = 2 * self.suggestions_list.frameWidth() + 4
+        self.suggestions_list.setFixedHeight(min(96, count * row_h + frame))
 
     def _on_suggestion_clicked(self, item: QListWidgetItem):
         """Übernimmt Vorschlag in Eingabefeld + Metadaten."""

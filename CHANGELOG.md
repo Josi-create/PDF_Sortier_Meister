@@ -25,6 +25,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
     damit Verschieben und Umbenennen waehrend der Anzeige weiter funktionieren; das
     Einlesen laeuft im Hintergrund (OneDrive Files-On-Demand blockiert die GUI nicht).
   - PyInstaller-Spec buendelt `PyQt6.QtPdf`/`QtPdfWidgets` (Qt6Pdf.dll).
+  - Detail-Panel kompakter: Metadaten zweispaltig (Kategorie|Korrespondent, Netto|Brutto,
+    Waehrung|MwSt, IBAN|Steuerjahr, Zusammenfassung volle Breite), Vorschlagsliste nur so
+    hoch wie noetig, kleinere Abstaende; die Aufteilung Details/Vorschau wird gespeichert.
 - **Update-Pruefung** (Issue #73): Kurz nach dem Start fragt die App im Hintergrund
   die Versionsnummer des neuesten GitHub-Releases ab (`src/utils/update_check.py`,
   nur `releases/latest`, keine Nutzerdaten). Gibt es eine neuere Version, erscheint
