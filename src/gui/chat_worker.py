@@ -14,6 +14,8 @@ import threading
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
+from src.core.llm_activity import KIND_CHAT, get_llm_activity
+
 
 class ChatWorker(QObject):
     """Asynchroner LLM-/Retrieval-Aufruf ohne UI-Freeze.
@@ -72,7 +74,6 @@ class ChatWorker(QObject):
         try:
             self.progress.emit("KI denkt…")
             # Aktivitaetsanzeige (Issue #68)
-            from src.core.llm_activity import KIND_CHAT, get_llm_activity
             activity = get_llm_activity()
             token = activity.begin(KIND_CHAT, self.question[:40])
             ok = False

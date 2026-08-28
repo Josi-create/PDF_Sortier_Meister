@@ -37,7 +37,18 @@ def patch_singletons(monkeypatch: pytest.MonkeyPatch, factories: dict[str, objec
     for name in _MODULES_WITH_FACTORY_IMPORTS:
         importlib.import_module(name)
 
-    for mod_name, mod in list(sys.modules.items()):
+    # Hintergrund-Threads (Warmup, Modell-Laden, Pre-Cache) importieren evtl.
+    # gerade ein Modul -> sys.modules aendert sich waehrend list(): kurz erneut
+    # versuchen statt den Test mit "dictionary changed size" abzubrechen.
+    for _ in range(50):
+        try:
+            modules = list(sys.modules.items())
+            break
+        except RuntimeError:
+            continue
+    else:
+        modules = list(sys.modules.items())
+    for mod_name, mod in modules:
         if mod is None or not mod_name.startswith("src"):
             continue
         for attr, factory in factories.items():

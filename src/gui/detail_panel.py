@@ -31,6 +31,12 @@ from PyQt6.QtWidgets import (
     QSplitter,
 )
 
+from src.core.llm_activity import (
+    KIND_SUGGEST,
+    format_elapsed,
+    format_estimate,
+    get_llm_activity,
+)
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.rename_dialog import RenameSuggestion
 
@@ -80,8 +86,6 @@ class _LLMMetadataWorker(QThread):
         self._file_date = file_date
 
     def run(self):
-        from src.core.llm_activity import KIND_SUGGEST, get_llm_activity
-
         activity = get_llm_activity()
         token = activity.begin(KIND_SUGGEST, self._pdf_path.name)
         ok = False
@@ -954,9 +958,6 @@ class DetailPanel(QWidget):
         """Button zeigt laufende Uhr + Schaetzung, solange die KI arbeitet."""
         if self._llm_started is None:
             return
-        from src.core.llm_activity import (
-            KIND_SUGGEST, format_elapsed, format_estimate, get_llm_activity,
-        )
         text = f"KI arbeitet… {format_elapsed(time.monotonic() - self._llm_started)}"
         estimate = format_estimate(get_llm_activity().estimate(KIND_SUGGEST))
         if estimate:

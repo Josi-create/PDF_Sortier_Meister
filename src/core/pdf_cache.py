@@ -21,6 +21,8 @@ from typing import Optional, Callable
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
+from src.core.llm_activity import KIND_SUGGEST, get_llm_activity
+
 logger = logging.getLogger("pdf_sortier_meister.cache")
 
 
@@ -207,7 +209,6 @@ class LLMSuggestionWorker(QThread):
                     logger.debug(f"LLM-Pre-Cache: Rufe LLM ab für {pdf_path.name}...")
                     # Aktivitaetsanzeige (Issue #68): laufenden Aufruf melden,
                     # Dauer fliesst in die Schaetzung fuer die Statusleiste.
-                    from src.core.llm_activity import KIND_SUGGEST, get_llm_activity
                     activity = get_llm_activity()
                     activity_token = activity.begin(KIND_SUGGEST, pdf_path.name)
                     llm_ok = False
