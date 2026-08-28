@@ -40,7 +40,8 @@ def _wizard_on_provider_page(qtbot):
     qtbot.addWidget(w)
     w.show()
     w.next()  # Welcome -> Scan
-    w.next()  # Scan -> Provider (startet die Erkennung)
+    w.next()  # Scan -> Zielordner
+    w.next()  # Zielordner -> Provider (startet die Erkennung)
     page = w.page(PAGE_PROVIDER)
     qtbot.waitUntil(lambda: page.get_detection() is not None, timeout=5000)
     return w, page
