@@ -128,8 +128,14 @@ class DetailPanel(QWidget):
         self._has_learned_overrides: bool = False
         # Quelle der aktuell angezeigten Metadaten: "pdf", "llm", "user", None
         self._metadata_source: Optional[str] = None
+        # Zuletzt automatisch (aus Vorschlag) gesetzter Dateiname - dient zur
+        # Erkennung, ob der Nutzer den Namen selbst geaendert hat
+        self._auto_name: str = ""
         # Snapshot der zuletzt gespeicherten Metadaten (entspricht PDF-Stand)
         self._saved_metadata_snapshot: dict = {}
+        # Felder, die tatsaechlich aus dem PDF (XMP/Info) gelesen wurden - nur
+        # diese gelten als "gespeichert"; Analyse-/KI-Werte daneben nicht
+        self._pdf_field_keys: set = set()
         # Flag um textChanged-Signale während des programmatischen Füllens zu ignorieren
         self._loading_metadata: bool = False
         # KI-Aufruf "Metadaten neu generieren" laeuft im Hintergrund (Issue #68)
@@ -469,6 +475,7 @@ class DetailPanel(QWidget):
         # 1. Gespeicherte XMP-Metadaten werden im Hintergrund gelesen und danach
         #    nachgetragen (siehe _on_pdf_metadata_read). Bis dahin: Basis aus Analyse.
         self._saved_metadata_snapshot = {}
+        self._pdf_field_keys = set()
         pdf_had_data = False
         self._start_metadata_reader(pdf_path)
 
@@ -520,9 +527,11 @@ class DetailPanel(QWidget):
         self._refresh_save_btn()
 
         # Ersten Vorschlag als Name setzen
+        self._auto_name = ""
         if self._suggestions:
             name = self._suggestions[0].name.replace('.pdf', '')
             self.name_input.setText(name)
+            self._auto_name = name
 
         # UI umschalten
         self.placeholder.hide()
@@ -655,6 +664,16 @@ class DetailPanel(QWidget):
                 metadata[field_key] = value
         return metadata
 
+    def has_user_edits(self) -> bool:
+        """True, wenn der Nutzer Dateiname oder Metadaten selbst geaendert hat.
+
+        Wird genutzt, um das Panel nicht ueber Nutzereingaben hinweg zu
+        aktualisieren, wenn spaeter KI-Vorschlaege aus dem Hintergrund eintreffen.
+        """
+        if self._metadata_source == "user":
+            return True
+        return self.name_input.text().strip() != self._auto_name
+
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
@@ -690,6 +709,7 @@ class DetailPanel(QWidget):
         """Uebertraegt PDFMetadata in die Felder und setzt Quelle auf 'pdf'."""
         if pdf_meta is None or not pdf_meta.has_any_data():
             self._saved_metadata_snapshot = {}
+            self._pdf_field_keys = set()
             return
 
         # Felder aus PDFMetadata in _metadata-Dict übertragen
@@ -704,22 +724,39 @@ class DetailPanel(QWidget):
             "steuerjahr": pdf_meta.steuerjahr,
             "description": pdf_meta.description,
         }
+        pdf_keys = set()
         for key, value in field_map.items():
             if value:
                 self._metadata[key] = value
+                pdf_keys.add(key)
+        if not pdf_keys:
+            # Nur Felder vorhanden, die das Panel nicht anzeigt (z.B. Titel)
+            self._saved_metadata_snapshot = {}
+            self._pdf_field_keys = set()
+            return
 
         self._loading_metadata = True
         self._apply_metadata_to_fields()
         self._loading_metadata = False
 
-        self._metadata_source = "pdf"
-        self._saved_metadata_snapshot = self.get_metadata()
+        # Als "gespeichert" gilt nur, was wirklich im PDF steht. Werte aus
+        # Analyse/KI, die daneben in den Feldern stehen, sind noch ungesichert.
+        self._pdf_field_keys = pdf_keys
+        current = self.get_metadata()
+        self._saved_metadata_snapshot = {
+            k: v for k, v in current.items() if k in pdf_keys
+        }
+        if set(current.keys()) <= pdf_keys:
+            self._metadata_source = "pdf"
+        else:
+            self._metadata_source = "pdf_partial"
         self._refresh_save_btn()
 
     def mark_metadata_saved(self):
         """Markiert den aktuellen Zustand als gespeichert (nach erfolgreichem Schreiben)."""
         self._metadata_source = "pdf"
         self._saved_metadata_snapshot = self.get_metadata()
+        self._pdf_field_keys = set(self._saved_metadata_snapshot.keys())
         self._refresh_save_btn()
 
     def _on_metadata_user_edit(self, *args):
@@ -780,6 +817,15 @@ class DetailPanel(QWidget):
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
                 "background-color: #e8f5e9; color: #2e7d32;"
+            )
+            self.metadata_status_label.show()
+        elif source == "pdf_partial":
+            self.metadata_status_label.setText(
+                "Quelle: teils aus PDF gelesen, teils Vorschlag (noch nicht gespeichert)"
+            )
+            self.metadata_status_label.setStyleSheet(
+                "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
+                "background-color: #fff8e1; color: #e65100;"
             )
             self.metadata_status_label.show()
         elif source == "llm":
@@ -954,6 +1000,19 @@ class DetailPanel(QWidget):
         self._llm_worker = worker
         worker.start()
 
+    def _show_llm_error(self, error: str):
+        """Zeigt einen KI-Fehler im Status-Label des Metadaten-Bereichs an."""
+        text = str(error).strip().splitlines()[0] if error else "KI-Fehler"
+        if len(text) > 160:
+            text = text[:157] + "…"
+        self.metadata_status_label.setText(f"KI-Fehler: {text}")
+        self.metadata_status_label.setToolTip(str(error))
+        self.metadata_status_label.setStyleSheet(
+            "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
+            "background-color: #ffebee; color: #b71c1c;"
+        )
+        self.metadata_status_label.show()
+
     def _tick_llm_button(self):
         """Button zeigt laufende Uhr + Schaetzung, solange die KI arbeitet."""
         if self._llm_started is None:
@@ -974,6 +1033,8 @@ class DetailPanel(QWidget):
 
         if error:
             print(f"LLM-Metadaten Fehler: {error}")
+            if pdf_path == self._current_pdf:
+                self._show_llm_error(error)
             return
         if pdf_path != self._current_pdf:
             return
@@ -1016,6 +1077,14 @@ class DetailPanel(QWidget):
                     if s.source == "llm":
                         self.name_input.setText(s.filename.replace('.pdf', ''))
                         break
+                else:
+                    # Kein KI-Vorschlag angekommen - Grund anzeigen (z.B. Token-Limit)
+                    try:
+                        from src.ml.hybrid_classifier import get_hybrid_classifier
+                        reason = get_hybrid_classifier().last_llm_error
+                    except Exception:
+                        reason = None
+                    self._show_llm_error(reason or "KI hat keinen Vorschlag geliefert.")
 
             from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
             llm_cached = [

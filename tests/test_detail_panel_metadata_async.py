@@ -13,8 +13,10 @@ def test_metadata_applied_after_background_read(qtbot, tmp_path, monkeypatch):
     pdf = tmp_path / "a.pdf"; pdf.write_bytes(b"%PDF")
     panel.set_pdf(pdf_path=pdf, suggestions=[], extracted_text="x", keywords=["rechnung"])
     assert panel._current_pdf == pdf
-    qtbot.waitUntil(lambda: panel._metadata_source == "pdf", timeout=5000)
+    # Kategorie "Rechnung" kommt aus der Analyse, nicht aus dem PDF -> "pdf_partial"
+    qtbot.waitUntil(lambda: panel._metadata_source == "pdf_partial", timeout=5000)
     assert panel.get_metadata().get("korrespondent") == "Stadtwerke"
+    assert panel._pdf_field_keys == {"korrespondent", "steuerjahr"}
 
 
 def test_stale_result_for_other_pdf_is_ignored(qtbot, tmp_path):
