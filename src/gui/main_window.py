@@ -140,6 +140,13 @@ class MainWindow(QMainWindow):
         # PDF-Cache Signale verbinden
         self.pdf_cache.pdf_analyzed.connect(self._on_pdf_analyzed)
         self.pdf_cache.llm_suggestions_ready.connect(self._on_llm_suggestions_ready)
+        # Aktivitaetsanzeige (Issue #68): solange die KI arbeitet, tickt die
+        # Statusleiste sekuendlich mit laufender Uhr und Schaetzung.
+        from src.core.llm_activity import get_llm_activity
+        self._activity_timer = QTimer(self)
+        self._activity_timer.setInterval(1000)
+        self._activity_timer.timeout.connect(self._update_cache_status)
+        get_llm_activity().changed.connect(self._on_llm_activity_changed)
         self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
         self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
         # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
@@ -734,21 +741,37 @@ class MainWindow(QMainWindow):
                     llm_done += 1
         return analyzed, llm_done, total
 
+    def _on_llm_activity_changed(self):
+        """KI-Aufruf hat begonnen oder geendet: Uhr starten/stoppen."""
+        from src.core.llm_activity import get_llm_activity
+        if get_llm_activity().is_busy():
+            if not self._activity_timer.isActive():
+                self._activity_timer.start()
+        else:
+            self._activity_timer.stop()
+        self._update_cache_status()
+
     def _update_cache_status(self):
         """Aktualisiert die Fortschrittsanzeige der Hintergrund-Analyse."""
+        from src.core.llm_activity import get_llm_activity
+        activity = get_llm_activity()
         analyzed, llm_done, total = self._precache_progress()
-        if total == 0:
-            self.cache_status_label.setText("")
-            return
         parts = []
-        if analyzed < total:
-            parts.append(f"Durchsuche PDFs… {analyzed}/{total}")
-        llm_active = (
-            self.hybrid_classifier.is_llm_available()
-            and self.config.get("llm_precache_enabled", True)
-        )
-        if llm_active and llm_done < total:
-            parts.append(f"KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen")
+        if total > 0:
+            if analyzed < total:
+                parts.append(f"Durchsuche PDFs… {analyzed}/{total}")
+            llm_active = (
+                self.hybrid_classifier.is_llm_available()
+                and self.config.get("llm_precache_enabled", True)
+            )
+            if llm_active and llm_done < total:
+                parts.append(f"KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen")
+        # Laufender KI-Aufruf (Pre-Cache, Metadaten, Chat): Uhr + Schaetzung (Issue #68)
+        jobs = activity.jobs()
+        if jobs:
+            job = jobs[0]
+            label = f" „{job.label}“" if job.label else ""
+            parts.append(f"KI arbeitet{label} {activity.describe()}")
         if self._last_llm_error:
             parts.append("⚠ Fehler")
         self.cache_status_label.setText(" | ".join(parts))
@@ -1368,7 +1391,8 @@ class MainWindow(QMainWindow):
         # Fenstergebundene Timer anhalten: Nach dem Schliessen darf kein
         # verzoegerter Callback (Pre-Caching, Modell-Warten, Raster-Relayout)
         # mehr auf ein halb zerstoertes Fenster treffen.
-        for name in ("_precache_timer", "_model_wait_timer", "_grid_relayout_timer"):
+        for name in ("_precache_timer", "_model_wait_timer", "_grid_relayout_timer",
+                     "_activity_timer"):
             timer = getattr(self, name, None)
             if timer is not None:
                 timer.stop()

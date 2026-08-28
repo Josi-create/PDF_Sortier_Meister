@@ -205,14 +205,24 @@ class LLMSuggestionWorker(QThread):
                         detected_date = str(analysis_result.dates[0])
 
                     logger.debug(f"LLM-Pre-Cache: Rufe LLM ab für {pdf_path.name}...")
-                    suggestions = self._hybrid_classifier.suggest_filename(
-                        text=analysis_result.extracted_text or "",
-                        current_filename=pdf_path.name,
-                        keywords=analysis_result.keywords,
-                        detected_date=detected_date,
-                        use_llm=True,
-                        file_date=file_date,
-                    )
+                    # Aktivitaetsanzeige (Issue #68): laufenden Aufruf melden,
+                    # Dauer fliesst in die Schaetzung fuer die Statusleiste.
+                    from src.core.llm_activity import KIND_SUGGEST, get_llm_activity
+                    activity = get_llm_activity()
+                    activity_token = activity.begin(KIND_SUGGEST, pdf_path.name)
+                    llm_ok = False
+                    try:
+                        suggestions = self._hybrid_classifier.suggest_filename(
+                            text=analysis_result.extracted_text or "",
+                            current_filename=pdf_path.name,
+                            keywords=analysis_result.keywords,
+                            detected_date=detected_date,
+                            use_llm=True,
+                            file_date=file_date,
+                        )
+                        llm_ok = True
+                    finally:
+                        activity.end(activity_token, success=llm_ok)
 
                     # Nur LLM-Vorschläge behalten (nicht lokale)
                     llm_suggestions = []

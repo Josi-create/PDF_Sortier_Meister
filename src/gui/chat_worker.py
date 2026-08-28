@@ -70,8 +70,17 @@ class ChatWorker(QObject):
             return
         self.started.emit()
         try:
-            self.progress.emit("LLM antwortet…")
-            response = self.controller.ask(self.question)
+            self.progress.emit("KI denkt…")
+            # Aktivitaetsanzeige (Issue #68)
+            from src.core.llm_activity import KIND_CHAT, get_llm_activity
+            activity = get_llm_activity()
+            token = activity.begin(KIND_CHAT, self.question[:40])
+            ok = False
+            try:
+                response = self.controller.ask(self.question)
+                ok = True
+            finally:
+                activity.end(token, success=ok)
         except Exception as exc:  # noqa: BLE001 - Fehler an GUI melden
             if not self._cancelled and not self._failed_emitted:
                 self._failed_emitted = True

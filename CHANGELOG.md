@@ -7,6 +7,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Aktivitaetsanzeige fuer KI-Aufrufe** (Issue #68): Solange die KI arbeitet, zeigt
+  die Statusleiste eine vorwaerts laufende Uhr ("KI arbeitet „rechnung.pdf“ seit 0:42")
+  und - sobald Erfahrungswerte fuer dasselbe Provider/Modell-Setting vorliegen - eine
+  Schaetzung ("ca. 30 s", Median der letzten 20 Aufrufe, gespeichert in
+  `llm_timing.json` im Datenverzeichnis). Dasselbe im Chat ("KI denkt… seit 0:05 ·
+  ca. 20 s") und auf dem Button "KI-Metadaten neu generieren".
+- "KI-Metadaten neu generieren" laeuft jetzt im Hintergrund - vorher fror das Fenster
+  fuer die Dauer der Anfrage ein (Kern: `src/core/llm_activity.py`).
+
 ## [0.19.0] - 2026-08-28
 
 ### Hinzugefuegt
