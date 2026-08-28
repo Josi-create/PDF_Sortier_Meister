@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-28
+
 ### Hinzugefuegt
 - **Ollama-Empfehlung fuer Laptops ohne dedizierte GPU** (Issue #62): hat das
   System genug Arbeitsspeicher (ab 16 GB, z.B. schneller Shared-RAM), empfiehlt
