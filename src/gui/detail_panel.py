@@ -25,8 +25,11 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
+    QGridLayout,
+    QSplitter,
 )
 
+from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.rename_dialog import RenameSuggestion
 
 
@@ -60,6 +63,11 @@ class DetailPanel(QWidget):
     save_metadata_requested = pyqtSignal()
     # Signal: Benutzer möchte Dateiname UND Metadaten speichern (ohne Verschieben)
     rename_and_save_metadata_requested = pyqtSignal()
+    # Signale rund ums Öffnen (Issues #74/#76) - das Hauptfenster entscheidet,
+    # ob integrierte Vorschau oder externes Programm
+    open_pdf_requested = pyqtSignal(Path)            # Suchergebnis doppelgeklickt
+    open_pdf_external_requested = pyqtSignal(Path)   # "Extern öffnen" in der Vorschau
+    enlarge_preview_requested = pyqtSignal(Path)     # große Vorschau gewünscht
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -109,7 +117,7 @@ class DetailPanel(QWidget):
         # === Detail-Bereich (zunächst versteckt) ===
         self.detail_container = QWidget()
         detail_layout = QVBoxLayout(self.detail_container)
-        detail_layout.setSpacing(6)
+        detail_layout.setSpacing(4)
         detail_layout.setContentsMargins(0, 0, 0, 0)
 
         # Header: Aktueller Dateiname
@@ -125,9 +133,10 @@ class DetailPanel(QWidget):
         suggestions_group = QGroupBox("Vorschläge (zum Auswählen klicken)")
         suggestions_layout = QVBoxLayout(suggestions_group)
         suggestions_layout.setSpacing(2)
+        suggestions_layout.setContentsMargins(6, 4, 6, 6)
 
         self.suggestions_list = QListWidget()
-        self.suggestions_list.setMaximumHeight(120)
+        self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
         self.suggestions_list.setToolTip(
             "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen."
         )
@@ -139,6 +148,8 @@ class DetailPanel(QWidget):
         # Neuer Name
         name_group = QGroupBox("Neuer Dateiname")
         name_layout = QVBoxLayout(name_group)
+        name_layout.setSpacing(3)
+        name_layout.setContentsMargins(6, 4, 6, 6)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
@@ -154,7 +165,7 @@ class DetailPanel(QWidget):
         # Vorschau
         self.preview_label = QLabel()
         self.preview_label.setStyleSheet(
-            "font-family: monospace; padding: 6px; background-color: #e8f5e9; "
+            "font-family: monospace; padding: 3px 6px; background-color: #e8f5e9; "
             "border: 1px solid #a5d6a7; border-radius: 3px; font-size: 11px;"
         )
         self.preview_label.setWordWrap(True)
@@ -171,6 +182,7 @@ class DetailPanel(QWidget):
         self.metadata_group = QGroupBox("Metadaten (werden in PDF gespeichert)")
         metadata_layout = QVBoxLayout(self.metadata_group)
         metadata_layout.setSpacing(3)
+        metadata_layout.setContentsMargins(6, 4, 6, 6)
 
         # Statusanzeige: Quelle der Metadaten
         self.metadata_status_label = QLabel("")
@@ -204,35 +216,44 @@ class DetailPanel(QWidget):
             "description": "Kurze Zusammenfassung des Dokumentinhalts.",
         }
 
-        for field_key, field_label in metadata_fields:
-            row = QHBoxLayout()
+        # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
+        # Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt, IBAN|Steuerjahr;
+        # die Zusammenfassung laeuft ueber die volle Breite.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(3)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+
+        for idx, (field_key, field_label) in enumerate(metadata_fields):
             label = QLabel(f"{field_label}:")
-            label.setFixedWidth(100)
             label.setStyleSheet("color: #555; font-size: 10px;")
-            if field_key == "description":
-                label.setAlignment(Qt.AlignmentFlag.AlignTop)
-            row.addWidget(label)
 
             if field_key == "description":
                 input_field = QPlainTextEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
-                input_field.setStyleSheet("font-size: 12px; padding: 4px;")
-                input_field.setFixedHeight(90)
+                input_field.setStyleSheet("font-size: 11px; padding: 2px;")
+                input_field.setFixedHeight(58)  # drei Zeilen
+                label.setAlignment(Qt.AlignmentFlag.AlignTop)
+                row_idx = (idx + 1) // 2  # unter den Paaren
+                grid.addWidget(label, row_idx, 0)
+                grid.addWidget(input_field, row_idx, 1, 1, 3)
             else:
                 input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
+                row_idx, col = divmod(idx, 2)
+                grid.addWidget(label, row_idx, col * 2)
+                grid.addWidget(input_field, row_idx, col * 2 + 1)
+
             tooltip = field_tooltips.get(field_key)
             if tooltip:
                 input_field.setToolTip(tooltip)
-            row.addWidget(input_field)
-
-            if isinstance(input_field, QPlainTextEdit):
-                input_field.textChanged.connect(self._on_metadata_user_edit)
-            else:
-                input_field.textChanged.connect(self._on_metadata_user_edit)
+            input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
-            metadata_layout.addLayout(row)
+
+        metadata_layout.addLayout(grid)
 
         # Buttons: KI + Speichern
         btn_row = QHBoxLayout()
@@ -303,7 +324,7 @@ class DetailPanel(QWidget):
         self.hint_label = QLabel()
         self.hint_label.setWordWrap(True)
         self.hint_label.setStyleSheet(
-            "color: #1976d2; font-weight: bold; padding: 8px; "
+            "color: #1976d2; font-weight: bold; padding: 4px 6px; "
             "background-color: #e3f2fd; border-radius: 4px; font-size: 11px;"
         )
         hint_layout.addWidget(self.hint_label, stretch=1)
@@ -339,9 +360,27 @@ class DetailPanel(QWidget):
 
         scroll.setWidget(container)
 
+        # PDF-Vorschau unten (Issue #74): vertikaler Splitter, oben die
+        # Details, unten die Seitenansicht der ausgewählten PDF
+        self.preview = PdfPreviewWidget(self, compact=True)
+        self.preview.setToolTip(
+            "Vorschau der ausgewählten PDF.\n"
+            "Doppelklick auf die Seite oder „Groß“ öffnet die große Ansicht."
+        )
+        self.preview.enlarge_requested.connect(self.enlarge_preview_requested)
+        self.preview.open_external_requested.connect(self.open_pdf_external_requested)
+
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.splitter.addWidget(scroll)
+        self.splitter.addWidget(self.preview)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setCollapsible(0, False)
+        self.splitter.setSizes([440, 400])
+
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(scroll)
+        outer_layout.addWidget(self.splitter)
 
     # === Öffentliche Methoden ===
 
@@ -360,6 +399,9 @@ class DetailPanel(QWidget):
 
         # Header
         self.header_label.setText(f"Original: {pdf_path.name}")
+
+        # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
+        self.preview.load_pdf(pdf_path)
 
         # Vorschläge befüllen
         self._populate_suggestions()
@@ -497,22 +539,19 @@ class DetailPanel(QWidget):
             self.search_results_list.addItem(item)
 
     def _on_search_result_double_clicked(self, item: QListWidgetItem):
-        """Öffnet ein Suchergebnis mit dem Standard-Programm."""
+        """Öffnet ein Suchergebnis (integrierte Vorschau oder extern, je Einstellung)."""
         file_path = item.data(Qt.ItemDataRole.UserRole)
-        if file_path:
-            try:
-                from src.utils.platform_paths import open_with_default_app
-                path = Path(file_path)
-                if path.exists():
-                    open_with_default_app(path)
-                else:
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(
-                        self, "Datei nicht gefunden",
-                        f"Die Datei existiert nicht mehr:\n{file_path}"
-                    )
-            except Exception as e:
-                print(f"Fehler beim Öffnen: {e}")
+        if not file_path:
+            return
+        path = Path(file_path)
+        if not path.exists():
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, "Datei nicht gefunden",
+                f"Die Datei existiert nicht mehr:\n{file_path}"
+            )
+            return
+        self.open_pdf_requested.emit(path)
 
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
@@ -521,6 +560,7 @@ class DetailPanel(QWidget):
         self._metadata = {}
         self._metadata_source = None
         self._saved_metadata_snapshot = {}
+        self.preview.clear()
 
         self.name_input.clear()
         self.suggestions_list.clear()
@@ -731,6 +771,16 @@ class DetailPanel(QWidget):
                 item.setBackground(Qt.GlobalColor.yellow)
 
             self.suggestions_list.addItem(item)
+        self._fit_suggestions_height()
+
+    def _fit_suggestions_height(self):
+        """Liste nur so hoch wie noetig (max. ~4 Zeilen) - spart Platz fuer die Vorschau."""
+        count = max(1, self.suggestions_list.count())
+        row_h = self.suggestions_list.sizeHintForRow(0)
+        if row_h <= 0:
+            row_h = 22
+        frame = 2 * self.suggestions_list.frameWidth() + 4
+        self.suggestions_list.setFixedHeight(min(96, count * row_h + frame))
 
     def _on_suggestion_clicked(self, item: QListWidgetItem):
         """Übernimmt Vorschlag in Eingabefeld + Metadaten."""

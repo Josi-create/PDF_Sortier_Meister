@@ -45,6 +45,8 @@ from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
 from src.utils.update_check import UpdateCheckError, UpdateInfo, check_for_update
+from src.utils.pdf_open import OPEN_MODE_INTEGRATED, normalize_open_mode, open_pdf_externally
+from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
@@ -140,6 +142,8 @@ class MainWindow(QMainWindow):
         self.pdf_cache.llm_suggestions_ready.connect(self._on_llm_suggestions_ready)
         self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
         self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
+        # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
+        self._preview_window: Optional[PdfPreviewWindow] = None
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -188,6 +192,13 @@ class MainWindow(QMainWindow):
         self.detail_panel = DetailPanel()
         self.detail_panel.save_metadata_requested.connect(self._on_save_metadata_in_place)
         self.detail_panel.rename_and_save_metadata_requested.connect(self._on_rename_and_save_metadata)
+        self.detail_panel.open_pdf_requested.connect(self.open_pdf)
+        self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
+        # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
+        saved_sizes = self.config.get("detail_splitter_sizes") or []
+        if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
+            self.detail_panel.splitter.setSizes(saved_sizes)
         splitter.addWidget(self.detail_panel)
 
         # Rechte Spalte: Zielordner
@@ -227,10 +238,50 @@ class MainWindow(QMainWindow):
             self.chat_view.refresh_llm_status()
 
     def _open_pdf_external(self, file_path: str) -> None:
-        """Oeffnet eine PDF im System-Viewer (cross-platform)."""
+        """Oeffnet eine PDF aus dem Chat (Zitat-Link) - je nach Einstellung."""
         if not file_path:
             return
-        QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        self.open_pdf(Path(file_path))
+
+    # ------------------------------------------------------------------ #
+    # PDF oeffnen / Vorschau (Issues #74, #76)
+    # ------------------------------------------------------------------ #
+
+    def open_pdf(self, pdf_path: Path) -> None:
+        """Oeffnet eine PDF so, wie es in den Einstellungen gewaehlt ist.
+
+        Default ist die integrierte Vorschau (QtPdf, schnell); alternativ das
+        Standardprogramm des Systems oder ein eigenes Programm (PDF-XChange, ...).
+        """
+        pdf_path = Path(pdf_path)
+        mode = normalize_open_mode(self.config.get("pdf_open_mode"))
+        if mode == OPEN_MODE_INTEGRATED:
+            self.show_preview_window(pdf_path)
+        else:
+            self.open_pdf_external(pdf_path)
+
+    def open_pdf_external(self, pdf_path: Path) -> None:
+        """Oeffnet eine PDF ausserhalb der App (Standard- oder eigenes Programm)."""
+        mode = normalize_open_mode(self.config.get("pdf_open_mode"))
+        command = self.config.get("pdf_open_command", "") or ""
+        ok, note = open_pdf_externally(Path(pdf_path), mode, command)
+        if note:
+            self.statusbar.showMessage(note, 6000)
+        if not ok:
+            QMessageBox.warning(self, "PDF öffnen", note)
+
+    def show_preview_window(self, pdf_path: Path) -> None:
+        """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster."""
+        if self._preview_window is None:
+            self._preview_window = PdfPreviewWindow(
+                self, geometry=self.config.get("preview_window_geometry") or None
+            )
+            self._preview_window.open_external_requested.connect(self.open_pdf_external)
+            self._preview_window.geometry_changed.connect(self._on_preview_geometry_changed)
+        self._preview_window.show_pdf(Path(pdf_path))
+
+    def _on_preview_geometry_changed(self, geometry: list) -> None:
+        self.config.set("preview_window_geometry", list(geometry))
 
     def create_pdf_panel(self) -> QWidget:
         """Erstellt das Panel für die PDF-Anzeige."""
@@ -618,6 +669,7 @@ class MainWindow(QMainWindow):
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
             widget.double_clicked.connect(self.on_pdf_double_clicked)
+            widget.open_requested.connect(self.open_pdf)
             widget.rename_requested.connect(self.on_pdf_rename)
             widget.delete_requested.connect(self.on_pdf_delete)
             widget.move_requested.connect(self.on_pdf_move)
@@ -1303,6 +1355,10 @@ class MainWindow(QMainWindow):
         size = self.normalGeometry().size() if self.isMaximized() else self.size()
         self.config.set("window_width", size.width(), auto_save=False)
         self.config.set("window_maximized", self.isMaximized(), auto_save=False)
+        # Aufteilung Details/Vorschau im mittleren Panel (Issue #74)
+        sizes = self.detail_panel.splitter.sizes()
+        if len(sizes) == 2 and all(v > 0 for v in sizes):
+            self.config.set("detail_splitter_sizes", list(sizes), auto_save=False)
         self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):
@@ -1324,6 +1380,11 @@ class MainWindow(QMainWindow):
         # Kind-Threads (Ordner-Scan, Metadaten-Leser) zu Ende laufen lassen.
         # Wird ein noch laufender QThread mitsamt seinem Eltern-Widget
         # zerstoert, bricht Qt den Prozess hart ab.
+        # Vorschau-Fenster schliessen; Lese-Threads der Vorschau sind Kinder
+        # des Detail-Panels und werden unten mit abgewartet.
+        if self._preview_window is not None:
+            self._preview_window.close()
+
         for thread in self.findChildren(QThread):
             thread.wait(5000)
 
@@ -2042,9 +2103,8 @@ class MainWindow(QMainWindow):
             self.clear_suggestions()
 
     def on_pdf_double_clicked(self, pdf_path: Path):
-        """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
-        # PDF mit Standardprogramm öffnen
-        self._open_pdf_external(str(pdf_path))
+        """Doppelklick auf ein Thumbnail: PDF öffnen (Vorschau oder extern)."""
+        self.open_pdf(pdf_path)
 
     def _write_pdf_metadata(
         self,
