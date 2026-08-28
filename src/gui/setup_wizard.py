@@ -256,15 +256,31 @@ class ScanFolderPage(QWizardPage):
         else:
             self.path_edit.setText(str(default_scan_folder()))
 
+        # Wird erst wahr, wenn der Nutzer diese Seite tatsaechlich sieht
+        # oder den Pfad manuell aendert - verhindert, dass ein reiner
+        # Default-Vorschlag beim sofortigen "Spaeter" auf der
+        # Begruessungsseite ungefragt gespeichert/angelegt wird (siehe
+        # SetupWizard._on_finished).
+        self._visited = False
+
+    def initializePage(self):
+        self._visited = True
+
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(
             self, "Scan-Ordner auswaehlen", str(self.path_edit.text() or "")
         )
         if folder:
             self.path_edit.setText(folder)
+            self._visited = True
 
     def get_folder(self) -> str:
         return self.path_edit.text().strip()
+
+    def was_visited(self) -> bool:
+        """True, wenn die Seite betreten wurde oder der Pfad manuell
+        geaendert wurde (siehe SetupWizard._on_finished)."""
+        return self._visited
 
 
 class TargetFolderPage(QWizardPage):
@@ -317,15 +333,28 @@ class TargetFolderPage(QWizardPage):
         else:
             self.path_edit.setText(str(default_target_folder()))
 
+        # Siehe ScanFolderPage._visited: erst wahr nach tatsaechlichem
+        # Besuch der Seite bzw. manueller Aenderung des Pfads.
+        self._visited = False
+
+    def initializePage(self):
+        self._visited = True
+
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(
             self, "Zielordner auswaehlen", str(self.path_edit.text() or "")
         )
         if folder:
             self.path_edit.setText(folder)
+            self._visited = True
 
     def get_folder(self) -> str:
         return self.path_edit.text().strip()
+
+    def was_visited(self) -> bool:
+        """True, wenn die Seite betreten wurde oder der Pfad manuell
+        geaendert wurde (siehe SetupWizard._on_finished)."""
+        return self._visited
 
 
 class ProviderPage(QWizardPage):
@@ -939,20 +968,25 @@ class SetupWizard(QWizard):
         """Speichert die Einstellungen wenn der User auf 'Fertig' klickt."""
         # result == QDialog.DialogCode.Accepted (1) bei Fertig-Klick
         # result == QDialog.DialogCode.Rejected (0) bei Spaeter/Schliessen
-        # Wir speichern in BEIDEN Faellen was bisher eingetragen wurde,
-        # damit ein halbfertiges Setup nicht verloren geht.
+        # Bei "Fertig" speichern wir immer, was eingetragen ist. Bei
+        # "Spaeter"/Schliessen nur, wenn die jeweilige Ordner-Seite
+        # tatsaechlich besucht wurde (oder der Pfad manuell geaendert
+        # wurde) - sonst wuerde ein reiner Default-Vorschlag, den der
+        # Nutzer nie gesehen hat (Sofort-Abbruch auf der Begruessungsseite),
+        # ungefragt gespeichert und der Ordner auf der Platte angelegt.
         config = get_config()
+        accepted = (result == QDialog.DialogCode.Accepted)
 
         # Scan-Ordner speichern und anlegen, falls er noch nicht existiert
         folder = self._scan_page.get_folder()
-        if folder:
+        if folder and (accepted or self._scan_page.was_visited()):
             config.set_scan_folder(folder)
             self._ensure_folder_exists(folder)
 
         # Zielordner anlegen (falls er fehlt) und als Zielordner registrieren
         # (Issue #64). config.add_target_folder() dedupliziert selbst.
         target_folder = self._target_page.get_folder()
-        if target_folder:
+        if target_folder and (accepted or self._target_page.was_visited()):
             self._ensure_folder_exists(target_folder)
             config.add_target_folder(target_folder)
 
@@ -987,7 +1021,7 @@ class SetupWizard(QWizard):
         # Explorer-Integration: nur bei "Fertig" (Accepted) anwenden,
         # nicht bei "Spaeter"/Schliessen - dort waere eine Registry-
         # Aenderung ueberraschend.
-        if result == QDialog.DialogCode.Accepted and sys.platform == "win32":
+        if accepted and sys.platform == "win32":
             if self._done_page.wants_context_menu():
                 try:
                     from src.utils.explorer_integration import register_context_menu

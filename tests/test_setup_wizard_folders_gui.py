@@ -94,10 +94,11 @@ def test_finish_creates_both_folders_and_registers_target(qtbot, fresh_config, m
     assert target_folder in fresh_config.get_target_folders()
 
 
-def test_cancel_still_creates_folders_like_scan_folder_behavior(qtbot, fresh_config, monkeypatch, tmp_path):
-    """'Spaeter'/Schliessen uebernimmt - wie schon beim Scan-Ordner ueblich -
-    was aktuell in den Feldern steht, damit kein halbfertiges Setup verloren
-    geht; das gilt jetzt auch fuer den neuen Zielordner-Schritt."""
+def test_immediate_cancel_creates_nothing(qtbot, fresh_config, monkeypatch, tmp_path):
+    """Verlaesst der Nutzer den Wizard sofort auf der Begruessungsseite mit
+    'Spaeter'/Schliessen, ohne die Ordner-Seiten je gesehen zu haben, darf
+    NICHTS angelegt oder gespeichert werden - reine Default-Vorschlaege,
+    die niemand bestaetigt hat, sind keine bewusste Nutzerentscheidung."""
     docs = tmp_path / "Documents"
     _patch_documents_dir(monkeypatch, docs)
     scan_folder = docs / "Scans"
@@ -105,6 +106,30 @@ def test_cancel_still_creates_folders_like_scan_folder_behavior(qtbot, fresh_con
 
     w = SetupWizard()
     qtbot.addWidget(w)
+
+    w.reject()  # Sofort-Abbruch, kein einziges w.next()
+
+    assert not scan_folder.exists()
+    assert not target_folder.exists()
+    assert fresh_config.get_scan_folder() is None
+    assert fresh_config.get_target_folders() == []
+
+
+def test_cancel_after_visiting_pages_creates_folders(qtbot, fresh_config, monkeypatch, tmp_path):
+    """Hat der Nutzer die Scan- und Zielordner-Seite tatsaechlich gesehen
+    (auch ohne den Vorschlag zu aendern) und bricht danach mit 'Spaeter' ab,
+    wird - wie beim bisherigen Scan-Ordner-Verhalten - trotzdem gespeichert
+    und angelegt, damit ein halbfertiges Setup nicht verloren geht."""
+    docs = tmp_path / "Documents"
+    _patch_documents_dir(monkeypatch, docs)
+    scan_folder = docs / "Scans"
+    target_folder = docs / "PDF-Sammlung"
+
+    w = SetupWizard()
+    qtbot.addWidget(w)
+    w.show()  # noetig, damit next() tatsaechlich navigiert (currentId sonst -1)
+    w.next()  # Welcome -> Scan (initializePage der ScanFolderPage laeuft)
+    w.next()  # Scan -> Zielordner (initializePage der TargetFolderPage laeuft)
 
     w.reject()
 
