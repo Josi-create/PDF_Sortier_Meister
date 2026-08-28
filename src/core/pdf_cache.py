@@ -236,6 +236,15 @@ class LLMSuggestionWorker(QThread):
                                 metadata=getattr(s, 'metadata', None),
                             ))
 
+                    if not llm_suggestions:
+                        # Kein KI-Vorschlag: als Fehler melden statt still als
+                        # "abgerufen" zu cachen (sonst nie wieder ein Versuch)
+                        err = getattr(self._hybrid_classifier, "last_llm_error", None)
+                        self.suggestions_error.emit(
+                            pdf_path, err or "KI hat keinen Vorschlag geliefert."
+                        )
+                        continue
+
                     self.suggestions_complete.emit(pdf_path, llm_suggestions)
 
                 except Exception as e:
@@ -411,7 +420,11 @@ class PDFCache(QObject):
                                 # Roh-Schluessel des Modells (category, beschreibung)
                                 metadata=normalize_llm_metadata(s.get("metadata")) or None,
                             ))
-                        llm_fetched = bool(len(row) > 7 and row[7])
+                        # Aeltere Versionen haben leere KI-Ergebnisse (z.B. bei
+                        # zu kleinem Token-Limit) als "abgerufen" gespeichert.
+                        # Solche Eintraege gelten als offen, damit die
+                        # Vorabfrage sie erneut versucht.
+                        llm_fetched = bool(len(row) > 7 and row[7]) and bool(llm_suggestions)
                         if llm_suggestions:
                             llm_count += 1
                     except Exception:
@@ -697,6 +710,11 @@ class PDFCache(QObject):
         logger.debug(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name}")
         with self._lock:
             self._llm_queued.discard(pdf_path)
+            if not suggestions:
+                # Leeres Ergebnis nicht als "abgerufen" persistieren - die PDF
+                # darf beim naechsten Mal erneut angefragt werden
+                logger.info(f"LLM-Pre-Cache: kein Vorschlag für {pdf_path.name}, nicht gecacht")
+                return
             if pdf_path in self._cache:
                 self._cache[pdf_path].llm_suggestions = suggestions
                 self._cache[pdf_path].llm_fetched = True

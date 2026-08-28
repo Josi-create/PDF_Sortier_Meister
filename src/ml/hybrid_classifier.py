@@ -66,6 +66,9 @@ class HybridClassifier:
         self.llm_provider: Optional[LLMProvider] = None
         self.llm_enabled = False
         self.total_tokens_used = 0
+        # Letzter Fehler des KI-Aufrufs (Dateiname/Metadaten) - wird vom
+        # Pre-Cache-Worker und dem Detail-Panel angezeigt, statt still zu scheitern
+        self.last_llm_error: Optional[str] = None
 
         # LLM-Provider initialisieren falls konfiguriert
         self._init_llm_provider()
@@ -103,7 +106,7 @@ class HybridClassifier:
         config = LLMConfig(
             api_key=api_key,
             model=model,
-            max_tokens=llm_config.get("max_tokens", 500),
+            max_tokens=llm_config.get("max_tokens", 2000),
             temperature=llm_config.get("temperature", 0.3),
             text_limit=llm_config.get("text_limit", 1500),
             base_url=base_url,
@@ -464,6 +467,7 @@ class HybridClassifier:
         if not self.llm_provider:
             return None
 
+        self.last_llm_error = None
         response = self.llm_provider.suggest_filename(
             text=text,
             current_filename=current_filename,
@@ -475,8 +479,13 @@ class HybridClassifier:
 
         self.total_tokens_used += response.tokens_used
 
-        if not response.success or not response.filename_suggestion:
+        if not response.success:
+            self.last_llm_error = response.error_message or "KI-Aufruf fehlgeschlagen."
             return None
+        if not response.filename_suggestion:
+            self.last_llm_error = "KI hat keinen Dateinamen geliefert."
+            return None
+        self.last_llm_error = None
 
         return HybridFilename(
             filename=response.filename_suggestion,
@@ -520,6 +529,28 @@ class HybridClassifier:
     def is_llm_available(self) -> bool:
         """Prüft ob ein LLM-Provider verfügbar ist."""
         return self.llm_enabled
+
+    def get_llm_model_name(self, short: bool = False) -> str:
+        """Gibt die Modell-ID des aktiven Providers zurueck (leer, wenn keins).
+
+        Args:
+            short: Anbieter-Praefix wie "z-ai/" (OpenRouter) weglassen - fuer
+                   die knappe Anzeige in der Statusleiste.
+        """
+        if not self.llm_enabled or not self.llm_provider:
+            return ""
+        model = ""
+        getter = getattr(self.llm_provider, "_get_model_id", None)
+        if callable(getter):
+            try:
+                model = getter() or ""
+            except Exception:
+                model = ""
+        if not model:
+            model = getattr(getattr(self.llm_provider, "config", None), "model", "") or ""
+        if short and "/" in model:
+            model = model.rsplit("/", 1)[-1]
+        return model
 
     def get_llm_provider_name(self) -> str:
         """Gibt den Namen des aktuellen LLM-Providers zurück."""

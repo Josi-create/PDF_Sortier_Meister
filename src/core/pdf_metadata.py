@@ -5,6 +5,7 @@ Schreibt Metadaten direkt in PDF-Dateien (dual: XMP in PDF + SQLite-Index).
 Kompatibel mit Paperless-ngx, DEVONthink, Adobe Acrobat.
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -125,7 +126,9 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
             with pdf.open_metadata() as meta:
                 metadata.title = meta.get("dc:title", None)
                 metadata.subject = meta.get("dc:subject", None)
-                metadata.description = meta.get("dc:description", None)
+                metadata.description = _clean_foreign_description(
+                    meta.get("dc:description", None)
+                )
                 metadata.keywords = meta.get("pdf:Keywords", None)
 
             # Custom-Felder lesen
@@ -138,6 +141,31 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
     except Exception as e:
         print(f"Fehler beim Lesen der Metadaten aus {pdf_path.name}: {e}")
         return None
+
+
+_FILENAME_LIKE = re.compile(r"[^\s/\\]+\.pdf", re.IGNORECASE)
+
+
+def looks_like_filename(value) -> bool:
+    """True, wenn ein Text nur aus einem Dateinamen wie ``2024-01-31_Brief.pdf`` besteht."""
+    if value is None:
+        return False
+    return bool(_FILENAME_LIKE.fullmatch(str(value).strip()))
+
+
+def _clean_foreign_description(value):
+    """Verwirft dc:description-Werte, die kein Inhalt sind.
+
+    Manche Dokumentensysteme (z.B. M/TEXT bei Versicherungen) schreiben ihren
+    internen Dateinamen in dc:description. Das ist keine Zusammenfassung und
+    wuerde sonst als "aus PDF gelesen" im Feld Zusammenfassung landen.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or looks_like_filename(text):
+        return None
+    return text
 
 
 def _write_custom_fields(pdf, metadata: PDFMetadata):

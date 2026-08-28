@@ -9,6 +9,7 @@ MIT License - Copyright (c) 2026
 import json
 import urllib.error
 import urllib.request
+import re
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
@@ -116,7 +117,7 @@ class OpenAIProvider(LLMProvider):
         )
 
         try:
-            response = self._client.chat.completions.create(
+            response = self._create_chat_completion(
                 model=self._get_model_id(),
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
@@ -130,8 +131,19 @@ class OpenAIProvider(LLMProvider):
                 ]
             )
 
-            response_text = response.choices[0].message.content
+            choice = response.choices[0]
+            response_text = choice.message.content
+            problem = self._check_response_text(
+                response_text, getattr(choice, "finish_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
             suggested_folder = parsed.get("folder")
@@ -205,7 +217,7 @@ class OpenAIProvider(LLMProvider):
         )
 
         try:
-            response = self._client.chat.completions.create(
+            response = self._create_chat_completion(
                 model=self._get_model_id(),
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
@@ -219,8 +231,19 @@ class OpenAIProvider(LLMProvider):
                 ]
             )
 
-            response_text = response.choices[0].message.content
+            choice = response.choices[0]
+            response_text = choice.message.content
+            problem = self._check_response_text(
+                response_text, getattr(choice, "finish_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Dateiname validieren
             filename = parsed.get("filename")
@@ -243,6 +266,40 @@ class OpenAIProvider(LLMProvider):
                 success=False,
                 error_message=f"{self.API_NAME} API Fehler: {str(e)}"
             )
+
+    # Reasoning-Modelle bei OpenAI direkt: o1/o3/o4-mini, gpt-5-Familie.
+    # Fuer die kurze Extraktionsaufgabe reicht minimales Nachdenken; das
+    # spart Zeit und Tokens. Klassische Modelle (gpt-4o, gpt-4.1) kennen den
+    # Parameter nicht - sie bekommen ihn gar nicht erst.
+    _REASONING_MODEL_RE = re.compile(r"^(o\d|gpt-5)", re.IGNORECASE)
+
+    def _extra_request_kwargs(self) -> dict:
+        """Zusaetzliche Parameter fuer chat.completions.create."""
+        if self._REASONING_MODEL_RE.match(self._get_model_id() or ""):
+            return {"reasoning_effort": "minimal"}
+        return {}
+
+    # Nach einer Ablehnung (HTTP 400) werden Extras fuer diese Instanz nicht
+    # mehr mitgeschickt - sonst kostet jeder Aufruf einen Fehlversuch extra.
+    _extras_rejected = False
+
+    def _create_chat_completion(self, **kwargs):
+        """Ruft die Chat-API auf; provider-spezifische Extras mit Rueckfall.
+
+        Lehnt das Modell einen Zusatzparameter ab (HTTP 400), wird der Aufruf
+        ohne die Extras wiederholt und die Ablehnung gemerkt.
+        """
+        extras = {} if self._extras_rejected else self._extra_request_kwargs()
+        if not extras:
+            return self._client.chat.completions.create(**kwargs)
+        try:
+            return self._client.chat.completions.create(**kwargs, **extras)
+        except Exception as e:  # noqa: BLE001 - nur 400er auf Extras zurueckfallen
+            status = getattr(e, "status_code", None)
+            if status == 400 or "400" in str(e):
+                self._extras_rejected = True
+                return self._client.chat.completions.create(**kwargs)
+            raise
 
     def _find_similar_folder(
         self, suggested: str, available: list[str]

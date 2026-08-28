@@ -52,6 +52,17 @@ class OpenRouterProvider(OpenAIProvider):
             print(f"Fehler bei {self.API_NAME}-Initialisierung: {e}")
             self._client = None
 
+    # Reasoning-Modelle (GLM-5.x, DeepSeek-R1, ...) denken bei der kurzen
+    # Dateinamen-/Metadaten-Aufgabe sonst tausende Tokens lang - langsam und
+    # bei kleinem max_tokens kommt gar kein Text mehr. "low" begrenzt das
+    # Nachdenken (gemessen: 3-4 s statt 10-18 s, gleiche Qualitaet). Modelle
+    # ohne Reasoning ignorieren den Parameter; lehnt eines ihn ab, wiederholt
+    # OpenAIProvider._create_chat_completion den Aufruf ohne ihn.
+    REASONING_EFFORT = "low"
+
+    def _extra_request_kwargs(self) -> dict:
+        return {"extra_body": {"reasoning": {"effort": self.REASONING_EFFORT}}}
+
     def _get_model_id(self) -> str:
         """OpenRouter-IDs werden unverändert durchgereicht ("anbieter/modell")."""
         model = (self.config.model or "").strip()

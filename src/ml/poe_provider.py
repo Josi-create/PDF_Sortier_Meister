@@ -165,8 +165,19 @@ class PoeProvider(LLMProvider):
                 ]
             )
 
-            response_text = response.choices[0].message.content
+            choice = response.choices[0]
+            response_text = choice.message.content
+            problem = self._check_response_text(
+                response_text, getattr(choice, "finish_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
             suggested_folder = parsed.get("folder")
@@ -254,8 +265,19 @@ class PoeProvider(LLMProvider):
                 ]
             )
 
-            response_text = response.choices[0].message.content
+            choice = response.choices[0]
+            response_text = choice.message.content
+            problem = self._check_response_text(
+                response_text, getattr(choice, "finish_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Dateiname validieren
             filename = parsed.get("filename")

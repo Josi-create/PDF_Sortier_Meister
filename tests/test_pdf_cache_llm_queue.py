@@ -78,8 +78,16 @@ def test_llm_queue_dedupes_until_result_or_skip(cache, tmp_path):
     cache._on_llm_suggestions_skipped(pdf)
     assert cache.pre_cache([pdf]) == (0, 1)
 
-    # Erfolg -> llm_fetched, nichts mehr einzureihen
+    # Leeres Ergebnis -> NICHT als abgerufen merken, erneut einreihbar
     cache._on_llm_suggestions_complete(pdf, [])
+    assert cache._cache[pdf].llm_fetched is False
+    assert cache.pre_cache([pdf]) == (0, 1)
+
+    # Echter Vorschlag -> llm_fetched, nichts mehr einzureihen
+    from src.core.pdf_cache import LLMSuggestion
+    cache._on_llm_suggestions_complete(
+        pdf, [LLMSuggestion(filename="2024-01-31_Rechnung.pdf", confidence=0.9, source="llm")]
+    )
     assert cache.pre_cache([pdf]) == (0, 0)
     assert cache._cache[pdf].llm_fetched is True
 
@@ -93,3 +101,27 @@ def test_llm_error_emits_signal_and_frees_queue(cache, tmp_path, qtbot):
         cache._on_llm_suggestions_error(pdf, "HTTP 402: Guthaben aufgebraucht")
     assert blocker.args == [pdf, "HTTP 402: Guthaben aufgebraucht"]
     assert cache.pre_cache([pdf]) == (0, 1)  # erneut einreihbar
+
+
+def test_persisted_empty_llm_result_counts_as_not_fetched(cache, tmp_path):
+    """Alte Cache-Zeilen 'llm_fetched=1, llm_suggestions=[]' werden beim Laden als offen behandelt."""
+    import sqlite3
+    pdf = tmp_path / "leer.pdf"
+    pdf.write_bytes(b"%PDF")
+    db = tmp_path / "pdf_cache.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE pdf_cache (pdf_path TEXT PRIMARY KEY, extracted_text TEXT, keywords TEXT, "
+        "dates TEXT, analyzed_at TEXT, file_modified REAL, llm_suggestions TEXT, llm_fetched INTEGER DEFAULT 0)"
+    )
+    conn.execute(
+        "INSERT INTO pdf_cache VALUES (?, 'text', '[\"rechnung\"]', '[]', '2026-08-28T00:00:00', ?, '[]', 1)",
+        (str(pdf), pdf.stat().st_mtime),
+    )
+    conn.commit(); conn.close()
+
+    cache._db_path = db
+    cache._persist_cache = True
+    cache._load_from_db()
+    assert cache._cache[pdf].llm_fetched is False
+    assert cache._cache[pdf].llm_suggestions == []

@@ -157,7 +157,32 @@ class OllamaProvider(LLMProvider):
         }
         if json_mode:
             payload["format"] = "json"
+        # Denk-Modelle (qwen3, deepseek-r1, gemma4, ...) sollen fuer die kurze
+        # Extraktionsaufgabe nicht "nachdenken": schneller, und das Budget
+        # (num_predict) geht nicht im Denkteil verloren. Lehnt ein Server
+        # oder Modell das Feld ab (HTTP 400), wird ohne wiederholt und die
+        # Ablehnung fuer diese Instanz gemerkt.
+        if not self._think_rejected:
+            payload["think"] = False
 
+        data, error = self._post_chat(url, payload)
+        if error and "HTTP 400" in error and "think" in payload:
+            self._think_rejected = True
+            payload.pop("think", None)
+            data, error = self._post_chat(url, payload)
+        if error:
+            return None, error
+
+        message = data.get("message") or {}
+        content = message.get("content", "")
+        if not content:
+            return None, "Ollama hat eine leere Antwort geliefert."
+        return content, None
+
+    _think_rejected = False
+
+    def _post_chat(self, url: str, payload: dict) -> tuple[Optional[dict], Optional[str]]:
+        """POST an /api/chat; liefert (JSON-Antwort, Fehlertext)."""
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url,
@@ -165,22 +190,15 @@ class OllamaProvider(LLMProvider):
             headers=self._headers(),
             method="POST",
         )
-
         try:
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                return json.loads(resp.read().decode("utf-8")), None
         except urllib.error.HTTPError as e:
             return None, f"Ollama HTTP {e.code}"
         except urllib.error.URLError as e:
             return None, f"Keine Verbindung zu Ollama ({self._get_base_url()}). Details: {e.reason}"
         except Exception as e:
             return None, f"Ollama-Fehler: {e}"
-
-        message = data.get("message") or {}
-        content = message.get("content", "")
-        if not content:
-            return None, "Ollama hat eine leere Antwort geliefert."
-        return content, None
 
     def _strip_code_fences(self, text: str) -> str:
         """Entfernt Markdown-Code-Fences."""

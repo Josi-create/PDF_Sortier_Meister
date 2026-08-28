@@ -43,3 +43,48 @@ def test_client_created_with_openrouter_base_url(monkeypatch):
     p = _make("openai/gpt-4.1-nano", api_key="sk-or-test")
     assert p.is_available()
     assert captured == {"api_key": "sk-or-test", "base_url": "https://openrouter.ai/api/v1"}
+
+
+def _fake_client(calls, fail_with_extras=False):
+    import types
+
+    def create(**kw):
+        calls.append(kw)
+        if fail_with_extras and "extra_body" in kw:
+            raise Exception("Error code: 400 - {'error': {'message': 'Reasoning not supported'}}")
+        choice = types.SimpleNamespace(
+            finish_reason="stop",
+            message=types.SimpleNamespace(content='{"filename": "2024-01-31_Test.pdf", "confidence": 0.9}'),
+        )
+        return types.SimpleNamespace(choices=[choice], usage=None)
+
+    return types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+
+
+def test_openrouter_sends_low_reasoning_effort():
+    p = _make("z-ai/glm-5.3-flash", api_key="sk-or-test")
+    calls = []
+    p._client = _fake_client(calls)
+    r = p.suggest_filename(text="Rechnung", current_filename="scan.pdf")
+    assert r.success is True and r.filename_suggestion == "2024-01-31_Test.pdf"
+    assert calls[0]["extra_body"] == {"reasoning": {"effort": "low"}}
+
+
+def test_openrouter_retries_without_extras_on_400():
+    p = _make("some/model-without-reasoning", api_key="sk-or-test")
+    calls = []
+    p._client = _fake_client(calls, fail_with_extras=True)
+    r = p.suggest_filename(text="Rechnung", current_filename="scan.pdf")
+    assert r.success is True
+    assert len(calls) == 2
+    assert "extra_body" in calls[0] and "extra_body" not in calls[1]
+
+
+def test_plain_openai_provider_sends_no_extras():
+    from src.ml.llm_provider import LLMConfig
+    from src.ml.openai_provider import OpenAIProvider
+    p = OpenAIProvider(LLMConfig(api_key="sk-test", model="gpt-4.1-nano"))
+    calls = []
+    p._client = _fake_client(calls)
+    p.suggest_filename(text="Rechnung", current_filename="scan.pdf")
+    assert "extra_body" not in calls[0]
