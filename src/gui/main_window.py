@@ -715,10 +715,16 @@ class MainWindow(QMainWindow):
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
 
-    def remove_pdf_widget(self, pdf_path: Path):
-        """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh)."""
-        for widget in self.pdf_widgets:
+    def remove_pdf_widget(self, pdf_path: Path) -> Optional[int]:
+        """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh).
+
+        Gibt die Rasterposition zurück, an der das Widget stand (Issue #75:
+        automatische Auswahl der nächsten PDF), oder None falls nicht gefunden.
+        """
+        index = None
+        for i, widget in enumerate(self.pdf_widgets):
             if widget.pdf_path == pdf_path:
+                index = i
                 # Widget aus Layout entfernen
                 self.pdf_layout.removeWidget(widget)
                 widget.cleanup() if hasattr(widget, 'cleanup') else None
@@ -738,6 +744,26 @@ class MainWindow(QMainWindow):
         # Aus Mehrfachauswahl entfernen
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
+
+        return index
+
+    def _remove_pdf_widget_and_select_next(self, pdf_path: Path) -> bool:
+        """Entfernt ein PDF-Widget und wählt danach automatisch die nächste PDF
+        an derselben Rasterposition aus, falls die entfernte PDF die aktuell
+        ausgewählte war (Issue #75: nach dem Wegsortieren automatisch weiter).
+
+        Läuft über den normalen Klick-Pfad (on_pdf_clicked), damit Detail-Panel,
+        Vorschläge und Ordner-Highlights wie bei einem echten Klick aktualisiert
+        werden. Gibt True zurück, wenn eine Folge-PDF automatisch ausgewählt wurde.
+        """
+        was_selected = self.selected_pdf == pdf_path
+        index = self.remove_pdf_widget(pdf_path)
+        if was_selected and index is not None and self.pdf_widgets:
+            next_index = min(index, len(self.pdf_widgets) - 1)
+            next_path = self.pdf_widgets[next_index].pdf_path
+            self.on_pdf_clicked(next_path)
+            return True
+        return False
 
     def _update_pdf_widget_path(self, old_path: Path, new_path: Path):
         """Aktualisiert den Pfad eines PDF-Widgets nach Umbenennung."""
@@ -1782,8 +1808,8 @@ class MainWindow(QMainWindow):
 
             # UI aktualisieren
             self.config.add_to_last_used(folder_path)
-            self.remove_pdf_widget(pdf_path)
-            self.detail_panel.clear()
+            if not self._remove_pdf_widget_and_select_next(pdf_path):
+                self.detail_panel.clear()
             timer.step("ui")
             self._refresh_after_move(folder_path, pdf_path.parent)
             timer.step("tree")
@@ -1859,7 +1885,7 @@ class MainWindow(QMainWindow):
                 self.config.add_to_last_used(folder_path)
 
                 # Nur das verschobene PDF-Widget entfernen (NICHT refresh_view!)
-                self.remove_pdf_widget(pdf_path)
+                self._remove_pdf_widget_and_select_next(pdf_path)
 
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self._refresh_after_move(folder_path, pdf_path.parent)
@@ -1892,6 +1918,7 @@ class MainWindow(QMainWindow):
         moved_pdfs = []
         move_pairs = []  # (source, dest) für Undo
         errors = []
+        original_selected = self.selected_pdf
 
         for pdf_path in pdf_paths:
             try:
@@ -1944,15 +1971,26 @@ class MainWindow(QMainWindow):
                 desc = f"{moved_count} PDFs → {relative_path}"
             self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
 
-        # Verschobene PDF-Widgets entfernen
+        # Verschobene PDF-Widgets entfernen; Position der zuvor ausgewählten
+        # PDF merken, um danach die nächste automatisch auszuwählen (Issue #75)
+        selected_removed_index = None
         for moved_pdf in moved_pdfs:
-            self.remove_pdf_widget(moved_pdf)
+            index = self.remove_pdf_widget(moved_pdf)
+            if moved_pdf == original_selected:
+                selected_removed_index = index
 
         # Auswahl zurücksetzen
-        self.selected_pdf = None
-        self.selected_pdf_text = None
-        self.selected_pdf_keywords = None
         self.selected_pdfs = []
+        auto_selected = False
+        if selected_removed_index is not None and self.pdf_widgets:
+            next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
+            next_path = self.pdf_widgets[next_index].pdf_path
+            self.on_pdf_clicked(next_path)
+            auto_selected = True
+        else:
+            self.selected_pdf = None
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
 
         # Zuletzt verwendet aktualisieren
         self.config.add_to_last_used(folder_path)
@@ -1960,8 +1998,9 @@ class MainWindow(QMainWindow):
         # Ordneransicht aktualisieren
         self._refresh_after_move(folder_path, *{p.parent for p in pdf_paths})
 
-        # Vorschläge leeren
-        self.clear_suggestions()
+        # Vorschläge leeren (nur wenn keine Folge-PDF automatisch ausgewählt wurde)
+        if not auto_selected:
+            self.clear_suggestions()
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
@@ -2360,7 +2399,7 @@ class MainWindow(QMainWindow):
                 })
 
                 # Nur das verschobene PDF-Widget entfernen
-                self.remove_pdf_widget(pdf_path)
+                self._remove_pdf_widget_and_select_next(pdf_path)
                 # Ordneransicht aktualisieren
                 self._refresh_after_move(folder_path, pdf_path.parent)
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
