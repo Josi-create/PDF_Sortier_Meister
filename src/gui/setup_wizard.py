@@ -34,12 +34,11 @@ PAGE_API_KEY = 3
 PAGE_DONE = 4
 
 # Provider-Konstanten (Index -> interner Name)
-_PROVIDER_IDS = ["none", "claude", "openai", "poe", "ollama", "ollama_cloud", "openrouter"]
+_PROVIDER_IDS = ["none", "claude", "openai", "ollama", "ollama_cloud", "openrouter"]
 _PROVIDER_LABELS = [
     "Kein KI-Assistent (nur klassische Erkennung)",
     "Anthropic Claude",
     "OpenAI GPT",
-    "Poe.com (viele KI-Modelle, ein Account)",
     "Ollama (lokal auf Ihrem PC, kostenlos)",
     "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
     "OpenRouter (viele KI-Modelle, ein API-Key)",
@@ -47,7 +46,6 @@ _PROVIDER_LABELS = [
 _PROVIDER_URLS = {
     "claude": "https://console.anthropic.com/settings/keys",
     "openai": "https://platform.openai.com/api-keys",
-    "poe":    "https://poe.com/api_key",
     "ollama": "https://ollama.com/download",
     "ollama_cloud": "https://ollama.com/settings/keys",
     "openrouter": "https://openrouter.ai/keys",
@@ -55,7 +53,6 @@ _PROVIDER_URLS = {
 _PROVIDER_KEY_HINTS = {
     "claude": 'Beginnt mit "sk-ant-..."',
     "openai": 'Beginnt mit "sk-..."',
-    "poe":    "Zu finden auf poe.com/api_key",
     "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
     "ollama_cloud": "Zu finden auf ollama.com/settings/keys",
     "openrouter": 'Beginnt mit "sk-or-..."',
@@ -479,7 +476,6 @@ class ApiKeyPage(QWizardPage):
         provider_labels = {
             "claude": "Anthropic Claude",
             "openai": "OpenAI GPT",
-            "poe":    "Poe.com",
             "ollama": "Ollama",
             "ollama_cloud": "Ollama Cloud",
             "openrouter": "OpenRouter",
@@ -538,12 +534,6 @@ class ApiKeyPage(QWizardPage):
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Klicken Sie auf 'API Keys' und dann 'Create new secret key'.\n"
                 "4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
-            ),
-            "poe": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n"
-                "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
-                "3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n"
-                "4. Fuegen Sie ihn unten ein."
             ),
             "ollama": self._ollama_info_text(detection),
             "ollama_cloud": (

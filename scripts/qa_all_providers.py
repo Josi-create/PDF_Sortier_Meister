@@ -1,8 +1,8 @@
 """
-QA Smoke-Test fuer alle 4 LLM-Provider (PDF Sortier Meister).
+QA Smoke-Test fuer alle LLM-Provider (PDF Sortier Meister).
 
 Zweck:
-    Verifiziert, dass ollama, claude, openai und poe als Provider-Module
+    Verifiziert, dass ollama, claude und openai als Provider-Module
     sauber geladen werden, mit ``LLMConfig`` instanziiert werden koennen
     und ohne konfigurierten API-Key ``graceful`` mit
     ``answer_with_context()`` umgehen - d.h. sie duerfen einen leeren
@@ -86,13 +86,6 @@ PROVIDERS: list[ProviderSpec] = [
         model="gpt-4.1-nano",
         mode="needs_api_key",
     ),
-    ProviderSpec(
-        name="poe",
-        module="src.ml.poe_provider",
-        class_name="PoeProvider",
-        model="gpt-4o-mini",
-        mode="needs_api_key",
-    ),
 ]
 
 
@@ -103,14 +96,14 @@ def _get_provider_version(spec: ProviderSpec) -> Optional[str]:
     """Liefert (best-effort) die Version des Provider-Pakets.
 
     - ``anthropic``     -> claude
-    - ``openai``        -> openai + poe
+    - ``openai``        -> openai
     - Ollama hat kein separates Python-Paket (nur Server).
     """
     try:
         if spec.name == "claude":
             mod = importlib.import_module("anthropic")
             return getattr(mod, "__version__", None)
-        if spec.name in ("openai", "poe"):
+        if spec.name == "openai":
             mod = importlib.import_module("openai")
             return getattr(mod, "__version__", None)
         if spec.name == "ollama":
@@ -331,7 +324,7 @@ def _test_provider(spec: ProviderSpec) -> ProviderResult:
 # ---------------------------------------------------------------------------
 def main() -> int:
     print("=" * 72)
-    print("QA-Smoketest: LLM-Provider (ollama, claude, openai, poe)")
+    print("QA-Smoketest: LLM-Provider (ollama, claude, openai)")
     print("=" * 72)
     print()
 

@@ -38,35 +38,35 @@ def _dialog(qtbot):
 def test_switching_provider_swaps_key_and_label(qtbot, fresh_config):
     d = _dialog(qtbot)
 
-    d.provider_combo.setCurrentIndex(3)  # Poe
-    assert d.api_key_label.text() == "API-Key (Poe.com):"
-    d.api_key_input.setText("poe-key")
+    d.provider_combo.setCurrentIndex(1)  # Claude
+    assert d.api_key_label.text() == "API-Key (Anthropic Claude):"
+    d.api_key_input.setText("claude-key")
 
-    d.provider_combo.setCurrentIndex(5)  # OpenRouter
+    d.provider_combo.setCurrentIndex(4)  # OpenRouter
     assert d.api_key_label.text() == "API-Key (OpenRouter):"
-    assert d.api_key_input.text() == ""  # Poe-Key darf nicht mitwandern
+    assert d.api_key_input.text() == ""  # Claude-Key darf nicht mitwandern
     d.api_key_input.setText("sk-or-key")
 
-    d.provider_combo.setCurrentIndex(3)  # zurueck zu Poe
-    assert d.api_key_input.text() == "poe-key"
+    d.provider_combo.setCurrentIndex(1)  # zurueck zu Claude
+    assert d.api_key_input.text() == "claude-key"
 
-    d.provider_combo.setCurrentIndex(4)  # Ollama: kein Key
+    d.provider_combo.setCurrentIndex(3)  # Ollama: kein Key
     assert d.api_key_label.text() == "API-Key:"
     assert d.api_key_input.text() == ""
 
 
 def test_save_persists_all_keys_and_mirrors_active(qtbot, fresh_config):
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(3)
-    d.api_key_input.setText("poe-key")
-    d.provider_combo.setCurrentIndex(5)
+    d.provider_combo.setCurrentIndex(1)
+    d.api_key_input.setText("claude-key")
+    d.provider_combo.setCurrentIndex(4)
     d.api_key_input.setText("sk-or-key")
     d._save_settings()
 
     llm = fresh_config.get_llm_config()
     assert llm["provider"] == "openrouter"
     assert llm["api_key"] == "sk-or-key"
-    assert llm["api_keys"] == {"poe": "poe-key", "openrouter": "sk-or-key"}
+    assert llm["api_keys"] == {"claude": "claude-key", "openrouter": "sk-or-key"}
 
 
 def test_load_restores_per_provider_keys(qtbot, fresh_config):
@@ -74,27 +74,27 @@ def test_load_restores_per_provider_keys(qtbot, fresh_config):
     llm.update({
         "provider": "openrouter",
         "api_key": "sk-or-key",
-        "api_keys": {"poe": "poe-key", "openrouter": "sk-or-key"},
+        "api_keys": {"claude": "claude-key", "openrouter": "sk-or-key"},
     })
     fresh_config.set("llm", llm)
 
     d = _dialog(qtbot)
-    assert d.provider_combo.currentIndex() == 5
+    assert d.provider_combo.currentIndex() == 4
     assert d.api_key_input.text() == "sk-or-key"
-    d.provider_combo.setCurrentIndex(3)
-    assert d.api_key_input.text() == "poe-key"
+    d.provider_combo.setCurrentIndex(1)
+    assert d.api_key_input.text() == "claude-key"
 
 
 def test_legacy_single_key_is_assigned_to_active_provider(qtbot, fresh_config):
     llm = fresh_config.get_llm_config()
-    llm.update({"provider": "poe", "api_key": "poe-key"})
+    llm.update({"provider": "claude", "api_key": "claude-key"})
     llm.pop("api_keys", None)
     fresh_config.set("llm", llm)
 
     d = _dialog(qtbot)
-    assert d.api_key_input.text() == "poe-key"
+    assert d.api_key_input.text() == "claude-key"
     d._save_settings()
-    assert fresh_config.get_llm_config()["api_keys"] == {"poe": "poe-key"}
+    assert fresh_config.get_llm_config()["api_keys"] == {"claude": "claude-key"}
 
 
 def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
@@ -104,7 +104,7 @@ def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
     fresh_config.set("llm", llm)
 
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(5)
+    d.provider_combo.setCurrentIndex(4)
     d.api_key_input.setText("sk-or-key")
     d._save_settings()
 
@@ -116,10 +116,10 @@ def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
 
 def test_consent_checkbox_only_for_cloud_providers(qtbot, fresh_config):
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(4)  # Ollama
+    d.provider_combo.setCurrentIndex(3)  # Ollama
     assert not d.cloud_consent_check.isEnabled()
 
-    d.provider_combo.setCurrentIndex(5)  # OpenRouter
+    d.provider_combo.setCurrentIndex(4)  # OpenRouter
     assert d.cloud_consent_check.isEnabled()
     assert "deaktiviert" in d.consent_hint_label.text()
 
