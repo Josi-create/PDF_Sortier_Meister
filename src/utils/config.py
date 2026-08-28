@@ -87,6 +87,11 @@ class Config:
         "backup_hint_dismissed": False,
         # Erste-Schritte-Hinweis beim Start (Issue #51) abgehakt?
         "first_steps_hint_dismissed": False,
+        # Update-Pruefung beim Start (Issue #73): fragt nur die Versionsnummer
+        # des neuesten GitHub-Releases ab, sendet keine Nutzerdaten.
+        "update_check_enabled": True,
+        # Vom Nutzer per "Diese Version ueberspringen" ausgeblendete Version
+        "update_skipped_version": "",
     }
 
     def __init__(self, config_path: str = None):

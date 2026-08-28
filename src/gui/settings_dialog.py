@@ -501,6 +501,28 @@ class SettingsDialog(QDialog):
 
             layout.addWidget(explorer_group)
 
+        # Update-Pruefung (Issue #73)
+        update_group = QGroupBox("Updates")
+        update_layout = QVBoxLayout(update_group)
+
+        self.update_check_checkbox = QCheckBox("Beim Programmstart auf neue Versionen prüfen")
+        self.update_check_checkbox.setToolTip(
+            "Fragt kurz nach dem Start die Versionsnummer des neuesten Releases\n"
+            "auf GitHub ab. Es werden keine Daten über Sie oder Ihre Dokumente\n"
+            "gesendet. Manuell jederzeit über Hilfe > Nach Updates suchen."
+        )
+        update_layout.addWidget(self.update_check_checkbox)
+
+        update_info = QLabel(
+            "Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
+            "heruntergeladen und installiert wird nichts automatisch."
+        )
+        update_info.setStyleSheet("color: gray;")
+        update_info.setWordWrap(True)
+        update_layout.addWidget(update_info)
+
+        layout.addWidget(update_group)
+
         # Debug-Bereich
         debug_group = QGroupBox("Debug / Zurücksetzen")
         debug_layout = QVBoxLayout(debug_group)
@@ -1056,6 +1078,9 @@ class SettingsDialog(QDialog):
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
         self._update_cache_stats()
 
+        # Update-Pruefung (Issue #73)
+        self.update_check_checkbox.setChecked(self.config.get("update_check_enabled", True))
+
         # Explorer-Integration: aktuellen Stand aus der Registry lesen.
         if sys.platform == "win32":
             try:
@@ -1123,6 +1148,9 @@ class SettingsDialog(QDialog):
 
         llm_precache = self.llm_precache_checkbox.isChecked()
         self.config.set("llm_precache_enabled", llm_precache)
+
+        # Update-Pruefung (Issue #73)
+        self.config.set("update_check_enabled", self.update_check_checkbox.isChecked())
 
         # Cache-Modul über Änderung informieren
         try:

@@ -2,6 +2,7 @@
 Hauptfenster der PDF Sortier Meister Anwendung
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Optional
@@ -43,6 +44,7 @@ from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
+from src.utils.update_check import UpdateCheckError, UpdateInfo, check_for_update
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
@@ -62,6 +64,28 @@ class _ClickableLabel(QLabel):
     def mouseDoubleClickEvent(self, event):
         self.doubleClicked.emit()
         super().mouseDoubleClickEvent(event)
+
+
+class _UpdateCheckThread(QThread):
+    """Fragt im Hintergrund das neueste GitHub-Release ab (Issue #73)."""
+
+    # (UpdateInfo | None, Fehlertext) - leerer Fehlertext = Pruefung ok
+    result_ready = pyqtSignal(object, str)
+
+    def __init__(self, current_version: str, parent=None):
+        super().__init__(parent)
+        self._current_version = current_version
+
+    def run(self):
+        try:
+            info = check_for_update(self._current_version)
+        except UpdateCheckError as e:
+            self.result_ready.emit(None, str(e))
+            return
+        except Exception as e:  # noqa: BLE001 - Hintergrund-Thread darf nie crashen
+            self.result_ready.emit(None, f"Unerwarteter Fehler: {e}")
+            return
+        self.result_ready.emit(info, "")
 
 
 class MainWindow(QMainWindow):
@@ -1111,6 +1135,11 @@ class MainWindow(QMainWindow):
         first_steps_action.triggered.connect(lambda: self.show_first_steps_hint(force=True))
         help_menu.addAction(first_steps_action)
 
+        update_action = QAction("Nach Updates suchen...", self)
+        update_action.setToolTip("Prüft, ob auf GitHub eine neuere Version veröffentlicht wurde")
+        update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
+        help_menu.addAction(update_action)
+
         about_action = QAction("Über PDF Sortier Meister", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1212,6 +1241,16 @@ class MainWindow(QMainWindow):
 
         self.backup_status_label = QLabel("Backup: Nicht geprüft")
         self.statusbar.addPermanentWidget(self.backup_status_label)
+
+        # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
+        self.update_status_label = _ClickableLabel("")
+        self.update_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        self.update_status_label.setToolTip("Doppelklick zeigt Details zum Update.")
+        self.update_status_label.doubleClicked.connect(self._show_available_update)
+        self.update_status_label.setVisible(False)
+        self.statusbar.addPermanentWidget(self.update_status_label)
+        self._update_thread: Optional[_UpdateCheckThread] = None
+        self._available_update: Optional[UpdateInfo] = None
 
         self.statusbar.showMessage("Bereit")
 
@@ -3656,6 +3695,132 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("backup_hint_dismissed", dismiss.isChecked())
+
+    # ------------------------------------------------------------------ #
+    # Update-Pruefung (Issue #73)
+    # ------------------------------------------------------------------ #
+
+    def schedule_update_check(self, delay_ms: int = 3000) -> bool:
+        """Plant die automatische Update-Pruefung kurz nach dem Start.
+
+        Returns:
+            True, wenn eine Pruefung geplant wurde (Einstellung aktiv).
+        """
+        if not self.config.get("update_check_enabled", True):
+            return False
+        QTimer.singleShot(delay_ms, lambda: self.check_for_updates(manual=False))
+        return True
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        """Startet die Update-Pruefung im Hintergrund.
+
+        Args:
+            manual: True bei Aufruf ueber das Hilfe-Menue - dann wird auch
+                    "keine neue Version" bzw. ein Fehler als Dialog gemeldet.
+        """
+        if self._update_thread is not None and self._update_thread.isRunning():
+            if manual:
+                self.statusbar.showMessage("Update-Prüfung läuft bereits...", 3000)
+            return
+        from src.main import __version__
+
+        thread = _UpdateCheckThread(__version__, self)
+        thread.result_ready.connect(
+            lambda info, error, m=manual: self._on_update_check_finished(info, error, m)
+        )
+        self._update_thread = thread
+        if manual:
+            self.statusbar.showMessage("Suche nach Updates...", 5000)
+        thread.start()
+
+    def _on_update_check_finished(self, info: Optional[UpdateInfo], error: str,
+                                  manual: bool = False) -> None:
+        """Verarbeitet das Ergebnis der Update-Pruefung im GUI-Thread."""
+        from src.main import __version__
+
+        if error:
+            logging.getLogger(__name__).info("Update-Pruefung fehlgeschlagen: %s", error)
+            if manual:
+                QMessageBox.warning(
+                    self,
+                    "Update-Prüfung fehlgeschlagen",
+                    "Die Update-Prüfung konnte nicht durchgeführt werden:\n"
+                    f"{error}\n\n"
+                    "Bitte prüfen Sie Ihre Internetverbindung oder versuchen Sie es später erneut.",
+                )
+            return
+
+        if info is None:
+            if manual:
+                QMessageBox.information(
+                    self,
+                    "Kein Update verfügbar",
+                    f"Sie verwenden bereits die aktuelle Version {__version__}.",
+                )
+            return
+
+        skipped = self.config.get("update_skipped_version", "")
+        if not manual and info.version == skipped:
+            # Nutzer hat diese Version bewusst ausgeblendet - nicht nerven.
+            logging.getLogger(__name__).info(
+                "Update %s verfuegbar, vom Nutzer uebersprungen", info.version
+            )
+            return
+
+        self._available_update = info
+        self.update_status_label.setText(f"Update: v{info.version} verfügbar")
+        self.update_status_label.setVisible(True)
+        self._show_update_dialog(info)
+
+    def _show_available_update(self) -> None:
+        """Doppelklick auf den Statusleisten-Hinweis: Dialog erneut zeigen."""
+        if self._available_update is not None:
+            self._show_update_dialog(self._available_update)
+
+    def _show_update_dialog(self, info: UpdateInfo) -> None:
+        """Zeigt den Update-Dialog (Download-Seite / Überspringen / Später)."""
+        from src.main import __version__
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Update verfügbar")
+        box.setText(
+            f"<b>Version {info.version}</b> von PDF Sortier Meister ist verfügbar.<br>"
+            f"Installiert ist Version {__version__}."
+        )
+        hint = (
+            "Auf der Download-Seite finden Sie den Installer und die Liste der "
+            "Änderungen. Installieren Sie die neue Version einfach über die "
+            "bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
+        )
+        if info.asset_name:
+            hint += f"\n\nDatei für Ihr System: {info.asset_name}"
+        box.setInformativeText(hint)
+        if info.notes:
+            box.setDetailedText(info.notes)
+
+        download_btn = box.addButton("Download-Seite öffnen", QMessageBox.ButtonRole.AcceptRole)
+        skip_btn = box.addButton("Diese Version überspringen", QMessageBox.ButtonRole.ActionRole)
+        box.addButton("Später", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(download_btn)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is download_btn:
+            QDesktopServices.openUrl(QUrl(info.page_url))
+        elif clicked is skip_btn:
+            self._skip_update(info)
+
+    def _skip_update(self, info: UpdateInfo) -> None:
+        """Blendet diese Version bis zum naechsten Release aus."""
+        self.config.set("update_skipped_version", info.version)
+        self._available_update = None
+        self.update_status_label.setVisible(False)
+        self.statusbar.showMessage(
+            f"Version {info.version} wird übersprungen "
+            "(Hilfe > Nach Updates suchen zeigt sie erneut).",
+            5000,
+        )
 
     def open_setup_wizard(self):
         """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""
