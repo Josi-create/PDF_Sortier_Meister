@@ -71,9 +71,13 @@ class Config:
         "folder_naming_initials": "",
         # LLM-Konfiguration
         "llm": {
-            "provider": "none",  # "none", "claude", "openai", "openrouter", "ollama", "ollama_cloud"
+            # Gueltige Werte: "none", "claude", "openai", "poe",
+            # "openrouter", "ollama", "ollama_cloud".
+            # "poe" war in 0.19.0 kurzzeitig entfernt (Issue #66) und wird
+            # wieder unterstuetzt - poe.com vergibt wieder API-Keys.
+            "provider": "none",
             "api_key": "",  # Key des aktiven Providers (Spiegel von api_keys)
-            "api_keys": {},  # API-Keys pro Provider, z.B. {"openrouter": "...", "claude": "..."}
+            "api_keys": {},  # API-Keys pro Provider, z.B. {"openrouter": "...", "poe": "..."}
             "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"
             "max_tokens": 500,
             "temperature": 0.3,
@@ -128,27 +132,6 @@ class Config:
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(f"Fehler beim Laden der Konfiguration: {e}")
                 self._config = copy.deepcopy(self.DEFAULTS)
-        self._migrate_poe_provider()
-
-    def _migrate_poe_provider(self) -> None:
-        """Migriert alte Configs weg vom entfernten Poe-Provider (Issue #66).
-
-        Poe.com vergibt keine API-Keys mehr, der Provider wurde entfernt.
-        Bestehende Configs mit ``llm.provider == "poe"`` werden auf "none"
-        zurueckgesetzt, ein evtl. gespeicherter Poe-Key wird verworfen.
-        """
-        llm = self._config.get("llm")
-        if not isinstance(llm, dict) or llm.get("provider") != "poe":
-            return
-        logger.warning(
-            "LLM-Provider 'poe' ist nicht mehr verfuegbar (poe.com vergibt "
-            "keine API-Keys mehr) - Einstellung wird auf 'none' zurueckgesetzt."
-        )
-        llm["provider"] = "none"
-        llm["api_key"] = ""
-        api_keys = llm.get("api_keys")
-        if isinstance(api_keys, dict):
-            api_keys.pop("poe", None)
 
     def save(self) -> None:
         """Speichert die Konfiguration in die Datei."""

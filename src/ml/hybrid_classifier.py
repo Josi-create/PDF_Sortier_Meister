@@ -15,6 +15,7 @@ from src.ml.classifier import PDFClassifier, Suggestion, get_classifier
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProviderType
 from src.ml.claude_provider import ClaudeProvider
 from src.ml.openai_provider import OpenAIProvider
+from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.utils.config import get_config
@@ -113,6 +114,8 @@ class HybridClassifier:
                 self.llm_provider = ClaudeProvider(config)
             elif provider_type == "openai":
                 self.llm_provider = OpenAIProvider(config)
+            elif provider_type == "poe":
+                self.llm_provider = PoeProvider(config)
             elif provider_type == "openrouter":
                 self.llm_provider = OpenRouterProvider(config)
             elif provider_type == "ollama":
@@ -139,7 +142,7 @@ class HybridClassifier:
         Setzt den LLM-Provider zur Laufzeit.
 
         Args:
-            provider_type: Art des Providers (claude, openai, openrouter, ollama, none)
+            provider_type: Art des Providers (claude, openai, poe, openrouter, ollama, none)
             api_key: API-Key (bei Ollama ignoriert)
             model: Modellname (optional)
             base_url: Server-URL (nur fuer Ollama relevant)
@@ -172,6 +175,7 @@ class HybridClassifier:
         default_models = {
             LLMProviderType.CLAUDE: "haiku",
             LLMProviderType.OPENAI: "gpt-4o-mini",
+            LLMProviderType.POE: "GPT-4o-Mini",
             LLMProviderType.OPENROUTER: OpenRouterProvider.DEFAULT_MODEL,
             LLMProviderType.OLLAMA: OllamaProvider.DEFAULT_MODEL,
             LLMProviderType.OLLAMA_CLOUD: OllamaCloudProvider.DEFAULT_MODEL,
@@ -187,6 +191,8 @@ class HybridClassifier:
                 self.llm_provider = ClaudeProvider(config)
             elif provider_type == LLMProviderType.OPENAI:
                 self.llm_provider = OpenAIProvider(config)
+            elif provider_type == LLMProviderType.POE:
+                self.llm_provider = PoeProvider(config)
             elif provider_type == LLMProviderType.OPENROUTER:
                 self.llm_provider = OpenRouterProvider(config)
             elif provider_type == LLMProviderType.OLLAMA:
@@ -525,6 +531,8 @@ class HybridClassifier:
             return "OpenRouter"
         if isinstance(self.llm_provider, OpenAIProvider):
             return "OpenAI"
+        if isinstance(self.llm_provider, PoeProvider):
+            return "Poe"
         if isinstance(self.llm_provider, OllamaCloudProvider):
             return "Ollama Cloud"
         if isinstance(self.llm_provider, OllamaProvider):

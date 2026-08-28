@@ -7,6 +7,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geaendert
+- Poe.com ist wieder als KI-Anbieter waehlbar (poe.com vergibt wieder API-Keys;
+  in 0.19.0 entfernt).
+
 ## [0.19.0] - 2026-08-28
 
 ### Hinzugefuegt

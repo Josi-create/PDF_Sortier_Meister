@@ -36,11 +36,12 @@ PAGE_DONE = 4
 # Provider-Konstanten (Index -> interner Name). Reihenfolge = Empfehlungsrang:
 # Ollama (lokal, kein Key) zuerst, dann Cloud-Anbieter, "Ohne KI" ganz unten
 # (Issue #67 - KI ist ein Hauptfeature, nicht "optional").
-_PROVIDER_IDS = ["ollama", "ollama_cloud", "openrouter", "claude", "openai", "none"]
+_PROVIDER_IDS = ["ollama", "ollama_cloud", "openrouter", "poe", "claude", "openai", "none"]
 _PROVIDER_LABELS = [
     "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)",
     "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
     "OpenRouter (viele KI-Modelle, ein API-Key)",
+    "Poe.com (viele KI-Modelle, ein API-Key)",
     "Anthropic Claude",
     "OpenAI GPT",
     "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)",
@@ -51,6 +52,7 @@ _PROVIDER_URLS = {
     "ollama": "https://ollama.com/download",
     "ollama_cloud": "https://ollama.com/settings/keys",
     "openrouter": "https://openrouter.ai/keys",
+    "poe": "https://poe.com/api_key",
 }
 _PROVIDER_KEY_HINTS = {
     "claude": 'Beginnt mit "sk-ant-..."',
@@ -58,6 +60,7 @@ _PROVIDER_KEY_HINTS = {
     "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
     "ollama_cloud": "Zu finden auf ollama.com/settings/keys",
     "openrouter": 'Beginnt mit "sk-or-..."',
+    "poe": "Zu finden auf poe.com/api_key",
 }
 
 OLLAMA_LOCAL_URL = "http://localhost:11434"
@@ -499,6 +502,7 @@ class ApiKeyPage(QWizardPage):
             "ollama": "Ollama",
             "ollama_cloud": "Ollama Cloud",
             "openrouter": "OpenRouter",
+            "poe": "Poe.com",
         }
         name = provider_labels.get(self._provider_id, self._provider_id)
 
@@ -563,6 +567,13 @@ class ApiKeyPage(QWizardPage):
                 "2. Unter 'Keys' einen API-Key erstellen und kopieren.\n"
                 f"3. Fuegen Sie ihn unten ein. Standardmodell: {OLLAMA_CLOUD_DEFAULT_MODEL}\n"
                 "   (aenderbar unter Extras -> Einstellungen)."
+            ),
+            "poe": (
+                "1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n"
+                "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
+                "3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n"
+                "4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n"
+                "   Extras -> Einstellungen (z.B. GPT-4o-Mini)."
             ),
             "openrouter": (
                 "1. Oeffnen Sie den Link unten (oder gehen Sie zu openrouter.ai).\n"
