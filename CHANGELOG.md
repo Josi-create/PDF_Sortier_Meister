@@ -7,6 +7,35 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **KI-Vorschlaege fehlten still** bei Reasoning-Modellen (z.B. GLM-5.3-flash
+  via OpenRouter): das Modell verbrauchte das Token-Budget fuers Nachdenken,
+  die leere Antwort wurde als Erfolg ohne Vorschlag gecacht und nie wieder
+  versucht. Leere/abgeschnittene Antworten gelten jetzt als Fehler (sichtbar
+  in der Statusleiste und im Detail-Panel), leere Ergebnisse werden nicht mehr
+  als "abgerufen" gespeichert, `max_tokens` Default 2000 (alter Wert 500 wird
+  beim Laden angehoben).
+- **Nachdenken minimiert**: OpenRouter `reasoning.effort=low`, OpenAI
+  o*/gpt-5 `reasoning_effort=minimal`, Ollama `think:false` - jeweils mit
+  Rueckfall, falls ein Modell den Parameter ablehnt. Gemessen: 3-4 s statt
+  10-18 s pro PDF.
+- **Fremde PDF-Metadaten**: eine `dc:description`, die nur ein Dateiname ist
+  (z.B. HUK-COBURG-Dokumente), landet nicht mehr als "Zusammenfassung" im
+  Panel. "Quelle: aus PDF gelesen" nur noch, wenn alle Felder wirklich aus
+  dem PDF stammen; sonst "teils aus PDF gelesen, teils Vorschlag".
+- **Detail-Panel aktualisiert sich**, wenn KI-Vorschlaege fuer die gerade
+  ausgewaehlte PDF im Hintergrund eintreffen (vorher: andere PDF anklicken
+  und zurueck). Eigene Eingaben werden dabei nicht ueberschrieben.
+- **Checkbox-Kaestchen** waren auf Retina-Macs praktisch unsichtbar
+  (Fusion-Stil); jetzt kontrastreiche Indikatoren auf allen Plattformen.
+  Einstellungen > Dateinamen-Muster: Initialen/Vorlage sind immer editierbar,
+  Eintippen von Initialen schaltet die Funktion ein.
+
+### Geaendert
+- Statusleiste zeigt Provider und Modell (`LLM: OpenRouter/glm-5.3-flash`);
+  KI-Fehler als "⚠ KI-Fehler (Doppelklick)" mit Fehlertext im Tooltip; der
+  Doppelklick-Dialog hat einen Button "Log-Datei oeffnen".
+
 ## [0.20.0] - 2026-08-28
 
 ### Hinzugefuegt
