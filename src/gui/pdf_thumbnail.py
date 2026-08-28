@@ -49,6 +49,7 @@ class PDFThumbnailWidget(QFrame):
     ctrl_clicked = pyqtSignal(Path)  # PDF wurde mit Ctrl angeklickt (Mehrfachauswahl)
     shift_clicked = pyqtSignal(Path)  # PDF wurde mit Shift angeklickt (Bereichsauswahl)
     double_clicked = pyqtSignal(Path)  # PDF wurde doppelgeklickt
+    open_requested = pyqtSignal(Path)  # "PDF öffnen" im Kontextmenü (Issue #76)
     rename_requested = pyqtSignal(Path)  # Umbenennung angefordert
     delete_requested = pyqtSignal(Path)  # Löschen angefordert
     move_requested = pyqtSignal(Path)  # Verschieben angefordert
@@ -258,10 +259,9 @@ class PDFThumbnailWidget(QFrame):
         return 0
 
     def _open_pdf(self):
-        """Öffnet die PDF mit dem Standardprogramm."""
-        from src.utils.platform_paths import open_with_default_app
-
-        open_with_default_app(self.pdf_path)
+        """Meldet den Öffnen-Wunsch; das Hauptfenster entscheidet nach
+        Einstellung zwischen integrierter Vorschau und externem Programm."""
+        self.open_requested.emit(self.pdf_path)
 
     def cleanup(self):
         """Bereinigt Ressourcen."""

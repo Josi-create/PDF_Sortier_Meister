@@ -25,8 +25,10 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
+    QSplitter,
 )
 
+from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.rename_dialog import RenameSuggestion
 
 
@@ -60,6 +62,11 @@ class DetailPanel(QWidget):
     save_metadata_requested = pyqtSignal()
     # Signal: Benutzer möchte Dateiname UND Metadaten speichern (ohne Verschieben)
     rename_and_save_metadata_requested = pyqtSignal()
+    # Signale rund ums Öffnen (Issues #74/#76) - das Hauptfenster entscheidet,
+    # ob integrierte Vorschau oder externes Programm
+    open_pdf_requested = pyqtSignal(Path)            # Suchergebnis doppelgeklickt
+    open_pdf_external_requested = pyqtSignal(Path)   # "Extern öffnen" in der Vorschau
+    enlarge_preview_requested = pyqtSignal(Path)     # große Vorschau gewünscht
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -339,9 +346,27 @@ class DetailPanel(QWidget):
 
         scroll.setWidget(container)
 
+        # PDF-Vorschau unten (Issue #74): vertikaler Splitter, oben die
+        # Details, unten die Seitenansicht der ausgewählten PDF
+        self.preview = PdfPreviewWidget(self, compact=True)
+        self.preview.setToolTip(
+            "Vorschau der ausgewählten PDF.\n"
+            "Doppelklick auf die Seite oder „Groß“ öffnet die große Ansicht."
+        )
+        self.preview.enlarge_requested.connect(self.enlarge_preview_requested)
+        self.preview.open_external_requested.connect(self.open_pdf_external_requested)
+
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.splitter.addWidget(scroll)
+        self.splitter.addWidget(self.preview)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setCollapsible(0, False)
+        self.splitter.setSizes([420, 320])
+
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(scroll)
+        outer_layout.addWidget(self.splitter)
 
     # === Öffentliche Methoden ===
 
@@ -360,6 +385,9 @@ class DetailPanel(QWidget):
 
         # Header
         self.header_label.setText(f"Original: {pdf_path.name}")
+
+        # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
+        self.preview.load_pdf(pdf_path)
 
         # Vorschläge befüllen
         self._populate_suggestions()
@@ -497,22 +525,19 @@ class DetailPanel(QWidget):
             self.search_results_list.addItem(item)
 
     def _on_search_result_double_clicked(self, item: QListWidgetItem):
-        """Öffnet ein Suchergebnis mit dem Standard-Programm."""
+        """Öffnet ein Suchergebnis (integrierte Vorschau oder extern, je Einstellung)."""
         file_path = item.data(Qt.ItemDataRole.UserRole)
-        if file_path:
-            try:
-                from src.utils.platform_paths import open_with_default_app
-                path = Path(file_path)
-                if path.exists():
-                    open_with_default_app(path)
-                else:
-                    from PyQt6.QtWidgets import QMessageBox
-                    QMessageBox.warning(
-                        self, "Datei nicht gefunden",
-                        f"Die Datei existiert nicht mehr:\n{file_path}"
-                    )
-            except Exception as e:
-                print(f"Fehler beim Öffnen: {e}")
+        if not file_path:
+            return
+        path = Path(file_path)
+        if not path.exists():
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, "Datei nicht gefunden",
+                f"Die Datei existiert nicht mehr:\n{file_path}"
+            )
+            return
+        self.open_pdf_requested.emit(path)
 
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
@@ -521,6 +546,7 @@ class DetailPanel(QWidget):
         self._metadata = {}
         self._metadata_source = None
         self._saved_metadata_snapshot = {}
+        self.preview.clear()
 
         self.name_input.clear()
         self.suggestions_list.clear()

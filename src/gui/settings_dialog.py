@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import sys
 
 from src.utils.config import get_config
+from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
 
 
@@ -506,6 +507,43 @@ class SettingsDialog(QDialog):
             explorer_layout.addWidget(self.explorer_info_label)
 
             layout.addWidget(explorer_group)
+
+        # PDF oeffnen (Issues #74/#76)
+        open_group = QGroupBox("PDF öffnen (Doppelklick auf ein Thumbnail)")
+        open_layout = QFormLayout(open_group)
+
+        self.pdf_open_mode_combo = QComboBox()
+        for mode_id, label in OPEN_MODES:
+            self.pdf_open_mode_combo.addItem(label, mode_id)
+        self.pdf_open_mode_combo.setToolTip(
+            "Integrierte Vorschau: eigenes Fenster in der App, öffnet sofort.\n"
+            "Standardprogramm: was Windows/macOS für PDFs eingestellt hat\n"
+            "(oft der Browser).\n"
+            "Eigenes Programm: z. B. PDF-XChange Editor oder Acrobat."
+        )
+        self.pdf_open_mode_combo.currentIndexChanged.connect(self._update_pdf_open_command_enabled)
+        open_layout.addRow("Öffnen mit:", self.pdf_open_mode_combo)
+
+        command_row = QHBoxLayout()
+        self.pdf_open_command_input = QLineEdit()
+        self.pdf_open_command_input.setPlaceholderText(
+            "Pfad zum Programm, z. B. C:\\Program Files\\Tracker Software\\PDF Editor\\PDFXEdit.exe"
+        )
+        command_row.addWidget(self.pdf_open_command_input, 1)
+        self.pdf_open_command_browse = QPushButton("Durchsuchen…")
+        self.pdf_open_command_browse.clicked.connect(self._browse_pdf_open_command)
+        command_row.addWidget(self.pdf_open_command_browse)
+        open_layout.addRow("Programm:", command_row)
+
+        open_hint = QLabel(
+            "Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
+            "und immer aktiv."
+        )
+        open_hint.setStyleSheet("color: gray;")
+        open_hint.setWordWrap(True)
+        open_layout.addRow(open_hint)
+
+        layout.addWidget(open_group)
 
         # Update-Pruefung (Issue #73)
         update_group = QGroupBox("Updates")
@@ -1059,6 +1097,12 @@ class SettingsDialog(QDialog):
         # Update-Pruefung (Issue #73)
         self.update_check_checkbox.setChecked(self.config.get("update_check_enabled", True))
 
+        # PDF oeffnen (Issues #74/#76)
+        mode = normalize_open_mode(self.config.get("pdf_open_mode"))
+        self.pdf_open_mode_combo.setCurrentIndex(max(self.pdf_open_mode_combo.findData(mode), 0))
+        self.pdf_open_command_input.setText(self.config.get("pdf_open_command", "") or "")
+        self._update_pdf_open_command_enabled()
+
         # Explorer-Integration: aktuellen Stand aus der Registry lesen.
         if sys.platform == "win32":
             try:
@@ -1117,6 +1161,10 @@ class SettingsDialog(QDialog):
         # Update-Pruefung (Issue #73)
         self.config.set("update_check_enabled", self.update_check_checkbox.isChecked())
 
+        # PDF oeffnen (Issues #74/#76)
+        self.config.set("pdf_open_mode", self.pdf_open_mode_combo.currentData())
+        self.config.set("pdf_open_command", self.pdf_open_command_input.text().strip())
+
         # Cache-Modul über Änderung informieren
         try:
             from src.core.pdf_cache import get_pdf_cache
@@ -1154,6 +1202,28 @@ class SettingsDialog(QDialog):
 
         self.settings_changed.emit()
         self.accept()
+
+    def _update_pdf_open_command_enabled(self, *_):
+        """Programm-Feld nur bei "Eigenes Programm" aktiv (Issue #76)."""
+        is_custom = self.pdf_open_mode_combo.currentData() == OPEN_MODE_CUSTOM
+        self.pdf_open_command_input.setEnabled(is_custom)
+        self.pdf_open_command_browse.setEnabled(is_custom)
+
+    def _browse_pdf_open_command(self):
+        """Dateiauswahl fuer das eigene PDF-Programm."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        if sys.platform == "win32":
+            file_filter = "Programme (*.exe);;Alle Dateien (*)"
+        elif sys.platform == "darwin":
+            file_filter = "Programme (*.app);;Alle Dateien (*)"
+        else:
+            file_filter = "Alle Dateien (*)"
+        path, _ = QFileDialog.getOpenFileName(
+            self, "PDF-Programm auswählen", self.pdf_open_command_input.text(), file_filter
+        )
+        if path:
+            self.pdf_open_command_input.setText(path)
 
     def _apply_explorer_integration_change(self):
         """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""

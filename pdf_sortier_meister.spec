@@ -60,6 +60,9 @@ hiddenimports = [
     "PyQt6.QtCore",
     "PyQt6.QtGui",
     "PyQt6.QtWidgets",
+    # Integrierte PDF-Vorschau (Issues #74/#76): QtPdf bringt Qt6Pdf.dll mit
+    "PyQt6.QtPdf",
+    "PyQt6.QtPdfWidgets",
     "PyQt6.sip",
     "sklearn.feature_extraction.text",
     "sklearn.metrics.pairwise",

@@ -8,6 +8,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Hinzugefuegt
+- **Integrierte PDF-Vorschau** (Issues #74, #76) auf Basis von QtPdf (Qts eigener,
+  PDFium-basierter Viewer - kein Browser, kein QtWebEngine, kein eigener Renderer):
+  - Unten im mittleren Bereich zeigt das Detail-Panel die ausgewaehlte PDF mit
+    Seitenblaettern, Zoom (auch Strg+Mausrad), "Breite"/"Seite"-Anpassung; ein
+    vertikaler Splitter regelt die Aufteilung zwischen Metadaten und Vorschau.
+  - Doppelklick auf ein Thumbnail (bzw. "PDF oeffnen" im Kontextmenue, Suchtreffer,
+    Chat-Zitate) oeffnet standardmaessig ein eigenes Vorschau-Fenster statt des
+    Browsers/Office. Das Fenster wird wiederverwendet, merkt sich seine Groesse,
+    Esc schliesst es; "Extern oeffnen" startet das externe Programm.
+  - Einstellungen > Allgemein > **PDF oeffnen**: Integrierte Vorschau (Default),
+    Standardprogramm des Systems oder eigenes Programm mit Pfad (z.B. PDF-XChange,
+    Acrobat); fehlt das Programm, faellt die App mit Hinweis auf das Standardprogramm
+    zurueck (`src/utils/pdf_open.py`).
+  - Die Vorschau haelt keinen Datei-Handle offen (PDF wird in den Speicher gelesen),
+    damit Verschieben und Umbenennen waehrend der Anzeige weiter funktionieren; das
+    Einlesen laeuft im Hintergrund (OneDrive Files-On-Demand blockiert die GUI nicht).
+  - PyInstaller-Spec buendelt `PyQt6.QtPdf`/`QtPdfWidgets` (Qt6Pdf.dll).
 - **Update-Pruefung** (Issue #73): Kurz nach dem Start fragt die App im Hintergrund
   die Versionsnummer des neuesten GitHub-Releases ab (`src/utils/update_check.py`,
   nur `releases/latest`, keine Nutzerdaten). Gibt es eine neuere Version, erscheint
