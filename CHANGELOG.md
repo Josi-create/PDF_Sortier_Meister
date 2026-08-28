@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-28
+
 ### Hinzugefuegt
 - **Integrierte PDF-Vorschau** (Issues #74, #76) auf Basis von QtPdf (Qts eigener,
   PDFium-basierter Viewer - kein Browser, kein QtWebEngine, kein eigener Renderer):
