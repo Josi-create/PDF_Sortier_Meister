@@ -15,6 +15,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   "Diese Version ueberspringen" und "Spaeter". Manuell ueber Hilfe > Nach Updates
   suchen; abschaltbar unter Einstellungen > Allgemein > Updates.
 
+### Behoben
+- **KI-Zusammenfassung blieb leer** (und teils Kategorie/MwSt-Satz): Der Prompt fragt
+  die Schluessel `beschreibung`, `category`, `mwst` ab, Detail-Panel, Umbenennen-Dialog
+  und Datenbank lesen aber `description`, `subject`, `mwst_satz`. Ob die Felder gefuellt
+  wurden, hing davon ab, ob sich das Modell an den Prompt hielt. Jetzt werden alle
+  bekannten Schluessel-Varianten beim Parsen der Antwort und beim Laden aelterer
+  Cache-Eintraege auf einen Satz kanonischer Namen abgebildet
+  (`normalize_llm_metadata` in `src/ml/llm_provider.py`); Platzhalter wie `UNBEKANNT`
+  landen nicht mehr in den Feldern.
+
 ## [0.18.0] - 2026-08-28
 
 ### Hinzugefuegt

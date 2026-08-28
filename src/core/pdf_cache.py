@@ -387,13 +387,18 @@ class PDFCache(QObject):
                 llm_fetched = False
                 if len(row) > 6 and row[6]:
                     try:
+                        # Lazy-Import wie die uebrigen src-Abhaengigkeiten hier
+                        from src.ml.llm_provider import normalize_llm_metadata
+
                         llm_data = json.loads(row[6])
                         for s in llm_data:
                             llm_suggestions.append(LLMSuggestion(
                                 filename=s.get("filename", ""),
                                 confidence=s.get("confidence", 0.0),
                                 source=s.get("source", "llm"),
-                                metadata=s.get("metadata"),
+                                # Aeltere Cache-Eintraege tragen noch die
+                                # Roh-Schluessel des Modells (category, beschreibung)
+                                metadata=normalize_llm_metadata(s.get("metadata")) or None,
                             ))
                         llm_fetched = bool(len(row) > 7 and row[7])
                         if llm_suggestions:
