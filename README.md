@@ -167,6 +167,7 @@ python run.py
 
 Architektur und Entscheidungen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 Versionshistorie: [CHANGELOG.md](CHANGELOG.md) ·
+Release-Ablauf: [docs/RELEASE_CHECKLISTE.md](docs/RELEASE_CHECKLISTE.md) ·
 Offene Vorhaben: [Issues](https://github.com/Josi-create/PDF_Sortier_Meister/issues)
 
 ---

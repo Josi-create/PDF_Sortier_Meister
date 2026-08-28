@@ -3,16 +3,18 @@ Erststart-Wizard fuer PDF Sortier Meister
 
 Fuehrt den Benutzer beim ersten Start durch:
   1. Begruessung
-  2. Scan-Ordner waehlen
-  3. LLM-Provider waehlen (mit Hardware-Erkennung und Ollama-Status)
-  4. API-Key eingeben bzw. Ollama einrichten (Modelle anzeigen/herunterladen)
-  5. Abschluss
+  2. Scan-Ordner waehlen (mit Default-Vorschlag)
+  3. Zielordner waehlen (mit Default-Vorschlag)
+  4. LLM-Provider waehlen (mit Hardware-Erkennung und Ollama-Status)
+  5. API-Key eingeben bzw. Ollama einrichten (Modelle anzeigen/herunterladen)
+  6. Abschluss
 
 Der Wizard kann auch ueber das Extras-Menue erneut geoeffnet werden.
 """
 
 import sys
 import threading
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWizard, QWizardPage, QVBoxLayout, QHBoxLayout,
@@ -20,7 +22,7 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QWidget, QCheckBox,
     QDialog, QComboBox, QProgressBar,
 )
-from PyQt6.QtCore import Qt, QUrl, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QUrl, QThread, QStandardPaths, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont
 
 from src.utils.config import get_config
@@ -29,9 +31,10 @@ from src.utils.config import get_config
 # Seiten-IDs
 PAGE_WELCOME = 0
 PAGE_SCAN_FOLDER = 1
-PAGE_PROVIDER = 2
-PAGE_API_KEY = 3
-PAGE_DONE = 4
+PAGE_TARGET_FOLDER = 2
+PAGE_PROVIDER = 3
+PAGE_API_KEY = 4
+PAGE_DONE = 5
 
 # Provider-Konstanten (Index -> interner Name). Reihenfolge = Empfehlungsrang:
 # Ollama (lokal, kein Key) zuerst, dann Cloud-Anbieter, "Ohne KI" ganz unten
@@ -63,6 +66,26 @@ _PROVIDER_KEY_HINTS = {
 OLLAMA_LOCAL_URL = "http://localhost:11434"
 OLLAMA_CLOUD_DEFAULT_MODEL = "gpt-oss:120b"
 OLLAMA_FALLBACK_MODEL = "gemma3:4b"
+
+
+def _documents_dir() -> Path:
+    """Dokumente-Ordner des Benutzers (Windows: "Eigene Dokumente",
+    macOS: ~/Documents). Fallback: Home-Verzeichnis, falls Qt nichts liefert
+    (z. B. in seltenen Systemkonfigurationen)."""
+    path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+    return Path(path) if path else Path.home()
+
+
+def default_scan_folder() -> Path:
+    """Vorschlag fuer den Scan-Ordner (Issue #61), solange noch keiner
+    konfiguriert ist."""
+    return _documents_dir() / "Scans"
+
+
+def default_target_folder() -> Path:
+    """Vorschlag fuer den Zielordner (Issue #64), solange noch keiner
+    konfiguriert ist."""
+    return _documents_dir() / "PDF-Sammlung"
 
 
 def detect_ollama_environment() -> dict:
@@ -188,16 +211,17 @@ class ScanFolderPage(QWizardPage):
         super().__init__()
         self.setTitle("Schritt 1: Scan-Ordner auswaehlen")
         self.setSubTitle(
-            "In welchem Ordner liegen Ihre gescannten PDFs?\n"
-            "Diesen Ordner wird das Programm beim Start anzeigen."
+            "Hier landen Ihre unsortierten (gescannten) PDFs — hierhin\n"
+            "speichert auch Ihr Scanner. Diesen Ordner wird das Programm\n"
+            "beim Start anzeigen."
         )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
         info = QLabel(
-            "Waehlen Sie den Ordner, in den Ihr Scanner die PDFs speichert\n"
-            "(z. B. <i>C:\\Users\\IhrName\\Scans</i> oder ein Netzlaufwerk)."
+            "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
+            "oder einen anderen Ordner waehlen (z. B. ein Netzlaufwerk)."
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -222,11 +246,25 @@ class ScanFolderPage(QWizardPage):
 
         layout.addStretch()
 
-        # Bestehenden Wert voreintragen
+        # Bestehenden Wert voreintragen; ohne bisherige Konfiguration einen
+        # sinnvollen Default vorschlagen (Issue #61), den der Nutzer per
+        # "Weiter" einfach uebernehmen kann.
         config = get_config()
         existing = config.get_scan_folder()
         if existing:
             self.path_edit.setText(str(existing))
+        else:
+            self.path_edit.setText(str(default_scan_folder()))
+
+        # Wird erst wahr, wenn der Nutzer diese Seite tatsaechlich sieht
+        # oder den Pfad manuell aendert - verhindert, dass ein reiner
+        # Default-Vorschlag beim sofortigen "Spaeter" auf der
+        # Begruessungsseite ungefragt gespeichert/angelegt wird (siehe
+        # SetupWizard._on_finished).
+        self._visited = False
+
+    def initializePage(self):
+        self._visited = True
 
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(
@@ -234,17 +272,97 @@ class ScanFolderPage(QWizardPage):
         )
         if folder:
             self.path_edit.setText(folder)
+            self._visited = True
 
     def get_folder(self) -> str:
         return self.path_edit.text().strip()
 
+    def was_visited(self) -> bool:
+        """True, wenn die Seite betreten wurde oder der Pfad manuell
+        geaendert wurde (siehe SetupWizard._on_finished)."""
+        return self._visited
 
-class ProviderPage(QWizardPage):
-    """Seite 3: LLM-Provider waehlen - mit Ollama-Status und Hardware-Empfehlung."""
+
+class TargetFolderPage(QWizardPage):
+    """Seite 3: Zielordner waehlen (Issue #64) - wohin sortierte PDFs wandern."""
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 2: KI-Assistent auswaehlen")
+        self.setTitle("Schritt 2: Zielordner auswaehlen")
+        self.setSubTitle(
+            "Hierhin werden die sortierten PDFs verschoben — in Unterordner,\n"
+            "die Sie selbst anlegen oder die Ihnen vorgeschlagen werden."
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        info = QLabel(
+            "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
+            "oder einen anderen Ordner waehlen."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        path_layout = QHBoxLayout()
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText("Noch kein Ordner ausgewaehlt ...")
+        self.path_edit.setReadOnly(True)
+        path_layout.addWidget(self.path_edit, 1)
+
+        browse_btn = QPushButton("Ordner auswaehlen ...")
+        browse_btn.clicked.connect(self._browse)
+        path_layout.addWidget(browse_btn)
+        layout.addLayout(path_layout)
+
+        skip_info = QLabel(
+            "<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
+            "unter Extras → Einstellungen festlegen.</i>"
+        )
+        skip_info.setStyleSheet("color: gray;")
+        layout.addWidget(skip_info)
+
+        layout.addStretch()
+
+        # Bestehenden Wert voreintragen; ohne bisherigen Zielordner einen
+        # sinnvollen Default vorschlagen (Issue #64).
+        config = get_config()
+        existing = config.get_target_folders()
+        if existing:
+            self.path_edit.setText(str(existing[0]))
+        else:
+            self.path_edit.setText(str(default_target_folder()))
+
+        # Siehe ScanFolderPage._visited: erst wahr nach tatsaechlichem
+        # Besuch der Seite bzw. manueller Aenderung des Pfads.
+        self._visited = False
+
+    def initializePage(self):
+        self._visited = True
+
+    def _browse(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Zielordner auswaehlen", str(self.path_edit.text() or "")
+        )
+        if folder:
+            self.path_edit.setText(folder)
+            self._visited = True
+
+    def get_folder(self) -> str:
+        return self.path_edit.text().strip()
+
+    def was_visited(self) -> bool:
+        """True, wenn die Seite betreten wurde oder der Pfad manuell
+        geaendert wurde (siehe SetupWizard._on_finished)."""
+        return self._visited
+
+
+class ProviderPage(QWizardPage):
+    """Seite 4: LLM-Provider waehlen - mit Ollama-Status und Hardware-Empfehlung."""
+
+    def __init__(self):
+        super().__init__()
+        self.setTitle("Schritt 3: KI-Assistent auswaehlen")
         self.setSubTitle(
             "Ein KI-Assistent liefert deutlich bessere Vorschlaege — wir empfehlen\n"
             "Ollama (laeuft lokal, kostenlos). Ganz ohne KI geht es zur Not auch."
@@ -372,11 +490,11 @@ class ProviderPage(QWizardPage):
 
 
 class ApiKeyPage(QWizardPage):
-    """Seite 4: API-Key eingeben bzw. Ollama einrichten."""
+    """Seite 5: API-Key eingeben bzw. Ollama einrichten."""
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 3: API-Key eingeben")
+        self.setTitle("Schritt 4: API-Key eingeben")
         self._provider_id = "none"
 
         layout = QVBoxLayout(self)
@@ -506,7 +624,7 @@ class ApiKeyPage(QWizardPage):
         self._ollama_box.setVisible(is_ollama)
 
         if is_ollama:
-            self.setTitle("Schritt 3: Ollama einrichten")
+            self.setTitle("Schritt 4: Ollama einrichten")
             self.setSubTitle(
                 "Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
                 "nur die Installation und ein Modell - beides erledigen Sie hier."
@@ -515,7 +633,7 @@ class ApiKeyPage(QWizardPage):
             self._show_btn.setVisible(False)
             self._setup_ollama_section(detection, recommendation)
         else:
-            self.setTitle("Schritt 3: API-Key eingeben")
+            self.setTitle("Schritt 4: API-Key eingeben")
             self.setSubTitle(
                 f"Geben Sie Ihren {name} API-Key ein.\n"
                 "Den Key koennen Sie kostenlos erstellen (ein Account genuegt)."
@@ -824,12 +942,14 @@ class SetupWizard(QWizard):
 
         self._welcome_page = WelcomePage()
         self._scan_page = ScanFolderPage()
+        self._target_page = TargetFolderPage()
         self._provider_page = ProviderPage()
         self._api_key_page = ApiKeyPage()
         self._done_page = DonePage()
 
         self.setPage(PAGE_WELCOME, self._welcome_page)
         self.setPage(PAGE_SCAN_FOLDER, self._scan_page)
+        self.setPage(PAGE_TARGET_FOLDER, self._target_page)
         self.setPage(PAGE_PROVIDER, self._provider_page)
         self.setPage(PAGE_API_KEY, self._api_key_page)
         self.setPage(PAGE_DONE, self._done_page)
@@ -848,14 +968,27 @@ class SetupWizard(QWizard):
         """Speichert die Einstellungen wenn der User auf 'Fertig' klickt."""
         # result == QDialog.DialogCode.Accepted (1) bei Fertig-Klick
         # result == QDialog.DialogCode.Rejected (0) bei Spaeter/Schliessen
-        # Wir speichern in BEIDEN Faellen was bisher eingetragen wurde,
-        # damit ein halbfertiges Setup nicht verloren geht.
+        # Bei "Fertig" speichern wir immer, was eingetragen ist. Bei
+        # "Spaeter"/Schliessen nur, wenn die jeweilige Ordner-Seite
+        # tatsaechlich besucht wurde (oder der Pfad manuell geaendert
+        # wurde) - sonst wuerde ein reiner Default-Vorschlag, den der
+        # Nutzer nie gesehen hat (Sofort-Abbruch auf der Begruessungsseite),
+        # ungefragt gespeichert und der Ordner auf der Platte angelegt.
         config = get_config()
+        accepted = (result == QDialog.DialogCode.Accepted)
 
-        # Scan-Ordner speichern
+        # Scan-Ordner speichern und anlegen, falls er noch nicht existiert
         folder = self._scan_page.get_folder()
-        if folder:
+        if folder and (accepted or self._scan_page.was_visited()):
             config.set_scan_folder(folder)
+            self._ensure_folder_exists(folder)
+
+        # Zielordner anlegen (falls er fehlt) und als Zielordner registrieren
+        # (Issue #64). config.add_target_folder() dedupliziert selbst.
+        target_folder = self._target_page.get_folder()
+        if target_folder and (accepted or self._target_page.was_visited()):
+            self._ensure_folder_exists(target_folder)
+            config.add_target_folder(target_folder)
 
         # Provider und API-Key bzw. Server-URL speichern
         provider_id = self._provider_page.get_provider_id()
@@ -888,7 +1021,7 @@ class SetupWizard(QWizard):
         # Explorer-Integration: nur bei "Fertig" (Accepted) anwenden,
         # nicht bei "Spaeter"/Schliessen - dort waere eine Registry-
         # Aenderung ueberraschend.
-        if result == QDialog.DialogCode.Accepted and sys.platform == "win32":
+        if accepted and sys.platform == "win32":
             if self._done_page.wants_context_menu():
                 try:
                     from src.utils.explorer_integration import register_context_menu
@@ -898,3 +1031,17 @@ class SetupWizard(QWizard):
                     # darf den Wizard nicht zum Crash bringen. Der User
                     # kann es spaeter unter Einstellungen erneut versuchen.
                     pass
+
+    @staticmethod
+    def _ensure_folder_exists(folder: str) -> None:
+        """Legt den Ordner an, falls er noch fehlt (Issues #61, #64).
+
+        Fehler (z. B. fehlende Rechte, ungueltiger Pfad) werden bewusst
+        verschluckt - der Wizard darf dadurch nie abstuerzen. Der Nutzer
+        kann den Ordner spaeter manuell anlegen oder unter Einstellungen
+        einen anderen waehlen.
+        """
+        try:
+            Path(folder).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass

@@ -3949,11 +3949,9 @@ class MainWindow(QMainWindow):
         """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""
         wizard = SetupWizard(self)
         wizard.exec()
-        # Scan-Ordner und LLM-Status aktualisieren
-        new_folder = self.config.get_scan_folder()
-        if new_folder:
-            self.file_manager.set_scan_folder(new_folder)
-            self.load_pdfs()
+        # Scan-Ordner, Zielordner und LLM-Status aktualisieren (Closes #61, #64):
+        # initial_load() laedt beides neu, nicht nur die PDFs.
+        self.initial_load()
         self._on_settings_changed()
 
     def open_settings(self):
