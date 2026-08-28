@@ -7,6 +7,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Ollama-Empfehlung fuer Laptops ohne dedizierte GPU** (Issue #62): hat das
+  System genug Arbeitsspeicher (ab 16 GB, z.B. schneller Shared-RAM), empfiehlt
+  der Einrichtungs-Assistent jetzt `gemma3:1b` lokal als "moeglich, aber
+  langsamer" statt direkt auf Ollama Cloud zu verweisen; Ollama Cloud bleibt
+  als Alternative im Empfehlungstext genannt. Bei wenig Arbeitsspeicher bleibt
+  es bei der bisherigen Cloud-Empfehlung.
+- `docs/RELEASE_CHECKLISTE.md`: Ablauf fuer Releases mit Pflichtpunkt
+  "LLM-Modell-Empfehlungen pruefen" (Issue #63), in README verlinkt.
+
+### Geaendert
+- `src/utils/hardware.py`: Modell-Empfehlungstabelle (`MODEL_TIERS`,
+  `RAM_ONLY_MODEL`, `CLOUD_MODEL`) zu einer zentralen, kommentierten
+  Datenstruktur mit Pruefdatum (`MODEL_TIERS_CHECKED_ON`) zusammengefasst,
+  damit ein Update der LLM-Empfehlungen an einer Stelle passiert (Issue #63).
+
 ## [0.19.0] - 2026-08-28
 
 ### Hinzugefuegt
