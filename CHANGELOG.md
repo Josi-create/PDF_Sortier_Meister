@@ -7,6 +7,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Einrichtungs-Assistent: Default-Ordner und Zielordner-Schritt** (Issues #61, #64):
+  Der Scan-Ordner-Schritt schlaegt jetzt automatisch `Dokumente/Scans` vor
+  (bzw. `~/Documents/Scans` unter macOS), sobald noch kein Ordner konfiguriert
+  ist - der Vorschlag kann per "Weiter" uebernommen oder ueber "Ordner
+  auswaehlen" ersetzt werden. Neuer Schritt "Zielordner" direkt danach mit
+  demselben Bedienkonzept (Default `Dokumente/PDF-Sammlung`); beide Ordner
+  werden beim Abschluss des Assistenten angelegt, falls sie noch nicht
+  existieren, der Zielordner wird zugleich als Zielordner registriert. Nach
+  dem Assistenten (Erststart wie auch erneuter Aufruf ueber Extras) zeigt das
+  Hauptfenster links den Scan-Ordner und rechts sofort den neuen Zielordner an.
+
 ## [0.19.0] - 2026-08-28
 
 ### Hinzugefuegt
