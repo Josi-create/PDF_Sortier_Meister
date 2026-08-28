@@ -33,21 +33,21 @@ PAGE_PROVIDER = 2
 PAGE_API_KEY = 3
 PAGE_DONE = 4
 
-# Provider-Konstanten (Index -> interner Name)
-_PROVIDER_IDS = ["none", "claude", "openai", "poe", "ollama", "ollama_cloud", "openrouter"]
+# Provider-Konstanten (Index -> interner Name). Reihenfolge = Empfehlungsrang:
+# Ollama (lokal, kein Key) zuerst, dann Cloud-Anbieter, "Ohne KI" ganz unten
+# (Issue #67 - KI ist ein Hauptfeature, nicht "optional").
+_PROVIDER_IDS = ["ollama", "ollama_cloud", "openrouter", "claude", "openai", "none"]
 _PROVIDER_LABELS = [
-    "Kein KI-Assistent (nur klassische Erkennung)",
-    "Anthropic Claude",
-    "OpenAI GPT",
-    "Poe.com (viele KI-Modelle, ein Account)",
-    "Ollama (lokal auf Ihrem PC, kostenlos)",
+    "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)",
     "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
     "OpenRouter (viele KI-Modelle, ein API-Key)",
+    "Anthropic Claude",
+    "OpenAI GPT",
+    "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)",
 ]
 _PROVIDER_URLS = {
     "claude": "https://console.anthropic.com/settings/keys",
     "openai": "https://platform.openai.com/api-keys",
-    "poe":    "https://poe.com/api_key",
     "ollama": "https://ollama.com/download",
     "ollama_cloud": "https://ollama.com/settings/keys",
     "openrouter": "https://openrouter.ai/keys",
@@ -55,7 +55,6 @@ _PROVIDER_URLS = {
 _PROVIDER_KEY_HINTS = {
     "claude": 'Beginnt mit "sk-ant-..."',
     "openai": 'Beginnt mit "sk-..."',
-    "poe":    "Zu finden auf poe.com/api_key",
     "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
     "ollama_cloud": "Zu finden auf ollama.com/settings/keys",
     "openrouter": 'Beginnt mit "sk-or-..."',
@@ -167,9 +166,15 @@ class WelcomePage(QWizardPage):
             "</ul>"
             "Sie bestimmen immer selbst, was wirklich passiert.\n"
             "Das Programm verschiebt nichts ohne Ihre Zustimmung.<br><br>"
-            "<b>Optionaler KI-Assistent:</b> Mit einem API-Key eines KI-Anbieters\n"
-            "werden die Vorschlaege noch besser. Das ist aber kein Muss —\n"
-            "die klassische Erkennung funktioniert auch ohne KI."
+            "<b>KI-Assistent (empfohlen):</b> Erst mit einer KI entfaltet das\n"
+            "Programm sein volles Potential — die Vorschlaege werden deutlich\n"
+            "besser. Am einfachsten geht das mit <b>Ollama</b>, das kostenlos\n"
+            "lokal auf Ihrem PC laeuft (kein API-Key noetig, Ihre Dokumente\n"
+            "bleiben auf diesem Rechner). Wer lieber einen Cloud-Anbieter nutzt\n"
+            "(z. B. weil er ein Abo hat oder dem Anbieter vertraut), kann\n"
+            "stattdessen einen API-Key hinterlegen. Im naechsten Schritt waehlen\n"
+            "Sie aus — ganz ohne KI geht es zur Not auch, dann sortiert nur\n"
+            "eine einfache Stichwort-Zuordnung."
         )
         text.setWordWrap(True)
         layout.addWidget(text)
@@ -241,8 +246,8 @@ class ProviderPage(QWizardPage):
         super().__init__()
         self.setTitle("Schritt 2: KI-Assistent auswaehlen")
         self.setSubTitle(
-            "Moechten Sie einen KI-Assistenten nutzen?\n"
-            "Das verbessert die Erkennungsqualitaet, ist aber nicht noetig."
+            "Ein KI-Assistent liefert deutlich bessere Vorschlaege — wir empfehlen\n"
+            "Ollama (laeuft lokal, kostenlos). Ganz ohne KI geht es zur Not auch."
         )
 
         layout = QVBoxLayout(self)
@@ -256,9 +261,11 @@ class ProviderPage(QWizardPage):
             self._button_group.addButton(rb, i)
             self._radios.append(rb)
             layout.addWidget(rb)
-            if i == 0:
-                rb.setChecked(True)
             if _PROVIDER_IDS[i] == "ollama":
+                # Vorauswahl: Ollama, bis die Hardware-Erkennung ggf. eine
+                # andere Empfehlung liefert (siehe _on_detected) oder eine
+                # bestehende Nutzer-Entscheidung geladen wird (siehe unten).
+                rb.setChecked(True)
                 # Statuszeile direkt unter dem Ollama-Eintrag
                 self.ollama_status_label = QLabel("    Pruefe Ollama-Installation ...")
                 self.ollama_status_label.setStyleSheet("color: gray;")
@@ -269,11 +276,20 @@ class ProviderPage(QWizardPage):
         self.hardware_label.setStyleSheet("color: gray;")
         layout.addWidget(self.hardware_label)
 
-        # Bestehenden Wert voreintragen
+        # Bestehenden Wert voreintragen. "none" im gespeicherten Config-Default
+        # ist mehrdeutig: entweder wurde noch nie etwas eingerichtet (dann soll
+        # Ollama vorausgewaehlt bleiben), oder der Nutzer hat den Wizard schon
+        # einmal durchlaufen und sich bewusst gegen KI entschieden (dann muss
+        # "none" erhalten bleiben). Ein bereits gesetzter Scan-Ordner ist das
+        # Signal, dass es sich um einen erneuten Lauf handelt (main.py startet
+        # den Wizard beim ersten Start nur, solange kein Scan-Ordner existiert).
         config = get_config()
         llm_cfg = config.get_llm_config()
         self._configured_provider = llm_cfg.get("provider", "none")
-        if self._configured_provider in _PROVIDER_IDS:
+        self._had_explicit_choice = (
+            self._configured_provider != "none" or bool(config.get_scan_folder())
+        )
+        if self._had_explicit_choice and self._configured_provider in _PROVIDER_IDS:
             idx = _PROVIDER_IDS.index(self._configured_provider)
             btn = self._button_group.button(idx)
             if btn:
@@ -329,9 +345,10 @@ class ProviderPage(QWizardPage):
         if recommended_id:
             idx = _PROVIDER_IDS.index(recommended_id)
             self._radios[idx].setText(_PROVIDER_LABELS[idx] + "  (empfohlen)")
-            # Nur vorauswaehlen, wenn noch nichts konfiguriert ist - eine
-            # bestehende Entscheidung des Nutzers wird nicht ueberschrieben.
-            if self._configured_provider == "none" and self.get_provider_id() == "none":
+            # Nur vorauswaehlen, wenn noch keine bewusste Entscheidung
+            # vorliegt - eine bestehende Wahl des Nutzers (auch "ohne KI")
+            # wird nicht ueberschrieben.
+            if not self._had_explicit_choice:
                 self._radios[idx].setChecked(True)
 
     def get_detection(self) -> dict | None:
@@ -479,7 +496,6 @@ class ApiKeyPage(QWizardPage):
         provider_labels = {
             "claude": "Anthropic Claude",
             "openai": "OpenAI GPT",
-            "poe":    "Poe.com",
             "ollama": "Ollama",
             "ollama_cloud": "Ollama Cloud",
             "openrouter": "OpenRouter",
@@ -538,12 +554,6 @@ class ApiKeyPage(QWizardPage):
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Klicken Sie auf 'API Keys' und dann 'Create new secret key'.\n"
                 "4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
-            ),
-            "poe": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n"
-                "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
-                "3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n"
-                "4. Fuegen Sie ihn unten ein."
             ),
             "ollama": self._ollama_info_text(detection),
             "ollama_cloud": (

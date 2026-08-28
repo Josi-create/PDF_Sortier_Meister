@@ -40,6 +40,22 @@ from src.utils.explorer_integration import update_launcher_script
 __version__ = "0.18.0"
 
 
+def _apply_wizard_result(window, config):
+    """Aktualisiert das Hauptfenster nach dem Einrichtungs-Assistenten.
+
+    Laedt die PDFs aus dem neu gesetzten Scan-Ordner und initialisiert den
+    LLM-Provider neu, damit die Statusleiste den tatsaechlichen Zustand zeigt.
+    Ohne diesen Aufruf bleibt der HybridClassifier des Hauptfensters auf dem
+    Provider "none" haengen, mit dem er VOR dem Wizard gebaut wurde, und die
+    Statusleiste zeigt "LLM: Aus" bis zum naechsten Neustart (Issue #65).
+    Spiegelt den Ablauf von MainWindow.open_setup_wizard() fuer den
+    nachtraeglichen Aufruf ueber das Menue.
+    """
+    if config.get_scan_folder():
+        window.initial_load()
+    window._on_settings_changed()
+
+
 def _extract_path_arg(argv: list[str]) -> str:
     """
     Liefert das erste Argument, das auf einen existierenden Ordner ODER
@@ -231,9 +247,14 @@ def main():
         close_splash()
         wizard = SetupWizard(window)
         wizard.exec()
-        # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner aktualisieren
-        if config.get_scan_folder():
-            window.initial_load()
+        # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner und LLM-Status
+        # aktualisieren (Closes #65)
+        _apply_wizard_result(window, config)
+
+    # Update-Pruefung im Hintergrund, kurz nach dem Start (Issue #73).
+    # Bewusst hier und nicht im MainWindow-Konstruktor, damit Tests und
+    # Dialoge, die ein MainWindow erzeugen, keine Netzwerkzugriffe ausloesen.
+    window.schedule_update_check()
 
     # Falls als Argument eine PDF-Datei uebergeben wurde, diese nach dem
     # initialen Laden auswaehlen und den Rename-Dialog oeffnen. Kurze

@@ -2,6 +2,7 @@
 Hauptfenster der PDF Sortier Meister Anwendung
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Optional
@@ -43,6 +44,7 @@ from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
+from src.utils.update_check import UpdateCheckError, UpdateInfo, check_for_update
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
@@ -62,6 +64,28 @@ class _ClickableLabel(QLabel):
     def mouseDoubleClickEvent(self, event):
         self.doubleClicked.emit()
         super().mouseDoubleClickEvent(event)
+
+
+class _UpdateCheckThread(QThread):
+    """Fragt im Hintergrund das neueste GitHub-Release ab (Issue #73)."""
+
+    # (UpdateInfo | None, Fehlertext) - leerer Fehlertext = Pruefung ok
+    result_ready = pyqtSignal(object, str)
+
+    def __init__(self, current_version: str, parent=None):
+        super().__init__(parent)
+        self._current_version = current_version
+
+    def run(self):
+        try:
+            info = check_for_update(self._current_version)
+        except UpdateCheckError as e:
+            self.result_ready.emit(None, str(e))
+            return
+        except Exception as e:  # noqa: BLE001 - Hintergrund-Thread darf nie crashen
+            self.result_ready.emit(None, f"Unerwarteter Fehler: {e}")
+            return
+        self.result_ready.emit(info, "")
 
 
 class MainWindow(QMainWindow):
@@ -715,10 +739,16 @@ class MainWindow(QMainWindow):
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
 
-    def remove_pdf_widget(self, pdf_path: Path):
-        """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh)."""
-        for widget in self.pdf_widgets:
+    def remove_pdf_widget(self, pdf_path: Path) -> Optional[int]:
+        """Entfernt ein einzelnes PDF-Widget aus der Ansicht (ohne vollständigen Refresh).
+
+        Gibt die Rasterposition zurück, an der das Widget stand (Issue #75:
+        automatische Auswahl der nächsten PDF), oder None falls nicht gefunden.
+        """
+        index = None
+        for i, widget in enumerate(self.pdf_widgets):
             if widget.pdf_path == pdf_path:
+                index = i
                 # Widget aus Layout entfernen
                 self.pdf_layout.removeWidget(widget)
                 widget.cleanup() if hasattr(widget, 'cleanup') else None
@@ -738,6 +768,26 @@ class MainWindow(QMainWindow):
         # Aus Mehrfachauswahl entfernen
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
+
+        return index
+
+    def _remove_pdf_widget_and_select_next(self, pdf_path: Path) -> bool:
+        """Entfernt ein PDF-Widget und wählt danach automatisch die nächste PDF
+        an derselben Rasterposition aus, falls die entfernte PDF die aktuell
+        ausgewählte war (Issue #75: nach dem Wegsortieren automatisch weiter).
+
+        Läuft über den normalen Klick-Pfad (on_pdf_clicked), damit Detail-Panel,
+        Vorschläge und Ordner-Highlights wie bei einem echten Klick aktualisiert
+        werden. Gibt True zurück, wenn eine Folge-PDF automatisch ausgewählt wurde.
+        """
+        was_selected = self.selected_pdf == pdf_path
+        index = self.remove_pdf_widget(pdf_path)
+        if was_selected and index is not None and self.pdf_widgets:
+            next_index = min(index, len(self.pdf_widgets) - 1)
+            next_path = self.pdf_widgets[next_index].pdf_path
+            self.on_pdf_clicked(next_path)
+            return True
+        return False
 
     def _update_pdf_widget_path(self, old_path: Path, new_path: Path):
         """Aktualisiert den Pfad eines PDF-Widgets nach Umbenennung."""
@@ -1111,6 +1161,11 @@ class MainWindow(QMainWindow):
         first_steps_action.triggered.connect(lambda: self.show_first_steps_hint(force=True))
         help_menu.addAction(first_steps_action)
 
+        update_action = QAction("Nach Updates suchen...", self)
+        update_action.setToolTip("Prüft, ob auf GitHub eine neuere Version veröffentlicht wurde")
+        update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
+        help_menu.addAction(update_action)
+
         about_action = QAction("Über PDF Sortier Meister", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1212,6 +1267,16 @@ class MainWindow(QMainWindow):
 
         self.backup_status_label = QLabel("Backup: Nicht geprüft")
         self.statusbar.addPermanentWidget(self.backup_status_label)
+
+        # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
+        self.update_status_label = _ClickableLabel("")
+        self.update_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        self.update_status_label.setToolTip("Doppelklick zeigt Details zum Update.")
+        self.update_status_label.doubleClicked.connect(self._show_available_update)
+        self.update_status_label.setVisible(False)
+        self.statusbar.addPermanentWidget(self.update_status_label)
+        self._update_thread: Optional[_UpdateCheckThread] = None
+        self._available_update: Optional[UpdateInfo] = None
 
         self.statusbar.showMessage("Bereit")
 
@@ -1782,8 +1847,8 @@ class MainWindow(QMainWindow):
 
             # UI aktualisieren
             self.config.add_to_last_used(folder_path)
-            self.remove_pdf_widget(pdf_path)
-            self.detail_panel.clear()
+            if not self._remove_pdf_widget_and_select_next(pdf_path):
+                self.detail_panel.clear()
             timer.step("ui")
             self._refresh_after_move(folder_path, pdf_path.parent)
             timer.step("tree")
@@ -1859,7 +1924,7 @@ class MainWindow(QMainWindow):
                 self.config.add_to_last_used(folder_path)
 
                 # Nur das verschobene PDF-Widget entfernen (NICHT refresh_view!)
-                self.remove_pdf_widget(pdf_path)
+                self._remove_pdf_widget_and_select_next(pdf_path)
 
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self._refresh_after_move(folder_path, pdf_path.parent)
@@ -1892,6 +1957,7 @@ class MainWindow(QMainWindow):
         moved_pdfs = []
         move_pairs = []  # (source, dest) für Undo
         errors = []
+        original_selected = self.selected_pdf
 
         for pdf_path in pdf_paths:
             try:
@@ -1944,15 +2010,26 @@ class MainWindow(QMainWindow):
                 desc = f"{moved_count} PDFs → {relative_path}"
             self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
 
-        # Verschobene PDF-Widgets entfernen
+        # Verschobene PDF-Widgets entfernen; Position der zuvor ausgewählten
+        # PDF merken, um danach die nächste automatisch auszuwählen (Issue #75)
+        selected_removed_index = None
         for moved_pdf in moved_pdfs:
-            self.remove_pdf_widget(moved_pdf)
+            index = self.remove_pdf_widget(moved_pdf)
+            if moved_pdf == original_selected:
+                selected_removed_index = index
 
         # Auswahl zurücksetzen
-        self.selected_pdf = None
-        self.selected_pdf_text = None
-        self.selected_pdf_keywords = None
         self.selected_pdfs = []
+        auto_selected = False
+        if selected_removed_index is not None and self.pdf_widgets:
+            next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
+            next_path = self.pdf_widgets[next_index].pdf_path
+            self.on_pdf_clicked(next_path)
+            auto_selected = True
+        else:
+            self.selected_pdf = None
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
 
         # Zuletzt verwendet aktualisieren
         self.config.add_to_last_used(folder_path)
@@ -1960,8 +2037,9 @@ class MainWindow(QMainWindow):
         # Ordneransicht aktualisieren
         self._refresh_after_move(folder_path, *{p.parent for p in pdf_paths})
 
-        # Vorschläge leeren
-        self.clear_suggestions()
+        # Vorschläge leeren (nur wenn keine Folge-PDF automatisch ausgewählt wurde)
+        if not auto_selected:
+            self.clear_suggestions()
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF doppelgeklickt wird."""
@@ -2360,7 +2438,7 @@ class MainWindow(QMainWindow):
                 })
 
                 # Nur das verschobene PDF-Widget entfernen
-                self.remove_pdf_widget(pdf_path)
+                self._remove_pdf_widget_and_select_next(pdf_path)
                 # Ordneransicht aktualisieren
                 self._refresh_after_move(folder_path, pdf_path.parent)
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
@@ -3656,6 +3734,132 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("backup_hint_dismissed", dismiss.isChecked())
+
+    # ------------------------------------------------------------------ #
+    # Update-Pruefung (Issue #73)
+    # ------------------------------------------------------------------ #
+
+    def schedule_update_check(self, delay_ms: int = 3000) -> bool:
+        """Plant die automatische Update-Pruefung kurz nach dem Start.
+
+        Returns:
+            True, wenn eine Pruefung geplant wurde (Einstellung aktiv).
+        """
+        if not self.config.get("update_check_enabled", True):
+            return False
+        QTimer.singleShot(delay_ms, lambda: self.check_for_updates(manual=False))
+        return True
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        """Startet die Update-Pruefung im Hintergrund.
+
+        Args:
+            manual: True bei Aufruf ueber das Hilfe-Menue - dann wird auch
+                    "keine neue Version" bzw. ein Fehler als Dialog gemeldet.
+        """
+        if self._update_thread is not None and self._update_thread.isRunning():
+            if manual:
+                self.statusbar.showMessage("Update-Prüfung läuft bereits...", 3000)
+            return
+        from src.main import __version__
+
+        thread = _UpdateCheckThread(__version__, self)
+        thread.result_ready.connect(
+            lambda info, error, m=manual: self._on_update_check_finished(info, error, m)
+        )
+        self._update_thread = thread
+        if manual:
+            self.statusbar.showMessage("Suche nach Updates...", 5000)
+        thread.start()
+
+    def _on_update_check_finished(self, info: Optional[UpdateInfo], error: str,
+                                  manual: bool = False) -> None:
+        """Verarbeitet das Ergebnis der Update-Pruefung im GUI-Thread."""
+        from src.main import __version__
+
+        if error:
+            logging.getLogger(__name__).info("Update-Pruefung fehlgeschlagen: %s", error)
+            if manual:
+                QMessageBox.warning(
+                    self,
+                    "Update-Prüfung fehlgeschlagen",
+                    "Die Update-Prüfung konnte nicht durchgeführt werden:\n"
+                    f"{error}\n\n"
+                    "Bitte prüfen Sie Ihre Internetverbindung oder versuchen Sie es später erneut.",
+                )
+            return
+
+        if info is None:
+            if manual:
+                QMessageBox.information(
+                    self,
+                    "Kein Update verfügbar",
+                    f"Sie verwenden bereits die aktuelle Version {__version__}.",
+                )
+            return
+
+        skipped = self.config.get("update_skipped_version", "")
+        if not manual and info.version == skipped:
+            # Nutzer hat diese Version bewusst ausgeblendet - nicht nerven.
+            logging.getLogger(__name__).info(
+                "Update %s verfuegbar, vom Nutzer uebersprungen", info.version
+            )
+            return
+
+        self._available_update = info
+        self.update_status_label.setText(f"Update: v{info.version} verfügbar")
+        self.update_status_label.setVisible(True)
+        self._show_update_dialog(info)
+
+    def _show_available_update(self) -> None:
+        """Doppelklick auf den Statusleisten-Hinweis: Dialog erneut zeigen."""
+        if self._available_update is not None:
+            self._show_update_dialog(self._available_update)
+
+    def _show_update_dialog(self, info: UpdateInfo) -> None:
+        """Zeigt den Update-Dialog (Download-Seite / Überspringen / Später)."""
+        from src.main import __version__
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Update verfügbar")
+        box.setText(
+            f"<b>Version {info.version}</b> von PDF Sortier Meister ist verfügbar.<br>"
+            f"Installiert ist Version {__version__}."
+        )
+        hint = (
+            "Auf der Download-Seite finden Sie den Installer und die Liste der "
+            "Änderungen. Installieren Sie die neue Version einfach über die "
+            "bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
+        )
+        if info.asset_name:
+            hint += f"\n\nDatei für Ihr System: {info.asset_name}"
+        box.setInformativeText(hint)
+        if info.notes:
+            box.setDetailedText(info.notes)
+
+        download_btn = box.addButton("Download-Seite öffnen", QMessageBox.ButtonRole.AcceptRole)
+        skip_btn = box.addButton("Diese Version überspringen", QMessageBox.ButtonRole.ActionRole)
+        box.addButton("Später", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(download_btn)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is download_btn:
+            QDesktopServices.openUrl(QUrl(info.page_url))
+        elif clicked is skip_btn:
+            self._skip_update(info)
+
+    def _skip_update(self, info: UpdateInfo) -> None:
+        """Blendet diese Version bis zum naechsten Release aus."""
+        self.config.set("update_skipped_version", info.version)
+        self._available_update = None
+        self.update_status_label.setVisible(False)
+        self.statusbar.showMessage(
+            f"Version {info.version} wird übersprungen "
+            "(Hilfe > Nach Updates suchen zeigt sie erneut).",
+            5000,
+        )
 
     def open_setup_wizard(self):
         """Oeffnet den Einrichtungs-Assistenten (auch nachtraeglich nutzbar)."""

@@ -71,9 +71,9 @@ class Config:
         "folder_naming_initials": "",
         # LLM-Konfiguration
         "llm": {
-            "provider": "none",  # "none", "claude", "openai", "poe", "openrouter", "ollama", "ollama_cloud"
+            "provider": "none",  # "none", "claude", "openai", "openrouter", "ollama", "ollama_cloud"
             "api_key": "",  # Key des aktiven Providers (Spiegel von api_keys)
-            "api_keys": {},  # API-Keys pro Provider, z.B. {"poe": "...", "openrouter": "..."}
+            "api_keys": {},  # API-Keys pro Provider, z.B. {"openrouter": "...", "claude": "..."}
             "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"
             "max_tokens": 500,
             "temperature": 0.3,
@@ -87,6 +87,11 @@ class Config:
         "backup_hint_dismissed": False,
         # Erste-Schritte-Hinweis beim Start (Issue #51) abgehakt?
         "first_steps_hint_dismissed": False,
+        # Update-Pruefung beim Start (Issue #73): fragt nur die Versionsnummer
+        # des neuesten GitHub-Releases ab, sendet keine Nutzerdaten.
+        "update_check_enabled": True,
+        # Vom Nutzer per "Diese Version ueberspringen" ausgeblendete Version
+        "update_skipped_version": "",
     }
 
     def __init__(self, config_path: str = None):
@@ -117,6 +122,27 @@ class Config:
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(f"Fehler beim Laden der Konfiguration: {e}")
                 self._config = copy.deepcopy(self.DEFAULTS)
+        self._migrate_poe_provider()
+
+    def _migrate_poe_provider(self) -> None:
+        """Migriert alte Configs weg vom entfernten Poe-Provider (Issue #66).
+
+        Poe.com vergibt keine API-Keys mehr, der Provider wurde entfernt.
+        Bestehende Configs mit ``llm.provider == "poe"`` werden auf "none"
+        zurueckgesetzt, ein evtl. gespeicherter Poe-Key wird verworfen.
+        """
+        llm = self._config.get("llm")
+        if not isinstance(llm, dict) or llm.get("provider") != "poe":
+            return
+        logger.warning(
+            "LLM-Provider 'poe' ist nicht mehr verfuegbar (poe.com vergibt "
+            "keine API-Keys mehr) - Einstellung wird auf 'none' zurueckgesetzt."
+        )
+        llm["provider"] = "none"
+        llm["api_key"] = ""
+        api_keys = llm.get("api_keys")
+        if isinstance(api_keys, dict):
+            api_keys.pop("poe", None)
 
     def save(self) -> None:
         """Speichert die Konfiguration in die Datei."""
