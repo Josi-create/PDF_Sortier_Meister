@@ -35,31 +35,36 @@ def _dialog(qtbot):
     return d
 
 
+def _select(dialog, provider_id: str):
+    """Waehlt einen Provider anhand seiner ID (unabhaengig von der Combo-Reihenfolge)."""
+    dialog.provider_combo.setCurrentIndex(dialog._index_for_provider(provider_id))
+
+
 def test_switching_provider_swaps_key_and_label(qtbot, fresh_config):
     d = _dialog(qtbot)
 
-    d.provider_combo.setCurrentIndex(1)  # Claude
+    _select(d, "claude")
     assert d.api_key_label.text() == "API-Key (Anthropic Claude):"
     d.api_key_input.setText("claude-key")
 
-    d.provider_combo.setCurrentIndex(4)  # OpenRouter
+    _select(d, "openrouter")
     assert d.api_key_label.text() == "API-Key (OpenRouter):"
     assert d.api_key_input.text() == ""  # Claude-Key darf nicht mitwandern
     d.api_key_input.setText("sk-or-key")
 
-    d.provider_combo.setCurrentIndex(1)  # zurueck zu Claude
+    _select(d, "claude")
     assert d.api_key_input.text() == "claude-key"
 
-    d.provider_combo.setCurrentIndex(3)  # Ollama: kein Key
+    _select(d, "ollama")  # kein Key noetig
     assert d.api_key_label.text() == "API-Key:"
     assert d.api_key_input.text() == ""
 
 
 def test_save_persists_all_keys_and_mirrors_active(qtbot, fresh_config):
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(1)
+    _select(d, "claude")
     d.api_key_input.setText("claude-key")
-    d.provider_combo.setCurrentIndex(4)
+    _select(d, "openrouter")
     d.api_key_input.setText("sk-or-key")
     d._save_settings()
 
@@ -79,9 +84,9 @@ def test_load_restores_per_provider_keys(qtbot, fresh_config):
     fresh_config.set("llm", llm)
 
     d = _dialog(qtbot)
-    assert d.provider_combo.currentIndex() == 4
+    assert d.provider_combo.currentIndex() == d._index_for_provider("openrouter")
     assert d.api_key_input.text() == "sk-or-key"
-    d.provider_combo.setCurrentIndex(1)
+    _select(d, "claude")
     assert d.api_key_input.text() == "claude-key"
 
 
@@ -104,7 +109,7 @@ def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
     fresh_config.set("llm", llm)
 
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(4)
+    _select(d, "openrouter")
     d.api_key_input.setText("sk-or-key")
     d._save_settings()
 
@@ -116,10 +121,10 @@ def test_save_keeps_consent_and_cached_models(qtbot, fresh_config):
 
 def test_consent_checkbox_only_for_cloud_providers(qtbot, fresh_config):
     d = _dialog(qtbot)
-    d.provider_combo.setCurrentIndex(3)  # Ollama
+    _select(d, "ollama")
     assert not d.cloud_consent_check.isEnabled()
 
-    d.provider_combo.setCurrentIndex(4)  # OpenRouter
+    _select(d, "openrouter")
     assert d.cloud_consent_check.isEnabled()
     assert "deaktiviert" in d.consent_hint_label.text()
 
