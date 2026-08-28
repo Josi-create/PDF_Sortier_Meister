@@ -29,12 +29,13 @@ def test_set_llm_api_key_ollama_not_stored_per_provider(tmp_path):
     assert cfg.get_llm_config()["api_keys"] == {}
 
 
-def test_load_migrates_poe_provider_to_none(tmp_path):
-    """Issue #66: poe.com vergibt keine API-Keys mehr, Provider wurde entfernt.
+def test_load_keeps_poe_provider(tmp_path):
+    """Issue #66: poe.com vergibt wieder API-Keys, Poe ist wieder waehlbar.
 
-    Eine bestehende Config mit ``llm.provider == "poe"`` soll beim Laden
-    automatisch auf "none" zurueckgesetzt werden, inkl. Entfernen eines
-    evtl. gespeicherten Poe-Keys aus ``api_keys``.
+    Eine gespeicherte Config mit ``llm.provider == "poe"`` muss beim Laden
+    unveraendert erhalten bleiben - insbesondere darf sie nicht (wie in
+    0.19.0) still auf "none" heruntergestuft und der Poe-Key verworfen
+    werden.
     """
     import json
     from src.utils.config import Config
@@ -54,9 +55,9 @@ def test_load_migrates_poe_provider_to_none(tmp_path):
     cfg = Config(config_path=config_path)
     llm = cfg.get_llm_config()
 
-    assert llm["provider"] == "none"
-    assert llm["api_key"] == ""
-    assert "poe" not in llm["api_keys"]
+    assert llm["provider"] == "poe"
+    assert llm["api_key"] == "poe-key"
+    assert llm["api_keys"]["poe"] == "poe-key"
     assert llm["api_keys"]["openrouter"] == "sk-or-key"
 
 

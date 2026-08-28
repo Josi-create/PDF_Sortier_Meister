@@ -32,6 +32,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   `RAM_ONLY_MODEL`, `CLOUD_MODEL`) zu einer zentralen, kommentierten
   Datenstruktur mit Pruefdatum (`MODEL_TIERS_CHECKED_ON`) zusammengefasst,
   damit ein Update der LLM-Empfehlungen an einer Stelle passiert (Issue #63).
+- Poe.com ist wieder als KI-Anbieter waehlbar (poe.com vergibt wieder API-Keys;
+  in 0.19.0 entfernt).
 
 
 ## [0.19.0] - 2026-08-28
