@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-29
+
 ### Geaendert
 - **Einstellungen > Dateinamen** neu aufgebaut: Vorlage als Auswahlliste,
   die das Muster-Feld befuellt (Tippen schaltet auf „Eigenes Muster“),

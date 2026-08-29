@@ -37,7 +37,7 @@ from src.utils.single_instance import (
 from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 
 
 def _apply_wizard_result(window, config):
