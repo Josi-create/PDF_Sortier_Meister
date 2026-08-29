@@ -96,3 +96,17 @@ def test_legend_html_mentions_every_placeholder():
     html = legend_html()
     for key in ("datum", "kontakt", "betreff", "initialen", "aktenzeichen"):
         assert "{" + key + "}" in html
+
+
+def test_render_example_keeps_pattern_spaces_and_derives_compact_date():
+    # Sven-Schema: Leerzeichen nach den Initialen, Datum als JJJJMMTT
+    assert render_example("{initialen} {datum_kompakt}-{betreff}", {"initialen": "JK"}) == (
+        "JK 20240312-Arbeitsuchendmeldung.pdf"
+    )
+    out = render_example("{initialen} {datum_kompakt}-{jahr}", {"initialen": "JK", "datum": "2026-05-12"})
+    assert out == "JK 20260512-2026.pdf"
+
+
+def test_prompt_example_shows_space_from_pattern():
+    text = describe_for_prompt("{initialen} {datum}-{betreff}", initials="JK")
+    assert "Beispiel-Ergebnis: JK 2024-03-12-Arbeitsuchendmeldung.pdf" in text

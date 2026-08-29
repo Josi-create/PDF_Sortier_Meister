@@ -142,3 +142,22 @@ def test_name_without_pdf_extension():
         initials="JK",
     )
     assert name == "JK 069-01-20260512-Rechnung.pdf"
+
+
+def test_leading_initials_in_ki_name_are_not_duplicated():
+    from pathlib import PurePath
+    from src.core.folder_naming import build_folder_based_name, strip_leading_initials
+
+    assert strip_leading_initials("JK 2026-05-12-Rechnung", "JK") == "2026-05-12-Rechnung"
+    assert strip_leading_initials("JK_2026-05-12_Rechnung", "jk") == "2026-05-12_Rechnung"
+    assert strip_leading_initials("JKL 2026-05-12-Rechnung", "JK") == "JKL 2026-05-12-Rechnung"
+    assert strip_leading_initials("2026-05-12-Rechnung", "JK") == "2026-05-12-Rechnung"
+    assert strip_leading_initials("JK 2026-05-12-Rechnung", "") == "JK 2026-05-12-Rechnung"
+
+    name = build_folder_based_name(
+        "JK 2026-05-12-Rechnung.pdf",
+        PurePath("JK 069-01-01-01-Auftrag"),
+        "JK 069-Umbau Kellermannstrasse/JK 069-01-Firmen/JK 069-01-01-Rohbau/JK 069-01-01-01-Auftrag",
+        initials="JK",
+    )
+    assert name == "JK 069-01-01-01-20260512-Rechnung.pdf"

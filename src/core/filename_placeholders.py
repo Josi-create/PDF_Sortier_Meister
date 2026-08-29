@@ -26,6 +26,10 @@ PLACEHOLDERS: list[Placeholder] = [
         "Datum des Dokuments im Format YYYY-MM-DD; steht keins im Dokument, das Scandatum",
     ),
     Placeholder(
+        "datum_kompakt", "Datum als JJJJMMTT", "20240312",
+        "Datum des Dokuments als JJJJMMTT ohne Trennzeichen; steht keins im Dokument, das Scandatum",
+    ),
+    Placeholder(
         "jahr", "Jahr des Dokuments", "2024",
         "vierstelliges Jahr des Dokuments (bzw. Steuerjahr)",
     ),
@@ -70,6 +74,7 @@ PRESETS: list[tuple[str, str | None]] = [
     (PRESET_STANDARD, ""),
     ("Rechnungen & Belege", "{datum}_{kategorie}_{kontakt}_{betreff}"),
     ("Akten & Projekte", "{initialen}_{aktenzeichen}_{datum}_{betreff}_{kontakt}"),
+    ("Büro-Kürzel voran (JK 2024-03-12-Betreff)", "{initialen} {datum}-{betreff}"),
     (PRESET_CUSTOM, None),
 ]
 
@@ -139,6 +144,13 @@ def render_example(pattern: str, values: dict[str, str] | None = None) -> str:
     merged = dict(EXAMPLE_VALUES)
     if values:
         merged.update({k: v for k, v in values.items() if v})
+        # Abgeleitete Datumsformen, wenn nur {datum} (ISO) geliefert wurde
+        iso = str(values.get("datum") or "")
+        if iso:
+            if not values.get("datum_kompakt"):
+                merged["datum_kompakt"] = iso.replace("-", "")
+            if not values.get("jahr"):
+                merged["jahr"] = iso[:4]
 
     def _sub(m: re.Match) -> str:
         key = m.group(1).strip().lower()

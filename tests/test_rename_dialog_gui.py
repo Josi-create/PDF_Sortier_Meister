@@ -261,5 +261,5 @@ def test_accept_rename_returns_sanitized_name(qtbot, pdf_path):
     qtbot.addWidget(dlg)
     dlg.name_input.setText("Überweisung an: max@example.com")
     dlg.accept_rename()
-    assert dlg.get_new_name() == "Ueberweisung_an_Max.pdf"
+    assert dlg.get_new_name() == "Ueberweisung an_Max.pdf"
     assert dlg.result() == QDialog.DialogCode.Accepted

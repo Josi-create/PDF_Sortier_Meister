@@ -18,7 +18,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   wie `{lieferant}` fuellt die KI nach der Bezeichnung. Alte Muster in
   Grosswort-Schreibweise (`YYYY-MM-DD_Kontakt_Betreff`) werden beim Laden
   automatisch umgestellt. Der KI-Prompt bekommt die Bedeutung jedes
-  Platzhalters plus ein gerendertes Beispiel-Ergebnis.
+  Platzhalters plus ein gerendertes Beispiel-Ergebnis. Neu `{datum_kompakt}`
+  (JJJJMMTT) und Vorlage „Büro-Kürzel voran“ (`{initialen} {datum}-{betreff}`).
+- **Leerzeichen bleiben erlaubt** (Bestandssysteme wie
+  `JK 069-01-01-20260512-Rechnung`); nur Mehrfach-Leerzeichen und
+  Leerzeichen neben `_`/`-` werden entfernt. Beim Verschieben werden
+  fuehrende Initialen aus dem KI-Namen nicht mehr verdoppelt
+  (`JK 069-…-JK 2026-…`).
 - **„Beim Verschieben in einen Ordner“** ist jetzt ein Modus (Namen
   beibehalten / Ordnernummer voranstellen) mit eigener Ergebnis-Vorschau -
   vorher war nicht erkennbar, dass diese Funktion den KI-Namen ueberschreibt.

@@ -73,6 +73,22 @@ def split_leading_date(name_stem: str) -> tuple[Optional[date], str]:
     return parsed, name_stem[match.end():]
 
 
+def strip_leading_initials(name_stem: str, initials: str) -> str:
+    """Entfernt fuehrende Initialen samt Trenner: "JK 2026-05-12-Rechnung" -> "2026-05-12-Rechnung".
+
+    Die Vorlage setzt {initialen} selbst wieder davor; steht das Kuerzel schon
+    im KI-Namen (Muster "{initialen} {datum}-{betreff}"), wuerde es sonst
+    doppelt erscheinen.
+    """
+    initials = (initials or "").strip()
+    if not initials:
+        return name_stem
+    prefix = re.match(
+        rf"^{re.escape(initials)}(?=[-_ ]|$)[-_ ]*", name_stem, flags=re.IGNORECASE
+    )
+    return name_stem[prefix.end():] if prefix else name_stem
+
+
 def _collapse_separators(name: str) -> str:
     """Entfernt doppelte/haengende Trenner, die durch leere Platzhalter entstehen."""
     name = re.sub(r"-{2,}", "-", name)
@@ -106,6 +122,7 @@ def build_folder_based_name(
         Der neue Dateiname mit ".pdf"-Endung.
     """
     stem = current_name[:-4] if current_name.lower().endswith(".pdf") else current_name
+    stem = strip_leading_initials(stem, initials)
     doc_date, text = split_leading_date(stem)
     if doc_date is None:
         doc_date = fallback_date

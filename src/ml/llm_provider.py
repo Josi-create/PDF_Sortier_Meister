@@ -424,7 +424,8 @@ DOKUMENTINHALT:
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
-2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute/Leerzeichen.
+2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute.
+   Leerzeichen nur dort, wo das Muster eines vorgibt.
    Kein Punkt ausser vor .pdf, kein @-Zeichen: keine E-Mail-Adressen, URLs oder Versionsnummern wie 1.2.
 3. Maximal 80 Zeichen (ohne .pdf).
 4. Datum aus dem Dokument verwenden! Wenn kein Datum vorhanden, nutze das Scandatum.
