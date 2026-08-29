@@ -130,7 +130,7 @@ class LLMConfig:
     """Konfiguration für einen LLM-Provider."""
     api_key: str
     model: str
-    max_tokens: int = 700
+    max_tokens: int = 2000  # Reasoning-Modelle brauchen Luft fuers Nachdenken
     temperature: float = 0.3  # Niedrig für konsistente Antworten
     text_limit: int = 1500  # Max. Zeichen die an LLM gesendet werden
     # Optional: Basis-URL fuer lokale/selbst-gehostete Provider (z.B. Ollama).
@@ -488,6 +488,35 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             return text
         return text[:max_chars] + "\n[... Text gekürzt ...]"
 
+    def _check_response_text(
+        self, response_text: Optional[str], finish_reason: Optional[str] = None
+    ) -> Optional[str]:
+        """Prueft, ob die Modellantwort ueberhaupt verwertbar ist.
+
+        Reasoning-Modelle (z.B. GLM-5.x, DeepSeek-R1, o-Serie) verbrauchen ihr
+        Token-Budget zuerst fuers "Nachdenken". Ist ``max_tokens`` zu klein,
+        kommt eine leere oder abgeschnittene Antwort mit finish_reason
+        ``length`` zurueck. Frueher wurde das als Erfolg ohne Vorschlag gewertet
+        und still im Cache abgelegt - der Nutzer sah nie einen KI-Vorschlag.
+
+        Returns:
+            Fehlertext oder None, wenn die Antwort brauchbar aussieht.
+        """
+        text = (response_text or "").strip()
+        truncated = str(finish_reason or "").lower() in ("length", "max_tokens")
+        hint = (
+            f"Token-Limit ({self.config.max_tokens}) erreicht. Bitte in den "
+            "Einstellungen 'Max. Tokens' erhoehen oder ein Modell ohne "
+            "Reasoning waehlen."
+        )
+        if not text:
+            if truncated:
+                return f"KI-Antwort leer - {hint}"
+            return "KI-Antwort leer (Modell hat keinen Text geliefert)."
+        if truncated:
+            return f"KI-Antwort abgeschnitten - {hint}"
+        return None
+
     def _parse_json_response(self, response_text: str) -> tuple[Optional[dict], Optional[str]]:
         """
         Extrahiert und parst das JSON aus einer Antwort.
@@ -538,6 +567,8 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
         data, error = self._parse_json_response(response_text)
         if error or not data:
+            # Fehler mitgeben, damit Provider das als Misserfolg melden koennen
+            result["error"] = error or "Keine JSON-Antwort gefunden"
             return result
 
         folder = data.get("folder")

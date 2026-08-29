@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         get_llm_activity().changed.connect(self._on_llm_activity_changed)
         self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
         self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
+        self._llm_success_since_error = False  # seit dem letzten Fehler kam ein Erfolg
         # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
         self._preview_window: Optional[PdfPreviewWindow] = None
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
@@ -773,16 +774,77 @@ class MainWindow(QMainWindow):
             label = f" „{job.label}“" if job.label else ""
             parts.append(f"KI arbeitet{label} {activity.describe()}")
         if self._last_llm_error:
-            parts.append("⚠ Fehler")
+            name, error = self._last_llm_error
+            parts.append("⚠ KI-Fehler (Doppelklick)")
+            self.cache_status_label.setToolTip(
+                f"Letzter KI-Fehler bei „{name}“:\n{error}\n\n"
+                "Doppelklick zeigt Details und öffnet die Log-Datei."
+            )
+        else:
+            self.cache_status_label.setToolTip("Doppelklick zeigt Details zur Hintergrund-Analyse.")
         self.cache_status_label.setText(" | ".join(parts))
 
     def _on_llm_suggestions_ready(self, pdf_path: Path):
         """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
+        self._clear_llm_error_if_recovered(pdf_path)
         self._update_cache_status()
+        self._refresh_detail_panel_after_llm(pdf_path)
+
+    def _clear_llm_error_if_recovered(self, pdf_path: Path):
+        """Setzt „KI-Fehler“ zurück, wenn der Fehler behoben ist.
+
+        Behoben heißt: die betroffene PDF hat jetzt ein Ergebnis, oder der
+        Pre-Cache-Lauf ist zu Ende und nach dem Fehler kamen nur noch Erfolge
+        (z.B. weil der Provider auf einen Rückfall umgeschaltet hat).
+        """
+        if not self._last_llm_error:
+            return
+        self._llm_success_since_error = True
+        failed_name = self._last_llm_error[0]
+        run_finished = self.pdf_cache.llm_pending_count() == 0
+        if pdf_path.name == failed_name or run_finished:
+            self._last_llm_error = None
+            self._llm_success_since_error = False
+
+    def _refresh_detail_panel_after_llm(self, pdf_path: Path) -> bool:
+        """Traegt frische KI-Vorschlaege ins Detail-Panel ein, wenn die PDF
+        gerade ausgewaehlt ist und der Nutzer dort noch nichts geaendert hat.
+
+        Vorher blieb das Panel auf dem Stand von vor der KI-Abfrage stehen; man
+        musste eine andere PDF und dann wieder diese anklicken.
+
+        Returns:
+            True, wenn das Panel aktualisiert wurde.
+        """
+        if self.selected_pdf != pdf_path or self.selected_pdfs:
+            return False
+        panel = getattr(self, "detail_panel", None)
+        if panel is None or panel.get_current_pdf() != pdf_path:
+            return False
+        if panel.has_user_edits():
+            return False
+        result = self.pdf_cache.get(pdf_path)
+        if result is None or not self.pdf_cache.get_llm_suggestions(pdf_path):
+            return False
+        detected_date = self._detected_date_from(result.dates)
+        self._populate_detail_panel(pdf_path, result, detected_date)
+        self.statusbar.showMessage(f"KI-Vorschläge für {pdf_path.name} eingetragen", 4000)
+        return True
+
+    @staticmethod
+    def _detected_date_from(dates) -> Optional[str]:
+        """Erstes erkanntes Datum als YYYY-MM-DD (oder None)."""
+        if not dates:
+            return None
+        first_date = dates[0]
+        if hasattr(first_date, "strftime"):
+            return first_date.strftime("%Y-%m-%d")
+        return str(first_date)
 
     def _on_llm_suggestions_failed(self, pdf_path: Path, error: str):
         """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
         self._last_llm_error = (pdf_path.name, error)
+        self._llm_success_since_error = False
         self._update_cache_status()
 
     def _show_precache_details(self):
@@ -804,8 +866,22 @@ class MainWindow(QMainWindow):
         if self._last_llm_error:
             name, error = self._last_llm_error
             lines.append(f"\nLetzter KI-Fehler ({name}):\n{error}")
-        lines.append(f"\nLog-Datei: {get_log_directory() / 'pdf_sortier_meister.log'}")
-        QMessageBox.information(self, "Hintergrund-Analyse", "\n".join(lines))
+        log_file = get_log_directory() / "pdf_sortier_meister.log"
+        lines.append(f"\nLog-Datei: {log_file}")
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Hintergrund-Analyse")
+        box.setIcon(QMessageBox.Icon.Warning if self._last_llm_error else QMessageBox.Icon.Information)
+        box.setText("\n".join(lines))
+        open_log_btn = box.addButton("Log-Datei öffnen", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+        if box.clickedButton() is open_log_btn:
+            from src.utils.platform_paths import open_with_default_app
+            try:
+                open_with_default_app(log_file)
+            except Exception as e:
+                QMessageBox.warning(self, "Log-Datei", f"Konnte die Log-Datei nicht öffnen:\n{e}")
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -3978,10 +4054,16 @@ class MainWindow(QMainWindow):
         """Aktualisiert die LLM-Statusanzeige."""
         if self.hybrid_classifier.is_llm_available():
             provider = self.hybrid_classifier.get_llm_provider_name()
-            self.llm_status_label.setText(f"LLM: {provider}")
+            model_short = self.hybrid_classifier.get_llm_model_name(short=True)
+            model_full = self.hybrid_classifier.get_llm_model_name()
+            # z.B. "LLM: OpenRouter/glm-5.3-flash" - das Modell entscheidet
+            # ueber Tempo und Qualitaet, deshalb gehoert es in die Anzeige
+            text = f"LLM: {provider}/{model_short}" if model_short else f"LLM: {provider}"
+            self.llm_status_label.setText(text)
             self.llm_status_label.setStyleSheet("color: green;")
+            detail = f"{provider}, Modell: {model_full}" if model_full else provider
             self.llm_status_label.setToolTip(
-                f"KI-Assistent aktiv ({provider}).\nDoppelklick öffnet die Einstellungen."
+                f"KI-Assistent aktiv ({detail}).\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider

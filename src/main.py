@@ -157,6 +157,23 @@ def main():
     light_palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 120, 120))
     app.setPalette(light_palette)
 
+    # Fusion zeichnet Checkbox-Kaestchen auf Retina-Macs praktisch ohne
+    # Rahmen (weisses Quadrat auf hellem Grund) - Nutzer sehen nicht, dass
+    # dort etwas anzuklicken ist. Eigene, kontrastreiche Indikatoren fuer
+    # alle Plattformen; Widgets mit eigenem Stylesheet (z.B. der
+    # Nur-verschieben-Schalter) behalten ihres.
+    app.setStyleSheet(
+        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; "
+        "border: 1px solid #7a7a7a; background-color: #ffffff; }"
+        "QCheckBox::indicator:hover { border-color: #0078d7; }"
+        "QCheckBox::indicator:checked { background-color: #0078d7; "
+        "border-color: #005a9e; }"
+        "QCheckBox::indicator:disabled { border-color: #c0c0c0; "
+        "background-color: #f0f0f0; }"
+        "QCheckBox::indicator:checked:disabled { background-color: #9dc5e8; "
+        "border-color: #9dc5e8; }"
+    )
+
     # SplashScreen: im gefrorenen Build zeigt PyInstaller den Splash bereits
     # vom Bootloader aus an (siehe .spec). Der Qt-Splash dient nur als
     # Fallback fuer die Dev-Umgebung (python main.py).

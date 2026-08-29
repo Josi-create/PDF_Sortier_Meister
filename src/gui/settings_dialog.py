@@ -187,8 +187,13 @@ class SettingsDialog(QDialog):
         advanced_layout = QFormLayout(advanced_group)
 
         self.max_tokens_spin = QSpinBox()
-        self.max_tokens_spin.setRange(100, 2000)
-        self.max_tokens_spin.setValue(500)
+        self.max_tokens_spin.setRange(100, 8000)
+        self.max_tokens_spin.setValue(2000)
+        self.max_tokens_spin.setToolTip(
+            "Obergrenze fuer die Antwortlaenge. Reasoning-Modelle (z.B. GLM, "
+            "DeepSeek-R1) verbrauchen davon zuerst ihr 'Nachdenken' - bei zu "
+            "kleinem Wert kommt eine leere Antwort zurueck."
+        )
         self.max_tokens_spin.setSuffix(" Tokens")
         advanced_layout.addRow("Max. Tokens:", self.max_tokens_spin)
 
@@ -347,16 +352,21 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(folder_group)
 
-        # Eingabefelder nur bei aktivierter Funktion bedienbar
-        self.folder_naming_check.toggled.connect(
-            self.folder_naming_initials_input.setEnabled
-        )
-        self.folder_naming_check.toggled.connect(
-            self.folder_naming_template_input.setEnabled
+        # Initialen/Vorlage bleiben immer editierbar. Frueher waren sie bis zum
+        # Setzen des Hakens ausgegraut - auf Retina-Macs war das Kaestchen
+        # kaum sichtbar, die Felder wirkten "kaputt" (nicht anklickbar).
+        # Beim Eintippen von Initialen wird die Funktion mit eingeschaltet.
+        self.folder_naming_initials_input.textEdited.connect(
+            self._on_folder_naming_initials_edited
         )
 
         layout.addStretch()
         return tab
+
+    def _on_folder_naming_initials_edited(self, text: str):
+        """Initialen eingetippt -> Funktion einschalten (nur bei Nutzereingabe)."""
+        if text.strip() and not self.folder_naming_check.isChecked():
+            self.folder_naming_check.setChecked(True)
 
     def _on_pattern_choice_changed(self, button_id: int, checked: bool):
         """Aktiviert/deaktiviert das Freitextfeld je nach Auswahl."""
@@ -1078,7 +1088,7 @@ class SettingsDialog(QDialog):
             else:
                 self.model_combo.setCurrentText(model)
 
-        self.max_tokens_spin.setValue(llm_config.get("max_tokens", 500))
+        self.max_tokens_spin.setValue(llm_config.get("max_tokens", 2000))
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
         self.auto_use_check.setChecked(llm_config.get("auto_use", False))
         self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
@@ -1107,8 +1117,10 @@ class SettingsDialog(QDialog):
         self.folder_naming_template_input.setText(
             self.config.get("folder_naming_template", "")
         )
-        self.folder_naming_initials_input.setEnabled(folder_naming_enabled)
-        self.folder_naming_template_input.setEnabled(folder_naming_enabled)
+        self.folder_naming_initials_input.setToolTip(
+            "Ihre Initialen fuer den Platzhalter {initialen}. Beim Eintippen "
+            "wird 'Dateinamen aus dem Zielordner-Pfad aufbauen' aktiviert."
+        )
 
         # Cache-Einstellungen
         self.persist_cache_checkbox.setChecked(self.config.get("persist_pdf_cache", True))

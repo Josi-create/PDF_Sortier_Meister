@@ -54,7 +54,17 @@ class OllamaProvider(LLMProvider):
         super().__init__(config)
         # Einmaliger Auto-Start-Versuch pro Provider-Instanz.
         self._autostart_attempted = False
+        # gpt-oss kennt nur die Denkstufen low/medium/high; think=false liefert
+        # dort leeren oder mit Denktext vermischten Inhalt. Direkt "low" senden
+        # spart den vergeblichen ersten Versuch.
+        if self._is_gpt_oss():
+            self._think_mode = self.THINK_FALLBACK
         self._initialize_client()
+
+    def _is_gpt_oss(self) -> bool:
+        """Erkennt gpt-oss-Modelle am Namen (auch eigene Varianten wie gpt-oss-64k)."""
+        name = self._get_model_id().lower().replace("_", "-")
+        return "gpt-oss" in name or "gptoss" in name
 
     def _initialize_client(self):
         """
@@ -157,7 +167,63 @@ class OllamaProvider(LLMProvider):
         }
         if json_mode:
             payload["format"] = "json"
+        # Denk-Modelle (qwen3, deepseek-r1, gemma4, ...) sollen fuer die kurze
+        # Extraktionsaufgabe nicht "nachdenken": schneller, und das Budget
+        # (num_predict) geht nicht im Denkteil verloren. Zwei Rueckfaelle,
+        # jeweils fuer diese Instanz gemerkt:
+        # - HTTP 400: Server/Modell kennt das Feld nicht -> ohne wiederholen.
+        # - HTTP 200 mit leerem Inhalt (oder im JSON-Modus ohne JSON-Objekt):
+        #   Modelle wie gpt-oss koennen das Denken nicht abschalten (nur
+        #   low/medium/high) und liefern bei think=false nichts oder Denktext
+        #   im Inhalt -> mit think="low" wiederholen.
+        if self._think_mode is not None:
+            payload["think"] = self._think_mode
 
+        data, error = self._post_chat(url, payload)
+        if error and "HTTP 400" in error and "think" in payload:
+            self._think_mode = None
+            payload.pop("think", None)
+            data, error = self._post_chat(url, payload)
+        if error:
+            return None, error
+
+        content = self._extract_content(data)
+        unusable = not content or (json_mode and not self._contains_json_object(content))
+        if unusable and payload.get("think") is False:
+            self._think_mode = self.THINK_FALLBACK
+            payload["think"] = self.THINK_FALLBACK
+            data, error = self._post_chat(url, payload)
+            if error:
+                return None, error
+            content = self._extract_content(data)
+        if not content:
+            return None, "Ollama hat eine leere Antwort geliefert."
+        return content, None
+
+    # Aktueller Wert fuer das "think"-Feld: False = aus, "low" = minimal,
+    # None = Feld nicht senden (vom Server abgelehnt).
+    _think_mode: Any = False
+    THINK_FALLBACK = "low"
+
+    @staticmethod
+    def _extract_content(data: dict) -> str:
+        """Liest message.content aus einer /api/chat-Antwort."""
+        message = data.get("message") or {}
+        return message.get("content", "") or ""
+
+    @staticmethod
+    def _contains_json_object(text: str) -> bool:
+        """True, wenn im Text ein parsebares JSON-Objekt steckt."""
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end <= start:
+            return False
+        try:
+            return isinstance(json.loads(text[start:end + 1]), dict)
+        except ValueError:
+            return False
+
+    def _post_chat(self, url: str, payload: dict) -> tuple[Optional[dict], Optional[str]]:
+        """POST an /api/chat; liefert (JSON-Antwort, Fehlertext)."""
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url,
@@ -165,22 +231,15 @@ class OllamaProvider(LLMProvider):
             headers=self._headers(),
             method="POST",
         )
-
         try:
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                return json.loads(resp.read().decode("utf-8")), None
         except urllib.error.HTTPError as e:
             return None, f"Ollama HTTP {e.code}"
         except urllib.error.URLError as e:
             return None, f"Keine Verbindung zu Ollama ({self._get_base_url()}). Details: {e.reason}"
         except Exception as e:
             return None, f"Ollama-Fehler: {e}"
-
-        message = data.get("message") or {}
-        content = message.get("content", "")
-        if not content:
-            return None, "Ollama hat eine leere Antwort geliefert."
-        return content, None
 
     def _strip_code_fences(self, text: str) -> str:
         """Entfernt Markdown-Code-Fences."""

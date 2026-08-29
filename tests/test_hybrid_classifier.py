@@ -86,3 +86,26 @@ def test_set_cloud_provider_with_consent_returns_true(monkeypatch):
     ok = hc.set_llm_provider(LLMProviderType.CLAUDE, api_key="sk-x")
     assert ok is True
     assert hc.llm_enabled is True
+
+
+# --- Modellname fuer die Statusleiste ("LLM: OpenRouter/glm-5.3-flash") ---
+
+def test_model_name_short_strips_vendor_prefix():
+    from src.ml.hybrid_classifier import HybridClassifier
+    from src.ml.llm_provider import LLMConfig
+    from src.ml.openrouter_provider import OpenRouterProvider
+
+    hc = HybridClassifier.__new__(HybridClassifier)
+    hc.llm_enabled = True
+    hc.llm_provider = OpenRouterProvider(LLMConfig(api_key="sk-or-x", model="z-ai/glm-5.3-flash"))
+    assert hc.get_llm_model_name() == "z-ai/glm-5.3-flash"
+    assert hc.get_llm_model_name(short=True) == "glm-5.3-flash"
+    assert hc.get_llm_provider_name() == "OpenRouter"
+
+
+def test_model_name_empty_without_provider():
+    from src.ml.hybrid_classifier import HybridClassifier
+    hc = HybridClassifier.__new__(HybridClassifier)
+    hc.llm_enabled = False
+    hc.llm_provider = None
+    assert hc.get_llm_model_name() == ""

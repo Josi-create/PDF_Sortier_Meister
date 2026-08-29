@@ -120,8 +120,18 @@ class ClaudeProvider(LLMProvider):
                 ]
             )
 
-            response_text = message.content[0].text
+            response_text = message.content[0].text if message.content else ""
+            problem = self._check_response_text(
+                response_text, getattr(message, "stop_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
             suggested_folder = parsed.get("folder")
@@ -205,8 +215,18 @@ class ClaudeProvider(LLMProvider):
                 ]
             )
 
-            response_text = message.content[0].text
+            response_text = message.content[0].text if message.content else ""
+            problem = self._check_response_text(
+                response_text, getattr(message, "stop_reason", None)
+            )
+            if problem:
+                return LLMResponse(success=False, error_message=problem)
             parsed = self._parse_response(response_text)
+            if parsed.get("error"):
+                return LLMResponse(
+                    success=False,
+                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                )
 
             # Dateiname validieren
             filename = parsed.get("filename")

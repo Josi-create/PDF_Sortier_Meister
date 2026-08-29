@@ -79,7 +79,7 @@ class Config:
             "api_key": "",  # Key des aktiven Providers (Spiegel von api_keys)
             "api_keys": {},  # API-Keys pro Provider, z.B. {"openrouter": "...", "poe": "..."}
             "model": "",  # z.B. "haiku", "sonnet", "gpt-4o-mini", "llama3.1"
-            "max_tokens": 500,
+            "max_tokens": 2000,  # Reasoning-Modelle (GLM, DeepSeek-R1, ...) brauchen Luft
             "temperature": 0.3,
             "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
             "base_url": "",  # nur fuer Ollama (lokaler Server)
@@ -132,6 +132,26 @@ class Config:
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(f"Fehler beim Laden der Konfiguration: {e}")
                 self._config = copy.deepcopy(self.DEFAULTS)
+            else:
+                self._migrate()
+
+    # Alter App-Default fuer llm.max_tokens (bis 0.20.0). Reasoning-Modelle
+    # verbrauchen damit das ganze Budget fuers Nachdenken und liefern leere
+    # Antworten - deshalb wird der alte Default beim Laden angehoben.
+    LEGACY_MAX_TOKENS = 500
+
+    def _migrate(self) -> None:
+        """Hebt veraltete Werte aus aelteren Versionen an."""
+        llm = self._config.get("llm")
+        if not isinstance(llm, dict):
+            return
+        if llm.get("max_tokens") == self.LEGACY_MAX_TOKENS:
+            llm["max_tokens"] = self.DEFAULTS["llm"]["max_tokens"]
+            logger.info(
+                f"Konfiguration: llm.max_tokens {self.LEGACY_MAX_TOKENS} -> "
+                f"{llm['max_tokens']} angehoben (alter Default, zu klein fuer Reasoning-Modelle)"
+            )
+            self.save()
 
     def save(self) -> None:
         """Speichert die Konfiguration in die Datei."""
