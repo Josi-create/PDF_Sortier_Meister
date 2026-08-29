@@ -8,6 +8,24 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Dateinamen ohne verbotene/unguenstige Zeichen**: KI-Vorschlaege wie
+  `..._kathrin.haerle@web.de.pdf` enthielten Punkte und Klammeraffen.
+  Neue zentrale Bereinigung (`src/utils/filename_sanitizer.py`) ersetzt
+  Windows-verbotene Zeichen (`<>:"/\|?*`), Steuerzeichen, Leerzeichen,
+  `.` und `@` durch `_`, wandelt Umlaute/Akzente um, fasst Unterstriche
+  zusammen und entschaerft reservierte Namen (CON, NUL, ...). Gilt jetzt
+  fuer alle Provider (vorher fehlte sie bei Ollama/OpenRouter), im
+  Detail-Panel und im Umbenennen-Dialog: Die Vorschau zeigt den
+  tatsaechlich verwendeten Namen und listet ersetzte Zeichen auf, statt die
+  Umbenennung zu blockieren. Der KI-Prompt verbietet Punkte/E-Mail-Adressen
+  im Namen explizit und verlangt fuer Kontakt/Absender den Namen einer
+  Person oder Organisation. Rutscht doch eine Adresse durch, wird sie in
+  einen Namen umgewandelt (`kathrin.haerle@web.de` -> `Kathrin_Haerle`,
+  `info@huk-coburg.de` -> `Huk-Coburg`); die Vorschau weist darauf hin.
+  Enthaelt das Dateinamen-Muster `INITIALEN`/`INITIALIEN`, erklaert der
+  Prompt jetzt, dass 2-3 Grossbuchstaben gemeint sind (vorher kam
+  `J_Haerle-Wack` statt `JHW`), und gibt die Initialen aus den
+  Einstellungen bzw. aus dem Besitzernamen abgeleitet vor.
 - **KI-Vorschlaege fehlten still** bei Reasoning-Modellen (z.B. GLM-5.3-flash
   via OpenRouter): das Modell verbrauchte das Token-Budget fuers Nachdenken,
   die leere Antwort wurde als Erfolg ohne Vorschlag gecacht und nie wieder

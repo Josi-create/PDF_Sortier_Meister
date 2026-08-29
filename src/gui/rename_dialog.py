@@ -339,25 +339,38 @@ class RenameDialog(QDialog):
             self.rename_button.setEnabled(False)
             return
 
-        # .pdf Endung hinzufügen wenn nicht vorhanden
-        preview_name = text.strip()
-        if not preview_name.lower().endswith('.pdf'):
-            preview_name += '.pdf'
+        from src.utils.filename_sanitizer import (
+            contains_email, find_problem_chars, sanitize_filename,
+        )
 
-        # Ungültige Zeichen prüfen
-        invalid_chars = '<>:"/\\|?*'
-        found_invalid = [c for c in preview_name if c in invalid_chars]
+        # Bereinigten Namen zeigen (verbotene Zeichen, Punkt, @ -> "_")
+        preview_name = sanitize_filename(text)
+        found_invalid = find_problem_chars(text)
+        has_email = contains_email(text)
 
-        if found_invalid:
-            self.warning_label.setText(
-                f"Ungültige Zeichen gefunden: {' '.join(found_invalid)}"
-            )
+        if not preview_name:
+            self.warning_label.setText("Name besteht nur aus ungültigen Zeichen")
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 10px; background-color: #ffebee; "
                 "border: 1px solid #ef9a9a; border-radius: 3px;"
             )
             self.rename_button.setEnabled(False)
+            preview_name = "(ungültig)"
+        elif found_invalid or has_email:
+            hints = []
+            if has_email:
+                hints.append("E-Mail-Adresse → Name")
+            if found_invalid:
+                shown = ' '.join('␣' if c.isspace() else c for c in found_invalid)
+                hints.append(f"{shown} → _")
+            self.warning_label.setText("Wird ersetzt: " + ", ".join(hints))
+            self.warning_label.show()
+            self.preview_label.setStyleSheet(
+                "font-family: monospace; padding: 10px; background-color: #fff8e1; "
+                "border: 1px solid #ffe082; border-radius: 3px; font-weight: bold;"
+            )
+            self.rename_button.setEnabled(True)
         else:
             self.warning_label.hide()
             self.preview_label.setStyleSheet(
@@ -380,14 +393,16 @@ class RenameDialog(QDialog):
             )
             return
 
-        # .pdf Endung sicherstellen
-        if not text.lower().endswith('.pdf'):
-            text += '.pdf'
-
-        # Ungültige Zeichen entfernen
-        invalid_chars = '<>:"/\\|?*'
-        for char in invalid_chars:
-            text = text.replace(char, '')
+        # Verbotene/unguenstige Zeichen ersetzen, .pdf sicherstellen
+        from src.utils.filename_sanitizer import sanitize_filename
+        text = sanitize_filename(text)
+        if not text:
+            QMessageBox.warning(
+                self,
+                "Fehler",
+                "Der Dateiname besteht nur aus ungültigen Zeichen."
+            )
+            return
 
         self.new_name = text
         self.accept()

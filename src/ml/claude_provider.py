@@ -278,41 +278,9 @@ class ClaudeProvider(LLMProvider):
         return None
 
     def _sanitize_filename(self, filename: str) -> str:
-        """
-        Bereinigt einen Dateinamen.
-
-        Args:
-            filename: Roher Dateiname
-
-        Returns:
-            Bereinigter Dateiname
-        """
-        # Entferne ungültige Zeichen
-        invalid_chars = '<>:"/\\|?*'
-        for char in invalid_chars:
-            filename = filename.replace(char, "_")
-
-        # Umlaute ersetzen
-        replacements = {
-            "ä": "ae", "ö": "oe", "ü": "ue",
-            "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
-            "ß": "ss"
-        }
-        for old, new in replacements.items():
-            filename = filename.replace(old, new)
-
-        # Leerzeichen durch Unterstriche
-        filename = filename.replace(" ", "_")
-
-        # Sicherstellen, dass .pdf Endung vorhanden
-        if not filename.lower().endswith(".pdf"):
-            filename += ".pdf"
-
-        # Maximale Länge
-        if len(filename) > 84:  # 80 + .pdf
-            filename = filename[:80] + ".pdf"
-
-        return filename
+        """Bereinigt einen Dateinamen (zentral in src.utils.filename_sanitizer)."""
+        from src.utils.filename_sanitizer import sanitize_filename
+        return sanitize_filename(filename)
 
     # ------------------------------------------------------------------ #
     # RAG-Chat (Phase 19, M1)                                            #

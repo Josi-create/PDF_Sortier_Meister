@@ -19,6 +19,37 @@ from enum import Enum
 CLOUD_PROVIDERS = frozenset({"claude", "openai", "poe", "openrouter", "ollama_cloud"})
 
 
+_TITLE_TOKENS = {
+    "dr", "prof", "med", "dent", "vet", "dipl", "ing", "mag", "phil", "rer",
+    "nat", "jur", "pol", "oec", "h.c", "hc", "mba", "msc", "bsc", "ma", "ba",
+    "ll.m", "llm", "habil", "univ", "priv", "doz", "pd", "dds", "phd",
+}
+
+
+def derive_initials(full_name: str, max_letters: int = 3) -> str:
+    """Leitet Initialen aus einem Namen ab: "Dr. med. Johannes Härle-Wack" -> "JHW".
+
+    Titel (Dr., Prof., med. ...) werden uebersprungen, Bindestrich-Namen
+    liefern je einen Buchstaben. Umlaute werden zu ASCII (Ä -> A).
+    """
+    if not full_name:
+        return ""
+    import re
+    import unicodedata
+    letters = []
+    for token in re.split(r"[\s\-]+", full_name):
+        token = token.strip(".,()")
+        if not token or token.lower().rstrip(".") in _TITLE_TOKENS:
+            continue
+        first = unicodedata.normalize("NFKD", token[0])[0]
+        first = {"ß": "S"}.get(first, first).upper()
+        if first.isalpha():
+            letters.append(first)
+    if len(letters) < 2:
+        return ""
+    return "".join(letters[:max_letters])
+
+
 def is_cloud_provider(provider_type: str) -> bool:
     """True, wenn der Provider Daten an einen externen Dienst sendet."""
     return str(provider_type).lower() in CLOUD_PROVIDERS
@@ -394,8 +425,13 @@ DOKUMENTINHALT:
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
 2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute/Leerzeichen.
+   Kein Punkt ausser vor .pdf, kein @-Zeichen: keine E-Mail-Adressen, URLs oder Versionsnummern wie 1.2.
 3. Maximal 80 Zeichen (ohne .pdf).
 4. Datum aus dem Dokument verwenden! Wenn kein Datum vorhanden, nutze das Scandatum.
+5. Kontakt/Absender/Korrespondent ist immer der NAME einer Person oder Organisation
+   (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
+   Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
+   leite den Namen daraus ab (kathrin.haerle@web.de -> Kathrin_Haerle).
 
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
@@ -416,21 +452,41 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 }}"""
 
     def _build_filename_pattern_info(self) -> str:
-        """Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt."""
+        """Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt.
+
+        Enthaelt das Muster und - falls es Initialen verlangt - was damit
+        gemeint ist. Ohne diesen Hinweis hat die KI "INITIALIEN" mit
+        "J_Haerle-Wack" statt "JHW" gefuellt.
+        """
         try:
             from src.utils.config import get_config
-            pattern = get_config().get("filename_pattern", "").strip()
+            config = get_config()
+            pattern = config.get("filename_pattern", "").strip()
+            initials = (config.get("folder_naming_initials", "") or "").strip()
+            owner_name = (config.get("owner_name", "") or "").strip()
         except Exception:
             return ""
 
         if not pattern:
             return ""
 
-        return (
-            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER:\n"
-            f"    {pattern}\n"
-            "Nutze dieses Muster als Strukturvorlage für den Dateinamen.\n"
-        )
+        lines = [
+            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER:",
+            f"    {pattern}",
+            "Nutze dieses Muster als Strukturvorlage für den Dateinamen.",
+        ]
+
+        if "INITIAL" in pattern.upper():
+            initials = initials or derive_initials(owner_name)
+            hint = (
+                "INITIALEN/INITIALIEN sind 2-3 Großbuchstaben (Anfangsbuchstaben von "
+                "Vor- und Nachname des Dokumentbesitzers), NIE ein ausgeschriebener Name."
+            )
+            if initials:
+                hint += f" Verwende genau: {initials}"
+            lines.append(hint)
+
+        return "\n".join(lines) + "\n"
 
     def _build_owner_info(self) -> str:
         """Erstellt den Benutzer-Identitäts-Abschnitt für den Prompt."""

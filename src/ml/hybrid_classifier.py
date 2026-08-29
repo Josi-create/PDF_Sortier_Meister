@@ -487,8 +487,15 @@ class HybridClassifier:
             return None
         self.last_llm_error = None
 
+        # Letzte Instanz: keine verbotenen/ungluecklichen Zeichen (., @, ...)
+        from src.utils.filename_sanitizer import sanitize_filename
+        clean_name = sanitize_filename(response.filename_suggestion)
+        if not clean_name:
+            self.last_llm_error = "KI-Dateiname bestand nur aus ungueltigen Zeichen."
+            return None
+
         return HybridFilename(
-            filename=response.filename_suggestion,
+            filename=clean_name,
             reason=response.filename_reason or "LLM-Vorschlag",
             confidence=response.confidence,
             source="llm",

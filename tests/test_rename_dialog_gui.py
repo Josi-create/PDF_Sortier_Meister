@@ -220,3 +220,46 @@ def test_dialog_handles_empty_extracted_text(qtbot, pdf_path):
     dlg = RenameDialog(pdf_path=pdf_path, extracted_text=None)
     qtbot.addWidget(dlg)
     assert dlg.extracted_text == ""
+
+
+# --------------------------------------------------------------------- #
+# 6) Dateinamen-Bereinigung (Punkt, @, verbotene Zeichen)
+# --------------------------------------------------------------------- #
+
+
+def test_preview_shows_sanitized_name_and_keeps_button_enabled(qtbot, pdf_path):
+    """Punkt/@ werden in der Vorschau ersetzt; Umbenennen bleibt moeglich."""
+    dlg = RenameDialog(pdf_path=pdf_path)
+    qtbot.addWidget(dlg)
+    dlg.name_input.setText("Meldung: kathrin.haerle@web.de")
+    assert dlg.preview_label.text() == "Meldung_Kathrin_Haerle.pdf"
+    assert dlg.warning_label.isVisibleTo(dlg)
+    assert "E-Mail" in dlg.warning_label.text()
+    assert ":" in dlg.warning_label.text()
+    assert dlg.rename_button.isEnabled()
+
+
+def test_preview_clean_name_hides_warning(qtbot, pdf_path):
+    dlg = RenameDialog(pdf_path=pdf_path)
+    qtbot.addWidget(dlg)
+    dlg.name_input.setText("2024-01-15_Rechnung_Telekom")
+    assert dlg.preview_label.text() == "2024-01-15_Rechnung_Telekom.pdf"
+    assert not dlg.warning_label.isVisibleTo(dlg)
+    assert dlg.rename_button.isEnabled()
+
+
+def test_preview_only_invalid_chars_disables_button(qtbot, pdf_path):
+    dlg = RenameDialog(pdf_path=pdf_path)
+    qtbot.addWidget(dlg)
+    dlg.name_input.setText("@@..")
+    assert not dlg.rename_button.isEnabled()
+    assert dlg.warning_label.isVisibleTo(dlg)
+
+
+def test_accept_rename_returns_sanitized_name(qtbot, pdf_path):
+    dlg = RenameDialog(pdf_path=pdf_path)
+    qtbot.addWidget(dlg)
+    dlg.name_input.setText("Überweisung an: max@example.com")
+    dlg.accept_rename()
+    assert dlg.get_new_name() == "Ueberweisung_an_Max.pdf"
+    assert dlg.result() == QDialog.DialogCode.Accepted

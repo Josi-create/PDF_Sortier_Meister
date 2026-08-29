@@ -644,13 +644,9 @@ class DetailPanel(QWidget):
         self.placeholder.show()
 
     def get_new_name(self) -> Optional[str]:
-        """Gibt den aktuellen Dateinamen zurück (mit .pdf)."""
-        text = self.name_input.text().strip()
-        if not text:
-            return None
-        if not text.lower().endswith('.pdf'):
-            text += '.pdf'
-        return text
+        """Gibt den bereinigten Dateinamen zurück (mit .pdf) oder None."""
+        from src.utils.filename_sanitizer import sanitize_filename
+        return sanitize_filename(self.name_input.text()) or None
 
     def get_metadata(self) -> dict:
         """Gibt die aktuellen Metadaten zurück."""
@@ -926,19 +922,34 @@ class DetailPanel(QWidget):
             )
             return
 
-        preview_name = text.strip()
-        if not preview_name.lower().endswith('.pdf'):
-            preview_name += '.pdf'
+        from src.utils.filename_sanitizer import (
+            contains_email, find_problem_chars, sanitize_filename,
+        )
 
-        invalid_chars = '<>:"/\\|?*'
-        found_invalid = [c for c in preview_name if c in invalid_chars]
+        preview_name = sanitize_filename(text)
+        found_invalid = find_problem_chars(text)
+        has_email = contains_email(text)
 
-        if found_invalid:
-            self.warning_label.setText(f"Ungültige Zeichen: {' '.join(found_invalid)}")
+        if not preview_name:
+            self.warning_label.setText("Name besteht nur aus ungültigen Zeichen")
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 6px; background-color: #ffebee; "
                 "border: 1px solid #ef9a9a; border-radius: 3px; font-size: 11px;"
+            )
+            preview_name = "(ungültig)"
+        elif found_invalid or has_email:
+            hints = []
+            if has_email:
+                hints.append("E-Mail-Adresse → Name")
+            if found_invalid:
+                shown = ' '.join('␣' if c.isspace() else c for c in found_invalid)
+                hints.append(f"{shown} → _")
+            self.warning_label.setText("Wird ersetzt: " + ", ".join(hints))
+            self.warning_label.show()
+            self.preview_label.setStyleSheet(
+                "font-family: monospace; padding: 6px; background-color: #fff8e1; "
+                "border: 1px solid #ffe082; border-radius: 3px; font-size: 11px;"
             )
         else:
             self.warning_label.hide()

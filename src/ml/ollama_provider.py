@@ -316,6 +316,8 @@ class OllamaProvider(LLMProvider):
             return LLMResponse(success=False, error_message=parse_err)
 
         filename = parsed.get("filename") if parsed.get("filename") != "NULL" else None
+        if filename:
+            filename = self._sanitize_filename(filename)
 
         return LLMResponse(
             success=True,
@@ -330,21 +332,9 @@ class OllamaProvider(LLMProvider):
     # ------------------------------------------------------------------ #
 
     def _sanitize_filename(self, filename: str) -> str:
-        """Bereinigt einen Dateinamen."""
-        invalid_chars = '<>:"/\\|?*'
-        for char in invalid_chars:
-            filename = filename.replace(char, "_")
-        replacements = {
-            "ä": "ae", "ö": "oe", "ü": "ue",
-            "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
-            "ß": "ss",
-        }
-        for old, new in replacements.items():
-            filename = filename.replace(old, new)
-        filename = filename.replace(" ", "_")
-        if not filename.lower().endswith(".pdf"):
-            filename += ".pdf"
-        return filename
+        """Bereinigt einen Dateinamen (zentral in src.utils.filename_sanitizer)."""
+        from src.utils.filename_sanitizer import sanitize_filename
+        return sanitize_filename(filename)
 
     def _find_similar_folder(self, suggested: str, available: list[str]) -> Optional[str]:
         # Placeholder
