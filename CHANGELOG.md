@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- Verschieben schlug unter Windows mit „Die Datei wird von einem anderen
+  Prozess verwendet“ fehl, wenn direkt nach dem Anklicken verschoben wurde
+  (Vorschau-/Metadaten-Leser hatten die PDF noch offen). `move_file`
+  wiederholt den Vorgang jetzt bei kurzzeitigen Sperren einige Male
+  (Virenscanner, OneDrive), bevor es einen Fehler meldet.
+
 ## [0.22.0] - 2026-08-29
 
 ### Neu

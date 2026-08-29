@@ -59,11 +59,15 @@ def main_window(qtbot, fresh_singletons, monkeypatch):
     monkeypatch.setattr(mw_mod.QMainWindow, "showMaximized", lambda self: None)
     monkeypatch.setattr(mw_mod.QMainWindow, "show", lambda self: None)
 
-    # Keine Thumbnail-Threads: die halten die PDF unter Windows kurz offen,
-    # und ein Verschieben waehrenddessen scheitert (PermissionError) - auf
-    # langsamen CI-Runnern schlug so der erste Test der Sitzung fehl.
+    # Keine Hintergrund-Leser: Thumbnail-, Vorschau- und XMP-Reader-Threads
+    # halten die PDF unter Windows kurz offen, und ein Verschieben
+    # waehrenddessen scheitert mit WinError 32 - auf langsamen CI-Runnern
+    # schlug so der erste Test der Sitzung fehl.
     from src.gui import pdf_thumbnail as th_mod
+    from src.gui import detail_panel as dp_mod
     monkeypatch.setattr(th_mod.ThumbnailLoaderThread, "start", lambda self: None)
+    monkeypatch.setattr(dp_mod.PdfPreviewWidget, "load_pdf", lambda self, path: None)
+    monkeypatch.setattr(dp_mod._PdfMetadataReader, "start", lambda self: None)
 
     # Modale Dialoge duerfen den Test nie blockieren: Verschieben immer
     # bestaetigen, Fehler-/Warn-Dialoge nur protokollieren.

@@ -9,6 +9,7 @@ Funktionen:
 
 import os
 import shutil
+import time
 from pathlib import Path
 from typing import Optional, Generator
 from datetime import datetime
@@ -122,9 +123,25 @@ class FileManager:
         target_path = self._get_unique_path(target_path)
 
         # Datei verschieben
-        shutil.move(str(source), str(target_path))
+        self._move_with_retry(source, target_path)
 
         return target_path
+
+    # Kurzzeitige Sperren (Vorschau-/Metadaten-Reader, Virenscanner, OneDrive)
+    # loesen sich meist binnen Millisekunden - deshalb mehrere Versuche, bevor
+    # "Verschieben fehlgeschlagen" gemeldet wird.
+    MOVE_RETRY_DELAYS = (0.1, 0.2, 0.3, 0.5, 0.8)
+
+    @classmethod
+    def _move_with_retry(cls, source: Path, target_path: Path) -> None:
+        """``shutil.move`` mit Wiederholung bei ``PermissionError`` (Windows-Dateisperre)."""
+        for delay in cls.MOVE_RETRY_DELAYS:
+            try:
+                shutil.move(str(source), str(target_path))
+                return
+            except PermissionError:
+                time.sleep(delay)
+        shutil.move(str(source), str(target_path))
 
     def copy_file(
         self,

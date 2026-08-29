@@ -62,3 +62,54 @@ def test_split_pdf_invalid_page_raises(tmp_path: Path) -> None:
     manager = FileManager()
     with pytest.raises(ValueError, match="Ungültige Seitenzahlen"):
         manager.split_pdf(source, output_folder, pages=[1, 5])
+
+
+# --------------------------------------------------------------------- #
+# Windows-Dateisperre beim Verschieben: kurz warten und erneut versuchen
+# --------------------------------------------------------------------- #
+
+
+def test_move_file_retries_on_transient_permission_error(tmp_path, monkeypatch):
+    import shutil
+    from src.core import file_manager as fm_mod
+
+    src = tmp_path / "a.pdf"
+    src.write_bytes(b"%PDF-1.4")
+    target = tmp_path / "Ziel"
+    target.mkdir()
+
+    real_move = shutil.move
+    calls = []
+
+    def flaky_move(s, d):
+        calls.append(d)
+        if len(calls) < 3:
+            raise PermissionError(32, "being used by another process")
+        return real_move(s, d)
+
+    monkeypatch.setattr(fm_mod.shutil, "move", flaky_move)
+    monkeypatch.setattr(fm_mod.time, "sleep", lambda s: None)
+
+    result = FileManager._move_with_retry(src, target / "a.pdf")
+    assert result is None
+    assert len(calls) == 3
+    assert (target / "a.pdf").exists() and not src.exists()
+
+
+def test_move_file_gives_up_after_retries(tmp_path, monkeypatch):
+    from src.core import file_manager as fm_mod
+
+    src = tmp_path / "a.pdf"
+    src.write_bytes(b"%PDF-1.4")
+    calls = []
+
+    def locked_move(s, d):
+        calls.append(d)
+        raise PermissionError(32, "being used by another process")
+
+    monkeypatch.setattr(fm_mod.shutil, "move", locked_move)
+    monkeypatch.setattr(fm_mod.time, "sleep", lambda s: None)
+
+    with pytest.raises(PermissionError):
+        FileManager._move_with_retry(src, tmp_path / "b.pdf")
+    assert len(calls) == len(FileManager.MOVE_RETRY_DELAYS) + 1
