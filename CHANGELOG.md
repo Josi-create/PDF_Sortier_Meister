@@ -38,7 +38,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Dateinamen ohne verbotene/unguenstige Zeichen**: KI-Vorschlaege wie
   `..._kathrin.haerle@web.de.pdf` enthielten Punkte und Klammeraffen.
   Neue zentrale Bereinigung (`src/utils/filename_sanitizer.py`) ersetzt
-  Windows-verbotene Zeichen (`<>:"/\|?*`), Steuerzeichen, Leerzeichen,
+  Windows-verbotene Zeichen (`<>:"/\|?*`), Steuerzeichen,
   `.` und `@` durch `_`, wandelt Umlaute/Akzente um, fasst Unterstriche
   zusammen und entschaerft reservierte Namen (CON, NUL, ...). Gilt jetzt
   fuer alle Provider (vorher fehlte sie bei Ollama/OpenRouter), im
