@@ -43,10 +43,18 @@ class SettingsDialog(QDialog):
     ]
     _LLM_PROVIDER_INDEX = {pid: i for i, (pid, _) in enumerate(_LLM_PROVIDERS)}
 
-    def __init__(self, parent=None):
-        """Initialisiert den Einstellungsdialog."""
+    def __init__(self, parent=None, example_values_provider=None):
+        """Initialisiert den Einstellungsdialog.
+
+        Args:
+            example_values_provider: optionaler Callable, der Platzhalter-Werte
+                der gerade ausgewaehlten PDF liefert (fuer die Muster-Vorschau
+                "Mit aktueller PDF"); None = Button ausgeblendet.
+        """
         super().__init__(parent)
         self.config = get_config()
+        self._example_values_provider = example_values_provider
+        self._ki_preview_name = ""
         self._setup_ui()
         self._load_settings()
 
@@ -65,13 +73,18 @@ class SettingsDialog(QDialog):
         llm_tab = self._create_llm_tab()
         tab_widget.addTab(llm_tab, "KI-Assistent (LLM)")
 
-        # Dateinamen-Muster Tab
-        filename_tab = self._create_filename_pattern_tab()
-        tab_widget.addTab(filename_tab, "Dateinamen-Muster")
-
-        # Persönliche Daten Tab
+        # Persönliche Daten Tab (vor "Dateinamen": dort werden die Initialen
+        # definiert, die das Dateinamen-Muster benutzt)
         personal_tab = self._create_personal_tab()
         tab_widget.addTab(personal_tab, "Persönliche Daten")
+
+        # Dateinamen Tab
+        filename_tab = self._create_filename_pattern_tab()
+        tab_widget.addTab(filename_tab, "Dateinamen")
+
+        # Name/Initialen wirken auf die Muster-Vorschau
+        self.owner_name_input.textChanged.connect(self._on_owner_name_changed)
+        self.owner_initials_input.textChanged.connect(self._update_filename_previews)
 
         # Allgemeine Einstellungen Tab
         general_tab = self._create_general_tab()
@@ -82,6 +95,7 @@ class SettingsDialog(QDialog):
         tab_widget.addTab(rules_tab, "Automatisierungs-Regeln")
 
         layout.addWidget(tab_widget)
+        self.tab_widget = tab_widget
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -90,6 +104,11 @@ class SettingsDialog(QDialog):
         self.test_button = QPushButton("Verbindung testen")
         self.test_button.clicked.connect(self._test_connection)
         button_layout.addWidget(self.test_button)
+        # "Verbindung testen" gehoert zum KI-Tab - auf den anderen ausblenden
+        tab_widget.currentChanged.connect(
+            lambda index: self.test_button.setVisible(index == 0)
+        )
+        self.test_button.setVisible(tab_widget.currentIndex() == 0)
 
         self.save_button = QPushButton("Speichern")
         self.save_button.setDefault(True)
@@ -235,145 +254,301 @@ class SettingsDialog(QDialog):
 
         return tab
 
-    # Vordefinierte Muster - werden im Tab als Auswahl angeboten und genau so
-    # an die LLM uebergeben (sie soll das Muster IMITIEREN, nicht woertlich
-    # uebernehmen, siehe Prompt-Hinweis in llm_provider._build_filename_pattern_info).
-    PATTERN_PRESETS = [
-        ("YYYY-MM-DD_Rechnung_Kontakt_Betreff",
-         "Datum_Dokumenttyp_Absender_Betreff (z.B. fuer Rechnungen)"),
-        ("PROJEKTNUMMER_INITIALIEN/AKTENZEICHEN_YYYY-MM-DD_Betreff_Kontakt",
-         "Projekt-/Aktenbezogen (Projekt zuerst, dann Datum)"),
-    ]
+    # Beispiel-Zielordner fuer die Vorschau "Beim Verschieben"
+    _PREVIEW_FOLDER = "069-03-05 Arbeitsamt"
+    _PREVIEW_RELATIVE_PATH = "Behoerden/069-03-05 Arbeitsamt"
+    _PREVIEW_DEFAULT_PATTERN = "{datum}_{kategorie}_{betreff}"
 
     def _create_filename_pattern_tab(self) -> QWidget:
-        """
-        Erstellt den Tab fuer das benutzerdefinierte Dateinamen-Muster.
+        """Tab "Dateinamen": KI-Muster mit Live-Vorschau + Verhalten beim Verschieben.
 
-        Der Nutzer kann zwischen Standardverhalten, vordefinierten Mustern und
-        einem Freitext-Template waehlen. Der gewaehlte Wert wird als Hinweis in
-        den Filename-Prompt aller LLM-Provider eingeflochten.
+        Eine Platzhalter-Syntax ({datum}, {kontakt} ...) fuer KI-Muster und
+        Verschiebe-Vorlage; die Bedeutungen kommen aus
+        src.core.filename_placeholders und landen genauso im KI-Prompt.
         """
+        from PyQt6.QtWidgets import QComboBox, QGridLayout, QRadioButton, QSizePolicy, QToolButton
+        from src.core.filename_placeholders import PLACEHOLDERS, PRESETS, legend_html
+        from src.core.folder_naming import DEFAULT_TEMPLATE
+
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
-        info_label = QLabel(
-            "Hier koennen Sie der KI ein Muster vorgeben, an dem sie sich beim "
-            "Vorschlagen von Dateinamen orientieren soll. Die KI ersetzt die "
-            "Platzhalter im Muster mit den konkreten Werten aus dem Dokument."
+        intro = QLabel("Nach diesem Muster schlägt die KI Dateinamen vor.")
+        intro.setStyleSheet("color: #555; padding: 2px 0 6px 0;")
+        layout.addWidget(intro)
+
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+
+        # Vorlage (Combo) fuellt das Muster-Feld; Tippen schaltet auf "Eigenes"
+        self.pattern_preset_combo = QComboBox()
+        for name, _pattern in PRESETS:
+            self.pattern_preset_combo.addItem(name)
+        self.pattern_preset_combo.activated.connect(self._on_pattern_preset_activated)
+        form.addRow("Vorlage:", self.pattern_preset_combo)
+
+        self.pattern_input = QLineEdit()
+        self.pattern_input.setPlaceholderText("leer = KI entscheidet selbst")
+        self.pattern_input.setStyleSheet("font-family: monospace;")
+        self.pattern_input.setToolTip(
+            "Platzhalter in geschweiften Klammern, dazwischen beliebige Trennzeichen.\n"
+            "Klick auf einen Platzhalter unten fügt ihn an der Cursorposition ein."
         )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #555; padding: 5px;")
-        layout.addWidget(info_label)
+        self.pattern_input.textChanged.connect(self._on_pattern_text_changed)
+        form.addRow("Muster:", self.pattern_input)
 
-        # Auswahl-Gruppe: Standard | Preset 1 | Preset 2 | Freitext
-        choice_group = QGroupBox("Muster waehlen")
-        choice_layout = QVBoxLayout(choice_group)
-
-        self.pattern_button_group = QButtonGroup(self)
-
-        self.pattern_radio_default = QRadioButton(
-            "Standard (KI entscheidet selbst, z.B. YYYY-MM-DD_Kategorie_Beschreibung)"
+        # Platzhalter-Chips: Klick fuegt an der Cursorposition ein
+        chips_widget = QWidget()
+        chips = QGridLayout(chips_widget)
+        chips.setContentsMargins(0, 0, 0, 0)
+        chips.setHorizontalSpacing(4)
+        chips.setVerticalSpacing(4)
+        self.pattern_chip_buttons = []
+        per_row = 5
+        for i, ph in enumerate(PLACEHOLDERS):
+            btn = QPushButton("{" + ph.key + "}")
+            btn.setToolTip(f"{ph.label}\nBeispiel: {ph.example}")
+            btn.setStyleSheet(
+                "QPushButton { padding: 1px 6px; font-family: monospace; font-size: 11px; }"
+            )
+            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            btn.clicked.connect(lambda _checked=False, key=ph.key: self._insert_placeholder(key))
+            chips.addWidget(btn, i // per_row, i % per_row)
+            self.pattern_chip_buttons.append(btn)
+        self.pattern_legend_toggle = QToolButton()
+        self.pattern_legend_toggle.setText("Alle Platzhalter")
+        self.pattern_legend_toggle.setCheckable(True)
+        self.pattern_legend_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.pattern_legend_toggle.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
-        self.pattern_button_group.addButton(self.pattern_radio_default, 0)
-        choice_layout.addWidget(self.pattern_radio_default)
+        self.pattern_legend_toggle.setAutoRaise(True)
+        self.pattern_legend_toggle.toggled.connect(self._toggle_pattern_legend)
+        last_row = (len(PLACEHOLDERS) - 1) // per_row
+        chips.addWidget(self.pattern_legend_toggle, last_row, per_row - 1,
+                        Qt.AlignmentFlag.AlignRight)
+        chips.setColumnStretch(per_row - 1, 1)
+        form.addRow("", chips_widget)
 
-        self.pattern_preset_radios = []
-        for i, (pattern, description) in enumerate(self.PATTERN_PRESETS, start=1):
-            radio = QRadioButton(f"{pattern}\n    ({description})")
-            self.pattern_button_group.addButton(radio, i)
-            choice_layout.addWidget(radio)
-            self.pattern_preset_radios.append((radio, pattern))
+        self.pattern_legend_label = QLabel(legend_html())
+        self.pattern_legend_label.setTextFormat(Qt.TextFormat.RichText)
+        self.pattern_legend_label.setWordWrap(True)
+        self.pattern_legend_label.setStyleSheet("font-size: 11px;")
+        self.pattern_legend_label.hide()
+        form.addRow("", self.pattern_legend_label)
 
-        self.pattern_radio_custom = QRadioButton("Eigenes Muster (Freitext):")
-        self.pattern_button_group.addButton(
-            self.pattern_radio_custom, len(self.PATTERN_PRESETS) + 1
+        self.pattern_warning_label = QLabel()
+        self.pattern_warning_label.setStyleSheet("color: #d32f2f; font-size: 11px;")
+        self.pattern_warning_label.hide()
+        form.addRow("", self.pattern_warning_label)
+
+        # Live-Vorschau mit Beispieldokument (+ optional echte PDF)
+        preview_widget = QWidget()
+        preview_row = QHBoxLayout(preview_widget)
+        preview_row.setContentsMargins(0, 0, 0, 0)
+        # Read-only QLineEdit statt QLabel: lange Namen werden gescrollt statt
+        # (wie bei QLabel+wordWrap im QFormLayout) vertikal abgeschnitten.
+        self.pattern_preview_label = QLineEdit()
+        self.pattern_preview_label.setReadOnly(True)
+        self.pattern_preview_label.setStyleSheet(
+            "font-family: monospace; padding: 4px; background-color: #e8f5e9; "
+            "border: 1px solid #a5d6a7; border-radius: 3px; color: #1b5e20;"
         )
-        choice_layout.addWidget(self.pattern_radio_custom)
-
-        self.pattern_custom_input = QPlainTextEdit()
-        self.pattern_custom_input.setPlaceholderText(
-            "z.B.  YYYY-MM-DD_Lieferant_Auftragsnummer_Kurzbeschreibung\n"
-            "\n"
-            "Sie koennen die Platzhalter frei waehlen. Schreiben Sie z.B.\n"
-            "'Datum' oder 'YYYY-MM-DD' fuer das Datum, 'Kontakt' oder 'Absender'\n"
-            "fuer den Korrespondenten, usw. Die KI interpretiert die\n"
-            "Bezeichnungen selbst und fuellt sie aus dem Dokument."
+        preview_row.addWidget(self.pattern_preview_label, 1)
+        self.pattern_try_button = QPushButton("Mit aktueller PDF")
+        self.pattern_try_button.setToolTip(
+            "Vorschau mit den KI-Metadaten der gerade ausgewählten PDF"
         )
-        self.pattern_custom_input.setMaximumHeight(120)
-        choice_layout.addWidget(self.pattern_custom_input)
+        self.pattern_try_button.clicked.connect(self._preview_with_current_pdf)
+        self.pattern_try_button.setVisible(self._example_values_provider is not None)
+        preview_row.addWidget(self.pattern_try_button)
+        form.addRow("Vorschau:", preview_widget)
 
-        layout.addWidget(choice_group)
+        layout.addLayout(form)
 
-        # UI-Logik: Freitextfeld nur bei "Eigenes Muster" aktiv
-        self.pattern_button_group.idToggled.connect(self._on_pattern_choice_changed)
+        # ---- Beim Verschieben in einen Ordner (Issue #42) ----
+        move_group = QGroupBox("Beim Verschieben in einen Ordner")
+        move_layout = QVBoxLayout(move_group)
 
-        # Hinweis
-        hint_label = QLabel(
-            "<i>Hinweis: Das Muster wird der KI als Vorlage gezeigt. Die "
-            "allgemeinen Regeln (erlaubte Zeichen, Datum nicht erfinden, "
-            "max. 80 Zeichen) bleiben bestehen.</i>"
+        self.folder_naming_keep_radio = QRadioButton("Dateinamen beibehalten")
+        self.folder_naming_prefix_radio = QRadioButton(
+            "Ordnernummer aus dem Zielordner voranstellen"
         )
-        hint_label.setWordWrap(True)
-        hint_label.setStyleSheet("color: gray;")
-        layout.addWidget(hint_label)
+        self.folder_naming_keep_radio.setChecked(True)
+        move_layout.addWidget(self.folder_naming_keep_radio)
+        move_layout.addWidget(self.folder_naming_prefix_radio)
 
-        # Dateiname aus Ordnerstruktur (Issue #42)
-        folder_group = QGroupBox("Dateiname aus Ordnerstruktur (beim Verschieben)")
-        folder_layout = QVBoxLayout(folder_group)
-
-        self.folder_naming_check = QCheckBox(
-            "Dateinamen beim Verschieben aus dem Zielordner-Pfad aufbauen"
-        )
-        folder_layout.addWidget(self.folder_naming_check)
-
-        folder_form = QFormLayout()
-        self.folder_naming_initials_input = QLineEdit()
-        self.folder_naming_initials_input.setPlaceholderText("z.B. JK")
-        folder_form.addRow("Initialen:", self.folder_naming_initials_input)
-
+        move_form = QFormLayout()
+        move_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         self.folder_naming_template_input = QLineEdit()
-        self.folder_naming_template_input.setPlaceholderText(
-            "{initialen} {ordnernummern}-{datum}-{text}"
-        )
-        folder_form.addRow("Vorlage:", self.folder_naming_template_input)
-        folder_layout.addLayout(folder_form)
-
-        folder_info = QLabel(
+        self.folder_naming_template_input.setPlaceholderText(DEFAULT_TEMPLATE)
+        self.folder_naming_template_input.setStyleSheet("font-family: monospace;")
+        self.folder_naming_template_input.setToolTip(
             "Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem "
-            "Zielordner-Namen, z.B. \"069-03-05\"), {ordnerpfad} (Ordnernamen "
-            "mit \"-\" verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), "
-            "{text} (bisheriger Name ohne Datum).\n"
-            "Beispiel: Ordner \"JK 069-03-05-Auftrag\" ergibt "
-            "\"JK 069-03-05-20260512-Rechnung.pdf\"."
+            "Zielordner-Namen, z.B. 069-03-05), {ordnerpfad} (Ordnernamen mit - "
+            "verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), "
+            "{text} (bisheriger Name ohne Datum)"
         )
-        folder_info.setWordWrap(True)
-        folder_info.setStyleSheet("color: #555; font-size: 11px;")
-        folder_layout.addWidget(folder_info)
+        move_form.addRow("Vorlage:", self.folder_naming_template_input)
 
-        layout.addWidget(folder_group)
-
-        # Initialen/Vorlage bleiben immer editierbar. Frueher waren sie bis zum
-        # Setzen des Hakens ausgegraut - auf Retina-Macs war das Kaestchen
-        # kaum sichtbar, die Felder wirkten "kaputt" (nicht anklickbar).
-        # Beim Eintippen von Initialen wird die Funktion mit eingeschaltet.
-        self.folder_naming_initials_input.textEdited.connect(
-            self._on_folder_naming_initials_edited
+        self.folder_naming_preview_label = QLineEdit()
+        self.folder_naming_preview_label.setReadOnly(True)
+        self.folder_naming_preview_label.setStyleSheet(
+            "font-family: monospace; padding: 4px; background-color: #f5f5f5; "
+            "border: 1px solid #ddd; border-radius: 3px; color: #444;"
         )
+        move_form.addRow("Ergebnis:", self.folder_naming_preview_label)
+        move_layout.addLayout(move_form)
 
+        move_hint = QLabel(
+            f"Beispiel für den Zielordner „{self._PREVIEW_FOLDER}“. "
+            "Ihre Initialen stellen Sie unter „Persönliche Daten“ ein."
+        )
+        move_hint.setWordWrap(True)
+        move_hint.setStyleSheet("color: #777; font-size: 11px;")
+        move_layout.addWidget(move_hint)
+
+        layout.addWidget(move_group)
         layout.addStretch()
+
+        self.folder_naming_prefix_radio.toggled.connect(self._on_folder_naming_mode_changed)
+        self.folder_naming_template_input.textChanged.connect(self._update_filename_previews)
+        self._on_folder_naming_mode_changed(False)
+        self._update_filename_previews()
         return tab
 
-    def _on_folder_naming_initials_edited(self, text: str):
-        """Initialen eingetippt -> Funktion einschalten (nur bei Nutzereingabe)."""
-        if text.strip() and not self.folder_naming_check.isChecked():
-            self.folder_naming_check.setChecked(True)
+    # -- Handler Dateinamen-Tab ------------------------------------------ #
 
-    def _on_pattern_choice_changed(self, button_id: int, checked: bool):
-        """Aktiviert/deaktiviert das Freitextfeld je nach Auswahl."""
-        if not checked:
+    def _on_pattern_preset_activated(self, index: int):
+        """Vorlage gewaehlt -> Muster-Feld befuellen ("Eigenes": Feld behalten)."""
+        from src.core.filename_placeholders import PRESETS
+        _name, pattern = PRESETS[index]
+        if pattern is None:
+            self.pattern_input.setFocus()
             return
-        is_custom = (button_id == len(self.PATTERN_PRESETS) + 1)
-        self.pattern_custom_input.setEnabled(is_custom)
+        self.pattern_input.setText(pattern)
+
+    def _on_pattern_text_changed(self, text: str):
+        self._sync_pattern_combo(text)
+        self._update_filename_previews()
+
+    def _sync_pattern_combo(self, text: str):
+        """Combo auf die passende Vorlage stellen, sonst auf "Eigenes"."""
+        from src.core.filename_placeholders import PRESETS
+        text = text.strip()
+        index = len(PRESETS) - 1
+        for i, (_name, pattern) in enumerate(PRESETS):
+            if pattern is not None and pattern == text:
+                index = i
+                break
+        self.pattern_preset_combo.blockSignals(True)
+        self.pattern_preset_combo.setCurrentIndex(index)
+        self.pattern_preset_combo.blockSignals(False)
+
+    def _insert_placeholder(self, key: str):
+        """Chip geklickt -> Platzhalter an der Cursorposition einfuegen."""
+        self.pattern_input.insert("{" + key + "}")
+        self.pattern_input.setFocus()
+
+    def _toggle_pattern_legend(self, checked: bool):
+        self.pattern_legend_label.setVisible(checked)
+        self.pattern_legend_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+        )
+
+    def _on_owner_name_changed(self, text: str):
+        """Abgeleitete Initialen als Platzhalter zeigen + Vorschau aktualisieren."""
+        from src.ml.llm_provider import derive_initials
+        derived = derive_initials(text)
+        self.owner_initials_input.setPlaceholderText(
+            f"{derived} (aus dem Namen)" if derived else "z.B. JW"
+        )
+        self._update_filename_previews()
+
+    def _current_initials(self) -> str:
+        """Initialen aus dem Feld, sonst aus dem Namen abgeleitet."""
+        initials_input = getattr(self, "owner_initials_input", None)
+        name_input = getattr(self, "owner_name_input", None)
+        if initials_input is not None and initials_input.text().strip():
+            return initials_input.text().strip().upper()
+        if name_input is not None:
+            from src.ml.llm_provider import derive_initials
+            return derive_initials(name_input.text())
+        return ""
+
+    def _update_filename_previews(self, *_):
+        """Live-Vorschau fuer KI-Muster und Verschiebe-Vorlage."""
+        from src.core.filename_placeholders import render_example
+        from src.utils.filename_sanitizer import find_problem_chars
+
+        pattern = self.pattern_input.text().strip()
+
+        problems = [c for c in find_problem_chars(pattern) if not c.isspace()]
+        if problems:
+            self.pattern_warning_label.setText(
+                "Im Dateinamen nicht erlaubt: " + " ".join(problems) + " – wird durch _ ersetzt"
+            )
+            self.pattern_warning_label.show()
+        else:
+            self.pattern_warning_label.hide()
+
+        initials = self._current_initials()
+        values = {"initialen": initials} if initials else None
+        if pattern:
+            self._ki_preview_name = render_example(pattern, values)
+            self.pattern_preview_label.setText(self._ki_preview_name or "(leer)")
+        else:
+            self._ki_preview_name = render_example(self._PREVIEW_DEFAULT_PATTERN, values)
+            self.pattern_preview_label.setText(
+                f"KI entscheidet selbst, z.B. {self._ki_preview_name}"
+            )
+        self._update_folder_naming_preview()
+
+    def _update_folder_naming_preview(self):
+        from datetime import date
+        from pathlib import PurePath
+        from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name
+
+        base = self._ki_preview_name or "Dokument.pdf"
+        if not self.folder_naming_prefix_radio.isChecked():
+            self.folder_naming_preview_label.setText(base)
+            return
+        template = self.folder_naming_template_input.text().strip() or DEFAULT_TEMPLATE
+        name = build_folder_based_name(
+            base,
+            PurePath(self._PREVIEW_FOLDER),
+            self._PREVIEW_RELATIVE_PATH,
+            template=template,
+            initials=self._current_initials(),
+            fallback_date=date(2024, 3, 12),
+        )
+        self.folder_naming_preview_label.setText(name)
+
+    def _on_folder_naming_mode_changed(self, _checked: bool):
+        enabled = self.folder_naming_prefix_radio.isChecked()
+        self.folder_naming_template_input.setEnabled(enabled)
+        self._update_folder_naming_preview()
+
+    def _preview_with_current_pdf(self):
+        """Vorschau mit den KI-Metadaten der aktuell ausgewaehlten PDF."""
+        from src.core.filename_placeholders import render_example
+
+        values = None
+        if self._example_values_provider is not None:
+            try:
+                values = self._example_values_provider()
+            except Exception:
+                values = None
+        if not values:
+            self.pattern_preview_label.setText(
+                "Keine PDF ausgewählt oder noch keine KI-Metadaten vorhanden."
+            )
+            return
+        pattern = self.pattern_input.text().strip() or self._PREVIEW_DEFAULT_PATTERN
+        initials = self._current_initials()
+        if initials:
+            values = {**values, "initialen": initials}
+        self.pattern_preview_label.setText(render_example(pattern, values) or "(leer)")
 
     def _create_personal_tab(self) -> QWidget:
         """Erstellt den Tab für persönliche Daten."""
@@ -397,6 +572,15 @@ class SettingsDialog(QDialog):
         self.owner_name_input.setPlaceholderText("z.B. Johannes Härle-Wack")
         self.owner_name_input.setToolTip("Ihr vollständiger Name")
         user_layout.addRow("Name:", self.owner_name_input)
+
+        self.owner_initials_input = QLineEdit()
+        self.owner_initials_input.setPlaceholderText("z.B. JW")
+        self.owner_initials_input.setMaximumWidth(80)
+        self.owner_initials_input.setToolTip(
+            "2-3 Großbuchstaben für den Platzhalter {initialen} in Dateinamen.\n"
+            "Leer = aus dem Namen abgeleitet."
+        )
+        user_layout.addRow("Initialen:", self.owner_initials_input)
 
         self.owner_variants_input = QLineEdit()
         self.owner_variants_input.setPlaceholderText("z.B. J. Härle-Wack, Härle-Wack")
@@ -1104,22 +1288,22 @@ class SettingsDialog(QDialog):
         self.owner_company_input.setText(self.config.get("owner_company", ""))
         self.owner_address_input.setText(self.config.get("owner_address", ""))
         self.owner_emails_input.setText(self.config.get("owner_emails", ""))
+        self.owner_initials_input.setText(self.config.get("owner_initials", ""))
+        self._on_owner_name_changed(self.owner_name_input.text())
 
-        # Dateinamen-Muster
-        self._load_filename_pattern()
-
-        # Dateiname aus Ordnerstruktur (Issue #42)
-        folder_naming_enabled = self.config.get("folder_naming_enabled", False)
-        self.folder_naming_check.setChecked(folder_naming_enabled)
-        self.folder_naming_initials_input.setText(
-            self.config.get("folder_naming_initials", "")
+        # Dateinamen-Muster (alte Grosswort-Schreibweise wird beim Anzeigen migriert)
+        from src.core.filename_placeholders import migrate_legacy_pattern
+        self.pattern_input.setText(
+            migrate_legacy_pattern(self.config.get("filename_pattern", "") or "")
         )
+
+        # Beim Verschieben (Issue #42)
+        if self.config.get("folder_naming_enabled", False):
+            self.folder_naming_prefix_radio.setChecked(True)
+        else:
+            self.folder_naming_keep_radio.setChecked(True)
         self.folder_naming_template_input.setText(
             self.config.get("folder_naming_template", "")
-        )
-        self.folder_naming_initials_input.setToolTip(
-            "Ihre Initialen fuer den Platzhalter {initialen}. Beim Eintippen "
-            "wird 'Dateinamen aus dem Zielordner-Pfad aufbauen' aktiviert."
         )
 
         # Cache-Einstellungen
@@ -1213,16 +1397,13 @@ class SettingsDialog(QDialog):
         self.config.set("owner_company", self.owner_company_input.text().strip())
         self.config.set("owner_address", self.owner_address_input.text().strip())
         self.config.set("owner_emails", self.owner_emails_input.text().strip())
+        self.config.set("owner_initials", self.owner_initials_input.text().strip().upper())
 
         # Dateinamen-Muster speichern
-        self.config.set("filename_pattern", self._collect_filename_pattern())
+        self.config.set("filename_pattern", self.pattern_input.text().strip())
 
-        # Dateiname aus Ordnerstruktur speichern (Issue #42)
-        self.config.set("folder_naming_enabled", self.folder_naming_check.isChecked())
-        self.config.set(
-            "folder_naming_initials",
-            self.folder_naming_initials_input.text().strip(),
-        )
+        # Beim Verschieben speichern (Issue #42)
+        self.config.set("folder_naming_enabled", self.folder_naming_prefix_radio.isChecked())
         template = self.folder_naming_template_input.text().strip()
         self.config.set(
             "folder_naming_template",
@@ -1281,38 +1462,6 @@ class SettingsDialog(QDialog):
                 "Explorer-Integration",
                 f"Die Aenderung konnte nicht angewendet werden:\n{e}"
             )
-
-    def _load_filename_pattern(self):
-        """Stellt die gespeicherte Pattern-Auswahl im Tab wieder her."""
-        saved = self.config.get("filename_pattern", "").strip()
-
-        if not saved:
-            self.pattern_radio_default.setChecked(True)
-            self.pattern_custom_input.setEnabled(False)
-            return
-
-        # Match gegen Presets
-        for radio, pattern in self.pattern_preset_radios:
-            if saved == pattern:
-                radio.setChecked(True)
-                self.pattern_custom_input.setEnabled(False)
-                return
-
-        # Sonst: Freitext
-        self.pattern_radio_custom.setChecked(True)
-        self.pattern_custom_input.setPlainText(saved)
-        self.pattern_custom_input.setEnabled(True)
-
-    def _collect_filename_pattern(self) -> str:
-        """Ermittelt den zu speichernden Pattern-String aus der UI-Auswahl."""
-        if self.pattern_radio_default.isChecked():
-            return ""
-        for radio, pattern in self.pattern_preset_radios:
-            if radio.isChecked():
-                return pattern
-        if self.pattern_radio_custom.isChecked():
-            return self.pattern_custom_input.toPlainText().strip()
-        return ""
 
     def _test_connection(self):
         """Testet die Verbindung zum LLM-Provider."""

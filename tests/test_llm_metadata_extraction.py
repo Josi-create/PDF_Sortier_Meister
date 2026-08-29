@@ -128,34 +128,36 @@ class _CfgStub:
 def test_pattern_info_explains_initials_and_uses_configured_ones(provider, monkeypatch):
     import src.utils.config as cfg
     monkeypatch.setattr(cfg, "get_config", lambda: _CfgStub(
-        filename_pattern="PROJEKTNUMMER_INITIALIEN/AKTENZEICHEN_YYYY-MM-DD_Betreff_Kontakt",
-        folder_naming_initials="JW",
+        filename_pattern="{initialen}_{aktenzeichen}_{datum}_{betreff}_{kontakt}",
+        owner_initials="JW",
         owner_name="Johannes Haerle-Wack",
     ))
     info = provider._build_filename_pattern_info()
-    assert "2-3 Großbuchstaben" in info
+    assert "2-3 Grossbuchstaben" in info
     assert "NIE ein ausgeschriebener Name" in info
     assert "Verwende genau: JW" in info
+    assert "Beispiel-Ergebnis: JW_AZ-4711_2024-03-12_Arbeitsuchendmeldung_Agentur-fuer-Arbeit.pdf" in info
 
 
 def test_pattern_info_derives_initials_from_owner_name(provider, monkeypatch):
     import src.utils.config as cfg
     monkeypatch.setattr(cfg, "get_config", lambda: _CfgStub(
-        filename_pattern="INITIALEN_YYYY-MM-DD_Betreff",
-        folder_naming_initials="",
+        filename_pattern="{initialen}_{datum}_{betreff}",
+        owner_initials="",
         owner_name="Dr. med. Johannes Härle-Wack",
     ))
     assert "Verwende genau: JHW" in provider._build_filename_pattern_info()
 
 
-def test_pattern_info_without_initials_placeholder_has_no_hint(provider, monkeypatch):
+def test_pattern_info_migrates_legacy_pattern_on_the_fly(provider, monkeypatch):
     import src.utils.config as cfg
     monkeypatch.setattr(cfg, "get_config", lambda: _CfgStub(
         filename_pattern="YYYY-MM-DD_Rechnung_Kontakt_Betreff",
-        folder_naming_initials="JW",
+        owner_initials="JW",
     ))
     info = provider._build_filename_pattern_info()
-    assert "YYYY-MM-DD_Rechnung_Kontakt_Betreff" in info
+    assert "    {datum}_{kategorie}_{kontakt}_{betreff}" in info
+    assert "- {kontakt}:" in info
     assert "INITIAL" not in info
 
 

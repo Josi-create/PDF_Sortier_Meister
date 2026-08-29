@@ -2,7 +2,9 @@
 
 Ziel: Ein Dateiname enthaelt ausser der Endung ``.pdf`` keine Zeichen, die
 auf Windows/macOS/Linux verboten sind oder in der Praxis Aerger machen
-(Punkt, Klammeraffe, Leerzeichen, Umlaute).
+(Punkt, Klammeraffe, Umlaute). Leerzeichen sind erlaubt - Anwender mit
+Bestandssystemen ("JK 069-01-01-20260512-Rechnung") brauchen sie; nur
+Mehrfach-Leerzeichen und Leerzeichen neben ``_``/``-`` werden entfernt.
 
 Die Funktion ist idempotent: ``sanitize_filename(sanitize_filename(x)) ==
 sanitize_filename(x)``.
@@ -54,6 +56,8 @@ _FREEMAIL_DOMAINS = {
     "protonmail", "proton", "arcor", "online", "email", "ymail", "msn",
 }
 _MULTI_UNDERSCORE_RE = re.compile(r"_{2,}")
+_MULTI_SPACE_RE = re.compile(r" {2,}")
+_SPACE_AROUND_SEP_RE = re.compile(r" *([_-]) *")
 _UNDERSCORE_AROUND_DASH_RE = re.compile(r"_?-_?")
 
 
@@ -120,7 +124,7 @@ def find_problem_chars(name: str) -> list[str]:
             continue
         if ch in INVALID_FILENAME_CHARS or ch in DISCOURAGED_FILENAME_CHARS:
             found.append(ch)
-        elif ch.isspace() or ord(ch) < 32 or ch == "\x7f":
+        elif (ch.isspace() and ch != " ") or ord(ch) < 32 or ch == "\x7f":
             found.append(ch)
     return found
 
@@ -133,10 +137,11 @@ def sanitize_filename(name: str, ensure_pdf: bool = True) -> str:
        E-Mail-Adressen durch den ableitbaren Namen ersetzen
        (``kathrin.haerle@web.de`` -> ``Kathrin_Haerle``).
     2. Umlaute/ß nach ae/oe/ue/ss; sonstige Akzente entfernen (é -> e).
-    3. Verbotene Zeichen (``<>:"/\\|?*``), Steuerzeichen, Whitespace sowie
-       ``.`` und ``@`` durch ``_`` ersetzen.
-    4. Mehrfache Unterstriche zusammenfassen, Unterstriche um Bindestriche
-       entfernen, fuehrende/abschliessende ``_``/``-`` abschneiden.
+    3. Verbotene Zeichen (``<>:"/\\|?*``), Steuerzeichen, Tabs/Umbrueche
+       sowie ``.`` und ``@`` durch ``_`` ersetzen. Leerzeichen bleiben.
+    4. Mehrfache Unterstriche/Leerzeichen zusammenfassen, Leerzeichen und
+       Unterstriche um ``-`` entfernen, fuehrende/abschliessende ``_``/``-``
+       abschneiden.
     5. Reservierte Windows-Namen (CON, NUL, ...) mit ``_`` entschaerfen.
 
     Args:
@@ -164,7 +169,7 @@ def sanitize_filename(name: str, ensure_pdf: bool = True) -> str:
         if (
             ch in INVALID_FILENAME_CHARS
             or ch in DISCOURAGED_FILENAME_CHARS
-            or ch.isspace()
+            or (ch.isspace() and ch != " ")
             or ord(ch) < 32
             or ch == "\x7f"
         ):
@@ -173,9 +178,11 @@ def sanitize_filename(name: str, ensure_pdf: bool = True) -> str:
             cleaned.append(ch)
     stem = "".join(cleaned)
 
+    stem = _MULTI_SPACE_RE.sub(" ", stem)
+    stem = _SPACE_AROUND_SEP_RE.sub(r"\1", stem)
     stem = _MULTI_UNDERSCORE_RE.sub("_", stem)
     stem = _UNDERSCORE_AROUND_DASH_RE.sub("-", stem)
-    stem = stem.strip("_-")
+    stem = stem.strip("_- ")
 
     if stem.upper() in _RESERVED_NAMES:
         stem = f"{stem}_"

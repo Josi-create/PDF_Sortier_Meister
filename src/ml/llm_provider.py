@@ -424,7 +424,8 @@ DOKUMENTINHALT:
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
-2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute/Leerzeichen.
+2. Nur Buchstaben, Zahlen, Unterstriche und Bindestriche verwenden. Keine Umlaute.
+   Leerzeichen nur dort, wo das Muster eines vorgibt.
    Kein Punkt ausser vor .pdf, kein @-Zeichen: keine E-Mail-Adressen, URLs oder Versionsnummern wie 1.2.
 3. Maximal 80 Zeichen (ohne .pdf).
 4. Datum aus dem Dokument verwenden! Wenn kein Datum vorhanden, nutze das Scandatum.
@@ -452,17 +453,16 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 }}"""
 
     def _build_filename_pattern_info(self) -> str:
-        """Erstellt einen Hinweis-Abschnitt fuer den Filename-Prompt.
+        """Erstellt den Muster-Abschnitt fuer den Filename-Prompt.
 
-        Enthaelt das Muster und - falls es Initialen verlangt - was damit
-        gemeint ist. Ohne diesen Hinweis hat die KI "INITIALIEN" mit
-        "J_Haerle-Wack" statt "JHW" gefuellt.
+        Platzhalter-Bedeutungen kommen aus src.core.filename_placeholders,
+        damit KI und Einstellungen dieselbe Sprache sprechen.
         """
         try:
             from src.utils.config import get_config
             config = get_config()
-            pattern = config.get("filename_pattern", "").strip()
-            initials = (config.get("folder_naming_initials", "") or "").strip()
+            pattern = (config.get("filename_pattern", "") or "").strip()
+            initials = (config.get("owner_initials", "") or "").strip()
             owner_name = (config.get("owner_name", "") or "").strip()
         except Exception:
             return ""
@@ -470,23 +470,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         if not pattern:
             return ""
 
-        lines = [
-            "\nBENUTZERDEFINIERTES DATEINAMEN-MUSTER:",
-            f"    {pattern}",
-            "Nutze dieses Muster als Strukturvorlage für den Dateinamen.",
-        ]
-
-        if "INITIAL" in pattern.upper():
-            initials = initials or derive_initials(owner_name)
-            hint = (
-                "INITIALEN/INITIALIEN sind 2-3 Großbuchstaben (Anfangsbuchstaben von "
-                "Vor- und Nachname des Dokumentbesitzers), NIE ein ausgeschriebener Name."
-            )
-            if initials:
-                hint += f" Verwende genau: {initials}"
-            lines.append(hint)
-
-        return "\n".join(lines) + "\n"
+        from src.core.filename_placeholders import describe_for_prompt, migrate_legacy_pattern
+        pattern = migrate_legacy_pattern(pattern)
+        return describe_for_prompt(pattern, initials or derive_initials(owner_name))
 
     def _build_owner_info(self) -> str:
         """Erstellt den Benutzer-Identitäts-Abschnitt für den Prompt."""
