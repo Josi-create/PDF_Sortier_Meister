@@ -222,11 +222,6 @@ class SettingsDialog(QDialog):
         self.temperature_spin.setValue(0.3)
         advanced_layout.addRow("Temperatur:", self.temperature_spin)
 
-        self.auto_use_check = QCheckBox(
-            "Automatisch bei niedriger lokaler Konfidenz verwenden"
-        )
-        advanced_layout.addRow("Auto-LLM:", self.auto_use_check)
-
         self.text_limit_spin = QSpinBox()
         self.text_limit_spin.setRange(500, 5000)
         self.text_limit_spin.setValue(1500)
@@ -240,15 +235,6 @@ class SettingsDialog(QDialog):
         advanced_layout.addRow("Text-Limit:", self.text_limit_spin)
 
         layout.addWidget(advanced_group)
-
-        # Info-Label
-        info_label = QLabel(
-            "<i>Hinweis: Die LLM-Nutzung verursacht API-Kosten. "
-            "Das lokale TF-IDF-System funktioniert auch ohne LLM.</i>"
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: gray;")
-        layout.addWidget(info_label)
 
         layout.addStretch()
 
@@ -1274,7 +1260,6 @@ class SettingsDialog(QDialog):
 
         self.max_tokens_spin.setValue(llm_config.get("max_tokens", 2000))
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
-        self.auto_use_check.setChecked(llm_config.get("auto_use", False))
         self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
         self.cloud_consent_check.setChecked(llm_config.get("cloud_consent", False))
 
@@ -1357,7 +1342,6 @@ class SettingsDialog(QDialog):
             "model": model,
             "max_tokens": self.max_tokens_spin.value(),
             "temperature": self.temperature_spin.value(),
-            "auto_use": self.auto_use_check.isChecked(),
             "text_limit": self.text_limit_spin.value(),
             "base_url": self.base_url_input.text().strip(),
             "cloud_consent": self.cloud_consent_check.isChecked(),

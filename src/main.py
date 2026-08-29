@@ -98,6 +98,17 @@ def main():
         logger.info("Laufende Instanz benachrichtigt, beende Zweitstart.")
         sys.exit(0)
 
+    # Vorgemerkte Wiederherstellung (Extras > Daten wiederherstellen, Issue #98)
+    # einspielen, BEVOR Config und Datenbanken geoeffnet werden.
+    try:
+        from src.utils.backup import apply_pending_restore
+        from src.utils.platform_paths import get_app_data_dir
+        restored = apply_pending_restore(get_app_data_dir())
+        if restored:
+            logger.info(f"Sicherung eingespielt: {', '.join(restored)}")
+    except Exception as e:
+        logger.error(f"Wiederherstellung der Sicherung fehlgeschlagen: {e}")
+
     # Launcher-Skript fuer das Explorer-Kontextmenue aktualisieren.
     # Das passiert bei jedem Start, damit der Registry-Eintrag stets auf
     # die aktuell verwendete .exe bzw. python-Installation zeigt.
