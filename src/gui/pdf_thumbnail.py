@@ -59,10 +59,18 @@ class PDFThumbnailWidget(QFrame):
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
+    _BASE_TOOLTIP = (
+        "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
+        "Doppelklick öffnet die PDF im Standardprogramm."
+    )
+    AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
+
     def __init__(self, pdf_path: Path, parent=None):
         super().__init__(parent)
         self.pdf_path = pdf_path
         self._selected = False
+        self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
 
@@ -80,11 +88,7 @@ class PDFThumbnailWidget(QFrame):
         # Hover-Effekt
         self.setMouseTracking(True)
         self._update_style()
-        self.setToolTip(
-            "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
-            "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
-            "Doppelklick öffnet die PDF im Standardprogramm."
-        )
+        self.setToolTip(self._BASE_TOOLTIP)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -142,17 +146,41 @@ class PDFThumbnailWidget(QFrame):
         )
         self.thumbnail_ready.emit()  # Auch bei Fehler Signal senden
 
+    # Farben fuer "KI-Vorschlag vorhanden" (Issue #81)
+    AI_BACKGROUND = "#e6f4e6"
+    AI_BORDER = "#7cc47f"
+
     def _update_style(self):
-        """Aktualisiert den Style basierend auf dem Auswahlstatus."""
+        """Aktualisiert den Style: Auswahl (blau) vor KI-Markierung (grün)."""
         if self._selected:
             self.setStyleSheet(
                 "PDFThumbnailWidget { background-color: #cce5ff; border: 2px solid #0066cc; border-radius: 5px; }"
+            )
+        elif self._has_ai_suggestion:
+            self.setStyleSheet(
+                f"PDFThumbnailWidget {{ background-color: {self.AI_BACKGROUND}; "
+                f"border: 1px solid {self.AI_BORDER}; border-radius: 5px; }}"
+                "PDFThumbnailWidget:hover { background-color: #d5ecd6; border: 1px solid #5cb860; }"
             )
         else:
             self.setStyleSheet(
                 "PDFThumbnailWidget { background-color: white; border: 1px solid #ccc; border-radius: 5px; }"
                 "PDFThumbnailWidget:hover { background-color: #f0f7ff; border: 1px solid #99c2ff; }"
             )
+
+    @property
+    def has_ai_suggestion(self) -> bool:
+        """True, wenn fuer diese PDF ein KI-Vorschlag vorliegt (gruene Kachel)."""
+        return self._has_ai_suggestion
+
+    @has_ai_suggestion.setter
+    def has_ai_suggestion(self, value: bool):
+        value = bool(value)
+        if value == self._has_ai_suggestion:
+            return
+        self._has_ai_suggestion = value
+        self.setToolTip(self._BASE_TOOLTIP + (self.AI_TOOLTIP_SUFFIX if value else ""))
+        self._update_style()
 
     @property
     def selected(self) -> bool:

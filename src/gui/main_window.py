@@ -687,6 +687,8 @@ class MainWindow(QMainWindow):
             widget.merge_requested.connect(self.on_pdf_merge)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
+            # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
+            widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
 
             row = (i + tile_offset) // self._grid_cols
             col = (i + tile_offset) % self._grid_cols
@@ -788,7 +790,15 @@ class MainWindow(QMainWindow):
         """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
         self._clear_llm_error_if_recovered(pdf_path)
         self._update_cache_status()
+        self._mark_thumbnail_ai_suggestion(pdf_path)
         self._refresh_detail_panel_after_llm(pdf_path)
+
+    def _mark_thumbnail_ai_suggestion(self, pdf_path: Path):
+        """Hinterlegt die Kachel der PDF gruen, sobald ein KI-Vorschlag da ist (Issue #81)."""
+        for widget in self.pdf_widgets:
+            if widget.pdf_path == pdf_path:
+                widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
+                break
 
     def _clear_llm_error_if_recovered(self, pdf_path: Path):
         """Setzt „KI-Fehler“ zurück, wenn der Fehler behoben ist.
@@ -4041,23 +4051,12 @@ class MainWindow(QMainWindow):
         in den Einstellungen ("Mit aktueller PDF"). None = keine PDF gewaehlt."""
         if not self.detail_panel.get_current_pdf():
             return None
-        md = self.detail_panel.get_metadata() or {}
-        values = {}
+        from src.core.filename_placeholders import placeholder_values_from_metadata
         doc_date = coerce_date(self.selected_pdf_dates[0]) if self.selected_pdf_dates else None
-        if doc_date:
-            values["datum"] = doc_date.isoformat()
-            values["jahr"] = str(doc_date.year)
-        if md.get("steuerjahr"):
-            values.setdefault("jahr", str(md["steuerjahr"]))
-        if md.get("korrespondent"):
-            values["kontakt"] = str(md["korrespondent"])
-        category = md.get("subject") or md.get("category")
-        if category:
-            values["kategorie"] = str(category)
-        if md.get("beschreibung"):
-            values["betreff"] = " ".join(str(md["beschreibung"]).split()[:4])
-        if md.get("betrag_brutto"):
-            values["betrag"] = f"{md['betrag_brutto']} {md.get('waehrung', 'EUR')}"
+        values = placeholder_values_from_metadata(
+            self.detail_panel.get_metadata(),
+            doc_date.isoformat() if doc_date else None,
+        )
         return values or None
 
     def _on_settings_changed(self):

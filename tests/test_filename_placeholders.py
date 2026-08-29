@@ -110,3 +110,98 @@ def test_render_example_keeps_pattern_spaces_and_derives_compact_date():
 def test_prompt_example_shows_space_from_pattern():
     text = describe_for_prompt("{initialen} {datum}-{betreff}", initials="JK")
     assert "Beispiel-Ergebnis: JK 2024-03-12-Arbeitsuchendmeldung.pdf" in text
+
+
+# --------------------------------------------------------------------- #
+# Issue #99: Rendern mit echten Werten + Metadaten-Zuordnung + Auswahlliste
+# --------------------------------------------------------------------- #
+
+from src.core.filename_placeholders import (  # noqa: E402
+    PATTERN_CHOICE_SETTINGS,
+    pattern_choices,
+    placeholder_values_from_metadata,
+    render_with_values,
+)
+
+
+def test_render_with_values_uses_only_real_values():
+    name = render_with_values(
+        "{datum}_{kategorie}_{kontakt}_{betreff}",
+        {"datum": "2024-01-31", "kategorie": "Rechnung", "kontakt": "Testfirma GmbH",
+         "betreff": "Beratung im Maerz"},
+    )
+    assert name == "2024-01-31_Rechnung_Testfirma-GmbH_Beratung-im-Maerz.pdf"
+
+
+@pytest.mark.parametrize(
+    "pattern, values, expected",
+    [
+        # Fehlender Wert am Ende: Trennzeichen davor faellt weg
+        ("{datum}_{kontakt}_{betreff}", {"datum": "2024-01-31", "kontakt": "Firma"},
+         "2024-01-31_Firma.pdf"),
+        # Fehlender Wert in der Mitte
+        ("{datum}_{kategorie}_{kontakt}", {"datum": "2024-01-31", "kontakt": "Firma"},
+         "2024-01-31_Firma.pdf"),
+        # Fehlender Wert am Anfang: Trennzeichen danach faellt weg
+        ("{initialen} {datum}-{betreff}", {"datum": "2024-01-31", "betreff": "Miete"},
+         "2024-01-31-Miete.pdf"),
+        # Abgeleitete Datumsformen
+        ("{jahr}_{datum_kompakt}", {"datum": "2024-01-31"}, "2024_20240131.pdf"),
+        # Unbekannter Platzhalter ohne Wert wird NICHT als Bezeichnung eingesetzt
+        ("{datum}_{lieferant}", {"datum": "2024-01-31"}, "2024-01-31.pdf"),
+    ],
+)
+def test_render_with_values_drops_missing_placeholders(pattern, values, expected):
+    assert render_with_values(pattern, values) == expected
+
+
+def test_render_with_values_without_any_value_is_empty():
+    assert render_with_values("{datum}_{kontakt}", {}) == ""
+    assert render_with_values("{datum}_{kontakt}", None) == ""
+    assert render_with_values("{datum}_{kontakt}", {"betreff": "x"}) == ""
+    assert render_with_values("", {"datum": "2024-01-31"}) == ""
+
+
+def test_placeholder_values_from_metadata_maps_canonical_keys():
+    values = placeholder_values_from_metadata(
+        {
+            "korrespondent": "Testfirma GmbH",
+            "subject": "Rechnung",
+            "description": "Rechnung fuer Beratung im Maerz 2024 inkl. Fahrtkosten",
+            "betrag_brutto": "123,45",
+            "waehrung": "EUR",
+            "steuerjahr": "2024",
+        },
+        doc_date="2024-01-31",
+        initials="JW",
+    )
+    assert values == {
+        "datum": "2024-01-31",
+        "jahr": "2024",
+        "kontakt": "Testfirma GmbH",
+        "kategorie": "Rechnung",
+        "betreff": "Rechnung fuer Beratung im",
+        "betrag": "123,45 EUR",
+        "initialen": "JW",
+    }
+
+
+def test_placeholder_values_from_metadata_accepts_legacy_keys_and_empty():
+    assert placeholder_values_from_metadata(None) == {}
+    values = placeholder_values_from_metadata({"beschreibung": "Mietvertrag Wohnung", "category": "Vertrag"})
+    assert values == {"betreff": "Mietvertrag Wohnung", "kategorie": "Vertrag"}
+
+
+def test_pattern_choices_presets_and_custom_settings_pattern():
+    choices = pattern_choices("")
+    assert choices[0] == PRESETS[0]
+    assert all(pattern is not None for _n, pattern in choices)
+    assert [p for _n, p in choices[1:]] == [p for _n, p in PRESETS[1:] if p]
+
+    # Muster aus den Einstellungen, das keiner Vorlage entspricht -> eigener Eintrag
+    custom = pattern_choices("{datum}_{lieferant}")
+    assert custom[1] == (PATTERN_CHOICE_SETTINGS, "{datum}_{lieferant}")
+    # Vorlagen-Muster in den Einstellungen -> kein Doppel-Eintrag
+    assert pattern_choices("{datum}_{kategorie}_{kontakt}_{betreff}") == choices
+    # Altes Grosswort-Muster wird zuerst migriert
+    assert pattern_choices("YYYY-MM-DD_Rechnung_Kontakt_Betreff") == choices

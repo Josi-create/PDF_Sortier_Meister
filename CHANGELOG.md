@@ -7,6 +7,26 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Muster-Vorschlaege im Detail-Panel** (#99): Unter der Vorschlagsliste
+  gibt es eine Auswahl „Muster“. Der Dateiname nach dem Muster aus
+  *Einstellungen > Dateinamen* erscheint als eigener (hellblauer) Vorschlag,
+  gebildet aus den Metadaten der ausgewaehlten PDF (Korrespondent, Kategorie,
+  Zusammenfassung, Datum, Betrag, Initialen). Ueber die Auswahl laesst sich
+  zwischen den Vorlagen und dem eigenen Muster umschalten; die Wahl uebernimmt
+  den Namen ins Feld „Neuer Dateiname“. Platzhalter ohne Wert fallen samt
+  Trennzeichen weg - es werden keine Beispielwerte eingesetzt.
+- **Gruene Kacheln fuer PDFs mit KI-Vorschlag** (#81): Sobald fuer eine PDF
+  ein KI-Vorschlag vorliegt (Hintergrund-Abruf, Cache vom letzten Start oder
+  manueller KI-Aufruf im Detail-Panel), wird ihre Kachel im Scan-Ordner gruen
+  hinterlegt; der Tooltip nennt den Grund. Die Auswahl (blau) bleibt sichtbar.
+
+### Behoben
+- Die Muster-Vorschau „Mit aktueller PDF“ in den Einstellungen las die
+  Zusammenfassung unter dem alten Schluessel `beschreibung` und fuellte
+  `{betreff}` deshalb nie; jetzt teilt sie sich die Zuordnung mit den
+  Muster-Vorschlaegen im Detail-Panel.
+
 ## [0.21.0] - 2026-08-29
 
 ### Geaendert
