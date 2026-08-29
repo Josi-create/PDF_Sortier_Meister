@@ -7,6 +7,27 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geaendert
+- **Einstellungen > Dateinamen** neu aufgebaut: Vorlage als Auswahlliste,
+  die das Muster-Feld befuellt (Tippen schaltet auf „Eigenes Muster“),
+  Platzhalter-Chips zum Anklicken, aufklappbare Legende und eine
+  **Live-Vorschau** mit Beispieldokument bzw. „Mit aktueller PDF“ (nutzt
+  die KI-Metadaten der ausgewaehlten Datei). Eine Platzhalter-Syntax fuer
+  alles: `{datum}`, `{kontakt}`, `{betreff}`, `{kategorie}`, `{initialen}`,
+  `{aktenzeichen}`, `{projekt}`, `{betrag}`, `{jahr}`; eigene Platzhalter
+  wie `{lieferant}` fuellt die KI nach der Bezeichnung. Alte Muster in
+  Grosswort-Schreibweise (`YYYY-MM-DD_Kontakt_Betreff`) werden beim Laden
+  automatisch umgestellt. Der KI-Prompt bekommt die Bedeutung jedes
+  Platzhalters plus ein gerendertes Beispiel-Ergebnis.
+- **„Beim Verschieben in einen Ordner“** ist jetzt ein Modus (Namen
+  beibehalten / Ordnernummer voranstellen) mit eigener Ergebnis-Vorschau -
+  vorher war nicht erkennbar, dass diese Funktion den KI-Namen ueberschreibt.
+- **Initialen** stehen unter „Persoenliche Daten“ neben dem Namen
+  (Config-Schluessel `owner_initials`, wird aus `folder_naming_initials`
+  uebernommen); leer = aus dem Namen abgeleitet. Das Eintippen schaltet die
+  Ordner-Benennung nicht mehr heimlich ein. „Verbindung testen“ erscheint
+  nur noch auf dem KI-Tab; Tab „Persoenliche Daten“ steht vor „Dateinamen“.
+
 ### Behoben
 - **Dateinamen ohne verbotene/unguenstige Zeichen**: KI-Vorschlaege wie
   `..._kathrin.haerle@web.de.pdf` enthielten Punkte und Klammeraffen.

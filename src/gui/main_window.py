@@ -1896,7 +1896,7 @@ class MainWindow(QMainWindow):
                     folder_path,
                     relative_path,
                     template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
-                    initials=self.config.get("folder_naming_initials", ""),
+                    initials=self.config.get("owner_initials", ""),
                     fallback_date=fallback_date,
                 )
 
@@ -4032,9 +4032,33 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         """Öffnet den Einstellungsdialog."""
-        dialog = SettingsDialog(self)
+        dialog = SettingsDialog(self, example_values_provider=self._settings_example_values)
         dialog.settings_changed.connect(self._on_settings_changed)
         dialog.exec()
+
+    def _settings_example_values(self):
+        """Platzhalter-Werte der ausgewaehlten PDF fuer die Muster-Vorschau
+        in den Einstellungen ("Mit aktueller PDF"). None = keine PDF gewaehlt."""
+        if not self.detail_panel.get_current_pdf():
+            return None
+        md = self.detail_panel.get_metadata() or {}
+        values = {}
+        doc_date = coerce_date(self.selected_pdf_dates[0]) if self.selected_pdf_dates else None
+        if doc_date:
+            values["datum"] = doc_date.isoformat()
+            values["jahr"] = str(doc_date.year)
+        if md.get("steuerjahr"):
+            values.setdefault("jahr", str(md["steuerjahr"]))
+        if md.get("korrespondent"):
+            values["kontakt"] = str(md["korrespondent"])
+        category = md.get("subject") or md.get("category")
+        if category:
+            values["kategorie"] = str(category)
+        if md.get("beschreibung"):
+            values["betreff"] = " ".join(str(md["beschreibung"]).split()[:4])
+        if md.get("betrag_brutto"):
+            values["betrag"] = f"{md['betrag_brutto']} {md.get('waehrung', 'EUR')}"
+        return values or None
 
     def _on_settings_changed(self):
         """Wird aufgerufen wenn Einstellungen geändert wurden."""

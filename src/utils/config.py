@@ -62,13 +62,13 @@ class Config:
         "owner_company": "",        # Eigene Firma (falls vorhanden)
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
         "owner_emails": "",         # Eigene E-Mail-Adressen (kommagetrennt)
+        "owner_initials": "",       # z.B. "JW" - fuer {initialen} in Dateinamen
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",
         # Dateiname aus Ordnerstruktur beim Verschieben (Issue #42), Opt-in.
         "folder_naming_enabled": False,
         "folder_naming_template": "{initialen} {ordnernummern}-{datum}-{text}",
-        "folder_naming_initials": "",
         # LLM-Konfiguration
         "llm": {
             # Gueltige Werte: "none", "claude", "openai", "poe",
@@ -142,15 +142,35 @@ class Config:
 
     def _migrate(self) -> None:
         """Hebt veraltete Werte aus aelteren Versionen an."""
+        changed = False
+
         llm = self._config.get("llm")
-        if not isinstance(llm, dict):
-            return
-        if llm.get("max_tokens") == self.LEGACY_MAX_TOKENS:
+        if isinstance(llm, dict) and llm.get("max_tokens") == self.LEGACY_MAX_TOKENS:
             llm["max_tokens"] = self.DEFAULTS["llm"]["max_tokens"]
             logger.info(
                 f"Konfiguration: llm.max_tokens {self.LEGACY_MAX_TOKENS} -> "
                 f"{llm['max_tokens']} angehoben (alter Default, zu klein fuer Reasoning-Modelle)"
             )
+            changed = True
+
+        # Initialen (bis 0.21 unter "folder_naming_initials") -> owner_initials
+        legacy_initials = (self._config.pop("folder_naming_initials", "") or "").strip()
+        if legacy_initials and not self._config.get("owner_initials"):
+            self._config["owner_initials"] = legacy_initials
+            logger.info("Konfiguration: folder_naming_initials -> owner_initials uebernommen")
+            changed = True
+
+        # Dateinamen-Muster: Grosswort-Schreibweise -> {platzhalter}-Syntax
+        pattern = self._config.get("filename_pattern", "") or ""
+        if pattern:
+            from src.core.filename_placeholders import migrate_legacy_pattern
+            migrated = migrate_legacy_pattern(pattern)
+            if migrated != pattern:
+                self._config["filename_pattern"] = migrated
+                logger.info(f"Konfiguration: filename_pattern '{pattern}' -> '{migrated}'")
+                changed = True
+
+        if changed:
             self.save()
 
     def save(self) -> None:

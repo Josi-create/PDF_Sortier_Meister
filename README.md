@@ -74,7 +74,7 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 ### Umbenennen mit Verstand
 - Vorschläge aus erkanntem **Datum** (12.03.2026, „März 2026“, ISO), **Kategorie** (Rechnung, Vertrag,
   Versicherung, Bank, Gehalt, Steuer …), **Absender** und den eigenen bisherigen Umbenennungen
-- Eigenes **Dateinamen-Muster** vorgeben, das die KI imitiert (`F2` öffnet den Dialog)
+- Eigenes **Dateinamen-Muster** mit Platzhaltern (`{datum}_{kontakt}_{betreff}`) und Live-Vorschau vorgeben, das die KI ausfüllt (`F2` öffnet den Dialog)
 - **PDF trennen**: alle Seiten einzeln oder einen Seitenbereich extrahieren
 
 ### Metadaten in der PDF, nicht in einer Datenbank
