@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-29
+
 ### Neu
 - **Muster-Vorschlaege im Detail-Panel** (#99): Unter der Vorschlagsliste
   gibt es eine Auswahl „Muster“. Der Dateiname nach dem Muster aus
@@ -20,7 +22,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ein KI-Vorschlag vorliegt (Hintergrund-Abruf, Cache vom letzten Start oder
   manueller KI-Aufruf im Detail-Panel), wird ihre Kachel im Scan-Ordner gruen
   hinterlegt; der Tooltip nennt den Grund. Die Auswahl (blau) bleibt sichtbar.
-
 - **Daten sichern und wiederherstellen** (#98): *Extras > Daten sichern
   (ZIP)…* packt Datenbank (Verlauf, Suchindex/RAG, Korrespondenten, Regeln),
   KI-Cache, ML-Modell und Einstellungen in ein ZIP - SQLite-Dateien als
