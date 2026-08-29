@@ -12,7 +12,7 @@ from typing import Optional
 import time
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
+    QComboBox,
     QGridLayout,
     QSplitter,
 )
@@ -124,6 +125,13 @@ class DetailPanel(QWidget):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
         self._suggestions: list[RenameSuggestion] = []
+        # Tatsaechlich angezeigte Liste: _suggestions + Muster-Vorschlag (#99)
+        self._displayed_suggestions: list[RenameSuggestion] = []
+        self._detected_date: Optional[str] = None
+        # Muster-Umschaltung (Issue #99): (Bezeichnung, Muster) je Combo-Eintrag;
+        # _pattern_config merkt sich das zuletzt gelesene Einstellungs-Muster
+        self._pattern_choices: list[tuple[str, str]] = []
+        self._pattern_config: Optional[str] = None
         self._metadata: dict = {}
         self._has_learned_overrides: bool = False
         # Quelle der aktuell angezeigten Metadaten: "pdf", "llm", "user", None
@@ -205,6 +213,29 @@ class DetailPanel(QWidget):
         )
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
         suggestions_layout.addWidget(self.suggestions_list)
+
+        # Muster-Umschaltung (Issue #99): Dateiname nach dem Muster aus
+        # Einstellungen > Dateinamen (oder einer anderen Vorlage), gerendert
+        # aus den Metadaten dieses Dokuments
+        pattern_row = QHBoxLayout()
+        pattern_row.setSpacing(4)
+        pattern_label = QLabel("Muster:")
+        pattern_label.setStyleSheet("color: #555; font-size: 10px;")
+        pattern_row.addWidget(pattern_label)
+        self.pattern_combo = QComboBox()
+        self.pattern_combo.setStyleSheet("font-size: 10px;")
+        self.pattern_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.pattern_combo.setMinimumContentsLength(18)
+        self.pattern_combo.setToolTip(
+            "Dateinamen-Muster aus Einstellungen > Dateinamen.\n"
+            "Umschalten zeigt den Namen nach dem gewählten Muster als Vorschlag\n"
+            "und übernimmt ihn ins Feld „Neuer Dateiname“."
+        )
+        self.pattern_combo.activated.connect(self._on_pattern_combo_activated)
+        pattern_row.addWidget(self.pattern_combo, 1)
+        suggestions_layout.addLayout(pattern_row)
 
         detail_layout.addWidget(suggestions_group)
 
@@ -458,6 +489,7 @@ class DetailPanel(QWidget):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
         self._current_pdf = pdf_path
         self._suggestions = suggestions or []
+        self._detected_date = detected_date
         self._has_learned_overrides = False
 
         # Header
@@ -466,8 +498,8 @@ class DetailPanel(QWidget):
         # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
         self.preview.load_pdf(pdf_path)
 
-        # Vorschläge befüllen
-        self._populate_suggestions()
+        # Muster-Auswahl an die Einstellungen angleichen (falls dort geaendert)
+        self._load_pattern_choices()
 
         # Metadaten vorbefüllen
         self._metadata = {}
@@ -517,6 +549,10 @@ class DetailPanel(QWidget):
                 self._metadata_source = "llm"
             else:
                 self._metadata_source = None
+
+        # Vorschläge befüllen (nach den Metadaten: der Muster-Vorschlag
+        # rendert aus den Feldern)
+        self._populate_suggestions()
 
         # GroupBox-Titel
         if self._has_learned_overrides:
@@ -691,6 +727,7 @@ class DetailPanel(QWidget):
         self._apply_pdf_metadata(pdf_meta)
         if self._saved_metadata_snapshot:
             self.metadata_group.setTitle("Metadaten (aus PDF gelesen, werden in PDF gespeichert)")
+            self._populate_suggestions()  # Muster-Vorschlag mit den PDF-Werten
 
     def load_metadata_from_pdf(self, pdf_path: Path):
         """Liest XMP-Metadaten synchron aus der PDF und befüllt die Felder (Tests/Sonderfaelle)."""
@@ -844,16 +881,27 @@ class DetailPanel(QWidget):
     # === Interne Methoden ===
 
     def _populate_suggestions(self):
-        """Füllt die Vorschlagsliste."""
+        """Füllt die Vorschlagsliste (KI-Vorschläge, Muster-Vorschlag, Rest)."""
         self.suggestions_list.clear()
 
-        if not self._suggestions:
+        displayed = list(self._suggestions)
+        pattern_suggestion = self._pattern_suggestion()
+        if pattern_suggestion is not None:
+            # Direkt hinter den KI-Vorschlaegen, vor "Automatisch erkannt" & Co.
+            pos = 0
+            while pos < len(displayed) and displayed[pos].reason == "KI-Vorschlag":
+                pos += 1
+            displayed.insert(pos, pattern_suggestion)
+        self._displayed_suggestions = displayed
+
+        if not displayed:
             item = QListWidgetItem("Keine Vorschläge verfügbar")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.suggestions_list.addItem(item)
+            self._fit_suggestions_height()
             return
 
-        for suggestion in self._suggestions:
+        for suggestion in displayed:
             confidence_pct = int(suggestion.confidence * 100)
             display_text = f"{suggestion.name}"
             if suggestion.reason:
@@ -861,16 +909,105 @@ class DetailPanel(QWidget):
 
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion.name)
-            item.setToolTip(f"Konfidenz: {confidence_pct}%\n{suggestion.reason}")
 
-            if confidence_pct >= 70:
-                item.setBackground(Qt.GlobalColor.green)
-                item.setForeground(Qt.GlobalColor.darkGreen)
-            elif confidence_pct >= 40:
-                item.setBackground(Qt.GlobalColor.yellow)
+            if suggestion is pattern_suggestion:
+                item.setToolTip(
+                    "Nach dem gewählten Dateinamen-Muster aus den Metadaten dieses "
+                    "Dokuments gebildet. Anklicken übernimmt den Namen."
+                )
+                item.setBackground(QColor(214, 234, 255))  # hellblau = Muster
+                item.setForeground(QColor(20, 60, 120))
+            else:
+                item.setToolTip(f"Konfidenz: {confidence_pct}%\n{suggestion.reason}")
+                if confidence_pct >= 70:
+                    item.setBackground(Qt.GlobalColor.green)
+                    item.setForeground(Qt.GlobalColor.darkGreen)
+                elif confidence_pct >= 40:
+                    item.setBackground(Qt.GlobalColor.yellow)
 
             self.suggestions_list.addItem(item)
         self._fit_suggestions_height()
+
+    # -- Muster-Umschaltung (Issue #99) ---------------------------------- #
+
+    def _load_pattern_choices(self, force: bool = False):
+        """Befuellt die Muster-Combo aus den Einstellungen.
+
+        Wird bei jeder PDF-Auswahl aufgerufen; die Combo wird nur neu
+        aufgebaut, wenn sich das Muster in den Einstellungen geaendert hat -
+        eine Umschaltung des Nutzers bleibt sonst ueber PDFs hinweg erhalten.
+        """
+        from src.core.filename_placeholders import migrate_legacy_pattern, pattern_choices
+
+        try:
+            from src.utils.config import get_config
+            config_pattern = migrate_legacy_pattern(get_config().get("filename_pattern", "") or "")
+        except Exception:
+            config_pattern = ""
+        if not force and config_pattern == self._pattern_config:
+            return
+        self._pattern_config = config_pattern
+        self._pattern_choices = pattern_choices(config_pattern)
+
+        self.pattern_combo.blockSignals(True)
+        self.pattern_combo.clear()
+        selected = 0
+        for idx, (label, pattern) in enumerate(self._pattern_choices):
+            self.pattern_combo.addItem(label, pattern)
+            if pattern and pattern == config_pattern:
+                selected = idx
+        self.pattern_combo.setCurrentIndex(selected)
+        self.pattern_combo.blockSignals(False)
+
+    def current_pattern(self) -> str:
+        """Das in der Combo gewaehlte Muster ("" = Standard, kein Muster-Vorschlag)."""
+        return self.pattern_combo.currentData() or ""
+
+    def _pattern_values(self) -> dict:
+        """Platzhalter-Werte aus den aktuellen Feldern + Dokumentdatum."""
+        from src.core.filename_placeholders import placeholder_values_from_metadata
+
+        initials = ""
+        try:
+            from src.utils.config import get_config
+            from src.ml.llm_provider import derive_initials
+            config = get_config()
+            initials = (config.get("owner_initials", "") or "").strip()
+            if not initials:
+                initials = derive_initials(config.get("owner_name", "") or "")
+        except Exception:
+            pass
+
+        doc_date = self._detected_date
+        if not doc_date:
+            # Rueckfall: fuehrendes Datum eines KI-Vorschlags (YYYY-MM-DD)
+            for s in self._suggestions:
+                if s.reason == "KI-Vorschlag" and len(s.name) >= 10:
+                    head = s.name[:10]
+                    if head[4] == "-" and head[7] == "-" and head.replace("-", "").isdigit():
+                        doc_date = head
+                        break
+        return placeholder_values_from_metadata(self.get_metadata(), doc_date, initials)
+
+    def _pattern_suggestion(self) -> Optional[RenameSuggestion]:
+        """Vorschlag nach dem gewaehlten Muster - None ohne Muster oder ohne Werte."""
+        from src.core.filename_placeholders import render_with_values
+
+        pattern = self.current_pattern()
+        if not pattern or not self._current_pdf:
+            return None
+        name = render_with_values(pattern, self._pattern_values())
+        if not name:
+            return None
+        label = self.pattern_combo.currentText().split(" (")[0]
+        return RenameSuggestion(name=name, reason=f"Muster: {label}", confidence=0.75)
+
+    def _on_pattern_combo_activated(self, _index: int):
+        """Nutzer hat ein anderes Muster gewaehlt: Liste neu, Name uebernehmen."""
+        self._populate_suggestions()
+        suggestion = self._pattern_suggestion()
+        if suggestion is not None:
+            self.name_input.setText(suggestion.name.replace('.pdf', ''))
 
     def _fit_suggestions_height(self):
         """Liste nur so hoch wie noetig (max. ~4 Zeilen) - spart Platz fuer die Vorschau."""
@@ -889,9 +1026,10 @@ class DetailPanel(QWidget):
 
             # Metadaten des Vorschlags übernehmen
             idx = self.suggestions_list.row(item)
-            if idx < len(self._suggestions) and self._suggestions[idx].metadata:
+            shown = self._displayed_suggestions
+            if idx < len(shown) and shown[idx].metadata:
                 self._loading_metadata = True
-                for key, value in self._suggestions[idx].metadata.items():
+                for key, value in shown[idx].metadata.items():
                     widget = self._metadata_inputs.get(key)
                     if widget:
                         if isinstance(widget, QPlainTextEdit):
@@ -1103,6 +1241,17 @@ class DetailPanel(QWidget):
                 for s in suggestions if s.source == "llm"
             ]
             if llm_cached:
+                # Frische KI-Namen auch in der Liste zeigen; der Muster-Vorschlag
+                # rendert mit den neuen Metadaten (Issue #99)
+                fresh = [
+                    RenameSuggestion(name=s.filename, reason="KI-Vorschlag",
+                                     confidence=s.confidence, metadata=s.metadata)
+                    for s in llm_cached
+                ]
+                self._suggestions = fresh + [
+                    s for s in self._suggestions if s.reason != "KI-Vorschlag"
+                ]
+                self._populate_suggestions()
                 get_pdf_cache().update_llm_suggestions(pdf_path, llm_cached)
         except Exception as e:
             print(f"LLM-Metadaten Fehler: {e}")

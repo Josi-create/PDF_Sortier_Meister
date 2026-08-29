@@ -162,6 +162,134 @@ def render_example(pattern: str, values: dict[str, str] | None = None) -> str:
     return sanitize_filename(name)
 
 
+def _with_derived_dates(values: dict[str, str]) -> dict[str, str]:
+    """Ergaenzt {datum_kompakt} und {jahr}, wenn nur {datum} (ISO) da ist."""
+    merged = {k: v for k, v in values.items() if v}
+    iso = str(merged.get("datum") or "")
+    if iso:
+        merged.setdefault("datum_kompakt", iso.replace("-", ""))
+        merged.setdefault("jahr", iso[:4])
+    return merged
+
+
+def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
+    """Rendert das Muster nur mit *echten* Werten - fuer Vorschlaege zu einem
+    konkreten Dokument (Issue #99).
+
+    Anders als :func:`render_example` werden keine Beispielwerte eingesetzt:
+    Platzhalter ohne Wert fallen samt dem angrenzenden Trennzeichen weg
+    (``{datum}_{kontakt}_{betreff}`` ohne Betreff -> ``2024-03-12_Firma``),
+    genau wie es der KI-Prompt verlangt. Ergibt sich kein einziger echter
+    Wert, kommt ``""`` zurueck (= kein Vorschlag).
+    """
+    from src.utils.filename_sanitizer import sanitize_filename
+
+    pattern = (pattern or "").strip()
+    if not pattern or not values:
+        return ""
+    merged = _with_derived_dates(values)
+
+    parts = _PLACEHOLDER_RE.split(pattern)  # literal, key, literal, key, ...
+    out: list[str] = []
+    filled = 0
+    drop_next_separator = False
+    for i, part in enumerate(parts):
+        is_key = i % 2 == 1
+        if is_key:
+            value = merged.get(part.strip().lower())
+            if value:
+                out.append("-".join(str(value).split()))
+                filled += 1
+                drop_next_separator = False
+                continue
+            # Kein Wert: vorangehendes Trennzeichen entfernen, sofern davor
+            # schon Inhalt steht - sonst das folgende Trennzeichen ueberspringen
+            if len(out) >= 2 and not _has_word_chars(out[-1]):
+                out.pop()
+            else:
+                drop_next_separator = True
+            continue
+        if drop_next_separator and part and not _has_word_chars(part):
+            drop_next_separator = False
+            continue
+        drop_next_separator = False
+        if part:
+            out.append(part)
+
+    if not filled:
+        return ""
+    return sanitize_filename("".join(out))
+
+
+def _has_word_chars(text: str) -> bool:
+    return any(ch.isalnum() for ch in text)
+
+
+def placeholder_values_from_metadata(
+    metadata: dict | None,
+    doc_date: str | None = None,
+    initials: str = "",
+) -> dict[str, str]:
+    """Bildet Dokument-Metadaten (Detail-Panel/KI) auf Platzhalter-Werte ab.
+
+    Wird von der Muster-Vorschau in den Einstellungen („Mit aktueller PDF“)
+    und den Muster-Vorschlaegen im Detail-Panel benutzt, damit beide dieselbe
+    Zuordnung verwenden: ``korrespondent`` -> {kontakt}, ``subject`` ->
+    {kategorie}, ``description`` (erste 4 Woerter) -> {betreff},
+    ``betrag_brutto`` + ``waehrung`` -> {betrag}, ``steuerjahr`` -> {jahr}.
+
+    Args:
+        metadata: Kanonische Metadaten-Schluessel (siehe normalize_llm_metadata)
+        doc_date: Dokumentdatum als ``YYYY-MM-DD`` (oder None)
+        initials: Initialen des Dokumentbesitzers
+    """
+    md = metadata or {}
+    values: dict[str, str] = {}
+    if doc_date:
+        values["datum"] = str(doc_date)[:10]
+    if md.get("steuerjahr"):
+        values["jahr"] = str(md["steuerjahr"]).strip()
+    if md.get("korrespondent"):
+        values["kontakt"] = str(md["korrespondent"]).strip()
+    category = md.get("subject") or md.get("category") or md.get("kategorie")
+    if category:
+        values["kategorie"] = str(category).strip()
+    summary = md.get("description") or md.get("beschreibung")
+    if summary:
+        values["betreff"] = " ".join(str(summary).split()[:4])
+    for key in ("aktenzeichen", "projekt"):
+        if md.get(key):
+            values[key] = str(md[key]).strip()
+    amount = md.get("betrag_brutto") or md.get("betrag")
+    if amount:
+        values["betrag"] = f"{amount} {md.get('waehrung') or 'EUR'}"
+    if initials:
+        values["initialen"] = initials
+    return {k: v for k, v in values.items() if v}
+
+
+PATTERN_CHOICE_SETTINGS = "Eigenes Muster (aus Einstellungen)"
+
+
+def pattern_choices(config_pattern: str) -> list[tuple[str, str]]:
+    """Auswahlliste fuer die Muster-Umschaltung im Detail-Panel (Issue #99).
+
+    Liefert ``(Bezeichnung, Muster)``: zuerst „Standard“ (Muster ``""`` =
+    kein Muster-Vorschlag), dann die Vorlagen; ein eigenes Muster aus den
+    Einstellungen, das keiner Vorlage entspricht, steht als eigener Eintrag
+    direkt hinter „Standard“.
+    """
+    config_pattern = migrate_legacy_pattern(config_pattern or "")
+    choices: list[tuple[str, str]] = []
+    for name, pattern in PRESETS:
+        if pattern is None:
+            continue
+        choices.append((name, pattern))
+    if config_pattern and all(p != config_pattern for _n, p in choices):
+        choices.insert(1, (PATTERN_CHOICE_SETTINGS, config_pattern))
+    return choices
+
+
 def describe_for_prompt(pattern: str, initials: str = "") -> str:
     """Erklaert das Muster fuer den KI-Prompt (Platzhalterliste + Beispiel)."""
     pattern = (pattern or "").strip()

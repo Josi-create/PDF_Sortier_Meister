@@ -865,7 +865,12 @@ class PDFCache(QObject):
         return []
 
     def update_llm_suggestions(self, pdf_path: Path, suggestions: list):
-        """Schreibt LLM-Vorschläge in den Cache und persistiert sie."""
+        """Schreibt LLM-Vorschläge in den Cache und persistiert sie.
+
+        Meldet das Ergebnis wie ein Hintergrund-Abruf per
+        ``llm_suggestions_ready`` - so wird z.B. die Thumbnail-Markierung
+        (Issue #81) auch nach einem manuellen KI-Aufruf im Detail-Panel gesetzt.
+        """
         pdf_path = Path(pdf_path)
         with self._lock:
             if pdf_path not in self._cache:
@@ -874,6 +879,8 @@ class PDFCache(QObject):
             self._cache[pdf_path].llm_fetched = True
             result = self._cache[pdf_path]
         self._save_to_db(result)
+        if suggestions:
+            self.llm_suggestions_ready.emit(pdf_path)
 
     def has_llm_suggestions(self, pdf_path: Path) -> bool:
         """Prüft ob LLM-Vorschläge für eine PDF gecacht sind."""
