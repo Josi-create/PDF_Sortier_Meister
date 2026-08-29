@@ -21,6 +21,27 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   manueller KI-Aufruf im Detail-Panel), wird ihre Kachel im Scan-Ordner gruen
   hinterlegt; der Tooltip nennt den Grund. Die Auswahl (blau) bleibt sichtbar.
 
+- **Daten sichern und wiederherstellen** (#98): *Extras > Daten sichern
+  (ZIP)…* packt Datenbank (Verlauf, Suchindex/RAG, Korrespondenten, Regeln),
+  KI-Cache, ML-Modell und Einstellungen in ein ZIP - SQLite-Dateien als
+  konsistenter Schnappschuss auch bei laufender Anwendung. *Extras > Daten
+  aus Sicherung wiederherstellen…* merkt ein solches Archiv vor; beim
+  naechsten Start werden die Dateien eingespielt, die bisherigen bleiben
+  unter `restore_previous` im Datenordner erhalten. Gedacht fuer Umzug oder
+  Neuinstallation.
+
+### Geaendert
+- Detail-Panel: Die gruene Vorschau-Zeile unter „Neuer Dateiname“ erscheint
+  nur noch, wenn der endgueltige Name vom Eingetippten abweicht (ersetzte
+  Zeichen, E-Mail-Adresse) - sonst stand derselbe Name zweimal da (#101).
+
+### Entfernt
+- Der Schalter „Nur verschieben“ samt Hinweiszeile unter den Metadaten (#100):
+  unklar und Platzfresser. Reines Verschieben ohne Umbenennen geht weiter per
+  Drag & Drop oder Kontextmenue „Verschieben nach…“.
+- Einstellungen > LLM: die wirkungslose Option „Auto-LLM“ und der Hinweis
+  zu API-Kosten/TF-IDF (#92).
+
 ### Behoben
 - Die Muster-Vorschau „Mit aktueller PDF“ in den Einstellungen las die
   Zusammenfassung unter dem alten Schluessel `beschreibung` und fuellte

@@ -1304,6 +1304,21 @@ class MainWindow(QMainWindow):
         backup_action.triggered.connect(self.check_backup_status)
         extras_menu.addAction(backup_action)
 
+        # Anwendungsdaten sichern/wiederherstellen (Issue #98)
+        self.backup_data_action = QAction("Daten sichern (ZIP)...", self)
+        self.backup_data_action.setToolTip(
+            "Datenbank, Suchindex, KI-Cache, Modell und Einstellungen als ZIP sichern"
+        )
+        self.backup_data_action.triggered.connect(self.backup_app_data)
+        extras_menu.addAction(self.backup_data_action)
+
+        self.restore_data_action = QAction("Daten aus Sicherung wiederherstellen...", self)
+        self.restore_data_action.setToolTip(
+            "Eine mit „Daten sichern“ erstellte ZIP-Datei beim nächsten Start einspielen"
+        )
+        self.restore_data_action.triggered.connect(self.restore_app_data)
+        extras_menu.addAction(self.restore_data_action)
+
         extras_menu.addSeparator()
 
         wizard_action = QAction("Einrichtungs-Assistent...", self)
@@ -1887,28 +1902,23 @@ class MainWindow(QMainWindow):
         """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow)."""
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
-        # Move-Only-Schalter im Detail-Panel: ueberspringt Umbenennen + Metadaten
-        if self.detail_panel.is_move_only_mode():
-            new_name = None
-            metadata = {}
-        else:
-            new_name = self.detail_panel.get_new_name()
-            metadata = self.detail_panel.get_metadata()
+        new_name = self.detail_panel.get_new_name()
+        metadata = self.detail_panel.get_metadata()
 
-            # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
-            if self.config.get("folder_naming_enabled", False):
-                fallback_date = (
-                    coerce_date(self.selected_pdf_dates[0])
-                    if self.selected_pdf_dates else None
-                )
-                new_name = build_folder_based_name(
-                    new_name or pdf_path.name,
-                    folder_path,
-                    relative_path,
-                    template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
-                    initials=self.config.get("owner_initials", ""),
-                    fallback_date=fallback_date,
-                )
+        # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
+        if self.config.get("folder_naming_enabled", False):
+            fallback_date = (
+                coerce_date(self.selected_pdf_dates[0])
+                if self.selected_pdf_dates else None
+            )
+            new_name = build_folder_based_name(
+                new_name or pdf_path.name,
+                folder_path,
+                relative_path,
+                template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
+                initials=self.config.get("owner_initials", ""),
+                fallback_date=fallback_date,
+            )
 
         # Prüfen ob umbenannt wird
         name_changed = new_name and new_name != pdf_path.name
@@ -3850,6 +3860,91 @@ class MainWindow(QMainWindow):
     def check_backup_status(self):
         """Zeigt den Backup-Hinweis (Menue). Macrium-Log-Parsing: Issue #14."""
         self.show_backup_hint(force=True)
+
+    # === Anwendungsdaten sichern / wiederherstellen (Issue #98) ===
+
+    @staticmethod
+    def _documents_dir() -> str:
+        from PyQt6.QtCore import QStandardPaths
+        return QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        ) or str(Path.home())
+
+    def backup_app_data(self):
+        """Extras > Daten sichern: ZIP mit Datenbank, Cache, Modell und Einstellungen."""
+        from src.utils.backup import create_backup, default_backup_name
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Daten sichern",
+            str(Path(self._documents_dir()) / default_backup_name()),
+            "ZIP-Archiv (*.zip)",
+        )
+        if not path:
+            return
+        version = QApplication.applicationVersion() or ""
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        try:
+            info = create_backup(self.config.data_dir, Path(path), version=version)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Sicherung fehlgeschlagen", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        size_mb = info.total_bytes / (1024 * 1024)
+        QMessageBox.information(
+            self,
+            "Daten gesichert",
+            f"{len(info.entries)} Dateien ({size_mb:.1f} MB) gesichert nach:\n{path}\n\n"
+            "Enthalten: Datenbank (Verlauf, Suchindex, Korrespondenten, Regeln), "
+            "KI-Cache, ML-Modell und Einstellungen.\n\n"
+            "Hinweis: Die Einstellungen enthalten Ihre API-Schlüssel – bewahren "
+            "Sie das Archiv entsprechend geschützt auf.",
+        )
+        self.statusbar.showMessage(f"Daten gesichert: {Path(path).name}", 5000)
+
+    def restore_app_data(self):
+        """Extras > Daten wiederherstellen: ZIP vormerken, beim naechsten Start einspielen."""
+        from src.utils.backup import PREVIOUS_DIR, inspect_backup, stage_restore
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Sicherung wiederherstellen", self._documents_dir(), "ZIP-Archiv (*.zip)"
+        )
+        if not path:
+            return
+        try:
+            info = inspect_backup(Path(path))
+        except Exception as e:
+            QMessageBox.critical(self, "Keine gültige Sicherung", str(e))
+            return
+
+        version = info.version or "unbekannt"
+        answer = QMessageBox.question(
+            self,
+            "Sicherung wiederherstellen?",
+            f"Sicherung vom {info.created_display} (Version {version}, "
+            f"{len(info.entries)} Dateien).\n\n"
+            "Beim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den "
+            "KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien "
+            f"bleiben im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\n"
+            "PDF Sortier Meister wird dazu jetzt beendet. Fortfahren?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            stage_restore(Path(path), self.config.data_dir)
+        except Exception as e:
+            QMessageBox.critical(self, "Wiederherstellung fehlgeschlagen", str(e))
+            return
+        QMessageBox.information(
+            self,
+            "Wiederherstellung vorbereitet",
+            "Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird "
+            "beim Start eingespielt.",
+        )
+        self.close()
 
     def show_first_steps_hint(self, force: bool = False):
         """

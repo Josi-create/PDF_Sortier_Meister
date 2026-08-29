@@ -395,37 +395,8 @@ class DetailPanel(QWidget):
 
         detail_layout.addWidget(self.metadata_group)
 
-        # Hinweis-Zeile mit Move-Only-Toggle
-        hint_layout = QHBoxLayout()
-        hint_layout.setSpacing(8)
-        hint_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.move_only_toggle = QCheckBox("Nur verschieben")
-        self.move_only_toggle.setToolTip(
-            "Wenn aktiv (rot): beim Klick auf einen Zielordner wird das PDF NUR "
-            "verschoben - ohne Umbenennen und ohne Metadaten in die PDF zu schreiben."
-        )
-        self.move_only_toggle.setStyleSheet(
-            "QCheckBox { font-size: 10px; color: #555; spacing: 6px; }"
-            "QCheckBox::indicator { width: 32px; height: 16px; border-radius: 8px; "
-            "background-color: #c8e6c9; border: 1px solid #66bb6a; }"
-            "QCheckBox::indicator:checked { background-color: #ef5350; "
-            "border: 1px solid #c62828; }"
-        )
-        self.move_only_toggle.toggled.connect(self._refresh_hint_label)
-        hint_layout.addWidget(self.move_only_toggle)
-
-        self.hint_label = QLabel()
-        self.hint_label.setWordWrap(True)
-        self.hint_label.setStyleSheet(
-            "color: #1976d2; font-weight: bold; padding: 4px 6px; "
-            "background-color: #e3f2fd; border-radius: 4px; font-size: 11px;"
-        )
-        hint_layout.addWidget(self.hint_label, stretch=1)
-
-        detail_layout.addLayout(hint_layout)
-        self._refresh_hint_label()
-
+        # Der Schalter "Nur verschieben" samt Hinweiszeile ist entfernt (Issue
+        # #100): reines Verschieben geht per Drag & Drop oder Kontextmenue.
         detail_layout.addStretch()
 
         self.detail_container.hide()
@@ -800,23 +771,6 @@ class DetailPanel(QWidget):
             self._metadata_source = "user"
         self._refresh_save_btn()
 
-    def _refresh_hint_label(self):
-        """Aktualisiert den Hinweistext je nach Move-Only-Modus."""
-        if self.move_only_toggle.isChecked():
-            self.hint_label.setText(
-                'Jetzt rechts auf einen Zielordner klicken - dabei wird das PDF '
-                'verschoben, <s>umbenannt und die Metadaten gespeichert</s>'
-            )
-        else:
-            self.hint_label.setText(
-                'Jetzt rechts auf einen Zielordner klicken - dabei wird das PDF '
-                'verschoben, umbenannt und die Metadaten gespeichert'
-            )
-
-    def is_move_only_mode(self) -> bool:
-        """True wenn der Move-Only-Schalter aktiv ist."""
-        return self.move_only_toggle.isChecked()
-
     def _refresh_save_btn(self):
         """Aktualisiert Text und Status des Speichern-Buttons und des Status-Labels."""
         current = self.get_metadata()
@@ -1051,13 +1005,17 @@ class DetailPanel(QWidget):
                 widget.setText(str(value) if value else "")
 
     def _update_preview(self, text: str):
-        """Aktualisiert die Dateinamen-Vorschau."""
+        """Aktualisiert die Dateinamen-Vorschau.
+
+        Die Vorschau-Zeile erscheint nur, wenn der endgueltige Name vom
+        Eingetippten abweicht (ersetzte Zeichen, E-Mail, ungueltig) - sonst
+        stuende derselbe Name zweimal untereinander (Issue #101).
+        """
         if not text.strip():
-            self.preview_label.setText("(Name eingeben)")
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 6px; background-color: #fff3e0; "
-                "border: 1px solid #ffcc80; border-radius: 3px; font-size: 11px;"
-            )
+            self.preview_label.clear()
+            self.preview_label.hide()
+            self.warning_label.hide()
+            self._refresh_save_btn()
             return
 
         from src.utils.filename_sanitizer import (
@@ -1099,6 +1057,9 @@ class DetailPanel(QWidget):
         self._refresh_save_btn()
 
         self.preview_label.setText(preview_name)
+        # Nur zeigen, wenn sich etwas aendert (".pdf" haengt ohnehin an)
+        unchanged = preview_name == f"{text.strip()}.pdf" or preview_name == text.strip()
+        self.preview_label.setVisible(not unchanged)
 
     LLM_BTN_TEXT = "KI-Metadaten neu generieren"
 
