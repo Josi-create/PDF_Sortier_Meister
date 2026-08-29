@@ -71,7 +71,11 @@ def main_window(qtbot, fresh_singletons, monkeypatch):
         mw_mod.QMessageBox, "question",
         lambda *a, **k: QMessageBox.StandardButton.Yes,
     )
-    monkeypatch.setattr(mw_mod.QMessageBox, "critical", lambda *a, **k: None)
+    # Fehlerdialoge sind Testfehler: Meldung sichtbar machen statt schlucken
+    # (sonst sieht man in CI nur "3 == 2" statt des eigentlichen Grunds).
+    def _critical(*a, **k):
+        raise AssertionError(f"QMessageBox.critical: {a[1]!s}: {a[2]!s}")
+    monkeypatch.setattr(mw_mod.QMessageBox, "critical", _critical)
     monkeypatch.setattr(mw_mod.QMessageBox, "warning", lambda *a, **k: None)
 
     win = mw_mod.MainWindow()
