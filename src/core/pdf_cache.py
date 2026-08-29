@@ -300,6 +300,11 @@ class PDFCache(QObject):
         # Betrieb -> Absturz (Access Violation).
         self._stopping_workers: list[QThread] = []
         self._llm_queued: set[Path] = set()  # PDFs, die in der LLM-Queue stehen
+        # Gescheiterte LLM-Abrufe: werden einmalig neu eingereiht, sobald
+        # danach ein Abruf gelingt (Provider hat sich z.B. per Rueckfall
+        # "gefangen"). _llm_retried verhindert Endlosschleifen.
+        self._llm_failed: set[Path] = set()
+        self._llm_retried: set[Path] = set()
         self._pending_callbacks: dict[Path, list[Callable]] = {}
         self._persist_cache = True  # Standardmäßig persistenten Cache nutzen
         self._db_path: Optional[Path] = None
@@ -705,6 +710,11 @@ class PDFCache(QObject):
         self._llm_worker.add_task(pdf_path, analysis_result, priority=10)
         return True
 
+    def llm_pending_count(self) -> int:
+        """Anzahl PDFs, die noch in der LLM-Queue stehen (0 = Lauf beendet)."""
+        with self._lock:
+            return len(self._llm_queued)
+
     def _on_llm_suggestions_complete(self, pdf_path: Path, suggestions: list):
         """Wird aufgerufen wenn LLM-Vorschläge abgerufen wurden."""
         logger.debug(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name}")
@@ -721,15 +731,35 @@ class PDFCache(QObject):
 
                 # Aktualisiert in persistentem Cache speichern
                 self._save_to_db(self._cache[pdf_path])
+            self._llm_failed.discard(pdf_path)
+            retry = [p for p in self._llm_failed if p not in self._llm_retried]
+            self._llm_failed.clear()
+            self._llm_retried.update(retry)
 
         # Signal emittieren
         self.llm_suggestions_ready.emit(pdf_path)
+        self._retry_failed_llm(retry)
+
+    def _retry_failed_llm(self, pdf_paths: list[Path]):
+        """Reiht zuvor gescheiterte PDFs erneut ein (niedrige Prioritaet = ans Ende)."""
+        for failed in pdf_paths:
+            cached = self.get(failed)
+            if not cached or cached.llm_fetched:
+                continue
+            with self._lock:
+                if failed in self._llm_queued:
+                    continue
+                self._llm_queued.add(failed)
+            logger.info(f"LLM-Pre-Cache: {failed.name} nach Fehler erneut eingereiht")
+            self.start_llm_worker()
+            self._llm_worker.add_task(failed, cached, priority=20)
 
     def _on_llm_suggestions_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn LLM-Abruf fehlschlägt."""
         logger.warning(f"LLM-Pre-Cache Fehler für {pdf_path.name}: {error}")
         with self._lock:
             self._llm_queued.discard(pdf_path)
+            self._llm_failed.add(pdf_path)
         self.llm_suggestions_failed.emit(pdf_path, error)
 
     def _on_llm_suggestions_skipped(self, pdf_path: Path):

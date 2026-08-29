@@ -125,3 +125,49 @@ def test_persisted_empty_llm_result_counts_as_not_fetched(cache, tmp_path):
     cache._load_from_db()
     assert cache._cache[pdf].llm_fetched is False
     assert cache._cache[pdf].llm_suggestions == []
+
+
+def test_llm_pending_count_tracks_queue(cache):
+    from src.core.pdf_cache import PDFAnalysisResult
+    pdf = Path("x.pdf")
+    assert cache.llm_pending_count() == 0
+    cache._llm_queued.add(pdf)
+    assert cache.llm_pending_count() == 1
+    cache._on_llm_suggestions_error(pdf, "Fehler")
+    assert cache.llm_pending_count() == 0
+
+
+def _ok():
+    from src.core.pdf_cache import LLMSuggestion
+    return [LLMSuggestion(filename="2024-01-31_Rechnung.pdf", confidence=0.9, source="llm")]
+
+
+def test_failed_pdfs_are_requeued_once_after_next_success(cache, tmp_path):
+    """Provider faengt sich (z.B. think-Rueckfall): vorher gescheiterte PDFs nochmal."""
+    a, b, c = (tmp_path / n for n in ("a.pdf", "b.pdf", "c.pdf"))
+    for p in (a, b, c):
+        _cached(cache, p)
+    cache.pre_cache([a, b, c])
+    assert cache._llm_worker.tasks == [a, b, c]
+
+    cache._on_llm_suggestions_error(a, "leere Antwort")
+    cache._on_llm_suggestions_error(b, "Kein gültiges JSON")
+    assert cache._llm_worker.tasks == [a, b, c]  # noch kein Erfolg -> nichts
+
+    cache._on_llm_suggestions_complete(c, _ok())
+    assert cache._llm_worker.tasks[3:] == [a, b] or cache._llm_worker.tasks[3:] == [b, a]
+    assert cache.llm_pending_count() == 2
+
+    # Scheitert a erneut und danach gelingt b: a wird NICHT ein zweites Mal eingereiht
+    cache._on_llm_suggestions_error(a, "leere Antwort")
+    cache._on_llm_suggestions_complete(b, _ok())
+    assert len(cache._llm_worker.tasks) == 5
+    assert cache.llm_pending_count() == 0
+
+
+def test_success_without_prior_failure_requeues_nothing(cache, tmp_path):
+    a = tmp_path / "a.pdf"
+    _cached(cache, a)
+    cache.pre_cache([a])
+    cache._on_llm_suggestions_complete(a, _ok())
+    assert cache._llm_worker.tasks == [a]

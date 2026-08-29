@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         get_llm_activity().changed.connect(self._on_llm_activity_changed)
         self.pdf_cache.llm_suggestions_failed.connect(self._on_llm_suggestions_failed)
         self._last_llm_error: Optional[tuple[str, str]] = None  # (pdf_name, fehler)
+        self._llm_success_since_error = False  # seit dem letzten Fehler kam ein Erfolg
         # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
         self._preview_window: Optional[PdfPreviewWindow] = None
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
@@ -785,8 +786,25 @@ class MainWindow(QMainWindow):
 
     def _on_llm_suggestions_ready(self, pdf_path: Path):
         """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
+        self._clear_llm_error_if_recovered(pdf_path)
         self._update_cache_status()
         self._refresh_detail_panel_after_llm(pdf_path)
+
+    def _clear_llm_error_if_recovered(self, pdf_path: Path):
+        """Setzt „KI-Fehler“ zurück, wenn der Fehler behoben ist.
+
+        Behoben heißt: die betroffene PDF hat jetzt ein Ergebnis, oder der
+        Pre-Cache-Lauf ist zu Ende und nach dem Fehler kamen nur noch Erfolge
+        (z.B. weil der Provider auf einen Rückfall umgeschaltet hat).
+        """
+        if not self._last_llm_error:
+            return
+        self._llm_success_since_error = True
+        failed_name = self._last_llm_error[0]
+        run_finished = self.pdf_cache.llm_pending_count() == 0
+        if pdf_path.name == failed_name or run_finished:
+            self._last_llm_error = None
+            self._llm_success_since_error = False
 
     def _refresh_detail_panel_after_llm(self, pdf_path: Path) -> bool:
         """Traegt frische KI-Vorschlaege ins Detail-Panel ein, wenn die PDF
@@ -826,6 +844,7 @@ class MainWindow(QMainWindow):
     def _on_llm_suggestions_failed(self, pdf_path: Path, error: str):
         """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
         self._last_llm_error = (pdf_path.name, error)
+        self._llm_success_since_error = False
         self._update_cache_status()
 
     def _show_precache_details(self):
