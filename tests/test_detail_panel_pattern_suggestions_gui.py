@@ -24,6 +24,11 @@ def _panel(qtbot, monkeypatch, tmp_path, **config_values):
     for key, value in config_values.items():
         cfg.set(key, value, auto_save=False)
     monkeypatch.setattr(cfg_mod, "get_config", lambda: cfg)
+    # Eigene Datenbank pro Test: Korrespondenten-Lernen, Kategorie-Liste (#109/#110)
+    from src.utils.database import Database
+    db = Database(db_path=tmp_path / "panel.db")
+    monkeypatch.setattr("src.utils.database.get_database", lambda: db)
+    cfg._db = db
 
     from src.gui import detail_panel as dp
     # Keine Hintergrund-Threads im Unit-Test (Teardown-Crash): XMP-Lesen
@@ -255,4 +260,60 @@ def test_saved_custom_pattern_becomes_a_row(qtbot, monkeypatch, tmp_path):
     rows = _rows(panel)
     assert "2024_Testfirma-GmbH_Miete.pdf  [Muster: Mieter]" in rows
     assert _reasons(panel)[-1] == "Muster: Mieter"  # nach den eingebauten Vorlagen
+
+
+# --- Issues #109/#110: Kategorie-Auswahl, Text aus der Vorschau, Lernen ---
+
+
+def test_category_field_is_editable_combo_with_choices(qtbot, monkeypatch, tmp_path):
+    from src.core.metadata_choices import DEFAULT_CATEGORIES
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path)
+    _select(panel, tmp_path, [_ki_suggestion()])
+    combo = panel._metadata_inputs["subject"]
+    items = [combo.itemText(i) for i in range(combo.count())]
+    assert items[: len(DEFAULT_CATEGORIES)] == list(DEFAULT_CATEGORIES)
+    # Verhaelt sich wie das Textfeld: Wert aus dem KI-Vorschlag, get_metadata liest ihn
+    assert combo.text() == "Rechnung"
+    assert panel.get_metadata()["subject"] == "Rechnung"
+    # Auswahl aus der Liste = Nutzer-Eingabe
+    combo.setCurrentIndex(items.index("Vertrag"))
+    assert panel.get_metadata()["subject"] == "Vertrag"
+    assert panel.has_user_edits()
+    # clear() leert nur den Text, die Liste bleibt
+    combo.clear()
+    assert combo.text() == "" and combo.count() == len(items)
+
+
+def test_preview_text_goes_into_field_and_korrespondent_is_learned(qtbot, monkeypatch, tmp_path):
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path)
+    _select(panel, tmp_path, [_ki_suggestion()])
+    assert panel.get_metadata()["korrespondent"] == "Testfirma GmbH"
+
+    panel.preview.apply_text_requested.emit("korrespondent", "  Commerzbank   AG ")
+    assert panel.get_metadata()["korrespondent"] == "Commerzbank AG"
+    assert panel.has_user_edits()
+    assert [k["name"] for k in cfg._db.list_korrespondenten()] == ["Commerzbank AG"]
+
+    panel.preview.apply_text_requested.emit("description", "Depotauszug 2024")
+    assert panel.get_metadata()["description"] == "Depotauszug 2024"
+    panel.preview.apply_text_requested.emit("subject", "Bank")
+    assert panel.get_metadata()["subject"] == "Bank"
+
+
+def test_known_korrespondent_in_text_beats_ki_suggestion(qtbot, monkeypatch, tmp_path):
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path)
+    cfg._db.add_or_update_korrespondent("Commerzbank AG", aliases=["Coba"])
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    panel.set_pdf(pdf_path=pdf, suggestions=[_ki_suggestion()],
+                  extracted_text="Depotauszug der Coba fuer Kunde 4711",
+                  keywords=["bank"], detected_date="2024-01-31")
+    assert panel.get_metadata()["korrespondent"] == "Commerzbank AG"
+
+    # Ohne Treffer im Text bleibt der KI-Vorschlag
+    panel.set_pdf(pdf_path=pdf, suggestions=[_ki_suggestion()],
+                  extracted_text="Rechnung der Testfirma", keywords=["rechnung"],
+                  detected_date="2024-01-31")
+    assert panel.get_metadata()["korrespondent"] == "Testfirma GmbH"
 

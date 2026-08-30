@@ -28,7 +28,9 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
+    QComboBox,
     QGridLayout,
+    QSizePolicy,
     QSplitter,
 )
 
@@ -108,6 +110,48 @@ class _LLMMetadataWorker(QThread):
         finally:
             activity.end(token, success=ok)
         self.result_ready.emit(self._pdf_path, list(suggestions or []), "")
+
+
+class _CategoryCombo(QComboBox):
+    """Kategorie-Feld als editierbare Auswahl (Issue #110).
+
+    Verhaelt sich nach aussen wie das QLineEdit, das hier vorher stand
+    (``text``/``setText``/``clear``/``textChanged``), zeigt aber im Aufklapp-
+    Menue die haeufigsten Kategorien der Sammlung.
+    """
+
+    textChanged = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.setMinimumContentsLength(6)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.lineEdit().textChanged.connect(self.textChanged)
+
+    def text(self) -> str:
+        return self.currentText()
+
+    def setText(self, text: str) -> None:
+        self.setEditText(text or "")
+
+    def clear(self) -> None:  # nur den Text, nicht die Auswahlliste
+        self.clearEditText()
+
+    def setPlaceholderText(self, text: str) -> None:
+        self.lineEdit().setPlaceholderText(text)
+
+    def set_choices(self, choices: list[str]) -> None:
+        current = self.currentText()
+        self.blockSignals(True)
+        self.lineEdit().blockSignals(True)
+        super().clear()
+        self.addItems(list(choices))
+        self.setEditText(current)
+        self.lineEdit().blockSignals(False)
+        self.blockSignals(False)
 
 
 class DetailPanel(QWidget):
@@ -346,7 +390,10 @@ class DetailPanel(QWidget):
                 grid.addWidget(label, row_idx, 0)
                 grid.addWidget(input_field, row_idx, 1, 1, 3)
             else:
-                input_field = QLineEdit()
+                if field_key == "subject":
+                    input_field = _CategoryCombo()  # Aufklappliste (Issue #110)
+                else:
+                    input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
                 row_idx, col = divmod(idx, 2)
@@ -446,6 +493,8 @@ class DetailPanel(QWidget):
         )
         self.preview.enlarge_requested.connect(self.enlarge_preview_requested)
         self.preview.open_external_requested.connect(self.open_pdf_external_requested)
+        # Markierten Text aus der Vorschau in ein Metadaten-Feld (Issue #109)
+        self.preview.apply_text_requested.connect(self._on_preview_text_applied)
 
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.addWidget(scroll)
@@ -509,6 +558,12 @@ class DetailPanel(QWidget):
                     self._metadata.update(s.metadata)
                     break
 
+            # Bekannter Korrespondent im Text (Issue #109): die vom Nutzer
+            # gelernte Schreibweise schlaegt den KI-Vorschlag
+            known = self._known_korrespondent(extracted_text)
+            if known:
+                self._metadata["korrespondent"] = known
+
             # Gelernte Korrespondent-Zuordnungen
             korrespondent = self._metadata.get("korrespondent")
             if korrespondent:
@@ -532,6 +587,7 @@ class DetailPanel(QWidget):
 
         # Vorschläge befüllen (nach den Metadaten: die Muster-Vorschlaege
         # rendern aus den Feldern)
+        self._load_category_choices()
         self.refresh_settings()
         self._populate_suggestions()
 
@@ -925,6 +981,61 @@ class DetailPanel(QWidget):
         name = self._displayed_suggestions[0].name.replace('.pdf', '')
         self.name_input.setText(name)
         self._auto_name = name
+
+    # -- Metadaten-Hilfen (Issues #109/#110) ------------------------------- #
+
+    def _load_category_choices(self):
+        """Aufklappliste der Kategorie: haeufigste 10 der Sammlung + Standard."""
+        from src.core.metadata_choices import category_choices
+
+        top: list[str] = []
+        try:
+            from src.utils.database import get_database
+            top = get_database().get_top_kategorien(10)
+        except Exception:
+            pass
+        widget = self._metadata_inputs.get("subject")
+        if isinstance(widget, _CategoryCombo):
+            widget.set_choices(category_choices(top))
+
+    def _known_korrespondent(self, text: str) -> Optional[str]:
+        """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt."""
+        if not text:
+            return None
+        from src.core.korrespondent_match import find_known_korrespondent
+
+        try:
+            from src.utils.database import get_database
+            entries = get_database().list_korrespondenten()
+        except Exception:
+            return None
+        return find_known_korrespondent(text, entries)
+
+    def _on_preview_text_applied(self, field_key: str, text: str):
+        """Markierter Text aus der Vorschau -> Metadaten-Feld; Korrespondent wird gelernt."""
+        text = " ".join((text or "").split())
+        widget = self._metadata_inputs.get(field_key)
+        if widget is None or not text:
+            return
+        if isinstance(widget, QPlainTextEdit):
+            widget.setPlainText(text)
+        else:
+            widget.setText(text)
+        widget.setFocus()
+        if field_key == "korrespondent":
+            self._learn_korrespondent(text)
+
+    def _learn_korrespondent(self, name: str):
+        """Nimmt den Namen in die Korrespondenten-Verwaltung auf (Issue #109).
+
+        Bei spaeteren Dokumenten, in deren Text der Name vorkommt, wird er
+        automatisch als Korrespondent gesetzt (siehe _known_korrespondent).
+        """
+        try:
+            from src.utils.database import get_database
+            get_database().add_or_update_korrespondent(name)
+        except Exception as e:  # noqa: BLE001 - Lernen ist Komfort, kein Muss
+            logger.debug(f"Korrespondent nicht gelernt: {e}")
 
     # -- Kopfzeile: Ordnerstruktur-Schalter --------------------------------- #
 

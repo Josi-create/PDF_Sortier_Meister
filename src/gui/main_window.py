@@ -1906,8 +1906,16 @@ class MainWindow(QMainWindow):
         new_name = self.detail_panel.get_new_name()
         metadata = self.detail_panel.get_metadata()
 
+        # Der vom Nutzer gewaehlte/korrigierte Name ist das, was die KI
+        # kuenftig liefern soll - nur er geht als Beispiel in die Historie.
+        # Das Ordner-Praefix (#42) kommt beim Verschieben dazu und wuerde
+        # die KI sonst dazu verleiten, selbst Ordnernummern zu erfinden.
+        learned_name = new_name
+        folder_naming_applied = False
+
         # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
         if self.config.get("folder_naming_enabled", False):
+            folder_naming_applied = True
             fallback_date = (
                 coerce_date(self.selected_pdf_dates[0])
                 if self.selected_pdf_dates else None
@@ -1993,14 +2001,18 @@ class MainWindow(QMainWindow):
                         detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
                     except Exception:
                         pass
-                self.db.add_rename_entry(
-                    original_filename=pdf_path.name,
-                    new_filename=new_path.name,
-                    extracted_text=self.selected_pdf_text,
-                    keywords=self.selected_pdf_keywords,
-                    detected_date=detected_date,
-                    target_folder=str(folder_path),
+                history_name = (
+                    learned_name if folder_naming_applied and learned_name else new_path.name
                 )
+                if history_name != pdf_path.name:
+                    self.db.add_rename_entry(
+                        original_filename=pdf_path.name,
+                        new_filename=history_name,
+                        extracted_text=self.selected_pdf_text,
+                        keywords=self.selected_pdf_keywords,
+                        detected_date=detected_date,
+                        target_folder=str(folder_path),
+                    )
 
             # Volltext-Suchindex befüllen (Phase 17)
             self.db.update_pdf_path(

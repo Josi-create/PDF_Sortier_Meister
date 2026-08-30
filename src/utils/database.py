@@ -1149,6 +1149,23 @@ class Database:
         except Exception:
             return []
 
+    def get_top_kategorien(self, limit: int = 10) -> list[str]:
+        """Die haeufigsten Kategorien der Sammlung, haeufigste zuerst (Issue #110)."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT kategorie, COUNT(*) AS n FROM document_search "
+                "WHERE kategorie != '' GROUP BY kategorie ORDER BY n DESC, kategorie LIMIT ?",
+                (int(limit),),
+            )
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception:
+            return []
+
     def get_distinct_korrespondenten(self) -> list[str]:
         """Gibt sortierte Liste eindeutiger Korrespondenten zurück."""
         import sqlite3

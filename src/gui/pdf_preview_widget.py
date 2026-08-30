@@ -18,12 +18,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QBuffer, QEvent, QIODevice, QPointF, Qt, QThread, pyqtSignal
-from PyQt6.QtPdf import QPdfDocument
+from PyQt6.QtCore import (
+    QBuffer, QEvent, QIODevice, QPoint, QPointF, QRect, QSize, QSizeF, Qt, QThread, pyqtSignal,
+)
+from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QPolygonF
+from PyQt6.QtPdf import QPdfDocument, QPdfSelection
 from PyQt6.QtPdfWidgets import QPdfView
 from PyQt6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QSizePolicy,
     QStackedLayout,
     QStyle,
@@ -38,6 +43,38 @@ MAX_PREVIEW_BYTES = 300 * 1024 * 1024
 ZOOM_STEP = 1.25
 ZOOM_MIN = 0.2
 ZOOM_MAX = 8.0
+
+# Rechtsklick auf markierten Text: in welches Metadaten-Feld? (Issue #109)
+SELECTION_TARGETS: tuple[tuple[str, str], ...] = (
+    ("korrespondent", "Als Korrespondent übernehmen"),
+    ("subject", "Als Kategorie übernehmen"),
+    ("description", "Als Zusammenfassung übernehmen"),
+)
+
+
+class _SelectionOverlay(QWidget):
+    """Zeichnet die Textmarkierung ueber den Viewport der QPdfView."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self._polygons: list[QPolygonF] = []
+
+    def set_polygons(self, polygons):
+        self._polygons = list(polygons)
+        self.update()
+
+    def paintEvent(self, _event):
+        if not self._polygons:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(51, 120, 220, 80))
+        for poly in self._polygons:
+            painter.drawPolygon(poly)
+        painter.end()
 
 
 class _PdfBytesReader(QThread):
@@ -81,6 +118,9 @@ class PdfPreviewWidget(QWidget):
     load_failed = pyqtSignal(Path, str)
     enlarge_requested = pyqtSignal(Path)
     open_external_requested = pyqtSignal(Path)
+    # Textauswahl (Issue #109): markierter Text; "uebernehmen in Feld X"
+    text_selected = pyqtSignal(str)
+    apply_text_requested = pyqtSignal(str, str)  # (feld, text)
 
     def __init__(self, parent=None, compact: bool = False):
         super().__init__(parent)
@@ -89,6 +129,12 @@ class PdfPreviewWidget(QWidget):
         self._buffer: QBuffer | None = None
         self._generation = 0
         self._readers: list[_PdfBytesReader] = []
+        # Textauswahl mit der Maus
+        self._selection: QPdfSelection | None = None
+        self._sel_page: int = -1
+        self._sel_start: QPointF = QPointF()
+        self._selecting: bool = False
+        self._line_boxes: dict[int, list] = {}  # Seite -> Textzeilen-Rechtecke (pt)
 
         self._document = QPdfDocument(self)
         self._document.statusChanged.connect(self._on_status_changed)
@@ -183,7 +229,19 @@ class PdfPreviewWidget(QWidget):
         self._view.setPageSpacing(6)
         self._view.pageNavigator().currentPageChanged.connect(self._on_current_page_changed)
         self._view.viewport().installEventFilter(self)
+        self._view.setToolTip(
+            "Text mit der Maus markieren, dann Rechtsklick: "
+            "als Korrespondent, Kategorie oder Zusammenfassung übernehmen."
+        )
         self._stack.addWidget(self._view)
+
+        # Markierung ueber dem Viewport; folgt Scrollen und Zoom
+        self._overlay = _SelectionOverlay(self._view.viewport())
+        self._overlay.resize(self._view.viewport().size())
+        self._view.verticalScrollBar().valueChanged.connect(self._refresh_overlay)
+        self._view.horizontalScrollBar().valueChanged.connect(self._refresh_overlay)
+        self._view.zoomFactorChanged.connect(self._refresh_overlay)
+        self._view.zoomModeChanged.connect(self._refresh_overlay)
 
         self.message_label = QLabel("Keine PDF ausgewählt")
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -260,6 +318,8 @@ class PdfPreviewWidget(QWidget):
 
         self._view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
         self._view.pageNavigator().jump(0, QPointF(0, 0))
+        self._line_boxes = {}
+        self.clear_selection()
         self._stack.setCurrentWidget(self._view)
         self._set_controls_enabled(True)
         self._update_page_label()
@@ -270,6 +330,8 @@ class PdfPreviewWidget(QWidget):
         """Leert die Ansicht (keine PDF ausgewaehlt)."""
         self._generation += 1
         self._current_path = None
+        self._line_boxes = {}
+        self.clear_selection()
         self._release_document()
         self._show_message("Keine PDF ausgewählt")
         self._set_controls_enabled(False)
@@ -439,11 +501,12 @@ class PdfPreviewWidget(QWidget):
 
     def eventFilter(self, obj, event):
         if obj is self._view.viewport():
-            if (event.type() == QEvent.Type.MouseButtonDblClick
+            etype = event.type()
+            if (etype == QEvent.Type.MouseButtonDblClick
                     and self._compact and self._current_path is not None):
                 self.enlarge_requested.emit(self._current_path)
                 return True
-            if event.type() == QEvent.Type.Wheel and (
+            if etype == QEvent.Type.Wheel and (
                 event.modifiers() & Qt.KeyboardModifier.ControlModifier
             ):
                 if event.angleDelta().y() > 0:
@@ -451,7 +514,232 @@ class PdfPreviewWidget(QWidget):
                 elif event.angleDelta().y() < 0:
                     self.zoom_out()
                 return True
+            if etype == QEvent.Type.Resize:
+                self._overlay.resize(event.size())
+                self._refresh_overlay()
+            elif etype == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self._begin_selection(event.position().toPoint())
+                elif event.button() == Qt.MouseButton.RightButton and self.selected_text():
+                    self._show_selection_menu(event.globalPosition().toPoint())
+                    return True
+            elif etype == QEvent.Type.MouseMove and self._selecting:
+                if event.buttons() & Qt.MouseButton.LeftButton:
+                    self._update_selection(event.position().toPoint())
+                    return True
+            elif etype == QEvent.Type.MouseButtonRelease and self._selecting:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self._selecting = False
+                    self._update_selection(event.position().toPoint())
+                    text = self.selected_text()
+                    if text:
+                        self.text_selected.emit(text)
         return super().eventFilter(obj, event)
+
+    # ------------------------------------------------------------------ #
+    # Textauswahl (Issue #109)
+    # ------------------------------------------------------------------ #
+
+    def selected_text(self) -> str:
+        """Markierter Text, Leerraum normalisiert; "" ohne Markierung."""
+        if self._selection is None:
+            return ""
+        return " ".join(self._selection.text().split())
+
+    def clear_selection(self) -> None:
+        self._selection = None
+        self._sel_page = -1
+        self._selecting = False
+        self._refresh_overlay()
+
+    def _text_line_boxes(self, page: int) -> list:
+        """Rechtecke der Textzeilen einer Seite (pt), einmal pro Dokument ermittelt."""
+        boxes = self._line_boxes.get(page)
+        if boxes is None:
+            boxes = []
+            try:
+                all_text = self._document.getAllText(page)
+                if all_text.isValid():
+                    boxes = [poly.boundingRect() for poly in all_text.bounds()]
+            except Exception:  # noqa: BLE001 - dann eben ohne Einrasten
+                boxes = []
+            self._line_boxes[page] = boxes
+        return boxes
+
+    def _snap_to_text(self, page: int, point: QPointF) -> QPointF:
+        """Punkt auf die naechste Textzeile ziehen.
+
+        PDFium liefert nur eine Auswahl, wenn Start- UND Endpunkt ein Zeichen
+        treffen. Wer im Weissraum zu ziehen beginnt oder ueber das Zeilenende
+        hinaus zieht, bekaeme sonst nichts markiert.
+        """
+        boxes = self._text_line_boxes(page)
+        if not boxes:
+            return point
+        best = None
+        for box in boxes:
+            dx = max(box.left() - point.x(), 0.0, point.x() - box.right())
+            dy = max(box.top() - point.y(), 0.0, point.y() - box.bottom())
+            key = (dy, dx)
+            if best is None or key < best[0]:
+                best = (key, box)
+        box = best[1]
+        inset = 1.0
+        x = min(max(point.x(), box.left() + inset), max(box.left() + inset, box.right() - inset))
+        y = min(max(point.y(), box.top() + inset), max(box.top() + inset, box.bottom() - inset))
+        return QPointF(x, y)
+
+    def _begin_selection(self, pos: QPoint) -> None:
+        self.clear_selection()
+        if not self.is_showing_document():
+            return
+        hit = self._page_at(pos)
+        if hit is None:
+            return
+        page, rect = hit
+        self._sel_page = page
+        self._sel_start = self._snap_to_text(page, self._to_page_point(rect, page, pos))
+        self._selecting = True
+
+    def _update_selection(self, pos: QPoint) -> None:
+        if self._sel_page < 0:
+            return
+        rect = self._page_rect_in_viewport(self._sel_page)
+        if rect is None:
+            return
+        end = self._snap_to_text(self._sel_page, self._to_page_point(rect, self._sel_page, pos))
+        selection = self._document.getSelection(self._sel_page, self._sel_start, end)
+        self._selection = selection if selection.isValid() and selection.text().strip() else None
+        self._refresh_overlay()
+
+    def select_page_region(self, page: int, start: QPointF, end: QPointF) -> str:
+        """Markiert den Text zwischen zwei Punkten (Seiten-Koordinaten in pt).
+
+        Fuer Tests und Skripte - die Maus macht dasselbe ueber den Viewport.
+        """
+        self.clear_selection()
+        if not self.is_showing_document() or not 0 <= page < self.page_count():
+            return ""
+        self._sel_page = page
+        self._sel_start = self._snap_to_text(page, start)
+        selection = self._document.getSelection(page, self._sel_start, self._snap_to_text(page, end))
+        self._selection = selection if selection.isValid() and selection.text().strip() else None
+        self._refresh_overlay()
+        return self.selected_text()
+
+    def _refresh_overlay(self, *_args) -> None:
+        overlay = getattr(self, "_overlay", None)
+        if overlay is None or sip.isdeleted(overlay):
+            return
+        polygons: list[QPolygonF] = []
+        if self._selection is not None and self._sel_page >= 0:
+            rect = self._page_rect_in_viewport(self._sel_page)
+            if rect is not None:
+                polygons = [
+                    self._polygon_to_viewport(rect, self._sel_page, poly)
+                    for poly in self._selection.bounds()
+                ]
+        overlay.set_polygons(polygons)
+
+    def _build_selection_menu(self) -> QMenu:
+        """Kontextmenue fuer den markierten Text (ohne exec, fuer Tests)."""
+        text = self.selected_text()
+        menu = QMenu(self)
+        for field_key, label in SELECTION_TARGETS:
+            action = menu.addAction(label)
+            action.setData(field_key)
+            action.triggered.connect(
+                lambda _checked=False, k=field_key, t=text: self.apply_text_requested.emit(k, t)
+            )
+        menu.addSeparator()
+        copy_action = menu.addAction("Kopieren")
+        copy_action.triggered.connect(lambda _checked=False, t=text: QApplication.clipboard().setText(t))
+        return menu
+
+    def _show_selection_menu(self, global_pos: QPoint) -> None:
+        self._build_selection_menu().exec(global_pos)
+
+    # -- Seitengeometrie (wie QPdfViewPrivate::calculateDocumentLayout) ---- #
+
+    @staticmethod
+    def _screen_resolution() -> float:
+        screen = QGuiApplication.primaryScreen()
+        return (screen.logicalDotsPerInch() / 72.0) if screen is not None else 1.0
+
+    def _page_geometries(self) -> dict[int, QRect]:
+        """Seiten-Rechtecke in Dokument-Koordinaten (Pixel, vor dem Scrollen)."""
+        count = self.page_count()
+        if count == 0:
+            return {}
+        view = self._view
+        viewport = view.viewport()
+        margins = view.documentMargins()
+        spacing = view.pageSpacing()
+        res = self._screen_resolution()
+        mode = view.zoomMode()
+
+        sizes: dict[int, QSize] = {}
+        total_width = 0
+        for page in range(count):
+            points = self._document.pagePointSize(page)
+            if mode == QPdfView.ZoomMode.Custom:
+                size = QSizeF(points * res * view.zoomFactor()).toSize()
+            elif mode == QPdfView.ZoomMode.FitToWidth:
+                size = QSizeF(points * res).toSize()
+                avail = viewport.width() - margins.left() - margins.right()
+                factor = avail / max(1, size.width())
+                size = QSize(round(size.width() * factor), round(size.height() * factor))
+            else:  # FitInView
+                avail = viewport.size() + QSize(-margins.left() - margins.right(), -spacing)
+                size = QSizeF(points * res).toSize().scaled(avail, Qt.AspectRatioMode.KeepAspectRatio)
+            sizes[page] = size
+            total_width = max(total_width, size.width())
+        total_width += margins.left() + margins.right()
+
+        geometries: dict[int, QRect] = {}
+        y = margins.top()
+        for page in range(count):
+            size = sizes[page]
+            x = (max(total_width, viewport.width()) - size.width()) // 2
+            geometries[page] = QRect(QPoint(x, y), size)
+            y += size.height() + spacing
+        return geometries
+
+    def _scroll_offset(self) -> QPoint:
+        return QPoint(self._view.horizontalScrollBar().value(), self._view.verticalScrollBar().value())
+
+    def _page_rect_in_viewport(self, page: int) -> QRect | None:
+        rect = self._page_geometries().get(page)
+        if rect is None:
+            return None
+        offset = self._scroll_offset()
+        return rect.translated(-offset.x(), -offset.y())
+
+    def _page_at(self, pos: QPoint) -> tuple[int, QRect] | None:
+        offset = self._scroll_offset()
+        for page, rect in self._page_geometries().items():
+            shifted = rect.translated(-offset.x(), -offset.y())
+            if shifted.contains(pos):
+                return page, shifted
+        return None
+
+    def _to_page_point(self, rect: QRect, page: int, pos: QPoint) -> QPointF:
+        """Viewport-Pixel -> Seiten-Koordinaten in pt (auf die Seite begrenzt)."""
+        points = self._document.pagePointSize(page)
+        sx = points.width() / max(1, rect.width())
+        sy = points.height() / max(1, rect.height())
+        x = min(max((pos.x() - rect.x()) * sx, 0.0), points.width())
+        y = min(max((pos.y() - rect.y()) * sy, 0.0), points.height())
+        return QPointF(x, y)
+
+    def _polygon_to_viewport(self, rect: QRect, page: int, polygon: QPolygonF) -> QPolygonF:
+        points = self._document.pagePointSize(page)
+        sx = rect.width() / max(1.0, points.width())
+        sy = rect.height() / max(1.0, points.height())
+        return QPolygonF([
+            QPointF(rect.x() + polygon[i].x() * sx, rect.y() + polygon[i].y() * sy)
+            for i in range(len(polygon))
+        ])
 
     def keyPressEvent(self, event):
         key = event.key()
