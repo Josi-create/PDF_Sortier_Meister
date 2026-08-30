@@ -141,3 +141,143 @@ def test_connection_test_button_only_on_llm_tab(qtbot, monkeypatch, tmp_path):
     assert not dlg.test_button.isVisibleTo(dlg)
     dlg.tab_widget.setCurrentIndex(0)
     assert dlg.test_button.isVisibleTo(dlg)
+
+
+def test_show_tab_selects_dateinamen(qtbot, monkeypatch, tmp_path):
+    dialog, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    assert dialog.show_tab("Dateinamen")
+    assert dialog.tab_widget.tabText(dialog.tab_widget.currentIndex()) == "Dateinamen"
+    assert not dialog.show_tab("Gibt es nicht")
+
+
+def test_legend_toggle_does_not_share_a_cell_with_a_chip(qtbot, monkeypatch, tmp_path):
+    """Bei vollen Chip-Zeilen lag "Alle Platzhalter" ueber dem letzten Chip."""
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    grid = dlg.pattern_legend_toggle.parentWidget().layout()
+    cells = {}
+    for i in range(grid.count()):
+        item = grid.itemAt(i)
+        row, col, _rs, _cs = grid.getItemPosition(i)
+        cells.setdefault((row, col), []).append(item.widget())
+    toggle_cells = [c for c, ws in cells.items() if dlg.pattern_legend_toggle in ws]
+    assert toggle_cells and len(cells[toggle_cells[0]]) == 1
+    assert all(len(ws) == 1 for ws in cells.values())
+
+
+def test_separator_buttons_insert_at_cursor(qtbot, monkeypatch, tmp_path):
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    dlg.pattern_input.setText("{datum}")
+    dlg.pattern_input.setCursorPosition(len("{datum}"))
+    by_text = {b.text(): b for b in dlg.pattern_sep_buttons}
+    by_text["_"].click()
+    by_text["-"].click()
+    by_text["Leerzeichen"].click()
+    assert dlg.pattern_input.text() == "{datum}_- "
+
+
+def test_chip_click_auto_inserts_underscore_between_placeholders(qtbot, monkeypatch, tmp_path):
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    chip = {b.text(): b for b in dlg.pattern_chip_buttons}
+    chip["{datum}"].click()
+    assert dlg.pattern_input.text() == "{datum}"          # am Anfang kein Trenner
+    chip["{kontakt}"].click()
+    assert dlg.pattern_input.text() == "{datum}_{kontakt}"  # automatisch "_"
+    sep = {b.text(): b for b in dlg.pattern_sep_buttons}
+    sep["-"].click()
+    chip["{betreff}"].click()
+    assert dlg.pattern_input.text() == "{datum}_{kontakt}-{betreff}"  # eigener Trenner bleibt
+
+
+def test_undo_button_removes_placeholder_with_its_separator(qtbot, monkeypatch, tmp_path):
+    """Ein Klick zurueck je Chip-Klick - auch nach Doppelklick auf {jahr}."""
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    chip = {b.text(): b for b in dlg.pattern_chip_buttons}
+    chip["{datum}"].click()
+    chip["{jahr}"].click()
+    chip["{jahr}"].click()
+    assert dlg.pattern_input.text() == "{datum}_{jahr}_{jahr}"
+    dlg.pattern_undo_btn.click()
+    assert dlg.pattern_input.text() == "{datum}_{jahr}"
+    dlg.pattern_undo_btn.click()
+    assert dlg.pattern_input.text() == "{datum}"
+    # Getippter Text ohne Trenner: nur der Platzhalter geht weg
+    dlg.pattern_input.setText("Akte{datum}")
+    dlg.pattern_input.setCursorPosition(len("Akte{datum}"))
+    dlg.pattern_undo_btn.click()
+    assert dlg.pattern_input.text() == "Akte"
+    dlg.pattern_undo_btn.click()  # einzelnes Zeichen
+    assert dlg.pattern_input.text() == "Akt"
+    # Leeres Feld: nichts passiert
+    dlg.pattern_input.setText("")
+    dlg.pattern_undo_btn.click()
+    assert dlg.pattern_input.text() == ""
+
+
+def test_undo_button_respects_cursor_position(qtbot, monkeypatch, tmp_path):
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    dlg.pattern_input.setText("{datum}_{kontakt}_{betreff}")
+    dlg.pattern_input.setCursorPosition(len("{datum}_{kontakt}"))
+    dlg.pattern_undo_btn.click()
+    assert dlg.pattern_input.text() == "{datum}_{betreff}"
+    assert dlg.pattern_input.cursorPosition() == len("{datum}")
+
+
+def test_save_custom_pattern_adds_it_to_combo_and_config(qtbot, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QInputDialog
+    dlg, cfg = _dialog(qtbot, monkeypatch, tmp_path)
+    # Eingebaute Vorlage: Speichern gesperrt
+    dlg.pattern_input.setText("{datum}_{kategorie}_{kontakt}_{betreff}")
+    assert not dlg.pattern_save_btn.isEnabled()
+    dlg.pattern_input.setText("{jahr}_{kontakt}_Miete")
+    assert dlg.pattern_save_btn.isEnabled()
+    assert not dlg.pattern_delete_btn.isEnabled()
+
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("Mieter", True)))
+    dlg.pattern_save_btn.click()
+
+    names = [dlg.pattern_preset_combo.itemText(i) for i in range(dlg.pattern_preset_combo.count())]
+    assert "Mieter" in names
+    assert names[-1] == "Eigenes Muster"
+    assert dlg.pattern_preset_combo.currentText() == "Mieter"
+    assert cfg.get("custom_patterns") == [{"name": "Mieter", "pattern": "{jahr}_{kontakt}_Miete"}]
+    assert dlg.pattern_delete_btn.isEnabled()
+
+    # Vorlage aus der Combo waehlen fuellt das Feld
+    dlg.pattern_input.setText("")
+    idx = names.index("Mieter")
+    dlg.pattern_preset_combo.setCurrentIndex(idx)
+    dlg.pattern_preset_combo.activated.emit(idx)
+    assert dlg.pattern_input.text() == "{jahr}_{kontakt}_Miete"
+
+    # Loeschen entfernt es wieder, Feldinhalt bleibt
+    dlg.pattern_delete_btn.click()
+    names = [dlg.pattern_preset_combo.itemText(i) for i in range(dlg.pattern_preset_combo.count())]
+    assert "Mieter" not in names
+    assert cfg.get("custom_patterns") == []
+    assert dlg.pattern_input.text() == "{jahr}_{kontakt}_Miete"
+    assert dlg.pattern_preset_combo.currentText() == "Eigenes Muster"
+
+
+def test_save_custom_pattern_cancel_and_builtin_name(qtbot, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QInputDialog, QMessageBox
+    dlg, cfg = _dialog(qtbot, monkeypatch, tmp_path)
+    dlg.pattern_input.setText("{jahr}_{kontakt}")
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+    dlg.pattern_save_btn.click()
+    assert cfg.get("custom_patterns", []) == []
+
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warned.append(a)))
+    monkeypatch.setattr(QInputDialog, "getText",
+                        staticmethod(lambda *a, **k: ("Rechnungen & Belege", True)))
+    dlg.pattern_save_btn.click()
+    assert warned and cfg.get("custom_patterns", []) == []
+
+
+def test_saved_pattern_is_preselected_when_config_matches(qtbot, monkeypatch, tmp_path):
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path,
+                     filename_pattern="{jahr}_{kontakt}_Miete",
+                     custom_patterns=[{"name": "Mieter", "pattern": "{jahr}_{kontakt}_Miete"}])
+    assert dlg.pattern_preset_combo.currentText() == "Mieter"
+    assert dlg.pattern_delete_btn.isEnabled()
+

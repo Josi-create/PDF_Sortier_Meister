@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 
+import logging
+
 from src.ml.classifier import PDFClassifier, Suggestion, get_classifier
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProviderType
 from src.ml.claude_provider import ClaudeProvider
@@ -19,6 +21,9 @@ from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.utils.config import get_config
+from src.utils.database import get_database
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -454,6 +459,19 @@ class HybridClassifier:
 
         return suggestions
 
+    def _rename_examples(self, text: str, keywords: list[str] | None) -> list[str]:
+        """Dateinamen, die der Nutzer fuer aehnliche Dokumente gewaehlt hat.
+
+        Gehen als Stil-Beispiele in den KI-Prompt; was der Nutzer danach
+        waehlt oder korrigiert, wird beim naechsten Mal selbst zum Beispiel.
+        """
+        try:
+            entries = get_database().get_rename_examples(text, keywords, limit=5)
+        except Exception as e:  # noqa: BLE001 - Beispiele sind optional
+            logger.debug(f"Historien-Beispiele nicht verfuegbar: {e}")
+            return []
+        return [e.new_filename for e in entries if e.new_filename]
+
     def _get_llm_filename_suggestion(
         self,
         text: str,
@@ -475,6 +493,7 @@ class HybridClassifier:
             detected_date=detected_date,
             target_folder=target_folder,
             file_date=file_date,
+            examples=self._rename_examples(text, keywords),
         )
 
         self.total_tokens_used += response.tokens_used

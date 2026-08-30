@@ -80,6 +80,36 @@ PRESETS: list[tuple[str, str | None]] = [
 
 _PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
 
+# Vom Nutzer gespeicherte Muster (Einstellungen > Dateinamen > "Muster
+# speichern"): Config-Liste von {"name": ..., "pattern": ...}
+CUSTOM_PATTERNS_KEY = "custom_patterns"
+
+
+def load_custom_patterns(raw) -> list[tuple[str, str]]:
+    """Gespeicherte Muster aus der Config als ``(Name, Muster)``, bereinigt."""
+    result: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        pattern = str(item.get("pattern") or "").strip()
+        if not name or not pattern or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        result.append((name, pattern))
+    return result
+
+
+def builtin_pattern_names() -> set[str]:
+    return {name for name, _p in PRESETS}
+
+
+def all_presets(custom_patterns=None) -> list[tuple[str, str | None]]:
+    """Vorlagen fuer die Combo: eingebaute, dann gespeicherte, zuletzt "Eigenes"."""
+    builtin = [(n, p) for n, p in PRESETS if p is not None]
+    return builtin + list(custom_patterns or []) + [(PRESET_CUSTOM, None)]
+
 # Alte Presets (bis 0.21) und Grosswort-Schreibweise -> neue Syntax
 _LEGACY_PRESETS = {
     "YYYY-MM-DD_Rechnung_Kontakt_Betreff": "{datum}_{kategorie}_{kontakt}_{betreff}",
@@ -172,7 +202,9 @@ def _with_derived_dates(values: dict[str, str]) -> dict[str, str]:
     return merged
 
 
-def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
+def render_with_values(
+    pattern: str, values: dict[str, str] | None, min_values: int = 1
+) -> str:
     """Rendert das Muster nur mit *echten* Werten - fuer Vorschlaege zu einem
     konkreten Dokument (Issue #99).
 
@@ -180,7 +212,8 @@ def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
     Platzhalter ohne Wert fallen samt dem angrenzenden Trennzeichen weg
     (``{datum}_{kontakt}_{betreff}`` ohne Betreff -> ``2024-03-12_Firma``),
     genau wie es der KI-Prompt verlangt. Ergibt sich kein einziger echter
-    Wert, kommt ``""`` zurueck (= kein Vorschlag).
+    Wert (bzw. weniger als ``min_values``), kommt ``""`` zurueck
+    (= kein Vorschlag).
     """
     from src.utils.filename_sanitizer import sanitize_filename
 
@@ -216,7 +249,7 @@ def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
         if part:
             out.append(part)
 
-    if not filled:
+    if not filled or filled < min_values:
         return ""
     return sanitize_filename("".join(out))
 
@@ -271,13 +304,13 @@ def placeholder_values_from_metadata(
 PATTERN_CHOICE_SETTINGS = "Eigenes Muster (aus Einstellungen)"
 
 
-def pattern_choices(config_pattern: str) -> list[tuple[str, str]]:
-    """Auswahlliste fuer die Muster-Umschaltung im Detail-Panel (Issue #99).
+def pattern_choices(config_pattern: str, custom_patterns=None) -> list[tuple[str, str]]:
+    """Muster-Vorschlaege im Detail-Panel (Issues #99/#106).
 
     Liefert ``(Bezeichnung, Muster)``: zuerst „Standard“ (Muster ``""`` =
-    kein Muster-Vorschlag), dann die Vorlagen; ein eigenes Muster aus den
-    Einstellungen, das keiner Vorlage entspricht, steht als eigener Eintrag
-    direkt hinter „Standard“.
+    kein Muster-Vorschlag), dann die eingebauten Vorlagen, dann die vom
+    Nutzer gespeicherten Muster; ein Muster aus den Einstellungen, das keinem
+    davon entspricht, steht als eigener Eintrag direkt hinter „Standard“.
     """
     config_pattern = migrate_legacy_pattern(config_pattern or "")
     choices: list[tuple[str, str]] = []
@@ -285,6 +318,9 @@ def pattern_choices(config_pattern: str) -> list[tuple[str, str]]:
         if pattern is None:
             continue
         choices.append((name, pattern))
+    for name, pattern in custom_patterns or []:
+        if pattern and all(p != pattern for _n, p in choices):
+            choices.append((name, pattern))
     if config_pattern and all(p != config_pattern for _n, p in choices):
         choices.insert(1, (PATTERN_CHOICE_SETTINGS, config_pattern))
     return choices

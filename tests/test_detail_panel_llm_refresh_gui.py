@@ -53,3 +53,41 @@ def test_no_update_for_other_pdf(main_window, tmp_path):
     _llm_arrives(main_window, other)
     assert main_window.detail_panel.name_input.text() == ""
     assert main_window.detail_panel.get_current_pdf() == pdf
+
+
+def test_edit_pattern_button_opens_settings_on_dateinamen_tab(main_window, monkeypatch):
+    """"Muster bearbeiten" in der Vorschlags-Kopfzeile -> Einstellungen, Tab Dateinamen."""
+    from src.gui import main_window as mw_mod
+    seen = {}
+
+    def fake_exec(self):
+        seen["tab"] = self.tab_widget.tabText(self.tab_widget.currentIndex())
+        return 0
+
+    monkeypatch.setattr(mw_mod.SettingsDialog, "exec", fake_exec)
+    main_window.detail_panel.edit_pattern_btn.click()
+    assert seen["tab"] == "Dateinamen"
+
+
+def test_settings_change_refreshes_header_switch(main_window):
+    cfg = main_window.config
+    cfg.set("folder_naming_enabled", True, auto_save=False)
+    main_window._on_settings_changed()
+    assert main_window.detail_panel.folder_naming_checkbox.isChecked()
+
+
+def test_big_preview_window_applies_text_to_detail_panel(main_window, tmp_path):
+    """Markieren im Fenster "Gross" landet im Detail-Panel - aber nur fuer dieselbe PDF."""
+    pdf = _prepare(main_window, tmp_path)
+    main_window.show_preview_window(pdf)
+    win = main_window._preview_window
+    win.preview._current_path = pdf  # load_pdf ist im Test abgeschaltet
+
+    win.preview.apply_text_requested.emit("korrespondent", "Commerzbank AG")
+    assert main_window.detail_panel.get_metadata()["korrespondent"] == "Commerzbank AG"
+
+    # Fenster zeigt eine andere PDF: nichts uebernehmen
+    win.preview._current_path = tmp_path / "andere.pdf"
+    win.preview.apply_text_requested.emit("iban", "DE89 3704 0044 0532 0130 00")
+    assert "iban" not in main_window.detail_panel.get_metadata()
+

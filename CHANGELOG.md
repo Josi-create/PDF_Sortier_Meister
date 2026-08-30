@@ -7,7 +7,70 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geaendert
+- **Einheitliche Vorschlagsliste im Detail-Panel** (#106): Die Auswahl
+  „Muster“ unter der Liste ist weg. Stattdessen stehen alle Vorschlaege in
+  einer Liste: KI-Vorschlag, je Vorlage ein Muster-Vorschlag (Rechnungen &
+  Belege, Akten & Projekte, Buero-Kuerzel, eigenes Muster aus den
+  Einstellungen) sowie „Automatisch erkannt“, „Datum + Kategorie“ und
+  „Kategorie + Nummer“. Wer einen Vorschlag anklickt, macht dessen Art zum
+  Standard: Beim naechsten Dokument steht sie ganz oben und wird als
+  Dateiname uebernommen, die uebrigen ruecken eine Stufe nach unten
+  (Config-Schluessel `suggestion_kind_order`). Muster-Zeilen erscheinen nur,
+  wenn mindestens zwei Platzhalter einen Wert haben; „Nur Datum“ wird nicht
+  mehr angeboten.
+- **„Gelernt“-Vorschlaege werden zu KI-Beispielen:** Die alten „Gelernt:
+  aehnlich zu …“-Zeilen (irgendein frueherer Dateiname mit einem gemeinsamen
+  Stichwort) sind aus dem Detail-Panel verschwunden. Stattdessen bekommt die
+  KI die Dateinamen, die man fuer wirklich aehnliche Dokumente gewaehlt hat
+  (Firma/Person aus dem Namen kommt im Text vor oder mindestens zwei
+  Stichwoerter stimmen ueberein), als Stil-Beispiele in den Prompt. Was man
+  waehlt oder korrigiert, praegt so den naechsten Vorschlag.
+- **Kopfzeile ueber den Vorschlaegen:** Rechts neben dem Titel gibt es den
+  Schalter „Ordnerstruktur im Namen“ (dieselbe Einstellung wie *Beim
+  Verschieben* im Einstellungsdialog, wirkt sofort) und „Muster bearbeiten…“,
+  das die Einstellungen direkt auf dem Tab *Dateinamen* oeffnet.
+- **Neues Muster wirkt sofort:** Wird in *Einstellungen > Dateinamen* ein
+  anderes Muster gespeichert, steht es im Detail-Panel sofort ganz oben in
+  den Vorschlaegen und wird als neuer Dateiname uebernommen.
+- **Muster ohne Tastatur zusammenklicken** (Einstellungen > Dateinamen):
+  Unter den Platzhalter-Chips gibt es jetzt „Leerzeichen“, „_“ und „-“ sowie
+  „Zuruecknehmen“, das den letzten Baustein vor dem Cursor entfernt (ganzer
+  Platzhalter samt Trennzeichen, oder ein einzelnes Zeichen). Ein Chip-Klick
+  setzt automatisch „_“ zwischen zwei Platzhalter; wer vorher „-“ oder
+  Leerzeichen klickt, bekommt stattdessen dieses.
+- **Eigene Muster speichern** (Einstellungen > Dateinamen): „Muster
+  speichern…“ legt das Muster im Feld unter einem Namen ab. Es erscheint
+  danach in der Vorlagen-Liste und als eigene Muster-Zeile bei den
+  Vorschlaegen im Detail-Panel; „Loeschen“ entfernt es wieder
+  (Config-Schluessel `custom_patterns`).
+- **Text aus der Vorschau in die Metadaten** (#109): In der PDF-Vorschau
+  laesst sich Text mit der Maus markieren; Rechtsklick bietet „Als … uebernehmen“
+  fuer jedes Metadaten-Feld (Korrespondent, Kategorie, Zusammenfassung,
+  Betrag Netto/Brutto, Waehrung, MwSt-Satz, IBAN, Steuerjahr) sowie
+  „Kopieren“; IBAN, Betraege, MwSt und Steuerjahr werden dabei bereinigt.
+  Funktioniert auch im grossen Vorschau-Fenster („Gross“).
+  Ein so uebernommener Korrespondent wird in die Korrespondenten-Verwaltung
+  aufgenommen und bei spaeteren Dokumenten, in deren Text er vorkommt,
+  automatisch gesetzt - die eigene Schreibweise schlaegt den KI-Vorschlag.
+- **Kategorie als Auswahlfeld** (#110): Das Feld „Kategorie“ ist jetzt eine
+  editierbare Aufklappliste: zuerst die zuletzt selbst verwendeten
+  Kategorien (gemerkt bei jedem Speichern/Verschieben), dann haeufige aus
+  der Sammlung (ohne Bandwurm-Eintraege), aufgefuellt mit Standardwerten.
+
+- **Metadaten: neu vs. aus dem PDF:** Hatte die PDF bereits Metadaten,
+  werden Felder, deren Wert nicht (so) im PDF steht, pastellgruen
+  hervorgehoben (wie Kacheln mit KI-Vorschlag) - bis zum Speichern. Der
+  Status lautet dann „Quelle: aus PDF gelesen - gruen = neue Vorschlaege“
+  statt des vagen „teils aus PDF, teils Vorschlag“.
+
 ### Behoben
+- Bei eingeschaltetem „Ordnerstruktur im Namen“ (#42) landete der Name
+  samt Ordner-Praefix in der Historie und damit als Beispiel im KI-Prompt -
+  die KI haette Ordnernummern erfinden koennen. Gespeichert wird jetzt der
+  vom Nutzer gewaehlte Name ohne Praefix.
+- Einstellungen > Dateinamen: „Alle Platzhalter“ lag ueber dem letzten Chip
+  „{betrag}“ und war unlesbar.
 - Verschieben schlug unter Windows mit „Die Datei wird von einem anderen
   Prozess verwendet“ fehl, wenn direkt nach dem Anklicken verschoben wurde
   (Vorschau-/Metadaten-Leser hatten die PDF noch offen). `move_file`

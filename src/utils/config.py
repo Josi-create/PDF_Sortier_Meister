@@ -66,6 +66,13 @@ class Config:
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",
+        # Vom Nutzer gespeicherte Dateinamen-Muster: [{"name": ..., "pattern": ...}]
+        "custom_patterns": [],
+        # Rangfolge der Vorschlagsarten im Detail-Panel (Issue #106): zuletzt
+        # angeklickte Art zuerst; leer = Standard-Reihenfolge (KI, Muster, ...)
+        "suggestion_kind_order": [],
+        # Zuletzt verwendete Kategorien fuer die Aufklappliste (Issue #110)
+        "recent_categories": [],
         # Dateiname aus Ordnerstruktur beim Verschieben (Issue #42), Opt-in.
         "folder_naming_enabled": False,
         "folder_naming_template": "{initialen} {ordnernummern}-{datum}-{text}",

@@ -180,6 +180,7 @@ class ClaudeProvider(LLMProvider):
         detected_date: str = None,
         target_folder: str = None,
         file_date: str = None,
+        examples: list[str] | None = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen mit Claude vor.
@@ -202,7 +203,8 @@ class ClaudeProvider(LLMProvider):
             )
 
         prompt = self._build_filename_prompt(
-            text, current_filename, keywords, detected_date, target_folder, file_date
+            text, current_filename, keywords, detected_date, target_folder, file_date,
+            examples=examples,
         )
 
         try:

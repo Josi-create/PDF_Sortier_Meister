@@ -205,3 +205,31 @@ def test_pattern_choices_presets_and_custom_settings_pattern():
     assert pattern_choices("{datum}_{kategorie}_{kontakt}_{betreff}") == choices
     # Altes Grosswort-Muster wird zuerst migriert
     assert pattern_choices("YYYY-MM-DD_Rechnung_Kontakt_Betreff") == choices
+
+
+def test_custom_patterns_load_and_join_choices():
+    from src.core.filename_placeholders import PRESET_CUSTOM, all_presets, load_custom_patterns
+
+    raw = [
+        {"name": "Mieter", "pattern": "{jahr}_{kontakt}_Miete"},
+        {"name": "mieter", "pattern": "doppelt"},          # Name doppelt -> weg
+        {"name": "", "pattern": "{datum}"},                 # ohne Name -> weg
+        {"name": "Leer", "pattern": ""},                    # ohne Muster -> weg
+        "kaputt",
+    ]
+    custom = load_custom_patterns(raw)
+    assert custom == [("Mieter", "{jahr}_{kontakt}_Miete")]
+
+    presets = all_presets(custom)
+    assert presets[0] == PRESETS[0]
+    assert ("Mieter", "{jahr}_{kontakt}_Miete") in presets
+    assert presets[-1] == (PRESET_CUSTOM, None)
+
+    choices = pattern_choices("", custom)
+    assert choices[-1] == ("Mieter", "{jahr}_{kontakt}_Miete")
+    # Gespeichertes Muster = Einstellungs-Muster: kein Extra-Eintrag "Eigenes Muster"
+    assert PATTERN_CHOICE_SETTINGS not in [n for n, _p in pattern_choices("{jahr}_{kontakt}_Miete", custom)]
+    # Gespeichertes Muster gleich einer eingebauten Vorlage: nur einmal
+    dup = [("Kopie", PRESETS[1][1])]
+    assert [p for _n, p in pattern_choices("", dup)].count(PRESETS[1][1]) == 1
+

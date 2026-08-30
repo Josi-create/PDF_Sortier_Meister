@@ -1149,6 +1149,23 @@ class Database:
         except Exception:
             return []
 
+    def get_top_kategorien(self, limit: int = 10) -> list[str]:
+        """Die haeufigsten Kategorien der Sammlung, haeufigste zuerst (Issue #110)."""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT kategorie, COUNT(*) AS n FROM document_search "
+                "WHERE kategorie != '' GROUP BY kategorie ORDER BY n DESC, kategorie LIMIT ?",
+                (int(limit),),
+            )
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception:
+            return []
+
     def get_distinct_korrespondenten(self) -> list[str]:
         """Gibt sortierte Liste eindeutiger Korrespondenten zurück."""
         import sqlite3
@@ -1637,6 +1654,28 @@ class Database:
                         if len(results) >= limit:
                             break
             return results
+        finally:
+            session.close()
+
+    def get_rename_examples(
+        self, text: str, keywords: list[str] | None, limit: int = 5
+    ) -> list[RenameHistory]:
+        """Umbenennungen aehnlicher Dokumente als Stil-Beispiele fuer die KI.
+
+        Aehnlichkeit siehe :mod:`src.core.rename_examples` - ein einzelnes
+        gemeinsames Stichwort reicht nicht.
+        """
+        from src.core.rename_examples import rank_examples
+
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(RenameHistory)
+                .order_by(RenameHistory.created_at.desc())
+                .limit(2000)
+                .all()
+            )
+            return rank_examples(rows, text or "", keywords or [], limit=limit)
         finally:
             session.close()
 
