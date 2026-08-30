@@ -30,6 +30,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schalter „Ordnerstruktur im Namen“ (dieselbe Einstellung wie *Beim
   Verschieben* im Einstellungsdialog, wirkt sofort) und „Muster bearbeiten…“,
   das die Einstellungen direkt auf dem Tab *Dateinamen* oeffnet.
+- **Neues Muster wirkt sofort:** Wird in *Einstellungen > Dateinamen* ein
+  anderes Muster gespeichert, steht es im Detail-Panel sofort ganz oben in
+  den Vorschlaegen und wird als neuer Dateiname uebernommen.
 - **Muster ohne Tastatur zusammenklicken** (Einstellungen > Dateinamen):
   Unter den Platzhalter-Chips gibt es jetzt „Leerzeichen“, „_“ und „-“ sowie
   „Zuruecknehmen“, das den letzten Baustein vor dem Cursor entfernt (ganzer

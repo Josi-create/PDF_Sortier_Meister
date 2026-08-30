@@ -178,6 +178,9 @@ class DetailPanel(QWidget):
         # _displayed_kinds haelt parallel dazu die Art jeder Zeile
         self._displayed_suggestions: list[RenameSuggestion] = []
         self._displayed_kinds: list[str] = []
+        # Zuletzt gesehenes Einstellungs-Muster: aendert es sich (Dialog
+        # gespeichert), wird das neue Muster sofort zum obersten Vorschlag
+        self._seen_config_pattern: Optional[str] = None
         self._detected_date: Optional[str] = None
         self._metadata: dict = {}
         self._has_learned_overrides: bool = False
@@ -1074,7 +1077,12 @@ class DetailPanel(QWidget):
     # -- Kopfzeile: Ordnerstruktur-Schalter --------------------------------- #
 
     def refresh_settings(self):
-        """Gleicht die Kopfzeile an die Config an (nach Einstellungs-Aenderung)."""
+        """Gleicht das Panel an die Config an (nach Einstellungs-Aenderung).
+
+        Kopfzeilen-Schalter nachziehen; wurde in den Einstellungen ein neues
+        Dateinamen-Muster gespeichert, rueckt es sofort an die Spitze der
+        Vorschlaege und wird als neuer Dateiname uebernommen.
+        """
         try:
             from src.utils.config import get_config
             enabled = bool(get_config().get("folder_naming_enabled", False))
@@ -1083,6 +1091,21 @@ class DetailPanel(QWidget):
         self.folder_naming_checkbox.blockSignals(True)
         self.folder_naming_checkbox.setChecked(enabled)
         self.folder_naming_checkbox.blockSignals(False)
+
+        pattern = self._config_pattern()
+        if self._seen_config_pattern is None:
+            self._seen_config_pattern = pattern  # erster Blick: nur merken
+            return
+        if pattern == self._seen_config_pattern:
+            return
+        self._seen_config_pattern = pattern
+        if not pattern:
+            return
+        from src.core.suggestion_order import pattern_kind
+        self._remember_kind(pattern_kind(pattern))
+        if self._current_pdf is not None:
+            self._populate_suggestions()
+            self._apply_top_suggestion()
 
     def _on_folder_naming_toggled(self, checked: bool):
         """Schalter in der Kopfzeile schreibt dieselbe Einstellung wie der Dialog."""

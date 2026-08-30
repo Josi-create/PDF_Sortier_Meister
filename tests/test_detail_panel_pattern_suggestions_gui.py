@@ -327,3 +327,28 @@ def test_known_korrespondent_in_text_beats_ki_suggestion(qtbot, monkeypatch, tmp
                   detected_date="2024-01-31")
     assert panel.get_metadata()["korrespondent"] == "Testfirma GmbH"
 
+
+def test_new_settings_pattern_is_applied_immediately(qtbot, monkeypatch, tmp_path):
+    """Einstellungen > Dateinamen gespeichert -> neues Muster oben + im Namensfeld."""
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path, owner_initials="JW")
+    _select(panel, tmp_path, [_ki_suggestion()] + _analysis_suggestions())
+    assert _reasons(panel)[0] == "KI-Vorschlag"
+    panel.name_input.setText("Selbst getippt")  # wird bewusst ueberschrieben
+
+    cfg.set("filename_pattern", "{jahr}_{kontakt}_Miete", auto_save=False)
+    panel.refresh_settings()  # macht MainWindow._on_settings_changed
+
+    assert _reasons(panel)[0] == "Muster: Eigenes Muster"
+    assert panel.name_input.text() == "2024_Testfirma-GmbH_Miete"
+    assert not panel.has_user_edits()
+    assert cfg.get(CONFIG_KEY)[0] == pattern_kind("{jahr}_{kontakt}_Miete")
+
+    # Naechste PDF: bleibt oben
+    _select(panel, tmp_path, [_ki_suggestion("2024-02-01_Rechnung_Andere.pdf")])
+    assert _reasons(panel)[0] == "Muster: Eigenes Muster"
+
+    # Unveraenderte Einstellungen: nichts passiert, Nutzertext bleibt
+    panel.name_input.setText("Mein Name")
+    panel.refresh_settings()
+    assert panel.name_input.text() == "Mein Name"
+
