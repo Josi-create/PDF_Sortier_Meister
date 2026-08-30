@@ -30,8 +30,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schalter „Ordnerstruktur im Namen“ (dieselbe Einstellung wie *Beim
   Verschieben* im Einstellungsdialog, wirkt sofort) und „Muster bearbeiten…“,
   das die Einstellungen direkt auf dem Tab *Dateinamen* oeffnet.
+- **Muster ohne Tastatur zusammenklicken** (Einstellungen > Dateinamen):
+  Unter den Platzhalter-Chips gibt es jetzt „Leerzeichen“, „_“ und „-“ sowie
+  „Zuruecknehmen“, das den letzten Baustein vor dem Cursor entfernt (ganzer
+  Platzhalter samt Trennzeichen, oder ein einzelnes Zeichen). Ein Chip-Klick
+  setzt automatisch „_“ zwischen zwei Platzhalter; wer vorher „-“ oder
+  Leerzeichen klickt, bekommt stattdessen dieses.
+- **Eigene Muster speichern** (Einstellungen > Dateinamen): „Muster
+  speichern…“ legt das Muster im Feld unter einem Namen ab. Es erscheint
+  danach in der Vorlagen-Liste und als eigene Muster-Zeile bei den
+  Vorschlaegen im Detail-Panel; „Loeschen“ entfernt es wieder
+  (Config-Schluessel `custom_patterns`).
 
 ### Behoben
+- Einstellungen > Dateinamen: „Alle Platzhalter“ lag ueber dem letzten Chip
+  „{betrag}“ und war unlesbar.
 - Verschieben schlug unter Windows mit „Die Datei wird von einem anderen
   Prozess verwendet“ fehl, wenn direkt nach dem Anklicken verschoben wurde
   (Vorschau-/Metadaten-Leser hatten die PDF noch offen). `move_file`

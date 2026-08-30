@@ -261,7 +261,7 @@ class SettingsDialog(QDialog):
         src.core.filename_placeholders und landen genauso im KI-Prompt.
         """
         from PyQt6.QtWidgets import QComboBox, QGridLayout, QRadioButton, QSizePolicy, QToolButton
-        from src.core.filename_placeholders import PLACEHOLDERS, PRESETS, legend_html
+        from src.core.filename_placeholders import PLACEHOLDERS, legend_html
         from src.core.folder_naming import DEFAULT_TEMPLATE
 
         tab = QWidget()
@@ -276,10 +276,25 @@ class SettingsDialog(QDialog):
 
         # Vorlage (Combo) fuellt das Muster-Feld; Tippen schaltet auf "Eigenes"
         self.pattern_preset_combo = QComboBox()
-        for name, _pattern in PRESETS:
-            self.pattern_preset_combo.addItem(name)
+        self._pattern_presets: list[tuple[str, str | None]] = []
+        self._rebuild_pattern_presets()
         self.pattern_preset_combo.activated.connect(self._on_pattern_preset_activated)
-        form.addRow("Vorlage:", self.pattern_preset_combo)
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(6)
+        preset_row.addWidget(self.pattern_preset_combo, 1)
+        # Eigenes Muster unter einem Namen merken -> erscheint in der Vorlagen-
+        # Liste und als Muster-Vorschlag im Detail-Panel
+        self.pattern_save_btn = QPushButton("Muster speichern…")
+        self.pattern_save_btn.setToolTip(
+            "Das Muster im Feld unter einem Namen in die Vorlagen-Liste aufnehmen."
+        )
+        self.pattern_save_btn.clicked.connect(self._save_custom_pattern)
+        preset_row.addWidget(self.pattern_save_btn)
+        self.pattern_delete_btn = QPushButton("Löschen")
+        self.pattern_delete_btn.setToolTip("Das gewählte gespeicherte Muster aus der Liste entfernen.")
+        self.pattern_delete_btn.clicked.connect(self._delete_custom_pattern)
+        preset_row.addWidget(self.pattern_delete_btn)
+        form.addRow("Vorlage:", preset_row)
 
         self.pattern_input = QLineEdit()
         self.pattern_input.setPlaceholderText("leer = KI entscheidet selbst")
@@ -324,6 +339,35 @@ class SettingsDialog(QDialog):
         chips.addWidget(self.pattern_legend_toggle, last_row, per_row,
                         Qt.AlignmentFlag.AlignRight)
         chips.setColumnStretch(per_row, 1)
+
+        # Trennzeichen + Zuruecknehmen: Muster ganz ohne Tastatur zusammenklicken
+        sep_row = QHBoxLayout()
+        sep_row.setSpacing(4)
+        self.pattern_sep_buttons = []
+        for label, sep, tip in (
+            ("Leerzeichen", " ", "Leerzeichen einfuegen"),
+            ("_", "_", "Unterstrich einfuegen"),
+            ("-", "-", "Bindestrich einfuegen"),
+        ):
+            btn = QPushButton(label)
+            btn.setToolTip(tip)
+            btn.setStyleSheet(
+                "QPushButton { padding: 1px 8px; font-family: monospace; font-size: 11px; }"
+            )
+            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            btn.clicked.connect(lambda _checked=False, s=sep: self._insert_separator(s))
+            sep_row.addWidget(btn)
+            self.pattern_sep_buttons.append(btn)
+        sep_row.addStretch(1)
+        self.pattern_undo_btn = QPushButton("⌫ Zurücknehmen")
+        self.pattern_undo_btn.setToolTip(
+            "Letzten Baustein vor dem Cursor entfernen (ganzer Platzhalter oder ein Trennzeichen)"
+        )
+        self.pattern_undo_btn.setStyleSheet("QPushButton { padding: 1px 8px; font-size: 11px; }")
+        self.pattern_undo_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.pattern_undo_btn.clicked.connect(self._remove_last_pattern_token)
+        sep_row.addWidget(self.pattern_undo_btn)
+        chips.addLayout(sep_row, last_row + 1, 0, 1, per_row + 1)
         form.addRow("", chips_widget)
 
         self.pattern_legend_label = QLabel(legend_html())
@@ -417,12 +461,84 @@ class SettingsDialog(QDialog):
 
     def _on_pattern_preset_activated(self, index: int):
         """Vorlage gewaehlt -> Muster-Feld befuellen ("Eigenes": Feld behalten)."""
-        from src.core.filename_placeholders import PRESETS
-        _name, pattern = PRESETS[index]
+        _name, pattern = self._pattern_presets[index]
         if pattern is None:
             self.pattern_input.setFocus()
             return
         self.pattern_input.setText(pattern)
+
+    # -- Gespeicherte Muster ------------------------------------------------ #
+
+    def _custom_patterns(self) -> list[tuple[str, str]]:
+        from src.core.filename_placeholders import CUSTOM_PATTERNS_KEY, load_custom_patterns
+        return load_custom_patterns(self.config.get(CUSTOM_PATTERNS_KEY, []))
+
+    def _store_custom_patterns(self, patterns: list[tuple[str, str]]):
+        from src.core.filename_placeholders import CUSTOM_PATTERNS_KEY
+        self.config.set(CUSTOM_PATTERNS_KEY, [{"name": n, "pattern": p} for n, p in patterns])
+
+    def _rebuild_pattern_presets(self):
+        """Combo neu befuellen: eingebaute Vorlagen, gespeicherte Muster, "Eigenes"."""
+        from src.core.filename_placeholders import all_presets
+        self._pattern_presets = all_presets(self._custom_patterns())
+        self.pattern_preset_combo.blockSignals(True)
+        self.pattern_preset_combo.clear()
+        for name, _pattern in self._pattern_presets:
+            self.pattern_preset_combo.addItem(name)
+        self.pattern_preset_combo.blockSignals(False)
+
+    def _selected_custom_pattern(self) -> tuple[str, str] | None:
+        """(Name, Muster), wenn die Combo gerade ein gespeichertes Muster zeigt."""
+        from src.core.filename_placeholders import builtin_pattern_names
+        idx = self.pattern_preset_combo.currentIndex()
+        if not 0 <= idx < len(self._pattern_presets):
+            return None
+        name, pattern = self._pattern_presets[idx]
+        if pattern is None or name in builtin_pattern_names():
+            return None
+        return name, pattern
+
+    def _update_custom_pattern_buttons(self):
+        from src.core.filename_placeholders import PRESETS
+        text = self.pattern_input.text().strip()
+        is_builtin = any(p == text for _n, p in PRESETS if p)
+        self.pattern_save_btn.setEnabled(bool(text) and not is_builtin)
+        self.pattern_delete_btn.setEnabled(self._selected_custom_pattern() is not None)
+
+    def _save_custom_pattern(self):
+        """"Muster speichern…": Namen erfragen, in die Config schreiben, Combo neu."""
+        from PyQt6.QtWidgets import QInputDialog
+        pattern = self.pattern_input.text().strip()
+        if not pattern:
+            return
+        existing = self._custom_patterns()
+        default_name = next((n for n, p in existing if p == pattern), "")
+        name, ok = QInputDialog.getText(
+            self, "Muster speichern", "Name für dieses Muster:", text=default_name
+        )
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        from src.core.filename_placeholders import builtin_pattern_names
+        if name in builtin_pattern_names():
+            QMessageBox.warning(self, "Muster speichern",
+                                f"„{name}“ ist eine eingebaute Vorlage - bitte einen anderen Namen wählen.")
+            return
+        # Gleicher Name oder gleiches Muster -> Eintrag ersetzen
+        patterns = [(n, p) for n, p in existing if n.lower() != name.lower() and p != pattern]
+        patterns.append((name, pattern))
+        self._store_custom_patterns(patterns)
+        self._rebuild_pattern_presets()
+        self._sync_pattern_combo(pattern)
+
+    def _delete_custom_pattern(self):
+        selected = self._selected_custom_pattern()
+        if selected is None:
+            return
+        name, _pattern = selected
+        self._store_custom_patterns([(n, p) for n, p in self._custom_patterns() if n != name])
+        self._rebuild_pattern_presets()
+        self._sync_pattern_combo(self.pattern_input.text())
 
     def _on_pattern_text_changed(self, text: str):
         self._sync_pattern_combo(text)
@@ -430,20 +546,56 @@ class SettingsDialog(QDialog):
 
     def _sync_pattern_combo(self, text: str):
         """Combo auf die passende Vorlage stellen, sonst auf "Eigenes"."""
-        from src.core.filename_placeholders import PRESETS
         text = text.strip()
-        index = len(PRESETS) - 1
-        for i, (_name, pattern) in enumerate(PRESETS):
+        index = len(self._pattern_presets) - 1
+        for i, (_name, pattern) in enumerate(self._pattern_presets):
             if pattern is not None and pattern == text:
                 index = i
                 break
         self.pattern_preset_combo.blockSignals(True)
         self.pattern_preset_combo.setCurrentIndex(index)
         self.pattern_preset_combo.blockSignals(False)
+        self._update_custom_pattern_buttons()
+
+    _PATTERN_SEPARATORS = " _-"
 
     def _insert_placeholder(self, key: str):
-        """Chip geklickt -> Platzhalter an der Cursorposition einfuegen."""
-        self.pattern_input.insert("{" + key + "}")
+        """Chip geklickt -> Platzhalter an der Cursorposition einfuegen.
+
+        Steht davor bereits etwas, aber kein Trennzeichen, kommt automatisch
+        ein "_" dazwischen - so laesst sich ein Muster nur mit Chips
+        zusammenklicken. Wer "-" oder Leerzeichen will, klickt das vorher.
+        """
+        before = self.pattern_input.text()[: self.pattern_input.cursorPosition()]
+        sep = "_" if before and before[-1] not in self._PATTERN_SEPARATORS else ""
+        self.pattern_input.insert(sep + "{" + key + "}")
+        self.pattern_input.setFocus()
+
+    def _insert_separator(self, sep: str):
+        """Trennzeichen-Knopf -> an der Cursorposition einfuegen."""
+        self.pattern_input.insert(sep)
+        self.pattern_input.setFocus()
+
+    def _remove_last_pattern_token(self):
+        """Baustein vor dem Cursor entfernen: ganzer {platzhalter} oder ein Zeichen.
+
+        Ein Chip-Klick = Trennzeichen + Platzhalter, ein Klick auf
+        "Zuruecknehmen" macht genau das wieder rueckgaengig.
+        """
+        text = self.pattern_input.text()
+        pos = self.pattern_input.cursorPosition()
+        before, after = text[:pos], text[pos:]
+        if not before:
+            return
+        if before.endswith("}") and "{" in before:
+            before = before[:before.rfind("{")]
+            # das automatisch eingefuegte Trennzeichen gehoert zum Baustein
+            if before and before[-1] in self._PATTERN_SEPARATORS:
+                before = before[:-1]
+        else:
+            before = before[:-1]
+        self.pattern_input.setText(before + after)
+        self.pattern_input.setCursorPosition(len(before))
         self.pattern_input.setFocus()
 
     def _toggle_pattern_legend(self, checked: bool):

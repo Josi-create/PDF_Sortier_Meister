@@ -959,6 +959,16 @@ class DetailPanel(QWidget):
         except Exception:
             return ""
 
+    def _custom_patterns(self) -> list[tuple[str, str]]:
+        """Vom Nutzer gespeicherte Muster (Einstellungen > Dateinamen)."""
+        from src.core.filename_placeholders import CUSTOM_PATTERNS_KEY, load_custom_patterns
+
+        try:
+            from src.utils.config import get_config
+            return load_custom_patterns(get_config().get(CUSTOM_PATTERNS_KEY, []))
+        except Exception:
+            return []
+
     def _kind_order(self) -> list[str]:
         """Gemerkte Rangfolge der Vorschlagsarten, um fehlende Arten ergaenzt."""
         from src.core.suggestion_order import CONFIG_KEY, effective_order
@@ -969,7 +979,7 @@ class DetailPanel(QWidget):
             saved = get_config().get(CONFIG_KEY, None)
         except Exception:
             pass
-        return effective_order(saved, self._config_pattern())
+        return effective_order(saved, self._config_pattern(), self._custom_patterns())
 
     def _remember_kind(self, kind: str):
         """Die angeklickte Art wird beim naechsten Dokument zuoberst gereiht."""
@@ -1023,7 +1033,7 @@ class DetailPanel(QWidget):
             return []
         values = self._pattern_values()
         result: list[tuple[RenameSuggestion, str]] = []
-        for label, pattern in pattern_choices(self._config_pattern()):
+        for label, pattern in pattern_choices(self._config_pattern(), self._custom_patterns()):
             if not pattern:
                 continue  # "Standard" = kein Muster
             name = render_with_values(pattern, values, min_values=2)

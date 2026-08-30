@@ -78,3 +78,13 @@ def test_sort_by_kind_is_stable_and_puts_unknown_last():
     items = [("c", KIND_AUTO), ("a1", KIND_KI), ("x", "fremd"), ("a2", KIND_KI), ("b", KIND_LEARNED)]
     order = [KIND_AUTO, KIND_KI, KIND_LEARNED]
     assert [o for o, _k in sort_by_kind(items, order)] == ["c", "a1", "a2", "b", "x"]
+
+
+def test_default_order_includes_saved_custom_patterns_after_builtin():
+    custom = [("Mieter", "{jahr}_{kontakt}_Miete")]
+    order = default_order("", custom)
+    presets = [pattern_kind(p) for _n, p in PRESETS if p]
+    assert order[1:1 + len(presets)] == presets
+    assert order[1 + len(presets)] == pattern_kind("{jahr}_{kontakt}_Miete")
+    assert pattern_kind("{jahr}_{kontakt}_Miete") in effective_order(None, "", custom)
+

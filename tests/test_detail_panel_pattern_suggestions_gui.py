@@ -247,3 +247,12 @@ def test_header_edit_pattern_button_emits_signal(qtbot, monkeypatch, tmp_path):
     with qtbot.waitSignal(panel.edit_pattern_requested, timeout=1000):
         panel.edit_pattern_btn.click()
 
+
+def test_saved_custom_pattern_becomes_a_row(qtbot, monkeypatch, tmp_path):
+    panel, _ = _panel(qtbot, monkeypatch, tmp_path,
+                      custom_patterns=[{"name": "Mieter", "pattern": "{jahr}_{kontakt}_Miete"}])
+    _select(panel, tmp_path, [_ki_suggestion()])
+    rows = _rows(panel)
+    assert "2024_Testfirma-GmbH_Miete.pdf  [Muster: Mieter]" in rows
+    assert _reasons(panel)[-1] == "Muster: Mieter"  # nach den eingebauten Vorlagen
+

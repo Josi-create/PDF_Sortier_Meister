@@ -55,16 +55,17 @@ def kind_from_reason(reason: str) -> str:
     return KIND_OTHER
 
 
-def default_order(config_pattern: str = "") -> list[str]:
+def default_order(config_pattern: str = "", custom_patterns=None) -> list[str]:
     """Standard-Rangfolge, solange der Nutzer noch nichts gewaehlt hat.
 
-    KI zuerst, dann das Muster aus den Einstellungen, die uebrigen Vorlagen,
-    danach die einfachen Vorschlaege aus der Textanalyse.
+    KI zuerst, dann das Muster aus den Einstellungen, die uebrigen Vorlagen
+    (eingebaute, dann gespeicherte), danach die einfachen Vorschlaege aus
+    der Textanalyse.
     """
     order = [KIND_KI]
     # pattern_choices liefert das Einstellungs-Muster an zweiter Stelle,
     # wenn es keiner Vorlage entspricht - sonst steht es unter den Vorlagen
-    choices = [p for _label, p in pattern_choices(config_pattern) if p]
+    choices = [p for _label, p in pattern_choices(config_pattern, custom_patterns) if p]
     if config_pattern and config_pattern in choices:
         choices.remove(config_pattern)
         choices.insert(0, config_pattern)
@@ -74,10 +75,12 @@ def default_order(config_pattern: str = "") -> list[str]:
     return order
 
 
-def effective_order(saved: Iterable[str] | None, config_pattern: str = "") -> list[str]:
+def effective_order(
+    saved: Iterable[str] | None, config_pattern: str = "", custom_patterns=None
+) -> list[str]:
     """Gespeicherte Rangfolge, ergaenzt um alle Arten, die darin noch fehlen."""
     order: list[str] = []
-    for kind in list(saved or []) + default_order(config_pattern):
+    for kind in list(saved or []) + default_order(config_pattern, custom_patterns):
         if isinstance(kind, str) and kind and kind not in order:
             order.append(kind)
     return order
