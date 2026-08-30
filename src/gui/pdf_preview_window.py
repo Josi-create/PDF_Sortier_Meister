@@ -29,6 +29,8 @@ class PdfPreviewWindow(QMainWindow):
 
     open_external_requested = pyqtSignal(Path)
     geometry_changed = pyqtSignal(list)
+    # Markierter Text -> Metadaten-Feld (Issue #109), weitergereicht aus der Vorschau
+    apply_text_requested = pyqtSignal(str, str)
 
     def __init__(self, parent=None, geometry: list | None = None):
         super().__init__(parent)
@@ -39,6 +41,7 @@ class PdfPreviewWindow(QMainWindow):
 
         self.preview = PdfPreviewWidget(self, compact=False)
         self.preview.open_external_requested.connect(self.open_external_requested)
+        self.preview.apply_text_requested.connect(self.apply_text_requested)
         self.setCentralWidget(self.preview)
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.close)

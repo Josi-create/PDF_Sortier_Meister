@@ -287,7 +287,23 @@ class MainWindow(QMainWindow):
             )
             self._preview_window.open_external_requested.connect(self.open_pdf_external)
             self._preview_window.geometry_changed.connect(self._on_preview_geometry_changed)
+            self._preview_window.apply_text_requested.connect(self._on_preview_window_text_applied)
         self._preview_window.show_pdf(Path(pdf_path))
+
+    def _on_preview_window_text_applied(self, field_key: str, text: str) -> None:
+        """Markierter Text aus dem grossen Vorschau-Fenster -> Metadaten-Feld (Issue #109).
+
+        Nur, wenn das Fenster dieselbe PDF zeigt wie das Detail-Panel - sonst
+        landete der Text bei einem anderen Dokument.
+        """
+        shown = self._preview_window.current_path() if self._preview_window else None
+        selected = self.detail_panel.get_current_pdf()
+        if shown is None or selected is None or Path(shown) != Path(selected):
+            self.statusbar.showMessage(
+                "Die Vorschau zeigt nicht die ausgewählte PDF - Text nicht übernommen.", 5000
+            )
+            return
+        self.detail_panel.apply_preview_text(field_key, text)
 
     def _on_preview_geometry_changed(self, geometry: list) -> None:
         self.config.set("preview_window_geometry", list(geometry))

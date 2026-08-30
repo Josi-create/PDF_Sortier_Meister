@@ -46,6 +46,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   fuer jedes Metadaten-Feld (Korrespondent, Kategorie, Zusammenfassung,
   Betrag Netto/Brutto, Waehrung, MwSt-Satz, IBAN, Steuerjahr) sowie
   „Kopieren“; IBAN, Betraege, MwSt und Steuerjahr werden dabei bereinigt.
+  Funktioniert auch im grossen Vorschau-Fenster („Gross“).
   Ein so uebernommener Korrespondent wird in die Korrespondenten-Verwaltung
   aufgenommen und bei spaeteren Dokumenten, in deren Text er vorkommt,
   automatisch gesetzt - die eigene Schreibweise schlaegt den KI-Vorschlag.

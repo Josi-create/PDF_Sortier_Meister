@@ -75,3 +75,19 @@ def test_settings_change_refreshes_header_switch(main_window):
     main_window._on_settings_changed()
     assert main_window.detail_panel.folder_naming_checkbox.isChecked()
 
+
+def test_big_preview_window_applies_text_to_detail_panel(main_window, tmp_path):
+    """Markieren im Fenster "Gross" landet im Detail-Panel - aber nur fuer dieselbe PDF."""
+    pdf = _prepare(main_window, tmp_path)
+    main_window.show_preview_window(pdf)
+    win = main_window._preview_window
+    win.preview._current_path = pdf  # load_pdf ist im Test abgeschaltet
+
+    win.preview.apply_text_requested.emit("korrespondent", "Commerzbank AG")
+    assert main_window.detail_panel.get_metadata()["korrespondent"] == "Commerzbank AG"
+
+    # Fenster zeigt eine andere PDF: nichts uebernehmen
+    win.preview._current_path = tmp_path / "andere.pdf"
+    win.preview.apply_text_requested.emit("iban", "DE89 3704 0044 0532 0130 00")
+    assert "iban" not in main_window.detail_panel.get_metadata()
+

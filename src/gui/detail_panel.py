@@ -1011,6 +1011,10 @@ class DetailPanel(QWidget):
             return None
         return find_known_korrespondent(text, entries)
 
+    def apply_preview_text(self, field_key: str, text: str):
+        """Markierten Text (auch aus dem grossen Vorschau-Fenster) in ein Feld uebernehmen."""
+        self._on_preview_text_applied(field_key, text)
+
     def _on_preview_text_applied(self, field_key: str, text: str):
         """Markierter Text aus der Vorschau -> Metadaten-Feld; Korrespondent wird gelernt."""
         from src.core.metadata_choices import normalize_for_field
