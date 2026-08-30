@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-08-30
+
 ### Geaendert
 - **Einheitliche Vorschlagsliste im Detail-Panel** (#106): Die Auswahl
   „Muster“ unter der Liste ist weg. Stattdessen stehen alle Vorschlaege in
