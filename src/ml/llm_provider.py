@@ -226,6 +226,7 @@ class LLMProvider(ABC):
         detected_date: str = None,
         target_folder: str = None,
         file_date: str = None,
+        examples: list[str] | None = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen für das Dokument vor.
@@ -237,6 +238,7 @@ class LLMProvider(ABC):
             detected_date: Erkanntes Datum im Dokument
             target_folder: Zielordner (falls bekannt)
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
+            examples: Dateinamen, die der Nutzer fuer aehnliche Dokumente gewaehlt hat
 
         Returns:
             LLMResponse mit Dateinamenvorschlag und Begründung
@@ -379,6 +381,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         detected_date: str = None,
         target_folder: str = None,
         file_date: str = None,
+        examples: list[str] | None = None,
     ) -> str:
         """
         Erstellt den Prompt für Dateinamenvorschläge.
@@ -390,6 +393,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             detected_date: Erkanntes Datum im Dokument
             target_folder: Zielordner (falls bekannt)
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
+            examples: Dateinamen aehnlicher Dokumente aus der Historie (Stil-Beispiele)
 
         Returns:
             Formatierter Prompt (JSON Format gefordert)
@@ -412,6 +416,8 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
         owner_info = self._build_owner_info()
         pattern_info = self._build_filename_pattern_info()
+        from src.core.rename_examples import describe_examples_for_prompt
+        examples_info = describe_examples_for_prompt(examples or [])
 
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}
@@ -420,7 +426,7 @@ AKTUELLER DATEINAME: {current_filename}
 DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}
-{pattern_info}
+{pattern_info}{examples_info}
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf

@@ -19,6 +19,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   (Config-Schluessel `suggestion_kind_order`). Muster-Zeilen erscheinen nur,
   wenn mindestens zwei Platzhalter einen Wert haben; „Nur Datum“ wird nicht
   mehr angeboten.
+- **„Gelernt“-Vorschlaege werden zu KI-Beispielen:** Die alten „Gelernt:
+  aehnlich zu …“-Zeilen (irgendein frueherer Dateiname mit einem gemeinsamen
+  Stichwort) sind aus dem Detail-Panel verschwunden. Stattdessen bekommt die
+  KI die Dateinamen, die man fuer wirklich aehnliche Dokumente gewaehlt hat
+  (Firma/Person aus dem Namen kommt im Text vor oder mindestens zwei
+  Stichwoerter stimmen ueberein), als Stil-Beispiele in den Prompt. Was man
+  waehlt oder korrigiert, praegt so den naechsten Vorschlag.
 
 ### Behoben
 - Verschieben schlug unter Windows mit „Die Datei wird von einem anderen

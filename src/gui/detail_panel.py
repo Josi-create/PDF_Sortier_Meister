@@ -820,15 +820,20 @@ class DetailPanel(QWidget):
         Rangfolge aus der Config (``suggestion_kind_order``, Issue #106): die
         zuletzt angeklickte Art zuoberst.
         """
-        from src.core.suggestion_order import KIND_DATE, kind_from_reason, sort_by_kind
+        from src.core.suggestion_order import (
+            KIND_DATE, KIND_LEARNED, kind_from_reason, sort_by_kind,
+        )
 
         self.suggestions_list.clear()
 
         pairs: list[tuple[RenameSuggestion, str]] = []
         for s in self._suggestions:
             kind = kind_from_reason(s.reason)
-            if kind == KIND_DATE:
-                continue  # "Nur Datum" ist als Dateiname unbrauchbar (#106)
+            if kind in (KIND_DATE, KIND_LEARNED):
+                # "Nur Datum" ist als Dateiname unbrauchbar; "Gelernt" (fremder
+                # alter Dateiname) ebenso - die Historie fliesst stattdessen als
+                # Beispiel in den KI-Prompt (src.core.rename_examples)
+                continue
             pairs.append((s, kind))
         pattern_pairs = self._pattern_suggestions()
         pairs.extend(pattern_pairs)

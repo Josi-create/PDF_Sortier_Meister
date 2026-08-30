@@ -1998,6 +1998,7 @@ class MainWindow(QMainWindow):
                     extracted_text=self.selected_pdf_text,
                     keywords=self.selected_pdf_keywords,
                     detected_date=detected_date,
+                    target_folder=str(folder_path),
                 )
 
             # Volltext-Suchindex befüllen (Phase 17)

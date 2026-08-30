@@ -177,10 +177,15 @@ def test_duplicate_names_shown_once_higher_rank_wins(qtbot, monkeypatch, tmp_pat
     assert "Muster: Rechnungen & Belege" not in reasons
 
 
-def test_nur_datum_is_not_listed(qtbot, monkeypatch, tmp_path):
+def test_nur_datum_and_learned_are_not_listed(qtbot, monkeypatch, tmp_path):
     panel, _ = _panel(qtbot, monkeypatch, tmp_path)
-    _select(panel, tmp_path, _analysis_suggestions())
-    assert "Nur Datum" not in _reasons(panel)
+    _select(panel, tmp_path, _analysis_suggestions() + [
+        RenameSuggestion("2022-04-03_Commerzbank_Depotauszug.pdf",
+                         "Gelernt: ähnlich zu Depotauszug.pdf", 0.7),
+    ])
+    reasons = _reasons(panel)
+    assert "Nur Datum" not in reasons
+    assert not any(r.startswith("Gelernt") for r in reasons)
 
 
 def test_clicking_ki_row_takes_metadata_pattern_row_does_not(qtbot, monkeypatch, tmp_path):

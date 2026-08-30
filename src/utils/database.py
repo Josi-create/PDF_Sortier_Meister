@@ -1640,6 +1640,28 @@ class Database:
         finally:
             session.close()
 
+    def get_rename_examples(
+        self, text: str, keywords: list[str] | None, limit: int = 5
+    ) -> list[RenameHistory]:
+        """Umbenennungen aehnlicher Dokumente als Stil-Beispiele fuer die KI.
+
+        Aehnlichkeit siehe :mod:`src.core.rename_examples` - ein einzelnes
+        gemeinsames Stichwort reicht nicht.
+        """
+        from src.core.rename_examples import rank_examples
+
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(RenameHistory)
+                .order_by(RenameHistory.created_at.desc())
+                .limit(2000)
+                .all()
+            )
+            return rank_examples(rows, text or "", keywords or [], limit=limit)
+        finally:
+            session.close()
+
     def get_rename_suggestions_by_folder(
         self, target_folder: str, limit: int = 5
     ) -> list[RenameHistory]:
