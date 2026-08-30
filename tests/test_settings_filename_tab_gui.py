@@ -149,3 +149,17 @@ def test_show_tab_selects_dateinamen(qtbot, monkeypatch, tmp_path):
     assert dialog.tab_widget.tabText(dialog.tab_widget.currentIndex()) == "Dateinamen"
     assert not dialog.show_tab("Gibt es nicht")
 
+
+def test_legend_toggle_does_not_share_a_cell_with_a_chip(qtbot, monkeypatch, tmp_path):
+    """Bei vollen Chip-Zeilen lag "Alle Platzhalter" ueber dem letzten Chip."""
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    grid = dlg.pattern_legend_toggle.parentWidget().layout()
+    cells = {}
+    for i in range(grid.count()):
+        item = grid.itemAt(i)
+        row, col, _rs, _cs = grid.getItemPosition(i)
+        cells.setdefault((row, col), []).append(item.widget())
+    toggle_cells = [c for c, ws in cells.items() if dlg.pattern_legend_toggle in ws]
+    assert toggle_cells and len(cells[toggle_cells[0]]) == 1
+    assert all(len(ws) == 1 for ws in cells.values())
+

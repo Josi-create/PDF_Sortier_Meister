@@ -318,10 +318,12 @@ class SettingsDialog(QDialog):
         )
         self.pattern_legend_toggle.setAutoRaise(True)
         self.pattern_legend_toggle.toggled.connect(self._toggle_pattern_legend)
+        # Eigene Spalte rechts neben den Chips - nie in der Zelle eines Chips
+        # (bei vollen Zeilen lag der Knopf sonst ueber dem letzten Chip)
         last_row = (len(PLACEHOLDERS) - 1) // per_row
-        chips.addWidget(self.pattern_legend_toggle, last_row, per_row - 1,
+        chips.addWidget(self.pattern_legend_toggle, last_row, per_row,
                         Qt.AlignmentFlag.AlignRight)
-        chips.setColumnStretch(per_row - 1, 1)
+        chips.setColumnStretch(per_row, 1)
         form.addRow("", chips_widget)
 
         self.pattern_legend_label = QLabel(legend_html())
