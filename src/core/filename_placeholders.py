@@ -172,7 +172,9 @@ def _with_derived_dates(values: dict[str, str]) -> dict[str, str]:
     return merged
 
 
-def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
+def render_with_values(
+    pattern: str, values: dict[str, str] | None, min_values: int = 1
+) -> str:
     """Rendert das Muster nur mit *echten* Werten - fuer Vorschlaege zu einem
     konkreten Dokument (Issue #99).
 
@@ -180,7 +182,8 @@ def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
     Platzhalter ohne Wert fallen samt dem angrenzenden Trennzeichen weg
     (``{datum}_{kontakt}_{betreff}`` ohne Betreff -> ``2024-03-12_Firma``),
     genau wie es der KI-Prompt verlangt. Ergibt sich kein einziger echter
-    Wert, kommt ``""`` zurueck (= kein Vorschlag).
+    Wert (bzw. weniger als ``min_values``), kommt ``""`` zurueck
+    (= kein Vorschlag).
     """
     from src.utils.filename_sanitizer import sanitize_filename
 
@@ -216,7 +219,7 @@ def render_with_values(pattern: str, values: dict[str, str] | None) -> str:
         if part:
             out.append(part)
 
-    if not filled:
+    if not filled or filled < min_values:
         return ""
     return sanitize_filename("".join(out))
 

@@ -7,6 +7,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geaendert
+- **Einheitliche Vorschlagsliste im Detail-Panel** (#106): Die Auswahl
+  „Muster“ unter der Liste ist weg. Stattdessen stehen alle Vorschlaege in
+  einer Liste: KI-Vorschlag, je Vorlage ein Muster-Vorschlag (Rechnungen &
+  Belege, Akten & Projekte, Buero-Kuerzel, eigenes Muster aus den
+  Einstellungen) sowie „Automatisch erkannt“, „Datum + Kategorie“ und
+  „Kategorie + Nummer“. Wer einen Vorschlag anklickt, macht dessen Art zum
+  Standard: Beim naechsten Dokument steht sie ganz oben und wird als
+  Dateiname uebernommen, die uebrigen ruecken eine Stufe nach unten
+  (Config-Schluessel `suggestion_kind_order`). Muster-Zeilen erscheinen nur,
+  wenn mindestens zwei Platzhalter einen Wert haben; „Nur Datum“ wird nicht
+  mehr angeboten.
+
 ### Behoben
 - Verschieben schlug unter Windows mit „Die Datei wird von einem anderen
   Prozess verwendet“ fehl, wenn direkt nach dem Anklicken verschoben wurde

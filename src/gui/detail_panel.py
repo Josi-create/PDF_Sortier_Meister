@@ -9,6 +9,7 @@ und klickt rechts auf einen Zielordner zum Verschieben+Umbenennen.
 from pathlib import Path
 from typing import Optional
 
+import logging
 import time
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
@@ -27,10 +28,11 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
     QCheckBox,
-    QComboBox,
     QGridLayout,
     QSplitter,
 )
+
+logger = logging.getLogger(__name__)
 
 from src.core.llm_activity import (
     KIND_SUGGEST,
@@ -125,13 +127,12 @@ class DetailPanel(QWidget):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
         self._suggestions: list[RenameSuggestion] = []
-        # Tatsaechlich angezeigte Liste: _suggestions + Muster-Vorschlag (#99)
+        # Tatsaechlich angezeigte Liste (#99/#106): _suggestions + ein
+        # Muster-Vorschlag je Vorlage, sortiert nach der gemerkten Rangfolge;
+        # _displayed_kinds haelt parallel dazu die Art jeder Zeile
         self._displayed_suggestions: list[RenameSuggestion] = []
+        self._displayed_kinds: list[str] = []
         self._detected_date: Optional[str] = None
-        # Muster-Umschaltung (Issue #99): (Bezeichnung, Muster) je Combo-Eintrag;
-        # _pattern_config merkt sich das zuletzt gelesene Einstellungs-Muster
-        self._pattern_choices: list[tuple[str, str]] = []
-        self._pattern_config: Optional[str] = None
         self._metadata: dict = {}
         self._has_learned_overrides: bool = False
         # Quelle der aktuell angezeigten Metadaten: "pdf", "llm", "user", None
@@ -209,33 +210,12 @@ class DetailPanel(QWidget):
         self.suggestions_list = QListWidget()
         self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
         self.suggestions_list.setToolTip(
-            "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen."
+            "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen.\n"
+            "Die zuletzt gewählte Art von Vorschlag steht beim nächsten Dokument ganz oben\n"
+            "und wird automatisch als Dateiname vorgeschlagen."
         )
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
         suggestions_layout.addWidget(self.suggestions_list)
-
-        # Muster-Umschaltung (Issue #99): Dateiname nach dem Muster aus
-        # Einstellungen > Dateinamen (oder einer anderen Vorlage), gerendert
-        # aus den Metadaten dieses Dokuments
-        pattern_row = QHBoxLayout()
-        pattern_row.setSpacing(4)
-        pattern_label = QLabel("Muster:")
-        pattern_label.setStyleSheet("color: #555; font-size: 10px;")
-        pattern_row.addWidget(pattern_label)
-        self.pattern_combo = QComboBox()
-        self.pattern_combo.setStyleSheet("font-size: 10px;")
-        self.pattern_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.pattern_combo.setMinimumContentsLength(18)
-        self.pattern_combo.setToolTip(
-            "Dateinamen-Muster aus Einstellungen > Dateinamen.\n"
-            "Umschalten zeigt den Namen nach dem gewählten Muster als Vorschlag\n"
-            "und übernimmt ihn ins Feld „Neuer Dateiname“."
-        )
-        self.pattern_combo.activated.connect(self._on_pattern_combo_activated)
-        pattern_row.addWidget(self.pattern_combo, 1)
-        suggestions_layout.addLayout(pattern_row)
 
         detail_layout.addWidget(suggestions_group)
 
@@ -469,9 +449,6 @@ class DetailPanel(QWidget):
         # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
         self.preview.load_pdf(pdf_path)
 
-        # Muster-Auswahl an die Einstellungen angleichen (falls dort geaendert)
-        self._load_pattern_choices()
-
         # Metadaten vorbefüllen
         self._metadata = {}
 
@@ -521,8 +498,8 @@ class DetailPanel(QWidget):
             else:
                 self._metadata_source = None
 
-        # Vorschläge befüllen (nach den Metadaten: der Muster-Vorschlag
-        # rendert aus den Feldern)
+        # Vorschläge befüllen (nach den Metadaten: die Muster-Vorschlaege
+        # rendern aus den Feldern)
         self._populate_suggestions()
 
         # GroupBox-Titel
@@ -533,12 +510,10 @@ class DetailPanel(QWidget):
 
         self._refresh_save_btn()
 
-        # Ersten Vorschlag als Name setzen
+        # Obersten Vorschlag (= zuletzt gewaehlte Art, Issue #106) als Name setzen
         self._auto_name = ""
-        if self._suggestions:
-            name = self._suggestions[0].name.replace('.pdf', '')
-            self.name_input.setText(name)
-            self._auto_name = name
+        self.name_input.setText("")
+        self._apply_top_suggestion()
 
         # UI umschalten
         self.placeholder.hide()
@@ -698,7 +673,9 @@ class DetailPanel(QWidget):
         self._apply_pdf_metadata(pdf_meta)
         if self._saved_metadata_snapshot:
             self.metadata_group.setTitle("Metadaten (aus PDF gelesen, werden in PDF gespeichert)")
-            self._populate_suggestions()  # Muster-Vorschlag mit den PDF-Werten
+            self._populate_suggestions()  # Muster-Vorschlaege mit den PDF-Werten
+            if not self.has_user_edits():
+                self._apply_top_suggestion()
 
     def load_metadata_from_pdf(self, pdf_path: Path):
         """Liest XMP-Metadaten synchron aus der PDF und befüllt die Felder (Tests/Sonderfaelle)."""
@@ -835,18 +812,38 @@ class DetailPanel(QWidget):
     # === Interne Methoden ===
 
     def _populate_suggestions(self):
-        """Füllt die Vorschlagsliste (KI-Vorschläge, Muster-Vorschlag, Rest)."""
+        """Fuellt die Vorschlagsliste: eine einheitliche, nach Art sortierte Liste.
+
+        KI-Vorschlaege, ein Muster-Vorschlag je Vorlage (aus den Metadaten
+        dieses Dokuments) und die einfachen Analyse-Vorschlaege stehen in der
+        Rangfolge aus der Config (``suggestion_kind_order``, Issue #106): die
+        zuletzt angeklickte Art zuoberst.
+        """
+        from src.core.suggestion_order import KIND_DATE, kind_from_reason, sort_by_kind
+
         self.suggestions_list.clear()
 
-        displayed = list(self._suggestions)
-        pattern_suggestion = self._pattern_suggestion()
-        if pattern_suggestion is not None:
-            # Direkt hinter den KI-Vorschlaegen, vor "Automatisch erkannt" & Co.
-            pos = 0
-            while pos < len(displayed) and displayed[pos].reason == "KI-Vorschlag":
-                pos += 1
-            displayed.insert(pos, pattern_suggestion)
-        self._displayed_suggestions = displayed
+        pairs: list[tuple[RenameSuggestion, str]] = []
+        for s in self._suggestions:
+            kind = kind_from_reason(s.reason)
+            if kind == KIND_DATE:
+                continue  # "Nur Datum" ist als Dateiname unbrauchbar (#106)
+            pairs.append((s, kind))
+        pattern_pairs = self._pattern_suggestions()
+        pairs.extend(pattern_pairs)
+        pairs = sort_by_kind(pairs, self._kind_order())
+
+        # Doppelte Namen (z.B. KI folgt exakt dem Muster): hoeher gereihte Zeile gewinnt
+        seen: set[str] = set()
+        displayed: list[tuple[RenameSuggestion, str]] = []
+        for s, kind in pairs:
+            key = s.name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            displayed.append((s, kind))
+        self._displayed_suggestions = [s for s, _k in displayed]
+        self._displayed_kinds = [k for _s, k in displayed]
 
         if not displayed:
             item = QListWidgetItem("Keine Vorschläge verfügbar")
@@ -855,7 +852,8 @@ class DetailPanel(QWidget):
             self._fit_suggestions_height()
             return
 
-        for suggestion in displayed:
+        pattern_rows = {id(s) for s, _k in pattern_pairs}
+        for suggestion, _kind in displayed:
             confidence_pct = int(suggestion.confidence * 100)
             display_text = f"{suggestion.name}"
             if suggestion.reason:
@@ -864,9 +862,9 @@ class DetailPanel(QWidget):
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion.name)
 
-            if suggestion is pattern_suggestion:
+            if id(suggestion) in pattern_rows:
                 item.setToolTip(
-                    "Nach dem gewählten Dateinamen-Muster aus den Metadaten dieses "
+                    "Nach diesem Dateinamen-Muster aus den Metadaten dieses "
                     "Dokuments gebildet. Anklicken übernimmt den Namen."
                 )
                 item.setBackground(QColor(214, 234, 255))  # hellblau = Muster
@@ -882,40 +880,49 @@ class DetailPanel(QWidget):
             self.suggestions_list.addItem(item)
         self._fit_suggestions_height()
 
-    # -- Muster-Umschaltung (Issue #99) ---------------------------------- #
+    def _apply_top_suggestion(self):
+        """Uebernimmt die oberste Zeile als (automatischen) Dateinamen."""
+        if not self._displayed_suggestions:
+            return
+        name = self._displayed_suggestions[0].name.replace('.pdf', '')
+        self.name_input.setText(name)
+        self._auto_name = name
 
-    def _load_pattern_choices(self, force: bool = False):
-        """Befuellt die Muster-Combo aus den Einstellungen.
+    # -- Rangfolge der Vorschlaege (Issue #106) --------------------------- #
 
-        Wird bei jeder PDF-Auswahl aufgerufen; die Combo wird nur neu
-        aufgebaut, wenn sich das Muster in den Einstellungen geaendert hat -
-        eine Umschaltung des Nutzers bleibt sonst ueber PDFs hinweg erhalten.
-        """
-        from src.core.filename_placeholders import migrate_legacy_pattern, pattern_choices
+    def _config_pattern(self) -> str:
+        """Dateinamen-Muster aus Einstellungen > Dateinamen (migriert)."""
+        from src.core.filename_placeholders import migrate_legacy_pattern
 
         try:
             from src.utils.config import get_config
-            config_pattern = migrate_legacy_pattern(get_config().get("filename_pattern", "") or "")
+            return migrate_legacy_pattern(get_config().get("filename_pattern", "") or "")
         except Exception:
-            config_pattern = ""
-        if not force and config_pattern == self._pattern_config:
+            return ""
+
+    def _kind_order(self) -> list[str]:
+        """Gemerkte Rangfolge der Vorschlagsarten, um fehlende Arten ergaenzt."""
+        from src.core.suggestion_order import CONFIG_KEY, effective_order
+
+        saved = None
+        try:
+            from src.utils.config import get_config
+            saved = get_config().get(CONFIG_KEY, None)
+        except Exception:
+            pass
+        return effective_order(saved, self._config_pattern())
+
+    def _remember_kind(self, kind: str):
+        """Die angeklickte Art wird beim naechsten Dokument zuoberst gereiht."""
+        from src.core.suggestion_order import CONFIG_KEY, KIND_OTHER, promote
+
+        if not kind or kind == KIND_OTHER:
             return
-        self._pattern_config = config_pattern
-        self._pattern_choices = pattern_choices(config_pattern)
-
-        self.pattern_combo.blockSignals(True)
-        self.pattern_combo.clear()
-        selected = 0
-        for idx, (label, pattern) in enumerate(self._pattern_choices):
-            self.pattern_combo.addItem(label, pattern)
-            if pattern and pattern == config_pattern:
-                selected = idx
-        self.pattern_combo.setCurrentIndex(selected)
-        self.pattern_combo.blockSignals(False)
-
-    def current_pattern(self) -> str:
-        """Das in der Combo gewaehlte Muster ("" = Standard, kein Muster-Vorschlag)."""
-        return self.pattern_combo.currentData() or ""
+        try:
+            from src.utils.config import get_config
+            get_config().set(CONFIG_KEY, promote(self._kind_order(), kind))
+        except Exception as e:  # noqa: BLE001 - Rangfolge ist Komfort, kein Muss
+            logger.debug(f"Vorschlags-Rangfolge nicht gespeichert: {e}")
 
     def _pattern_values(self) -> dict:
         """Platzhalter-Werte aus den aktuellen Feldern + Dokumentdatum."""
@@ -943,43 +950,53 @@ class DetailPanel(QWidget):
                         break
         return placeholder_values_from_metadata(self.get_metadata(), doc_date, initials)
 
-    def _pattern_suggestion(self) -> Optional[RenameSuggestion]:
-        """Vorschlag nach dem gewaehlten Muster - None ohne Muster oder ohne Werte."""
-        from src.core.filename_placeholders import render_with_values
+    def _pattern_suggestions(self) -> list[tuple[RenameSuggestion, str]]:
+        """Ein Vorschlag je Vorlage (und eigenem Einstellungs-Muster), mit Art.
 
-        pattern = self.current_pattern()
-        if not pattern or not self._current_pdf:
-            return None
-        name = render_with_values(pattern, self._pattern_values())
-        if not name:
-            return None
-        label = self.pattern_combo.currentText().split(" (")[0]
-        return RenameSuggestion(name=name, reason=f"Muster: {label}", confidence=0.75)
+        Vorlagen, bei denen weniger als zwei Platzhalter einen Wert haben,
+        fallen weg - „Rechnung.pdf“ oder ein blosses Datum sind als
+        Dateiname unbrauchbar.
+        """
+        from src.core.filename_placeholders import pattern_choices, render_with_values
+        from src.core.suggestion_order import pattern_kind
 
-    def _on_pattern_combo_activated(self, _index: int):
-        """Nutzer hat ein anderes Muster gewaehlt: Liste neu, Name uebernehmen."""
-        self._populate_suggestions()
-        suggestion = self._pattern_suggestion()
-        if suggestion is not None:
-            self.name_input.setText(suggestion.name.replace('.pdf', ''))
+        if not self._current_pdf:
+            return []
+        values = self._pattern_values()
+        result: list[tuple[RenameSuggestion, str]] = []
+        for label, pattern in pattern_choices(self._config_pattern()):
+            if not pattern:
+                continue  # "Standard" = kein Muster
+            name = render_with_values(pattern, values, min_values=2)
+            if not name:
+                continue
+            short = label.split(" (")[0]
+            result.append((
+                RenameSuggestion(name=name, reason=f"Muster: {short}", confidence=0.75),
+                pattern_kind(pattern),
+            ))
+        return result
 
     def _fit_suggestions_height(self):
-        """Liste nur so hoch wie noetig (max. ~4 Zeilen) - spart Platz fuer die Vorschau."""
+        """Liste nur so hoch wie noetig (max. ~8 Zeilen) - spart Platz fuer die Vorschau."""
         count = max(1, self.suggestions_list.count())
         row_h = self.suggestions_list.sizeHintForRow(0)
         if row_h <= 0:
             row_h = 22
         frame = 2 * self.suggestions_list.frameWidth() + 4
-        self.suggestions_list.setFixedHeight(min(96, count * row_h + frame))
+        self.suggestions_list.setFixedHeight(min(8 * row_h + frame, count * row_h + frame))
 
     def _on_suggestion_clicked(self, item: QListWidgetItem):
-        """Übernimmt Vorschlag in Eingabefeld + Metadaten."""
+        """Übernimmt Vorschlag in Eingabefeld + Metadaten und merkt sich die Art."""
         name = item.data(Qt.ItemDataRole.UserRole)
         if name:
             self.name_input.setText(name.replace('.pdf', ''))
 
-            # Metadaten des Vorschlags übernehmen
             idx = self.suggestions_list.row(item)
+            if 0 <= idx < len(self._displayed_kinds):
+                self._remember_kind(self._displayed_kinds[idx])
+
+            # Metadaten des Vorschlags übernehmen
             shown = self._displayed_suggestions
             if idx < len(shown) and shown[idx].metadata:
                 self._loading_metadata = True
