@@ -203,6 +203,7 @@ class MainWindow(QMainWindow):
         self.detail_panel.open_pdf_requested.connect(self.open_pdf)
         self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
+        self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
         if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
@@ -4138,8 +4139,17 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         """Öffnet den Einstellungsdialog."""
+        self._open_settings_dialog()
+
+    def open_filename_settings(self):
+        """Einstellungen direkt auf dem Tab "Dateinamen" (Muster bearbeiten)."""
+        self._open_settings_dialog(tab="Dateinamen")
+
+    def _open_settings_dialog(self, tab: str | None = None):
         dialog = SettingsDialog(self, example_values_provider=self._settings_example_values)
         dialog.settings_changed.connect(self._on_settings_changed)
+        if tab:
+            dialog.show_tab(tab)
         dialog.exec()
 
     def _settings_example_values(self):
@@ -4160,6 +4170,8 @@ class MainWindow(QMainWindow):
         # Hybrid-Klassifikator neu initialisieren
         self.hybrid_classifier._init_llm_provider()
         self._update_llm_status()
+        # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
+        self.detail_panel.refresh_settings()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.

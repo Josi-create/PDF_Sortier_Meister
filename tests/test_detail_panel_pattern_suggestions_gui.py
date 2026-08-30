@@ -224,3 +224,26 @@ def test_pdf_metadata_arriving_later_updates_auto_name_only(qtbot, monkeypatch, 
     panel.name_input.setText("Mein Name")
     panel._on_pdf_metadata_read(pdf, PDFMetadata(korrespondent="Dritte KG"))
     assert panel.name_input.text() == "Mein Name"
+
+
+def test_header_folder_naming_switch_mirrors_config(qtbot, monkeypatch, tmp_path):
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path, folder_naming_enabled=True)
+    _select(panel, tmp_path, [_ki_suggestion()])
+    assert panel.folder_naming_checkbox.isChecked()
+
+    # Schalter schreibt die Config (dieselbe Einstellung wie im Dialog)
+    panel.folder_naming_checkbox.setChecked(False)
+    assert cfg.get("folder_naming_enabled") is False
+    assert (tmp_path / "config.json").exists()
+
+    # Dialog aendert die Config -> refresh_settings zieht den Schalter nach
+    cfg.set("folder_naming_enabled", True, auto_save=False)
+    panel.refresh_settings()
+    assert panel.folder_naming_checkbox.isChecked()
+
+
+def test_header_edit_pattern_button_emits_signal(qtbot, monkeypatch, tmp_path):
+    panel, _ = _panel(qtbot, monkeypatch, tmp_path)
+    with qtbot.waitSignal(panel.edit_pattern_requested, timeout=1000):
+        panel.edit_pattern_btn.click()
+

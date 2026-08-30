@@ -26,6 +26,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   (Firma/Person aus dem Namen kommt im Text vor oder mindestens zwei
   Stichwoerter stimmen ueberein), als Stil-Beispiele in den Prompt. Was man
   waehlt oder korrigiert, praegt so den naechsten Vorschlag.
+- **Kopfzeile ueber den Vorschlaegen:** Rechts neben dem Titel gibt es den
+  Schalter „Ordnerstruktur im Namen“ (dieselbe Einstellung wie *Beim
+  Verschieben* im Einstellungsdialog, wirkt sofort) und „Muster bearbeiten…“,
+  das die Einstellungen direkt auf dem Tab *Dateinamen* oeffnet.
 
 ### Behoben
 - Verschieben schlug unter Windows mit „Die Datei wird von einem anderen

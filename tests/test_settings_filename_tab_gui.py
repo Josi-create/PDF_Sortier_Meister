@@ -141,3 +141,11 @@ def test_connection_test_button_only_on_llm_tab(qtbot, monkeypatch, tmp_path):
     assert not dlg.test_button.isVisibleTo(dlg)
     dlg.tab_widget.setCurrentIndex(0)
     assert dlg.test_button.isVisibleTo(dlg)
+
+
+def test_show_tab_selects_dateinamen(qtbot, monkeypatch, tmp_path):
+    dialog, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    assert dialog.show_tab("Dateinamen")
+    assert dialog.tab_widget.tabText(dialog.tab_widget.currentIndex()) == "Dateinamen"
+    assert not dialog.show_tab("Gibt es nicht")
+

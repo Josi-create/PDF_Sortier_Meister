@@ -58,6 +58,14 @@ class SettingsDialog(QDialog):
         self._setup_ui()
         self._load_settings()
 
+    def show_tab(self, title: str) -> bool:
+        """Schaltet auf den Tab mit diesem Titel (z.B. "Dateinamen")."""
+        for idx in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(idx) == title:
+                self.tab_widget.setCurrentIndex(idx)
+                return True
+        return False
+
     def _setup_ui(self):
         """Erstellt die Benutzeroberfläche."""
         self.setWindowTitle("Einstellungen")

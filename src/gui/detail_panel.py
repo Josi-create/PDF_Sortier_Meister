@@ -122,6 +122,8 @@ class DetailPanel(QWidget):
     open_pdf_requested = pyqtSignal(Path)            # Suchergebnis doppelgeklickt
     open_pdf_external_requested = pyqtSignal(Path)   # "Extern öffnen" in der Vorschau
     enlarge_preview_requested = pyqtSignal(Path)     # große Vorschau gewünscht
+    # "Muster bearbeiten" in der Vorschlags-Kopfzeile: Einstellungen > Dateinamen
+    edit_pattern_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -201,11 +203,40 @@ class DetailPanel(QWidget):
         self.header_label.setWordWrap(True)
         detail_layout.addWidget(self.header_label)
 
-        # Vorschläge
-        suggestions_group = QGroupBox("Vorschläge (zum Auswählen klicken)")
+        # Vorschläge - Kopfzeile mit Titel links, Schalter + Button rechts
+        suggestions_group = QGroupBox()
         suggestions_layout = QVBoxLayout(suggestions_group)
         suggestions_layout.setSpacing(2)
         suggestions_layout.setContentsMargins(6, 4, 6, 6)
+
+        head_row = QHBoxLayout()
+        head_row.setSpacing(6)
+        title = QLabel("<b>Vorschläge</b>")
+        title.setToolTip("Zum Auswählen anklicken - der Name wandert ins Feld „Neuer Dateiname“.")
+        head_row.addWidget(title)
+        head_row.addStretch(1)
+        # Schalter fuer "Dateiname aus Ordnerstruktur" (Issue #42) direkt am
+        # Ort des Geschehens - gleiche Einstellung wie im Einstellungsdialog
+        self.folder_naming_checkbox = QCheckBox("Ordnerstruktur im Namen")
+        self.folder_naming_checkbox.setStyleSheet("font-size: 10px;")
+        self.folder_naming_checkbox.setToolTip(
+            "Beim Verschieben die Nummern/Namen des Zielordners in den Dateinamen\n"
+            "aufnehmen (Vorlage unter Einstellungen > Dateinamen > Beim Verschieben).\n"
+            "Wirkt sofort, auch fuer den naechsten Verschiebe-Vorgang."
+        )
+        self.folder_naming_checkbox.toggled.connect(self._on_folder_naming_toggled)
+        head_row.addWidget(self.folder_naming_checkbox)
+        self.edit_pattern_btn = QPushButton("Muster bearbeiten…")
+        self.edit_pattern_btn.setFlat(True)
+        self.edit_pattern_btn.setStyleSheet(
+            "QPushButton { font-size: 10px; color: #1a5fb4; padding: 1px 4px; }"
+            "QPushButton:hover { text-decoration: underline; }"
+        )
+        self.edit_pattern_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.edit_pattern_btn.setToolTip("Öffnet Einstellungen > Dateinamen (Muster und Vorlagen)")
+        self.edit_pattern_btn.clicked.connect(self.edit_pattern_requested)
+        head_row.addWidget(self.edit_pattern_btn)
+        suggestions_layout.addLayout(head_row)
 
         self.suggestions_list = QListWidget()
         self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
@@ -501,6 +532,7 @@ class DetailPanel(QWidget):
 
         # Vorschläge befüllen (nach den Metadaten: die Muster-Vorschlaege
         # rendern aus den Feldern)
+        self.refresh_settings()
         self._populate_suggestions()
 
         # GroupBox-Titel
@@ -893,6 +925,27 @@ class DetailPanel(QWidget):
         name = self._displayed_suggestions[0].name.replace('.pdf', '')
         self.name_input.setText(name)
         self._auto_name = name
+
+    # -- Kopfzeile: Ordnerstruktur-Schalter --------------------------------- #
+
+    def refresh_settings(self):
+        """Gleicht die Kopfzeile an die Config an (nach Einstellungs-Aenderung)."""
+        try:
+            from src.utils.config import get_config
+            enabled = bool(get_config().get("folder_naming_enabled", False))
+        except Exception:
+            enabled = False
+        self.folder_naming_checkbox.blockSignals(True)
+        self.folder_naming_checkbox.setChecked(enabled)
+        self.folder_naming_checkbox.blockSignals(False)
+
+    def _on_folder_naming_toggled(self, checked: bool):
+        """Schalter in der Kopfzeile schreibt dieselbe Einstellung wie der Dialog."""
+        try:
+            from src.utils.config import get_config
+            get_config().set("folder_naming_enabled", bool(checked))
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Ordnerstruktur-Schalter nicht gespeichert: {e}")
 
     # -- Rangfolge der Vorschlaege (Issue #106) --------------------------- #
 
