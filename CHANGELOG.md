@@ -54,6 +54,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   editierbare Aufklappliste mit den 10 haeufigsten Kategorien der eigenen
   Sammlung (aufgefuellt mit Standardwerten).
 
+- **Metadaten: neu vs. aus dem PDF:** Hatte die PDF bereits Metadaten,
+  werden Felder, deren Wert nicht (so) im PDF steht, pastellgruen
+  hervorgehoben (wie Kacheln mit KI-Vorschlag) - bis zum Speichern. Der
+  Status lautet dann „Quelle: aus PDF gelesen - gruen = neue Vorschlaege“
+  statt des vagen „teils aus PDF, teils Vorschlag“.
+
 ### Behoben
 - Bei eingeschaltetem „Ordnerstruktur im Namen“ (#42) landete der Name
   samt Ordner-Praefix in der Historie und damit als Beispiel im KI-Prompt -

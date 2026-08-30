@@ -341,6 +341,8 @@ class DetailPanel(QWidget):
         metadata_layout.addWidget(self.metadata_status_label)
 
         self._metadata_inputs = {}
+        # Grundstil je Feld - fuer die gruene Hervorhebung "neu gegenueber PDF"
+        self._field_base_styles: dict[str, str] = {}
         metadata_fields = [
             ("subject", "Kategorie"),
             ("korrespondent", "Korrespondent"),
@@ -405,6 +407,7 @@ class DetailPanel(QWidget):
                 input_field.setToolTip(tooltip)
             input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
+            self._field_base_styles[field_key] = input_field.styleSheet()
 
         metadata_layout.addLayout(grid)
 
@@ -874,7 +877,7 @@ class DetailPanel(QWidget):
             self.metadata_status_label.show()
         elif source == "pdf_partial":
             self.metadata_status_label.setText(
-                "Quelle: teils aus PDF gelesen, teils Vorschlag (noch nicht gespeichert)"
+                "Quelle: aus PDF gelesen - grün = neue Vorschläge (noch nicht gespeichert)"
             )
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
@@ -897,6 +900,31 @@ class DetailPanel(QWidget):
             self.metadata_status_label.show()
         else:
             self.metadata_status_label.hide()
+        self._highlight_new_fields()
+
+    # Pastellgruen wie die Kacheln mit KI-Vorschlag (PDFThumbnailWidget.AI_BACKGROUND)
+    _NEW_FIELD_STYLE = " background-color: #e6f4e6; border: 1px solid #7cc47f; border-radius: 3px;"
+
+    def _highlight_new_fields(self):
+        """Felder gruen, deren Wert nicht (so) im PDF steht - erst nach dem Speichern weiss.
+
+        Nur sinnvoll, wenn das PDF ueberhaupt Metadaten hatte: dann sieht man
+        auf einen Blick, was die KI/Analyse ergaenzt hat und was schon drin war.
+        """
+        compare = bool(self._pdf_field_keys) and self._metadata_source != "pdf"
+        for key, widget in self._metadata_inputs.items():
+            if isinstance(widget, QPlainTextEdit):
+                value = widget.toPlainText().strip()
+            else:
+                value = widget.text().strip()
+            is_new = compare and bool(value) and value != self._saved_metadata_snapshot.get(key)
+            style = self._field_base_styles.get(key, "") + (self._NEW_FIELD_STYLE if is_new else "")
+            if widget.styleSheet() != style:
+                widget.setStyleSheet(style)
+            if isinstance(widget, _CategoryCombo):
+                edit_style = "background-color: #e6f4e6;" if is_new else ""
+                if widget.lineEdit().styleSheet() != edit_style:
+                    widget.lineEdit().setStyleSheet(edit_style)
 
     # === Interne Methoden ===
 
