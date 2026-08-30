@@ -1,6 +1,6 @@
 """Issues #109/#110: Korrespondenten im Text wiederfinden, Kategorie-Auswahl."""
 from src.core.korrespondent_match import find_known_korrespondent
-from src.core.metadata_choices import DEFAULT_CATEGORIES, category_choices
+from src.core.metadata_choices import DEFAULT_CATEGORIES, category_choices, normalize_for_field
 
 TEXT = (
     "Commerzbank AG - Depotauszug per 31.12.2024\n"
@@ -40,3 +40,15 @@ def test_category_choices_merge_db_and_defaults():
     assert "Vertrag" in choices and len(choices) == 10
     assert choices.count("Rechnung") == 1
     assert category_choices(["A", "B"], limit=3) == ["A", "B", "Rechnung"]
+
+
+def test_normalize_for_field_cleans_amounts_iban_year():
+    assert normalize_for_field("iban", "DE89 3704 0044 0532 0130 00") == "DE89370400440532013000"
+    assert normalize_for_field("betrag_brutto", "Gesamt: 1.234,56 €") == "Gesamt: 1.234,56"
+    assert normalize_for_field("betrag_netto", "EUR 99,00") == "99,00"
+    assert normalize_for_field("mwst_satz", "19 %") == "19"
+    assert normalize_for_field("steuerjahr", "Abrechnung 2024/2025") == "2024"
+    assert normalize_for_field("steuerjahr", "kein Jahr") == "kein Jahr"
+    assert normalize_for_field("waehrung", "€") == "EUR"
+    assert normalize_for_field("korrespondent", "  Commerzbank 	 AG ") == "Commerzbank AG"
+

@@ -42,8 +42,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Vorschlaegen im Detail-Panel; „Loeschen“ entfernt es wieder
   (Config-Schluessel `custom_patterns`).
 - **Text aus der Vorschau in die Metadaten** (#109): In der PDF-Vorschau
-  laesst sich Text mit der Maus markieren; Rechtsklick bietet „Als
-  Korrespondent / Kategorie / Zusammenfassung uebernehmen“ und „Kopieren“.
+  laesst sich Text mit der Maus markieren; Rechtsklick bietet „Als … uebernehmen“
+  fuer jedes Metadaten-Feld (Korrespondent, Kategorie, Zusammenfassung,
+  Betrag Netto/Brutto, Waehrung, MwSt-Satz, IBAN, Steuerjahr) sowie
+  „Kopieren“; IBAN, Betraege, MwSt und Steuerjahr werden dabei bereinigt.
   Ein so uebernommener Korrespondent wird in die Korrespondenten-Verwaltung
   aufgenommen und bei spaeteren Dokumenten, in deren Text er vorkommt,
   automatisch gesetzt - die eigene Schreibweise schlaegt den KI-Vorschlag.

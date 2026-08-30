@@ -298,6 +298,16 @@ def test_preview_text_goes_into_field_and_korrespondent_is_learned(qtbot, monkey
     assert panel.get_metadata()["description"] == "Depotauszug 2024"
     panel.preview.apply_text_requested.emit("subject", "Bank")
     assert panel.get_metadata()["subject"] == "Bank"
+    # Alle Felder erreichbar, mit Aufbereitung
+    panel.preview.apply_text_requested.emit("iban", "DE89 3704 0044 0532 0130 00")
+    panel.preview.apply_text_requested.emit("betrag_brutto", "1.234,56 €")
+    panel.preview.apply_text_requested.emit("mwst_satz", "19 %")
+    panel.preview.apply_text_requested.emit("steuerjahr", "Steuerjahr 2024")
+    md = panel.get_metadata()
+    assert md["iban"] == "DE89370400440532013000"
+    assert md["betrag_brutto"] == "1.234,56"
+    assert md["mwst_satz"] == "19"
+    assert md["steuerjahr"] == "2024"
 
 
 def test_known_korrespondent_in_text_beats_ki_suggestion(qtbot, monkeypatch, tmp_path):

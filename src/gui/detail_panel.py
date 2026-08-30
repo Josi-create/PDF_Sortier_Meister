@@ -1013,7 +1013,9 @@ class DetailPanel(QWidget):
 
     def _on_preview_text_applied(self, field_key: str, text: str):
         """Markierter Text aus der Vorschau -> Metadaten-Feld; Korrespondent wird gelernt."""
-        text = " ".join((text or "").split())
+        from src.core.metadata_choices import normalize_for_field
+
+        text = normalize_for_field(field_key, text)
         widget = self._metadata_inputs.get(field_key)
         if widget is None or not text:
             return

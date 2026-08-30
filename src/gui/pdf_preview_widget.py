@@ -49,6 +49,12 @@ SELECTION_TARGETS: tuple[tuple[str, str], ...] = (
     ("korrespondent", "Als Korrespondent übernehmen"),
     ("subject", "Als Kategorie übernehmen"),
     ("description", "Als Zusammenfassung übernehmen"),
+    ("betrag_netto", "Als Betrag Netto übernehmen"),
+    ("betrag_brutto", "Als Betrag Brutto übernehmen"),
+    ("waehrung", "Als Währung übernehmen"),
+    ("mwst_satz", "Als MwSt-Satz übernehmen"),
+    ("iban", "Als IBAN übernehmen"),
+    ("steuerjahr", "Als Steuerjahr übernehmen"),
 )
 
 
@@ -231,7 +237,7 @@ class PdfPreviewWidget(QWidget):
         self._view.viewport().installEventFilter(self)
         self._view.setToolTip(
             "Text mit der Maus markieren, dann Rechtsklick: "
-            "als Korrespondent, Kategorie oder Zusammenfassung übernehmen."
+            "in ein Metadaten-Feld übernehmen (Korrespondent, Betrag, IBAN, ...)."
         )
         self._stack.addWidget(self._view)
 
@@ -645,6 +651,8 @@ class PdfPreviewWidget(QWidget):
         """Kontextmenue fuer den markierten Text (ohne exec, fuer Tests)."""
         text = self.selected_text()
         menu = QMenu(self)
+        short = text if len(text) <= 40 else text[:37] + "…"
+        menu.addSection(f"„{short}“")
         for field_key, label in SELECTION_TARGETS:
             action = menu.addAction(label)
             action.setData(field_key)
