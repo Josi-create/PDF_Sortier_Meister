@@ -12,7 +12,7 @@ from typing import Optional
 import logging
 import time
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QEvent, QTimer, pyqtSignal, QThread
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QWidget,
@@ -215,6 +215,7 @@ class DetailPanel(QWidget):
             "und wird automatisch als Dateiname vorgeschlagen."
         )
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
+        self.suggestions_list.installEventFilter(self)
         suggestions_layout.addWidget(self.suggestions_list)
 
         detail_layout.addWidget(suggestions_group)
@@ -978,13 +979,31 @@ class DetailPanel(QWidget):
         return result
 
     def _fit_suggestions_height(self):
-        """Liste nur so hoch wie noetig (max. ~8 Zeilen) - spart Platz fuer die Vorschau."""
-        count = max(1, self.suggestions_list.count())
-        row_h = self.suggestions_list.sizeHintForRow(0)
+        """Liste nur so hoch wie noetig (max. ~8 Zeilen) - spart Platz fuer die Vorschau.
+
+        Ragen Zeilen ueber die Breite hinaus (lange Muster-Namen), blendet Qt
+        einen horizontalen Scrollbalken ein - der wird mitgerechnet, sonst
+        verdeckt er die letzte Zeile.
+        """
+        lst = self.suggestions_list
+        count = max(1, lst.count())
+        row_h = lst.sizeHintForRow(0)
         if row_h <= 0:
             row_h = 22
-        frame = 2 * self.suggestions_list.frameWidth() + 4
-        self.suggestions_list.setFixedHeight(min(8 * row_h + frame, count * row_h + frame))
+        frame = 2 * lst.frameWidth() + 4
+        extra = 0
+        if lst.count() and lst.viewport().width() > 0:
+            fm = lst.fontMetrics()
+            widest = max(fm.horizontalAdvance(lst.item(i).text()) for i in range(lst.count()))
+            if widest + 8 > lst.viewport().width():
+                extra = lst.horizontalScrollBar().sizeHint().height()
+        lst.setFixedHeight(min(8, count) * row_h + frame + extra)
+
+    def eventFilter(self, obj, event):
+        # Breite der Liste aendert sich (Fenster/Splitter): Scrollbalken-Bedarf neu pruefen
+        if obj is self.suggestions_list and event.type() == QEvent.Type.Resize:
+            QTimer.singleShot(0, self._fit_suggestions_height)
+        return super().eventFilter(obj, event)
 
     def _on_suggestion_clicked(self, item: QListWidgetItem):
         """Übernimmt Vorschlag in Eingabefeld + Metadaten und merkt sich die Art."""
