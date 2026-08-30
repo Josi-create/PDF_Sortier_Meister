@@ -283,6 +283,14 @@ def test_category_field_is_editable_combo_with_choices(qtbot, monkeypatch, tmp_p
     combo.clear()
     assert combo.text() == "" and combo.count() == len(items)
 
+    # Neue Kategorie verwenden + speichern -> steht beim naechsten Mal ganz oben
+    combo.setText("Liste")
+    panel.mark_metadata_saved()
+    assert cfg.get("recent_categories") == ["Liste"]
+    assert combo.itemText(0) == "Liste"
+    _select(panel, tmp_path, [_ki_suggestion()])
+    assert combo.itemText(0) == "Liste" and combo.itemText(1) == "Rechnung"
+
 
 def test_preview_text_goes_into_field_and_korrespondent_is_learned(qtbot, monkeypatch, tmp_path):
     panel, cfg = _panel(qtbot, monkeypatch, tmp_path)

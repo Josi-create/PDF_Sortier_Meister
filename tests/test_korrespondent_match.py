@@ -1,6 +1,6 @@
 """Issues #109/#110: Korrespondenten im Text wiederfinden, Kategorie-Auswahl."""
 from src.core.korrespondent_match import find_known_korrespondent
-from src.core.metadata_choices import DEFAULT_CATEGORIES, category_choices, normalize_for_field
+from src.core.metadata_choices import DEFAULT_CATEGORIES, category_choices, normalize_for_field, remember_category
 
 TEXT = (
     "Commerzbank AG - Depotauszug per 31.12.2024\n"
@@ -33,13 +33,30 @@ def test_no_text_or_short_names_give_none():
     assert find_known_korrespondent(TEXT, []) is None
 
 
-def test_category_choices_merge_db_and_defaults():
-    assert category_choices([]) == list(DEFAULT_CATEGORIES)[:10]
-    choices = category_choices(["Rechnung", "Mietvertrag", "rechnung", "", "Notar"])
-    assert choices[:3] == ["Rechnung", "Mietvertrag", "Notar"]
+def test_category_choices_recent_first_then_db_then_defaults():
+    assert category_choices([], []) == list(DEFAULT_CATEGORIES)[:10]
+    choices = category_choices(["Liste", "Rechnung"], ["Rechnung", "Mietvertrag", "rechnung", "", "Notar"])
+    assert choices[:4] == ["Liste", "Rechnung", "Mietvertrag", "Notar"]
     assert "Vertrag" in choices and len(choices) == 10
     assert choices.count("Rechnung") == 1
-    assert category_choices(["A", "B"], limit=3) == ["A", "B", "Rechnung"]
+    assert category_choices(["A"], ["B"], limit=3) == ["A", "B", "Rechnung"]
+
+
+def test_category_choices_drop_long_index_junk_but_keep_recent():
+    junk = "Nebenkosten Schmutzwassergebühr"
+    assert junk not in category_choices([], [junk, "Steuer"])
+    assert "Drei Wort Kategorie" not in category_choices([], ["Drei Wort Kategorie"])
+    # Was der Nutzer selbst verwendet hat, bleibt - egal wie lang
+    assert category_choices([junk], [])[0] == junk
+
+
+def test_remember_category_is_mru_and_capped():
+    recent = remember_category(["Rechnung", "Vertrag"], "Liste")
+    assert recent == ["Liste", "Rechnung", "Vertrag"]
+    assert remember_category(recent, "vertrag") == ["vertrag", "Liste", "Rechnung"]
+    assert remember_category(recent, "  ") == recent
+    many = remember_category([f"K{i}" for i in range(20)], "Neu")
+    assert len(many) == 15 and many[0] == "Neu"
 
 
 def test_normalize_for_field_cleans_amounts_iban_year():

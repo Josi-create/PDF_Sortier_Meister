@@ -54,8 +54,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   aufgenommen und bei spaeteren Dokumenten, in deren Text er vorkommt,
   automatisch gesetzt - die eigene Schreibweise schlaegt den KI-Vorschlag.
 - **Kategorie als Auswahlfeld** (#110): Das Feld „Kategorie“ ist jetzt eine
-  editierbare Aufklappliste mit den 10 haeufigsten Kategorien der eigenen
-  Sammlung (aufgefuellt mit Standardwerten).
+  editierbare Aufklappliste: zuerst die zuletzt selbst verwendeten
+  Kategorien (gemerkt bei jedem Speichern/Verschieben), dann haeufige aus
+  der Sammlung (ohne Bandwurm-Eintraege), aufgefuellt mit Standardwerten.
 
 - **Metadaten: neu vs. aus dem PDF:** Hatte die PDF bereits Metadaten,
   werden Felder, deren Wert nicht (so) im PDF steht, pastellgruen

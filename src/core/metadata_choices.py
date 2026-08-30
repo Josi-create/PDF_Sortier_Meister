@@ -12,15 +12,46 @@ DEFAULT_CATEGORIES: tuple[str, ...] = (
 )
 
 
-def category_choices(top_from_db: Iterable[str], limit: int = 10) -> list[str]:
-    """Die haeufigsten Kategorien der Sammlung, mit Standardwerten aufgefuellt.
+RECENT_CATEGORIES_KEY = "recent_categories"
+RECENT_CATEGORIES_MAX = 15
+# Aus dem Suchindex nur "echte" Kategorien: alte KI-Ausrutscher wie
+# "Nebenkosten Schmutzwassergebuehr" sind lang und mehrwortig
+MAX_INDEX_CATEGORY_LEN = 20
+MAX_INDEX_CATEGORY_WORDS = 2
 
-    Reihenfolge: erst die eigenen (nach Haeufigkeit), dann Standardwerte;
-    Doppelte (Gross-/Kleinschreibung egal) erscheinen einmal.
+
+def remember_category(recent: Iterable[str] | None, category: str) -> list[str]:
+    """Kategorie nach vorn in die Zuletzt-verwendet-Liste (max. RECENT_CATEGORIES_MAX)."""
+    category = (category or "").strip()
+    result = [c for c in (recent or []) if isinstance(c, str) and c.strip()]
+    if not category:
+        return result
+    result = [c for c in result if c.strip().lower() != category.lower()]
+    return ([category] + result)[:RECENT_CATEGORIES_MAX]
+
+
+def _looks_like_category(name: str) -> bool:
+    return len(name) <= MAX_INDEX_CATEGORY_LEN and len(name.split()) <= MAX_INDEX_CATEGORY_WORDS
+
+
+def category_choices(
+    recent: Iterable[str] | None,
+    top_from_db: Iterable[str] | None = None,
+    limit: int = 10,
+) -> list[str]:
+    """Aufklappliste der Kategorie (Issue #110).
+
+    Reihenfolge: zuletzt vom Nutzer verwendete Kategorien (neueste zuerst),
+    dann die haeufigsten aus dem Suchindex (nur kurze, kategorie-artige
+    Namen), dann Standardwerte. Doppelte (Gross-/Kleinschreibung egal)
+    erscheinen einmal.
     """
+    candidates = list(recent or [])
+    candidates += [n for n in (top_from_db or []) if n and _looks_like_category(n.strip())]
+    candidates += list(DEFAULT_CATEGORIES)
     result: list[str] = []
     seen: set[str] = set()
-    for name in list(top_from_db) + list(DEFAULT_CATEGORIES):
+    for name in candidates:
         name = (name or "").strip()
         if not name or name.lower() in seen:
             continue

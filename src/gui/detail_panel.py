@@ -833,6 +833,7 @@ class DetailPanel(QWidget):
         self._metadata_source = "pdf"
         self._saved_metadata_snapshot = self.get_metadata()
         self._pdf_field_keys = set(self._saved_metadata_snapshot.keys())
+        self._remember_category()
         self._refresh_save_btn()
 
     def _on_metadata_user_edit(self, *args):
@@ -1016,9 +1017,15 @@ class DetailPanel(QWidget):
     # -- Metadaten-Hilfen (Issues #109/#110) ------------------------------- #
 
     def _load_category_choices(self):
-        """Aufklappliste der Kategorie: haeufigste 10 der Sammlung + Standard."""
-        from src.core.metadata_choices import category_choices
+        """Aufklappliste der Kategorie: zuletzt verwendet, dann haeufig, dann Standard."""
+        from src.core.metadata_choices import RECENT_CATEGORIES_KEY, category_choices
 
+        recent: list[str] = []
+        try:
+            from src.utils.config import get_config
+            recent = list(get_config().get(RECENT_CATEGORIES_KEY, []) or [])
+        except Exception:
+            pass
         top: list[str] = []
         try:
             from src.utils.database import get_database
@@ -1027,7 +1034,23 @@ class DetailPanel(QWidget):
             pass
         widget = self._metadata_inputs.get("subject")
         if isinstance(widget, _CategoryCombo):
-            widget.set_choices(category_choices(top))
+            widget.set_choices(category_choices(recent, top))
+
+    def _remember_category(self):
+        """Die gerade gespeicherte Kategorie nach vorn in die Aufklappliste."""
+        from src.core.metadata_choices import RECENT_CATEGORIES_KEY, remember_category
+
+        category = self.get_metadata().get("subject", "")
+        if not category:
+            return
+        try:
+            from src.utils.config import get_config
+            config = get_config()
+            config.set(RECENT_CATEGORIES_KEY,
+                       remember_category(config.get(RECENT_CATEGORIES_KEY, []), category))
+        except Exception as e:  # noqa: BLE001 - Komfort, kein Muss
+            logger.debug(f"Kategorie nicht gemerkt: {e}")
+        self._load_category_choices()
 
     def _known_korrespondent(self, text: str) -> Optional[str]:
         """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt."""
