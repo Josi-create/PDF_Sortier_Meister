@@ -42,6 +42,7 @@ from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
+from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
 from src.utils.update_check import UpdateCheckError, UpdateInfo, check_for_update
@@ -130,6 +131,8 @@ class MainWindow(QMainWindow):
         self._grid_relayout_timer.setInterval(150)
         self._grid_relayout_timer.timeout.connect(self._relayout_pdf_grid)
         self._grid_cols = 3
+        # Kachelgroesse im Scan-Bereich: Klein / Mittel / Gross (Issue #117)
+        self._tile_view = tile_view(self.config.get("tile_view"))
 
         self.setup_ui()
         self.setup_menu()
@@ -343,6 +346,22 @@ class MainWindow(QMainWindow):
             "color: #888; font-size: 12px; padding: 5px;"
         )
         header_layout.addWidget(self.pdf_folder_count_label)
+
+        # Kachelgroesse wie im Explorer umschalten (Issue #117)
+        self.tile_view_combo = QComboBox()
+        for view in TILE_VIEWS:
+            self.tile_view_combo.addItem(view.label, view.id)
+        self.tile_view_combo.setCurrentIndex(self.tile_view_combo.findData(self._tile_view.id))
+        self.tile_view_combo.setToolTip(
+            "Größe der Kacheln im Scan-Bereich.\n"
+            "Bei kleinen und mittleren Kacheln zeigt der Mauszeiger auf einer PDF\n"
+            "kurz darauf die große Vorschau."
+        )
+        self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
+        view_label = QLabel("Ansicht:")
+        view_label.setStyleSheet("color: #888; font-size: 12px;")
+        header_layout.addWidget(view_label)
+        header_layout.addWidget(self.tile_view_combo)
 
         layout.addLayout(header_layout)
 
@@ -664,6 +683,7 @@ class MainWindow(QMainWindow):
                 folder,
                 pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
                 is_parent=is_parent,
+                view=self._tile_view,
             )
             tile.double_clicked.connect(self.on_folder_tile_double_clicked)
             if is_parent:
@@ -689,7 +709,7 @@ class MainWindow(QMainWindow):
 
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
-            widget = PDFThumbnailWidget(pdf_path)
+            widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
@@ -1551,21 +1571,46 @@ class MainWindow(QMainWindow):
     def _pdf_grid_columns(self) -> int:
         """Spaltenzahl fürs PDF-Raster aus der sichtbaren Panelbreite.
 
-        Kacheln und Thumbnails sind max. 180 px breit plus 10 px Abstand.
+        Die Rasterbreite pro Kachel (max. Kachelbreite plus 10 px Abstand)
+        haengt von der gewaehlten Kachelgroesse ab (Issue #117).
         """
         width = self.pdf_scroll_area.viewport().width()
-        return max(1, width // 190)
+        return max(1, width // self._tile_view.slot_width)
 
-    def _relayout_pdf_grid(self):
+    def _relayout_pdf_grid(self, force: bool = False):
         """Ordnet Ordner-Kacheln und Thumbnails neu an, wenn sich die
         nutzbare Spaltenzahl geändert hat (Issue #50)."""
         cols = self._pdf_grid_columns()
-        if cols == self._grid_cols:
+        if cols == self._grid_cols and not force:
             return
         self._grid_cols = cols
         widgets = getattr(self, "folder_tiles", []) + self.pdf_widgets
         for i, widget in enumerate(widgets):
             self.pdf_layout.addWidget(widget, i // cols, i % cols)
+
+    def set_tile_view(self, view_id: str):
+        """Schaltet die Kachelgroesse im Scan-Bereich um (Issue #117).
+
+        Wirkt sofort auf alle Ordner-Kacheln und PDF-Thumbnails, ordnet das
+        Raster neu und merkt sich die Wahl in der Konfiguration.
+        """
+        view = tile_view(view_id)
+        if view.id != self._tile_view.id:
+            self._tile_view = view
+            self.config.set("tile_view", view.id)
+            for widget in getattr(self, "folder_tiles", []) + self.pdf_widgets:
+                widget.set_view(view)
+            self._relayout_pdf_grid(force=True)
+        combo = getattr(self, "tile_view_combo", None)
+        if combo is not None and combo.currentData() != view.id:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(combo.findData(view.id))
+            combo.blockSignals(False)
+
+    def _on_tile_view_combo_changed(self, index: int):
+        view_id = self.tile_view_combo.itemData(index)
+        if view_id:
+            self.set_tile_view(view_id)
 
     # === PDF-Aktionen ===
 

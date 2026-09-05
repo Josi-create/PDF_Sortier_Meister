@@ -16,6 +16,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **Kleinere Kacheln im Scan-Bereich** (#117, Probelauf): Ueber der
+  PDF-Liste links steht jetzt „Ansicht: Klein / Mittel / Gross“, wie die
+  Symbolgroesse im Explorer. Standard ist „Klein“: Kachel etwa halb so breit
+  wie bisher, das Bild fuellt die Kachelbreite und zeigt den Kopf der Seite
+  (unten abgeschnitten) statt einer winzigen Gesamtseite; „Mittel“ zeigt die
+  ganze Seite verkleinert, „Gross“ entspricht der bisherigen Darstellung.
+  Bei kleinen und mittleren Kacheln blendet der Mauszeiger auf
+  einer PDF nach kurzem Verweilen die grosse Vorschau neben der Kachel ein;
+  Ordner-Kacheln haben keine Vorschau. Die Wahl wird gespeichert
+  (`tile_view`). Das Thumbnail wird weiterhin in 140x160 gerendert und
+  gecacht, kleinere Ansichten skalieren nur herunter. Die wirkungslose
+  Einstellung „Thumbnail-Groesse“ unter Allgemein entfaellt; dort steht ein
+  Hinweis auf die neue Auswahl.
 - **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
   Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld
   eintraegt, sieht den Dateinamen-Vorschlag sofort nachziehen: Die

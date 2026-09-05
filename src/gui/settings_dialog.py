@@ -774,11 +774,13 @@ class SettingsDialog(QDialog):
         display_group = QGroupBox("Darstellung")
         display_layout = QFormLayout(display_group)
 
-        self.thumbnail_size_spin = QSpinBox()
-        self.thumbnail_size_spin.setRange(80, 300)
-        self.thumbnail_size_spin.setValue(150)
-        self.thumbnail_size_spin.setSuffix(" px")
-        display_layout.addRow("Thumbnail-Größe:", self.thumbnail_size_spin)
+        tile_hint = QLabel(
+            "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
+            "über dem Scan-Bereich unter „Ansicht“ ein."
+        )
+        tile_hint.setStyleSheet("color: gray;")
+        tile_hint.setWordWrap(True)
+        display_layout.addRow(tile_hint)
 
         self.max_suggestions_spin = QSpinBox()
         self.max_suggestions_spin.setRange(1, 10)
@@ -1426,7 +1428,6 @@ class SettingsDialog(QDialog):
         self.cloud_consent_check.setChecked(llm_config.get("cloud_consent", False))
 
         # Allgemeine Einstellungen
-        self.thumbnail_size_spin.setValue(self.config.get("thumbnail_size", 150))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
 
         # Persönliche Daten
@@ -1511,7 +1512,6 @@ class SettingsDialog(QDialog):
         self.config.set("llm", llm_config)
 
         # Allgemeine Einstellungen
-        self.config.set("thumbnail_size", self.thumbnail_size_spin.value())
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
 
         # Cache-Einstellungen

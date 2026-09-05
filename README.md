@@ -63,7 +63,8 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 ## Was das Programm kann
 
 ### Sortieren wie im Explorer, nur mit Vorschlägen
-- **Scan-Ordner als Dateimanager**: Ordner-Kacheln, Breadcrumb, `Alt+↑`, Doppelklick in Unterordner
+- **Scan-Ordner als Dateimanager**: Ordner-Kacheln, Breadcrumb, `Alt+↑`, Doppelklick in Unterordner,
+  Kachelgröße Klein / Mittel / Groß wie im Explorer (kleine Kacheln zeigen beim Überfahren die große Vorschau)
 - **Zielordner-Vorschläge** aus dem PDF-Inhalt, lernend (TF-IDF, lokal, offline) — grün hervorgehoben.
   Erkennt das Jahr im Dokument, wird z. B. neben `Steuer 2025/Belege` auch `Steuer 2026/Belege` angeboten
 - **Ein Klick** auf den Zielordner verschiebt, benennt um und speichert die Metadaten in einem Rutsch;

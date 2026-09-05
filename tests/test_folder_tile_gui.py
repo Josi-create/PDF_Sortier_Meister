@@ -32,7 +32,8 @@ def test_tile_shows_name_and_count(qtbot, tmp_path):
     folder.mkdir()
     tile = FolderTileWidget(folder, pdf_count=3)
     qtbot.addWidget(tile)
-    assert tile.name_label.text() == "Steuer 2026"
+    # Der Name darf je nach Kachelbreite umgebrochen sein (Issue #117)
+    assert tile.name_label.text().replace("\n", " ") == "Steuer 2026"
     assert tile.count_label.text() == "3 PDFs"
 
 

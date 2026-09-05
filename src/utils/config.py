@@ -50,7 +50,8 @@ class Config:
         "window_width": 1200,
         "window_height": 800,
         "window_maximized": True,
-        "thumbnail_size": 150,
+        # Kachelgroesse im Scan-Bereich: "klein" / "mittel" / "gross" (Issue #117)
+        "tile_view": "klein",
         "backup_check_days": 7,
         "language": "de",
         "theme": "light",
