@@ -13,7 +13,7 @@ Implementiert in M1, weil die ``RAGController.ask``-Pipeline den Parser
 bereits aufrufen soll (M3 wird das ganze noch verfeinern: Ranking,
 Footer-Rekonstruktion, Whitelist-Heuristiken).
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import re

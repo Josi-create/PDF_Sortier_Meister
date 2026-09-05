@@ -150,6 +150,10 @@ class FolderWidget(QFrame):
 
     def contextMenuEvent(self, event):
         """Zeigt das Kontextmenü an."""
+        self._build_context_menu().exec(event.globalPos())
+
+    def _build_context_menu(self) -> QMenu:
+        """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
 
         # Im Dateimanager öffnen
@@ -157,13 +161,16 @@ class FolderWidget(QFrame):
         open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer())
 
-        menu.addSeparator()
+        # Aus Liste entfernen - nur fuer echte Zielordner-Kacheln. Auf den
+        # gruenen Vorschlagskacheln war der Eintrag wirkungslos (Signal nie
+        # verbunden) und inhaltlich falsch: Vorschlaege sind meist Unterordner,
+        # keine Eintraege der Zielliste.
+        if not self._is_suggestion:
+            menu.addSeparator()
+            remove_action = menu.addAction("Aus Zielliste entfernen")
+            remove_action.triggered.connect(lambda: self.remove_requested.emit(self.folder_path))
 
-        # Aus Liste entfernen
-        remove_action = menu.addAction("Aus Zielliste entfernen")
-        remove_action.triggered.connect(lambda: self.remove_requested.emit(self.folder_path))
-
-        menu.exec(event.globalPos())
+        return menu
 
     def _open_in_explorer(self):
         """Öffnet den Ordner im Dateimanager des Systems."""

@@ -34,6 +34,8 @@ class PDFAnalyzer:
         self._doc: Optional[fitz.Document] = None
         self._text: Optional[str] = None
         self._thumbnail: Optional[QPixmap] = None
+        # True, sobald extract_text() auf OCR zurueckgreifen musste (Log, #108)
+        self.ocr_used = False
 
     def __enter__(self):
         """Context Manager Eintritt."""
@@ -138,6 +140,7 @@ class PDFAnalyzer:
 
         # Falls kein Text gefunden und OCR aktiviert
         if not self._text.strip() and use_ocr:
+            self.ocr_used = True
             self._text = self._extract_text_ocr()
 
         return self._text
@@ -311,16 +314,33 @@ class PDFAnalyzer:
 
         return found_keywords
 
-    def suggest_filename(self) -> str:
+    def suggest_filename(
+        self,
+        text: Optional[str] = None,
+        keywords: Optional[list[str]] = None,
+        dates: Optional[list] = None,
+    ) -> str:
         """
         Schlägt einen sinnvollen Dateinamen basierend auf dem Inhalt vor.
+
+        Args:
+            text: Bereits extrahierter Text (z.B. aus dem Cache). Wird er
+                uebergeben, wird die PDF NICHT erneut geoeffnet und keine
+                OCR wiederholt (Issue #108: 7 s Freeze pro Klick).
+            keywords: Bereits extrahierte Schluesselwoerter
+            dates: Bereits extrahierte Datumsangaben; datetime-Objekte oder
+                Strings wie "2026-05-12 00:00:00" (so liegen sie im Cache)
 
         Returns:
             Vorgeschlagener Dateiname
         """
-        text = self.extract_text()
-        keywords = self.extract_keywords()
-        dates = self.extract_dates()
+        if text is None:
+            text = self.extract_text()
+        if keywords is None:
+            keywords = self.extract_keywords()
+        if dates is None:
+            dates = self.extract_dates()
+        dates = coerce_dates(dates)
 
         parts = []
 
@@ -381,6 +401,45 @@ class PDFAnalyzer:
 
         return None
 
+
+
+def coerce_date(value) -> Optional[datetime]:
+    """Macht aus einem Cache-Datum wieder ein datetime.
+
+    Der PDF-Cache speichert Datumsangaben als ``str(datetime)``, also
+    "2026-05-12 00:00:00"; aeltere Eintraege oder LLM-Antworten liefern
+    "2026-05-12". Alles andere ergibt None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if hasattr(value, "strftime"):  # date
+        return datetime(value.year, value.month, value.day)
+    if isinstance(value, str):
+        text = value.strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d", "%d.%m.%Y"):
+            try:
+                return datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    return None
+
+
+def coerce_dates(values) -> list[datetime]:
+    """Wie :func:`coerce_date`, fuer Listen; unbrauchbare Eintraege fallen weg."""
+    if not values:
+        return []
+    result = []
+    for v in values:
+        d = coerce_date(v)
+        if d is not None:
+            result.append(d)
+    return result
 
 
 def _tesseract_candidates() -> list[Path]:

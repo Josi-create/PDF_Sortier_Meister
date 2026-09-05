@@ -74,6 +74,12 @@
 
 **FTS5 ist ausreichend für v1.** Keine Embeddings.
 
+> Stand 09/2026: Entscheidung gilt weiter. paperless-ngx hat seit v3.0 einen
+> Embedding-Index; ein hybrider Modus (FTS5 + Ollama-Embeddings) ist als Lücke #6
+> in [Vergleich paperless-ngx.md](../Vergleich%20paperless-ngx.md) beschrieben und
+> erst sinnvoll, wenn OCR alle Seiten liefert und der 5.000-Zeichen-Cap (Q3/R8)
+> fällt.
+
 **Query-Konstruktion**:
 1. Stopword-Strip (deutsche Stopwords, inline-Liste ~80 Wörter)
 2. LLM-Keyword-Extraktion (optional, Mini-Prompt)

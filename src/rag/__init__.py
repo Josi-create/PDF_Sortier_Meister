@@ -17,7 +17,7 @@ Stellt die Kernbausteine des RAG-Chat-Features bereit:
 Die GUI-Komponenten (``ChatView``, ``ChatWorker``) sind Bestandteil
 von M2 und werden hier nicht exportiert.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from src.rag.chat_session import ChatSession, ChatTurn

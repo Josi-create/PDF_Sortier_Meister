@@ -56,3 +56,21 @@ def test_apply_wizard_result_calls_settings_changed_after_initial_load(qtbot, fr
     _apply_wizard_result(window, fresh_config)
 
     assert calls == ["initial_load", "settings_changed"]
+
+
+def test_schedule_startup_hints_shows_first_steps_before_backup(qtbot):
+    """Erststart-Reihenfolge: Erste Schritte vor dem Backup-Hinweis, und beide
+    erst nach der Verzoegerung (also nach dem Einrichtungsassistenten, der
+    vorher synchron per exec() lief)."""
+    from src.main import _schedule_startup_hints
+
+    calls = []
+    window = MagicMock()
+    window.show_first_steps_hint.side_effect = lambda: calls.append("first_steps")
+    window.show_backup_hint.side_effect = lambda: calls.append("backup")
+
+    _schedule_startup_hints(window, delay_ms=0)
+    assert calls == []  # nichts synchron
+
+    qtbot.waitUntil(lambda: len(calls) == 2, timeout=2000)
+    assert calls == ["first_steps", "backup"]

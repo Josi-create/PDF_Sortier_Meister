@@ -7,7 +7,7 @@ Status-/Banner-Bereich. Der eigentliche RAG-Aufruf laeuft asynchron
 ueber :class:`~src.gui.chat_worker.ChatWorker` in einem ``QThread``,
 damit die GUI nicht einfriert.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from html import escape

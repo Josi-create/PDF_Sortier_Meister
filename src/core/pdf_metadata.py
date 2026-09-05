@@ -2,7 +2,9 @@
 PDF-Metadaten-Writer für XMP-Standard.
 
 Schreibt Metadaten direkt in PDF-Dateien (dual: XMP in PDF + SQLite-Index).
-Kompatibel mit Paperless-ngx, DEVONthink, Adobe Acrobat.
+Lesbar in Adobe Acrobat, DEVONthink und den Windows-Eigenschaften.
+paperless-ngx wertet eingebettete PDF-Metadaten beim Import NICHT aus
+(Maintainer in Discussion #5053); dort zaehlt nur der Dateiname.
 """
 
 import re

@@ -12,6 +12,12 @@ Ablauf fuer einen neuen Release von PDF Sortier Meister (`vX.Y.Z`).
       Gemma-Generationen, ist `gpt-oss:120b` noch das sinnvolle Cloud-Default?
       `MODEL_TIERS_CHECKED_ON` in `hardware.py` auf das heutige Datum setzen.
       (Hintergrund: Issue #63 - Empfehlungen veralten schnell.)
+- [ ] **Vergleich paperless-ngx pruefen** (`Vergleich paperless-ngx.md`): gibt es
+      ein neues paperless-ngx-Release (<https://github.com/paperless-ngx/paperless-ngx/releases>),
+      das die Tabellen aendert? Versionsnummer und "Stand" im Kopf des Dokuments
+      aktualisieren; PDFSM-Features, die seit dem letzten Release dazukamen, in
+      Abschnitt 2/3 nachtragen. (Hintergrund: Issue #112 - das Dokument vom
+      Maerz 2026 war nach fuenf Monaten in sieben Punkten falsch.)
 
 ## 2. Release-Branch
 

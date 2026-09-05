@@ -18,7 +18,7 @@ Nachteile:
 Diese Implementierung spricht die native Ollama-API (/api/chat) ueber
 urllib (stdlib), um keine zusaetzliche Dependency einzufuehren.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json
@@ -275,7 +275,7 @@ class OllamaProvider(LLMProvider):
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed, parse_err = self._parse_json_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned, document_text=text)
 
         if parse_err:
             return LLMResponse(success=False, error_message=parse_err)
@@ -314,7 +314,7 @@ class OllamaProvider(LLMProvider):
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed, parse_err = self._parse_json_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned, document_text=text)
 
         if parse_err:
             return LLMResponse(success=False, error_message=parse_err)

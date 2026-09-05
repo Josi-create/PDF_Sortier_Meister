@@ -3,7 +3,7 @@ Einstellungsdialog für PDF Sortier Meister
 
 Ermöglicht die Konfiguration von LLM-Providern und anderen Einstellungen.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from PyQt6.QtWidgets import (

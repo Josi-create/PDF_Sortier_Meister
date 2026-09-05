@@ -9,7 +9,7 @@ und produziert ``RetrievedDoc``-Objekte mit trunc-Snippets
 Kein LLM noetig - alles in stdlib (re, str) plus der bestehende
 ``Database.search_documents``-Methode.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import re

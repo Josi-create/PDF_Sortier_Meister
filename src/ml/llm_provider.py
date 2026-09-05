@@ -4,7 +4,7 @@ LLM Provider-Abstraktion für PDF Sortier Meister
 Bietet eine einheitliche Schnittstelle für verschiedene LLM-Anbieter
 (Claude, OpenAI, etc.) zur Klassifikation und Benennung von PDFs.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json
@@ -88,6 +88,35 @@ METADATA_KEY_ALIASES: dict[str, str] = {
 
 # Platzhalter, die Modelle fuer "nicht vorhanden" liefern - werden verworfen
 _UNKNOWN_VALUES = {"", "unbekannt", "unknown", "null", "none", "n/a", "-"}
+
+
+# Woerter, die einen Steuersatz im Dokument belegen
+_MWST_WORDS = re.compile(r"mwst|m\.w\.st|ust\b|u\.st|mehrwertsteuer|umsatzsteuer|vat\b|steuersatz", re.I)
+
+
+def drop_unsupported_mwst(metadata: dict, document_text: str | None) -> dict:
+    """Entfernt einen MwSt-Satz, der im Dokumenttext nicht vorkommt.
+
+    Kleine Modelle uebernehmen gern einen Beispielwert (frueher stand ``7`` im
+    Prompt-Schema) oder raten 19 %. Der Satz bleibt nur, wenn ``<Satz> %`` im
+    Text steht oder das Dokument ueberhaupt von Steuer spricht (dann kann das
+    Modell ihn aus einer Tabelle gelesen haben). Ohne Text: unveraendert.
+    """
+    if not isinstance(metadata, dict) or document_text is None:
+        return metadata
+    rate = metadata.get("mwst_satz")
+    if rate in (None, ""):
+        return metadata
+    m = re.search(r"\d+(?:[.,]\d+)?", str(rate))
+    if not m:
+        return metadata
+    number = m.group(0).replace(",", ".").rstrip("0").rstrip(".")
+    pattern = re.compile(r"(?<!\d)" + re.escape(number).replace(r"\.", r"[.,]") + r"(?:[.,]0+)?\s*%")
+    if pattern.search(document_text) or _MWST_WORDS.search(document_text):
+        return metadata
+    result = dict(metadata)
+    del result["mwst_satz"]
+    return result
 
 
 def normalize_llm_metadata(metadata) -> dict:
@@ -354,6 +383,8 @@ AUFGABE:
 1. Analysiere den Dokumentinhalt.
 2. Wähle den passendsten Ordner aus der Liste (exakter Name).
 3. Begründe deine Wahl kurz.
+4. Metadaten nur aus dem Dokument: "mwst" nur, wenn der Steuersatz ausdruecklich im Text
+   steht, sonst UNBEKANNT; bei Nicht-Rechnungen sind Betraege, mwst und iban UNBEKANNT.
 
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
@@ -366,9 +397,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",
     "waehrung": "EUR/USD oder UNBEKANNT",
-    "mwst": 7,
+    "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
-    "steuerjahr": 2024,
+    "steuerjahr": "JJJJ oder UNBEKANNT",
     "beschreibung": "Zusammenfassung des Dokuments in einem Satz"
   }}
 }}"""
@@ -439,6 +470,14 @@ REGELN FÜR DEN DATEINAMEN:
    (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
    Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
    leite den Namen daraus ab (kathrin.haerle@web.de -> Kathrin_Haerle).
+6. Keine nichtssagenden Woerter wie "Sonstiges", "Unbekannt", "Dokument" oder "Scan"
+   im Dateinamen. Passt keine der Standard-Kategorien, benenne konkret, worum es
+   geht (z.B. Klaviernoten_Bach_Praeludium, Bedienungsanleitung_Waschmaschine).
+   "Sonstiges" ist nur als Kategorie in den Metadaten erlaubt, nie im Dateinamen.
+7. Metadaten nur aus dem Dokument: "mwst" nur, wenn der Steuersatz ausdruecklich im Text
+   steht (z.B. "19 % MwSt", "USt 7 %"), sonst UNBEKANNT. Kein Rechnungs-/Beleg-Dokument
+   (Brief, Vertrag, Befund, Noten, Anleitung): betrag_netto, betrag_brutto, mwst und iban
+   sind UNBEKANNT. Niemals einen Standardwert raten.
 
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
@@ -451,9 +490,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",
     "waehrung": "EUR/USD oder UNBEKANNT",
-    "mwst": 7,
+    "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
-    "steuerjahr": 2024,
+    "steuerjahr": "JJJJ oder UNBEKANNT",
     "beschreibung": "Zusammenfassung in einem Satz"
   }}
 }}"""
@@ -565,7 +604,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             return f"KI-Antwort abgeschnitten - {hint}"
         return None
 
-    def _parse_json_response(self, response_text: str) -> tuple[Optional[dict], Optional[str]]:
+    def _parse_json_response(
+        self, response_text: str, document_text: str | None = None
+    ) -> tuple[Optional[dict], Optional[str]]:
         """
         Extrahiert und parst das JSON aus einer Antwort.
 
@@ -589,7 +630,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
             # Metadaten-Schluessel vereinheitlichen (beschreibung -> description, ...)
             if "metadata" in data:
-                data["metadata"] = normalize_llm_metadata(data.get("metadata"))
+                data["metadata"] = drop_unsupported_mwst(
+                    normalize_llm_metadata(data.get("metadata")), document_text
+                )
 
             return data, None
         except json.JSONDecodeError as e:
@@ -597,7 +640,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         except Exception as e:
             return None, f"Fehler beim Extrahieren von JSON: {str(e)}"
 
-    def _parse_response(self, response_text: str) -> dict:
+    def _parse_response(self, response_text: str, document_text: str | None = None) -> dict:
         """
         Parst die (JSON-)Antwort des LLMs in das von den Cloud-Providern
         erwartete Dictionary-Format (folder/filename/reason/confidence/metadata).
@@ -613,7 +656,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             "metadata": {},
         }
 
-        data, error = self._parse_json_response(response_text)
+        data, error = self._parse_json_response(response_text, document_text)
         if error or not data:
             # Fehler mitgeben, damit Provider das als Misserfolg melden koennen
             result["error"] = error or "Keine JSON-Antwort gefunden"

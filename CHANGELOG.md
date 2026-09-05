@@ -7,6 +7,77 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
+  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
+  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
+  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
+  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
+  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
+
+### Neu
+- **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
+  Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld
+  eintraegt, sieht den Dateinamen-Vorschlag sofort nachziehen: Die
+  Vorschlagsliste rendert mit den neuen Werten, und solange der Dateiname
+  aus der Liste stammt (oberste Zeile, angeklickte Zeile, KI-Ergebnis),
+  folgt er der Eingabe. Ein selbst getippter Name bleibt unangetastet. In
+  KI-Vorschlaegen werden „Sonstiges“/„Unbekannt“ und die alte Kategorie
+  bzw. der alte Korrespondent durch die Eingabe ersetzt.
+- **KI-Prompt:** Neue Regel gegen nichtssagende Dateinamen („Sonstiges“,
+  „Unbekannt“, „Dokument“, „Scan“); passt keine Standard-Kategorie, soll
+  die KI konkret benennen, worum es geht.
+
+### Geaendert
+- **Erst-Klick auf eine noch nicht analysierte PDF** (#108, Teil 2): Waehrend
+  die Texterkennung laeuft, zeigt die Kachel „Analysiere…“, der Mauszeiger
+  wird zum Wartezeiger und die Statusleiste erklaert, dass OCR einige
+  Sekunden dauern kann. Dieselbe PDF wird nicht mehr mehrfach analysiert,
+  wenn sie gleichzeitig vom Vorab-Laden und vom Klick angefordert wird.
+- **Log:** Zu jeder Analyse steht jetzt eine Zeile `Analyse <datei> <ms>:
+  seiten … | ocr ja/nein | zeichen …`, und der Klick-Pfad nach einer
+  Analyse loggt als `Klick nach Analyse …`. Damit ist im Log sichtbar, ob
+  eine Wartezeit von der OCR oder von der Oberflaeche kommt.
+- **Vergleich mit paperless-ngx neu geschrieben** (#112): Stand 09/2026 gegen
+  paperless-ngx v3.1.3 (native KI und RAG seit v3.0), mit Feature-Tabellen,
+  21 belegten Luecken, Bewertung der Server-Frage (Antwort: nein) und
+  Hinweisen zum Zusammenspiel. README nennt jetzt die bekannten Grenzen
+  (Loeschen ohne Papierkorb, OCR fuenf Seiten, Suchindex 5.000 Zeichen),
+  die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
+  ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
+  Vergleich ergaenzt.
+
+### Behoben
+- **Fehlerdialog nach „Verschieben nach…“:** Das Verschieben ueber den
+  Ordnerauswahl-Dialog lief durch, meldete danach aber „Verschieben
+  fehlgeschlagen“ (undefinierte Variable beim Aktualisieren der
+  Ordneransicht).
+- **Drop auf gruene Vorschlagskacheln** verschiebt die PDF jetzt wirklich;
+  vorher passierte beim Loslassen nichts.
+- **Kontextmenue der Vorschlagskacheln:** Der wirkungslose Eintrag „Aus
+  Zielliste entfernen“ ist dort weg (Vorschlaege sind Unterordner, keine
+  Eintraege der Zielliste).
+- **Zielordner entfernen** scannt den Zielbaum nur noch einmal statt zweimal.
+- **Tooltip im Zielbaum** nennt jetzt die Tastatur-Navigation (Pfeil rechts
+  klappt auf, * alle Unterordner) und den Rechtsklick.
+
+- **Lizenz-Angaben konsistent:** Der Über-Dialog nannte „MIT License“, 16
+  Modul-Header ebenfalls; das Projekt steht seit Juli 2026 unter
+  GPL-3.0-or-later. Beides korrigiert, der Lizenztext liegt jetzt als
+  `LICENSE.txt` im Installer und im portablen ZIP (und in `_internal/`).
+- **Erststart:** Die Hinweise „Erste Schritte“ und „Backup empfohlen“
+  erschienen über dem noch offenen Einrichtungsassistenten. Sie kommen jetzt
+  erst, wenn der Assistent geschlossen ist.
+
+- **Klick auf eine gescannte PDF dauerte 7 Sekunden** (#108, Teil 1): Beim
+  Anklicken lief die Texterkennung (OCR) noch einmal komplett durch, obwohl
+  der Text laengst im Cache lag. Die Dateinamen-Vorschlaege „Automatisch
+  erkannt“ nutzen jetzt den Cache und oeffnen die PDF nur noch, wenn
+  wirklich etwas fehlt. Betrifft alle vier Wege: Klick, KI-Nachlieferung,
+  Suchfeld leeren und den Umbenennen-Dialog. Nebenbei: Datumsangaben aus dem
+  Cache erscheinen in den Vorschlaegen wieder als „2026-05-12“ statt
+  „2026-05-12 00:00:00“.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert

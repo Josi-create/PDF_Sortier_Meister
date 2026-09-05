@@ -1593,6 +1593,9 @@ class MainWindow(QMainWindow):
 
         self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}")
 
+        # Wartezustand einer noch laufenden Erst-Analyse fuer die vorige PDF beenden
+        self._end_analysis_wait()
+
         # PDF analysieren und Vorschläge aktualisieren
         self._click_timer = StepTimer("Klick")
         self.update_suggestions_for_pdf(pdf_path)
@@ -1685,6 +1688,7 @@ class MainWindow(QMainWindow):
 
     def _clear_selection(self):
         """Hebt die aktuelle Auswahl vollständig auf."""
+        self._end_analysis_wait()
         try:
             # Alle Widgets deselektieren
             for widget in self.pdf_widgets:
@@ -1729,8 +1733,10 @@ class MainWindow(QMainWindow):
             # Sofort aus Cache verwenden - keine Verzögerung!
             self._apply_analysis_result(pdf_path, cached_result)
         else:
-            # Noch nicht analysiert - Hintergrund-Analyse starten
-            self.statusbar.showMessage(f"Analysiere {pdf_path.name}...")
+            # Noch nicht analysiert - Hintergrund-Analyse starten. Bei Scan-PDFs
+            # ist das die OCR (mehrere Sekunden): Wartezeiger + Kachelzustand,
+            # damit der Klick sichtbar angekommen ist (Issue #108)
+            self._begin_analysis_wait(pdf_path)
 
             # Analyse anfordern mit Callback
             self.pdf_cache.request_analysis(
@@ -1739,11 +1745,51 @@ class MainWindow(QMainWindow):
                 urgent=True  # Höchste Priorität weil User geklickt hat
             )
 
+    def _begin_analysis_wait(self, pdf_path: Path):
+        """Wartezeiger + "Analysiere…" auf der Kachel, bis die Erst-Analyse da ist."""
+        self._end_analysis_wait()
+        self._analysis_wait_pdf = pdf_path
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(
+            f"Analysiere {pdf_path.name}… (Texterkennung kann einige Sekunden dauern)"
+        )
+        widget = self._pdf_widget_for(pdf_path)
+        if widget is not None:
+            widget.analyzing = True
+
+    def _end_analysis_wait(self):
+        """Beendet den Wartezustand der Erst-Analyse (idempotent)."""
+        pdf_path = getattr(self, "_analysis_wait_pdf", None)
+        if pdf_path is None:
+            return
+        self._analysis_wait_pdf = None
+        QApplication.restoreOverrideCursor()
+        widget = self._pdf_widget_for(pdf_path)
+        if widget is not None:
+            widget.analyzing = False
+
+    def _pdf_widget_for(self, pdf_path: Path):
+        for widget in self.pdf_widgets:
+            try:
+                if widget.pdf_path == pdf_path:
+                    return widget
+            except RuntimeError:
+                continue  # Widget bereits von Qt geloescht
+        return None
+
     def _on_analysis_result_ready(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wird aufgerufen wenn eine Analyse fertig ist (aus Cache-Worker)."""
+        # Wartezustand IMMER zuruecksetzen - auch wenn der Nutzer inzwischen
+        # etwas anderes ausgewaehlt hat, sonst bleibt der Wartezeiger haengen
+        if getattr(self, "_analysis_wait_pdf", None) == pdf_path:
+            self._end_analysis_wait()
         # Nur anwenden wenn diese PDF noch ausgewählt ist
         if self.selected_pdf == pdf_path:
+            # Eigene Log-Zeile fuer den asynchronen Pfad: der "Klick"-Timer
+            # ist laengst abgeschlossen, seine Schritte gingen bisher verloren
+            self._click_timer = StepTimer("Klick nach Analyse")
             self._apply_analysis_result(pdf_path, result)
+            self._click_timer.done()
 
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
@@ -1893,6 +1939,9 @@ class MainWindow(QMainWindow):
 
             widget.clicked.connect(self.on_suggestion_clicked)
             widget.double_clicked.connect(self.on_folder_double_clicked)
+            # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
+            # auf den Baum (vorher stilles No-op, weil nie verbunden)
+            widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
 
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
@@ -2650,7 +2699,7 @@ class MainWindow(QMainWindow):
                 # Nur das verschobene PDF-Widget entfernen
                 self._remove_pdf_widget_and_select_next(pdf_path)
                 # Ordneransicht aktualisieren
-                self._refresh_after_move(folder_path, pdf_path.parent)
+                self._refresh_after_move(Path(folder), pdf_path.parent)
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
                 self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
@@ -3396,7 +3445,11 @@ class MainWindow(QMainWindow):
         """Wird aufgerufen wenn ein Ordner aus der Liste entfernt werden soll."""
         self.config.remove_target_folder(folder_path)
         self.folder_manager.remove_folder(folder_path)
-        self.load_folders()
+        # Der Baum hat sich beim Kontextmenue-Aufruf bereits selbst neu
+        # gescannt; ein zweiter Voll-Scan ueber load_folders() ist nur noetig,
+        # wenn der Aufruf von woanders kam (z.B. aus dem versteckten Raster).
+        if self.folder_tree.has_folder(Path(folder_path)):
+            self.load_folders()
 
         # Auch aus den Vorschlag-Widgets entfernen (grüne Buttons)
         for widget in self.suggestion_widgets[:]:  # Kopie der Liste für sichere Iteration
@@ -4304,10 +4357,12 @@ class MainWindow(QMainWindow):
         # Lizenz
         license_label = QLabel(
             "<p style='color: #666; font-size: 11px;'>"
-            "<b>Lizenz:</b> MIT License<br>"
+            "<b>Lizenz:</b> GPL-3.0-or-later<br>"
             "Copyright (c) 2024-2026<br>"
-            "Freie Software - Open Source</p>"
+            "Freie Software - Open Source. Lizenztext: "
+            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>'
         )
+        license_label.setOpenExternalLinks(True)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(license_label)
 

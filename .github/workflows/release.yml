@@ -60,6 +60,7 @@ jobs:
       - name: Portables Zip erstellen
         run: |
           $version = (Select-String -Path src/main.py -Pattern '^__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          Copy-Item LICENSE dist\PDF_Sortier_Meister\LICENSE.txt
           Compress-Archive -Path dist\PDF_Sortier_Meister -DestinationPath "dist\installer\PDF_Sortier_Meister-v$version-win64.zip"
 
       - uses: actions/upload-artifact@v4

@@ -4,7 +4,7 @@ Ordner-Baum-Widget für PDF Sortier Meister
 Zeigt eine hierarchische Ordnerstruktur als Baumansicht an.
 Unterstützt Unterordner und zeigt PDF-Anzahlen an.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import os
@@ -80,7 +80,9 @@ class FolderTreeWidget(QWidget):
     # Kern-Workflow, der sonst fuer neue Nutzer unsichtbar ist (Issue #51).
     _CLICK_HINT = (
         "\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\n"
-        "Doppelklick: als Scan-Ordner links oeffnen (Navigation)."
+        "Doppelklick: als Scan-Ordner links oeffnen (Navigation).\n"
+        "Pfeil rechts klappt auf, * klappt alle Unterordner auf.\n"
+        "Rechtsklick: weitere Aktionen."
     )
 
     # Signale
@@ -146,6 +148,8 @@ class FolderTreeWidget(QWidget):
         self.tree.setToolTip(
             "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
             "Doppelklick: Ordner links als Scan-Ordner oeffnen (Navigation).\n"
+            "Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\n"
+            "Rechtsklick: weitere Aktionen.\n"
             "PDFs koennen auch per Drag & Drop hierher gezogen werden."
         )
 

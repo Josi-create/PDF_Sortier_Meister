@@ -92,6 +92,8 @@
 - [x] Poe.com API Integration (`src/ml/poe_provider.py`)
 - [x] Hybrid-Klassifikator (`src/ml/hybrid_classifier.py`)
 - [x] Automatische Entscheidung: Lokal vs. LLM basierend auf Konfidenz
+  - Hinweis (09/2026): der KI-Ordnerpfad `suggest_folders` wird aus der GUI nicht aufgerufen;
+    Ordnervorschläge kommen heute rein aus dem lokalen Klassifikator (Issue #116, Sprint F)
 - [x] API-Key Verwaltung in Config (`src/utils/config.py`)
 - [x] Einstellungsdialog mit LLM-Konfiguration (`src/gui/settings_dialog.py`)
 - [x] Verbindungstest für API-Keys
@@ -208,7 +210,7 @@
 
 ### Phase 15: Layout-Optimierungen (NEU - Mittlere Priorität)
 
-- [ ] **Dynamische Thumbnail-Spalten** (to do #16)
+- [x] **Dynamische Thumbnail-Spalten** *(erledigt, Issue #50, v0.17.0)*
   - Mehr Spalten bei größerem Fenster
   - Responsive Grid-Layout
 
@@ -621,6 +623,10 @@ Die LLM-Integration ermöglicht optional bessere Klassifikations- und Benennungs
 ---
 
 ## Wettbewerbsanalyse: paperless-ai (März 2026)
+
+> Veraltet: Aktueller Vergleich mit paperless-ngx v3.1 (native KI, RAG) in
+> [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md), Stand 09/2026.
+> Die Tabelle unten bleibt als historischer Stand stehen.
 
 Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On für Paperless-ngx):
 
