@@ -439,6 +439,10 @@ REGELN FÜR DEN DATEINAMEN:
    (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
    Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
    leite den Namen daraus ab (kathrin.haerle@web.de -> Kathrin_Haerle).
+6. Keine nichtssagenden Woerter wie "Sonstiges", "Unbekannt", "Dokument" oder "Scan"
+   im Dateinamen. Passt keine der Standard-Kategorien, benenne konkret, worum es
+   geht (z.B. Klaviernoten_Bach_Praeludium, Bedienungsanleitung_Waschmaschine).
+   "Sonstiges" ist nur als Kategorie in den Metadaten erlaubt, nie im Dateinamen.
 
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
