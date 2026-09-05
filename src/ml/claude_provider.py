@@ -126,7 +126,7 @@ class ClaudeProvider(LLMProvider):
             )
             if problem:
                 return LLMResponse(success=False, error_message=problem)
-            parsed = self._parse_response(response_text)
+            parsed = self._parse_response(response_text, document_text=text)
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
@@ -223,7 +223,7 @@ class ClaudeProvider(LLMProvider):
             )
             if problem:
                 return LLMResponse(success=False, error_message=problem)
-            parsed = self._parse_response(response_text)
+            parsed = self._parse_response(response_text, document_text=text)
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,

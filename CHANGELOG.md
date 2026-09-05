@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
+  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
+  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
+  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
+  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
+  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
+
 ### Neu
 - **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
   Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld

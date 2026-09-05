@@ -275,7 +275,7 @@ class OllamaProvider(LLMProvider):
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed, parse_err = self._parse_json_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned, document_text=text)
 
         if parse_err:
             return LLMResponse(success=False, error_message=parse_err)
@@ -314,7 +314,7 @@ class OllamaProvider(LLMProvider):
             return LLMResponse(success=False, error_message=error)
 
         cleaned = self._strip_code_fences(response_text)
-        parsed, parse_err = self._parse_json_response(cleaned)
+        parsed, parse_err = self._parse_json_response(cleaned, document_text=text)
 
         if parse_err:
             return LLMResponse(success=False, error_message=parse_err)
