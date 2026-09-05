@@ -25,6 +25,9 @@ class TileView:
     label: str
     thumb_w: int  # Bildflaeche in der PDF-Kachel
     thumb_h: int
+    # True: Bild fuellt die Flaeche in der Breite, unten wird abgeschnitten
+    # (Kopf der Seite). False: ganze Seite eingepasst, Rest bleibt frei.
+    thumb_crop: bool
     tile_w: int  # Mindestbreite/-hoehe der Kachel (PDF und Ordner gleich)
     tile_h: int
     tile_max_w: int
@@ -53,7 +56,9 @@ class TileView:
 TILE_VIEWS: tuple[TileView, ...] = (
     TileView(
         id="klein", label="Klein",
-        thumb_w=56, thumb_h=64,
+        # Bild so breit wie der Text, Seite unten abgeschnitten: Bei 56x64
+        # blieb um die A4-Seite (45 px breit) zu viel leere Kachel (#117-Feedback)
+        thumb_w=82, thumb_h=64, thumb_crop=True,
         tile_w=92, tile_h=104, tile_max_w=102, tile_max_h=126,
         margin=4, spacing=3, font_px=10,
         name_lines=2, name_max_height=30,
@@ -61,7 +66,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
     ),
     TileView(
         id="mittel", label="Mittel",
-        thumb_w=84, thumb_h=96,
+        thumb_w=84, thumb_h=96, thumb_crop=False,
         tile_w=104, tile_h=142, tile_max_w=114, tile_max_h=166,
         margin=6, spacing=4, font_px=10,
         name_lines=2, name_max_height=30,
@@ -69,7 +74,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
     ),
     TileView(
         id="gross", label="Groß",
-        thumb_w=140, thumb_h=160,
+        thumb_w=140, thumb_h=160, thumb_crop=False,
         tile_w=160, tile_h=230, tile_max_w=180, tile_max_h=260,
         margin=8, spacing=5, font_px=11,
         name_lines=3, name_max_height=55,

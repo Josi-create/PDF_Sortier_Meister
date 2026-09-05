@@ -64,17 +64,52 @@ def test_default_widget_uses_small_view(thumbnail_factory):
     assert widget.view.id == "klein"
 
 
-def test_small_view_scales_thumbnail_and_keeps_original(thumbnail_factory):
+def _two_tone_pixmap(w: int = 113, h: int = 160) -> QPixmap:
+    """Obere Haelfte rot, untere blau - zeigt, welcher Teil der Seite bleibt."""
+    from PyQt6.QtGui import QPainter
+    p = QPixmap(w, h)
+    p.fill(Qt.GlobalColor.red)
+    painter = QPainter(p)
+    painter.fillRect(0, h // 2, w, h - h // 2, Qt.GlobalColor.blue)
+    painter.end()
+    return p
+
+
+def test_small_view_fills_width_and_crops_bottom(thumbnail_factory):
+    """#117-Feedback: In Klein blieb um die winzige Seite zu viel leere Kachel.
+    Jetzt fuellt das Bild die Textbreite, unten wird abgeschnitten."""
     widget = thumbnail_factory("klein")
     view = tile_view("klein")
+    assert view.thumb_crop and view.thumb_w == view.text_width
     assert widget.thumbnail_label.height() == view.thumb_h
     assert widget.maximumWidth() == view.tile_max_w
 
-    widget._on_thumbnail_loaded(_pixmap())
+    widget._on_thumbnail_loaded(_two_tone_pixmap())
+    shown = widget.thumbnail_label.pixmap()
+    assert (shown.width(), shown.height()) == (view.thumb_w, view.thumb_h)
+    img = shown.toImage()
+    assert img.pixelColor(view.thumb_w // 2, 2).red() > 200  # Kopf der Seite oben
+    assert img.pixelColor(view.thumb_w // 2, view.thumb_h - 2).blue() > 200  # Mitte der Seite unten
+    assert widget._original_pixmap.size() == _two_tone_pixmap().size()
+
+
+def test_crop_keeps_landscape_pages_centered():
+    from src.gui.pdf_thumbnail import PDFThumbnailWidget
+    view = tile_view("klein")
+    shown = PDFThumbnailWidget._fit_pixmap(_pixmap(140, 70), view)
+    assert (shown.width(), shown.height()) == (view.thumb_w, view.thumb_h)
+
+
+def test_medium_view_scales_whole_page(thumbnail_factory):
+    widget = thumbnail_factory("mittel")
+    view = tile_view("mittel")
+    assert not view.thumb_crop
+    widget._on_thumbnail_loaded(_two_tone_pixmap())
     shown = widget.thumbnail_label.pixmap()
     assert shown.height() == view.thumb_h
-    assert shown.width() <= view.thumb_w
-    assert widget._original_pixmap.size() == _pixmap().size()
+    assert shown.width() < view.thumb_w  # ganze A4-Seite, schmaler als die Flaeche
+    img = shown.toImage()
+    assert img.pixelColor(shown.width() // 2, shown.height() - 2).blue() > 200  # Seitenende sichtbar
 
 
 def test_large_view_shows_original_unscaled(thumbnail_factory):
@@ -96,6 +131,9 @@ def test_switching_view_rescales_and_resizes(thumbnail_factory):
     assert widget.thumbnail_label.pixmap().height() == tile_view("mittel").thumb_h
     assert widget.maximumHeight() == tile_view("mittel").tile_max_h
     assert widget.name_label.font().pixelSize() == 10
+
+    widget.set_view(tile_view("klein"))
+    assert widget.thumbnail_label.pixmap().width() == tile_view("klein").thumb_w  # wieder zugeschnitten
 
 
 def _line_widths(label):

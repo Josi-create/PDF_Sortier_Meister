@@ -189,18 +189,38 @@ class PDFThumbnailWidget(QFrame):
         self.thumbnail_ready.emit()
 
     def _apply_thumbnail_pixmap(self):
-        """Zeigt das Original-Thumbnail, auf die Bildflaeche der Ansicht verkleinert."""
+        """Zeigt das Original-Thumbnail, auf die Bildflaeche der Ansicht angepasst."""
         pixmap = self._original_pixmap
         if pixmap is None or pixmap.isNull():
             return
-        v = self._view
-        if pixmap.width() > v.thumb_w or pixmap.height() > v.thumb_h:
-            pixmap = pixmap.scaled(
-                v.thumb_w, v.thumb_h,
-                Qt.AspectRatioMode.KeepAspectRatio,
+        self.thumbnail_label.setPixmap(self._fit_pixmap(pixmap, self._view))
+
+    @staticmethod
+    def _fit_pixmap(pixmap: QPixmap, view: TileView) -> QPixmap:
+        """Passt das Original in die Bildflaeche der Ansicht ein.
+
+        thumb_crop: Bild fuellt die Breite, unten wird abgeschnitten - die
+        Kachel zeigt den Kopf der Seite (Briefkopf, Betreff) statt einer
+        winzigen Gesamtseite mit leerem Rand. Sonst wird die ganze Seite
+        eingepasst (nur verkleinert, nie vergroessert).
+        """
+        if view.thumb_crop:
+            scaled = pixmap.scaled(
+                view.thumb_w, view.thumb_h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation,
             )
-        self.thumbnail_label.setPixmap(pixmap)
+            w = min(view.thumb_w, scaled.width())
+            h = min(view.thumb_h, scaled.height())
+            x = (scaled.width() - w) // 2  # horizontal mittig, oben buendig
+            return scaled.copy(x, 0, w, h)
+        if pixmap.width() <= view.thumb_w and pixmap.height() <= view.thumb_h:
+            return pixmap
+        return pixmap.scaled(
+            view.thumb_w, view.thumb_h,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
 
     # --- Hover-Vorschau (Issue #117) --------------------------------------
 
