@@ -62,6 +62,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   „Unbekannt“, „Dokument“, „Scan“); passt keine Standard-Kategorie, soll
   die KI konkret benennen, worum es geht.
 
+### Geaendert
+- **Vergleich mit paperless-ngx neu geschrieben** (#112): Stand 09/2026 gegen
+  paperless-ngx v3.1.3 (native KI und RAG seit v3.0), mit Feature-Tabellen,
+  21 belegten Luecken, Bewertung der Server-Frage (Antwort: nein) und
+  Hinweisen zum Zusammenspiel. README nennt jetzt die bekannten Grenzen
+  (Loeschen ohne Papierkorb, OCR fuenf Seiten, Suchindex 5.000 Zeichen),
+  die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
+  ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
+  Vergleich ergaenzt.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert
