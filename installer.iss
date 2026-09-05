@@ -58,6 +58,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; Kompletten PyInstaller-onedir-Ordner mitnehmen
 Source: "dist\PDF_Sortier_Meister\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Lizenztext (GPL-3.0-or-later) gut sichtbar neben der EXE
+Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

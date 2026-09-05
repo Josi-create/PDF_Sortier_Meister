@@ -4,7 +4,7 @@ Ordner-Baum-Widget für PDF Sortier Meister
 Zeigt eine hierarchische Ordnerstruktur als Baumansicht an.
 Unterstützt Unterordner und zeigt PDF-Anzahlen an.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import os

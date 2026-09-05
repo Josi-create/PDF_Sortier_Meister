@@ -6,7 +6,7 @@ Token-Schaetzung und History-Slicing fuer den Prompt-Builder.
 
 Persistence (SQLite) ist explizit Q1-deferred und nicht Teil von M1.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from dataclasses import dataclass, field

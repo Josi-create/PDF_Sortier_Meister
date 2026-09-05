@@ -44,6 +44,9 @@ if SPLASH_IMG.exists():
 if (ROOT_DIR / "icon.png").exists():
     # Fenster-/Taskleisten-Icon zur Laufzeit (app.setWindowIcon)
     datas.append((str(ROOT_DIR / "icon.png"), "."))
+# Lizenztext (GPL-3.0-or-later) muss mit jedem Binary ausgeliefert werden
+if (ROOT_DIR / "LICENSE").exists():
+    datas.append((str(ROOT_DIR / "LICENSE"), "."))
 # Gebuendelte Tesseract-Laufzeit (vorher scripts/prepare_tesseract.py bzw.
 # scripts/prepare_tesseract_mac.py ausfuehren).
 # Landet in _internal/tesseract/ und wird von find_tesseract() zuerst gefunden.

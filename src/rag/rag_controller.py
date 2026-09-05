@@ -9,7 +9,7 @@ Der Controller haelt zusaetzlich eine ``ChatSession`` (Konversationshistorie)
 und einen simplen LRU-Cache fuer Frage/Antwort-Paaren, damit
 wiederholt gestellte Fragen nicht erneut das LLM rufen.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from __future__ import annotations

@@ -18,7 +18,7 @@ Nachteile:
 Diese Implementierung spricht die native Ollama-API (/api/chat) ueber
 urllib (stdlib), um keine zusaetzliche Dependency einzufuehren.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json

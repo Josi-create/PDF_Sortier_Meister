@@ -4,7 +4,7 @@ Hybrid-Klassifikator für PDF Sortier Meister
 Kombiniert lokale TF-IDF Klassifikation mit optionaler LLM-Unterstützung
 für bessere Sortier- und Benennungsvorschläge.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from pathlib import Path

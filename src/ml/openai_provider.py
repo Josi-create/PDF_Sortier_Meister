@@ -3,7 +3,7 @@ OpenAI API Provider für PDF Sortier Meister
 
 Implementiert die LLM-Schnittstelle für OpenAI's GPT API.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json
