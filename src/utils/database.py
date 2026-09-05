@@ -566,8 +566,10 @@ class Database:
         """
         Fügt ein Dokument zum Volltext-Suchindex hinzu.
 
-        Wird beim Verschieben/Sortieren aufgerufen, damit das Dokument
-        später per Suche gefunden werden kann.
+        Aufgerufen beim manuellen Indexieren eines Ordners ("Ordner zum
+        Suchindex hinzufuegen"); beim Verschieben/Umbenennen pflegt
+        ``update_pdf_path`` den Index. Der Text wird auf
+        ``MAX_EXTRACTED_TEXT_LENGTH`` (5000 Zeichen) gekappt.
 
         Phase 2 (Issue #25): Vor dem INSERT in ``document_search`` wird
         ueber ``get_or_create_pdf_id`` sichergestellt, dass ein

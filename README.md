@@ -86,8 +86,9 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 
 ### Korrespondenten und Regeln
 - **Korrespondenten-Verwaltung** (Absender mit Aliasen, Kategorie, Farbe) — Klick filtert die PDF-Liste
-- **WENN-DANN-Regeln**: z. B. *Korrespondent = Stadtwerke → Ordner `Wohnung/Nebenkosten`,
-  Dateiname `{datum} Stadtwerke {betrag_brutto}`* — mit Prioritäten und visuellem Editor
+- **WENN-DANN-Regeln** mit Prioritäten und visuellem Editor: z. B. *Korrespondent = Stadtwerke →
+  Ordner `Wohnung/Nebenkosten`*. Heute zeigen Regeln nur einen Hinweis in der Statusleiste; das
+  automatische Anwenden ist ein offenes Vorhaben (#125)
 
 ### KI — optional, lokal oder Cloud
 - Ohne KI: alles oben funktioniert mit dem lokalen Klassifikator
@@ -155,7 +156,7 @@ python run.py
 - OCR im Quellcode-Betrieb: Tesseract installieren — Windows: `winget install UB-Mannheim.TesseractOCR`,
   macOS: `brew install tesseract tesseract-lang` — die App findet es in den Standardordnern;
   in den Builds ist es gebündelt
-- Tests: `python -m pytest tests -q` (450+ Tests, pytest-qt); laufen per GitHub Actions auf Windows und macOS
+- Tests: `python -m pytest tests -q` (850+ Tests, pytest-qt); laufen per GitHub Actions auf Windows und macOS
 - Windows-Build: `build.bat` — PyInstaller (`pdf_sortier_meister.spec`), kopiert Tesseract nach `vendor/`
   und baut mit Inno Setup 6 den Installer (`scripts/build_installer.py`)
 - macOS-Build: `./build.sh` — gleicher PyInstaller-Spec, bündelt Tesseract (`scripts/prepare_tesseract_mac.py`,
@@ -176,8 +177,13 @@ Offene Vorhaben: [Issues](https://github.com/Josi-create/PDF_Sortier_Meister/iss
 
 paperless-ngx ist ein Server-System mit eigener Dokumentenablage; PDF Sortier Meister ist ein
 Desktop-Werkzeug, das **deine bestehende Ordnerstruktur** beibehält und die Metadaten in die PDFs
-selbst schreibt. Beides lässt sich kombinieren (erst hier sortieren, dann in paperless importieren).
-Details: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md)
+selbst schreibt. Beides lässt sich kombinieren (erst hier sortieren, dann in paperless importieren);
+paperless übernimmt dabei Datum und Titel aus dem **Dateinamen**, die eingebetteten XMP-Metadaten
+liest es nicht aus. Was PDFSM gegenüber paperless-ngx (v3.1, mit eigener KI) noch fehlt und was
+nicht: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) (Stand 09/2026).
+
+Bekannte Grenzen: Löschen fragt nach, ist danach aber endgültig (kein Papierkorb); OCR liest die
+ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 
 ---
 
@@ -188,7 +194,7 @@ Details: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md)
 | PyQt6 | Desktop-GUI |
 | PyMuPDF | PDF-Rendering, Textextraktion |
 | pikepdf | XMP-Metadaten in PDFs schreiben |
-| pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch) |
+| pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch, erste 5 Seiten; siehe #46) |
 | scikit-learn | TF-IDF-Klassifikator (lokal, lernend) |
 | SQLAlchemy + SQLite FTS5 | Lernhistorie, Metadaten-Index, Volltextsuche |
 | anthropic / openai (optional) | Cloud-KI-Anbieter |
