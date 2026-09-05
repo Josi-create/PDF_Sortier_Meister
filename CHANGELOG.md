@@ -29,6 +29,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   erschienen über dem noch offenen Einrichtungsassistenten. Sie kommen jetzt
   erst, wenn der Assistent geschlossen ist.
 
+- **Klick auf eine gescannte PDF dauerte 7 Sekunden** (#108, Teil 1): Beim
+  Anklicken lief die Texterkennung (OCR) noch einmal komplett durch, obwohl
+  der Text laengst im Cache lag. Die Dateinamen-Vorschlaege „Automatisch
+  erkannt“ nutzen jetzt den Cache und oeffnen die PDF nur noch, wenn
+  wirklich etwas fehlt. Betrifft alle vier Wege: Klick, KI-Nachlieferung,
+  Suchfeld leeren und den Umbenennen-Dialog. Nebenbei: Datumsangaben aus dem
+  Cache erscheinen in den Vorschlaegen wieder als „2026-05-12“ statt
+  „2026-05-12 00:00:00“.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert

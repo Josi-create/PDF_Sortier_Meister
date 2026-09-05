@@ -535,26 +535,42 @@ def generate_rename_suggestions(
     """
     suggestions = []
 
-    # 1. Vorschlag aus PDF-Analyzer
+    # 1. Vorschlag aus PDF-Analyzer.
+    # Issue #108: Liegen Text, Stichwoerter und Datumsangaben schon vor (aus
+    # dem PDF-Cache), wird die PDF NICHT geoeffnet - vorher lief hier bei
+    # jedem Klick auf eine Scan-PDF die komplette OCR noch einmal im
+    # GUI-Thread (7 s Freeze). Nur fehlende Teile werden nachgeladen.
     try:
-        from src.core.pdf_analyzer import PDFAnalyzer
+        from src.core.pdf_analyzer import PDFAnalyzer, coerce_dates
 
-        with PDFAnalyzer(pdf_path) as analyzer:
-            if extracted_text is None:
-                extracted_text = analyzer.extract_text()
-            if keywords is None:
-                keywords = analyzer.extract_keywords()
-            if dates is None:
-                dates = analyzer.extract_dates()
+        if dates is not None:
+            dates = coerce_dates(dates)
 
-            # Standard-Vorschlag
-            suggested = analyzer.suggest_filename()
-            if suggested and suggested != pdf_path.name:
-                suggestions.append(RenameSuggestion(
-                    name=suggested,
-                    reason="Automatisch erkannt",
-                    confidence=0.6
-                ))
+        analyzer = PDFAnalyzer(pdf_path)
+        needs_pdf = extracted_text is None or keywords is None or dates is None
+        try:
+            if needs_pdf:
+                analyzer.open()
+                if extracted_text is None:
+                    extracted_text = analyzer.extract_text()
+                if keywords is None:
+                    keywords = analyzer.extract_keywords()
+                if dates is None:
+                    dates = analyzer.extract_dates()
+
+            # Standard-Vorschlag - rein aus den vorliegenden Werten
+            suggested = analyzer.suggest_filename(
+                text=extracted_text, keywords=keywords, dates=dates
+            )
+        finally:
+            analyzer.close()
+
+        if suggested and suggested != pdf_path.name:
+            suggestions.append(RenameSuggestion(
+                name=suggested,
+                reason="Automatisch erkannt",
+                confidence=0.6
+            ))
 
     except Exception as e:
         print(f"Fehler bei PDF-Analyse für Vorschläge: {e}")
@@ -568,7 +584,7 @@ def generate_rename_suggestions(
                 date_str = first_date.strftime("%Y-%m-%d")
             else:
                 # Falls es bereits ein String ist
-                date_str = str(first_date)
+                date_str = str(first_date)[:10]
 
             # Nur Datum
             suggestions.append(RenameSuggestion(
