@@ -49,6 +49,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Analyse loggt als `Klick nach Analyse …`. Damit ist im Log sichtbar, ob
   eine Wartezeit von der OCR oder von der Oberflaeche kommt.
 
+### Neu
+- **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
+  Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld
+  eintraegt, sieht den Dateinamen-Vorschlag sofort nachziehen: Die
+  Vorschlagsliste rendert mit den neuen Werten, und solange der Dateiname
+  aus der Liste stammt (oberste Zeile, angeklickte Zeile, KI-Ergebnis),
+  folgt er der Eingabe. Ein selbst getippter Name bleibt unangetastet. In
+  KI-Vorschlaegen werden „Sonstiges“/„Unbekannt“ und die alte Kategorie
+  bzw. der alte Korrespondent durch die Eingabe ersetzt.
+- **KI-Prompt:** Neue Regel gegen nichtssagende Dateinamen („Sonstiges“,
+  „Unbekannt“, „Dokument“, „Scan“); passt keine Standard-Kategorie, soll
+  die KI konkret benennen, worum es geht.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert

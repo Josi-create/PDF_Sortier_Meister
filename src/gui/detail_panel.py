@@ -189,6 +189,12 @@ class DetailPanel(QWidget):
         # Zuletzt automatisch (aus Vorschlag) gesetzter Dateiname - dient zur
         # Erkennung, ob der Nutzer den Namen selbst geaendert hat
         self._auto_name: str = ""
+        # Issue #113: True, solange der Dateiname aus der Vorschlagsliste
+        # stammt (oberste Zeile, Klick, KI-Ergebnis) und nicht getippt wurde.
+        # Dann zieht eine Metadaten-Eingabe (Kategorie, Korrespondent, ...)
+        # den Namen sofort nach; _name_kind merkt sich die Art der Zeile.
+        self._name_from_list: bool = False
+        self._name_kind: Optional[str] = None
         # Snapshot der zuletzt gespeicherten Metadaten (entspricht PDF-Stand)
         self._saved_metadata_snapshot: dict = {}
         # Felder, die tatsaechlich aus dem PDF (XMP/Info) gelesen wurden - nur
@@ -310,6 +316,8 @@ class DetailPanel(QWidget):
             "Neuer Dateiname für die PDF - wird beim Klick auf einen Zielordner übernommen."
         )
         self.name_input.textChanged.connect(self._update_preview)
+        # textEdited feuert nur bei Nutzereingaben, nicht bei setText()
+        self.name_input.textEdited.connect(self._on_name_typed)
         font = QFont()
         font.setPointSize(11)
         self.name_input.setFont(font)
@@ -703,6 +711,9 @@ class DetailPanel(QWidget):
         self._metadata = {}
         self._metadata_source = None
         self._saved_metadata_snapshot = {}
+        self._name_from_list = False
+        self._name_kind = None
+        self._auto_name = ""
         self.preview.clear()
 
         self.name_input.clear()
@@ -837,12 +848,46 @@ class DetailPanel(QWidget):
         self._refresh_save_btn()
 
     def _on_metadata_user_edit(self, *args):
-        """Wird aufgerufen wenn der User ein Metadaten-Feld ändert."""
+        """Wird aufgerufen wenn der User ein Metadaten-Feld ändert.
+
+        Issue #113: Die Vorschlagsliste wird mit den neuen Feldwerten neu
+        gerendert (Muster-Zeilen, Kategorie/Korrespondent in KI-Zeilen).
+        Stammt der Dateiname noch aus der Liste, zieht er sofort nach; ein
+        selbst getippter Name bleibt unangetastet.
+        """
         if self._loading_metadata:
             return
         if self._metadata_source != "user":
             self._metadata_source = "user"
+        if self._current_pdf is not None:
+            self._populate_suggestions()
+            if self._name_from_list:
+                self._apply_name_from_kind()
         self._refresh_save_btn()
+
+    def _on_name_typed(self, _text: str):
+        """Nutzer tippt im Namensfeld: ab jetzt keine automatische Nachfuehrung."""
+        self._name_from_list = False
+        self._name_kind = None
+
+    def _apply_name_from_kind(self):
+        """Setzt den Namen auf die Zeile der gemerkten Art (sonst die oberste)."""
+        if not self._displayed_suggestions:
+            return
+        idx = 0
+        if self._name_kind is not None and self._name_kind in self._displayed_kinds:
+            idx = self._displayed_kinds.index(self._name_kind)
+        self._set_name_from_row(idx)
+
+    def _set_name_from_row(self, idx: int):
+        """Uebernimmt Zeile ``idx`` als automatischen Dateinamen (koppelt an die Liste)."""
+        if not (0 <= idx < len(self._displayed_suggestions)):
+            return
+        name = self._displayed_suggestions[idx].name.replace('.pdf', '')
+        self.name_input.setText(name)
+        self._auto_name = name
+        self._name_from_list = True
+        self._name_kind = self._displayed_kinds[idx]
 
     def _refresh_save_btn(self):
         """Aktualisiert Text und Status des Speichern-Buttons und des Status-Labels."""
@@ -941,11 +986,14 @@ class DetailPanel(QWidget):
         zuletzt angeklickte Art zuoberst.
         """
         from src.core.suggestion_order import (
-            KIND_DATE, KIND_LEARNED, kind_from_reason, sort_by_kind,
+            KIND_DATE, KIND_KI, KIND_LEARNED, kind_from_reason, sort_by_kind,
         )
+
+        from src.core.llm_name_adapt import adapt_llm_filename
 
         self.suggestions_list.clear()
 
+        current_meta = self.get_metadata() if self._current_pdf else {}
         pairs: list[tuple[RenameSuggestion, str]] = []
         for s in self._suggestions:
             kind = kind_from_reason(s.reason)
@@ -954,6 +1002,13 @@ class DetailPanel(QWidget):
                 # alter Dateiname) ebenso - die Historie fliesst stattdessen als
                 # Beispiel in den KI-Prompt (src.core.rename_examples)
                 continue
+            if kind == KIND_KI:
+                # Issue #113: "Sonstiges"/alte Kategorie im KI-Namen durch die
+                # aktuelle Feld-Eingabe ersetzen (Anzeige-Kopie, Original bleibt)
+                adapted = adapt_llm_filename(s.name, s.metadata, current_meta)
+                if adapted != s.name:
+                    s = RenameSuggestion(name=adapted, reason=s.reason,
+                                         confidence=s.confidence, metadata=s.metadata)
             pairs.append((s, kind))
         pattern_pairs = self._pattern_suggestions()
         pairs.extend(pattern_pairs)
@@ -1008,11 +1063,7 @@ class DetailPanel(QWidget):
 
     def _apply_top_suggestion(self):
         """Uebernimmt die oberste Zeile als (automatischen) Dateinamen."""
-        if not self._displayed_suggestions:
-            return
-        name = self._displayed_suggestions[0].name.replace('.pdf', '')
-        self.name_input.setText(name)
-        self._auto_name = name
+        self._set_name_from_row(0)
 
     # -- Metadaten-Hilfen (Issues #109/#110) ------------------------------- #
 
@@ -1273,6 +1324,10 @@ class DetailPanel(QWidget):
             idx = self.suggestions_list.row(item)
             if 0 <= idx < len(self._displayed_kinds):
                 self._remember_kind(self._displayed_kinds[idx])
+                # Issue #113: angeklickte Zeile bleibt an die Felder gekoppelt
+                self._auto_name = name.replace('.pdf', '')
+                self._name_from_list = True
+                self._name_kind = self._displayed_kinds[idx]
 
             # Metadaten des Vorschlags übernehmen
             shown = self._displayed_suggestions
@@ -1428,6 +1483,13 @@ class DetailPanel(QWidget):
             text += f" ({estimate})"
         self.llm_btn.setText(text)
 
+    def _couple_name_to_llm(self, filename: str):
+        """KI-Name gilt als automatisch gesetzt und folgt Feld-Aenderungen (#113)."""
+        from src.core.suggestion_order import KIND_KI
+        self._auto_name = filename.replace('.pdf', '')
+        self._name_from_list = True
+        self._name_kind = KIND_KI
+
     def _on_llm_metadata_ready(self, pdf_path: Path, suggestions: list, error: str):
         """Traegt das KI-Ergebnis ein - nur, wenn die PDF noch ausgewaehlt ist."""
         self._llm_timer.stop()
@@ -1475,12 +1537,14 @@ class DetailPanel(QWidget):
                             pass
                     self._loading_metadata = False
                     self._metadata_source = "llm"
+                    self._couple_name_to_llm(s.filename)
                     self._refresh_save_btn()
                     break
             else:
                 for s in suggestions:
                     if s.source == "llm":
                         self.name_input.setText(s.filename.replace('.pdf', ''))
+                        self._couple_name_to_llm(s.filename)
                         break
                 else:
                     # Kein KI-Vorschlag angekommen - Grund anzeigen (z.B. Token-Limit)
