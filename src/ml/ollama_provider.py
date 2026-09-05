@@ -27,6 +27,7 @@ import urllib.request
 from typing import Optional, Any
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from src.ml.ollama_launcher import http_error_text
 
 
 class OllamaProvider(LLMProvider):
@@ -235,7 +236,7 @@ class OllamaProvider(LLMProvider):
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
                 return json.loads(resp.read().decode("utf-8")), None
         except urllib.error.HTTPError as e:
-            return None, f"Ollama HTTP {e.code}"
+            return None, http_error_text(e)
         except urllib.error.URLError as e:
             return None, f"Keine Verbindung zu Ollama ({self._get_base_url()}). Details: {e.reason}"
         except Exception as e:

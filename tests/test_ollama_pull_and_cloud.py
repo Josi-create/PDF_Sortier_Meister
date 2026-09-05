@@ -89,3 +89,57 @@ def test_cloud_chat_does_not_autostart_local_server(monkeypatch):
     import src.ml.ollama_launcher as launcher
     monkeypatch.setattr(launcher, "ensure_running", lambda *a, **k: (_ for _ in ()).throw(AssertionError("darf nicht")))
     assert p._chat("s", "u") == (None, "Keine Verbindung zu Ollama (x)")
+
+
+# --------------------------------------------------------------------- #
+# HTTP-Fehler: Grund aus der Ollama-Antwort mitnehmen
+# --------------------------------------------------------------------- #
+
+
+def _http_error(code: int, body: bytes):
+    import io
+    import urllib.error
+    return urllib.error.HTTPError("http://localhost:11434/api/chat", code, "Error", {}, io.BytesIO(body))
+
+
+def test_http_error_text_uses_ollama_error_field():
+    from src.ml.ollama_launcher import http_error_text
+    body = json.dumps({"error": "llama runner process has terminated: exit status 0xc0000409"}).encode()
+    assert http_error_text(_http_error(500, body)) == (
+        "Ollama HTTP 500: llama runner process has terminated: exit status 0xc0000409"
+    )
+
+
+def test_http_error_text_falls_back_to_raw_body_or_code_only():
+    from src.ml.ollama_launcher import http_error_text
+    assert http_error_text(_http_error(502, b"<html>\n  Bad Gateway\n</html>")) == (
+        "Ollama HTTP 502: <html> Bad Gateway </html>"
+    )
+    assert http_error_text(_http_error(500, b"")) == "Ollama HTTP 500"
+    assert http_error_text(_http_error(500, b"x" * 400), limit=20) == "Ollama HTTP 500: " + "x" * 20 + "…"
+
+
+def test_post_chat_reports_ollama_reason(monkeypatch):
+    import urllib.request
+
+    def boom(*a, **k):
+        raise _http_error(500, json.dumps({"error": "model requires more system memory"}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    p = OllamaProvider(LLMConfig(api_key="", model="llama3.1"))
+    data, error = p._post_chat("http://localhost:11434/api/chat", {"model": "llama3.1"})
+    assert data is None
+    assert error == "Ollama HTTP 500: model requires more system memory"
+
+
+def test_pull_model_reports_ollama_reason(monkeypatch):
+    import urllib.request
+    from src.ml.ollama_launcher import pull_model
+
+    def boom(*a, **k):
+        raise _http_error(404, json.dumps({"error": "pull model manifest: file does not exist"}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    ok, message = pull_model("http://localhost:11434", "gibtsnicht:latest", lambda *a: None, lambda: False)
+    assert ok is False
+    assert message == "Ollama HTTP 404: pull model manifest: file does not exist"
