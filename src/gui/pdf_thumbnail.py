@@ -7,8 +7,8 @@ Zeigt eine Miniaturansicht einer PDF-Datei mit Dateinamen und Aktionen.
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize, QMimeData, QUrl, QPoint
-from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize, QMimeData, QUrl, QPoint, QTimer
+from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag, QFontMetrics
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
     QApplication,
     QToolTip,
 )
+
+from src.gui.tile_view import TileView, fit_text_lines, tile_view
 
 
 class ThumbnailLoaderThread(QThread):
@@ -66,14 +68,27 @@ class PDFThumbnailWidget(QFrame):
     )
     AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
 
-    def __init__(self, pdf_path: Path, parent=None):
+    # Wartezeit, bis der Mauszeiger ueber einer kompakten Kachel die grosse
+    # Vorschau einblendet (Issue #117)
+    HOVER_PREVIEW_DELAY_MS = 350
+
+    def __init__(self, pdf_path: Path, parent=None, view: Optional[TileView] = None):
         super().__init__(parent)
         self.pdf_path = pdf_path
+        self._view = view or tile_view(None)
         self._selected = False
         self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
+        # Original-Thumbnail (140x160-Render); die Kachel zeigt je nach
+        # Ansicht eine verkleinerte Kopie, die Hover-Vorschau das Original
+        self._original_pixmap: Optional[QPixmap] = None
+        self._hover_popup: Optional[QLabel] = None
+        self._hover_timer = QTimer(self)
+        self._hover_timer.setSingleShot(True)
+        self._hover_timer.setInterval(self.HOVER_PREVIEW_DELAY_MS)
+        self._hover_timer.timeout.connect(self._show_hover_preview)
 
         self.setup_ui()
         self.load_thumbnail()
@@ -82,8 +97,6 @@ class PDFThumbnailWidget(QFrame):
         """Initialisiert die UI-Komponenten."""
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.setLineWidth(1)
-        self.setMinimumSize(160, 230)
-        self.setMaximumSize(180, 260)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         # Hover-Effekt
@@ -91,37 +104,72 @@ class PDFThumbnailWidget(QFrame):
         self._update_style()
         self.setToolTip(self._BASE_TOOLTIP)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(5)
+        self._layout = QVBoxLayout(self)
 
         # Thumbnail-Bereich
         self.thumbnail_label = QLabel()
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail_label.setMinimumSize(140, 160)
-        self.thumbnail_label.setMaximumSize(160, 180)
         self.thumbnail_label.setStyleSheet(
             "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;"
         )
         self.thumbnail_label.setText("Laden...")
-        layout.addWidget(self.thumbnail_label)
+        self._layout.addWidget(self.thumbnail_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        # Dateiname (zweizeilig mit Tooltip für vollständigen Namen)
+        # Dateiname (mehrzeilig, pixelgenau umgebrochen; voller Name im Tooltip)
         self.name_label = QLabel()
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.name_label.setWordWrap(True)
-        self.name_label.setMaximumHeight(55)  # Mehr Platz für 2 Zeilen
-        self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2;")
+        self._layout.addWidget(self.name_label)
 
-        self.update_name_display()
-        layout.addWidget(self.name_label)
+        self._apply_view()
+
+    @property
+    def view(self) -> TileView:
+        """Aktuelle Kachelgroesse (Issue #117)."""
+        return self._view
+
+    def set_view(self, view: TileView):
+        """Schaltet die Kachelgroesse um; das Bild wird passend neu skaliert."""
+        if view.id == self._view.id:
+            return
+        self._view = view
+        self._hide_hover_preview()
+        self._apply_view()
+
+    def _apply_view(self):
+        """Wendet Masse und Schriftgroessen der aktuellen Ansicht an."""
+        v = self._view
+        self.setMinimumSize(v.tile_w, v.tile_h)
+        self.setMaximumSize(v.tile_max_w, v.tile_max_h)
+        self._layout.setContentsMargins(v.margin, v.margin, v.margin, v.margin)
+        self._layout.setSpacing(v.spacing)
+        self.thumbnail_label.setFixedSize(v.thumb_w, v.thumb_h)
+        self.name_label.setMaximumHeight(v.name_max_height)
+        self._apply_name_style()
+        if self._original_pixmap is not None:
+            self._apply_thumbnail_pixmap()
+        if self._analyzing:
+            self.name_label.setText(self.ANALYZING_TEXT)
+        else:
+            self.update_name_display()
+
+    def _apply_name_style(self):
+        """Schrift ueber QFont (nicht Stylesheet), damit QFontMetrics fuer den
+        Umbruch dieselbe Schrift misst, die gezeichnet wird."""
+        font = self.name_label.font()
+        font.setPixelSize(self._view.font_px)
+        self.name_label.setFont(font)
+        if self._analyzing:
+            self.name_label.setStyleSheet("color: #b8860b; font-style: italic;")
+        else:
+            self.name_label.setStyleSheet("")
 
     def update_name_display(self):
-        """Befuellt name_label mit gekuerztem stem + setzt vollen Namen als Tooltip."""
-        name = self.pdf_path.stem
-        if len(name) > 45:
-            name = name[:35] + "..." + name[-7:]
-        self.name_label.setText(name)
+        """Befuellt name_label mit dem umgebrochenen stem + vollem Namen als Tooltip."""
+        v = self._view
+        text = fit_text_lines(
+            self.pdf_path.stem, QFontMetrics(self.name_label.font()), v.text_width, v.name_lines
+        )
+        self.name_label.setText(text)
         self.name_label.setToolTip(self.pdf_path.name)
 
     def load_thumbnail(self):
@@ -133,11 +181,81 @@ class PDFThumbnailWidget(QFrame):
 
     def _on_thumbnail_loaded(self, pixmap: QPixmap):
         """Wird aufgerufen wenn das Thumbnail geladen wurde."""
-        self.thumbnail_label.setPixmap(pixmap)
+        self._original_pixmap = pixmap
+        self._apply_thumbnail_pixmap()
         self.thumbnail_label.setStyleSheet(
             "background-color: white; border: 1px solid #ddd; border-radius: 3px;"
         )
         self.thumbnail_ready.emit()
+
+    def _apply_thumbnail_pixmap(self):
+        """Zeigt das Original-Thumbnail, auf die Bildflaeche der Ansicht verkleinert."""
+        pixmap = self._original_pixmap
+        if pixmap is None or pixmap.isNull():
+            return
+        v = self._view
+        if pixmap.width() > v.thumb_w or pixmap.height() > v.thumb_h:
+            pixmap = pixmap.scaled(
+                v.thumb_w, v.thumb_h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        self.thumbnail_label.setPixmap(pixmap)
+
+    # --- Hover-Vorschau (Issue #117) --------------------------------------
+
+    def _show_hover_preview(self):
+        """Blendet das Original-Thumbnail neben der Kachel ein.
+
+        Nur bei kompakten Ansichten und nur, wenn das Bild schon geladen ist;
+        Ordner-Kacheln haben keine solche Vorschau.
+        """
+        pixmap = self._original_pixmap
+        if not self._view.hover_preview or pixmap is None or pixmap.isNull():
+            return
+        if self._hover_popup is None:
+            popup = QLabel(
+                self,
+                Qt.WindowType.ToolTip
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.WindowTransparentForInput,
+            )
+            popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            popup.setStyleSheet(
+                "QLabel { background-color: white; border: 1px solid #999; padding: 4px; }"
+            )
+            self._hover_popup = popup
+        popup = self._hover_popup
+        popup.setPixmap(pixmap)
+        popup.adjustSize()
+
+        # Rechts neben der Kachel; passt es nicht auf den Bildschirm, links davon
+        top_right = self.mapToGlobal(self.rect().topRight())
+        pos = QPoint(top_right.x() + 6, top_right.y())
+        screen = QApplication.screenAt(top_right) or QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            if pos.x() + popup.width() > area.right():
+                left = self.mapToGlobal(self.rect().topLeft()).x()
+                pos.setX(max(area.left(), left - popup.width() - 6))
+            if pos.y() + popup.height() > area.bottom():
+                pos.setY(max(area.top(), area.bottom() - popup.height()))
+        popup.move(pos)
+        popup.show()
+
+    def _hide_hover_preview(self):
+        self._hover_timer.stop()
+        if self._hover_popup is not None:
+            self._hover_popup.hide()
+
+    def enterEvent(self, event):
+        if self._view.hover_preview and self._original_pixmap is not None:
+            self._hover_timer.start()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hide_hover_preview()
+        super().leaveEvent(event)
 
     def _on_thumbnail_error(self, error: str):
         """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
@@ -196,11 +314,10 @@ class PDFThumbnailWidget(QFrame):
         if value == self._analyzing:
             return
         self._analyzing = value
+        self._apply_name_style()
         if value:
             self.name_label.setText(self.ANALYZING_TEXT)
-            self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2; color: #b8860b; font-style: italic;")
         else:
-            self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2;")
             self.update_name_display()
 
     @property
@@ -216,6 +333,7 @@ class PDFThumbnailWidget(QFrame):
 
     def mousePressEvent(self, event: QMouseEvent):
         """Behandelt Mausklicks und startet Drag-Vorbereitung."""
+        self._hide_hover_preview()
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_position = event.pos()
             # Shift+Klick für Bereichsauswahl
@@ -314,12 +432,14 @@ class PDFThumbnailWidget(QFrame):
 
     def cleanup(self):
         """Bereinigt Ressourcen."""
+        self._hide_hover_preview()
         if self._loader_thread and self._loader_thread.isRunning():
             self._loader_thread.quit()
             self._loader_thread.wait(1000)
 
     def _start_drag(self):
         """Startet den Drag & Drop Vorgang."""
+        self._hide_hover_preview()
         drag = QDrag(self)
 
         # MIME-Daten mit Datei-URL erstellen
@@ -344,9 +464,10 @@ class PDFThumbnailWidget(QFrame):
 
         drag.setMimeData(mime_data)
 
-        # Thumbnail als Drag-Pixmap verwenden (verkleinert)
-        if self.thumbnail_label.pixmap() and not self.thumbnail_label.pixmap().isNull():
-            scaled_pixmap = self.thumbnail_label.pixmap().scaled(
+        # Thumbnail als Drag-Pixmap verwenden (verkleinert, aus dem Original)
+        source = self._original_pixmap or self.thumbnail_label.pixmap()
+        if source and not source.isNull():
+            scaled_pixmap = source.scaled(
                 80, 100,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation

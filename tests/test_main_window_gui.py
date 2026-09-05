@@ -242,7 +242,8 @@ def test_load_pdfs_shows_parent_and_subfolder_tiles(main_window, fresh_singleton
     main_window._navigate_to_folder(scan)
 
     tiles = main_window.folder_tiles
-    assert [t.name_label.text() for t in tiles] == ["..", "Banken", "Steuer 2026"]
+    # Namen koennen je nach Kachelbreite umgebrochen sein (Issue #117)
+    assert [t.name_label.text().replace("\n", " ") for t in tiles] == ["..", "Banken", "Steuer 2026"]
     assert tiles[0].is_parent and tiles[0].folder_path == scan.parent
     assert tiles[1].count_label.text() == "1 PDF"
     assert main_window.pdf_scroll_area.isVisibleTo(main_window)  # trotz 0 PDFs sichtbar
