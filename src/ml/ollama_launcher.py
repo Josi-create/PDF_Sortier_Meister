@@ -110,11 +110,38 @@ def pull_model(
         with urllib.request.urlopen(req, timeout=60) as resp:
             return _consume_pull_stream(resp, progress_cb, should_cancel)
     except urllib.error.HTTPError as e:
-        return False, f"Ollama HTTP {e.code}"
+        return False, http_error_text(e)
     except urllib.error.URLError as e:
         return False, f"Keine Verbindung zu Ollama ({base_url}): {e.reason}"
     except Exception as e:
         return False, f"Download-Fehler: {e}"
+
+
+def http_error_text(error: urllib.error.HTTPError, limit: int = 300) -> str:
+    """Lesbarer Fehlertext fuer eine HTTP-Fehlerantwort von Ollama.
+
+    Ollama antwortet bei 4xx/5xx mit ``{"error": "..."}``, und dieser Text
+    nennt den eigentlichen Grund - etwa ``llama runner process has
+    terminated: exit status 0xc0000409``, wenn das Modell beim Laden
+    abstuerzt. Nur ``Ollama HTTP 500`` zu loggen zwang bisher zum Blick in
+    den Ollama-Server-Log. Ohne JSON wird der rohe Body genommen; leer bleibt
+    es beim Statuscode.
+    """
+    try:
+        raw = error.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        raw = ""
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict) and data.get("error"):
+                raw = str(data["error"]).strip()
+        except ValueError:
+            pass
+        raw = " ".join(raw.split())
+        if len(raw) > limit:
+            raw = raw[:limit] + "…"
+    return f"Ollama HTTP {error.code}: {raw}" if raw else f"Ollama HTTP {error.code}"
 
 
 def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]:

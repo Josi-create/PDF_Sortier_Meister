@@ -65,6 +65,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die KI konkret benennen, worum es geht.
 
 ### Geaendert
+- **Ollama-Fehler nennen den Grund:** Antwortet Ollama mit einem
+  HTTP-Fehler, steht im Log und in Fehlermeldungen jetzt der Text aus der
+  Antwort, z. B. `Ollama HTTP 500: llama runner process has terminated:
+  exit status 0xc0000409` (Modell beim Laden abgestuerzt) statt nur
+  `Ollama HTTP 500`. Gilt fuer KI-Anfragen und den Modell-Download im
+  Assistenten.
 - **Erst-Klick auf eine noch nicht analysierte PDF** (#108, Teil 2): Waehrend
   die Texterkennung laeuft, zeigt die Kachel „Analysiere…“, der Mauszeiger
   wird zum Wartezeiger und die Statusleiste erklaert, dass OCR einige
