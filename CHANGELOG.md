@@ -7,6 +7,38 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
+  Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld
+  eintraegt, sieht den Dateinamen-Vorschlag sofort nachziehen: Die
+  Vorschlagsliste rendert mit den neuen Werten, und solange der Dateiname
+  aus der Liste stammt (oberste Zeile, angeklickte Zeile, KI-Ergebnis),
+  folgt er der Eingabe. Ein selbst getippter Name bleibt unangetastet. In
+  KI-Vorschlaegen werden „Sonstiges“/„Unbekannt“ und die alte Kategorie
+  bzw. der alte Korrespondent durch die Eingabe ersetzt.
+- **KI-Prompt:** Neue Regel gegen nichtssagende Dateinamen („Sonstiges“,
+  „Unbekannt“, „Dokument“, „Scan“); passt keine Standard-Kategorie, soll
+  die KI konkret benennen, worum es geht.
+
+### Geaendert
+- **Erst-Klick auf eine noch nicht analysierte PDF** (#108, Teil 2): Waehrend
+  die Texterkennung laeuft, zeigt die Kachel „Analysiere…“, der Mauszeiger
+  wird zum Wartezeiger und die Statusleiste erklaert, dass OCR einige
+  Sekunden dauern kann. Dieselbe PDF wird nicht mehr mehrfach analysiert,
+  wenn sie gleichzeitig vom Vorab-Laden und vom Klick angefordert wird.
+- **Log:** Zu jeder Analyse steht jetzt eine Zeile `Analyse <datei> <ms>:
+  seiten … | ocr ja/nein | zeichen …`, und der Klick-Pfad nach einer
+  Analyse loggt als `Klick nach Analyse …`. Damit ist im Log sichtbar, ob
+  eine Wartezeit von der OCR oder von der Oberflaeche kommt.
+- **Vergleich mit paperless-ngx neu geschrieben** (#112): Stand 09/2026 gegen
+  paperless-ngx v3.1.3 (native KI und RAG seit v3.0), mit Feature-Tabellen,
+  21 belegten Luecken, Bewertung der Server-Frage (Antwort: nein) und
+  Hinweisen zum Zusammenspiel. README nennt jetzt die bekannten Grenzen
+  (Loeschen ohne Papierkorb, OCR fuenf Seiten, Suchindex 5.000 Zeichen),
+  die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
+  ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
+  Vergleich ergaenzt.
+
 ### Behoben
 - **Fehlerdialog nach „Verschieben nach…“:** Das Verschieben ueber den
   Ordnerauswahl-Dialog lief durch, meldete danach aber „Verschieben
@@ -37,40 +69,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Suchfeld leeren und den Umbenennen-Dialog. Nebenbei: Datumsangaben aus dem
   Cache erscheinen in den Vorschlaegen wieder als „2026-05-12“ statt
   „2026-05-12 00:00:00“.
-
-### Geaendert
-- **Erst-Klick auf eine noch nicht analysierte PDF** (#108, Teil 2): Waehrend
-  die Texterkennung laeuft, zeigt die Kachel „Analysiere…“, der Mauszeiger
-  wird zum Wartezeiger und die Statusleiste erklaert, dass OCR einige
-  Sekunden dauern kann. Dieselbe PDF wird nicht mehr mehrfach analysiert,
-  wenn sie gleichzeitig vom Vorab-Laden und vom Klick angefordert wird.
-- **Log:** Zu jeder Analyse steht jetzt eine Zeile `Analyse <datei> <ms>:
-  seiten … | ocr ja/nein | zeichen …`, und der Klick-Pfad nach einer
-  Analyse loggt als `Klick nach Analyse …`. Damit ist im Log sichtbar, ob
-  eine Wartezeit von der OCR oder von der Oberflaeche kommt.
-
-### Neu
-- **Kategorie sofort im Dateinamen** (#113): Wer im Detail-Panel eine
-  Kategorie, einen Korrespondenten oder ein anderes Metadaten-Feld
-  eintraegt, sieht den Dateinamen-Vorschlag sofort nachziehen: Die
-  Vorschlagsliste rendert mit den neuen Werten, und solange der Dateiname
-  aus der Liste stammt (oberste Zeile, angeklickte Zeile, KI-Ergebnis),
-  folgt er der Eingabe. Ein selbst getippter Name bleibt unangetastet. In
-  KI-Vorschlaegen werden „Sonstiges“/„Unbekannt“ und die alte Kategorie
-  bzw. der alte Korrespondent durch die Eingabe ersetzt.
-- **KI-Prompt:** Neue Regel gegen nichtssagende Dateinamen („Sonstiges“,
-  „Unbekannt“, „Dokument“, „Scan“); passt keine Standard-Kategorie, soll
-  die KI konkret benennen, worum es geht.
-
-### Geaendert
-- **Vergleich mit paperless-ngx neu geschrieben** (#112): Stand 09/2026 gegen
-  paperless-ngx v3.1.3 (native KI und RAG seit v3.0), mit Feature-Tabellen,
-  21 belegten Luecken, Bewertung der Server-Frage (Antwort: nein) und
-  Hinweisen zum Zusammenspiel. README nennt jetzt die bekannten Grenzen
-  (Loeschen ohne Papierkorb, OCR fuenf Seiten, Suchindex 5.000 Zeichen),
-  die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
-  ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
-  Vergleich ergaenzt.
 
 ## [0.23.0] - 2026-08-30
 
