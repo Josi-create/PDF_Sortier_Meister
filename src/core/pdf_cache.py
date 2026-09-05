@@ -62,16 +62,48 @@ class PDFAnalysisWorker(QThread):
         self._running = True
         self._current_pdf: Optional[Path] = None
         self._lock = Lock()
+        # Eingereihte PDFs mit ihrer besten Prioritaet (Issue #108): dieselbe
+        # PDF landete vorher mehrfach in der Queue (Pre-Cache + Klick + Klick),
+        # jede Kopie lief die volle OCR erneut.
+        self._queued: dict[Path, int] = {}
 
     def add_task(self, pdf_path: Path, priority: int = 5):
         """
         Fügt eine Analyse-Aufgabe zur Queue hinzu.
 
+        Bereits eingereihte PDFs werden nicht doppelt analysiert; eine
+        dringendere Anfrage (kleinere Zahl) ueberholt eine wartende.
+
         Args:
             pdf_path: Pfad zur PDF
             priority: 1 = höchste Priorität (User-Interaktion), 10 = niedrigste (Pre-Cache)
         """
+        with self._lock:
+            known = self._queued.get(pdf_path)
+            if known is not None and known <= priority:
+                return
+            self._queued[pdf_path] = priority
         self._queue.put((priority, time.time(), pdf_path))
+
+    def queued_count(self) -> int:
+        """Anzahl unterschiedlicher PDFs, die noch auf Analyse warten."""
+        with self._lock:
+            return len(self._queued)
+
+    def _dequeue(self, timeout: float = 1.0) -> Optional[Path]:
+        """Naechste PDF aus der Queue; veraltete Duplikate werden uebersprungen.
+
+        Returns:
+            Pfad, oder None bei Timeout/Stop-Dummy/uebersprungenem Duplikat.
+        """
+        priority, _timestamp, pdf_path = self._queue.get(timeout=timeout)
+        if pdf_path is None:
+            return None
+        with self._lock:
+            if self._queued.get(pdf_path) != priority:
+                return None  # ueberholt oder schon analysiert
+            del self._queued[pdf_path]
+        return pdf_path
 
     def add_urgent(self, pdf_path: Path):
         """Fügt eine dringende Analyse hinzu (User hat geklickt)."""
@@ -100,7 +132,7 @@ class PDFAnalysisWorker(QThread):
             try:
                 # Warte auf nächste Aufgabe (mit Timeout für sauberes Beenden)
                 try:
-                    priority, timestamp, pdf_path = self._queue.get(timeout=1.0)
+                    pdf_path = self._dequeue(timeout=1.0)
                 except queue.Empty:
                     continue
 
@@ -115,6 +147,7 @@ class PDFAnalysisWorker(QThread):
                     if not pdf_path.exists():
                         continue
 
+                    t0 = time.perf_counter()
                     with PDFAnalyzer(pdf_path) as analyzer:
                         result = PDFAnalysisResult(
                             pdf_path=pdf_path,
@@ -123,6 +156,15 @@ class PDFAnalysisWorker(QThread):
                             dates=analyzer.extract_dates(),
                             file_modified=pdf_path.stat().st_mtime
                         )
+                        pages = analyzer.page_count
+                        ocr_used = analyzer.ocr_used
+                    ms = (time.perf_counter() - t0) * 1000.0
+                    # Gegenstueck zur "Klick ..."-Zeile des StepTimers: der
+                    # asynchrone Teil war im Log bisher unsichtbar (Issue #108)
+                    line = (f"Analyse {pdf_path.name} {ms:.0f} ms: seiten {pages} | "
+                            f"ocr {'ja' if ocr_used else 'nein'} | "
+                            f"zeichen {len(result.extracted_text)}")
+                    (logger.info if ms >= 100 else logger.debug)(line)
 
                     self.analysis_complete.emit(pdf_path, result)
 

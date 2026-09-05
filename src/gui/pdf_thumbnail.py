@@ -71,6 +71,7 @@ class PDFThumbnailWidget(QFrame):
         self.pdf_path = pdf_path
         self._selected = False
         self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
+        self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
 
@@ -181,6 +182,26 @@ class PDFThumbnailWidget(QFrame):
         self._has_ai_suggestion = value
         self.setToolTip(self._BASE_TOOLTIP + (self.AI_TOOLTIP_SUFFIX if value else ""))
         self._update_style()
+
+    ANALYZING_TEXT = "Analysiere…"
+
+    @property
+    def analyzing(self) -> bool:
+        """True, waehrend die Erst-Analyse (Text/OCR) fuer diese PDF laeuft."""
+        return self._analyzing
+
+    @analyzing.setter
+    def analyzing(self, value: bool):
+        value = bool(value)
+        if value == self._analyzing:
+            return
+        self._analyzing = value
+        if value:
+            self.name_label.setText(self.ANALYZING_TEXT)
+            self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2; color: #b8860b; font-style: italic;")
+        else:
+            self.name_label.setStyleSheet("font-size: 11px; line-height: 1.2;")
+            self.update_name_display()
 
     @property
     def selected(self) -> bool:

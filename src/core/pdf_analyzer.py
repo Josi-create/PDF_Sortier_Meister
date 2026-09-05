@@ -34,6 +34,8 @@ class PDFAnalyzer:
         self._doc: Optional[fitz.Document] = None
         self._text: Optional[str] = None
         self._thumbnail: Optional[QPixmap] = None
+        # True, sobald extract_text() auf OCR zurueckgreifen musste (Log, #108)
+        self.ocr_used = False
 
     def __enter__(self):
         """Context Manager Eintritt."""
@@ -138,6 +140,7 @@ class PDFAnalyzer:
 
         # Falls kein Text gefunden und OCR aktiviert
         if not self._text.strip() and use_ocr:
+            self.ocr_used = True
             self._text = self._extract_text_ocr()
 
         return self._text

@@ -38,6 +38,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Cache erscheinen in den Vorschlaegen wieder als „2026-05-12“ statt
   „2026-05-12 00:00:00“.
 
+### Geaendert
+- **Erst-Klick auf eine noch nicht analysierte PDF** (#108, Teil 2): Waehrend
+  die Texterkennung laeuft, zeigt die Kachel „Analysiere…“, der Mauszeiger
+  wird zum Wartezeiger und die Statusleiste erklaert, dass OCR einige
+  Sekunden dauern kann. Dieselbe PDF wird nicht mehr mehrfach analysiert,
+  wenn sie gleichzeitig vom Vorab-Laden und vom Klick angefordert wird.
+- **Log:** Zu jeder Analyse steht jetzt eine Zeile `Analyse <datei> <ms>:
+  seiten … | ocr ja/nein | zeichen …`, und der Klick-Pfad nach einer
+  Analyse loggt als `Klick nach Analyse …`. Damit ist im Log sichtbar, ob
+  eine Wartezeit von der OCR oder von der Oberflaeche kommt.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert
