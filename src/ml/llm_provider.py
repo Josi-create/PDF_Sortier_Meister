@@ -84,6 +84,12 @@ METADATA_KEY_ALIASES: dict[str, str] = {
     "steuerjahr": "steuerjahr",
     "jahr": "steuerjahr",
     "year": "steuerjahr",
+    # Dokumentdatum (Issue #132) - Feld "Datum" im Detail-Panel
+    "datum": "buchungsdatum",
+    "buchungsdatum": "buchungsdatum",
+    "dokumentdatum": "buchungsdatum",
+    "date": "buchungsdatum",
+    "document_date": "buchungsdatum",
 }
 
 # Platzhalter, die Modelle fuer "nicht vorhanden" liefern - werden verworfen
@@ -116,6 +122,25 @@ def drop_unsupported_mwst(metadata: dict, document_text: str | None) -> dict:
         return metadata
     result = dict(metadata)
     del result["mwst_satz"]
+    return result
+
+
+def normalize_metadata_date(metadata: dict) -> dict:
+    """Bringt ``buchungsdatum`` auf ``JJJJ-MM-TT``; Unlesbares faellt weg (Issue #132).
+
+    Modelle liefern das Datum mal als "12.03.2004", mal als "2004-03-12" -
+    das Feld "Datum" und die Platzhalter erwarten ISO.
+    """
+    if not isinstance(metadata, dict) or "buchungsdatum" not in metadata:
+        return metadata
+    from src.core.document_date import parse_user_date
+
+    result = dict(metadata)
+    iso = parse_user_date(str(result.get("buchungsdatum") or ""))
+    if iso:
+        result["buchungsdatum"] = iso
+    else:
+        del result["buchungsdatum"]
     return result
 
 
@@ -256,6 +281,7 @@ class LLMProvider(ABC):
         target_folder: str = None,
         file_date: str = None,
         examples: list[str] | None = None,
+        source_folder: str | None = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen für das Dokument vor.
@@ -268,6 +294,7 @@ class LLMProvider(ABC):
             target_folder: Zielordner (falls bekannt)
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
             examples: Dateinamen, die der Nutzer fuer aehnliche Dokumente gewaehlt hat
+            source_folder: Name des Ordners, in dem die PDF liegt (Hinweis, Issue #132)
 
         Returns:
             LLMResponse mit Dateinamenvorschlag und Begründung
@@ -413,6 +440,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         target_folder: str = None,
         file_date: str = None,
         examples: list[str] | None = None,
+        source_folder: str | None = None,
     ) -> str:
         """
         Erstellt den Prompt für Dateinamenvorschläge.
@@ -425,6 +453,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             target_folder: Zielordner (falls bekannt)
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
             examples: Dateinamen aehnlicher Dokumente aus der Historie (Stil-Beispiele)
+            source_folder: Name des Quellordners (z.B. "Briefe 2004") als Hinweis
 
         Returns:
             Formatierter Prompt (JSON Format gefordert)
@@ -435,15 +464,27 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
         date_info = ""
         if detected_date:
-            date_info = f"\nErkanntes Datum im Dokument: {detected_date}"
+            date_info = (
+                "\nErkanntes Datum im Dokument (Hinweis aus der Texterkennung, "
+                f"bitte am Text pruefen): {detected_date}"
+            )
 
         file_date_info = ""
         if file_date:
-            file_date_info = f"\nÄnderungsdatum der Datei (Scandatum): {file_date}"
+            file_date_info = (
+                "\nÄnderungsdatum der Datei (Scandatum; nur Notloesung, falls das "
+                f"Dokument selbst kein Datum nennt): {file_date}"
+            )
 
         folder_info = ""
         if target_folder:
             folder_info = f"\nZielordner: {target_folder}"
+
+        # Issue #132: "Briefe 2004" verraet oft das Jahr, wenn OCR das Datum
+        # nicht lesen konnte - nur ein Hinweis, der Dokumenttext hat Vorrang
+        source_info = ""
+        if source_folder:
+            source_info = f"\nQuellordner (kann auf Zeitraum oder Thema hinweisen): {source_folder}"
 
         owner_info = self._build_owner_info()
         pattern_info = self._build_filename_pattern_info()
@@ -456,7 +497,7 @@ AKTUELLER DATEINAME: {current_filename}
 
 DOKUMENTINHALT:
 {self._truncate_text(text)}
-{keyword_info}{date_info}{file_date_info}{folder_info}
+{keyword_info}{date_info}{file_date_info}{folder_info}{source_info}
 {pattern_info}{examples_info}
 
 REGELN FÜR DEN DATEINAMEN:
@@ -465,7 +506,11 @@ REGELN FÜR DEN DATEINAMEN:
    Leerzeichen nur dort, wo das Muster eines vorgibt.
    Kein Punkt ausser vor .pdf, kein @-Zeichen: keine E-Mail-Adressen, URLs oder Versionsnummern wie 1.2.
 3. Maximal 80 Zeichen (ohne .pdf).
-4. Datum aus dem Dokument verwenden! Wenn kein Datum vorhanden, nutze das Scandatum.
+4. Datum = Datum des Dokuments selbst (Briefdatum, Rechnungs- oder Ausstellungsdatum),
+   nicht Fristen, Faelligkeits-, Gueltigkeits- oder Geburtsdaten. Das erkannte Datum ist
+   nur ein Hinweis. Erst wenn das Dokument gar kein Datum nennt, nutze das Scandatum.
+   Steuerjahr = Jahr des Dokumentdatums, ausser das Dokument betrifft ausdruecklich ein
+   anderes Jahr (z.B. Steuerbescheid fuer 2003).
 5. Kontakt/Absender/Korrespondent ist immer der NAME einer Person oder Organisation
    (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
    Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
@@ -492,6 +537,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "waehrung": "EUR/USD oder UNBEKANNT",
     "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
+    "datum": "JJJJ-MM-TT (Datum des Dokuments) oder UNBEKANNT",
     "steuerjahr": "JJJJ oder UNBEKANNT",
     "beschreibung": "Zusammenfassung in einem Satz"
   }}
@@ -630,9 +676,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 
             # Metadaten-Schluessel vereinheitlichen (beschreibung -> description, ...)
             if "metadata" in data:
-                data["metadata"] = drop_unsupported_mwst(
+                data["metadata"] = normalize_metadata_date(drop_unsupported_mwst(
                     normalize_llm_metadata(data.get("metadata")), document_text
-                )
+                ))
 
             return data, None
         except json.JSONDecodeError as e:

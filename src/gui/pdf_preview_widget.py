@@ -54,6 +54,7 @@ SELECTION_TARGETS: tuple[tuple[str, str], ...] = (
     ("waehrung", "Als Währung übernehmen"),
     ("mwst_satz", "Als MwSt-Satz übernehmen"),
     ("iban", "Als IBAN übernehmen"),
+    ("buchungsdatum", "Als Datum übernehmen"),  # Issue #132
     ("steuerjahr", "Als Steuerjahr übernehmen"),
 )
 
@@ -237,7 +238,7 @@ class PdfPreviewWidget(QWidget):
         self._view.viewport().installEventFilter(self)
         self._view.setToolTip(
             "Text mit der Maus markieren, dann Rechtsklick: "
-            "in ein Metadaten-Feld übernehmen (Korrespondent, Betrag, IBAN, ...)."
+            "in ein Metadaten-Feld übernehmen (Datum, Korrespondent, Betrag, IBAN, ...)."
         )
         self._stack.addWidget(self._view)
 

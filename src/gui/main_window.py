@@ -53,9 +53,21 @@ from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
 from src.core.file_manager import FileManager, FolderManager
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
+
+
+def _iso_to_date(value):
+    """"JJJJ-MM-TT" -> date (None bei leer/unlesbar), Issue #132."""
+    from datetime import date as _date
+
+    if not value:
+        return None
+    try:
+        return _date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
-from src.ml.hybrid_classifier import get_hybrid_classifier
+from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
 
 
@@ -2026,10 +2038,11 @@ class MainWindow(QMainWindow):
         # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
         if self.config.get("folder_naming_enabled", False):
             folder_naming_applied = True
-            fallback_date = (
-                coerce_date(self.selected_pdf_dates[0])
-                if self.selected_pdf_dates else None
-            )
+            # Datum aus dem Feld "Datum" des Detail-Panels (Issue #132),
+            # sonst das erkannte Datum der Analyse
+            fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
+            if fallback_date is None and self.selected_pdf_dates:
+                fallback_date = coerce_date(self.selected_pdf_dates[0])
             new_name = build_folder_based_name(
                 new_name or pdf_path.name,
                 folder_path,
@@ -2104,8 +2117,9 @@ class MainWindow(QMainWindow):
 
             # Umbenennung lernen (falls Name geändert)
             if name_changed:
-                detected_date = None
-                if self.selected_pdf_dates:
+                # Vom Nutzer bestaetigtes/korrigiertes Datum (Issue #132) vor dem erkannten
+                detected_date = metadata.get("buchungsdatum") if metadata else None
+                if not detected_date and self.selected_pdf_dates:
                     try:
                         d = self.selected_pdf_dates[0]
                         detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
@@ -2377,6 +2391,8 @@ class MainWindow(QMainWindow):
             if dialog_metadata:
                 if dialog_metadata.get("subject"):
                     metadata.subject = dialog_metadata["subject"]
+                if dialog_metadata.get("buchungsdatum"):
+                    metadata.buchungsdatum = dialog_metadata["buchungsdatum"]
                 if dialog_metadata.get("korrespondent"):
                     metadata.korrespondent = dialog_metadata["korrespondent"]
                 if dialog_metadata.get("betrag_netto"):
@@ -2602,6 +2618,7 @@ class MainWindow(QMainWindow):
                     detected_date=detected_date_str,
                     use_llm=True,
                     file_date=file_date,
+                    source_folder=source_folder_hint(pdf_path),
                 )
 
                 # LLM-Vorschläge zu den Suggestions hinzufügen
@@ -3127,6 +3144,7 @@ class MainWindow(QMainWindow):
                     detected_date=detected_date,
                     use_llm=True,
                     file_date=file_date,
+                    source_folder=source_folder_hint(pdf_path),
                 )
 
                 # Besten LLM-Vorschlag finden
@@ -3914,6 +3932,7 @@ class MainWindow(QMainWindow):
                             detected_date=detected_date,
                             use_llm=True,
                             file_date=file_date,
+                            source_folder=source_folder_hint(pdf_path),
                         )
                         for s in suggestions:
                             if s.source == "llm" and s.metadata:

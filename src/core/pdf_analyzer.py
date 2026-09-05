@@ -220,66 +220,19 @@ class PDFAnalyzer:
 
     def extract_dates(self) -> list[datetime]:
         """
-        Versucht, Datumsangaben aus dem PDF-Text zu extrahieren.
+        Datumsangaben aus dem PDF-Text - Dokumentdatum zuerst (Issue #132).
+
+        ``dates[0]`` ist das wahrscheinlichste Dokumentdatum (Briefkopf,
+        "Datum:", "Rechnungsdatum", ", den"), nicht mehr das juengste Datum im
+        Text; danach folgen die uebrigen Daten absteigend. Muster und Auswahl
+        stehen in :mod:`src.core.document_date`.
 
         Returns:
             Liste gefundener Datumsangaben
         """
-        text = self.extract_text()
-        dates = []
+        from src.core.document_date import ordered_dates
 
-        # Deutsche Datumsformate
-        patterns = [
-            # DD.MM.YYYY oder DD.MM.YY
-            r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})',
-            # DD/MM/YYYY
-            r'(\d{1,2})/(\d{1,2})/(\d{2,4})',
-            # YYYY-MM-DD (ISO)
-            r'(\d{4})-(\d{1,2})-(\d{1,2})',
-            # Monat ausgeschrieben: 15. Januar 2025
-            r'(\d{1,2})\.\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(\d{4})',
-        ]
-
-        month_names = {
-            'Januar': 1, 'Februar': 2, 'März': 3, 'April': 4,
-            'Mai': 5, 'Juni': 6, 'Juli': 7, 'August': 8,
-            'September': 9, 'Oktober': 10, 'November': 11, 'Dezember': 12
-        }
-
-        for pattern in patterns[:3]:  # Numerische Patterns
-            matches = re.findall(pattern, text)
-            for match in matches:
-                try:
-                    if pattern.startswith(r'(\d{4})'):  # ISO Format
-                        year, month, day = int(match[0]), int(match[1]), int(match[2])
-                    else:
-                        day, month, year = int(match[0]), int(match[1]), int(match[2])
-
-                    if year < 100:
-                        year += 2000 if year < 50 else 1900
-
-                    if 1 <= day <= 31 and 1 <= month <= 12 and 1990 <= year <= 2100:
-                        dates.append(datetime(year, month, day))
-                except (ValueError, IndexError):
-                    continue
-
-        # Ausgeschriebene Monate
-        matches = re.findall(patterns[3], text, re.IGNORECASE)
-        for match in matches:
-            try:
-                day = int(match[0])
-                month = month_names.get(match[1].capitalize(), 0)
-                year = int(match[2])
-                if month > 0 and 1 <= day <= 31:
-                    dates.append(datetime(year, month, day))
-            except (ValueError, IndexError):
-                continue
-
-        # Duplikate entfernen und sortieren
-        unique_dates = list(set(dates))
-        unique_dates.sort(reverse=True)
-
-        return unique_dates
+        return ordered_dates(self.extract_text())
 
     def extract_keywords(self) -> list[str]:
         """
