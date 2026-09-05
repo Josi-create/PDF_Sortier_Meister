@@ -21,6 +21,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Tooltip im Zielbaum** nennt jetzt die Tastatur-Navigation (Pfeil rechts
   klappt auf, * alle Unterordner) und den Rechtsklick.
 
+- **Lizenz-Angaben konsistent:** Der Über-Dialog nannte „MIT License“, 16
+  Modul-Header ebenfalls; das Projekt steht seit Juli 2026 unter
+  GPL-3.0-or-later. Beides korrigiert, der Lizenztext liegt jetzt als
+  `LICENSE.txt` im Installer und im portablen ZIP (und in `_internal/`).
+- **Erststart:** Die Hinweise „Erste Schritte“ und „Backup empfohlen“
+  erschienen über dem noch offenen Einrichtungsassistenten. Sie kommen jetzt
+  erst, wenn der Assistent geschlossen ist.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert

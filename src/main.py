@@ -40,6 +40,22 @@ from src.utils.explorer_integration import update_launcher_script
 __version__ = "0.23.0"
 
 
+def _schedule_startup_hints(window, delay_ms: int = 300) -> None:
+    """Zeigt Erste-Schritte- und Backup-Hinweis kurz nach dem Start.
+
+    Reihenfolge: Erste Schritte (Issue #51) vor dem Backup-Hinweis, weil der
+    Workflow wichtiger ist als die Backup-Erinnerung. Beim Erststart wird die
+    Funktion erst NACH dem Einrichtungsassistenten aufgerufen, damit die
+    Dialoge nicht ueber dem offenen Assistenten erscheinen.
+    """
+
+    def show_startup_hints():
+        window.show_first_steps_hint()
+        window.show_backup_hint()
+
+    QTimer.singleShot(delay_ms, show_startup_hints)
+
+
 def _apply_wizard_result(window, config):
     """Aktualisiert das Hauptfenster nach dem Einrichtungs-Assistenten.
 
@@ -242,7 +258,7 @@ def main():
     # Scan-Ordner konfiguriert ist und thumbnails_loaded nicht feuert.
     _splash_closed = {"done": False}
 
-    def close_splash():
+    def close_splash(show_hints: bool = True):
         if _splash_closed["done"]:
             return
         _splash_closed["done"] = True
@@ -255,15 +271,11 @@ def main():
                 pass
         window.raise_()
         window.activateWindow()
-
-        def show_startup_hints():
-            # Erste-Schritte-Hinweis (Issue #51) vor dem Backup-Hinweis zeigen,
-            # weil der Workflow wichtiger ist als die Backup-Erinnerung.
-            window.show_first_steps_hint()
-            window.show_backup_hint()
-
-        # Hinweise erst zeigen, wenn der Splash weg ist
-        QTimer.singleShot(300, show_startup_hints)
+        # Hinweise erst zeigen, wenn der Splash weg ist. Beim Erststart
+        # uebernimmt das der Wizard-Zweig unten, sonst laegen die Dialoge
+        # ueber dem offenen Assistenten.
+        if show_hints:
+            _schedule_startup_hints(window)
 
     window.thumbnails_loaded.connect(close_splash)
     QTimer.singleShot(15000, close_splash)
@@ -272,12 +284,15 @@ def main():
     if not config.get_scan_folder():
         # Splash sofort schliessen: ohne Scan-Ordner feuert thumbnails_loaded
         # nie und der Splash laege 15s ueber dem Wizard (Issue #50)
-        close_splash()
+        close_splash(show_hints=False)
         wizard = SetupWizard(window)
         wizard.exec()
         # Nach dem Wizard: Hauptfenster mit neuem Scan-Ordner und LLM-Status
         # aktualisieren (Closes #65)
         _apply_wizard_result(window, config)
+        # Erst jetzt die Erste-Schritte-/Backup-Hinweise, nicht waehrend
+        # der Assistent offen ist
+        _schedule_startup_hints(window)
 
     # Update-Pruefung im Hintergrund, kurz nach dem Start (Issue #73).
     # Bewusst hier und nicht im MainWindow-Konstruktor, damit Tests und

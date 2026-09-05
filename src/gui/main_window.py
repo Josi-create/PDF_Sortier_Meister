@@ -4311,10 +4311,12 @@ class MainWindow(QMainWindow):
         # Lizenz
         license_label = QLabel(
             "<p style='color: #666; font-size: 11px;'>"
-            "<b>Lizenz:</b> MIT License<br>"
+            "<b>Lizenz:</b> GPL-3.0-or-later<br>"
             "Copyright (c) 2024-2026<br>"
-            "Freie Software - Open Source</p>"
+            "Freie Software - Open Source. Lizenztext: "
+            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>'
         )
+        license_label.setOpenExternalLinks(True)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(license_label)
 

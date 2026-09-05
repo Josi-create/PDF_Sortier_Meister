@@ -4,7 +4,7 @@ LLM Provider-Abstraktion für PDF Sortier Meister
 Bietet eine einheitliche Schnittstelle für verschiedene LLM-Anbieter
 (Claude, OpenAI, etc.) zur Klassifikation und Benennung von PDFs.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json

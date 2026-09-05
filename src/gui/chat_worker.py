@@ -7,7 +7,7 @@ nicht einfriert. Der Worker ist ein ``QObject`` und wird per
 ``moveToThread`` in einen ``QThread`` verschoben (Architektur-Vorgabe
 R3: striktes QObject-move-to-thread-Pattern, kein QThread-Subclassing).
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import threading

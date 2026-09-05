@@ -3,7 +3,7 @@ Claude API Provider für PDF Sortier Meister
 
 Implementiert die LLM-Schnittstelle für Anthropic's Claude API.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json

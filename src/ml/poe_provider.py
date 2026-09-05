@@ -5,7 +5,7 @@ Implementiert die LLM-Schnittstelle für Poe.com's API.
 Poe bietet Zugang zu verschiedenen Modellen (GPT, Claude, Gemini, etc.)
 über eine einheitliche OpenAI-kompatible API.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json

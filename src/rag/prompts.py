@@ -8,7 +8,7 @@ bereit:
 * :func:`build_context_block` erzeugt den ``=== DOKUMENTE ===``-Block.
 * :func:`build_user_prompt` baut die User-Message inkl. History.
 
-MIT License - Copyright (c) 2026
+GPL-3.0-or-later - Copyright (c) 2026
 """
 
 # System-Prompt - VERBATIM aus docs/ARCHITECTURE.md Section 4.
