@@ -7,6 +7,20 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Fehlerdialog nach „Verschieben nach…“:** Das Verschieben ueber den
+  Ordnerauswahl-Dialog lief durch, meldete danach aber „Verschieben
+  fehlgeschlagen“ (undefinierte Variable beim Aktualisieren der
+  Ordneransicht).
+- **Drop auf gruene Vorschlagskacheln** verschiebt die PDF jetzt wirklich;
+  vorher passierte beim Loslassen nichts.
+- **Kontextmenue der Vorschlagskacheln:** Der wirkungslose Eintrag „Aus
+  Zielliste entfernen“ ist dort weg (Vorschlaege sind Unterordner, keine
+  Eintraege der Zielliste).
+- **Zielordner entfernen** scannt den Zielbaum nur noch einmal statt zweimal.
+- **Tooltip im Zielbaum** nennt jetzt die Tastatur-Navigation (Pfeil rechts
+  klappt auf, * alle Unterordner) und den Rechtsklick.
+
 ## [0.23.0] - 2026-08-30
 
 ### Geaendert

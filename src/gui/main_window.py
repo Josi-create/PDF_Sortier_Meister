@@ -1893,6 +1893,9 @@ class MainWindow(QMainWindow):
 
             widget.clicked.connect(self.on_suggestion_clicked)
             widget.double_clicked.connect(self.on_folder_double_clicked)
+            # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
+            # auf den Baum (vorher stilles No-op, weil nie verbunden)
+            widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
 
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
@@ -2650,7 +2653,7 @@ class MainWindow(QMainWindow):
                 # Nur das verschobene PDF-Widget entfernen
                 self._remove_pdf_widget_and_select_next(pdf_path)
                 # Ordneransicht aktualisieren
-                self._refresh_after_move(folder_path, pdf_path.parent)
+                self._refresh_after_move(Path(folder), pdf_path.parent)
                 # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
                 self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
@@ -3396,7 +3399,11 @@ class MainWindow(QMainWindow):
         """Wird aufgerufen wenn ein Ordner aus der Liste entfernt werden soll."""
         self.config.remove_target_folder(folder_path)
         self.folder_manager.remove_folder(folder_path)
-        self.load_folders()
+        # Der Baum hat sich beim Kontextmenue-Aufruf bereits selbst neu
+        # gescannt; ein zweiter Voll-Scan ueber load_folders() ist nur noetig,
+        # wenn der Aufruf von woanders kam (z.B. aus dem versteckten Raster).
+        if self.folder_tree.has_folder(Path(folder_path)):
+            self.load_folders()
 
         # Auch aus den Vorschlag-Widgets entfernen (grüne Buttons)
         for widget in self.suggestion_widgets[:]:  # Kopie der Liste für sichere Iteration
