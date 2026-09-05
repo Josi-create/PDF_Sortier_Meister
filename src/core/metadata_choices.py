@@ -71,9 +71,13 @@ def normalize_for_field(field_key: str, text: str) -> str:
 
     Leerraum wird immer zusammengefasst; je nach Feld faellt Beiwerk weg:
     IBAN ohne Leerzeichen, Betraege ohne Waehrungszeichen, MwSt ohne "%",
-    Steuerjahr als vierstellige Jahreszahl.
+    Steuerjahr als vierstellige Jahreszahl, Datum als JJJJ-MM-TT (Issue #132;
+    unlesbares bleibt stehen, damit das Feld die Eingabe zeigt).
     """
     text = " ".join((text or "").split())
+    if field_key == "buchungsdatum":
+        from src.core.document_date import parse_user_date
+        return parse_user_date(text) or text
     if field_key == "iban":
         return text.replace(" ", "").upper()
     if field_key in ("betrag_netto", "betrag_brutto"):

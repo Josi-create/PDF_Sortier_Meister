@@ -8,6 +8,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
+  galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
+  oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
+  ein Dokument von 2006, und das Steuerjahr folgte. Fand die Texterkennung
+  gar kein Datum, nahm die KI stillschweigend das Scandatum der Datei. Jetzt
+  zaehlt ein beschriftetes Datum („Datum:“, „Rechnungsdatum“, „Ort, den“)
+  zuerst, danach das erste Datum in Lesereihenfolge (Briefkopf); Daten hinter
+  „geboren“, „gueltig bis“, „faellig“, „Frist“ oder „Eingang“ nur als
+  Notnagel. Der KI-Prompt erklaert Fristen und Scandatum ausdruecklich als
+  Nicht-Dokumentdatum, verlangt das Datum als eigenes Metadatum und bekommt
+  den Namen des Quellordners („Briefe 2004“) als Hinweis mit.
 - **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
   jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
   Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
@@ -16,6 +27,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **Feld „Datum“ im Detail-Panel** (#132): Das Dokumentdatum steht jetzt als
+  eigenes Metadaten-Feld (JJJJ-MM-TT) neben dem Steuerjahr und wird in die
+  PDF geschrieben (`Buchungsdatum`). Es ist die eine Quelle fuer `{datum}` in
+  den Dateinamen-Mustern und belegt das Steuerjahr vor - solange das
+  Steuerjahr nicht bewusst anders gesetzt wurde, folgt es dem Datum. Eingabe
+  auch als „12.3.2004“ oder „12. Maerz 2004“ (wird beim Verlassen des Felds
+  normalisiert); Unlesbares wird rot markiert und nicht gespeichert. In der
+  Vorschau: Datum markieren, Rechtsklick, „Als Datum uebernehmen“ - kann die
+  Texterkennung auch die Markierung nicht lesen, steht der Text rot im Feld
+  und wird durch die eigene Eingabe ersetzt. Bereits sortierte PDFs mit
+  Metadaten, aber ohne Datum, zeigen das Feld leer (kein „teilweise
+  gespeichert“ nur wegen des Analyse-Datums).
 - **Kleinere Kacheln im Scan-Bereich** (#117, Probelauf): Ueber der
   PDF-Liste links steht jetzt „Ansicht: Klein / Mittel / Gross“, wie die
   Symbolgroesse im Explorer. Standard ist „Klein“: Kachel etwa halb so breit

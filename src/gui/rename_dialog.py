@@ -65,8 +65,9 @@ class RenameDialog(QDialog):
         if keywords:
             self._metadata["subject"] = keywords[0].capitalize()
         if detected_date:
-            # Steuerjahr aus Datum ableiten
+            # Datum ins Feld, Steuerjahr aus Datum ableiten (Issue #132)
             try:
+                self._metadata["buchungsdatum"] = str(detected_date)[:10]
                 year = detected_date[:4]
                 if year.isdigit():
                     self._metadata["steuerjahr"] = year
@@ -181,6 +182,7 @@ class RenameDialog(QDialog):
         # Metadaten-Felder als editierbare Eingabefelder
         self._metadata_inputs = {}
         metadata_field_labels = [
+            ("buchungsdatum", "Datum"),
             ("subject", "Kategorie"),
             ("korrespondent", "Korrespondent"),
             ("betrag", "Betrag"),
@@ -428,8 +430,8 @@ class RenameDialog(QDialog):
             self.llm_metadata_btn.setText("KI arbeitet...")
             QApplication.processEvents()
 
-            # Datum ermitteln
-            detected_date = self._metadata.get("buchungsdatum")
+            # Datum ermitteln - Feld "Datum" vor dem Analyse-Wert (Issue #132)
+            detected_date = self.get_metadata().get("buchungsdatum") or self._metadata.get("buchungsdatum")
 
             # Datei-Änderungsdatum als Fallback
             from datetime import datetime
@@ -441,6 +443,7 @@ class RenameDialog(QDialog):
                 pass
 
             # LLM aufrufen
+            from src.ml.hybrid_classifier import source_folder_hint
             llm_suggestions = classifier.suggest_filename(
                 text=self.extracted_text or "",
                 current_filename=self.pdf_path.name,
@@ -448,6 +451,7 @@ class RenameDialog(QDialog):
                 detected_date=detected_date,
                 use_llm=True,
                 file_date=file_date,
+                source_folder=source_folder_hint(self.pdf_path),
             )
 
             # Metadaten aus LLM-Antwort übernehmen
@@ -503,11 +507,14 @@ class RenameDialog(QDialog):
         """Gibt die eingegebenen/bestätigten Metadaten zurück."""
         from PyQt6.QtWidgets import QPlainTextEdit
         metadata = {}
+        from src.core.document_date import parse_user_date
         for field_key, input_field in self._metadata_inputs.items():
             if isinstance(input_field, QPlainTextEdit):
                 value = input_field.toPlainText().strip()
             else:
                 value = input_field.text().strip()
+            if field_key == "buchungsdatum":
+                value = parse_user_date(value) or ""  # nur ein echtes Datum wird gespeichert
             if value:
                 metadata[field_key] = value
         return metadata

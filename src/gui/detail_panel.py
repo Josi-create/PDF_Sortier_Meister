@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 
 logger = logging.getLogger(__name__)
 
+from src.core.document_date import is_iso_date, parse_user_date
 from src.core.llm_activity import (
     KIND_SUGGEST,
     format_elapsed,
@@ -91,6 +92,8 @@ class _LLMMetadataWorker(QThread):
         self._file_date = file_date
 
     def run(self):
+        from src.ml.hybrid_classifier import source_folder_hint
+
         activity = get_llm_activity()
         token = activity.begin(KIND_SUGGEST, self._pdf_path.name)
         ok = False
@@ -102,6 +105,7 @@ class _LLMMetadataWorker(QThread):
                 detected_date=self._detected_date,
                 use_llm=True,
                 file_date=self._file_date,
+                source_folder=source_folder_hint(self._pdf_path),
             )
             ok = True
         except Exception as e:  # noqa: BLE001 - Fehler an die GUI melden
@@ -202,6 +206,10 @@ class DetailPanel(QWidget):
         self._pdf_field_keys: set = set()
         # Flag um textChanged-Signale während des programmatischen Füllens zu ignorieren
         self._loading_metadata: bool = False
+        # Feld "Datum" (Issue #132): letzter lesbarer Wert (fuer "Steuerjahr
+        # folgt dem Datum") und ob der aktuelle Text unlesbar ist
+        self._date_prev_iso: Optional[str] = None
+        self._date_invalid: bool = False
         # KI-Aufruf "Metadaten neu generieren" laeuft im Hintergrund (Issue #68)
         self._llm_worker: Optional[_LLMMetadataWorker] = None
         self._llm_started: Optional[float] = None
@@ -355,6 +363,8 @@ class DetailPanel(QWidget):
         # Grundstil je Feld - fuer die gruene Hervorhebung "neu gegenueber PDF"
         self._field_base_styles: dict[str, str] = {}
         metadata_fields = [
+            ("buchungsdatum", "Datum"),  # Issue #132
+            ("steuerjahr", "Steuerjahr"),
             ("subject", "Kategorie"),
             ("korrespondent", "Korrespondent"),
             ("betrag_netto", "Betrag Netto"),
@@ -362,12 +372,13 @@ class DetailPanel(QWidget):
             ("waehrung", "Währung"),
             ("mwst_satz", "MwSt-Satz"),
             ("iban", "IBAN"),
-            ("steuerjahr", "Steuerjahr"),
             ("description", "Zusammenfassung"),
         ]
+        single_count = len(metadata_fields) - 1  # alle ausser der Zusammenfassung
         # Kurze Erklärung je Feld (Issue #51) - hilft neuen Nutzern, die
         # Bedeutung der Metadaten-Felder ohne Nachfragen zu verstehen.
         field_tooltips = {
+            "buchungsdatum": self._DATE_TOOLTIP,
             "subject": "Kategorie des Dokuments (z.B. Rechnung, Vertrag).",
             "korrespondent": "Absender oder Firma des Dokuments.",
             "betrag_netto": "Rechnungsbetrag ohne MwSt.",
@@ -380,8 +391,8 @@ class DetailPanel(QWidget):
         }
 
         # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
-        # Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt, IBAN|Steuerjahr;
-        # die Zusammenfassung laeuft ueber die volle Breite.
+        # Datum|Steuerjahr, Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt,
+        # IBAN (allein, volle Breite); die Zusammenfassung laeuft ueber die volle Breite.
         grid = QGridLayout()
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(3)
@@ -409,9 +420,16 @@ class DetailPanel(QWidget):
                     input_field = QLineEdit()
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
+                if field_key == "buchungsdatum":
+                    input_field.setPlaceholderText("JJJJ-MM-TT")
+                    # Vor dem allgemeinen textChanged-Handler: Steuerjahr nachziehen
+                    input_field.textChanged.connect(self._on_date_field_changed)
+                    input_field.editingFinished.connect(self._normalize_date_field)
                 row_idx, col = divmod(idx, 2)
+                # Letztes einzelnes Feld ohne Partner (IBAN) ueber die volle Breite
+                span = 3 if (col == 0 and idx == single_count - 1) else 1
                 grid.addWidget(label, row_idx, col * 2)
-                grid.addWidget(input_field, row_idx, col * 2 + 1)
+                grid.addWidget(input_field, row_idx, col * 2 + 1, 1, span)
 
             tooltip = field_tooltips.get(field_key)
             if tooltip:
@@ -558,13 +576,10 @@ class DetailPanel(QWidget):
         if not pdf_had_data:
             if keywords:
                 self._metadata["subject"] = keywords[0].capitalize()
-            if detected_date:
-                try:
-                    year = detected_date[:4]
-                    if year.isdigit():
-                        self._metadata["steuerjahr"] = year
-                except Exception:
-                    pass
+            # Erkanntes Datum ins Feld "Datum" (Issue #132); die KI darf es
+            # mit ihrem "datum" ueberschreiben, das Steuerjahr folgt unten
+            if detected_date and is_iso_date(str(detected_date)[:10]):
+                self._metadata["buchungsdatum"] = str(detected_date)[:10]
 
             # LLM-Metadaten
             for s in self._suggestions:
@@ -589,6 +604,10 @@ class DetailPanel(QWidget):
                         self._has_learned_overrides = True
                 except Exception:
                     pass
+
+            # Steuerjahr = Jahr des Dokumentdatums, solange weder KI noch
+            # Gelerntes ein Jahr gesetzt haben (Issue #132)
+            self._derive_steuerjahr_into(self._metadata)
 
             # Metadaten-Felder befüllen und Quelle setzen
             self._loading_metadata = True
@@ -714,6 +733,8 @@ class DetailPanel(QWidget):
         self._name_from_list = False
         self._name_kind = None
         self._auto_name = ""
+        self._date_prev_iso = None
+        self._date_invalid = False
         self.preview.clear()
 
         self.name_input.clear()
@@ -744,9 +765,19 @@ class DetailPanel(QWidget):
                 value = input_field.toPlainText().strip()
             else:
                 value = input_field.text().strip()
+            if field_key == "buchungsdatum":
+                # Nur ein lesbares Datum wird gespeichert - als JJJJ-MM-TT
+                value = parse_user_date(value) or ""
             if value:
                 metadata[field_key] = value
         return metadata
+
+    def current_date(self) -> Optional[str]:
+        """Datum aus dem Feld "Datum" als JJJJ-MM-TT (None, wenn leer oder unlesbar)."""
+        widget = self._metadata_inputs.get("buchungsdatum")
+        if widget is None:
+            return None
+        return parse_user_date(widget.text())
 
     def has_user_edits(self) -> bool:
         """True, wenn der Nutzer Dateiname oder Metadaten selbst geaendert hat.
@@ -801,6 +832,7 @@ class DetailPanel(QWidget):
 
         # Felder aus PDFMetadata in _metadata-Dict übertragen
         field_map = {
+            "buchungsdatum": pdf_meta.buchungsdatum,
             "subject": pdf_meta.subject,
             "korrespondent": pdf_meta.korrespondent,
             "betrag_netto": pdf_meta.betrag_netto,
@@ -816,6 +848,13 @@ class DetailPanel(QWidget):
             if value:
                 self._metadata[key] = value
                 pdf_keys.add(key)
+        if pdf_keys and "buchungsdatum" not in pdf_keys:
+            # Gespeicherte Metadaten ohne Datum: das Analyse-Datum war nur ein
+            # Vorschlag und soll die PDF nicht als "teilweise gespeichert"
+            # erscheinen lassen (Issue #132). Fuer {datum} in den Mustern
+            # bleibt _detected_date der Rueckfall.
+            if self._metadata.get("buchungsdatum") == str(self._detected_date or "")[:10]:
+                self._metadata.pop("buchungsdatum", None)
         if not pdf_keys:
             # Nur Felder vorhanden, die das Panel nicht anzeigt (z.B. Titel)
             self._saved_metadata_snapshot = {}
@@ -864,6 +903,68 @@ class DetailPanel(QWidget):
             if self._name_from_list:
                 self._apply_name_from_kind()
         self._refresh_save_btn()
+
+    # --- Feld "Datum" (Issue #132) -------------------------------------- #
+
+    _DATE_TOOLTIP = (
+        "Datum des Dokuments (JJJJ-MM-TT) - Quelle für {datum} im Dateinamen\n"
+        "und Vorlage für das Steuerjahr.\n"
+        "Eingabe auch als TT.MM.JJJJ möglich; oder das Datum in der Vorschau\n"
+        "markieren und per Rechtsklick „Als Datum übernehmen“."
+    )
+    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte als JJJJ-MM-TT oder TT.MM.JJJJ eingeben."
+    _INVALID_FIELD_STYLE = " border: 1px solid #d32f2f; background-color: #fdecea; border-radius: 3px;"
+
+    @staticmethod
+    def _derive_steuerjahr_into(metadata: dict) -> None:
+        """Steuerjahr aus dem Datum, wenn noch keins gesetzt ist."""
+        if metadata.get("steuerjahr"):
+            return
+        year = str(metadata.get("buchungsdatum") or "")[:4]
+        if year.isdigit():
+            metadata["steuerjahr"] = year
+
+    def _derive_steuerjahr_from_field(self) -> None:
+        """Leeres Steuerjahr-Feld aus dem Datum-Feld fuellen (nach KI-Ergebnis)."""
+        steuerjahr = self._metadata_inputs.get("steuerjahr")
+        iso = self.current_date()
+        if steuerjahr is not None and iso and not steuerjahr.text().strip():
+            steuerjahr.setText(iso[:4])
+
+    def _on_date_field_changed(self, text: str):
+        """Datum geaendert: Steuerjahr folgt, solange es nicht eigenstaendig gesetzt war.
+
+        "Eigenstaendig" heisst: das Steuerjahr entspricht weder dem Jahr des
+        bisherigen Datums noch ist es leer - dann bleibt es unangetastet.
+        """
+        new_iso = parse_user_date(text)
+        prev_year = (self._date_prev_iso or "")[:4]
+        self._date_prev_iso = new_iso
+        invalid = bool(text.strip()) and new_iso is None
+        if invalid != self._date_invalid:
+            self._date_invalid = invalid
+            widget = self._metadata_inputs.get("buchungsdatum")
+            if widget is not None:
+                widget.setToolTip(self._DATE_TOOLTIP + (self._DATE_INVALID_HINT if invalid else ""))
+            self._highlight_new_fields()
+        if self._loading_metadata or not new_iso:
+            return
+        year = new_iso[:4]
+        steuerjahr = self._metadata_inputs.get("steuerjahr")
+        if steuerjahr is None:
+            return
+        current = steuerjahr.text().strip()
+        if current in ("", prev_year) and current != year:
+            steuerjahr.setText(year)
+
+    def _normalize_date_field(self):
+        """Nach der Eingabe: "12.3.2004" -> "2004-03-12"; Unlesbares bleibt stehen."""
+        widget = self._metadata_inputs.get("buchungsdatum")
+        if widget is None:
+            return
+        iso = parse_user_date(widget.text())
+        if iso and widget.text().strip() != iso:
+            widget.setText(iso)
 
     def _on_name_typed(self, _text: str):
         """Nutzer tippt im Namensfeld: ab jetzt keine automatische Nachfuehrung."""
@@ -968,6 +1069,8 @@ class DetailPanel(QWidget):
                 value = widget.text().strip()
             is_new = compare and bool(value) and value != self._saved_metadata_snapshot.get(key)
             style = self._field_base_styles.get(key, "") + (self._NEW_FIELD_STYLE if is_new else "")
+            if key == "buchungsdatum" and self._date_invalid:
+                style = self._field_base_styles.get(key, "") + self._INVALID_FIELD_STYLE
             if widget.styleSheet() != style:
                 widget.setStyleSheet(style)
             if isinstance(widget, _CategoryCombo):
@@ -1133,6 +1236,10 @@ class DetailPanel(QWidget):
         else:
             widget.setText(text)
         widget.setFocus()
+        if field_key == "buchungsdatum" and not is_iso_date(text):
+            # Kein Datum erkannt: Feld zeigt die Markierung rot mit Hinweis,
+            # die naechste Eingabe ersetzt sie (Issue #132)
+            widget.selectAll()
         if field_key == "korrespondent":
             self._learn_korrespondent(text)
 
@@ -1250,7 +1357,8 @@ class DetailPanel(QWidget):
         except Exception:
             pass
 
-        doc_date = self._detected_date
+        # Feld "Datum" ist die Quelle fuer {datum} (Issue #132), dann Analyse
+        doc_date = self.current_date() or self._detected_date
         if not doc_date:
             # Rueckfall: fuehrendes Datum eines KI-Vorschlags (YYYY-MM-DD)
             for s in self._suggestions:
@@ -1427,7 +1535,7 @@ class DetailPanel(QWidget):
             if not classifier.is_llm_available():
                 return
 
-            detected_date = self._metadata.get("buchungsdatum")
+            detected_date = self.current_date() or self._detected_date
 
             from datetime import datetime
             file_date = None
@@ -1535,6 +1643,7 @@ class DetailPanel(QWidget):
                                             w.setText(str(lv))
                         except Exception:
                             pass
+                    self._derive_steuerjahr_from_field()
                     self._loading_metadata = False
                     self._metadata_source = "llm"
                     self._couple_name_to_llm(s.filename)

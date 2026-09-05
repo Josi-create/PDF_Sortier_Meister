@@ -299,13 +299,14 @@ class OllamaProvider(LLMProvider):
         target_folder: str = None,
         file_date: str = None,
         examples: list[str] | None = None,
+        source_folder: str | None = None,
     ) -> LLMResponse:
         if not self.is_available():
             return LLMResponse(success=False, error_message="Ollama-Provider nicht konfiguriert.")
 
         prompt = self._build_filename_prompt(
             text, current_filename, keywords, detected_date, target_folder, file_date,
-            examples=examples,
+            examples=examples, source_folder=source_folder,
         )
         system_prompt = "Du bist ein Assistent zum Benennen von Dokumenten. Antworte AUSSCHLIESSLICH mit einem validem JSON-Objekt."
 

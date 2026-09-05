@@ -226,6 +226,7 @@ class PoeProvider(LLMProvider):
         target_folder: str = None,
         file_date: str = None,
         examples: list[str] | None = None,
+        source_folder: str | None = None,
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen mit Poe vor.
@@ -249,7 +250,7 @@ class PoeProvider(LLMProvider):
 
         prompt = self._build_filename_prompt(
             text, current_filename, keywords, detected_date, target_folder, file_date,
-            examples=examples,
+            examples=examples, source_folder=source_folder,
         )
 
         try:

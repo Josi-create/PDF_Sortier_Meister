@@ -26,6 +26,22 @@ from src.utils.database import get_database
 logger = logging.getLogger(__name__)
 
 
+def source_folder_hint(pdf_path) -> Optional[str]:
+    """Name des Ordners, in dem die PDF liegt - als Hinweis fuer den KI-Prompt (Issue #132).
+
+    "Briefe 2004" verraet das Jahr, wenn OCR das Datum nicht lesen konnte.
+    Fuer den Scan-Ordner selbst (Posteingang) gibt es keinen Hinweis.
+    """
+    try:
+        parent = Path(pdf_path).parent
+        scan_root = get_config().get_scan_folder()
+        if scan_root and parent.resolve() == Path(scan_root).resolve():
+            return None
+        return parent.name or None
+    except Exception:
+        return None
+
+
 @dataclass
 class HybridSuggestion:
     """Ein Sortiervorschlag aus dem Hybrid-System."""
@@ -370,6 +386,7 @@ class HybridClassifier:
         target_folder: str = None,
         use_llm: bool = None,
         file_date: str = None,
+        source_folder: str = None,
     ) -> list[HybridFilename]:
         """
         Schlägt Dateinamen für ein Dokument vor.
@@ -382,6 +399,7 @@ class HybridClassifier:
             target_folder: Zielordner
             use_llm: LLM verwenden?
             file_date: Änderungsdatum der Datei (Fallback)
+            source_folder: Name des Quellordners als Hinweis fuer die KI (Issue #132)
 
         Returns:
             Liste von Dateinamenvorschlägen
@@ -403,7 +421,8 @@ class HybridClassifier:
         # 2. LLM-Vorschlag wenn gewünscht
         if (use_llm or use_llm is None) and self.llm_enabled:
             llm_suggestion = self._get_llm_filename_suggestion(
-                text, current_filename, keywords, detected_date, target_folder, file_date
+                text, current_filename, keywords, detected_date, target_folder, file_date,
+                source_folder,
             )
             if llm_suggestion:
                 # LLM-Vorschlag an erster Stelle wenn Konfidenz hoch
@@ -480,6 +499,7 @@ class HybridClassifier:
         detected_date: str,
         target_folder: str,
         file_date: str = None,
+        source_folder: str = None,
     ) -> Optional[HybridFilename]:
         """Holt einen Dateinamenvorschlag vom LLM."""
         if not self.llm_provider:
@@ -494,6 +514,7 @@ class HybridClassifier:
             target_folder=target_folder,
             file_date=file_date,
             examples=self._rename_examples(text, keywords),
+            source_folder=source_folder,
         )
 
         self.total_tokens_used += response.tokens_used

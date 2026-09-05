@@ -241,6 +241,7 @@ class LLMSuggestionWorker(QThread):
 
                     # LLM-Vorschläge abrufen
                     from datetime import datetime as dt
+                    from src.ml.hybrid_classifier import source_folder_hint
                     file_mtime = pdf_path.stat().st_mtime
                     file_date = dt.fromtimestamp(file_mtime).strftime("%Y-%m-%d")
 
@@ -262,6 +263,7 @@ class LLMSuggestionWorker(QThread):
                             detected_date=detected_date,
                             use_llm=True,
                             file_date=file_date,
+                            source_folder=source_folder_hint(pdf_path),
                         )
                         llm_ok = True
                     finally:
