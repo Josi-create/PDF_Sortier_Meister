@@ -9,6 +9,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-FFDD00)](https://buymeacoffee.com/josicreate)
 
 ![Hauptfenster: PDF-Vorschau links, Vorschläge und Metadaten in der Mitte, Zielordner rechts](docs/screenshots/hauptfenster.png)
 
@@ -139,6 +140,20 @@ Buchhaltung, Steuerbüro. Du brauchst keine Technikkenntnisse.
 - 💡 [Wunsch / Idee](https://github.com/Josi-create/PDF_Sortier_Meister/issues/new?template=feature_request.yml)
 - Bei Fehlern hilft die Log-Datei enorm: `%APPDATA%\PDF_Sortier_Meister\logs\pdf_sortier_meister.log`
   (im Explorer die Adresszeile einfügen). Die Datei enthält Dateinamen, aber keine Dokumentinhalte oder API-Keys.
+
+---
+
+## ☕ Unterstützen
+
+PDF Sortier Meister ist freie Software und entsteht in meiner Freizeit — ohne Werbung, ohne Abo, ohne Telemetrie.
+Wenn dir das Programm Arbeit abnimmt, freue ich mich über einen Kaffee:
+
+👉 **[buymeacoffee.com/josicreate](https://buymeacoffee.com/josicreate)**
+
+Davon bezahle ich zum Beispiel das Apple-Entwicklerkonto für die Mac-Version. Schreib gern dazu, dass der Kaffee
+für den PDF Sortier Meister ist — das zeigt mir, wo sich die Arbeit lohnt. Genauso wertvoll: ein
+[Fehlerbericht](https://github.com/Josi-create/PDF_Sortier_Meister/issues/new?template=bug_report.yml), eine Idee
+oder ein ⭐ für das Repository.
 
 ---
 
