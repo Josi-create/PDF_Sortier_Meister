@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -85,6 +85,10 @@ class FolderTreeWidget(QWidget):
         "Rechtsklick: weitere Aktionen."
     )
 
+    # Verweildauer, nach der ein zugeklappter Ordner beim Darueberziehen
+    # einer PDF aufklappt
+    DRAG_AUTO_EXPAND_MS = 700
+
     # Signale
     folder_selected = pyqtSignal(Path)  # Ordner wurde ausgewählt
     folder_double_clicked = pyqtSignal(Path)  # Ordner wurde doppelgeklickt
@@ -102,6 +106,13 @@ class FolderTreeWidget(QWidget):
         self._selected_folder: Optional[Path] = None
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
         self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
+        # Klappt den Ordner unter der gezogenen PDF nach kurzem Verweilen auf.
+        # Eigener Timer statt Qts autoExpandDelay: der fragt die echte
+        # Mausposition ab und greift nur fuer baum-eigene Eintraege.
+        self._drag_expand_timer = QTimer(self)
+        self._drag_expand_timer.setSingleShot(True)
+        self._drag_expand_timer.setInterval(self.DRAG_AUTO_EXPAND_MS)
+        self._drag_expand_timer.timeout.connect(self._expand_drag_hover_item)
 
         # Einfachklick verzoegert ausfuehren, damit ein Doppelklick (Navigation)
         # nicht vorher die selektierte PDF verschiebt (Issue #23/#26).
@@ -145,6 +156,10 @@ class FolderTreeWidget(QWidget):
         self.tree.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
         self.tree.setAcceptDrops(True)
         self.tree.setDropIndicatorShown(True)
+        # Beim Ziehen einer PDF: am Rand automatisch scrollen und zugeklappte
+        # Ordner nach kurzem Verweilen aufklappen - wie in PaperPort erreicht
+        # man so jeden Ordner, ohne die Maus loszulassen.
+        self.tree.setAutoScroll(True)
         self.tree.setToolTip(
             "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
             "Doppelklick: Ordner links als Scan-Ordner oeffnen (Navigation).\n"
@@ -504,8 +519,26 @@ class FolderTreeWidget(QWidget):
                     return
         event.ignore()
 
+    def _end_tree_drag(self):
+        """Beendet Auto-Scroll und Auto-Aufklappen nach Drop oder Verlassen.
+
+        Qts eigenes dragLeaveEvent stoppt den Scroll-Timer und setzt den
+        Zustand zurueck (stopAutoScroll ist in PyQt nicht erreichbar).
+        """
+        self._drag_expand_timer.stop()
+        QTreeWidget.dragLeaveEvent(self.tree, QDragLeaveEvent())
+
+    def _expand_drag_hover_item(self):
+        """Klappt den Ordner auf, ueber dem die PDF gerade verweilt."""
+        item = self._drag_hover_item
+        if item is not None and item.childCount() > 0 and not item.isExpanded():
+            item.setExpanded(True)
+
     def _tree_drag_move(self, event):
         """Behandelt die Bewegung eines Drag-Objekts mit visuellem Feedback."""
+        # Qt-Grundverhalten zuerst: startet Auto-Scroll am Rand.
+        # Annehmen/Ablehnen entscheidet danach der Code unten.
+        QTreeWidget.dragMoveEvent(self.tree, event)
         if event.mimeData().hasUrls():
             item = self.tree.itemAt(event.position().toPoint())
 
@@ -514,7 +547,9 @@ class FolderTreeWidget(QWidget):
                 self._reset_item_style(self._drag_hover_item)
 
             if item:
-                # Neues Item hervorheben
+                # Neues Item hervorheben; Verweilzeit fuers Aufklappen neu starten
+                if item is not self._drag_hover_item:
+                    self._drag_expand_timer.start()
                 self._drag_hover_item = item
                 self._highlight_drop_target(item)
                 event.acceptProposedAction()
@@ -528,12 +563,14 @@ class FolderTreeWidget(QWidget):
 
     def _tree_drag_leave(self, event):
         """Behandelt das Verlassen des Drag-Bereichs."""
+        self._end_tree_drag()
         if self._drag_hover_item:
             self._reset_item_style(self._drag_hover_item)
             self._drag_hover_item = None
 
     def _tree_drop(self, event: QDropEvent):
         """Behandelt das Ablegen von Dateien."""
+        self._end_tree_drag()
         # Hover-Highlighting zurücksetzen
         if self._drag_hover_item:
             self._reset_item_style(self._drag_hover_item)
