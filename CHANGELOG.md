@@ -27,6 +27,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
+  auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
+  leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt
+  Namen und Metadaten, die gezogenen PDFs aus demselben Ordner gehen im
+  Stapel auf. PDFs aus anderen Ordnern (z. B. aus dem Explorer gezogen)
+  werden nur gelesen und bleiben, wo sie sind. Keine Rueckfrage - `Ctrl+Z`
+  macht das Stapeln rueckgaengig; die Originale liegen dafuer 30 Tage unter
+  `%APPDATA%\PDF_Sortier_Meister\stapel_sicherung`.
+- **Ordnerbaum beim Ziehen**: Wer eine PDF an den oberen oder unteren Rand
+  des Zielordner-Baums zieht, laesst den Baum jetzt automatisch scrollen
+  (bisher blieb er stehen, Ordner ausserhalb des sichtbaren Bereichs waren
+  per Drag & Drop unerreichbar). Verweilt die PDF kurz ueber einem
+  zugeklappten Ordner, klappt er auf.
 - **Feld „Datum“ im Detail-Panel** (#132): Das Dokumentdatum steht jetzt als
   eigenes Metadaten-Feld (JJJJ-MM-TT) neben dem Steuerjahr und wird in die
   PDF geschrieben (`Buchungsdatum`). Es ist die eine Quelle fuer `{datum}` in

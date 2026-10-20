@@ -132,6 +132,7 @@ class MainWindow(QMainWindow):
         # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
         # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
         # Rename-Eintrag: {"type": "rename", "old_path": Path, "new_path": Path, "description": str}
+        # Stapel-Eintrag: {"type": "stack", "backups": [(original, sicherung), ...], "description": str}
         self._undo_stack: list[dict] = []
 
         # Ordner-Navigations-Historie für Zurück-Button
@@ -734,6 +735,7 @@ class MainWindow(QMainWindow):
             widget.batch_rename_requested.connect(self.on_batch_rename)
             widget.split_requested.connect(self.on_pdf_split)
             widget.merge_requested.connect(self.on_pdf_merge)
+            widget.stack_requested.connect(self.on_pdf_stacked)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
@@ -2865,6 +2867,96 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Zusammenfügen fehlgeschlagen:\n{e}")
 
+    # --- Stapeln: PDF auf PDF ziehen (wie PaperPort) ---
+
+    # Sicherungen fuer "Stapeln rueckgaengig" werden so lange aufbewahrt
+    STACK_BACKUP_DAYS = 30
+
+    def _stack_backup_root(self) -> Path:
+        from src.utils.platform_paths import get_app_data_dir
+        return get_app_data_dir() / "stapel_sicherung"
+
+    def _prune_stack_backups(self):
+        """Loescht Stapel-Sicherungen, die aelter als STACK_BACKUP_DAYS sind."""
+        import shutil
+        root = self._stack_backup_root()
+        if not root.is_dir():
+            return
+        cutoff = time.time() - self.STACK_BACKUP_DAYS * 86400
+        for entry in root.iterdir():
+            try:
+                if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry)
+            except OSError as e:
+                logging.getLogger(__name__).warning(
+                    "Alte Stapel-Sicherung nicht entfernt: %s (%s)", entry, e
+                )
+
+    def on_pdf_stacked(self, sources: list, target: Path):
+        """Haengt die auf eine PDF gezogenen PDFs an diese an - ohne Rueckfrage,
+        rueckgaengig mit Ctrl+Z."""
+        from datetime import datetime
+        sources = [Path(s) for s in sources if Path(s) != target]
+        if not sources:
+            return
+        self._wait_for_metadata_writes([target, *sources])
+
+        backup_dir = self._stack_backup_root() / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        try:
+            backups = self.file_manager.stack_pdfs(target, sources, backup_dir)
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Stapeln fehlgeschlagen:\n{e}")
+            return
+        self._prune_stack_backups()
+
+        if len(sources) == 1:
+            desc = f"{sources[0].name} an {target.name} angehängt"
+        else:
+            desc = f"{len(sources)} PDFs an {target.name} angehängt"
+        self._push_undo({"type": "stack", "backups": backups, "description": desc})
+
+        # Inhalt der Ziel-PDF hat sich geaendert: Analyse neu, Vorschau neu
+        self.pdf_cache.clear_for_pdf(target)
+        for original, _ in backups[1:]:
+            self.pdf_cache.clear_for_pdf(original)
+            self.remove_pdf_widget(original)
+        for widget in self.pdf_widgets:
+            if widget.pdf_path == target:
+                widget.load_thumbnail()
+                break
+        # Stapel auswaehlen (ein Klick auf die schon gewaehlte PDF wuerde abwaehlen)
+        if self.selected_pdf != target or self.selected_pdfs:
+            self.on_pdf_clicked(target)
+        self.statusbar.showMessage(f"{desc} (Ctrl+Z macht es rückgängig)", 5000)
+
+    def _undo_stack_pdfs(self, entry: dict):
+        """Macht ein Stapeln rueckgaengig."""
+        backups = entry["backups"]
+        target = backups[0][0]
+        reply = QMessageBox.question(
+            self, "Rückgängig machen",
+            f"Stapeln rückgängig machen?\n\n{entry['description']}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self.file_manager.restore_stack(backups)
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Fehler", f"Stapeln konnte nicht rückgängig gemacht werden:\n{e}"
+            )
+            return
+        finally:
+            self._undo_stack.pop()
+            self._update_undo_ui()
+
+        for original, _ in backups:
+            self.pdf_cache.clear_for_pdf(original)
+        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.load_pdfs()
+
     # --- Undo-Funktionalität ---
 
     def _push_undo(self, entry: dict):
@@ -2903,6 +2995,8 @@ class MainWindow(QMainWindow):
 
         if entry_type == "rename":
             self._undo_rename(entry)
+        elif entry_type == "stack":
+            self._undo_stack_pdfs(entry)
         else:
             self._undo_move(entry)
 

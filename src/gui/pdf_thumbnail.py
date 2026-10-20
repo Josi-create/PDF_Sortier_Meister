@@ -59,11 +59,13 @@ class PDFThumbnailWidget(QFrame):
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
+    stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
         "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
+        "Auf eine andere PDF gezogen, haengt sie ihre Seiten dort an (Stapeln).\n"
         "Doppelklick öffnet die PDF im Standardprogramm."
     )
     AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
@@ -77,6 +79,7 @@ class PDFThumbnailWidget(QFrame):
         self.pdf_path = pdf_path
         self._view = view or tile_view(None)
         self._selected = False
+        self._stack_target = False  # gerade wird eine PDF darueber gezogen
         self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
@@ -101,6 +104,8 @@ class PDFThumbnailWidget(QFrame):
 
         # Hover-Effekt
         self.setMouseTracking(True)
+        # Andere PDFs koennen hier abgelegt werden (Stapeln wie in PaperPort)
+        self.setAcceptDrops(True)
         self._update_style()
         self.setToolTip(self._BASE_TOOLTIP)
 
@@ -289,9 +294,19 @@ class PDFThumbnailWidget(QFrame):
     AI_BACKGROUND = "#e6f4e6"
     AI_BORDER = "#7cc47f"
 
+    # Farben fuer "hier ablegen = Seiten anhaengen"
+    STACK_BACKGROUND = "#fff3e0"
+    STACK_BORDER = "#e67e22"
+
     def _update_style(self):
-        """Aktualisiert den Style: Auswahl (blau) vor KI-Markierung (grün)."""
-        if self._selected:
+        """Aktualisiert den Style: Stapel-Ziel (orange) vor Auswahl (blau)
+        vor KI-Markierung (grün)."""
+        if self._stack_target:
+            self.setStyleSheet(
+                f"PDFThumbnailWidget {{ background-color: {self.STACK_BACKGROUND}; "
+                f"border: 2px dashed {self.STACK_BORDER}; border-radius: 5px; }}"
+            )
+        elif self._selected:
             self.setStyleSheet(
                 "PDFThumbnailWidget { background-color: #cce5ff; border: 2px solid #0066cc; border-radius: 5px; }"
             )
@@ -456,6 +471,56 @@ class PDFThumbnailWidget(QFrame):
         if self._loader_thread and self._loader_thread.isRunning():
             self._loader_thread.quit()
             self._loader_thread.wait(1000)
+
+    # --- Stapeln: andere PDF hier ablegen ---------------------------------
+
+    def _dropped_pdfs(self, mime_data) -> list[Path]:
+        """Die gezogenen PDFs ausser dieser selbst (leer = kein Stapeln)."""
+        if not mime_data.hasUrls():
+            return []
+        paths = [Path(url.toLocalFile()) for url in mime_data.urls() if url.isLocalFile()]
+        return [p for p in paths if p.suffix.lower() == ".pdf" and p != self.pdf_path]
+
+    @staticmethod
+    def _accept_as_copy(event):
+        # Immer als Kopie annehmen: bei "Verschieben" loescht der Explorer
+        # nach dem Ablegen sonst die Originaldatei
+        event.setDropAction(Qt.DropAction.CopyAction)
+        event.accept()
+
+    def _set_stack_target(self, active: bool):
+        if active != self._stack_target:
+            self._stack_target = active
+            self._update_style()
+
+    def dragEnterEvent(self, event):
+        if self._dropped_pdfs(event.mimeData()):
+            self._hide_hover_preview()
+            self._accept_as_copy(event)
+            self._set_stack_target(True)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if self._dropped_pdfs(event.mimeData()):
+            self._accept_as_copy(event)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_stack_target(False)
+
+    def dropEvent(self, event):
+        self._set_stack_target(False)
+        pdfs = self._dropped_pdfs(event.mimeData())
+        if not pdfs:
+            event.ignore()
+            return
+        self._accept_as_copy(event)
+        # Erst nach dem Ende des Ziehvorgangs auswerten: das Hauptfenster
+        # entfernt dabei die Kachel, von der gezogen wurde
+        target = self.pdf_path
+        QTimer.singleShot(0, lambda: self.stack_requested.emit(pdfs, target))
 
     def _start_drag(self):
         """Startet den Drag & Drop Vorgang."""

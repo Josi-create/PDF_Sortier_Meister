@@ -270,6 +270,98 @@ class FileManager:
 
         return output_path
 
+    def stack_pdfs(
+        self,
+        target: Path | str,
+        sources: list[Path | str],
+        backup_dir: Path | str,
+    ) -> list[tuple[Path, Path]]:
+        """
+        Haengt die Seiten der Quell-PDFs hinten an die Ziel-PDF an
+        ("Stapeln" wie in PaperPort: PDF auf eine andere PDF ziehen).
+
+        Die Ziel-PDF behaelt Namen und Metadaten (XMP). Quellen aus dem
+        Ordner der Ziel-PDF gehen im Stapel auf und verschwinden dort;
+        Quellen aus anderen Ordnern (z. B. aus dem Explorer gezogen) werden
+        nur gelesen und bleiben, wo sie sind. Alles, was ueberschrieben oder
+        entfernt wird, landet vorher in backup_dir - restore_stack() macht
+        den Vorgang damit rueckgaengig.
+
+        Args:
+            target: PDF, an die angehaengt wird
+            sources: PDFs, deren Seiten angehaengt werden (in dieser Reihenfolge)
+            backup_dir: Ordner fuer die Sicherung der Originale (wird angelegt)
+
+        Returns:
+            Liste (Originalpfad, Sicherungspfad); der erste Eintrag ist die
+            Ziel-PDF, danach die aufgegangenen Quellen
+        """
+        target = Path(target)
+        source_paths = [Path(s) for s in sources]
+        if not source_paths:
+            raise ValueError("Es muss mindestens eine PDF zum Anhaengen angegeben werden.")
+        if not target.exists():
+            raise FileNotFoundError(f"Ziel-PDF nicht gefunden: {target}")
+        for source in source_paths:
+            if source == target:
+                raise ValueError("Eine PDF kann nicht auf sich selbst gestapelt werden.")
+            if not source.exists():
+                raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+
+        temp_path = target.with_name(f"{target.stem}.stapel-tmp.pdf")
+        try:
+            with fitz.open(str(target)) as doc:
+                for source in source_paths:
+                    with fitz.open(str(source)) as src_doc:
+                        doc.insert_pdf(src_doc)
+                doc.save(str(temp_path), garbage=3, deflate=True)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+
+        backup_dir = Path(backup_dir)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        target_backup = backup_dir / f"0_{target.name}"
+        shutil.copy2(str(target), str(target_backup))
+        os.replace(str(temp_path), str(target))
+        backups = [(target, target_backup)]
+
+        for i, source in enumerate(source_paths, start=1):
+            if source.parent != target.parent:
+                continue
+            source_backup = backup_dir / f"{i}_{source.name}"
+            shutil.move(str(source), str(source_backup))
+            backups.append((source, source_backup))
+
+        return backups
+
+    def restore_stack(self, backups: list[tuple[Path, Path]]) -> list[Path]:
+        """
+        Macht stack_pdfs() rueckgaengig: Die Ziel-PDF bekommt ihren alten
+        Inhalt zurueck, aufgegangene Quellen kehren an ihren Platz zurueck.
+        Ist ein Name inzwischen neu vergeben, erhaelt die Quelle einen
+        freien Namen ("datei (1).pdf").
+
+        Args:
+            backups: Rueckgabe von stack_pdfs()
+
+        Returns:
+            Die wiederhergestellten Pfade (Ziel zuerst)
+        """
+        restored = []
+        for i, (original, backup) in enumerate(backups):
+            original, backup = Path(original), Path(backup)
+            if not backup.exists():
+                raise FileNotFoundError(f"Sicherung nicht gefunden: {backup}")
+            if i == 0:
+                os.replace(str(backup), str(original))
+                restored.append(original)
+            else:
+                dest = self._get_unique_path(original)
+                shutil.move(str(backup), str(dest))
+                restored.append(dest)
+        return restored
+
     def split_pdf(
         self,
         source: Path | str,
