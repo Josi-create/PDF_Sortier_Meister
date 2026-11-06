@@ -243,6 +243,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
   ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
   Vergleich ergaenzt.
+- **Neue Modell-Empfehlungen für Ollama**: Der Assistent empfiehlt bei
+  16 GB Grafikspeicher und mehr `gpt-oss:20b` (14 GB), ab 10 GB das neue
+  `gemma4:12b` (8 GB, mehrsprachig deutlich stärker als Gemma 3; braucht ein
+  aktuelles Ollama), ab 4 GB weiter `gemma3:4b`. Die Vorschlagslisten in den
+  Einstellungen sind entsprechend aktualisiert; die Liste der Ollama-Cloud-
+  Modelle enthält nur noch Modelle, die es auf ollama.com noch gibt.
 - **Dokumentation**: Die README beschreibt die Dokumentensuche (Suche über
   den ganzen PC, Hintergrundlauf, Textebene, Browser-Oberfläche) und wie man
   sie in Claude Code oder Claude Desktop als MCP-Server einträgt; die

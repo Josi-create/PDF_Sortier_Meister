@@ -1782,12 +1782,13 @@ class SettingsDialog(QDialog):
             "o4-mini (Reasoning, neu)",
         ],
         "ollama": [
+            "gpt-oss:20b (OpenAI, ab 16 GB Grafikspeicher, empfohlen)",
+            "gemma4:12b (Google, ab 10 GB Grafikspeicher)",
+            "gemma3:4b (Google, ab 4 GB Grafikspeicher)",
+            "gemma4:26b (Google, ab 24 GB Grafikspeicher)",
+            "gemma3:1b (Google, ohne Grafikkarte, langsam)",
             "llama3.1 (Meta, ausgewogen)",
-            "llama3.2 (Meta, klein & schnell)",
             "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
-            "mistral (Mistral, klein)",
-            "gemma3 (Google)",
-            "phi3 (Microsoft, sehr klein)",
         ],
         "poe": [
             "GPT-4o-Mini (schnell & günstig)",
@@ -1820,11 +1821,12 @@ class SettingsDialog(QDialog):
         "ollama_cloud": [
             "gpt-oss:120b (OpenAI, gross, empfohlen)",
             "gpt-oss:20b (OpenAI, schnell)",
-            "qwen3-coder:480b (Alibaba)",
-            "deepseek-v3.1:671b (DeepSeek)",
-            "kimi-k2:1t (Moonshot)",
-            "glm-4.6 (Zhipu)",
-            "minimax-m2 (MiniMax)",
+            "gemma4:31b (Google)",
+            "deepseek-v4.1-flash (DeepSeek)",
+            "kimi-k3 (Moonshot)",
+            "glm-5.3 (Zhipu)",
+            "minimax-m3 (MiniMax)",
+            "mistral-large-4 (Mistral)",
         ],
     }
 
