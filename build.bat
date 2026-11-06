@@ -25,6 +25,14 @@ if errorlevel 1 (
     pip install openai anthropic
 )
 
+REM Browser-Oberflaeche der Dokumentensuche (Extra suche-web) gehoert ins Release,
+REM der MCP-Server braucht das Paket mcp.
+python -c "import flask, waitress, mcp" 2>NUL
+if errorlevel 1 (
+    echo Pakete der Dokumentensuche nicht gefunden. Installiere flask, waitress, mcp...
+    pip install flask waitress "mcp>=2.0.0"
+)
+
 REM Alte Build-Artefakte loeschen
 echo Loesche alte Build-Dateien...
 if exist "build" rmdir /s /q "build"
@@ -47,12 +55,18 @@ if errorlevel 1 goto :fail
 REM Pruefen ob erfolgreich
 if exist "dist\PDF_Sortier_Meister\PDF_Sortier_Meister.exe" (
     echo.
+    echo Rauchtest der Dienstprogramme ^(pdfsm-dienst, pdfsm-dienstw^)...
+    python scripts\rauchtest_dienst.py dist\PDF_Sortier_Meister
+    if errorlevel 1 goto :fail
+    echo.
     echo ========================================
     echo BUILD ERFOLGREICH!
     echo ========================================
     echo.
     echo Die Anwendung wurde erstellt unter:
     echo   dist\PDF_Sortier_Meister\PDF_Sortier_Meister.exe
+    echo   dist\PDF_Sortier_Meister\pdfsm-dienst.exe   ^(Dokumentensuche: MCP, Kommandozeile^)
+    echo   dist\PDF_Sortier_Meister\pdfsm-dienstw.exe  ^(Dokumentensuche ohne Konsolenfenster^)
     echo.
     echo Ordnergroesse:
     for /f "tokens=3" %%A in ('dir /s /-c "dist\PDF_Sortier_Meister" ^| findstr /C:"Datei(en)"') do echo   %%A Bytes

@@ -167,6 +167,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   nimmt einzelne Aenderungen zurueck. Ein laufender Indexlauf laesst sich im
   Reiter **Suche** anhalten. Auf der Kommandozeile gibt es
   `pdfsm-dienst textebene` (schaetzen, protokoll, rueckgaengig, schreiben).
+- **Dokumentensuche im Hintergrund** (Phase 6): PDF Sortier Meister bringt
+  den Hintergrunddienst `pdfsm-dienst` mit, unter Windows zusaetzlich
+  `pdfsm-dienstw` ohne Konsolenfenster. Ist unter Einstellungen > Suche die
+  taegliche Indexierung eingeschaltet, richtet PDF Sortier Meister beim
+  Speichern eine Aufgabe in der Windows-Aufgabenplanung ein, ohne
+  Administratorrechte. Sie startet erst, wenn der Rechner zehn Minuten nicht
+  benutzt wurde, und haelt an, sobald jemand weiterarbeitet. Unter macOS
+  uebernimmt das ein LaunchAgent. Die Browser-Oberflaeche der Suche laesst
+  sich bei der Anmeldung starten oder im Reiter **Suche** mit „Im Browser
+  öffnen“. KI-Assistenten wie Claude erreichen den Index ueber
+  `pdfsm-dienst mcp`, mit denselben Werkzeugnamen wie bisher. Beim
+  Deinstallieren werden die Aufgaben entfernt; Einstellungen und Index
+  bleiben erhalten.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

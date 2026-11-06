@@ -9,7 +9,8 @@
 ; Inno Setup 6 kostenlos: https://jrsoftware.org/isinfo.php
 ;
 ; Voraussetzung: build.bat wurde zuvor erfolgreich ausgefuehrt,
-; sodass dist\PDF_Sortier_Meister\ existiert.
+; sodass dist\PDF_Sortier_Meister\ existiert (mit PDF_Sortier_Meister.exe,
+; pdfsm-dienst.exe und pdfsm-dienstw.exe der Dokumentensuche).
 ; ============================================================
 
 #define MyAppName "PDF Sortier Meister"
@@ -67,4 +68,13 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Zeitplan der Dokumentensuche nach den Einstellungen einrichten (Aufgabenplanung,
+; Ordner "\PDF Sortier Meister\"), z. B. nach einer Neuinstallation an anderem Ort.
+; Ist die Hintergrundindexierung nicht eingeschaltet, passiert nichts.
+Filename: "{app}\pdfsm-dienstw.exe"; Parameters: "zeitplan --einrichten"; Flags: runhidden runasoriginaluser waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Aufgaben der Dokumentensuche entfernen (beendet auch die Browser-Oberflaeche).
+; Einstellungen, Suchindex und Sicherungskopien in %APPDATA% bleiben erhalten.
+Filename: "{app}\pdfsm-dienstw.exe"; Parameters: "zeitplan --entfernen"; Flags: runhidden waituntilterminated; RunOnceId: "ZeitplanEntfernen"

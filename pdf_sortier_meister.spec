@@ -4,6 +4,10 @@ PyInstaller Spec-File fuer PDF Sortier Meister (Windows + macOS)
 
 Erstellt eine Distribution mit:
 - Alle Dependencies gebuendelt (onedir = schneller Start)
+- Hintergrunddienst der Dokumentensuche als eigene Programme im selben Ordner:
+  pdfsm-dienst (mit Konsole: MCP, Kommandozeile) und unter Windows
+  pdfsm-dienstw (ohne Konsolenfenster: Aufgabenplanung, Start aus der
+  Oberflaeche, Web-Oberflaeche bei Anmeldung)
 - Windows: nativer PyInstaller-Splash (erscheint aus dem Bootloader,
   bevor Python/PyQt6 geladen werden -> maximal schneller Splash)
 - macOS: .app-Bundle via BUNDLE (Splash() wird von PyInstaller auf
@@ -109,6 +113,56 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 # ---------------------------------------------------------------------------
+# Hintergrunddienst der Dokumentensuche (docs/SUCHE_ARCHITEKTUR.md, Abschnitt 6).
+# Eigene Analyse ohne Qt und sklearn: MCP-Clients warten auf den Handshake,
+# und jeder Arbeitsprozess des Indexlaufs startet das Programm erneut.
+# ---------------------------------------------------------------------------
+dienst_datas = [
+    # Browser-Oberflaeche (src/search/web.py liest sie neben dem Modul)
+    (str(SRC_DIR / "search" / "static"), "src/search/static"),
+    # pdfsm-dienst --version liest __version__ aus src/main.py
+    (str(SRC_DIR / "main.py"), "src"),
+]
+dienst_hiddenimports = [
+    # MCP-Server (stdio): anyio laedt sein Backend dynamisch
+    "anyio._backends._asyncio",
+    "mcp.server.mcpserver",
+    # Browser-Oberflaeche (optionales Extra suche-web), nur wenn installiert
+]
+for _mod in ("flask", "waitress"):
+    try:
+        __import__(_mod)
+        dienst_hiddenimports.append(_mod)
+    except ImportError:
+        print(f"HINWEIS: {_mod} fehlt - pdfsm-dienst ohne Browser-Oberflaeche (pip install flask waitress).")
+
+a_dienst = Analysis(
+    [str(ROOT_DIR / "packaging" / "pdfsm_dienst.py")],
+    pathex=[str(ROOT_DIR)],
+    binaries=[],
+    datas=dienst_datas,
+    hiddenimports=dienst_hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        "tkinter",
+        "matplotlib",
+        "IPython",
+        "jupyter",
+        "PyQt6",
+        "sklearn",
+        "scipy",
+        "sqlalchemy",
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+pyz_dienst = PYZ(a_dienst.pure, a_dienst.zipped_data, cipher=block_cipher)
+
+# ---------------------------------------------------------------------------
 # Nativer Splash: wird vom Bootloader angezeigt, bevor Python startet.
 # So erscheint das Bild innerhalb von Millisekunden nach dem Doppelklick.
 # Die App schliesst den Splash per pyi_splash.close() sobald das Hauptfenster
@@ -147,6 +201,19 @@ exe_kwargs = dict(
 if ICON_PATH.exists():
     exe_kwargs["icon"] = str(ICON_PATH)
 
+# Dienstprogramme: pdfsm-dienst mit Konsole (MCP braucht stdio), unter Windows
+# zusaetzlich pdfsm-dienstw ohne Konsolenfenster. Ein Absturz im Hintergrund
+# darf kein Fenster mit Traceback oeffnen, das nachts auf einen Klick wartet.
+dienst_exes = [
+    EXE(pyz_dienst, a_dienst.scripts, [], exclude_binaries=True,
+        **dict(exe_kwargs, name="pdfsm-dienst", console=True)),
+]
+if not IS_MAC:
+    dienst_exes.append(
+        EXE(pyz_dienst, a_dienst.scripts, [], exclude_binaries=True,
+            **dict(exe_kwargs, name="pdfsm-dienstw", console=False, disable_windowed_traceback=True)))
+dienst_toc = [*dienst_exes, a_dienst.binaries, a_dienst.zipfiles, a_dienst.datas]
+
 # onedir-Build: .exe + Abhaengigkeiten nebeneinander im Ordner
 # -> sofortiger Start (kein Entpacken nach %TEMP% wie bei onefile)
 if splash is not None:
@@ -164,6 +231,7 @@ if splash is not None:
         splash.binaries,        # Splash-Bootloader-Binaries
         a.zipfiles,
         a.datas,
+        *dienst_toc,            # pdfsm-dienst(w) teilen sich _internal mit der Oberflaeche
         strip=False,
         upx=True,
         upx_exclude=[],
@@ -182,6 +250,7 @@ else:
         a.binaries,
         a.zipfiles,
         a.datas,
+        *dienst_toc,
         strip=False,
         upx=not IS_MAC,
         upx_exclude=[],

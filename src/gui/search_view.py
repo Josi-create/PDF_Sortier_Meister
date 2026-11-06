@@ -20,7 +20,8 @@ from html import escape
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QDate, QEvent, QPoint, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QDate, QEvent, QPoint, Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -67,6 +68,7 @@ TIPP_VERZOEGERUNG_MS = 500    # Suche beim Tippen erst nach dieser Pause
 MIN_ZEICHEN_TIPPEN = 3        # kuerzere Eingaben nur mit Enter suchen
 STATUS_INTERVALL_MS = 15_000  # Indexstand waehrend eines Laufs auffrischen
 MELDUNG_MS = 6000
+WEB_PRUEFEN_MS = 6000         # nach dem Start der Browser-Oberflaeche pruefen, ob sie antwortet
 
 _MARK_AUF = '<span style="background-color:#fff0a0; color:#000000;"><b>'
 _MARK_ZU = "</b></span>"
@@ -478,6 +480,12 @@ class SearchView(QWidget):
                                          "läuft im Hintergrund")
         self.index_all_button.clicked.connect(lambda: self._lauf_starten(False))
         status.addWidget(self.index_all_button)
+        self.web_button = QPushButton("Im Browser öffnen")
+        self.web_button.setToolTip("Browser-Oberfläche der Suche öffnen (nur auf diesem Rechner erreichbar); "
+                                   "läuft sie noch nicht, wird sie gestartet")
+        self.web_button.clicked.connect(self._web_oeffnen)
+        self.web_button.setVisible(False)
+        status.addWidget(self.web_button)
         self.anhalten_button = QPushButton("Anhalten")
         self.anhalten_button.setToolTip("Den laufenden Indexlauf anhalten – laufende Aufträge werden noch "
                                         "fertig, der nächste Lauf setzt fort")
@@ -699,6 +707,7 @@ class SearchView(QWidget):
         self.suchbereich.setEnabled(aktiv)
         for b in (self.index_button, self.index_all_button, self.refresh_button):
             b.setEnabled(aktiv)
+        self.web_button.setVisible(aktiv and bool(self.konfig.web_aktiv))
         self._generation += 1
         self._vorschau_generation += 1
         self._status_timer.stop()
@@ -1224,6 +1233,28 @@ class SearchView(QWidget):
                                       "der nächste Lauf setzt fort …")
         else:
             self.refresh_status()
+
+    def _web_oeffnen(self) -> None:
+        """Browser-Oberfläche öffnen; läuft sie noch nicht, wird sie gestartet und öffnet den Browser selbst."""
+        if self.index is None:
+            return
+        if self.index.web_erreichbar():
+            QDesktopServices.openUrl(QUrl(self.index.web_adresse()))
+            return
+        try:
+            self.index.web_starten(oeffnen=True)
+        except OSError as e:
+            self._meldung(f"Die Browser-Oberfläche konnte nicht gestartet werden: {e}")
+            return
+        self.status_label.setText("Die Browser-Oberfläche wird gestartet …")
+        QTimer.singleShot(WEB_PRUEFEN_MS, self._web_pruefen)
+
+    def _web_pruefen(self) -> None:
+        """Nach dem Start: antwortet die Oberfläche? Sonst ist der Port belegt oder Flask fehlt."""
+        if self.index is None or self.index.web_erreichbar():
+            return
+        self._meldung(f"Die Browser-Oberfläche antwortet nicht. Ist Port {self.konfig.web_port} von einem anderen "
+                      "Programm belegt? Der Port lässt sich unter Einstellungen > Suche ändern.")
 
     # ------------------------------------------------------------------ Tastatur
 

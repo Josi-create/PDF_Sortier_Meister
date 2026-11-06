@@ -78,3 +78,23 @@ def _index_meldungen_aus():
     yield
     meldungen.warten(5.0)
     meldungen.konfigurieren(alt)
+
+
+@pytest.fixture(autouse=True)
+def zeitplan_speicher(monkeypatch):
+    """Kein Test richtet echte Aufgaben ein (Windows-Aufgabenplanung, macOS-LaunchAgent).
+
+    ``zeitplan.backend()`` liefert in Tests einen ``Speicher``, der die
+    Eintraege nur merkt; ein Aufruf von ``schtasks``/``launchctl`` ueber
+    ``zeitplan._ausfuehren`` schlaegt fehl. Tests der echten Backends geben
+    ihren Ersatz fuer ``ausfuehren`` ausdruecklich mit.
+    """
+    from src.search import zeitplan
+
+    def gesperrt(args):
+        raise AssertionError(f"Test wollte das Betriebssystem aufrufen: {args}")
+
+    speicher = zeitplan.Speicher()
+    monkeypatch.setattr(zeitplan, "_backend_fuer_tests", speicher)
+    monkeypatch.setattr(zeitplan, "_ausfuehren", gesperrt)
+    return speicher

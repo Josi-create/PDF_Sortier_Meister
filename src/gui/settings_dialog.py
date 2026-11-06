@@ -1131,7 +1131,8 @@ class SettingsDialog(QDialog):
         bg_hint = QLabel(
             "Der tägliche Lauf wird über die Aufgabenplanung (Windows) bzw. einen "
             "LaunchAgent (macOS) vom Hintergrunddienst ausgeführt und bricht ab, "
-            "sobald Sie den Rechner wieder benutzen."
+            "sobald Sie den Rechner wieder benutzen. Eingerichtet wird er beim "
+            "Speichern, Administratorrechte sind nicht nötig."
         )
         bg_hint.setStyleSheet("color: gray;")
         bg_hint.setWordWrap(True)
@@ -1148,6 +1149,13 @@ class SettingsDialog(QDialog):
         self.search_web_port_spin = QSpinBox()
         self.search_web_port_spin.setRange(1024, 65535)
         web_layout.addRow("Port:", self.search_web_port_spin)
+        web_hint = QLabel(
+            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“. Beim "
+            "automatischen Start läuft sie ab der Anmeldung im Hintergrund."
+        )
+        web_hint.setStyleSheet("color: gray;")
+        web_hint.setWordWrap(True)
+        web_layout.addRow(web_hint)
         layout.addWidget(web_group)
 
         # Leistung
@@ -1397,6 +1405,34 @@ class SettingsDialog(QDialog):
             textebene_sicherung_ordner=alt.textebene_sicherung_ordner,
         )
         self.config.set_search_config(cfg)
+        self._sync_search_schedule(alt, cfg)
+
+    def _sync_search_schedule(self, alt, neu) -> None:
+        """Aufgabenplanung bzw. LaunchAgent an Hintergrundindexierung und Web-Oberfläche anpassen.
+
+        Ist etwas eingeschaltet, wird bei jedem Speichern abgeglichen (repariert
+        auch eine gelöschte Aufgabe); sonst nur, wenn sich etwas geändert hat.
+        """
+        import subprocess
+
+        from PyQt6.QtGui import QGuiApplication
+
+        from src.search import zeitplan
+
+        if zeitplan.merkmale(alt) == zeitplan.merkmale(neu) and not zeitplan.etwas_gewuenscht(neu):
+            return
+        fehler = ""
+        QGuiApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            zeitplan.abgleichen(neu)
+        except (zeitplan.ZeitplanFehler, OSError, subprocess.SubprocessError) as e:
+            fehler = str(e)
+        finally:
+            QGuiApplication.restoreOverrideCursor()
+        if fehler:
+            QMessageBox.warning(
+                self, "Hintergrundindexierung",
+                "Die Einstellungen sind gespeichert, aber der Zeitplan ließ sich nicht anpassen:\n\n" + fehler)
 
     def _search_config_for_index(self):
         """Gespeicherte Suche-Einstellungen mit dem Datenbankpfad aus dem Formular (Schätzung, Protokoll)."""
