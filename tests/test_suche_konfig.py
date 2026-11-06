@@ -128,6 +128,8 @@ def test_textebene_stufen_und_sicherung():
     assert SearchConfig(textebene="unsinn").textebene == "aus"
     # Standard (Opt-out): neue Scans bekommen die Textebene; der Lauf beginnt frühestens um 00:00 im Leerlauf
     assert SearchConfig().textebene == "neue_scans" and SearchConfig().hintergrund_uhrzeit == "00:00"
+    # Keine Anmeldeaufgabe fuer die Browser-Oberflaeche ohne ausdruecklichen Wunsch (Defender, #163)
+    assert SearchConfig().web_aktiv is False and SearchConfig().web_bei_anmeldung is False
     assert SearchConfig(textebene_sicherung_tage=-3).textebene_sicherung_tage == 0
     d = c.als_dict()
     assert d["textebene"] == "alle" and SearchConfig.aus_dict(d).textebene == "alle"

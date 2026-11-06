@@ -243,6 +243,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
   ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
   Vergleich ergaenzt.
+- **Browser-Oberfläche: Hinweis zum automatischen Start**: Die Einstellung
+  „Bei der Anmeldung automatisch starten“ (standardmäßig aus) erklärt jetzt,
+  dass sie nicht nötig ist – „Im Browser öffnen“ startet die Oberfläche bei
+  Bedarf – und dass Virenscanner wie Microsoft Defender die Anmeldeaufgabe
+  eines unsignierten Programms als verdächtig melden können (#163).
 - **Neue Modell-Empfehlungen für Ollama**: Der Assistent empfiehlt bei
   16 GB Grafikspeicher und mehr `gpt-oss:20b` (14 GB), ab 10 GB das neue
   `gemma4:12b` (8 GB, mehrsprachig deutlich stärker als Gemma 3; braucht ein

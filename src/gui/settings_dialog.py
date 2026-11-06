@@ -1147,14 +1147,19 @@ class SettingsDialog(QDialog):
         web_layout = QFormLayout(web_group)
         self.search_web_check = QCheckBox("Browser-Oberfläche der Suche einschalten")
         web_layout.addRow(self.search_web_check)
-        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten")
+        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten (nicht nötig)")
+        self.search_web_login_check.setToolTip(
+            "Legt eine Anmeldeaufgabe an. Manche Virenscanner, z. B. Microsoft Defender, melden das bei "
+            "unsignierten Programmen als verdächtig und entfernen den Hintergrunddienst."
+        )
         web_layout.addRow(self.search_web_login_check)
         self.search_web_port_spin = QSpinBox()
         self.search_web_port_spin.setRange(1024, 65535)
         web_layout.addRow("Port:", self.search_web_port_spin)
         web_hint = QLabel(
-            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“. Beim "
-            "automatischen Start läuft sie ab der Anmeldung im Hintergrund."
+            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“; dabei startet sie bei Bedarf "
+            "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
+            "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig."
         )
         web_hint.setStyleSheet("color: gray;")
         web_hint.setWordWrap(True)
@@ -1356,7 +1361,7 @@ class SettingsDialog(QDialog):
         self.search_max_size_spin.setValue(cfg.max_dateigroesse_mb)
         self.search_background_check.setChecked(cfg.hintergrund_aktiv)
         zeit = QTime.fromString(cfg.hintergrund_uhrzeit, "HH:mm")
-        self.search_background_time_edit.setTime(zeit if zeit.isValid() else QTime(3, 0))
+        self.search_background_time_edit.setTime(zeit if zeit.isValid() else QTime(0, 0))
         self.search_web_check.setChecked(cfg.web_aktiv)
         self.search_web_login_check.setChecked(cfg.web_bei_anmeldung)
         self.search_web_port_spin.setValue(cfg.web_port)
