@@ -81,6 +81,19 @@ def _index_meldungen_aus():
 
 
 @pytest.fixture(autouse=True)
+def suchprotokoll_im_temp(monkeypatch, tmp_path_factory):
+    """Protokoll (``suche.log``) und Standardorte der Dokumentensuche nie im echten Datenverzeichnis.
+
+    ``indexer.logging_einrichten`` haengt den Datei-Handler einmal je Prozess an;
+    ohne diese Umleitung schrieben danach alle Indextests in das Protokoll des Nutzers.
+    """
+    from src.search import konfig as konfig_modul
+
+    ordner = tmp_path_factory.getbasetemp() / "appdata-suche"
+    monkeypatch.setattr(konfig_modul, "get_app_data_dir", lambda create=True: ordner)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

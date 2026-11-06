@@ -1,12 +1,13 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 25.08.2026
-**Aktuelle Version:** 0.15.0
+**Datum:** 06.11.2026
+**Aktuelle Version:** 0.24.0 (Release in Vorbereitung)
 
-> **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
+> **Was ist neu?** Siehe [CHANGELOG.md](CHANGELOG.md). Dieses Dokument fuehrt seit v0.15.0 nur noch
+> die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
-### Dokumentensuche - Integration von PDFsuche (in Arbeit, Phasen 0 bis 8)
+### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)
 Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
 - Phase 0 (2026-11-05): Analyse beider Codebasen und Architekturentwurf (PR #136)
 - Phase 1 (2026-11-06): Modul `src/search/` (Qt-frei) aus PDFsuche uebernommen
@@ -93,7 +94,14 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   Assistenten); Hintergrundindexierung „einmal taeglich beim ersten Leerlauf, fruehestens ab“ (Standard 00:00),
   macOS-LaunchAgent zusaetzlich bei der Anmeldung mit `--einmal-taeglich`; alte Aufgaben geloescht,
   Repository PDFsuche archiviert; 14 neue Tests
-- Offen: Phase 8 (Doku, Release)
+- Phase 8 (2026-11-06): Dokumentation und Release - README (Abschnitt „Dokumentensuche ueber den ganzen
+  PC“, MCP-Einrichtung fuer Claude Code und Claude Desktop, Datenschutz-Tabelle um Suche und MCP ergaenzt,
+  bekannte Grenzen und Technologien korrigiert), `docs/SUCHE_SCHEMA.md` (aus `SCHEMA.md`
+  von PDFsuche, Version 2: OCR-Cache, Metadaten, Textebene-Protokoll, `meta`-Schluessel),
+  `docs/ARCHITECTURE.md` (RAG-Chat liest ueber die Fassade `search_documents` aus `suche.db`, Quellen mit
+  Seite), Release v0.24.0 nach `docs/RELEASE_CHECKLISTE.md` vorbereitet (Veroeffentlichung erst nach OK)
+- Folgeschritte (nicht Teil der Integration): `pytesseract` als Abhaengigkeit entfernen (Abschnitt 3.2),
+  Spalte `extracted_text` in `pdf_cache.db` abbauen, Mail-Anhaenge mit Inhalt indizieren (Abschnitt 9)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;
@@ -401,6 +409,10 @@ Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in d
 
 ### Phase 17: Volltext-Suche mit SQLite FTS5 (100% fertig)
 
+> Abgeloest durch die Dokumentensuche (v0.24.0): `document_search` gibt es nicht mehr; Suchleiste,
+> Filter und Chat lesen ueber `Database.search_documents()` aus `suche.db` (Volltext aller Seiten,
+> Metadaten als Spalten). Die Beschreibung unten ist der Stand von v0.11.0.
+
 - [x] **SQLite FTS5-Index** für extrahierten Dokumententext *(v0.9.0)*
   - Virtuelle Tabelle `document_search` mit unicode61-Tokenizer
   - Speichert: Volltext, Dateiname, Keywords, Korrespondent, Kategorie, Betrag, Steuerjahr, Zusammenfassung
@@ -592,6 +604,15 @@ PDF_Sortier_Meister/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Haupteinstiegspunkt
+│   ├── search/                 # Dokumentensuche (Qt-frei, v0.24.0): Index, OCR, Dienst, MCP, Web
+│   │   ├── konfig.py           # SearchConfig (Block "suche" in config.json)
+│   │   ├── db.py               # Schema (docs/SUCHE_SCHEMA.md), FTS5-Abfragen
+│   │   ├── indexer.py          # Indexlauf mit Arbeitsprozessen, OCR, Textebene
+│   │   ├── suchindex.py        # Fassade fuer PDFSM (Suche, Metadaten, Status)
+│   │   ├── dienst.py           # Kommandozeile pdfsm-dienst
+│   │   ├── zeitplan.py         # Aufgabenplanung / LaunchAgents
+│   │   └── mcp_server.py, web.py, plattform.py, textebene.py, migration.py, ...
+│   ├── rag/                    # RAG-Chat (Retrieval, Prompts, Zitate)
 │   ├── gui/
 │   │   ├── __init__.py
 │   │   ├── main_window.py      # Hauptfenster (Version 0.7.1)
@@ -636,9 +657,12 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 - watchdog 6.0.0
 - pikepdf 10.5.1 *(NEU in v0.9.0 — Phase 16)*
 
+**Dokumentensuche** *(v0.24.0)*: extract-msg, olefile, xlrd (Outlook-Mails, Word/Excel 97–2003),
+mcp (MCP-Server); optional flask und waitress fuer die Browser-Oberflaeche (Extra `suche-web`).
+
 **Optional für LLM-Integration:**
 - anthropic (für Claude API direkt)
-- openai (für OpenAI API direkt oder Poe.com)
+- openai (für OpenAI API direkt, OpenRouter oder Poe.com)
 
 ```bash
 pip install anthropic openai

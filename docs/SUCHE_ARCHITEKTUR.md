@@ -1187,6 +1187,15 @@ Dritt-Bibliotheken), `docs/SUCHE_SCHEMA.md` (aus `SCHEMA.md`, Version 2),
 `CHANGELOG.md`, Release nach `docs/RELEASE_CHECKLISTE.md` ohne Veroeffentlichung
 ohne OK.
 
+**Umsetzung (06.11.2026):** Branch `release/v0.24.0` (Phase 8 und Release in
+einem, wie es die Checkliste fuer den Release-Branch vorsieht). README mit
+Abschnitt „Dokumentensuche ueber den ganzen PC“, MCP-Einrichtung und
+erweiterter Datenschutz-Tabelle; `docs/SUCHE_SCHEMA.md` (Version 2, ohne
+Pfade des Auftraggebers); `docs/ARCHITECTURE.md` mit Stand-Hinweis zum Chat;
+Version 0.24.0, CHANGELOG-Abschnitt (die doppelte Ueberschrift „Behoben“ aus
+einem frueheren Merge vereint), Vergleichslinks ab v0.19.0 ergaenzt. Tag und
+Veroeffentlichung erst nach OK.
+
 ---
 
 ## 11. Entscheidungen des Auftraggebers (05.11.2026)

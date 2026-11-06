@@ -48,16 +48,22 @@ class OllamaRecommendation:
 
 
 # ---------------------------------------------------------------------------
-# Modell-Empfehlungen - zuletzt geprueft am 2026-08-28.
+# Modell-Empfehlungen - zuletzt geprueft am 2026-11-06.
 #
 # Ollama-Modelle veralten schnell (neue Gemma-/Llama-Generationen, andere
 # Downloadgroessen). Diese Tabelle ist die EINE Stelle, die bei einem Update
 # angepasst werden muss - siehe docs/RELEASE_CHECKLISTE.md ("LLM-Modell-
 # Empfehlungen pruefen"). ``recommend()`` liest ausschliesslich daraus.
 #
-# Gemma 3 ist mehrsprachig stark (Deutsch) und liefert stabiles JSON.
+# Stand 11/2026: gpt-oss:20b (14 GB) liefert nach der Erfahrung des
+# Entwicklers auf Karten mit 16 GB die besten Ergebnisse und bekommt deshalb
+# auch alle groesseren Karten (gemma4:26b mit 19 GB waere die Alternative,
+# ist aber unerprobt). Gemma 4 ist bei gleicher Groesse mehrsprachig deutlich
+# staerker als Gemma 3 (MMMLU: gemma4:12b 83 %, gemma3:27b 71 %), braucht aber
+# ein aktuelles Ollama. Fuer 4 GB gibt es kein Gemma-4-Modell (das kleinste,
+# gemma4:e2b, hat 4,6 GB), dort bleibt gemma3:4b.
 # ---------------------------------------------------------------------------
-MODEL_TIERS_CHECKED_ON = "2026-08-28"
+MODEL_TIERS_CHECKED_ON = "2026-11-06"
 
 
 class ModelTier(NamedTuple):
@@ -68,9 +74,9 @@ class ModelTier(NamedTuple):
 
 # (min. Grafikspeicher in MB, Modell, Downloadgroesse in GB) - absteigend
 MODEL_TIERS = [
-    ModelTier(20000, "gemma3:27b", 17.0),
-    ModelTier(10000, "gemma3:12b", 8.1),
-    ModelTier(4000, "gemma3:4b", 3.3),
+    ModelTier(15000, "gpt-oss:20b", 14.0),   # 16-GB-Karten melden zwischen 15,3 und 16,4 GB
+    ModelTier(10000, "gemma4:12b", 8.0),
+    ModelTier(4000, "gemma3:4b", 3.4),
 ]
 MIN_VRAM_MB = MODEL_TIERS[-1].min_vram_mb
 
@@ -288,7 +294,7 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
     - Intel Arc: von Ollama unter Windows nicht unterstuetzt -> Cloud
     - Apple Silicon: Unified Memory zaehlt als Grafikspeicher (Metal);
       Ollama kann davon etwa zwei Drittel nutzen
-    - sonst: groesstes Gemma-3-Modell, das in den Grafikspeicher passt
+    - sonst: groesstes Modell aus ``MODEL_TIERS``, das in den Grafikspeicher passt
     """
     if is_apple_silicon():
         # Kein dediziertes VRAM, aber die GPU nutzt den gemeinsamen

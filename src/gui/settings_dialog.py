@@ -1147,14 +1147,19 @@ class SettingsDialog(QDialog):
         web_layout = QFormLayout(web_group)
         self.search_web_check = QCheckBox("Browser-Oberfläche der Suche einschalten")
         web_layout.addRow(self.search_web_check)
-        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten")
+        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten (nicht nötig)")
+        self.search_web_login_check.setToolTip(
+            "Legt eine Anmeldeaufgabe an. Manche Virenscanner, z. B. Microsoft Defender, melden das bei "
+            "unsignierten Programmen als verdächtig und entfernen den Hintergrunddienst."
+        )
         web_layout.addRow(self.search_web_login_check)
         self.search_web_port_spin = QSpinBox()
         self.search_web_port_spin.setRange(1024, 65535)
         web_layout.addRow("Port:", self.search_web_port_spin)
         web_hint = QLabel(
-            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“. Beim "
-            "automatischen Start läuft sie ab der Anmeldung im Hintergrund."
+            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“; dabei startet sie bei Bedarf "
+            "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
+            "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig."
         )
         web_hint.setStyleSheet("color: gray;")
         web_hint.setWordWrap(True)
@@ -1356,7 +1361,7 @@ class SettingsDialog(QDialog):
         self.search_max_size_spin.setValue(cfg.max_dateigroesse_mb)
         self.search_background_check.setChecked(cfg.hintergrund_aktiv)
         zeit = QTime.fromString(cfg.hintergrund_uhrzeit, "HH:mm")
-        self.search_background_time_edit.setTime(zeit if zeit.isValid() else QTime(3, 0))
+        self.search_background_time_edit.setTime(zeit if zeit.isValid() else QTime(0, 0))
         self.search_web_check.setChecked(cfg.web_aktiv)
         self.search_web_login_check.setChecked(cfg.web_bei_anmeldung)
         self.search_web_port_spin.setValue(cfg.web_port)
@@ -1782,12 +1787,13 @@ class SettingsDialog(QDialog):
             "o4-mini (Reasoning, neu)",
         ],
         "ollama": [
+            "gpt-oss:20b (OpenAI, ab 16 GB Grafikspeicher, empfohlen)",
+            "gemma4:12b (Google, ab 10 GB Grafikspeicher)",
+            "gemma3:4b (Google, ab 4 GB Grafikspeicher)",
+            "gemma4:26b (Google, ab 24 GB Grafikspeicher)",
+            "gemma3:1b (Google, ohne Grafikkarte, langsam)",
             "llama3.1 (Meta, ausgewogen)",
-            "llama3.2 (Meta, klein & schnell)",
             "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
-            "mistral (Mistral, klein)",
-            "gemma3 (Google)",
-            "phi3 (Microsoft, sehr klein)",
         ],
         "poe": [
             "GPT-4o-Mini (schnell & günstig)",
@@ -1820,11 +1826,12 @@ class SettingsDialog(QDialog):
         "ollama_cloud": [
             "gpt-oss:120b (OpenAI, gross, empfohlen)",
             "gpt-oss:20b (OpenAI, schnell)",
-            "qwen3-coder:480b (Alibaba)",
-            "deepseek-v3.1:671b (DeepSeek)",
-            "kimi-k2:1t (Moonshot)",
-            "glm-4.6 (Zhipu)",
-            "minimax-m2 (MiniMax)",
+            "gemma4:31b (Google)",
+            "deepseek-v4.1-flash (DeepSeek)",
+            "kimi-k3 (Moonshot)",
+            "glm-5.3 (Zhipu)",
+            "minimax-m3 (MiniMax)",
+            "mistral-large-4 (Mistral)",
         ],
     }
 

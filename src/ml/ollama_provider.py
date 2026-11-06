@@ -423,16 +423,17 @@ class OllamaCloudProvider(OllamaProvider):
     DEFAULT_BASE_URL = "https://ollama.com"
     DEFAULT_MODEL = "gpt-oss:120b"
 
-    # Bekannte Cloud-Modelle (Stand 2026); die Liste dient als Fallback,
-    # falls /api/tags auf ollama.com nicht erreichbar ist.
+    # Bekannte Cloud-Modelle (Stand 11/2026, aus https://ollama.com/api/tags);
+    # die Liste dient als Fallback, falls /api/tags nicht erreichbar ist.
     CLOUD_MODELS = [
         "gpt-oss:120b",
         "gpt-oss:20b",
-        "qwen3-coder:480b",
-        "deepseek-v3.1:671b",
-        "kimi-k2:1t",
-        "glm-4.6",
-        "minimax-m2",
+        "gemma4:31b",
+        "deepseek-v4.1-flash",
+        "kimi-k3",
+        "glm-5.3",
+        "minimax-m3",
+        "mistral-large-4",
     ]
 
     def _get_base_url(self) -> str:

@@ -99,9 +99,10 @@ def test_intel_arc_recommends_cloud():
 @pytest.mark.parametrize("vram_mb,model", [
     (4096, "gemma3:4b"),
     (8192, "gemma3:4b"),
-    (12288, "gemma3:12b"),
-    (16384, "gemma3:12b"),
-    (24564, "gemma3:27b"),
+    (12288, "gemma4:12b"),
+    (15360, "gpt-oss:20b"),     # 16-GB-Karte, die etwas weniger meldet
+    (16384, "gpt-oss:20b"),
+    (24564, "gpt-oss:20b"),
 ])
 def test_model_tier_by_vram(vram_mb, model):
     rec = recommend([_gpu("NVIDIA GeForce RTX", vram_mb)])
@@ -119,7 +120,7 @@ def test_best_dedicated_gpu_wins_over_integrated():
     rec = recommend(gpus)
     assert rec.local_ok is True
     assert rec.gpu.name == "NVIDIA GeForce RTX 3080"
-    assert rec.model == "gemma3:12b"
+    assert rec.model == "gemma4:12b"
 
 
 def test_amd_gets_support_hint():
