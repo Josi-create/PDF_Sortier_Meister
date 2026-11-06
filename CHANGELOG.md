@@ -50,6 +50,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ohne Einrichtung: Kommandozeile `python -m src.search.dienst` (Befehle
   `index`, `suche`, `lesen`, `status`, `web`, `mcp`). Entwurf und Plan:
   `docs/SUCHE_ARCHITEKTUR.md`.
+- **Dokumentensuche, bekannte Schwaechen behoben** (Phase 1b): `.msg`-Dateien
+  werden am Inhalt erkannt - Outlook-Container ueber extract-msg, als Text
+  gespeicherte Mails wie `.eml`, alles andere (z. B. Tcl-Nachrichtenkataloge,
+  die ebenfalls `.msg` heissen) gilt als leer statt als Lesefehler; leere
+  Dateien jeder Art ebenso. Fehlertexte sind kurz, einzeilig und ohne
+  Dateipfad. Thunderbird-Postfaecher sichern beim Lesen alle 30 s einen
+  Zwischenstand (bis wohin lueckenlos gelesen); ein abgebrochener Lauf setzt
+  dort fort, statt das Postfach von vorn zu lesen. Excel-Datumswerte in xlsx
+  erscheinen als `TT.MM.JJJJ[ HH:MM]` statt als Seriennummer (Zellformate aus
+  `styles.xml`: eingebaute und eigene Datumsformate, 1904-Datumssystem). Nach
+  einem vollstaendigen Lauf verschwinden Eintraege, die ausserhalb aller
+  konfigurierten Ordner liegen (bisher blieben sie fuer immer stehen).
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

@@ -16,7 +16,13 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   `src/utils/tesseract.py`, `SearchConfig` im Block `"suche"` der `config.json`,
   Abhaengigkeiten extract-msg/olefile/xlrd/mcp (Extra `suche-web`: flask, waitress),
   77 Tests mit synthetischen Dateien (eigener OLE2-Container fuer Word 97)
-- Offen: Phase 1b (bekannte Schwaechen), 2 (Plattformschicht macOS), 3 (Einrichtung,
+- Phase 1b (2026-11-06): bekannte Schwaechen aus Abschnitt 9 des Entwurfs behoben -
+  `.msg`-Format-Erkennung (OLE2 / RFC-822 / sonst leer), leere Dateien als `leer`,
+  kurze Fehlertexte ohne Pfad (`extract.fehlertext`), mbox-Zwischenstaende alle 30 s
+  mit Wasserstandsmarke (`Indexer._mbox_stapel_fertig`), Excel-Datumsformate aus
+  `styles.xml` (`office._xlsx_datumsstile`, `_excel_datum`), Aufraeumen ausserhalb
+  aller Wurzeln nach vollstaendigem Lauf (`Indexer._aufraeumen_ausserhalb`); 9 Tests
+- Offen: Phase 2 (Plattformschicht macOS), 3 (Einrichtung,
   Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
   Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
