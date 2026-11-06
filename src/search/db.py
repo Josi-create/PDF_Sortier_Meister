@@ -454,13 +454,20 @@ def ocr_cache_holen(con, hashes) -> dict[str, str]:
     return erg
 
 
-def ocr_cache_eintragen(con, eintraege, sprachen: str | None = None, dpi: int | None = None) -> int:
-    """``[(hash, text), ...]`` in den Cache (vorhandene Hashes bleiben). Liefert die Zahl neuer Eintraege."""
+def ocr_cache_eintragen(con, eintraege, sprachen: str | None = None, dpi: int | None = None,
+                        ersetzen: bool = False) -> int:
+    """``[(hash, text), ...]`` in den Cache. Liefert die Zahl geschriebener Eintraege.
+
+    Vorhandene Hashes bleiben, ausser mit ``ersetzen`` ("OCR neu durchfuehren",
+    Issue #150): Dann ersetzt der neue Text den alten, und eine Text-PDF der
+    alten Erkennung (``ebene``) faellt mit weg.
+    """
     zeilen = [(h, t, sprachen, dpi, jetzt()) for h, t in eintraege if h and t is not None]
     if not zeilen:
         return 0
     vorher = con.total_changes
-    con.executemany("INSERT OR IGNORE INTO ocr_cache (bild_hash, text, sprachen, dpi, erstellt) VALUES (?, ?, ?, ?, ?)",
+    art = "REPLACE" if ersetzen else "IGNORE"
+    con.executemany(f"INSERT OR {art} INTO ocr_cache (bild_hash, text, sprachen, dpi, erstellt) VALUES (?, ?, ?, ?, ?)",
                     zeilen)
     return con.total_changes - vorher
 
@@ -504,13 +511,14 @@ def ocr_ebenen_eintragen(con, dok_id: int, ebenen: dict) -> int:
 
 
 def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = None, dpi: int | None = None,
-                       nur_offene: bool = True, ebenen: dict | None = None) -> int:
+                       nur_offene: bool = True, ebenen: dict | None = None, cache_ersetzen: bool = False) -> int:
     """OCR-Ergebnis (``{seite: text | None}``) uebernehmen: Seiten fuellen, Cache befuellen, Status ableiten.
 
     ``None`` als Text markiert die Seite als ``ocr_fehler``. Mit ``nur_offene``
     werden nur Seiten geaendert, die noch auf OCR warten (``ohne_text``/``ocr_fehler``).
     ``ebenen`` (``{seite: text_pdf}``, Phase 5b) kommen zum Cache-Eintrag der
-    Seite. Liefert die Zahl der erkannten Seiten.
+    Seite. ``cache_ersetzen`` ueberschreibt vorhandene Cache-Eintraege (neue
+    OCR auf Wunsch, Issue #150). Liefert die Zahl der erkannten Seiten.
     """
     bedingung = " AND quelle IN ('ohne_text', 'ocr_fehler')" if nur_offene else ""
     erkannt = []
@@ -527,7 +535,7 @@ def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = Non
         ph = ",".join("?" * len(erkannt))
         zeilen = con.execute(f"SELECT bild_hash, text FROM seiten WHERE dok_id = ? AND seite IN ({ph})",
                              (dok_id, *erkannt)).fetchall()
-        ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi)
+        ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi, ersetzen=cache_ersetzen)
         if ebenen:
             ocr_ebenen_eintragen(con, dok_id, {s: e for s, e in ebenen.items() if s in erkannt})
         # Weitere offene Seiten desselben Dokuments mit bekanntem Bild (z. B. gleiches Deckblatt) gleich mit fuellen

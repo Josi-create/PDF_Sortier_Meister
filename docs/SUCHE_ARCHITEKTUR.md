@@ -388,6 +388,15 @@ und die OCR-Arbeit waere verloren. Deshalb:
 - Damit ueberleben OCR-Texte Umbenennen, Verschieben, XMP-Schreiben, Stapeln,
   Teilen, Kopieren und Wiederherstellen aus `stapel_sicherung`, auch ohne
   Meldung der GUI.
+- **Drehung im Hash** (Issue #150, 11/2026): Eine gedrehte Seite (`/Rotate`
+  ungleich 0) bekommt `rot=<Grad>` in den Hash. Drehen aendert die Bild-Streams
+  nicht, wohl aber das Seitenbild fuer Tesseract; ohne diesen Zusatz kaeme nach
+  „Drehen“ im Kontextmenue der alte, falsch ausgerichtete Text aus dem Cache.
+  Seiten ohne Drehung behalten ihren Hash; bereits gedrehte Scans werden einmal
+  neu erkannt. „OCR neu durchführen“ (`pdf_analyzer.ocr_neu_durchfuehren`)
+  erkennt alle Bildseiten am Cache vorbei und ersetzt Seiten und Cache-Eintraege
+  (`Suchindex.ocr_eintragen(..., ersetzen=True)`, `INSERT OR REPLACE`; eine
+  Text-PDF der alten Erkennung faellt dabei weg).
 - **Auffuellen des Bestands:** Ein Laufabschnitt „OCR-Cache ergaenzen“ berechnet
   die Hashes fuer vorhandene Seiten mit `quelle='ocr'` und `bild_hash IS NULL`
   (derzeit rund 1.400 Dokumente) und traegt sie in den Cache ein. Der Schritt ist

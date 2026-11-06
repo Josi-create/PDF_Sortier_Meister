@@ -66,6 +66,9 @@ def _iso_to_date(value):
     except ValueError:
         return None
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
+from src.core.pdf_analyzer import thumbnail_vergessen
+from src.core.pdf_rotate import DrehenNichtMoeglich, gegenrichtung, rotate_pdf
+from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
@@ -175,6 +178,9 @@ class MainWindow(QMainWindow):
         self._llm_success_since_error = False  # seit dem letzten Fehler kam ein Erfolg
         # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
         self._preview_window: Optional[PdfPreviewWindow] = None
+        # "OCR neu durchführen" im Hintergrund (Issue #150)
+        self._ocr_neu_worker: Optional[OcrNeuWorker] = None
+        self._ocr_neu_paths: list[Path] = []
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -781,6 +787,8 @@ class MainWindow(QMainWindow):
             widget.split_requested.connect(self.on_pdf_split)
             widget.merge_requested.connect(self.on_pdf_merge)
             widget.stack_requested.connect(self.on_pdf_stacked)
+            widget.rotate_requested.connect(self.on_pdf_rotate)
+            widget.reocr_requested.connect(self.on_pdf_reocr)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
@@ -1672,6 +1680,10 @@ class MainWindow(QMainWindow):
             self._preview_window.close()
         # Reiter „Suche“: Abfrage-Threads und PDF-Leser der eigenen Vorschau
         self.search_view.shutdown()
+
+        # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
+        if self._ocr_neu_worker is not None:
+            self._ocr_neu_worker.requestInterruption()
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -3122,6 +3134,141 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
         self.load_pdfs()
 
+    # --- Drehen und OCR neu (Issue #150) ---
+
+    def _aktion_ziele(self, pdf_path: Path) -> list[Path]:
+        """Gehoert die Kachel zur Mehrfachauswahl, gilt die Aktion fuer alle markierten PDFs."""
+        if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
+            return list(self.selected_pdfs)
+        return [pdf_path]
+
+    def on_pdf_rotate(self, pdf_path: Path, grad: int):
+        """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
+        self._rotate_pdfs(self._aktion_ziele(pdf_path), grad)
+
+    def _rotate_pdfs(self, paths: list[Path], grad: int, undo: bool = True) -> list[Path]:
+        """Dreht die PDFs um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
+
+        Mit ``undo`` kommt ein Eintrag mit der Gegenrotation auf den
+        Rueckgaengig-Stapel. Liefert die gedrehten Pfade.
+        """
+        gedreht: list[Path] = []
+        fehler: list[str] = []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path in paths:
+                try:
+                    rotate_pdf(path, grad)
+                except DrehenNichtMoeglich as e:
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                except PermissionError:
+                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    continue
+                except Exception as e:  # noqa: BLE001 - je Datei melden
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                gedreht.append(path)
+                self._pdf_inhalt_geaendert(path)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        richtung = {90: "90° nach rechts", -90: "90° nach links", 270: "90° nach links", 180: "180°"}[grad]
+        wer = gedreht[0].name if len(gedreht) == 1 else f"{len(gedreht)} PDFs"
+        if gedreht and undo:
+            self._push_undo({
+                "type": "rotate",
+                "paths": list(gedreht),
+                "grad": grad,
+                "description": f"{wer} {richtung} gedreht",
+            })
+            self.statusbar.showMessage(f"{wer} {richtung} gedreht (Ctrl+Z macht es rückgängig)", 5000)
+        if fehler:
+            QMessageBox.warning(self, "Drehen", "Nicht gedreht:\n\n" + "\n".join(fehler))
+        return gedreht
+
+    def _undo_rotate(self, entry: dict):
+        """Dreht die PDFs zurueck (Gegenrotation)."""
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        vorhanden = [p for p in entry["paths"] if Path(p).exists()]
+        fehlen = len(entry["paths"]) - len(vorhanden)
+        if vorhanden:
+            self._rotate_pdfs(vorhanden, gegenrichtung(entry["grad"]), undo=False)
+        text = f"Rückgängig: {entry['description']}"
+        if fehlen:
+            text += f" ({fehlen} PDF(s) nicht mehr am alten Ort)"
+        self.statusbar.showMessage(text, 5000)
+
+    def _pdf_inhalt_geaendert(self, path: Path):
+        """Nach einer Aenderung am Inhalt (Drehen): Thumbnail, Analyse, Vorschau und Index auffrischen."""
+        thumbnail_vergessen(path)
+        widget = self._pdf_widget_for(path)
+        if widget is not None:
+            widget.load_thumbnail()
+        self.pdf_cache.clear_for_pdf(path)
+        index_melden("datei_geaendert", str(path))
+        if self._preview_window is not None and self._preview_window.current_path() == path:
+            self._preview_window.show_pdf(path)
+        if self.selected_pdf == path and not self.selected_pdfs:
+            if self.detail_panel.has_user_edits():
+                # Eingaben des Nutzers nicht verwerfen: nur die Vorschau neu laden
+                self.detail_panel.preview.load_pdf(path)
+            else:
+                self.update_suggestions_for_pdf(path)
+
+    def on_pdf_reocr(self, pdf_path: Path):
+        """Kontextmenue "OCR neu durchführen"."""
+        self._reocr_pdfs(self._aktion_ziele(pdf_path))
+
+    def _reocr_pdfs(self, paths: list[Path]):
+        """Startet die neue Texterkennung im Hintergrund (Wartezeiger, Kacheln "Analysiere…")."""
+        if self._ocr_neu_worker is not None:
+            self.statusbar.showMessage("Die Texterkennung läuft noch - bitte warten.", 4000)
+            return
+        self._ocr_neu_paths = list(paths)
+        for path in paths:
+            widget = self._pdf_widget_for(path)
+            if widget is not None:
+                widget.analyzing = True
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(f"Texterkennung neu: {len(paths)} PDF(s)…")
+        worker = OcrNeuWorker(paths, self)
+        worker.fortschritt.connect(self._on_reocr_progress)
+        worker.fertig.connect(self._on_reocr_done)
+        self._ocr_neu_worker = worker
+        worker.start()
+
+    def _on_reocr_progress(self, nummer: int, anzahl: int, path: Path):
+        self.statusbar.showMessage(f"Texterkennung neu ({nummer}/{anzahl}): {path.name}…")
+
+    def _on_reocr_done(self, ergebnisse: list):
+        """Ergebnis der neuen Texterkennung: Analysen verwerfen, ausgewaehlte PDF neu laden."""
+        self._ocr_neu_worker = None
+        QApplication.restoreOverrideCursor()
+        for path in self._ocr_neu_paths:
+            widget = self._pdf_widget_for(path)
+            if widget is not None:
+                widget.analyzing = False
+        self._ocr_neu_paths = []
+        fehler = []
+        seiten = 0
+        for path, erg in ergebnisse:
+            self.pdf_cache.clear_for_pdf(path)
+            seiten += int(erg.get("seiten") or 0)
+            if erg.get("fehler"):
+                fehler.append(f"{path.name}: {erg['fehler']}")
+        if self.selected_pdf is not None and not self.selected_pdfs and any(
+            path == self.selected_pdf for path, _ in ergebnisse
+        ):
+            self.update_suggestions_for_pdf(self.selected_pdf)
+        text = f"Texterkennung neu: {len(ergebnisse)} PDF(s)"
+        if seiten:
+            text += f", {seiten} Seite(n) erkannt"
+        self.statusbar.showMessage(text, 6000)
+        if fehler:
+            QMessageBox.warning(self, "OCR neu durchführen", "\n".join(fehler))
+
     # --- Undo-Funktionalität ---
 
     def _push_undo(self, entry: dict):
@@ -3162,6 +3309,8 @@ class MainWindow(QMainWindow):
             self._undo_rename(entry)
         elif entry_type == "stack":
             self._undo_stack_pdfs(entry)
+        elif entry_type == "rotate":
+            self._undo_rotate(entry)
         else:
             self._undo_move(entry)
 

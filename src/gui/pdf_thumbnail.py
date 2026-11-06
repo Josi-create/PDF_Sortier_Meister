@@ -66,6 +66,8 @@ class PDFThumbnailWidget(QFrame):
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
+    rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
+    reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
@@ -462,11 +464,40 @@ class PDFThumbnailWidget(QFrame):
 
         menu.addSeparator()
 
+        # Issue #150: ganze PDF verlustfrei drehen, Texterkennung neu. Bei
+        # Mehrfachauswahl (diese Kachel gehoert dazu) gilt es fuer alle.
+        count = selection_count if selection_count > 1 and self.selected else 1
+        suffix = f" ({count} PDFs)" if count > 1 else ""
+        rotate_menu = menu.addMenu(f"Drehen{suffix}")
+        rotate_left = rotate_menu.addAction("90° nach links")
+        rotate_left.triggered.connect(self._rotate_left)
+        rotate_right = rotate_menu.addAction("90° nach rechts")
+        rotate_right.triggered.connect(self._rotate_right)
+        rotate_half = rotate_menu.addAction("180°")
+        rotate_half.triggered.connect(self._rotate_180)
+        reocr_action = menu.addAction(f"OCR neu durchführen{suffix}")
+        reocr_action.setToolTip("Gescannte Seiten neu erkennen, z. B. nach dem Drehen")
+        reocr_action.triggered.connect(self._request_reocr)
+
+        menu.addSeparator()
+
         # Löschen
         delete_action = menu.addAction("Löschen")
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
         return menu
+
+    def _rotate_left(self):
+        self.rotate_requested.emit(self.pdf_path, -90)
+
+    def _rotate_right(self):
+        self.rotate_requested.emit(self.pdf_path, 90)
+
+    def _rotate_180(self):
+        self.rotate_requested.emit(self.pdf_path, 180)
+
+    def _request_reocr(self):
+        self.reocr_requested.emit(self.pdf_path)
 
     def _show_in_file_manager(self):
         """Markiert die PDF im Explorer/Finder (Issue #154)."""
