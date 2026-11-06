@@ -41,15 +41,18 @@ class ChatWorker(QObject):
     finished = pyqtSignal(object)  # emittiert RAGResponse
     failed = pyqtSignal(str)
 
-    def __init__(self, controller, question: str) -> None:
+    def __init__(self, controller, question: str, bezug=None) -> None:
         """
         Args:
             controller: Eine :class:`~src.rag.rag_controller.RAGController`.
             question: Die Nutzerfrage.
+            bezug: Optionales Bezugsdokument (Issue #148), wird an
+                ``ask()`` durchgereicht.
         """
         super().__init__()
         self.controller = controller
         self.question = question
+        self.bezug = bezug
         self._cancel_event = threading.Event()
         self._cancelled = False
         # Signal-Safety (M3-Hardening): ``finished`` und ``failed`` duerfen
@@ -78,7 +81,10 @@ class ChatWorker(QObject):
             token = activity.begin(KIND_CHAT, self.question[:40])
             ok = False
             try:
-                response = self.controller.ask(self.question)
+                if self.bezug is None:
+                    response = self.controller.ask(self.question)
+                else:
+                    response = self.controller.ask(self.question, bezug=self.bezug)
                 ok = True
             finally:
                 activity.end(token, success=ok)

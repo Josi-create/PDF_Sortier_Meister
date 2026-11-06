@@ -131,7 +131,7 @@ class RetrievalService:
     # Public API                                                         #
     # ------------------------------------------------------------------ #
 
-    def retrieve(self, question: str, k: int = None) -> list[RetrievedDoc]:
+    def retrieve(self, question: str, k: int = None, zusatz: str = "") -> list[RetrievedDoc]:
         """
         Durchsucht den Index nach passenden Dokumenten zur Frage.
 
@@ -140,19 +140,30 @@ class RetrievalService:
         3. FTS5-OR-Query bauen.
         4. ``db.search_documents`` aufrufen.
         5. Trunc-Snippets erzeugen.
+
+        Args:
+            zusatz: Weitere Suchbegriffe (z.B. Korrespondent, Kategorie und
+                Steuerjahr eines Bezugsdokuments, Issue #148). Sie erweitern
+                die ODER-Abfrage, werden aber NICHT zu Filtern.
         """
         if k is None:
             k = self.chat_config.max_context_docs
 
-        if not question or not question.strip():
+        if not ((question and question.strip()) or (zusatz and zusatz.strip())):
             return []
 
-        stripped = self._strip_stopwords(question)
+        stripped = self._strip_stopwords(question or "")
         terms = self._tokenize(stripped)
+        if zusatz:
+            vorhanden = {t.lower() for t in terms}
+            for t in self._tokenize(self._strip_stopwords(zusatz)):
+                if t.lower() not in vorhanden:
+                    vorhanden.add(t.lower())
+                    terms.append(t)
         if not terms:
             return []
 
-        filters = self._extract_filters(question)
+        filters = self._extract_filters(question or "")
         fts_query = self._build_fts5_query(terms)
 
         try:
