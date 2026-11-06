@@ -17,7 +17,8 @@ Der Scanner legt `scan_0042.pdf` ab — und dann? PDF Sortier Meister zeigt die 
 Vorschau, schlägt Zielordner und einen sprechenden Dateinamen vor, schreibt Kategorie,
 Betrag und Steuerjahr als Metadaten **in die PDF selbst** und lernt aus jeder Entscheidung.
 Die Dateien bleiben ganz normale PDFs in ganz normalen Ordnern (auch OneDrive) — kein
-Datenbank-Silo, kein Docker, kein Server.
+Datenbank-Silo, kein Docker, kein Server. Dazu kommt eine **Volltextsuche über den ganzen PC**:
+PDFs samt Scans, Word- und Excel-Dateien, Markdown und Mails — auch für KI-Assistenten wie Claude.
 
 > 🧪 **Beta — Tester gesucht!** Das Programm ist funktionsfähig und wird täglich benutzt,
 > aber bisher nur von wenigen Leuten. Wenn du Belege scannst und Ordnung willst, probier es
@@ -83,7 +84,7 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 ### Metadaten in der PDF, nicht in einer Datenbank
 - Kategorie, Korrespondent, Betrag (netto/brutto), MwSt, IBAN, Steuerjahr, Zusammenfassung werden als
   **XMP-Metadaten in die PDF geschrieben** — ISO-Standard, bleiben beim Kopieren/Umziehen erhalten
-- Zusätzlich ein lokaler **SQLite-Volltext-Index** (FTS5) für schnelle Suche
+- Zusätzlich landen die Metadaten im lokalen **Suchindex** (siehe [Dokumentensuche](#dokumentensuche-über-den-ganzen-pc))
 - **Suche** (`Ctrl+F`) mit Filtern: Steuerjahr, Kategorie, Korrespondent, Datums- und Betragsbereich
 - **Steuerauswertung**: Jahressummen nach Kategorie (brutto/netto/absetzbar) mit **CSV-Export**
 
@@ -106,6 +107,54 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   empfohlene Modell per Klick herunter (kein Terminal nötig)
 - Der lokale Klassifikator hat immer Vorrang; die KI wird nur bei niedriger Konfidenz hinzugezogen
 
+### Dokumentensuche über den ganzen PC
+- **Volltextsuche** über PDFs (auch gescannte: die Texterkennung liest im Hintergrund alle Seiten),
+  Word, Excel und OpenDocument (`doc`, `docx`, `xls`, `xlsx`, `odt`), Markdown und Mails (Thunderbird,
+  `.eml`, `.msg`) — in den Ordnern und Laufwerken, die du auswählst. Einschalten im
+  Einrichtungs-Assistenten oder unter *Einstellungen → Suche*; standardmäßig aus
+- Reiter **„Suche“** neben Vorschau und Chat (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
+  Seite, Vorschau springt auf die Trefferseite; Filter nach Typ, Ordner, Zeitraum und den PDFSM-Metadaten
+  (Steuerjahr, Kategorie, Korrespondent, Betrag). Suchsyntax: `Rechnung Telekom` (alle Wörter),
+  `"genaue Wortfolge"`, `Rechnung*`, `Strom ODER Gas`, `Rechnung NICHT Mahnung`; Umlaute sind egal
+- Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe
+- **Einmal täglich im Hintergrund**, sobald der Rechner nicht benutzt wird. War er zur eingestellten Zeit
+  aus, wird der Lauf nach dem Einschalten nachgeholt — erst im Leerlauf, nicht direkt nach dem Start. Bei
+  Benutzung hält der Lauf an und setzt später fort. Neue Scans liest „Jetzt indizieren“ sofort ein
+- **Jede Seite wird nur einmal erkannt**, auch wenn die Datei später verschoben, umbenannt oder mit neuen
+  Metadaten gespeichert wird
+- **Textebene für neue Scans** (abschaltbar): Gescannte PDFs ohne Text im Scan-Eingang bekommen den
+  erkannten Text als unsichtbare Ebene — dann finden auch der Explorer, Acrobat und andere Programme den
+  Text. Das Scanbild bleibt unverändert, vorher wird eine Sicherungskopie angelegt, jede Änderung ist
+  protokolliert und lässt sich rückgängig machen (`pdfsm-dienst textebene rueckgaengig <Nr>`)
+- **Browser-Oberfläche** (optional): dieselbe Suche unter `http://localhost:18425`, nur auf diesem Rechner
+  erreichbar; startet auf Wunsch bei der Anmeldung
+- **KI-Assistenten** (MCP): Claude Code, Claude Desktop und andere MCP-fähige Programme durchsuchen den
+  Index direkt — siehe [Dokumentensuche für KI-Assistenten](#dokumentensuche-für-ki-assistenten-mcp)
+- Wer bisher das eigenständige *PDFsuche* benutzt hat: Der Assistent erkennt es und übernimmt Einstellungen
+  und Datenbank samt aller OCR-Ergebnisse, ohne neu zu indizieren
+
+#### Dokumentensuche für KI-Assistenten (MCP)
+
+Neben dem Programm liegt `pdfsm-dienst` (Windows: `pdfsm-dienst.exe` im Installationsordner,
+standardmäßig `%LOCALAPPDATA%\Programs\PDF Sortier Meister`; macOS:
+`/Applications/PDF Sortier Meister.app/Contents/MacOS/pdfsm-dienst`). Als MCP-Server gibt er drei
+Werkzeuge frei: `suche`, `dokument_lesen` und `index_status`. Einrichten für **Claude Code**:
+
+```bash
+claude mcp add pdfsuche --scope user -- "<Installationsordner>\pdfsm-dienst.exe" mcp
+```
+
+Für **Claude Desktop** in `claude_desktop_config.json` unter `mcpServers`:
+
+```json
+"pdfsuche": { "command": "<Installationsordner>\\pdfsm-dienst.exe", "args": ["mcp"] }
+```
+
+Der Server liest den Index nur; er läuft, solange der Assistent ihn braucht. Weitere Befehle für die
+Kommandozeile: `pdfsm-dienst suche "Abfrage"`, `lesen`, `status`, `index`, `web`, `zeitplan --status`
+(`pdfsm-dienst --help`). Aufbau der Datenbank für eigene Auswertungen:
+[docs/SUCHE_SCHEMA.md](docs/SUCHE_SCHEMA.md).
+
 
 ---
 
@@ -118,9 +167,14 @@ Das ist ein Desktop-Programm. Ohne konfigurierten Cloud-Anbieter verlässt **nic
 | Kein KI-Anbieter (Standard) | nichts |
 | **Ollama** (lokal) | nichts — das Modell läuft auf deinem PC |
 | Cloud-Anbieter (Ollama Cloud, OpenRouter, Claude, OpenAI, Poe) | ein **Textauszug** der PDF (einstellbar 500–5000 Zeichen, Standard 1500) — *nur* nach ausdrücklicher Einwilligung in den Einstellungen; die PDF-Datei selbst wird nie hochgeladen |
+| Dokumentensuche, Browser-Oberfläche | nichts — Index und Oberfläche bleiben auf dem Rechner (`localhost`) |
+| KI-Assistent per MCP (z. B. Claude) | was der Assistent über die Werkzeuge abfragt (Treffer, gelesener Text), geht an dessen Anbieter — so, wie du es selbst einrichtest |
 
-Alle Daten (Konfiguration, Lernhistorie, Index, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
+Alle Daten (Konfiguration, Lernhistorie, Suchindex, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
 Es gibt keine Telemetrie und keinen Auto-Update-Mechanismus.
+
+Die Dokumentensuche **liest** deine Dateien nur. Einzige Ausnahme ist die abschaltbare Textebene für neue
+Scans (siehe oben): Sie schreibt den erkannten Text unsichtbar in die PDF, mit Sicherungskopie.
 
 ---
 
@@ -177,7 +231,9 @@ python run.py
 - OCR im Quellcode-Betrieb: Tesseract installieren — Windows: `winget install UB-Mannheim.TesseractOCR`,
   macOS: `brew install tesseract tesseract-lang` — die App findet es in den Standardordnern;
   in den Builds ist es gebündelt
-- Tests: `python -m pytest tests -q` (850+ Tests, pytest-qt); laufen per GitHub Actions auf Windows und macOS
+- Tests: `python -m pytest tests -q` (1300+ Tests, pytest-qt); laufen per GitHub Actions auf Windows und macOS
+- Dokumentensuche ohne Oberfläche: `python -m src.search.dienst --help` (dasselbe wie `pdfsm-dienst` im Build);
+  die Browser-Oberfläche braucht `pip install flask waitress`
 - Windows-Build: `build.bat` — PyInstaller (`pdf_sortier_meister.spec`), kopiert Tesseract nach `vendor/`
   und baut mit Inno Setup 6 den Installer (`scripts/build_installer.py`)
 - macOS-Build: `./build.sh` — gleicher PyInstaller-Spec, bündelt Tesseract (`scripts/prepare_tesseract_mac.py`,
@@ -188,6 +244,7 @@ python run.py
   zwei DMGs) und legt ein Draft-Release an
 
 Architektur und Entscheidungen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
+Dokumentensuche: [docs/SUCHE_ARCHITEKTUR.md](docs/SUCHE_ARCHITEKTUR.md), [docs/SUCHE_SCHEMA.md](docs/SUCHE_SCHEMA.md) ·
 Versionshistorie: [CHANGELOG.md](CHANGELOG.md) ·
 Release-Ablauf: [docs/RELEASE_CHECKLISTE.md](docs/RELEASE_CHECKLISTE.md) ·
 Offene Vorhaben: [Issues](https://github.com/Josi-create/PDF_Sortier_Meister/issues)
@@ -203,8 +260,9 @@ paperless übernimmt dabei Datum und Titel aus dem **Dateinamen**, die eingebett
 liest es nicht aus. Was PDFSM gegenüber paperless-ngx (v3.1, mit eigener KI) noch fehlt und was
 nicht: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) (Stand 09/2026).
 
-Bekannte Grenzen: Löschen fragt nach, ist danach aber endgültig (kein Papierkorb); OCR liest die
-ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
+Bekannte Grenzen: Löschen fragt nach, ist danach aber endgültig (kein Papierkorb); die sofortige OCR
+beim Anklicken eines Scans liest die ersten fünf Seiten (die übrigen erkennt der Hintergrundlauf der
+Dokumentensuche); der Chat gibt der KI je Dokument höchstens 5.000 Zeichen mit.
 
 ---
 
@@ -216,9 +274,10 @@ ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 | PyQt6-Pdf | Integrierte PDF-Vorschau (QtPdf; seit PyQt6 6.12 eigenes Paket) |
 | PyMuPDF | PDF-Rendering, Textextraktion |
 | pikepdf | XMP-Metadaten in PDFs schreiben |
-| pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch, erste 5 Seiten; siehe #46) |
+| pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch und Englisch; im Hintergrund alle Seiten) |
 | scikit-learn | TF-IDF-Klassifikator (lokal, lernend) |
-| SQLAlchemy + SQLite FTS5 | Lernhistorie, Metadaten-Index, Volltextsuche |
+| SQLAlchemy + SQLite | Lernhistorie, Korrespondenten, Regeln |
+| SQLite FTS5 | Suchindex der Dokumentensuche (Volltext je Seite, OCR-Cache, Metadaten) |
 | extract-msg, olefile, xlrd | Dokumentensuche: Outlook-Mails (.msg), Word 97–2003 (.doc), Excel 97–2003 (.xls) |
 | mcp | MCP-Server der Dokumentensuche für KI-Assistenten (z. B. Claude) |
 | Flask + waitress (optional) | Browser-Oberfläche der Dokumentensuche |

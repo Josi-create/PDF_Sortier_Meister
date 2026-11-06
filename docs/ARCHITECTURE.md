@@ -4,6 +4,39 @@
 > **Datum:** 14.06.2026
 > **Feature:** Phase 19 / Issue #20
 
+> **Stand 11/2026 – der Chat liest aus dem Index der Dokumentensuche.** Seit der
+> Integration von PDFsuche ([SUCHE_ARCHITEKTUR.md](SUCHE_ARCHITEKTUR.md)) gibt es
+> nur noch einen Suchindex: `suche.db` (Schema: [SUCHE_SCHEMA.md](SUCHE_SCHEMA.md)).
+> Die Tabelle `document_search` in `history.db` mit ihrem auf 5.000 Zeichen
+> gekappten Text ohne OCR ist abgeschafft und wurde beim ersten Start einmalig
+> uebernommen. Fuer den Chat hat sich dadurch geaendert:
+>
+> - `Database.search_documents()` ist eine Fassade ueber `Suchindex.suche()`:
+>   gleiche Signatur und Ergebnisschluessel, dazu `dok_id`, `seite` (erste
+>   Fundstelle) und `typ`. Gesucht wird ueber den Text **aller Seiten** (auch
+>   per OCR erkannte), ueber Name und Ordner und ueber die PDFSM-Metadaten
+>   (`metadaten_fts`: Korrespondent, Kategorie, Zusammenfassung, Schlagwoerter).
+>   Die Filter (Steuerjahr, Kategorie, Korrespondent, Betrag) sind Spalten von
+>   `dokumente`.
+> - Treffer koennen alle Dokumenttypen des Index sein: PDFs, Office-Dateien,
+>   Markdown und Mails, soweit sie in der Dokumentensuche eingerichtet sind.
+> - `extracted_text` ist der Volltext aus dem Index (fuer den Prompt weiter auf
+>   `MAX_EXTRACTED_TEXT_LENGTH` = 5.000 Zeichen gekappt, daraus der Ausschnitt
+>   mit `snippet_max_chars`). Der Chat ruft keine eigene Textextraktion auf.
+> - Quellen tragen die **Seite** der Fundstelle (`RetrievedDoc.seite`,
+>   `Citation.seite`). Ein Klick oeffnet die PDF direkt auf dieser Seite
+>   (`ChatView.open_pdf_page_requested`).
+> - Auch bei ausgeschalteter Dokumentensuche fuehrt PDFSM jede PDF, die es
+>   sortiert oder mit Metadaten versieht, im Index (`Suchindex.metadaten_setzen`,
+>   liest die Datei dabei sofort). Der Chat findet dann diese Dokumente; weitere
+>   Ordner, Laufwerke und Mails kommen erst mit eingeschalteter Suche dazu.
+> - Zu den vier Anbietern von v0.12.0 sind Ollama Cloud (erbt von Ollama),
+>   OpenRouter und Strata (erben von OpenAI) dazugekommen; alle beantworten den
+>   Chat ueber `answer_with_context()`.
+>
+> Die Abschnitte unten beschreiben den Entwurf von v0.12.0; wo er durch die
+> Integration ueberholt ist, steht ein Hinweis.
+
 ## 1. Architektur-Überblick
 
 **Neue Komponenten** (Modul `src/rag/`):
@@ -21,6 +54,8 @@
 - `Config`: `ChatConfig` (max_context_docs, max_history_turns, snippet_max_chars, cache_size)
 
 **Unverändert**: `database.py`-Kern (FTS5 reicht), `pdf_cache.py`, `bulk_index_directory`.
+*(Stand 11/2026: `search_documents` liest aus `suche.db`; `bulk_index_directory` ist durch den
+Indexlauf der Dokumentensuche ersetzt.)*
 
 **Datenfluss** (textuell):
 ```
@@ -28,7 +63,8 @@
    ↓ signal
 [ChatView] ──► [RAGController.ask(question, history)]
                   ├─► [RetrievalService.retrieve(q)] ──► [database.search_documents()]
-                  │       └─► Liste[RetrievedDoc] (k=8, Snippet je 2000 Zeichen)
+                  │       │        └─► Fassade: [Suchindex.suche()] ──► suche.db
+                  │       └─► Liste[RetrievedDoc] (k=8, Snippet je 2000 Zeichen, mit Seite)
                   ├─► [LLMProvider.answer_with_context(sys, ctx, q)]
                   │       └─► raw_answer (Text + [N]-Tags)
                   ├─► [CitationParser.parse_and_validate(answer, retrieved_docs)]
@@ -37,7 +73,7 @@
    ↓ signal(RAGResponse)
 [ChatView rendert Bubbles + klickbare [N]-Labels]
    ↓ click [N]
-[QDesktopServices.openUrl(file_path) → PDF öffnet im System-Viewer]
+[PDF öffnet auf der Seite der Fundstelle (Stand 11/2026; v0.12.0: System-Viewer)]
 ```
 
 ```
@@ -51,9 +87,10 @@
                     │ RetrievalService│
                     └────────┬────────┘
                              ▼
-                    ┌─────────────────┐
-                    │ database.FTS5   │
-                    └─────────────────┘
+                    ┌─────────────────────────────┐
+                    │ search_documents (Fassade)  │
+                    │ → Suchindex → suche.db FTS5 │
+                    └─────────────────────────────┘
 ```
 
 ## 2. Chunking-Strategie
@@ -79,6 +116,11 @@
 > in [Vergleich paperless-ngx.md](../Vergleich%20paperless-ngx.md) beschrieben und
 > erst sinnvoll, wenn OCR alle Seiten liefert und der 5.000-Zeichen-Cap (Q3/R8)
 > fällt.
+>
+> Stand 11/2026: Beide Voraussetzungen sind mit der Dokumentensuche erfüllt
+> (OCR aller Seiten im Hintergrund, Volltext je Seite im Index). Embeddings
+> bleiben ein mögliches Folgevorhaben; FTS5 sucht jetzt seitengenau und über die
+> Metadaten.
 
 **Query-Konstruktion**:
 1. Stopword-Strip (deutsche Stopwords, inline-Liste ~80 Wörter)
@@ -154,6 +196,7 @@ REGELN:
 - `ChatView` rendert Antwort in `QTextEdit` (read-only)
 - `[N]` → `CitationLabel(QPushButton)` mit Text „Quelle N öffnen"
 - Klick → `QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))`
+  *(Stand 11/2026: mit bekannter Seite öffnet die PDF direkt auf der Fundstelle)*
 
 **Validierung (Halluzinations-Schutz)**:
 - Jeder zitierte Dateiname gegen `set(retrieved_docs.filename)` prüfen
@@ -251,14 +294,14 @@ REGELN:
 | R3 | PyQt6-Threading-Bugs | QObject-move-to-thread Pattern strikt |
 | R4 | Cloud-Provider leaken Snippets | Privacy-Hinweis, Snippet-Größe klein |
 | R5 | FTS5 OR-Query zu permissiv | Top-K=8 cap, AND-Fallback |
-| R6 | OCR-Qualität schlecht | Out-of-scope v1, Issue für v0.13 |
+| R6 | OCR-Qualität schlecht | Out-of-scope v1, Issue für v0.13 *(11/2026: OCR aller Seiten mit Tesseract `deu+eng`, 300 dpi, im Index)* |
 | R7 | Token-Limit-Überschreitung Ollama 8B | `snippet_max_chars=2000` × 8 = 4000 worst case |
-| R8 | `extracted_text` wächst unkontrolliert | 5.000-Zeichen-Cap beim Insert (siehe Q3) |
+| R8 | `extracted_text` wächst unkontrolliert | 5.000-Zeichen-Cap beim Insert (siehe Q3) *(11/2026: Volltext je Seite in `suche.db`, Cap nur noch beim Prompt)* |
 
 ### Offene Fragen (alle entschieden)
 
 - **Q1** ✅ In-Memory default, SQLite optional
-- **Q3** ✅ 5.000-Zeichen-Cap beim Bulk-Index
+- **Q3** ✅ 5.000-Zeichen-Cap beim Bulk-Index *(überholt 11/2026: der Index hält den vollen Text, gekappt wird nur der Kontext für die KI)*
 - **Q5** ✅ Read-only v1
 - Q2, Q4, Q6–Q8 → Defaults von Opus übernommen, später entscheidbar
 

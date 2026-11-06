@@ -7,71 +7,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Behoben
-- **Hintergrundindexierung, wenn der Rechner nachts aus ist**: Die
-  Einstellung heißt jetzt „Einmal täglich im Hintergrund indizieren, sobald
-  der Rechner nicht benutzt wird“ mit „Frühestens ab“ (Standard 00:00) statt
-  einer festen Uhrzeit. War der Rechner zu dieser Zeit aus, wird der Lauf
-  nach dem Einschalten nachgeholt, aber erst, wenn der Rechner zehn Minuten
-  nicht benutzt wurde. Unter macOS startet die Indexierung dafür zusätzlich
-  bei der Anmeldung und wartet auf Leerlauf, höchstens einmal am Tag.
-- **Übernahme einer vorhandenen PDFsuche** (Dokumentensuche): Korrespondent,
-  Steuerjahr, Betrag und die anderen Angaben, die PDF Sortier Meister vor der
-  Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
-  Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
-  Stand gebracht.
-- **Browser-Oberfläche der Suche**: Öffnet man dort ein Dokument oder seinen
-  Ordner, erscheint das Programm (Excel, Word, Mailprogramm, Explorer) jetzt
-  im Vordergrund statt hinter dem Browser (Windows).
-- **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
-  `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
-- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
-  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
-  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
-  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
-  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
-  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
-  geladenen Baumtiefe erscheinen jetzt.
-- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
-  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
-  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
-  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
-  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
-  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
-  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
-  bleiben wie bisher gruen.
-- **KI-Statusanzeige sagt jetzt, was zu tun ist**: Antwortet Ollama zwar,
-  kann aber kein Modell laden (z.B. fehlender `llama-server` nach einem
-  abgebrochenen Update), wurde die Anzeige nach jeder Minutenpruefung wieder
-  gruen. Jetzt zaehlt der echte Fehler einer KI-Anfrage: die Anzeige bleibt
-  rot (mit ⚠), bis wieder eine Anfrage gelingt oder die Einstellungen
-  geaendert werden - das gilt auch fuer Cloud-Anbieter (z.B. ungueltiger
-  API-Key, Guthaben aufgebraucht). Der Tooltip nennt in einfachen Worten
-  Problem und Abhilfe („Ollama neu installieren bzw. aktualisieren“,
-  „ein vorhandenes Modell auswaehlen“ ...), ein Doppelklick oeffnet die
-  Einstellungen. Fehler, die nur ein einzelnes Dokument betreffen („KI hat
-  keinen Vorschlag geliefert“), faerben die Anzeige nicht rot. Nach einem
-  Fehler fragt PDFSM jede Minute eine gescheiterte PDF erneut an; klappt das
-  wieder, holt die Vorabfrage die uebrigen von selbst nach. Der Dialog
-  „Hintergrund-Analyse“ zeigt denselben Hinweis und hat einen Knopf
-  „Einstellungen oeffnen“.
-- **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
-  galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
-  oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
-  ein Dokument von 2006, und das Steuerjahr folgte. Fand die Texterkennung
-  gar kein Datum, nahm die KI stillschweigend das Scandatum der Datei. Jetzt
-  zaehlt ein beschriftetes Datum („Datum:“, „Rechnungsdatum“, „Ort, den“)
-  zuerst, danach das erste Datum in Lesereihenfolge (Briefkopf); Daten hinter
-  „geboren“, „gueltig bis“, „faellig“, „Frist“ oder „Eingang“ nur als
-  Notnagel. Der KI-Prompt erklaert Fristen und Scandatum ausdruecklich als
-  Nicht-Dokumentdatum, verlangt das Datum als eigenes Metadatum und bekommt
-  den Namen des Quellordners („Briefe 2004“) als Hinweis mit.
-- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
-  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
-  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
-  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
-  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
-  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
+## [0.24.0] - 2026-11-06
 
 ### Neu
 - **Dokumentensuche, Grundstein** (Integration von PDFsuche, Phase 1): Neues,
@@ -307,8 +243,78 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
   ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
   Vergleich ergaenzt.
+- **Dokumentation**: Die README beschreibt die Dokumentensuche (Suche über
+  den ganzen PC, Hintergrundlauf, Textebene, Browser-Oberfläche) und wie man
+  sie in Claude Code oder Claude Desktop als MCP-Server einträgt; die
+  Datenschutz-Tabelle nennt Suche und MCP. Neu: `docs/SUCHE_SCHEMA.md` mit dem
+  Aufbau der Such-Datenbank (Version 2) für eigene Auswertungen.
+  `docs/ARCHITECTURE.md` beschreibt, dass der Chat aus diesem Index liest.
 
 ### Behoben
+- **Hintergrundindexierung, wenn der Rechner nachts aus ist**: Die
+  Einstellung heißt jetzt „Einmal täglich im Hintergrund indizieren, sobald
+  der Rechner nicht benutzt wird“ mit „Frühestens ab“ (Standard 00:00) statt
+  einer festen Uhrzeit. War der Rechner zu dieser Zeit aus, wird der Lauf
+  nach dem Einschalten nachgeholt, aber erst, wenn der Rechner zehn Minuten
+  nicht benutzt wurde. Unter macOS startet die Indexierung dafür zusätzlich
+  bei der Anmeldung und wartet auf Leerlauf, höchstens einmal am Tag.
+- **Übernahme einer vorhandenen PDFsuche** (Dokumentensuche): Korrespondent,
+  Steuerjahr, Betrag und die anderen Angaben, die PDF Sortier Meister vor der
+  Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
+  Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
+  Stand gebracht.
+- **Browser-Oberfläche der Suche**: Öffnet man dort ein Dokument oder seinen
+  Ordner, erscheint das Programm (Excel, Word, Mailprogramm, Explorer) jetzt
+  im Vordergrund statt hinter dem Browser (Windows).
+- **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
+  `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
+- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
+  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
+  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
+  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
+  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
+  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
+  geladenen Baumtiefe erscheinen jetzt.
+- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
+  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
+  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
+  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
+  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
+  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
+  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
+  bleiben wie bisher gruen.
+- **KI-Statusanzeige sagt jetzt, was zu tun ist**: Antwortet Ollama zwar,
+  kann aber kein Modell laden (z.B. fehlender `llama-server` nach einem
+  abgebrochenen Update), wurde die Anzeige nach jeder Minutenpruefung wieder
+  gruen. Jetzt zaehlt der echte Fehler einer KI-Anfrage: die Anzeige bleibt
+  rot (mit ⚠), bis wieder eine Anfrage gelingt oder die Einstellungen
+  geaendert werden - das gilt auch fuer Cloud-Anbieter (z.B. ungueltiger
+  API-Key, Guthaben aufgebraucht). Der Tooltip nennt in einfachen Worten
+  Problem und Abhilfe („Ollama neu installieren bzw. aktualisieren“,
+  „ein vorhandenes Modell auswaehlen“ ...), ein Doppelklick oeffnet die
+  Einstellungen. Fehler, die nur ein einzelnes Dokument betreffen („KI hat
+  keinen Vorschlag geliefert“), faerben die Anzeige nicht rot. Nach einem
+  Fehler fragt PDFSM jede Minute eine gescheiterte PDF erneut an; klappt das
+  wieder, holt die Vorabfrage die uebrigen von selbst nach. Der Dialog
+  „Hintergrund-Analyse“ zeigt denselben Hinweis und hat einen Knopf
+  „Einstellungen oeffnen“.
+- **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
+  galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
+  oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
+  ein Dokument von 2006, und das Steuerjahr folgte. Fand die Texterkennung
+  gar kein Datum, nahm die KI stillschweigend das Scandatum der Datei. Jetzt
+  zaehlt ein beschriftetes Datum („Datum:“, „Rechnungsdatum“, „Ort, den“)
+  zuerst, danach das erste Datum in Lesereihenfolge (Briefkopf); Daten hinter
+  „geboren“, „gueltig bis“, „faellig“, „Frist“ oder „Eingang“ nur als
+  Notnagel. Der KI-Prompt erklaert Fristen und Scandatum ausdruecklich als
+  Nicht-Dokumentdatum, verlangt das Datum als eigenes Metadatum und bekommt
+  den Namen des Quellordners („Briefe 2004“) als Hinweis mit.
+- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
+  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
+  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
+  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
+  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
+  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 - **Fehlerdialog nach „Verschieben nach…“:** Das Verschieben ueber den
   Ordnerauswahl-Dialog lief durch, meldete danach aber „Verschieben
   fehlgeschlagen“ (undefinierte Variable beim Aktualisieren der
@@ -904,7 +910,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.1...v0.16.0
