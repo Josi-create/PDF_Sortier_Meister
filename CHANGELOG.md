@@ -86,6 +86,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die KI konkret benennen, worum es geht.
 
 ### Geaendert
+- **Neue Abhaengigkeit PyQt6-Pdf:** Seit PyQt6 6.12 (Oktober 2026) liegen
+  die Module `QtPdf` und `QtPdfWidgets` der integrierten PDF-Vorschau im
+  eigenen Paket `PyQt6-Pdf`. `requirements.txt` und `pyproject.toml`
+  verlangen jetzt `PyQt6>=6.12` und `PyQt6-Pdf>=6.140`; bei einer
+  bestehenden Installation einmal `pip install -r requirements.txt`
+  ausfuehren. Ohne das Paket startet die Vorschau nicht, und die Tests auf
+  GitHub Actions schlugen seit dem 5. November 2026 beim Einsammeln fehl.
 - **Ollama-Fehler nennen den Grund:** Antwortet Ollama mit einem
   HTTP-Fehler, steht im Log und in Fehlermeldungen jetzt der Text aus der
   Antwort, z. B. `Ollama HTTP 500: llama runner process has terminated:

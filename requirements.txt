@@ -1,7 +1,10 @@
 # PDF Sortier Meister - Dependencies
 
 # GUI Framework
-PyQt6>=6.5.0
+# Seit PyQt6 6.12 (Oktober 2026) liegen QtPdf/QtPdfWidgets (integrierte
+# PDF-Vorschau) im eigenen Paket PyQt6-Pdf; beide Versionen muessen zusammenpassen.
+PyQt6>=6.12.0
+PyQt6-Pdf>=6.140.0
 
 # PDF-Verarbeitung
 PyMuPDF>=1.23.0
