@@ -13,8 +13,14 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QDragEnterEvent, QDropEvent, QFontMetrics
-from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout
 
+from src.gui.pfad_aktionen import (
+    PFAD_KOPIEREN_TEXT,
+    im_dateimanager_zeigen,
+    oeffnen_text,
+    pfad_kopieren,
+)
 from src.gui.tile_view import TileView, fit_text_lines, tile_view
 
 
@@ -157,6 +163,25 @@ class FolderTileWidget(QFrame):
         if event.button() == Qt.MouseButton.LeftButton:
             self.double_clicked.emit(self.folder_path)
         super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self, event):
+        """Rechtsklick: im Dateimanager oeffnen, Pfad kopieren (Issue #154)."""
+        self._build_context_menu().exec(event.globalPos())
+
+    def _build_context_menu(self) -> QMenu:
+        """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
+        menu = QMenu(self)
+        open_action = menu.addAction(oeffnen_text())
+        open_action.triggered.connect(self._open_in_file_manager)
+        copy_action = menu.addAction(PFAD_KOPIEREN_TEXT)
+        copy_action.triggered.connect(self._copy_path)
+        return menu
+
+    def _open_in_file_manager(self):
+        im_dateimanager_zeigen(self.folder_path)
+
+    def _copy_path(self):
+        pfad_kopieren(self.folder_path)
 
     def enterEvent(self, event):
         self.setStyleSheet(self._STYLE_HOVER)

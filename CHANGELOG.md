@@ -7,6 +7,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Rechtsklick: „Pfad kopieren“ und „Im Explorer anzeigen“** (#154): Die
+  PDF-Kacheln haben unter „PDF öffnen“ zwei neue Einträge: „Im Explorer
+  anzeigen“ öffnet den Ordner und markiert die Datei, „Pfad kopieren“ legt den
+  vollständigen Pfad in die Zwischenablage. Die Ordner im linken Fenster
+  (auch „..“) bekommen dafür erstmals ein Kontextmenü mit „Im Explorer
+  öffnen“ und „Pfad kopieren“; der Zielordner-Baum und die grünen
+  Vorschlagskacheln haben „Pfad kopieren“ zusätzlich. Unter macOS heißen die
+  Einträge „Im Finder zeigen“ bzw. „Im Finder öffnen“.
+
 ## [0.24.0] - 2026-11-06
 
 ### Neu

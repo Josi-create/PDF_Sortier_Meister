@@ -18,6 +18,12 @@ from PyQt6.QtWidgets import (
     QToolTip,
 )
 
+from src.gui.pfad_aktionen import (
+    PFAD_KOPIEREN_TEXT,
+    im_dateimanager_zeigen,
+    pfad_kopieren,
+    zeigen_text,
+)
 from src.gui.tile_view import TileView, fit_text_lines, tile_view
 
 
@@ -405,6 +411,10 @@ class PDFThumbnailWidget(QFrame):
 
     def contextMenuEvent(self, event):
         """Zeigt das Kontextmenü an."""
+        self._build_context_menu().exec(event.globalPos())
+
+    def _build_context_menu(self) -> QMenu:
+        """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
 
         # Prüfen ob Mehrfachauswahl aktiv ist
@@ -413,6 +423,12 @@ class PDFThumbnailWidget(QFrame):
         # Öffnen
         open_action = menu.addAction("PDF öffnen")
         open_action.triggered.connect(lambda: self._open_pdf())
+
+        # Issue #154: Ablageort zeigen und Pfad kopieren
+        show_action = menu.addAction(zeigen_text())
+        show_action.triggered.connect(self._show_in_file_manager)
+        copy_path_action = menu.addAction(PFAD_KOPIEREN_TEXT)
+        copy_path_action.triggered.connect(self._copy_path)
 
         menu.addSeparator()
 
@@ -450,7 +466,15 @@ class PDFThumbnailWidget(QFrame):
         delete_action = menu.addAction("Löschen")
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
-        menu.exec(event.globalPos())
+        return menu
+
+    def _show_in_file_manager(self):
+        """Markiert die PDF im Explorer/Finder (Issue #154)."""
+        im_dateimanager_zeigen(self.pdf_path)
+
+    def _copy_path(self):
+        """Legt den vollstaendigen Pfad in die Zwischenablage (Issue #154)."""
+        pfad_kopieren(self.pdf_path)
 
     def _get_selection_count(self) -> int:
         """Gibt die Anzahl der ausgewählten PDFs zurück."""

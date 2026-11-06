@@ -451,6 +451,13 @@ class FolderTreeWidget(QWidget):
             return
 
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+        self._build_context_menu(folder_path).exec(self.tree.mapToGlobal(position))
+
+    def _build_context_menu(self, folder_path: Path) -> QMenu:
+        """Baut das Kontextmenue fuer einen Ordner (getrennt, damit es testbar ist)."""
+        from src.gui.pfad_aktionen import PFAD_KOPIEREN_TEXT, pfad_kopieren
+        from src.utils.platform_paths import file_manager_name
+
         menu = QMenu(self)
 
         # Links im Scan-Bereich oeffnen (wie Doppelklick)
@@ -458,9 +465,12 @@ class FolderTreeWidget(QWidget):
         goto_action.triggered.connect(lambda: self.folder_double_clicked.emit(folder_path))
 
         # Im Dateimanager öffnen
-        from src.utils.platform_paths import file_manager_name
         open_action = menu.addAction(f"📂 Im {file_manager_name()} öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer(folder_path))
+
+        # Issue #154: Pfad in die Zwischenablage
+        copy_action = menu.addAction(f"📋 {PFAD_KOPIEREN_TEXT}")
+        copy_action.triggered.connect(lambda: pfad_kopieren(folder_path))
 
         menu.addSeparator()
 
@@ -475,7 +485,7 @@ class FolderTreeWidget(QWidget):
             remove_action = menu.addAction("❌ Aus Zielliste entfernen")
             remove_action.triggered.connect(lambda: self._remove_folder(folder_path))
 
-        menu.exec(self.tree.mapToGlobal(position))
+        return menu
 
     def _open_in_explorer(self, folder_path: Path):
         """Öffnet den Ordner im Dateimanager des Systems."""
