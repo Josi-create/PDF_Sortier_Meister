@@ -889,8 +889,37 @@ class MainWindow(QMainWindow):
             return False
         detected_date = self._detected_date_from(result.dates)
         self._populate_detail_panel(pdf_path, result, detected_date)
+        # Ordnervorschlaege nachziehen: die KI nennt jetzt evtl. einen Ablageort
+        base = getattr(self, "_folder_suggestions_base", None)
+        if base is not None:
+            suggestions = self._with_ki_folder(pdf_path, base, detected_date)
+            self.display_suggestions(suggestions)
+            self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
         self.statusbar.showMessage(f"KI-Vorschläge für {pdf_path.name} eingetragen", 4000)
         return True
+
+    def _with_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """Ergaenzt die Ordnervorschlaege um den "zielordner" aus dem KI-Vorschlag.
+
+        Die KI kennt die Ablageorte aehnlicher Dokumente (Sortierhistorie und
+        Suchindex) und nennt den passenden Ordner mit dem Jahr DIESES Dokuments.
+        """
+        try:
+            from src.core.similar_documents import (
+                document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
+            )
+            roots = self.folder_manager.target_folders
+            ki = None
+            for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
+                ki = folder_suggestion_from_metadata(
+                    getattr(s, "metadata", None), roots, document_year(detected_date),
+                )
+                if ki:
+                    break
+            return merge_folder_suggestion(suggestions, ki)
+        except Exception as e:  # noqa: BLE001 - KI-Ordner ist optional
+            logging.getLogger(__name__).debug(f"KI-Ordnervorschlag nicht verfuegbar: {e}")
+            return list(suggestions)
 
     @staticmethod
     def _detected_date_from(dates) -> Optional[str]:
@@ -1883,6 +1912,10 @@ class MainWindow(QMainWindow):
                 root_folders=self.folder_manager.target_folders,
                 max_suggestions=self.config.get("max_suggestions", 5),
             )
+            # KI-Ordner (aus dem Ablageort aehnlicher Dokumente) an die Spitze,
+            # sobald ein gecachter KI-Vorschlag ihn nennt
+            self._folder_suggestions_base = list(suggestions)
+            suggestions = self._with_ki_folder(pdf_path, suggestions, detected_date)
             timer.step("suggest")
 
             # Vorschläge anzeigen (alte grüne Buttons)

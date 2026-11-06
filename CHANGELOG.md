@@ -27,6 +27,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
+  neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
+  Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit
+  Ordner und Jahr. Sie nennt daraufhin einen Zielordner, der als
+  Ordnervorschlag „KI: aehnliche Dokumente liegen dort“ ganz oben erscheint
+  bzw. einen vorhandenen Vorschlag bestaetigt. Jahres-Regel: Eine Rechnung,
+  die fast genauso aussieht wie eine in „Steuer 2024“, gehoert trotzdem in
+  den Ordner fuer ihr eigenes Jahr. Der Prompt sagt das ausdruecklich und
+  nennt die passende Jahres-Variante („Steuer 2026/…“), und uebernimmt die KI
+  doch das Beispieljahr, korrigiert PDFSM den Ordner auf das Dokumentjahr.
 - **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
   auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
   leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt

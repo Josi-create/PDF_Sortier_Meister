@@ -1197,6 +1197,25 @@ class Database:
         except Exception:
             return 0
 
+    def get_indexed_documents_brief(self, limit: int = 20000) -> list[dict]:
+        """Indexierte Dokumente ohne Volltext (fuer die Aehnlichkeitssuche)."""
+        import sqlite3
+        keys = ("filename", "file_path", "keywords", "korrespondent", "steuerjahr", "target_folder")
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                rows = conn.execute(
+                    "SELECT filename, file_path, keywords, korrespondent, steuerjahr, target_folder "
+                    "FROM document_search LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            finally:
+                conn.close()
+            return [dict(zip(keys, row)) for row in rows]
+        except Exception as e:
+            print(f"Suchindex lesen fehlgeschlagen: {e}")
+            return []
+
     def bulk_index_directory(
         self,
         folder: str,
@@ -1500,6 +1519,31 @@ class Database:
                 SortingHistory.extracted_text.isnot(None),
                 SortingHistory.extracted_text != "",
             ).all()
+        finally:
+            session.close()
+
+    def get_history_brief(self, limit: int = 20000) -> list[dict]:
+        """Sortierhistorie ohne Volltext (fuer die Aehnlichkeitssuche), neueste zuerst."""
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(
+                    SortingHistory.new_filename,
+                    SortingHistory.original_filename,
+                    SortingHistory.keywords,
+                    SortingHistory.korrespondent,
+                    SortingHistory.steuerjahr,
+                    SortingHistory.detected_date,
+                    SortingHistory.target_relative_path,
+                    SortingHistory.target_folder,
+                )
+                .order_by(SortingHistory.id.desc())
+                .limit(limit)
+                .all()
+            )
+            keys = ("new_filename", "original_filename", "keywords", "korrespondent",
+                    "steuerjahr", "detected_date", "target_relative_path", "target_folder")
+            return [dict(zip(keys, row)) for row in rows]
         finally:
             session.close()
 
