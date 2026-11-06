@@ -9,7 +9,7 @@ import time
 import pytest
 
 import helfer_suche as h
-from src.search import db, extract, indexer
+from src.search import db, extract, indexer, mbox
 from src.search.indexer import Auftrag, Indexer
 
 
@@ -301,10 +301,109 @@ def test_fehlerhafte_datei_landet_mit_status_fehler(tmp_path, ablage):
     (ablage / "leer.pdf").write_bytes(b"")
     konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
     stat = _lauf(konfig)
-    assert stat["fehler"] == 2
+    assert stat["fehler"] == 1 and stat["leer"] == 1
     con = _con(konfig)
     try:
-        assert db.dokument_nach_pfad(con, str(ablage / "kaputt.pdf"))["textstatus"] == "fehler"
+        d = db.dokument_nach_pfad(con, str(ablage / "kaputt.pdf"))
+        assert d["textstatus"] == "fehler"
+        # kurzer Fehlertext ohne den Pfad (der steht schon in der Zeile)
+        assert d["fehler"] and str(ablage) not in d["fehler"] and "\n" not in d["fehler"]
+        assert db.dokument_nach_pfad(con, str(ablage / "leer.pdf"))["textstatus"] == "leer"
+    finally:
+        con.close()
+
+
+def test_leere_dateien_sind_leer_statt_fehler(tmp_path, ablage):
+    namen = ["leer.pdf", "leer.docx", "leer.md", "leer.eml", "leer.msg"]
+    for name in namen:
+        (ablage / name).write_bytes(b"")
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    stat = _lauf(konfig)
+    assert stat["leer"] == len(namen) and stat["fehler"] == 0
+    con = _con(konfig)
+    try:
+        rows = con.execute("SELECT textstatus, fehler FROM dokumente WHERE name LIKE 'leer.%'").fetchall()
+        assert len(rows) == len(namen)
+        assert all(r["textstatus"] == "leer" and r["fehler"] is None for r in rows)
+    finally:
+        con.close()
+
+
+def test_msg_fremdformat_wird_leer(tmp_path, ablage):
+    (ablage / "de.msg").write_bytes(b"# Tcl message catalog\n::msgcat::mcset de \"Open\" \"Oeffnen\"\n")
+    (ablage / "text.msg").write_bytes(h.mail_roh("Textmail", text="als msg gespeichert"))
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    stat = _lauf(konfig)
+    assert stat["fehler"] == 0
+    con = _con(konfig)
+    try:
+        d = db.dokument_nach_pfad(con, str(ablage / "de.msg"))
+        assert d["textstatus"] == "leer" and "kein Outlook-Format" in d["fehler"]
+        assert db.suche(con, "gespeichert", typ="mail")["treffer"][0]["mail_betreff"] == "Textmail"
+    finally:
+        con.close()
+
+
+def test_aufraeumen_ausserhalb_der_wurzeln(tmp_path, ablage):
+    andere = tmp_path / "Andere"
+    andere.mkdir()
+    (andere / "Notiz.md").write_text("woanders", encoding="utf-8")
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    assert _lauf(konfig)["gelesen"] == 4
+    # Konfiguration zeigt jetzt nur noch auf den anderen Ordner
+    konfig2 = h.konfig_fuer(tmp_path, wurzeln=[str(andere)])
+    stat = _lauf(konfig2, nur_prioritaet=True)       # kein vollstaendiger Lauf: nichts entfernen
+    assert stat["entfernt"] == 0
+    stat = _lauf(konfig2)
+    assert stat["gelesen"] == 1 and stat["entfernt"] == 4
+    con = _con(konfig2)
+    try:
+        assert [r[0] for r in con.execute("SELECT name FROM dokumente")] == ["Notiz.md"]
+    finally:
+        con.close()
+    # ohne konfigurierte Ordner wird nichts geloescht
+    assert _lauf(h.konfig_fuer(tmp_path, wurzeln=[]))["entfernt"] == 0
+
+
+def test_mbox_zwischenstand_bei_abbruch(tmp_path, monkeypatch):
+    konto = tmp_path / "Mail" / "pop.example.invalid"
+    konto.mkdir(parents=True)
+    mails = [h.mail_roh(f"Mail {i}", text=f"Inhalt {i}", mozilla_status="0000") for i in range(1, 8)]
+    p = h.mbox(konto / "Inbox", mails)
+    konfig = h.konfig_fuer(tmp_path, mails_aktiv=True, mail_ordner=[str(tmp_path / "Mail")])
+    monkeypatch.setattr(indexer, "MBOX_STAPEL_MAILS", 1)      # jede Mail ein Stapel
+    monkeypatch.setattr(Indexer, "MBOX_STAND_INTERVALL_S", 0)  # jeden Zwischenstand sichern
+
+    # Abbruch, sobald drei Mails gespeichert sind (Zeitlimit-Pruefung beim Einreichen)
+    schalter = {"aktiv": True}
+    original = Indexer._zeit_pruefen
+
+    def pruefen(self):
+        if schalter["aktiv"] and self.stat["mails"] >= 3:
+            raise indexer.Abbruch("Test-Abbruch")
+        original(self)
+
+    monkeypatch.setattr(Indexer, "_zeit_pruefen", pruefen)
+    ix = Indexer(konfig, synchron=True)
+    assert ix.lauf() == 1 and ix.stat["mails"] == 3
+    offsets = [off for off, _, _ in mbox.mails(str(p))]
+    con = _con(konfig)
+    try:
+        stand = con.execute("SELECT groesse FROM mbox_stand").fetchone()[0]
+        assert stand == offsets[3]                     # bis vor die vierte Mail gelesen
+        assert con.execute("SELECT count(*) FROM dokumente WHERE format = 'mbox'").fetchone()[0] == 3
+    finally:
+        con.close()
+
+    # Naechster Lauf setzt beim Zwischenstand fort: nur die restlichen vier Mails, keine Doppelten
+    schalter["aktiv"] = False
+    stat = _lauf(konfig)
+    assert stat["mails"] == 4
+    con = _con(konfig)
+    try:
+        assert con.execute("SELECT count(*) FROM dokumente WHERE format = 'mbox'").fetchone()[0] == 7
+        assert con.execute("SELECT groesse FROM mbox_stand").fetchone()[0] == p.stat().st_size
+        assert db.suche(con, "Inhalt 7", typ="mail")["gesamt"] == 1
     finally:
         con.close()
 

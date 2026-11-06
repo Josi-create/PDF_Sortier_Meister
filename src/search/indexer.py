@@ -229,6 +229,9 @@ class _SynchronAusfuehrer:
 class Indexer:
     """Ein Indexierungslauf. ``lauf()`` liefert 0 (fertig), 1 (abgebrochen/Fehler) oder 2 (laeuft schon)."""
 
+    # mbox-Zwischenstand (bis wohin lueckenlos gelesen) hoechstens alle 30 s sichern
+    MBOX_STAND_INTERVALL_S = 30
+
     def __init__(self, konfig: SearchConfig, hintergrund: bool = False, max_minuten: float = 0,
                  synchron: bool = False):
         self.konfig = konfig
@@ -249,6 +252,7 @@ class Indexer:
         self.signatur: dict = {}
         self.gesehen: set[str] = set()
         self.lauf_id = None
+        self._mbox_stand_zeit = 0.0
 
     # ---------------------------------------------------------------- Pool
     def _pool(self):
@@ -298,7 +302,7 @@ class Indexer:
                     betroffen.append(a)
                     continue
                 except Exception as e:
-                    self._fehlgeschlagen(a, f"{type(e).__name__}: {e}")
+                    self._fehlgeschlagen(a, extract.fehlertext(e, a.info.get("pfad")))
                     continue
                 try:
                     self._ergebnis(a, res)
@@ -350,7 +354,7 @@ class Indexer:
             self._fehlgeschlagen(a, "Zeitüberschreitung")
             return
         except Exception as e:
-            self._fehlgeschlagen(a, f"{type(e).__name__}: {e}")
+            self._fehlgeschlagen(a, extract.fehlertext(e, a.info.get("pfad")))
             return
         self._ergebnis(a, res)
 
@@ -365,7 +369,8 @@ class Indexer:
                 [(i["dok_id"], s) for s in i["seiten"]])
             self._ocr_status(i["dok_id"], grund)
         elif a.art == "mbox":
-            log.warning("mbox-Stapel fehlgeschlagen (%s): %s", i["pfad"], grund)
+            log.warning("mbox-Stapel fehlgeschlagen (%s, Mails ab Offset %s): %s", i["pfad"], i.get("von"), grund)
+            self._mbox_stapel_fertig(i)
         self.aenderungen += 1
 
     # ---------------------------------------------------------------- Ergebnisse
@@ -423,7 +428,36 @@ class Indexer:
                 }
                 db.speichere(self.con, dok, [(1, "text", m["text"])] if m["text"] else [])
             self.stat["mails"] += len(res)
+            self._mbox_stapel_fertig(i)
         self.aenderungen += 1
+
+    def _mbox_stapel_fertig(self, info: dict) -> None:
+        """Ein mbox-Stapel ist erledigt (gespeichert oder endgueltig gescheitert): Zwischenstand pruefen.
+
+        Wasserstandsmarke wie bei TCP: gesichert wird nur, bis wohin die Stapel
+        lueckenlos fertig sind - die Arbeitsprozesse liefern sie in beliebiger
+        Reihenfolge. ``mbox_stand.groesse`` heisst schon immer "bis hierher gelesen",
+        der naechste Lauf setzt dort fort (``anfang_passt``). Hoechstens alle
+        ``MBOX_STAND_INTERVALL_S`` Sekunden, damit grosse Postfaecher nach einem
+        Abbruch nicht von vorn beginnen.
+        """
+        info["fertig"] = True
+        lauf = info.get("lauf")
+        if lauf is None:
+            return
+        stand = lauf["stand"]
+        for s in lauf["stapel"]:
+            if not s["fertig"]:
+                break
+            stand = s["bis"]
+        lauf["stand"] = stand
+        jetzt = time.monotonic()
+        if stand > lauf["geschrieben"] and jetzt - self._mbox_stand_zeit >= self.MBOX_STAND_INTERVALL_S:
+            self.con.execute("INSERT OR REPLACE INTO mbox_stand VALUES (?, ?, ?)",
+                             (lauf["pfad"], stand, lauf["mtime_ns"]))
+            lauf["geschrieben"] = stand
+            self._mbox_stand_zeit = jetzt
+            self._commit_wenn_noetig(sofort=True)
 
     def _ocr_status(self, dok_id: int, fehler: str | None) -> None:
         r = self.con.execute(
@@ -569,6 +603,10 @@ class Indexer:
         if nur_cloud:
             self._nur_name(basis, "cloud")
             return
+        if st.st_size == 0:
+            # Leere Datei: nichts zu lesen, aber auch kein Fehler (frueher "Öffnen fehlgeschlagen")
+            self._nur_name(basis, "leer")
+            return
         if st.st_size > self.konfig.max_dateigroesse:
             self._nur_name(basis, "zu_gross")
             return
@@ -602,6 +640,25 @@ class Indexer:
                 del self.bekannt[k]
             self.stat["entfernt"] += len(weg)
             log.info("%d nicht mehr vorhandene Dateien unter %s entfernt", len(weg), wurzel)
+            self.aenderungen += 1
+
+    def _aufraeumen_ausserhalb(self) -> None:
+        """Nach einem vollstaendigen Lauf: Eintraege loeschen, die ausserhalb aller Wurzeln und
+        Vorrang-Ordner liegen (z. B. nach Aenderung der Konfiguration oder frueheren
+        ``--nur-pfad``-Laeufen); bisher blieben sie fuer immer stehen. Ohne konfigurierte
+        Ordner passiert nichts. Mails (mbox) verwaltet ``_mails`` selbst.
+        """
+        wurzeln = [os.path.normpath(w).lower().rstrip(os.sep) + os.sep
+                   for w in (*self.konfig.prioritaet, *self.konfig.wurzeln)]
+        if not wurzeln:
+            return
+        weg = [(k, v[0]) for k, v in self.bekannt.items() if not any(k.startswith(w) for w in wurzeln)]
+        if weg:
+            db.loesche(self.con, [i for _, i in weg])
+            for k, _ in weg:
+                del self.bekannt[k]
+            self.stat["entfernt"] += len(weg)
+            log.info("%d Eintraege ausserhalb der konfigurierten Ordner entfernt", len(weg))
             self.aenderungen += 1
 
     # ---------------------------------------------------------------- OCR
@@ -672,15 +729,17 @@ class Indexer:
                 log.info("Mails: %s (%s MB%s)", postfach, round((st.st_size - start) / 1e6, 1),
                          ", nur neue" if start else "")
                 stapel, groesse = [], 0
-                info = {"pfad": pfad, "postfach": postfach}
+                # Lauf-Zustand dieses Postfachs fuer die Zwischenstaende (_mbox_stapel_fertig)
+                lauf = {"pfad": pfad, "postfach": postfach, "mtime_ns": st.st_mtime_ns, "stapel": [],
+                        "stand": start, "geschrieben": start}
                 for off, laenge, roh in mbox.mails(pfad, start):
                     stapel.append((off, laenge, roh))
                     groesse += len(roh)
                     if len(stapel) >= MBOX_STAPEL_MAILS or groesse >= MBOX_STAPEL_BYTES:
-                        self._einreichen(Auftrag("mbox", extract.mbox_stapel, (stapel,), info, zeitlimit=600))
+                        self._mbox_einreichen(lauf, stapel)
                         stapel, groesse = [], 0
                 if stapel:
-                    self._einreichen(Auftrag("mbox", extract.mbox_stapel, (stapel,), info, zeitlimit=600))
+                    self._mbox_einreichen(lauf, stapel)
                 self._abarbeiten()
                 self.con.execute("INSERT OR REPLACE INTO mbox_stand VALUES (?, ?, ?)", (pfad, st.st_size, st.st_mtime_ns))
                 self._commit_wenn_noetig(sofort=True)
@@ -693,6 +752,13 @@ class Indexer:
                 self.con.execute("DELETE FROM mbox_stand WHERE datei = ?", (stand[k]["datei"],))
                 self.stat["entfernt"] += len(ids)
             self._commit_wenn_noetig(sofort=True)
+
+    def _mbox_einreichen(self, lauf: dict, stapel: list) -> None:
+        """Einen Stapel Mails eines Postfachs an die Arbeitsprozesse geben; Offsets fuer den Zwischenstand merken."""
+        info = {"pfad": lauf["pfad"], "postfach": lauf["postfach"], "lauf": lauf, "fertig": False,
+                "von": stapel[0][0], "bis": stapel[-1][0] + stapel[-1][1]}
+        lauf["stapel"].append(info)
+        self._einreichen(Auftrag("mbox", extract.mbox_stapel, (stapel,), info, zeitlimit=600))
 
     # ---------------------------------------------------------------- Ablauf
     def lauf(self, nur_prioritaet: bool = False, ohne_ocr: bool = False, ohne_mail: bool = False,
@@ -739,6 +805,8 @@ class Indexer:
                         if self._durchlaufen(wurzel, 9, erledigt):
                             self._abarbeiten()
                             self._aufraeumen(wurzel)
+                    self._abarbeiten()
+                    self._aufraeumen_ausserhalb()
                     if not ohne_mail and self.konfig.mails_aktiv:
                         self._phase("Thunderbird-Mails")
                         self._mails()

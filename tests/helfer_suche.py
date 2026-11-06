@@ -12,6 +12,7 @@ import os
 import struct
 import time
 import zipfile
+from datetime import date, datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -128,13 +129,43 @@ def docx(pfad: Path, absaetze: list[str], kopf: str | None = None, fuss: str | N
     return pfad
 
 
-def xlsx(pfad: Path, blaetter: dict[str, list[list]]) -> Path:
-    """Zeichenketten landen in sharedStrings, mit Praefix ``inline:`` als inlineStr; Zahlen und bool direkt."""
+# Zellformate (Index = ``s``-Attribut) in der styles.xml der xlsx-Testdateien
+XLSX_STILE = {
+    0: 0,     # Standard
+    1: 14,    # eingebautes Datum (m/d/yy)
+    2: 164,   # eigenes Datum + Uhrzeit
+    3: 165,   # Zahl mit "d" in Anfuehrungszeichen - kein Datum
+    4: 166,   # eigenes Datum mit Sprachkennung [$-407]
+    5: 21,    # eingebaute Uhrzeit (h:mm:ss)
+}
+_XLSX_NUMFMTS = {164: "dd.mm.yyyy hh:mm", 165: '#,##0.00 "d"', 166: "[$-407]d. mmmm yyyy;@"}
+
+
+def _excel_seriennummer(w, date1904: bool) -> float:
+    basis = datetime(1904, 1, 1) if date1904 else datetime(1899, 12, 30)
+    dt = w if isinstance(w, datetime) else datetime(w.year, w.month, w.day)
+    delta = dt - basis
+    return delta.days + delta.seconds / 86400
+
+
+def xlsx(pfad: Path, blaetter: dict[str, list[list]], date1904: bool = False) -> Path:
+    """Zeichenketten landen in sharedStrings, mit Praefix ``inline:`` als inlineStr; Zahlen und bool direkt.
+
+    ``date``/``datetime`` werden als Seriennummer mit Datums-Zellformat geschrieben
+    (Stil 1 bzw. 2), ein Tupel ``(zahl, stil)`` mit dem angegebenen Stil aus ``XLSX_STILE``.
+    """
     strings: list[str] = []
 
     def zelle(ref: str, w) -> str:
         if isinstance(w, bool):
             return f'<c r="{ref}" t="b"><v>{1 if w else 0}</v></c>'
+        if isinstance(w, tuple):
+            zahl, stil = w
+            return f'<c r="{ref}" s="{stil}"><v>{zahl!r}</v></c>'
+        if isinstance(w, datetime):
+            return f'<c r="{ref}" s="2"><v>{_excel_seriennummer(w, date1904)!r}</v></c>'
+        if isinstance(w, date):
+            return f'<c r="{ref}" s="1"><v>{int(_excel_seriennummer(w, date1904))}</v></c>'
         if isinstance(w, (int, float)):
             return f'<c r="{ref}"><v>{w!r}</v></c>'
         s = str(w)
@@ -151,9 +182,15 @@ def xlsx(pfad: Path, blaetter: dict[str, list[list]]) -> Path:
         )
         sheets[f"xl/worksheets/sheet{i}.xml"] = f"<worksheet {_S}><sheetData>{rows}</sheetData></worksheet>"
     with zipfile.ZipFile(pfad, "w") as z:
-        z.writestr("xl/workbook.xml", f"<workbook {_S} {_R}><sheets>" + "".join(
+        pr = '<workbookPr date1904="1"/>' if date1904 else ""
+        z.writestr("xl/workbook.xml", f"<workbook {_S} {_R}>{pr}<sheets>" + "".join(
             f'<sheet name="{escape(n)}" sheetId="{i}" r:id="rId{i}"/>' for i, n in enumerate(blaetter, 1)
         ) + "</sheets></workbook>")
+        z.writestr("xl/styles.xml", f"<styleSheet {_S}><numFmts>" + "".join(
+            f'<numFmt numFmtId="{i}" formatCode="{escape(c, {chr(34): "&quot;"})}"/>' for i, c in _XLSX_NUMFMTS.items()
+        ) + "</numFmts><cellXfs>" + "".join(
+            f'<xf numFmtId="{XLSX_STILE[i]}"/>' for i in sorted(XLSX_STILE)
+        ) + "</cellXfs></styleSheet>")
         z.writestr("xl/_rels/workbook.xml.rels",
                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + "".join(
                        f'<Relationship Id="rId{i}" Type="x" Target="worksheets/sheet{i}.xml"/>'

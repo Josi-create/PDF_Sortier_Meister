@@ -115,14 +115,53 @@ def test_msg_text_mit_extract_msg_attrappe(tmp_path, monkeypatch):
 
     fake = types.SimpleNamespace(openMsg=lambda pfad: FakeMsg())
     monkeypatch.setitem(sys.modules, "extract_msg", fake)
-    erg = extract.msg_text(str(tmp_path / "x.msg"))
+    p = tmp_path / "x.msg"
+    p.write_bytes(extract.OLE_MAGIC + b"\0" * 1024)   # Outlook-Container: nur der Kopf zaehlt
+    erg = extract.msg_text(str(p))
     assert erg["status"] == "text" and erg["betreff"] == "Outlook-Betreff" and erg["anhaenge"] == "Vertrag.docx"
     assert "HTML-Inhalt" in erg["text"] and erg["datum_iso"] == "2024-02-01T09:30:00+00:00"
 
     monkeypatch.setitem(sys.modules, "extract_msg",
                         types.SimpleNamespace(openMsg=lambda pfad: (_ for _ in ()).throw(ValueError("nicht OLE"))))
-    erg = extract.msg_text(str(tmp_path / "x.msg"))
-    assert erg["status"] == "fehler" and "nicht OLE" in erg["fehler"]
+    erg = extract.msg_text(str(p))
+    assert erg["status"] == "fehler" and erg["fehler"] == "ValueError: nicht OLE"
+
+
+def test_msg_erkennt_format_am_inhalt(tmp_path):
+    # Als Text gespeicherte Mail mit Endung .msg -> wie .eml
+    p = tmp_path / "text.msg"
+    p.write_bytes(h.mail_roh("Als Text gespeichert", text="Inhalt"))
+    erg = extract.msg_text(str(p))
+    assert erg["status"] == "text" and erg["betreff"] == "Als Text gespeichert" and "Inhalt" in erg["text"]
+    # Tcl-Nachrichtenkatalog (msgcat) heisst auch .msg, ist aber keine Mail: leer, kein Fehler
+    p2 = tmp_path / "de.msg"
+    p2.write_bytes(b"# German messages for Tk\nnamespace eval ::tk {\n    ::msgcat::mcset de \"Open\" \"\\u00d6ffnen\"\n}\n")
+    erg = extract.msg_text(str(p2))
+    assert erg["status"] == "leer" and "kein Outlook-Format" in erg["fehler"] and erg["text"] == ""
+    # leere Datei: leer ohne Fehlertext
+    p3 = tmp_path / "leer.msg"
+    p3.write_bytes(b"")
+    erg = extract.msg_text(str(p3))
+    assert erg["status"] == "leer" and erg["fehler"] is None
+    assert extract.eml_text(str(p3))["status"] == "leer"
+    # fehlende Datei: Fehler ohne den Pfad im Text
+    erg = extract.msg_text(str(tmp_path / "fehlt.msg"))
+    assert erg["status"] == "fehler" and erg["fehler"].startswith("FileNotFoundError") and str(tmp_path) not in erg["fehler"]
+    assert extract.mail_format(b"\r\n\r\n") == "leer"
+    assert extract.mail_format(b"From - Wed Jan 10 10:00:00 2024\nSubject: x\n") == "rfc822"
+    assert extract.mail_format(b"Received: from a\nSubject: x\n") == "rfc822"
+    assert extract.mail_format(b"Subject ohne Doppelpunkt\n") == "unbekannt"
+
+
+def test_fehlertext_kurz_und_ohne_pfad():
+    pfad = r"C:\Ablage\Rechnung 2024.pdf"
+    t = extract.fehlertext(RuntimeError(f"cannot open {pfad}: bad header\n   details"), pfad)
+    assert t == "RuntimeError: cannot open <Datei>: bad header details"
+    t = extract.fehlertext(OSError(f"no such file: '{pfad.replace(chr(92), chr(92) * 2)}'"), pfad)
+    assert t == "OSError: no such file: '<Datei>'"
+    assert extract.fehlertext(ValueError()) == "ValueError"
+    assert len(extract.fehlertext(OSError("x" * 1000))) == extract.MAX_FEHLERTEXT
+    assert extract.fehlertext("Zeitüberschreitung") == "Zeitüberschreitung"
 
 
 def test_popen_kwargs_nur_unter_windows(monkeypatch):

@@ -113,3 +113,48 @@ def test_beschaedigte_datei_liefert_fehler(tmp_path):
     p.write_bytes(b"PK\x03\x04 kein zip")
     erg = office.office_text(str(p), "docx")
     assert erg["status"] == "fehler" and erg["fehler"]
+    assert str(tmp_path) not in erg["fehler"] and len(erg["fehler"]) <= 200
+
+
+def test_xlsx_datumsformate_aus_styles(tmp_path):
+    from datetime import date, datetime
+
+    p = h.xlsx(tmp_path / "termine.xlsx", {"Termine": [
+        ["Datum", date(2024, 3, 12)],              # eingebautes Datumsformat 14
+        ["Zeitpunkt", datetime(2024, 3, 12, 14, 30)],  # eigenes Format dd.mm.yyyy hh:mm
+        ["Betrag", (1234.5, 3)],                   # "d" nur in Anfuehrungszeichen: bleibt Zahl
+        ["Lang", (45363.0, 4)],                    # eigenes Format mit [$-407]
+        ["Uhrzeit", (0.5, 5)],                     # eingebaute Uhrzeit
+        ["Roh", 45363],                            # ohne Zellformat: Seriennummer bleibt
+        ["Alt", (59, 1)],                          # 28.02.1900 (vor dem erfundenen Schalttag)
+        ["Schalttag", (60, 1)],                    # 29.02.1900 gibt es nicht: bleibt Zahl
+    ]})
+    text = office.office_text(str(p), "xlsx")["seiten"][0][2]
+    assert "Datum\t12.03.2024" in text
+    assert "Zeitpunkt\t12.03.2024 14:30" in text
+    assert "Betrag\t1234.5" in text
+    assert "Lang\t12.03.2024" in text
+    assert "Uhrzeit\t12:00" in text
+    assert "Roh\t45363" in text
+    assert "Alt\t28.02.1900" in text
+    assert "Schalttag\t60" in text
+
+
+def test_xlsx_date1904(tmp_path):
+    from datetime import date
+
+    p = h.xlsx(tmp_path / "mac.xlsx", {"T": [["Datum", date(2024, 3, 12)]]}, date1904=True)
+    assert "Datum\t12.03.2024" in office.office_text(str(p), "xlsx")["seiten"][0][2]
+
+
+def test_ist_datumsformat():
+    assert office._ist_datumsformat("dd.mm.yyyy")
+    assert office._ist_datumsformat("[h]:mm:ss")
+    assert office._ist_datumsformat('"Datum: "yyyy')
+    assert office._ist_datumsformat("h:mm AM/PM")
+    assert not office._ist_datumsformat("General")
+    assert not office._ist_datumsformat("#,##0.00")
+    assert not office._ist_datumsformat('#,##0.00 "d"')
+    assert not office._ist_datumsformat("[Red]0.00;[$€-407]#,##0")
+    assert not office._ist_datumsformat("0.00E+00")
+    assert not office._ist_datumsformat("@")

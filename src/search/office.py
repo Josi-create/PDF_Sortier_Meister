@@ -11,6 +11,9 @@ import posixpath
 import re
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+
+from src.search.extract import fehlertext
 
 MAX_XML = 300 * 1024 * 1024          # Schutz gegen ZIP-Bomben (entpackte Groesse je Teil)
 MAX_TEXT = 2_000_000                 # Zeichen je "Seite" (Dokument bzw. Tabellenblatt)
@@ -81,7 +84,7 @@ def office_text(pfad: str, fmt: str) -> dict:
     except Verschluesselt:
         erg["status"] = "verschluesselt"
     except Exception as e:
-        erg.update(status="fehler", fehler=f"{type(e).__name__}: {e}"[:500])
+        erg.update(status="fehler", fehler=fehlertext(e, pfad))
     return erg
 
 
@@ -331,6 +334,81 @@ def _docx(z: zipfile.ZipFile) -> list[str]:
 
 # --------------------------------------------------------------------------- Excel
 
+# Eingebaute Zahlenformate von Excel, die Datum/Zeit darstellen (ECMA-376, 18.8.30)
+_DATUM_EINGEBAUT = set(range(14, 23)) | set(range(27, 37)) | set(range(45, 48)) | set(range(50, 59))
+# In Formatcodes zaehlen Anfuehrungszeichen, Escapes (\x) und Klammern ([Rot], [>=100], [$€-407]) nicht
+_FORMAT_LITERALE = re.compile(r'"[^"]*"|\\.|\[[^\]]*\]')
+_DATUM_ZEICHEN = re.compile(r"[ymdhsYMDHS]")
+
+
+def _ist_datumsformat(code: str) -> bool:
+    """Eigenes Zahlenformat mit Tages-, Monats-, Jahres- oder Zeitzeichen ausserhalb von Literalen?"""
+    return bool(_DATUM_ZEICHEN.search(_FORMAT_LITERALE.sub("", code or "")))
+
+
+def _xlsx_datumsstile(z: zipfile.ZipFile) -> set[str]:
+    """Indizes (``s``-Attribut der Zellen) der Zellformate, die ein Datum oder eine Zeit anzeigen."""
+    d = _lies(z, "xl/styles.xml")
+    if not d:
+        return set()
+    try:
+        wurzel = ET.fromstring(d)
+    except ET.ParseError:
+        return set()
+    eigene: dict[int, str] = {}
+    for nf in wurzel.iter(S + "numFmt"):
+        try:
+            eigene[int(nf.get("numFmtId"))] = nf.get("formatCode") or ""
+        except (TypeError, ValueError):
+            continue
+    xfs = wurzel.find(S + "cellXfs")
+    if xfs is None:
+        return set()
+    stile = set()
+    for i, xf in enumerate(xfs.findall(S + "xf")):
+        try:
+            fid = int(xf.get("numFmtId", "0"))
+        except ValueError:
+            continue
+        if fid in _DATUM_EINGEBAUT or (fid in eigene and _ist_datumsformat(eigene[fid])):
+            stile.add(str(i))
+    return stile
+
+
+def _excel_datum(wert: str, date1904: bool) -> str | None:
+    """Excel-Seriennummer -> ``TT.MM.JJJJ[ HH:MM]`` (wie bei .xls), reine Uhrzeit -> ``HH:MM``.
+
+    1900-System: Tag 1 = 01.01.1900, Tag 60 ist der erfundene 29.02.1900 (bleibt Zahl).
+    1904-System (Mac): Tag 0 = 01.01.1904.
+    """
+    try:
+        w = float(wert)
+    except ValueError:
+        return None
+    if date1904:
+        basis = datetime(1904, 1, 1)
+    elif w >= 61:
+        basis = datetime(1899, 12, 30)
+    elif 1 <= w < 60:
+        basis = datetime(1899, 12, 31)
+    elif 0 <= w < 1:
+        basis = None
+    else:
+        return None
+    sekunden = round(w * 86400)
+    if basis is None:
+        h, m = divmod(sekunden // 60, 60)
+        return f"{h:02d}:{m:02d}"
+    try:
+        dt = basis + timedelta(seconds=sekunden)
+    except OverflowError:
+        return None
+    text = f"{dt.day:02d}.{dt.month:02d}.{dt.year}"
+    if dt.hour or dt.minute:
+        text += f" {dt.hour:02d}:{dt.minute:02d}"
+    return text
+
+
 def _xlsx(z: zipfile.ZipFile) -> list[str]:
     geteilt: list[str] = []
     d = _lies(z, "xl/sharedStrings.xml")
@@ -356,14 +434,19 @@ def _xlsx(z: zipfile.ZipFile) -> list[str]:
         for r in ET.fromstring(rels).iter(PR + "Relationship"):
             t = r.get("Target", "")
             ziel[r.get("Id")] = t.lstrip("/") if t.startswith("/") else posixpath.normpath(posixpath.join("xl", t))
+    date1904 = False
     if wb:
-        for s in ET.fromstring(wb).iter(S + "sheet"):
+        mappe = ET.fromstring(wb)
+        for s in mappe.iter(S + "sheet"):
             p = ziel.get(s.get(R + "id"))
             if p:
                 blaetter.append((s.get("name") or "", p))
+        pr = mappe.find(S + "workbookPr")
+        date1904 = pr is not None and (pr.get("date1904") or "").lower() in ("1", "true")
     if not blaetter:
         blaetter = [(posixpath.basename(n), n) for n in sorted(z.namelist())
                     if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n)]
+    datumsstile = _xlsx_datumsstile(z)
 
     seiten = []
     gesamt = 0
@@ -393,11 +476,15 @@ def _xlsx(z: zipfile.ZipFile) -> list[str]:
                             pass
                     elif typ == "b":
                         wert = "WAHR" if wert == "1" else "FALSCH"
-                    elif typ in (None, "n") and len(wert) > 10 and ("." in wert or "E" in wert):
-                        try:
-                            wert = f"{float(wert):.10g}"   # 15880.219999999 -> 15880.22
-                        except ValueError:
-                            pass
+                    elif typ in (None, "n") and wert:
+                        datum = _excel_datum(wert, date1904) if c.get("s") in datumsstile else None
+                        if datum:
+                            wert = datum                   # 45363 -> 12.03.2024
+                        elif len(wert) > 10 and ("." in wert or "E" in wert):
+                            try:
+                                wert = f"{float(wert):.10g}"   # 15880.219999999 -> 15880.22
+                            except ValueError:
+                                pass
                 if wert:
                     zellen.append(wert.strip())
             e.clear()
