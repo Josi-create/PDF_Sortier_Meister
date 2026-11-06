@@ -192,6 +192,7 @@ class LLMProviderType(Enum):
     OPENROUTER = "openrouter"  # OpenRouter.ai - viele Modelle, OpenAI-kompatibel
     OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama-Modelle in der Cloud (ollama.com, API-Key)
+    STRATA = "strata"  # Lokaler Strata-Server (OpenAI-kompatibel, eigener Key)
     NONE = "none"  # Kein LLM verwenden
 
 

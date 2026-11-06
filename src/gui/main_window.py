@@ -108,6 +108,9 @@ class MainWindow(QMainWindow):
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
     thumbnails_loaded = pyqtSignal()
+    # (Generation, (erreichbar, Detail) | None) aus dem Pruef-Thread
+    _llm_connection_checked = pyqtSignal(int, object)
+    LLM_CHECK_INTERVAL_MS = 60_000
 
     def __init__(self):
         super().__init__()
@@ -840,6 +843,7 @@ class MainWindow(QMainWindow):
     def _on_llm_suggestions_ready(self, pdf_path: Path):
         """KI-Vorschläge für eine PDF wurden abgerufen (Cache-Signal)."""
         self._clear_llm_error_if_recovered(pdf_path)
+        self._set_llm_reachable(True)
         self._update_cache_status()
         self._mark_thumbnail_ai_suggestion(pdf_path)
         self._refresh_detail_panel_after_llm(pdf_path)
@@ -906,6 +910,7 @@ class MainWindow(QMainWindow):
         """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
         self._last_llm_error = (pdf_path.name, error)
         self._llm_success_since_error = False
+        self._set_llm_reachable(False)
         self._update_cache_status()
 
     def _show_precache_details(self):
@@ -1489,7 +1494,17 @@ class MainWindow(QMainWindow):
         # LLM-Status anzeigen
         self.llm_status_label = _ClickableLabel("")
         self.llm_status_label.doubleClicked.connect(self.open_settings)
+        # Erreichbarkeit lokaler Server (Ollama, Strata): Ergebnis der letzten
+        # Hintergrund-Pruefung, None = noch offen / nicht pruefbar
+        self._llm_connection: Optional[tuple[bool, str]] = None
+        self._llm_check_generation = 0
+        self._llm_connection_checked.connect(self._on_llm_connection_checked)
+        self._llm_check_timer = QTimer(self)
+        self._llm_check_timer.setInterval(self.LLM_CHECK_INTERVAL_MS)
+        self._llm_check_timer.timeout.connect(self._check_llm_connection)
+        self._llm_check_timer.start()
         self._update_llm_status()
+        self._check_llm_connection()
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
         self.backup_status_label = QLabel("Backup: Nicht geprüft")
@@ -4408,7 +4423,9 @@ class MainWindow(QMainWindow):
         """Wird aufgerufen wenn Einstellungen geändert wurden."""
         # Hybrid-Klassifikator neu initialisieren
         self.hybrid_classifier._init_llm_provider()
+        self._llm_connection = None  # anderer Provider/Server: neu pruefen
         self._update_llm_status()
+        self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
         self.detail_panel.refresh_settings()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
@@ -4430,10 +4447,22 @@ class MainWindow(QMainWindow):
             # ueber Tempo und Qualitaet, deshalb gehoert es in die Anzeige
             text = f"LLM: {provider}/{model_short}" if model_short else f"LLM: {provider}"
             self.llm_status_label.setText(text)
-            self.llm_status_label.setStyleSheet("color: green;")
             detail = f"{provider}, Modell: {model_full}" if model_full else provider
+            connection = (self._llm_connection
+                          if self.hybrid_classifier.llm_connection_checkable() else (True, ""))
+            if connection is None:
+                color = "gray"
+                state = f"KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …"
+            elif connection[0]:
+                color = "green"
+                state = f"KI-Assistent aktiv ({detail})."
+            else:
+                color = "#c0392b"
+                state = (f"{provider} ist nicht einsatzbereit ({detail}).\n"
+                         f"{connection[1]}")
+            self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"KI-Assistent aktiv ({detail}).\nDoppelklick öffnet die Einstellungen."
+                f"{state}\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -4448,6 +4477,46 @@ class MainWindow(QMainWindow):
             self.llm_status_label.setToolTip(
                 f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
             )
+
+    def _check_llm_connection(self):
+        """Prueft im Hintergrund, ob der lokale LLM-Server (Ollama, Strata) antwortet."""
+        if not self.hybrid_classifier.llm_connection_checkable():
+            return
+        import threading
+
+        self._llm_check_generation += 1
+        generation = self._llm_check_generation
+        classifier = self.hybrid_classifier
+
+        def _run():
+            try:
+                result = classifier.check_llm_connection()
+            except Exception as e:  # noqa: BLE001
+                result = (False, f"Fehler: {e}")
+            try:
+                self._llm_connection_checked.emit(generation, result)
+            except RuntimeError:
+                pass  # Fenster bereits geschlossen
+
+        threading.Thread(target=_run, name="llm-ping", daemon=True).start()
+
+    def _on_llm_connection_checked(self, generation: int, result):
+        """Ergebnis der Erreichbarkeitspruefung (GUI-Thread)."""
+        if generation != self._llm_check_generation:
+            return  # inzwischen neu gestartet (z.B. Einstellungen geaendert)
+        self._llm_connection = result
+        self._update_llm_status()
+
+    def _set_llm_reachable(self, reachable: bool):
+        """Echte KI-Antwort bzw. -Fehler: Anzeige sofort anpassen."""
+        if not self.hybrid_classifier.llm_connection_checkable():
+            return
+        if reachable:
+            if self._llm_connection is None or not self._llm_connection[0]:
+                self._llm_connection = (True, "")
+                self._update_llm_status()
+        else:
+            self._check_llm_connection()
 
     def show_about(self):
         """Zeigt den Über-Dialog an."""
