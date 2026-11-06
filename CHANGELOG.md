@@ -8,6 +8,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Übernahme einer vorhandenen PDFsuche** (Dokumentensuche): Korrespondent,
+  Steuerjahr, Betrag und die anderen Angaben, die PDF Sortier Meister vor der
+  Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
+  Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
+  Stand gebracht.
+- **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
+  `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
 - **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
   erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
   aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt

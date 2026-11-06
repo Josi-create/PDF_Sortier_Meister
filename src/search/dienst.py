@@ -211,6 +211,8 @@ def _migration(a) -> int:
     if a.kopieren:
         print()
     print(f"Übernommen. Datenbank: {konfig.db_datei}\nEinstellungen gespeichert in {cfg.config_path}")
+    if u.mitgenommen:
+        print(f"PDFSM-Metadaten aus dem bisherigen Index mitgenommen: {u.mitgenommen} Dokumente")
     return 0
 
 

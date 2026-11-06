@@ -98,8 +98,14 @@ def test_index_befehl_startet_indexer(toml, monkeypatch):
 def test_mcp_werkzeuge(indiziert):
     pytest.importorskip("mcp")
     server = mcp_server.erstelle_server(indiziert)
-    namen = {t.name for t in asyncio.run(server.list_tools())}
-    assert namen == {"suche", "dokument_lesen", "index_status"}
+    werkzeuge = {t.name: t for t in asyncio.run(server.list_tools())}
+    assert set(werkzeuge) == {"suche", "dokument_lesen", "index_status"}
+    # Beschreibungen ohne Einrueckung des Docstrings (wie PDFsuche unter Python 3.14)
+    for w in werkzeuge.values():
+        zeilen = w.description.splitlines()
+        assert zeilen[0] == zeilen[0].strip() and w.description == w.description.strip()
+    assert "\nabfrage: Suchbegriffe." in werkzeuge["suche"].description
+    assert "\nseiten: optional" in werkzeuge["dokument_lesen"].description
     assert str(indiziert.wurzeln[0]) in mcp_server.beschreibung(indiziert)
 
     idx = Suchindex(indiziert)

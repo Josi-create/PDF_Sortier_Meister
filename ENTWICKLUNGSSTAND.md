@@ -83,7 +83,13 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   der Installation ein und entfernt beim Deinstallieren; `scripts/rauchtest_dienst.py` (Index mit
   Arbeitsprozessen und OCR, MCP-Handshake, Web, `pdfsm-dienstw`) in `build.bat`, `build.sh` und
   `release.yml`; lokaler Build und Rauchtest bestanden; 20 neue Tests
-- Offen: Phase 7 (Umstellung beim Entwickler), 8 (Doku, Release)
+- Phase 7 (2026-11-06): Umstellung beim Entwickler - Dienst und MCP aus der lokalen Installation,
+  Datenbank am bisherigen Ort uebernommen (vorher gesichert), alte Aufgaben deaktiviert, neue
+  Aufgaben eingerichtet, MCP umgestellt, Suche ueber MCP, Reiter und Web geprueft; dabei behoben:
+  `migration.uebernehmen` ergaenzt gleich auf Version 2 und nimmt die PDFSM-Metadaten aus dem
+  bisherigen Index mit (`metadaten_mitnehmen`), MCP-Beschreibungen ohne Docstring-Einrueckung
+  (`mcp_server._werkzeug`); 3 neue Tests
+- Offen: Loeschen der alten Aufgaben und Archivieren von PDFsuche (nach Bestaetigung), Phase 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;
