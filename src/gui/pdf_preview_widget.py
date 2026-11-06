@@ -22,8 +22,21 @@ from PyQt6.QtCore import (
     QBuffer, QEvent, QIODevice, QPoint, QPointF, QRect, QSize, QSizeF, Qt, QThread, pyqtSignal,
 )
 from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QPolygonF
-from PyQt6.QtPdf import QPdfDocument, QPdfSelection
-from PyQt6.QtPdfWidgets import QPdfView
+
+try:
+    from PyQt6.QtPdf import QPdfDocument, QPdfSelection
+    from PyQt6.QtPdfWidgets import QPdfView
+except ImportError as _fehler:  # pragma: no cover - Meldung wird im Unterprozess getestet
+    # Seit PyQt6 6.12 liegen QtPdf/QtPdfWidgets im Paket PyQt6-Pdf. Beim Upgrade
+    # eines venv von PyQt6 < 6.12 loescht pip mit der alten Version auch die
+    # Dateien, die PyQt6-Pdf gerade installiert hat - dann hilft nur Neuinstallation.
+    raise ImportError(
+        "PyQt6.QtPdf fehlt - die integrierte PDF-Vorschau braucht das Paket PyQt6-Pdf "
+        "(seit PyQt6 6.12 nicht mehr in PyQt6 enthalten). Beheben mit:\n"
+        "    pip install -r requirements.txt\n"
+        "Fehlt das Modul danach immer noch (Upgrade von PyQt6 < 6.12):\n"
+        "    pip install --force-reinstall --no-deps PyQt6-Pdf PyQt6-Pdf-Qt6"
+    ) from _fehler
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,

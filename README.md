@@ -170,6 +170,10 @@ python run.py
 ```
 
 - Python 3.10+, Windows 10/11 oder macOS (unter macOS: `source venv/bin/activate` statt `venv\Scripts\activate`)
+- Bestehende Installation aktualisieren: `pip install -r requirements.txt`. War vorher PyQt6 < 6.12 installiert,
+  danach einmal `pip install --force-reinstall --no-deps PyQt6-Pdf PyQt6-Pdf-Qt6` — pip entfernt beim Upgrade
+  mit der alten PyQt6-Version die Dateien, die das neue Paket `PyQt6-Pdf` gerade installiert hat
+  (Symptom: `ModuleNotFoundError: No module named 'PyQt6.QtPdf'` beim Start)
 - OCR im Quellcode-Betrieb: Tesseract installieren — Windows: `winget install UB-Mannheim.TesseractOCR`,
   macOS: `brew install tesseract tesseract-lang` — die App findet es in den Standardordnern;
   in den Builds ist es gebündelt
