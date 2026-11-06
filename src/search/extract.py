@@ -163,10 +163,18 @@ def _bild_hash(doc, seite) -> str | None:
     Nichts wird gerendert. Derselbe Scan liefert nach Umbenennen, Verschieben,
     XMP-Schreiben, Stapeln, Teilen oder Kopieren denselben Hash, der OCR-Text
     kommt dann aus dem Cache.
+
+    Die Seitendrehung (``/Rotate``) geht mit ein (Issue #150): Drehen aendert
+    die Bild-Streams nicht, wohl aber das Seitenbild, das Tesseract sieht. Ohne
+    sie kaeme nach dem Drehen der alte, falsch orientierte OCR-Text aus dem
+    Cache. Seiten ohne Drehung behalten ihren bisherigen Hash.
     """
     h = hashlib.blake2b(digest_size=16)
     gefunden = False
     try:
+        drehung = seite.rotation % 360
+        if drehung:
+            h.update(f"rot={drehung}".encode())
         for bild in seite.get_images(full=False):
             try:
                 h.update(doc.xref_stream(bild[0]))

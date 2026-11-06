@@ -69,6 +69,62 @@ def ocr_einstellungen_fuer_analyse() -> Optional[dict]:
     return cfg
 
 
+def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
+    """Bildseiten einer PDF neu erkennen, am OCR-Cache vorbei (Issue #150).
+
+    Fuer "OCR neu durchführen" im Kontextmenue: Der OCR-Cache (Bild-Hash ->
+    Text) wuerde sonst den alten Text liefern. Erkannt werden alle Seiten ohne
+    Textebene, das Ergebnis ersetzt Seiten und Cache-Eintraege im Suchindex
+    (``ocr_eintragen(..., ersetzen=True)``); Dateien ausserhalb der Wurzeln
+    nimmt der Index dafuer auf. Ohne eingerichtete Suche gibt es keinen Cache:
+    Dann passiert hier nichts, und die naechste Analyse erkennt die Datei neu
+    (``"index": False``). ``abbrechen`` (Funktion ohne Argumente) wird vor
+    jeder Seite gefragt.
+
+    Liefert ``{"index": bool, "seiten": int, "fehler": str | None}``.
+    """
+    from src.search import extract as suche_extract
+
+    erg: dict = {"index": False, "seiten": 0, "fehler": None}
+    index = suchindex_fuer_analyse()
+    if index is None:
+        return erg
+    erg["index"] = True
+    pfad = str(pdf_path)
+    gelesen = suche_extract.pdf_text(pfad, index.konfig.ocr_min_zeichen)
+    if gelesen["status"] in ("fehler", "verschluesselt"):
+        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        return erg
+    if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
+        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        return erg
+    offen = list(gelesen["ohne_text"])
+    if not offen:
+        return erg
+    cfg = ocr_einstellungen_fuer_analyse()
+    if cfg is None:
+        erg["fehler"] = "Tesseract nicht gefunden - keine Texterkennung möglich."
+        return erg
+    if index.konfig.textebene_erzeugen(pfad):
+        cfg["textebene"] = True
+    texte: dict = {}
+    ebenen: dict = {}
+    for nr in offen:
+        if abbrechen is not None and abbrechen():
+            break
+        res = suche_extract.pdf_ocr(pfad, [nr], cfg)
+        if res.get("fehler"):
+            erg["fehler"] = res["fehler"]
+        text = res["texte"].get(nr)
+        if text and text.strip():
+            texte[nr] = text
+            if res.get("ebenen", {}).get(nr):
+                ebenen[nr] = res["ebenen"][nr]
+    if texte:
+        erg["seiten"] = index.ocr_eintragen(pfad, texte, ebenen=ebenen or None, ersetzen=True)
+    return erg
+
+
 class PDFAnalyzer:
     """Analysiert PDF-Dateien und extrahiert Informationen."""
 
@@ -583,6 +639,34 @@ def get_thumbnail(pdf_path: Path | str, width: int = 150, height: int = 200) -> 
             except Exception:
                 pass  # Cache ist optional
         return thumbnail
+
+
+# Masse, in denen die Kacheln ihr Thumbnail laden (ThumbnailLoaderThread)
+THUMBNAIL_GROESSEN = ((140, 160),)
+
+
+def thumbnail_vergessen(pdf_path: Path | str) -> None:
+    """Thumbnail einer geaenderten PDF verwerfen (Speicher und PNG, Issue #150).
+
+    Nach dem Drehen hat die Datei eine neue mtime und damit ohnehin einen neuen
+    PNG-Schluessel - aber nur auf die Sekunde genau. Wird zweimal in derselben
+    Sekunde gedreht (Drehen + Rueckgaengig), passte sonst ein veraltetes Bild.
+    """
+    pdf_path = Path(pdf_path)
+    key = str(pdf_path)
+    if key in _thumbnail_cache._cache:
+        del _thumbnail_cache._cache[key]
+        try:
+            _thumbnail_cache._access_order.remove(key)
+        except ValueError:
+            pass
+    for breite, hoehe in THUMBNAIL_GROESSEN:
+        datei = _thumbnail_disk_path(pdf_path, breite, hoehe)
+        if datei is not None:
+            try:
+                datei.unlink()
+            except OSError:
+                pass
 
 
 def _thumbnail_disk_path(pdf_path: Path, width: int, height: int) -> Optional[Path]:

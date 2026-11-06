@@ -16,6 +16,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   öffnen“ und „Pfad kopieren“; der Zielordner-Baum und die grünen
   Vorschlagskacheln haben „Pfad kopieren“ zusätzlich. Unter macOS heißen die
   Einträge „Im Finder zeigen“ bzw. „Im Finder öffnen“.
+- **PDF drehen und Texterkennung neu** (#150): Im Rechtsklickmenü einer
+  PDF-Kachel gibt es „Drehen“ mit „90° nach links“, „90° nach rechts“ und
+  „180°“ sowie „OCR neu durchführen“. Bei Mehrfachauswahl gilt beides für alle
+  markierten PDFs. Gedreht wird die ganze PDF verlustfrei über die
+  Seitendrehung: Scanbild, Textebene und gespeicherte Metadaten bleiben
+  unverändert, „Rückgängig“ (Strg+Z) dreht zurück. Kachel, Vorschau und
+  Suchindex zeigen sofort den neuen Stand. Digital signierte und
+  verschlüsselte PDFs werden nicht gedreht (die Signatur würde ungültig bzw.
+  der Schutz ginge verloren); kurz gesperrte Dateien (OneDrive, Vorschau)
+  werden mehrmals versucht. „OCR neu durchführen“ erkennt die gescannten
+  Seiten im Hintergrund noch einmal – am Zwischenspeicher der Texterkennung
+  vorbei, dessen Einträge dabei ersetzt werden. Nach dem Drehen ist das in der
+  Regel nicht nötig: Die Drehung gehört jetzt zum Erkennungsmerkmal einer
+  Seite, die nächste Analyse liest gedrehte Seiten deshalb von selbst neu,
+  statt den alten, falsch ausgerichteten Text wiederzuverwenden.
 
 ### Geaendert
 - **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die
