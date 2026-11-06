@@ -59,6 +59,17 @@ BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 DRIVE_REMOVABLE = 2
 DRIVE_FIXED = 3
+# Windows: Datei ersetzen (Textebene, ``datei_ersetzen``)
+FILE_ATTRIBUTE_READONLY = 0x1
+REPLACEFILE_IGNORE_MERGE_ERRORS = 0x2
+REPLACEFILE_IGNORE_ACL_ERRORS = 0x4
+ERROR_FILE_NOT_FOUND = 2
+ERROR_PATH_NOT_FOUND = 3
+ERROR_ACCESS_DENIED = 5
+ERROR_SHARING_VIOLATION = 32
+ERROR_LOCK_VIOLATION = 33
+ERROR_UNABLE_TO_REMOVE_REPLACED = 1175
+ERROR_UNABLE_TO_MOVE_REPLACEMENT = 1176
 # macOS: st_flags einer Datei, die ein File-Provider (iCloud, OneDrive, Dropbox) nur als Platzhalter haelt
 SF_DATALESS = 0x40000000
 # macOS: setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_THROTTLE)
@@ -307,6 +318,110 @@ def verknuepfung(st: os.stat_result) -> bool:
             return False
         return getattr(st, "st_reparse_tag", 0) in (IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT)
     return stat_modul.S_ISLNK(getattr(st, "st_mode", 0))
+
+
+def schreibgeschuetzt(st: os.stat_result) -> bool:
+    """Datei ist schreibgeschuetzt (Windows: Attribut ``READONLY``, sonst fehlendes Schreibrecht des Besitzers)."""
+    if sys.platform == "win32":
+        return bool(getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_READONLY)
+    return not st.st_mode & stat_modul.S_IWUSR
+
+
+def gesperrt(pfad: str) -> bool:
+    """Haelt ein anderes Programm die Datei so offen, dass niemand schreiben darf (z. B. PaperPort, Acrobat)?
+
+    Nur unter Windows erkennbar (Freigabemodus beim Oeffnen); macOS und Linux
+    kennen keine solche Sperre. Geoeffnet wird ohne zu schreiben, die
+    Aenderungszeit bleibt. Haelt ein Programm die Datei nur zum Lesen offen,
+    scheitert erst ``datei_ersetzen`` (``PermissionError``).
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        fd = os.open(pfad, os.O_RDWR | getattr(os, "O_BINARY", 0))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    os.close(fd)
+    return False
+
+
+def datei_ersetzen(ziel: str, ersatz: str) -> None:
+    """``ziel`` durch ``ersatz`` (im selben Ordner) ersetzen; ``ziel`` muss noch existieren.
+
+    Windows: ``ReplaceFileW`` statt ``os.replace``. Es behaelt Erstelldatum,
+    Attribute, Zugriffsrechte, alternative Datenstroeme und die Identitaet der
+    Datei (OneDrive fuehrt die Versionsgeschichte fort) und scheitert, wenn
+    ``ziel`` inzwischen verschoben oder geloescht wurde - dann entsteht am
+    alten Ort keine zweite Datei. Sonst ``os.replace`` (atomar) mit den
+    Zugriffsrechten des Originals.
+
+    Raises:
+        FileNotFoundError: ``ziel`` gibt es nicht mehr (verschoben, geloescht).
+        PermissionError: ``ziel`` ist geoeffnet oder gesperrt.
+        OSError: sonstiger Fehler; ``ziel`` ist dann unveraendert.
+    """
+    if sys.platform == "win32":
+        _ersetzen_windows(os.path.abspath(ziel), os.path.abspath(ersatz))
+        return
+    if not os.path.isfile(ziel):
+        raise FileNotFoundError(2, "Datei nicht mehr vorhanden", ziel)
+    try:
+        shutil.copymode(ziel, ersatz)
+    except OSError:
+        pass
+    os.replace(ersatz, ziel)
+
+
+def _ersetzen_windows(ziel: str, ersatz: str) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    replace_file = k32.ReplaceFileW
+    replace_file.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                             wintypes.LPVOID, wintypes.LPVOID]
+    replace_file.restype = wintypes.BOOL
+    if replace_file(ziel, ersatz, None, REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS, None, None):
+        return
+    fehler = ctypes.get_last_error()
+    if fehler in (ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND):
+        raise FileNotFoundError(2, "Datei nicht mehr vorhanden", ziel)
+    if fehler == ERROR_UNABLE_TO_MOVE_REPLACEMENT and not os.path.exists(ziel) and os.path.exists(ersatz):
+        # Laut Dokumentation ist das Original dann schon entfernt: den geprueften Ersatz an seinen Platz
+        os.replace(ersatz, ziel)
+        return
+    if fehler in (ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION, ERROR_UNABLE_TO_REMOVE_REPLACED):
+        raise PermissionError(13, "Datei ist geöffnet oder gesperrt", ziel)
+    raise OSError(fehler, ctypes.FormatError(fehler).strip(), ziel)
+
+
+def onedrive_ordner() -> list[str]:
+    """Von OneDrive synchronisierte Ordner (fuer die Schaetzung des Uploads beim Schreiben der Textebene).
+
+    Windows: Umgebungsvariablen ``OneDrive``, ``OneDriveConsumer``,
+    ``OneDriveCommercial``. macOS: ``~/Library/CloudStorage/OneDrive*`` und ein
+    aelteres ``~/OneDrive``.
+    """
+    erg: list[str] = []
+    if sys.platform == "win32":
+        for name in ("OneDrive", "OneDriveConsumer", "OneDriveCommercial"):
+            p = os.environ.get(name)
+            if p and os.path.isdir(p):
+                erg.append(os.path.normpath(p))
+    elif sys.platform == "darwin":
+        basis = _home() / "Library" / "CloudStorage"
+        try:
+            erg += [str(p) for p in basis.iterdir() if p.name.startswith("OneDrive") and p.is_dir()]
+        except OSError:
+            pass
+        if (_home() / "OneDrive").is_dir():
+            erg.append(str(_home() / "OneDrive"))
+    eindeutig: dict[str, str] = {}
+    for p in erg:
+        eindeutig.setdefault(os.path.normcase(p), p)
+    return sorted(eindeutig.values(), key=str.lower)
 
 
 def im_dateimanager_zeigen(pfad: str) -> None:

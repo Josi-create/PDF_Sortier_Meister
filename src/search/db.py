@@ -136,6 +136,13 @@ V2_SPALTEN = {
     "zusammenfassung": "TEXT",
     "schlagwoerter": "TEXT",
     "metadaten_quelle": "TEXT",  # 'pdf' = beim Indizieren aus der Datei gelesen, 'pdfsm' = von PDFSM gesetzt (Vorrang)
+    "textebene_am": "TEXT",      # Phase 5b: OCR-Textebene in die PDF geschrieben (ISO-Zeit); NULL = nein
+    "textebene_grund": "TEXT",   # Phase 5b: warum (noch) nicht, z. B. 'signiert', 'gesperrt' (textebene.py)
+}
+# Spalten des OCR-Caches, die nach dem ersten Stand von Version 2 dazukamen (Phase 5b)
+OCR_CACHE_SPALTEN = {
+    "ebene": "BLOB",             # reine Text-PDF von Tesseract fuer die unsichtbare Textebene
+    "ebene_am": "TEXT",          # wann sie entstand (Aufbewahrung, textebene.aufraeumen)
 }
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
                     "schlagwoerter")
@@ -149,13 +156,32 @@ CREATE TABLE IF NOT EXISTS ocr_cache (
     text      TEXT NOT NULL,
     sprachen  TEXT,
     dpi       INTEGER,
-    erstellt  TEXT
+    erstellt  TEXT,
+    ebene     BLOB,               -- Phase 5b: Text-PDF fuer die Textebene (nur, solange sie gebraucht wird)
+    ebene_am  TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_seiten_hash      ON seiten(bild_hash);
 CREATE INDEX IF NOT EXISTS ix_dok_pdf_id       ON dokumente(pdf_id);
 CREATE INDEX IF NOT EXISTS ix_dok_steuerjahr   ON dokumente(steuerjahr);
 CREATE INDEX IF NOT EXISTS ix_dok_korrespondent ON dokumente(korrespondent);
 CREATE INDEX IF NOT EXISTS ix_dok_kategorie    ON dokumente(kategorie);
+
+-- Phase 5b: jede Aenderung einer PDF durch die Textebene, mit Sicherungskopie zum Rueckgaengigmachen
+CREATE TABLE IF NOT EXISTS textebene_protokoll (
+    id               INTEGER PRIMARY KEY,
+    dok_id           INTEGER,     -- kein Fremdschluessel: der Eintrag bleibt, wenn das Dokument verschwindet
+    pfad             TEXT NOT NULL,
+    am               TEXT NOT NULL,
+    seiten           TEXT,        -- Seiten mit neuer Textebene, z. B. "1,2,5"
+    sicherung        TEXT,        -- Sicherungskopie des Originals; NULL = abgelaufen bzw. nach Rueckgaengig entfernt
+    groesse_vorher   INTEGER,
+    mtime_ns_vorher  INTEGER,
+    groesse_nachher  INTEGER,
+    mtime_ns_nachher INTEGER,
+    status           TEXT NOT NULL,   -- 'geschrieben' | 'rueckgaengig'
+    rueckgaengig_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_textebene_dok ON textebene_protokoll(dok_id);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS metadaten_fts USING fts5(
     {_META_FTS}, content='dokumente', content_rowid='id',
@@ -221,7 +247,8 @@ def schema_stand(con) -> int:
     if not spalten:
         return 0
     if (set(V2_SPALTEN) <= spalten and "bild_hash" in _spalten(con, "seiten")
-            and _tabelle_vorhanden(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")):
+            and set(OCR_CACHE_SPALTEN) <= _spalten(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")
+            and _tabelle_vorhanden(con, "textebene_protokoll")):
         return 2
     return 1
 
@@ -241,8 +268,18 @@ def ergaenze_schema(con) -> bool:
     if "bild_hash" not in _spalten(con, "seiten"):
         con.execute("ALTER TABLE seiten ADD COLUMN bild_hash TEXT")
         geaendert = True
+    if _tabelle_vorhanden(con, "ocr_cache"):
+        cache_spalten = _spalten(con, "ocr_cache")
+        for name, typ in OCR_CACHE_SPALTEN.items():
+            if name not in cache_spalten:
+                con.execute(f"ALTER TABLE ocr_cache ADD COLUMN {name} {typ}")
+                geaendert = True
     fts_neu = not _tabelle_vorhanden(con, "metadaten_fts")
+    if not _tabelle_vorhanden(con, "textebene_protokoll"):
+        geaendert = True
     con.executescript(SCHEMA_V2)
+    # Offene Textebenen im Cache schnell finden (Phase 5b); nach SCHEMA_V2, die Spalte kommt ggf. erst per ALTER
+    con.execute("CREATE INDEX IF NOT EXISTS ix_ocr_cache_ebene ON ocr_cache(ebene_am) WHERE ebene IS NOT NULL")
     if fts_neu:
         con.execute("INSERT INTO metadaten_fts(metadaten_fts) VALUES ('rebuild')")
         geaendert = True
@@ -444,13 +481,36 @@ def ocr_status_aktualisieren(con, dok_id: int, fehler: str | None = None) -> str
     return status
 
 
+def ocr_ebenen_eintragen(con, dok_id: int, ebenen: dict) -> int:
+    """Text-PDFs fuer die Textebene (``{seite: bytes}``) in den OCR-Cache legen, nach dem Bild-Hash der Seite.
+
+    Der Cache-Eintrag (Text) muss schon bestehen; Seiten ohne Hash bekommen
+    keine Textebene. Liefert die Zahl gespeicherter Textebenen.
+    """
+    if not ebenen:
+        return 0
+    ph = ",".join("?" * len(ebenen))
+    hashes = {r[0]: r[1] for r in con.execute(
+        f"SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND seite IN ({ph}) AND bild_hash IS NOT NULL",
+        (dok_id, *ebenen.keys()))}
+    n = 0
+    zeit = jetzt()
+    for seite, daten in ebenen.items():
+        h = hashes.get(seite)
+        if h and daten:
+            n += con.execute("UPDATE ocr_cache SET ebene = ?, ebene_am = ? WHERE bild_hash = ?",
+                             (sqlite3.Binary(daten), zeit, h)).rowcount
+    return n
+
+
 def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = None, dpi: int | None = None,
-                       nur_offene: bool = True) -> int:
+                       nur_offene: bool = True, ebenen: dict | None = None) -> int:
     """OCR-Ergebnis (``{seite: text | None}``) uebernehmen: Seiten fuellen, Cache befuellen, Status ableiten.
 
     ``None`` als Text markiert die Seite als ``ocr_fehler``. Mit ``nur_offene``
     werden nur Seiten geaendert, die noch auf OCR warten (``ohne_text``/``ocr_fehler``).
-    Liefert die Zahl der erkannten Seiten.
+    ``ebenen`` (``{seite: text_pdf}``, Phase 5b) kommen zum Cache-Eintrag der
+    Seite. Liefert die Zahl der erkannten Seiten.
     """
     bedingung = " AND quelle IN ('ohne_text', 'ocr_fehler')" if nur_offene else ""
     erkannt = []
@@ -468,6 +528,8 @@ def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = Non
         zeilen = con.execute(f"SELECT bild_hash, text FROM seiten WHERE dok_id = ? AND seite IN ({ph})",
                              (dok_id, *erkannt)).fetchall()
         ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi)
+        if ebenen:
+            ocr_ebenen_eintragen(con, dok_id, {s: e for s, e in ebenen.items() if s in erkannt})
         # Weitere offene Seiten desselben Dokuments mit bekanntem Bild (z. B. gleiches Deckblatt) gleich mit fuellen
         offen = con.execute("SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND quelle = 'ohne_text' "
                             "AND bild_hash IS NOT NULL", (dok_id,)).fetchall()
@@ -805,6 +867,15 @@ def status(con) -> dict:
             lauf["statistik"] = json.loads(lauf["statistik"] or "{}")
         except ValueError:
             pass
+    try:
+        textebene = {
+            "geschrieben": con.execute("SELECT count(*) FROM dokumente WHERE textebene_am IS NOT NULL").fetchone()[0],
+            "gruende": {r[0]: r[1] for r in con.execute(
+                "SELECT textebene_grund, count(*) FROM dokumente WHERE textebene_grund IS NOT NULL "
+                "AND textebene_am IS NULL GROUP BY textebene_grund")},
+        }
+    except sqlite3.OperationalError:   # Datenbank noch ohne die Spalten der Phase 5b (nur lesend geoeffnet)
+        textebene = {"geschrieben": 0, "gruende": {}}
     return {
         "dokumente": sum(pro_typ.values()),
         "pro_typ": pro_typ,
@@ -815,4 +886,5 @@ def status(con) -> dict:
         "laeufe": laeufe,
         "fortschritt": lies_meta(con, "fortschritt", ""),
         "schema_version": lies_meta(con, "schema_version", ""),
+        "textebene": textebene,
     }

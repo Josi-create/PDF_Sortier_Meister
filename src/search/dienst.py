@@ -8,6 +8,8 @@
   pdfsm-dienst web [--port N] [--nicht-oeffnen]
   pdfsm-dienst mcp
   pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]
+  pdfsm-dienst textebene schaetzen | protokoll [-n 50] | rueckgaengig ID [--erzwingen]
+                         | schreiben [--max-minuten N] [--hintergrund]
   pdfsm-dienst --version
 
 Die Konfiguration kommt aus der ``config.json`` von PDF Sortier Meister (Block
@@ -98,7 +100,53 @@ def parser() -> argparse.ArgumentParser:
     m.add_argument("--kopieren", action="store_true",
                    help="Datenbank in das Datenverzeichnis kopieren statt sie am bisherigen Ort zu lassen")
     m.add_argument("--ja", action="store_true", help="ohne Rückfrage übernehmen (sonst nur Vorschau)")
+
+    t = sub.add_parser("textebene", help="unsichtbare OCR-Textebene in gescannten PDFs (Schätzung, Protokoll, "
+                                         "Rückgängig, Schreiben)")
+    tsub = t.add_subparsers(dest="aktion", required=True)
+    tsub.add_parser("schaetzen", help="Aufwand für den Altbestand (Stufe „alle“) schätzen")
+    tp = tsub.add_parser("protokoll", help="geänderte Dateien anzeigen")
+    tp.add_argument("-n", "--anzahl", type=int, default=50)
+    tr = tsub.add_parser("rueckgaengig", help="eine Änderung zurücknehmen (Nummer aus dem Protokoll)")
+    tr.add_argument("id", type=int)
+    tr.add_argument("--erzwingen", action="store_true",
+                    help="auch wenn die Datei seither geändert wurde (diese Änderung geht verloren)")
+    ts = tsub.add_parser("schreiben", help="nur die Textebene schreiben (Stufe aus den Einstellungen)")
+    ts.add_argument("--max-minuten", type=float, default=0)
+    ts.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
     return p
+
+
+def _textebene(a, konfig) -> int:
+    """``pdfsm-dienst textebene ...``"""
+    from src.search import textebene
+
+    idx = Suchindex(konfig)
+    if a.aktion == "schaetzen":
+        print(f"Stufe in den Einstellungen: {konfig.textebene}")
+        print(textebene.schaetzung_text(idx.textebene_schaetzung()))
+        return 0
+    if a.aktion == "protokoll":
+        eintraege = idx.textebene_protokoll(a.anzahl)
+        if not eintraege:
+            print("Noch keine Datei mit Textebene versehen.")
+            return 0
+        for e in eintraege:
+            pfad = e.get("aktueller_pfad") or e["pfad"]
+            zusatz = "rückgängig gemacht" if e["status"] == "rueckgaengig" else (
+                "Sicherung vorhanden" if e.get("sicherung") else "Sicherung abgelaufen")
+            print(f"[{e['id']}] {e['am']}  Seiten {e['seiten']}  ({zusatz})  {pfad}")
+        return 0
+    if a.aktion == "rueckgaengig":
+        ok, meldung = idx.textebene_rueckgaengig(a.id, erzwingen=a.erzwingen)
+        print(meldung)
+        return 0 if ok else 1
+    if konfig.textebene == "aus":
+        print("Die Textebene ist in den Einstellungen ausgeschaltet (Suche › Textebene in gescannte PDFs schreiben).")
+        return 1
+    from src.search.indexer import Indexer, logging_einrichten
+    logging_einrichten(konfig, konsole=not a.hintergrund)
+    return Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten).lauf(nur_textebene=True)
 
 
 def _migration(a) -> int:
@@ -163,6 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.befehl == "mcp":
         from src.search import mcp_server
         return mcp_server.main(konfig)
+
+    if a.befehl == "textebene":
+        return _textebene(a, konfig)
 
     idx = Suchindex(konfig)
     if a.befehl == "suche":

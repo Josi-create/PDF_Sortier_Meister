@@ -192,6 +192,9 @@ def status_zeile(st: dict) -> str:
         teile.append(f"OCR ausstehend: {zahl(st['ocr_ausstehend_seiten'])} Seiten")
     if st.get("ocr_grund"):
         teile.append(f"Texterkennung aus ({st['ocr_grund']})")
+    geschrieben = (st.get("textebene") or {}).get("geschrieben")
+    if geschrieben:
+        teile.append(f"Textebene in {zahl(geschrieben)} PDFs")
     if st.get("laeuft"):
         teile.append("Indexlauf aktiv" + (f": {st['fortschritt']}" if st.get("fortschritt") else ""))
     elif st.get("laeufe"):
@@ -475,6 +478,12 @@ class SearchView(QWidget):
                                          "läuft im Hintergrund")
         self.index_all_button.clicked.connect(lambda: self._lauf_starten(False))
         status.addWidget(self.index_all_button)
+        self.anhalten_button = QPushButton("Anhalten")
+        self.anhalten_button.setToolTip("Den laufenden Indexlauf anhalten – laufende Aufträge werden noch "
+                                        "fertig, der nächste Lauf setzt fort")
+        self.anhalten_button.clicked.connect(self._lauf_anhalten)
+        self.anhalten_button.setVisible(False)
+        status.addWidget(self.anhalten_button)
         aussen.addLayout(status)
 
     def _links_bauen(self) -> QWidget:
@@ -1172,6 +1181,9 @@ class SearchView(QWidget):
         aktiv = bool(self.konfig and self.konfig.aktiv)
         self.index_button.setEnabled(aktiv and not laeuft)
         self.index_all_button.setEnabled(aktiv and not laeuft)
+        self.anhalten_button.setVisible(laeuft)
+        if not laeuft:
+            self.anhalten_button.setEnabled(True)
         if laeuft:
             self._status_timer.start()
         else:
@@ -1196,6 +1208,22 @@ class SearchView(QWidget):
         self.index_all_button.setEnabled(False)
         self._status_timer.start()
         self._nachlauf_timer.start()
+
+    def _lauf_anhalten(self) -> None:
+        """Den laufenden Lauf anhalten (z. B. das Nachtragen der Textebene im Altbestand)."""
+        if self.index is None:
+            return
+        try:
+            angehalten = self.index.lauf_anhalten()
+        except OSError as e:
+            self._meldung(f"Der Lauf konnte nicht angehalten werden: {e}")
+            return
+        if angehalten:
+            self.anhalten_button.setEnabled(False)
+            self.status_label.setText("Der Indexlauf hält an, sobald die laufenden Aufträge fertig sind – "
+                                      "der nächste Lauf setzt fort …")
+        else:
+            self.refresh_status()
 
     # ------------------------------------------------------------------ Tastatur
 

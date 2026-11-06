@@ -80,8 +80,12 @@ class SearchConfig:
         hintergrund_*: taegliche Hintergrundindexierung (Aufgabenplanung / LaunchAgent).
         web_*: Browser-Oberflaeche (nur 127.0.0.1).
         textebene: OCR-Text als unsichtbare Textebene in die PDF schreiben
-            (``TEXTEBENE_STUFEN``); ``textebene_sicherung_tage``: Aufbewahrung
-            der Sicherungskopien. Umsetzung in Phase 5b.
+            (``TEXTEBENE_STUFEN``: ``aus``, ``neue_scans`` = nur Scans, die im
+            ersten Vorrang-Ordner erkannt werden, ``alle`` = auch der
+            Altbestand); ``textebene_sicherung_tage``: Aufbewahrung der
+            Sicherungskopien (0 = unbegrenzt); ``textebene_sicherung_ordner``:
+            leer = ``get_app_data_dir()/suche/textebene_sicherung``.
+            Umsetzung in ``textebene.py`` (Phase 5b).
     """
 
     aktiv: bool = False
@@ -113,6 +117,7 @@ class SearchConfig:
     web_port: int = 18425
     textebene: str = "aus"
     textebene_sicherung_tage: int = 30
+    textebene_sicherung_ordner: str = ""
 
     def __post_init__(self) -> None:
         if self.textebene not in TEXTEBENE_STUFEN:
@@ -127,6 +132,8 @@ class SearchConfig:
             norm_pfad(p).lower() for p in self.pfade_ausschliessen if str(p).strip()
         }
         self.db_pfad = norm_pfad(self.db_pfad) if str(self.db_pfad).strip() else ""
+        self.textebene_sicherung_ordner = (norm_pfad(self.textebene_sicherung_ordner)
+                                           if str(self.textebene_sicherung_ordner).strip() else "")
 
     # ------------------------------------------------------------------ Ableitungen
 
@@ -141,6 +148,27 @@ class SearchConfig:
     def daten_ordner(self) -> Path:
         """Ordner der Datenbank; dort liegt auch die Sperrdatei ``indexer.lock``."""
         return self.db_datei.parent
+
+    @property
+    def sicherung_ordner(self) -> Path:
+        """Ordner der Sicherungskopien, bevor die Textebene eine PDF aendert (Phase 5b)."""
+        if self.textebene_sicherung_ordner:
+            return Path(self.textebene_sicherung_ordner)
+        return get_app_data_dir() / "suche" / "textebene_sicherung"
+
+    def textebene_erzeugen(self, pfad: str) -> bool:
+        """Soll die OCR dieser Datei die Textebene gleich mitliefern (``extract.pdf_ocr``, ``cfg["textebene"]``)?
+
+        ``alle``: jede PDF. ``neue_scans``: nur Dateien im ersten Vorrang-Ordner
+        (dort landen frische Scans). ``aus``: nie.
+        """
+        if self.textebene == "alle":
+            return True
+        if self.textebene != "neue_scans" or not self.prioritaet:
+            return False
+        ordner = os.path.normcase(self.prioritaet[0]).rstrip("\\/")
+        datei = os.path.normcase(norm_pfad(pfad))
+        return datei.startswith(ordner + os.sep) or datei.startswith(ordner + "/")
 
     @property
     def log_ordner(self) -> Path:

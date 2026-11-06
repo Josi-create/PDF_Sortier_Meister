@@ -61,7 +61,19 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   `pytesseract` nicht mehr genutzt); Reiter „Suche“ mit Metadatenfiltern, Werkzeugleisten-
   Suche (Strg+F) in den Reiter umgeleitet; Chat-Zitate mit Seite; MCP/CLI mit
   Metadatenfiltern; 31 neue Tests, bestehende angepasst
-- Offen: Phase 5b (Textebene), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+- Phase 5b (2026-11-06): Textebene in gescannten PDFs - `src/search/textebene.py`: ein
+  Tesseract-Aufruf liefert Indextext und Text-PDF (`textonly_pdf=1`, Ablage in
+  `ocr_cache.ebene`), Auflegen mit `show_pdf_page(overlay=True)` deckungsgleich bei Drehung
+  und CropBox, inkrementelles Speichern auf einer Kopie (Original-Bytes bleiben vorn),
+  Pruefung (Seiten, Boxen, Bild- und Inhalts-Streams byte-gleich, Text vorhanden),
+  Sicherungskopie, Ersetzen mit `ReplaceFileW` (Windows) bzw. `os.replace`; nie bei
+  signierten, verschluesselten, PDF/A-, schreibgeschuetzten, geoeffneten, Cloud-only- oder
+  seit der OCR geaenderten Dateien; Stufen `neue_scans`/`alle` (Altbestand mit Schaetzung),
+  Reihenfolge „erst sortieren, dann Textebene“ (nur der Indexlauf schreibt), verlorene Ebene
+  wird neu geschrieben; `textebene_protokoll` mit Rueckgaengig (Dialog
+  `textebene_dialog.py`, `pdfsm-dienst textebene`), Aufbewahrung, Anhalten
+  (`indexer.anhalten`); 47 neue Tests (2 davon mit echtem Tesseract)
+- Offen: Phase 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;

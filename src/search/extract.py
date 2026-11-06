@@ -12,6 +12,7 @@ import html
 import os
 import re
 import subprocess
+import tempfile
 from email import policy
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -79,7 +80,10 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
 
     Dazu kommen ``bild_hashes`` (Seite -> Hash der Bild-Streams, fuer den
     OCR-Cache; nur fuer Seiten ohne Text) und ``metadaten`` (PDFSM-Felder aus
-    Info-Dict und XMP, siehe ``pdf_metadaten``).
+    Info-Dict und XMP, siehe ``pdf_metadaten``). Eine Seite mit einer
+    OCR-Textebene (unsichtbare Schrift ``GlyphLessFont`` von Tesseract, auch
+    OCRmyPDF; Phase 5b) gilt als Text, auch wenn sie wenig Text hat: Sie ist
+    schon erkannt und bekommt weder OCR noch eine zweite Textebene.
     """
     import pymupdf
 
@@ -109,7 +113,8 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
             except Exception:
                 t = ""
                 seite = None
-            if len(t.strip()) < min_zeichen and seite is not None and _hat_bild(seite):
+            if (len(t.strip()) < min_zeichen and seite is not None and _hat_bild(seite)
+                    and not hat_ocr_textebene(seite)):
                 erg["ohne_text"].append(i + 1)
                 erg["seiten"].append((i + 1, "ohne_text", t))
                 h = _bild_hash(doc, seite)
@@ -126,6 +131,17 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
     finally:
         doc.close()
     return erg
+
+
+OCR_SCHRIFT = "GlyphLessFont"   # unsichtbare Schrift der Tesseract-Textebene (auch OCRmyPDF)
+
+
+def hat_ocr_textebene(seite) -> bool:
+    """Traegt die Seite schon eine OCR-Textebene (Schrift ``GlyphLessFont``, auch in Form-XObjects)?"""
+    try:
+        return any(OCR_SCHRIFT in (f[3] or "") for f in seite.get_fonts(full=False))
+    except Exception:
+        return False
 
 
 def _hat_bild(seite) -> bool:
@@ -263,10 +279,17 @@ def _info_wert(doc, xref: int, schluessel: str) -> str | None:
 
 
 def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
-    """Ausgewaehlte Seiten mit Tesseract erkennen. Liefert ``{'texte': {seite: text}, 'fehler': ...}``."""
+    """Ausgewaehlte Seiten mit Tesseract erkennen. Liefert ``{'texte': {seite: text}, 'fehler': ...}``.
+
+    Mit ``cfg["textebene"]`` liefert derselbe Tesseract-Aufruf je Seite auch
+    die reine Text-PDF fuer die unsichtbare Textebene (``'ebenen': {seite:
+    bytes}``, Phase 5b); sie kommt in den OCR-Cache und wird spaeter in die
+    Datei geschrieben (``textebene.py``). Es gibt also nie eine zweite OCR.
+    """
     import pymupdf
 
-    erg: dict = {"texte": {}, "fehler": None}
+    mit_ebene = bool(cfg.get("textebene"))
+    erg: dict = {"texte": {}, "ebenen": {}, "fehler": None}
     try:
         doc = pymupdf.open(pfad)
         if doc.needs_pass:
@@ -280,7 +303,12 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
                 continue
             seite = doc[nr - 1]
             try:
-                erg["texte"][nr] = _saeubern(_ocr_seite(seite, cfg))
+                if mit_ebene:
+                    text, ebene = ocr_seite_mit_textebene(seite, cfg)
+                    erg["texte"][nr] = _saeubern(text)
+                    erg["ebenen"][nr] = ebene
+                else:
+                    erg["texte"][nr] = _saeubern(_ocr_seite(seite, cfg))
             except Exception as e:
                 erg["fehler"] = f"Seite {nr}: {fehlertext(e, pfad)}"
                 erg["texte"][nr] = None
@@ -289,20 +317,28 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
     return erg
 
 
-def _ocr_seite(seite, cfg: dict) -> str:
+def _seitenbild(seite, cfg: dict) -> tuple[bytes, int, dict]:
+    """Seite fuer Tesseract in Graustufen rendern; sehr grosse Seiten mit geringerer Aufloesung.
+
+    Gerendert wird die angezeigte Seite (Drehung und CropBox angewendet); die
+    Text-PDF von Tesseract hat deshalb die angezeigte Seitengroesse.
+    """
     import pymupdf
 
-    # Seite in Graustufen rendern; sehr grosse Seiten mit geringerer Aufloesung
     dpi = cfg["dpi"]
     breite_zoll = seite.rect.width / 72
     hoehe_zoll = seite.rect.height / 72
     while dpi > 100 and breite_zoll * hoehe_zoll * dpi * dpi > 60_000_000:
         dpi -= 50
     pix = seite.get_pixmap(dpi=dpi, colorspace=pymupdf.csGRAY)
-    png = pix.tobytes("png")
     env = {**os.environ, "OMP_THREAD_LIMIT": "1"}
     if cfg.get("tessdata"):
         env["TESSDATA_PREFIX"] = cfg["tessdata"]
+    return pix.tobytes("png"), dpi, env
+
+
+def _ocr_seite(seite, cfg: dict) -> str:
+    png, dpi, env = _seitenbild(seite, cfg)
     r = subprocess.run(
         [cfg["tesseract"], "stdin", "stdout", "-l", cfg["sprachen"], "--psm", "1", "--dpi", str(dpi)],
         input=png, capture_output=True, timeout=600, env=env, **_popen_kwargs(),
@@ -310,6 +346,30 @@ def _ocr_seite(seite, cfg: dict) -> str:
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace").strip()[-300:])
     return r.stdout.decode("utf-8", "replace")
+
+
+def ocr_seite_mit_textebene(seite, cfg: dict) -> tuple[str, bytes]:
+    """Eine Seite erkennen und dabei die Textebene erzeugen: ``(text, text_pdf)`` aus einem Tesseract-Aufruf.
+
+    Tesseract schreibt Text (``tessedit_create_txt``) und eine reine Text-PDF
+    (``tessedit_create_pdf`` mit ``textonly_pdf=1``: unsichtbarer Text in der
+    Schrift ``GlyphLessFont``, ohne Bild) in einen temporaeren Ordner. Die
+    Schalter statt der Konfigurationsdateien ``txt``/``pdf`` funktionieren auch
+    mit einem mitgelieferten Tesseract ohne ``tessdata/configs``.
+    """
+    png, dpi, env = _seitenbild(seite, cfg)
+    with tempfile.TemporaryDirectory(prefix="pdfsm-ocr-") as tmp:
+        basis = os.path.join(tmp, "seite")
+        r = subprocess.run(
+            [cfg["tesseract"], "stdin", basis, "-l", cfg["sprachen"], "--psm", "1", "--dpi", str(dpi),
+             "-c", "tessedit_create_txt=1", "-c", "tessedit_create_pdf=1", "-c", "textonly_pdf=1"],
+            input=png, capture_output=True, timeout=600, env=env, **_popen_kwargs(),
+        )
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.decode("utf-8", "replace").strip()[-300:])
+        text = Path(basis + ".txt").read_text(encoding="utf-8", errors="replace")
+        pdf = Path(basis + ".pdf").read_bytes()
+    return text, pdf
 
 
 # --------------------------------------------------------------------------- Markdown
