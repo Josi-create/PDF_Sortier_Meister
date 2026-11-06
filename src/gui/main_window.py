@@ -72,6 +72,7 @@ from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
+from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
 from src.search.meldungen import melden as index_melden
 
@@ -136,6 +137,8 @@ class MainWindow(QMainWindow):
         self.selected_pdf_keywords: Optional[list[str]] = None
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
+        # Angezeigte Ordnervorschlaege der Auswahl (fuer den Chat, Issue #148)
+        self._shown_suggestions: list = []
 
         # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
         # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
@@ -264,6 +267,8 @@ class MainWindow(QMainWindow):
         )
         self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
         self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
+        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
+        self.chat_view.bezug_daten = self._chat_bezug_daten
         self.center_tabs.addTab(self.chat_view, "Chat")
         self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
@@ -282,12 +287,66 @@ class MainWindow(QMainWindow):
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird."""
+        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird.
+
+        Beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148).
+        """
         widget = self.center_tabs.widget(index)
         if widget is self.chat_view:
+            self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
         elif widget is self.search_view:
             self.search_view.tab_gezeigt()
+
+    def _chat_bezug_pfad(self) -> Optional[Path]:
+        """Das ausgewaehlte PDF als Bezug fuer den Chat; bei Mehrfachauswahl keins."""
+        if len(self.selected_pdfs) > 1:
+            return None
+        path = self.selected_pdf
+        if path is None or not Path(path).exists():
+            return None
+        return Path(path)
+
+    def _chat_bezug_daten(self, path: Path) -> Bezug:
+        """Was die Oberflaeche zum Bezugsdokument schon weiss (Issue #148).
+
+        Text und KI-Metadaten aus dem Analyse-Cache, die angezeigten
+        Ordnervorschlaege (Sortierlogik inkl. KI-Zielordner) und die
+        Zielordner. Der Chat liest zuerst den Suchindex und nimmt diese
+        Werte nur, wo dort etwas fehlt.
+        """
+        path = Path(path)
+        ist_auswahl = self.selected_pdf is not None and Path(self.selected_pdf) == path
+        text = ""
+        metadaten: dict = {}
+        try:
+            result = self.pdf_cache.get(path)
+            if result is not None:
+                text = result.extracted_text or ""
+            for s in self.pdf_cache.get_llm_suggestions(path) or []:
+                meta = getattr(s, "metadata", None)
+                if isinstance(meta, dict) and meta:
+                    metadaten = _bezug_metadaten(meta)
+                    break
+        except Exception as e:  # noqa: BLE001 - Zusatzdaten sind optional
+            logging.getLogger(__name__).debug(f"Chat-Bezug ohne Cache-Daten: {e}")
+        if not text and ist_auswahl:
+            text = self.selected_pdf_text or ""
+        vorschlaege: list[str] = []
+        if ist_auswahl:
+            for s in self._shown_suggestions:
+                name = s.relative_path or s.folder_name
+                angabe = f"{int(round(s.confidence * 100))} %"
+                if s.reason:
+                    angabe += f", {s.reason}"
+                vorschlaege.append(f"{name} ({angabe})")
+        return Bezug(
+            pfad=path,
+            text=text,
+            metadaten=metadaten,
+            sortier_vorschlaege=vorschlaege,
+            wurzeln=list(self.folder_manager.target_folders),
+        )
 
     def show_search_tab(self) -> None:
         """Wechselt auf den Reiter „Suche“ und setzt den Fokus ins Suchfeld (Strg+Umschalt+F)."""
@@ -2122,6 +2181,8 @@ class MainWindow(QMainWindow):
         """Zeigt die Sortiervorschläge an."""
         # Alte Vorschläge entfernen
         self.clear_suggestions()
+        # Fuer den Chat mit Bezugsdokument (Issue #148)
+        self._shown_suggestions = list(suggestions or [])
 
         if not suggestions:
             self.no_suggestions_label.show()
@@ -2167,6 +2228,7 @@ class MainWindow(QMainWindow):
         for widget in self.suggestion_widgets:
             widget.deleteLater()
         self.suggestion_widgets.clear()
+        self._shown_suggestions = []
         self.no_suggestions_label.show()
         # Auch Hervorhebungen in der Baumansicht entfernen
         if hasattr(self, 'folder_tree'):
@@ -4987,3 +5049,23 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_layout)
 
         dialog.exec()
+
+
+def _bezug_metadaten(meta: dict) -> dict:
+    """KI-Metadaten (kanonische Schluessel) auf die Felder des Chat-Bezugs abbilden (Issue #148)."""
+    unbekannt = {"", "unbekannt", "unknown", "null", "none", "n/a", "-"}
+
+    def wert(*schluessel):
+        for s in schluessel:
+            v = meta.get(s)
+            if v is not None and str(v).strip().lower() not in unbekannt:
+                return str(v).strip()
+        return ""
+
+    felder = {
+        "korrespondent": wert("korrespondent"),
+        "kategorie": wert("kategorie", "subject"),
+        "steuerjahr": wert("steuerjahr"),
+        "betrag": wert("betrag", "betrag_brutto"),
+    }
+    return {k: v for k, v in felder.items() if v}

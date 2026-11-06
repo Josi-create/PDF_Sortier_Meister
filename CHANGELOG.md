@@ -31,6 +31,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Regel nicht nötig: Die Drehung gehört jetzt zum Erkennungsmerkmal einer
   Seite, die nächste Analyse liest gedrehte Seiten deshalb von selbst neu,
   statt den alten, falsch ausgerichteten Text wiederzuverwenden.
+- **Chat mit Bezugsdokument** (#148, #27): Wer im Reiter „Vorschau“ ein PDF
+  auswählt und in den „Chat“ wechselt, kann direkt Fragen zu diesem PDF
+  stellen. Über dem Eingabefeld steht dann „Bezug: <Dateiname>  ✕“, darunter
+  vier Schnellfragen, die mit einem Klick gestellt werden: „Zu welcher
+  Wohnung / welchem Objekt gehört dieses Dokument?“, „Zeig mir ähnliche
+  Rechnungen“, „Gibt es schon einen Ordner mit ähnlichen Dokumenten?“ und „In
+  welchen Ordner gehört dieses PDF?“. Die KI bekommt das PDF als erstes
+  Dokument (Text und Metadaten aus dem Suchindex, sonst aus der laufenden
+  Analyse) und dazu Dokumente aus der Sammlung, die zu Korrespondent,
+  Kategorie und Steuerjahr passen, jeweils mit ihrem Ablageort. Bei Fragen
+  nach dem Ordner steht der Vorschlag der Sortierlogik mit im Kontext. Der
+  Bezug gilt für alle weiteren Fragen, bis ✕ ihn entfernt oder beim nächsten
+  Wechsel in den Chat ein anderes PDF ausgewählt ist. Ohne KI zeigt der Chat
+  wie bisher die gefundenen Dokumente, bei der Ordnerfrage zusätzlich den
+  Vorschlag der Sortierlogik.
 
 ### Geaendert
 - **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die
