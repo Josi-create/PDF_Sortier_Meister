@@ -209,6 +209,7 @@ ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 | Bibliothek | Zweck |
 |---|---|
 | PyQt6 | Desktop-GUI |
+| PyQt6-Pdf | Integrierte PDF-Vorschau (QtPdf; seit PyQt6 6.12 eigenes Paket) |
 | PyMuPDF | PDF-Rendering, Textextraktion |
 | pikepdf | XMP-Metadaten in PDFs schreiben |
 | pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch, erste 5 Seiten; siehe #46) |
@@ -227,7 +228,7 @@ ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 
 | Bibliothek | Lizenz |
 |---|---|
-| PyQt6 | GPL v3 / kommerziell (Riverbank) |
+| PyQt6, PyQt6-Pdf | GPL v3 / kommerziell (Riverbank) |
 | PyMuPDF | AGPL v3 / kommerziell (Artifex) |
 | pikepdf | MPL-2.0 |
 | scikit-learn, SQLAlchemy, numpy, python-dateutil, watchdog | BSD / permissiv |
