@@ -125,8 +125,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   eigenen Paket `PyQt6-Pdf`. `requirements.txt` und `pyproject.toml`
   verlangen jetzt `PyQt6>=6.12` und `PyQt6-Pdf>=6.140`; bei einer
   bestehenden Installation einmal `pip install -r requirements.txt`
-  ausfuehren. Ohne das Paket startet die Vorschau nicht, und die Tests auf
-  GitHub Actions schlugen seit dem 5. November 2026 beim Einsammeln fehl.
+  ausfuehren. War vorher PyQt6 < 6.12 installiert, danach zusaetzlich
+  `pip install --force-reinstall --no-deps PyQt6-Pdf PyQt6-Pdf-Qt6`: pip
+  loescht beim Entfernen der alten Version die Dateien, die `PyQt6-Pdf`
+  gerade installiert hat, und die App startet dann mit `ModuleNotFoundError:
+  No module named 'PyQt6.QtPdf'`. Der Programmstart nennt in diesem Fall
+  jetzt genau diese Befehle. Ohne das Paket startet die Vorschau nicht, und
+  die Tests auf GitHub Actions schlugen seit dem 5. November 2026 beim
+  Einsammeln fehl.
 - **Ollama-Fehler nennen den Grund:** Antwortet Ollama mit einem
   HTTP-Fehler, steht im Log und in Fehlermeldungen jetzt der Text aus der
   Antwort, z. B. `Ollama HTTP 500: llama runner process has terminated:
