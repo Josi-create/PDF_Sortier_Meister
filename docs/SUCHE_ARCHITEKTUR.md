@@ -174,6 +174,9 @@ src/search/
   mcp_server.py    MCP-Werkzeuge suche, dokument_lesen, index_status
   web.py           Flask-App (optionales Extra), static/index.html
   ausgabe.py       Textausgabe fuer CLI und MCP
+  textebene.py     unsichtbare OCR-Textebene in Scans: Auflegen, Pruefen,
+                   sicheres Schreiben [Arbeitsprozesse]; Auswahl, Protokoll,
+                   Rueckgaengig, Aufraeumen, Schaetzung [Hauptprozess]
 
 src/utils/tesseract.py   find_tesseract() + Sprachdaten-Ordner, Qt-frei
                          (pdf_analyzer.py re-exportiert die Funktion)
@@ -182,6 +185,7 @@ src/gui/
   search_view.py     Reiter „Suche“: Suchfeld, Filter, Trefferliste, Vorschau, Status
   search_worker.py   QThread fuer Abfragen; geordnete Warteschlange fuer Index-Meldungen
   settings_dialog.py Registerkarte „Suche“
+  textebene_dialog.py Protokoll der Textebene mit Rueckgaengig
   setup_wizard.py    Seite „Dokumentensuche“
 ```
 
@@ -462,6 +466,121 @@ interaktive OCR hoechstens `OCR_MAX_SEITEN = 5` Seiten ueber `extract.pdf_ocr`
 `ocr_eintragen`; `suchindex_fuer_analyse()` ist der Haken fuer Tests.
 `pytesseract` wird nicht mehr aufgerufen.
 
+### 3.4 Textebene in gescannten PDFs (Phase 5b)
+
+Der erkannte Text liegt auf Wunsch als unsichtbare Textebene in der PDF. Dann
+finden ihn auch Explorer-Suche, Acrobat und PaperPort, und man kann ihn
+markieren. Das ist die einzige Stelle, an der das Programm Dokumente des
+Nutzers veraendert. Sie ist standardmaessig aus.
+
+**Stufen** (`SearchConfig.textebene`):
+
+- `aus` (Standard): nichts wird geschrieben, kein Text-PDF gespeichert.
+- `neue_scans`: PDFs unter dem ersten Vorrang-Ordner (Scan-Eingang) bekommen
+  die Ebene aus der OCR, die ohnehin laeuft (`SearchConfig.textebene_erzeugen`).
+- `alle`: zusaetzlich der Altbestand, also PDFs mit `ocr_seiten > 0`, deren Text
+  bisher nur im Index steht. Tesseract liest diese Seiten noch einmal, weil der
+  Index den Text kennt, nicht seine Lage. Die Einstellungen fragen vorher mit
+  einer Schaetzung nach (`textebene.schaetzung`): Dateien, Seiten, Dauer bei
+  4 s je Seite und Prozess, OneDrive-Upload, Platz der Sicherungskopien.
+
+**Technik:**
+
+- Ein Tesseract-Aufruf liefert Indextext und Text-PDF
+  (`extract.ocr_seite_mit_textebene`):
+  `tesseract stdin <basis> -l deu+eng --psm 1 --dpi N -c tessedit_create_txt=1
+  -c tessedit_create_pdf=1 -c textonly_pdf=1`. Das Text-PDF enthaelt nur
+  unsichtbaren Text in der Schrift `GlyphLessFont`, kein Bild, rund 3 KB je Seite.
+- Das Text-PDF liegt im OCR-Cache unter dem Bild-Hash der Seite
+  (`ocr_cache.ebene`, `ebene_am`). Es uebersteht damit Umbenennen, Verschieben
+  und XMP-Schreiben wie der Text.
+- Aufgelegt wird nach `set_rotation(0)` mit `page.show_pdf_page(page.rect,
+  text_pdf, 0, overlay=True, rotate=drehung, keep_proportion=False)`, danach
+  kommt die Drehung zurueck (`textebene.ebene_auflegen`). Nur so liegt die Ebene
+  bei gedrehten Seiten und abweichender CropBox deckungsgleich. Getestet sind
+  16 Kombinationen, mit echtem Tesseract auf 8 pt genau.
+- Gespeichert wird inkrementell (`saveIncr`) auf einer Kopie. Die alten Bytes
+  bleiben unveraendert der Anfang der neuen Datei. Das Scanbild wird weder neu
+  komprimiert noch aufgeraeumt. Kann PyMuPDF nicht inkrementell speichern, wird
+  ohne `garbage`, `clean` und `deflate` gespeichert.
+- Seiten mit Text oder mit vorhandener OCR-Ebene (`extract.hat_ocr_textebene`)
+  bekommen keine Ebene. Seiten mit OCR-Ebene gelten beim Lesen als Text.
+
+**Nie angefasst** (`textebene.GRUENDE`, Spalte `dokumente.textebene_grund`):
+signierte PDFs (`get_sigflags() > 0`), verschluesselte (auch mit leerem
+Benutzerkennwort), PDF/A (eine eigene Option fuer spaeter), schreibgeschuetzte,
+Dateien nur in der Cloud, seit der OCR geaenderte, geoeffnete oder gesperrte
+und verschwundene Dateien. Signiert, verschluesselt, PDF/A, schreibgeschuetzt,
+ohne erkannten Text, rueckgaengig gemacht und Fehler gelten dauerhaft
+(`DAUERHAFT`). Die uebrigen holt der naechste Lauf nach.
+
+**Sicheres Schreiben** (`textebene.datei_schreiben`, im Arbeitsprozess):
+
+1. Pruefen: Groesse und mtime wie bei der OCR, Datei lokal, beschreibbar,
+   nicht geoeffnet.
+2. Sicherungskopie nach `get_app_data_dir()/suche/textebene_sicherung/`
+   (`copy2`, Name mit Zeitstempel und Pfad-Hash).
+3. Temporaere Datei `~$<name>.<hash>.textebene.tmp` im selben Ordner, Ebene
+   auflegen, speichern.
+4. Pruefen (`textebene.pruefen`): Die Datei oeffnet ohne Reparatur. Seitenzahl,
+   Drehung, MediaBox und CropBox sind gleich, Bild- und Inhalts-Streams
+   byte-gleich. Jede Seite mit Ebene hat Text in der OCR-Schrift.
+5. Ersetzen. Unter Windows geschieht das mit `ReplaceFileW` statt `os.replace`,
+   eine begruendete Abweichung vom Auftrag: Erstellungsdatum, ACL, alternative
+   Datenstroeme und die Datei-Identitaet fuer OneDrive bleiben erhalten. Wurde
+   die Datei inzwischen verschoben, schlaegt der Aufruf fehl, statt am alten
+   Ort eine zweite Datei anzulegen. Sonst `os.replace` mit uebernommenen Rechten.
+6. Bei jedem Fehler bleibt das Original. Die temporaere Datei wird geloescht,
+   eine nicht benoetigte Sicherung ebenso.
+
+**Index:** Nach dem Schreiben setzt der Hauptprozess `groesse`, `mtime_ns` und
+`textebene_am` sofort. Der naechste Lauf liest die Datei deshalb nicht neu, und
+die Erkennung verschobener Dateien ueber (Groesse, mtime_ns) stimmt weiter.
+`datum` bleibt, obwohl sich die mtime der Datei aendert. Die Tabelle
+`textebene_protokoll` haelt jede Aenderung fest: Pfad, Seiten, Sicherung,
+Groesse und mtime vorher und nachher, Status.
+
+**Reihenfolge mit PDFSM: erst sortieren, dann Textebene.** Die OCR, ob in der
+Analyse von PDFSM oder im Indexlauf, legt nur das Text-PDF in den Cache.
+Geschrieben wird ausschliesslich im Indexlauf (einziger Schreiber), am dann
+aktuellen Ort der Datei:
+
+1. Ein neuer Scan wird analysiert, dabei entstehen Text und Text-PDF.
+2. PDFSM schreibt Metadaten, benennt um und verschiebt.
+3. Der naechste Lauf (nachts oder „Jetzt indizieren“) liest die Datei neu,
+   findet Text und Ebene im Cache und schreibt die Ebene.
+
+Doppelt geschrieben wird nicht, weil Seiten mit OCR-Ebene als Text gelten.
+Verloren geht die Ebene auch nicht: Liest der Index eine Datei mit
+`textebene_am` neu und findet wieder OCR-Seiten ohne Ebene, etwa nach dem
+Zurueckspielen einer alten Fassung, setzt er `textebene_am` zurueck. Der Lauf
+schreibt sie dann aus dem Cache neu. Wird eine Datei mit Ebene sortiert,
+bleibt die Ebene erhalten. Beide Reihenfolgen sind getestet.
+
+**Laufabschnitte** im Indexer:
+
+- „Textebene schreiben“: Dateien mit Text-PDF im Cache, nach jedem Lauf, auch
+  beim Lauf fuer eine einzelne Datei.
+- „Textebene Altbestand“: nur in der Stufe `alle`, nicht bei `--nur-prioritaet`
+  und nicht ohne OCR.
+- Anhalten ueber die Datei `indexer.anhalten` im Datenordner (Knopf „Anhalten“
+  im Reiter „Suche“, `Suchindex.lauf_anhalten`). Laufende Auftraege werden
+  fertig, der naechste Lauf setzt fort.
+
+**Rueckgaengig und Aufbewahrung:**
+
+- `Suchindex.textebene_rueckgaengig` spielt die Sicherung mit der mtime des
+  Originals zurueck, ersetzt wie oben und liest die Datei neu. Der Grund
+  `rueckgaengig` verhindert, dass sie wieder geschrieben wird. Wurde die Datei
+  seither geaendert, geht das nur mit `erzwingen`.
+- Oberflaeche: Einstellungen › Suche › „Geänderte PDFs anzeigen / rückgängig
+  machen…“ (`textebene_dialog.TextebeneProtokollDialog`).
+- Kommandozeile: `pdfsm-dienst textebene schaetzen | protokoll [-n N] |
+  rueckgaengig ID [--erzwingen] | schreiben [--max-minuten N] [--hintergrund]`.
+- Sicherungen werden nach `textebene_sicherung_tage` geloescht (Standard 30,
+  0 = unbegrenzt). Text-PDFs im Cache verfallen nach 60 Tagen
+  (`EBENE_AUFBEWAHREN_TAGE`); danach braucht eine verlorene Ebene neue OCR.
+
 ---
 
 ## 4. Prozessmodell
@@ -734,7 +853,7 @@ Kommandozeile `pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]`
 erreichbar aus der Registerkarte „Suche“ und der Assistentenseite. Die
 Registerkarte „Suche“ (`SettingsDialog._create_search_tab`) zeigt alle Felder
 der `SearchConfig` inklusive der Stufen der Textebene (`textebene`,
-`textebene_sicherung_tage`, neu in der Dataclass, Wirkung ab Phase 5b); die
+`textebene_sicherung_tage`, Wirkung ab Phase 5b, Abschnitt 3.4); die
 Assistentenseite „Dokumentensuche“ (`setup_wizard.SearchPage`, nach der
 KI-Seite, Standard **aus**) fragt Ordner (vorbelegt Scan-/Zielordner, Laufwerke
 bzw. Benutzerordner abwaehlbar), Mails (nur bei gefundenem Thunderbird-Profil),
@@ -912,6 +1031,19 @@ Zitaten, Werkzeugleisten-Suche auf den Reiter umgeleitet. Tests fuer jede
 Fassade, fuer die Vorrangregel, fuer die Uebernahme von `document_search` und
 fuer „keine doppelte OCR“ (Mock zaehlt Tesseract-Aufrufe ueber Umbenennen,
 XMP-Schreiben, Stapeln).
+
+### Phase 5b – Textebene in PDFs (Branch `feat/suche-5b-textebene`)
+
+Abschnitt 3.4: Tesseract-Aufruf mit Text-PDF, Ablage im OCR-Cache,
+deckungsgleiches Auflegen bei Drehung und CropBox, sicheres Schreiben mit
+Pruefung, Sicherung und `ReplaceFileW`, Ausschlussgruende, Stufen `neue_scans`
+und `alle` mit Schaetzung, Protokoll und Rueckgaengig (Einstellungen und
+`pdfsm-dienst textebene`), Anhalten, Aufbewahrung. Tests: Geometrie,
+bytegleicher Anfang der Datei, jeder Ausschlussgrund, Abbruch an drei Stellen,
+Verschieben waehrend des Schreibens, beide Reihenfolgen mit dem Sortieren,
+verlorene Ebene, Rueckgaengig, Ablauf der Sicherungen, Oberflaeche. Mit echtem
+Tesseract (ohne Tesseract uebersprungen): Woerter gefunden und an der richtigen
+Stelle, Bild byte-gleich, Seitengroesse gleich.
 
 ### Phase 6 – Dienst, MCP, Build (Branch `feat/suche-6-dienst-build`)
 

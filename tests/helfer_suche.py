@@ -26,6 +26,8 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("prozesse", 1)
     kw.setdefault("ocr_aktiv", False)
     kw.setdefault("mails_aktiv", False)
+    # Sicherungskopien der Textebene nie ins echte Datenverzeichnis
+    kw.setdefault("textebene_sicherung_ordner", str(tmp_path / "textebene_sicherung"))
     return SearchConfig(**kw)
 
 
@@ -83,6 +85,83 @@ def pdf_mit_bild(pfad: Path, seiten: int = 1, text_seiten: list[str] | None = No
     doc.save(str(pfad))
     doc.close()
     return pfad
+
+
+def scan_pdf(pfad: Path, zeilen: list[str], seiten: int = 1, drehung: int = 0, dpi: int = 150,
+             cropbox: tuple | None = None) -> Path:
+    """Gescannte Seiten wie aus dem Scanner: Text gerendert, nur das Bild in einer neuen PDF.
+
+    ``drehung``: Seitendrehung (``/Rotate``); das Bild ist so eingesetzt, dass
+    die Seite aufrecht angezeigt wird (wie ein quer eingelegter Scan).
+    ``cropbox`` (ungedrehte Koordinaten) verschiebt den sichtbaren Ausschnitt.
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    for i, zeile in enumerate(zeilen):
+        q.insert_text((72, 100 + 36 * i), zeile, fontsize=20)
+    png = q.get_pixmap(dpi=dpi, colorspace=pymupdf.csGRAY).tobytes("png")
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=842, height=595) if drehung in (90, 270) else doc.new_page(width=595, height=842)
+        seite.insert_image(seite.rect, stream=png, rotate=drehung)
+        if cropbox:
+            seite.set_cropbox(pymupdf.Rect(*cropbox))
+        if drehung:
+            seite.set_rotation(drehung)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+def text_pdf(breite: float, hoehe: float, text: str, sichtbar: bool = False) -> bytes:
+    """Reine Text-PDF wie von Tesseract (``textonly_pdf=1``): unsichtbarer Text in der Schrift ``GlyphLessFont``.
+
+    ``sichtbar``: schwarzer Text und ein Quadrat oben links (Geometrie-Tests).
+    """
+    import pymupdf
+
+    doc = pymupdf.open()
+    seite = doc.new_page(width=breite, height=hoehe)
+    if sichtbar:
+        seite.draw_rect(pymupdf.Rect(10, 10, 60, 60), color=(0, 0, 0), fill=(0, 0, 0))
+    seite.insert_text((80, 40), text, fontsize=12, render_mode=0 if sichtbar else 3, fontname="helv")
+    for f in seite.get_fonts():
+        doc.xref_set_key(f[0], "BaseFont", "/GlyphLessFont")
+    daten = doc.tobytes()
+    doc.close()
+    return daten
+
+
+def fake_tesseract(monkeypatch, text: str = "Erkannter Scantext") -> list:
+    """``subprocess.run`` in ``extract`` ersetzen: Text nach stdout bzw. Text und Text-PDF in Dateien.
+
+    Liefert die Liste der Aufrufe (zum Zaehlen). Die Text-PDF hat die Groesse
+    des gelieferten Seitenbilds bei der angegebenen Aufloesung, wie bei Tesseract.
+    """
+    import subprocess
+
+    import pymupdf
+
+    from src.search import extract
+
+    aufrufe: list = []
+
+    def run(args, **kw):
+        aufrufe.append(list(args))
+        if args[2] == "stdout":
+            return subprocess.CompletedProcess(args, 0, stdout=text.encode("utf-8"), stderr=b"")
+        basis = args[2]
+        dpi = int(args[args.index("--dpi") + 1])
+        pix = pymupdf.Pixmap(kw["input"])
+        Path(basis + ".txt").write_text(text, encoding="utf-8")
+        Path(basis + ".pdf").write_bytes(text_pdf(pix.width * 72 / dpi, pix.height * 72 / dpi, text))
+        return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(extract.subprocess, "run", run)
+    return aufrufe
 
 
 def pdf_verschluesselt(pfad: Path, text: str = "Geheim") -> Path:

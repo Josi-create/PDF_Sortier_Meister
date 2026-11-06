@@ -151,6 +151,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   erweitert (keine OCR geht verloren). `pdfsm-dienst suche` und das
   MCP-Werkzeug `suche` kennen die Filter `steuerjahr`, `kategorie` und
   `korrespondent`.
+- **Textebene in gescannten PDFs** (Phase 5b, standardmaessig aus): Auf
+  Wunsch legt PDF Sortier Meister den erkannten Text als unsichtbare Ebene in
+  die PDF. Dann finden ihn auch die Explorer-Suche, Acrobat und PaperPort, und
+  man kann ihn markieren. Das Scanbild bleibt byte-genau erhalten, die Datei
+  waechst um rund 3 KB je Seite. Einstellbar unter Einstellungen > Suche:
+  nur neue Scans aus dem Scan-Eingang oder auch der Altbestand. Fuer den
+  Altbestand zeigt PDF Sortier Meister vorher eine Schaetzung von Dauer,
+  OneDrive-Upload und Platz der Sicherungskopien. Geschrieben wird beim
+  naechsten Indexlauf, auch wenn die Datei inzwischen einsortiert ist. Vor
+  jeder Aenderung entsteht eine Sicherungskopie (Standard 30 Tage), die neue
+  Fassung wird vor dem Ersetzen geprueft. Signierte, verschluesselte und
+  PDF/A-Dateien, schreibgeschuetzte, geoeffnete und nur in der Cloud liegende
+  Dateien bleiben unberuehrt. Ein Protokoll zeigt alle geaenderten PDFs und
+  nimmt einzelne Aenderungen zurueck. Ein laufender Indexlauf laesst sich im
+  Reiter **Suche** anhalten. Auf der Kommandozeile gibt es
+  `pdfsm-dienst textebene` (schaetzen, protokoll, rueckgaengig, schreiben).
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

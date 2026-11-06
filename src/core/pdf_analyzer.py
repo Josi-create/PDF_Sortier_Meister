@@ -214,12 +214,14 @@ class PDFAnalyzer:
 
         if offen and use_ocr:
             self.ocr_used = True
-            erkannt = self._ocr_seiten(offen[:self.OCR_MAX_SEITEN])
+            # Neuer Scan im ersten Vorrang-Ordner (bzw. Stufe „alle“): Textebene im selben Tesseract-Aufruf
+            mit_ebene = index is not None and index.konfig.textebene_erzeugen(pfad)
+            erkannt, ebenen = self._ocr_seiten(offen[:self.OCR_MAX_SEITEN], textebene=mit_ebene)
             if erkannt:
                 seiten = [(nr, "ocr", erkannt[nr]) if nr in erkannt else (nr, q, txt) for nr, q, txt in seiten]
                 if index is not None:
                     try:
-                        index.ocr_eintragen(pfad, erkannt)
+                        index.ocr_eintragen(pfad, erkannt, ebenen=ebenen or None)
                     except Exception as e:  # noqa: BLE001
                         print(f"Suchindex: OCR nicht eingetragen: {e}")
 
@@ -247,21 +249,30 @@ class PDFAnalyzer:
         except Exception:  # noqa: BLE001
             return ""
 
-    def _ocr_seiten(self, seiten: list[int]) -> dict[int, str]:
-        """Bildseiten mit Tesseract erkennen (gemeinsame Funktion mit dem Index). ``{seite: text}``."""
+    def _ocr_seiten(self, seiten: list[int], textebene: bool = False) -> tuple[dict[int, str], dict[int, bytes]]:
+        """Bildseiten mit Tesseract erkennen (gemeinsame Funktion mit dem Index).
+
+        Liefert ``({seite: text}, {seite: text_pdf})``; die Text-PDFs fuer die
+        unsichtbare Textebene (Phase 5b) nur mit ``textebene``, aus demselben
+        Tesseract-Aufruf. Geschrieben werden sie vom naechsten Indexlauf.
+        """
         cfg = ocr_einstellungen_fuer_analyse()
         if cfg is None:
             print("Warnung: Tesseract nicht gefunden. OCR nicht verfügbar.")
-            return {}
+            return {}, {}
+        if textebene:
+            cfg["textebene"] = True
         try:
             from src.search import extract as suche_extract
             res = suche_extract.pdf_ocr(str(self.pdf_path), list(seiten), cfg)
         except Exception as e:  # noqa: BLE001
             print(f"OCR-Fehler: {e}")
-            return {}
+            return {}, {}
         if res.get("fehler"):
             print(f"OCR-Fehler: {res['fehler']}")
-        return {nr: txt for nr, txt in res["texte"].items() if txt and txt.strip()}
+        texte = {nr: txt for nr, txt in res["texte"].items() if txt and txt.strip()}
+        ebenen = {nr: e for nr, e in (res.get("ebenen") or {}).items() if nr in texte and e}
+        return texte, ebenen
 
     def get_metadata(self) -> dict:
         """

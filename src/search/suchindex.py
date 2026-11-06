@@ -15,6 +15,7 @@ nie in-process: ``lauf_starten()``.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -316,8 +317,13 @@ class Suchindex:
         """
         return self.datei_aufnehmen(pfad)
 
-    def ocr_eintragen(self, pfad: str, texte: dict) -> int:
-        """OCR-Ergebnis der Oberflaeche uebernehmen (``{seite: text}``), auch in den Cache; 0, wenn unbekannt."""
+    def ocr_eintragen(self, pfad: str, texte: dict, ebenen: dict | None = None) -> int:
+        """OCR-Ergebnis der Oberflaeche uebernehmen (``{seite: text}``), auch in den Cache; 0, wenn unbekannt.
+
+        ``ebenen`` (``{seite: text_pdf}``) sind die Text-PDFs aus demselben
+        Tesseract-Aufruf; der naechste Indexlauf schreibt sie als Textebene in
+        die Datei (Phase 5b).
+        """
         if not self.vorhanden() or not texte:
             return 0
         con = self._schreiben()
@@ -326,7 +332,8 @@ class Suchindex:
             if not r:
                 return 0
             ocr = self.konfig.ocr_einstellungen()
-            n = db.ocr_text_eintragen(con, r[0], dict(texte), ocr.get("sprachen"), ocr.get("dpi"))
+            n = db.ocr_text_eintragen(con, r[0], dict(texte), ocr.get("sprachen"), ocr.get("dpi"),
+                                      ebenen=dict(ebenen) if ebenen else None)
             con.commit()
             return n
         finally:
@@ -396,6 +403,57 @@ class Suchindex:
             con.close()
 
     # ------------------------------------------------------------------ Laeufe
+
+    # ------------------------------------------------------------------ Textebene (Phase 5b)
+
+    def textebene_protokoll(self, anzahl: int = 500) -> list[dict]:
+        """Von der Textebene geaenderte Dateien, neueste zuerst (``textebene.protokoll``)."""
+        from src.search import textebene
+
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return textebene.protokoll(con, anzahl)
+        except sqlite3.OperationalError:     # Datenbank noch ohne Tabelle (Version 1, nur lesend)
+            return []
+        finally:
+            con.close()
+
+    def textebene_rueckgaengig(self, eintrag_id: int, erzwingen: bool = False) -> tuple[bool, str]:
+        """Eine Aenderung zuruecknehmen (``textebene.rueckgaengig``); ``(ok, meldung)``."""
+        from src.search import textebene
+
+        if not self.vorhanden():
+            return False, "Kein Suchindex vorhanden."
+        con = self._schreiben()
+        try:
+            return textebene.rueckgaengig(con, self.konfig, int(eintrag_id), erzwingen=erzwingen)
+        finally:
+            con.close()
+
+    def textebene_schaetzung(self) -> dict:
+        """Aufwand der Stufe ``alle`` fuer den Altbestand (``textebene.schaetzung``); ohne Index lauter Nullen."""
+        from src.search import textebene
+
+        con = self._lesen()
+        leer = {"dateien": 0, "seiten": 0, "prozesse": self.konfig.anzahl_prozesse, "sekunden": 0, "bytes": 0,
+                "zuwachs_bytes": 0, "onedrive_dateien": 0, "onedrive_bytes": 0,
+                "sicherung_tage": self.konfig.textebene_sicherung_tage}
+        if con is None:
+            return leer
+        try:
+            return textebene.schaetzung(con, self.konfig)
+        except sqlite3.OperationalError:
+            return leer
+        finally:
+            con.close()
+
+    def lauf_anhalten(self) -> bool:
+        """Den laufenden Indexlauf anhalten (laufende Auftraege werden fertig); False, wenn keiner laeuft."""
+        from src.search.indexer import anhalten
+
+        return anhalten(self.konfig)
 
     @staticmethod
     def dienst_kommando() -> list[str]:

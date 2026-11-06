@@ -65,6 +65,15 @@ def status_text(idx) -> str:
          f"Fortschritt: {st['fortschritt']}"]
     if st.get("ocr_grund"):
         z.insert(3, f"Texterkennung (OCR): aus – {st['ocr_grund']}")
+    te = st.get("textebene") or {}
+    stufe = getattr(getattr(idx, "konfig", None), "textebene", "aus")
+    if stufe != "aus" or te.get("geschrieben"):
+        zeile = f"Textebene in PDFs ({stufe}): {te.get('geschrieben', 0)} geschrieben"
+        if te.get("gruende"):
+            from src.search.textebene import GRUENDE
+            zeile += " – nicht geschrieben: " + ", ".join(
+                f"{GRUENDE.get(k, k)}: {v}" for k, v in sorted(te["gruende"].items()))
+        z.append(zeile)
     if st["laeufe"]:
         lauf = st["laeufe"][0]
         z.append(f"Letzter Lauf: {lauf['beginn']} bis {lauf['ende'] or '…'} – {lauf['status']} ({lauf['phase']})")

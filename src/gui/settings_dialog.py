@@ -1169,16 +1169,27 @@ class SettingsDialog(QDialog):
             ("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)", "alle"),
         ):
             self.search_textlayer_combo.addItem(label, stufe)
+        self._search_textlayer_previous = "aus"
+        self.search_textlayer_combo.currentIndexChanged.connect(self._on_search_textlayer_changed)
         text_layout.addRow("Textebene schreiben:", self.search_textlayer_combo)
         self.search_textlayer_backup_days_spin = QSpinBox()
         self.search_textlayer_backup_days_spin.setRange(0, 3650)
         self.search_textlayer_backup_days_spin.setSuffix(" Tage")
+        self.search_textlayer_backup_days_spin.setSpecialValueText("unbegrenzt")
         text_layout.addRow("Sicherungskopien aufbewahren:", self.search_textlayer_backup_days_spin)
+        self.search_textlayer_protocol_button = QPushButton("Geänderte PDFs anzeigen / rückgängig machen…")
+        self.search_textlayer_protocol_button.setToolTip(
+            "Protokoll aller PDFs, die eine Textebene bekommen haben; einzelne Änderungen zurücknehmen"
+        )
+        self.search_textlayer_protocol_button.clicked.connect(self._open_textlayer_protocol)
+        text_layout.addRow(self.search_textlayer_protocol_button)
         text_hint = QLabel(
             "Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit auch "
             "andere Programme (Explorer-Suche, Acrobat, PaperPort) ihn finden und man ihn "
             "markieren kann. Das Scanbild bleibt unverändert; vor jeder Änderung entsteht "
-            "eine Sicherungskopie."
+            "eine Sicherungskopie. Geschrieben wird beim nächsten Indexlauf, auch wenn die "
+            "Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien "
+            "sowie geöffnete Dateien bleiben unberührt."
         )
         text_hint.setStyleSheet("color: gray;")
         text_hint.setWordWrap(True)
@@ -1339,7 +1350,10 @@ class SettingsDialog(QDialog):
         self.search_web_login_check.setChecked(cfg.web_bei_anmeldung)
         self.search_web_port_spin.setValue(cfg.web_port)
         self.search_processes_spin.setValue(cfg.prozesse)
+        self.search_textlayer_combo.blockSignals(True)
         self.search_textlayer_combo.setCurrentIndex(max(self.search_textlayer_combo.findData(cfg.textebene), 0))
+        self.search_textlayer_combo.blockSignals(False)
+        self._search_textlayer_previous = self.search_textlayer_combo.currentData() or "aus"
         self.search_textlayer_backup_days_spin.setValue(cfg.textebene_sicherung_tage)
         self.search_db_path_edit.setText(cfg.db_pfad)
         self.search_db_path_edit.setPlaceholderText(str(SearchConfig().db_datei))
@@ -1380,8 +1394,55 @@ class SettingsDialog(QDialog):
             web_port=self.search_web_port_spin.value(),
             textebene=self.search_textlayer_combo.currentData() or "aus",
             textebene_sicherung_tage=self.search_textlayer_backup_days_spin.value(),
+            textebene_sicherung_ordner=alt.textebene_sicherung_ordner,
         )
         self.config.set_search_config(cfg)
+
+    def _search_config_for_index(self):
+        """Gespeicherte Suche-Einstellungen mit dem Datenbankpfad aus dem Formular (Schätzung, Protokoll)."""
+        from dataclasses import replace
+
+        cfg = self.config.get_search_config()
+        return replace(cfg, db_pfad=self.search_db_path_edit.text().strip(),
+                       prozesse=self.search_processes_spin.value(),
+                       textebene_sicherung_tage=self.search_textlayer_backup_days_spin.value())
+
+    def _on_search_textlayer_changed(self, _index: int) -> None:
+        """Stufe „alle“ nur nach Rückfrage mit Schätzung (Dauer, OneDrive-Upload, Sicherungskopien)."""
+        stufe = self.search_textlayer_combo.currentData() or "aus"
+        if stufe == "alle" and self._search_textlayer_previous != "alle":
+            if not self._confirm_textlayer_all():
+                self.search_textlayer_combo.blockSignals(True)
+                self.search_textlayer_combo.setCurrentIndex(
+                    max(self.search_textlayer_combo.findData(self._search_textlayer_previous), 0))
+                self.search_textlayer_combo.blockSignals(False)
+                return
+        self._search_textlayer_previous = stufe
+
+    def _confirm_textlayer_all(self) -> bool:
+        from PyQt6.QtGui import QGuiApplication
+
+        from src.search import textebene
+        from src.search.suchindex import Suchindex
+
+        QGuiApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            text = textebene.schaetzung_text(Suchindex(self._search_config_for_index()).textebene_schaetzung())
+        except Exception as e:  # noqa: BLE001 - Schätzung ist eine Hilfe, kein Muss
+            text = f"Der Aufwand lässt sich gerade nicht schätzen ({e})."
+        finally:
+            QGuiApplication.restoreOverrideCursor()
+        antwort = QMessageBox.question(
+            self, "Textebene auch für den Altbestand",
+            text + "\n\nDie Stufe gilt ab dem nächsten Indexlauf; im Reiter „Suche“ lässt sich der Lauf "
+            "jederzeit anhalten. Einschalten?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        return antwort == QMessageBox.StandardButton.Yes
+
+    def _open_textlayer_protocol(self) -> None:
+        from src.gui.textebene_dialog import TextebeneProtokollDialog
+
+        TextebeneProtokollDialog(self._search_config_for_index(), self).exec()
 
     def _create_rules_tab(self) -> QWidget:
         """Tab fuer die Verwaltung der Automatisierungs-Regeln (Phase 21).

@@ -14,7 +14,10 @@ ihren OCR-Text aus dem Cache nach Bildinhalt, PDFSM-Metadaten werden aus der
 PDF gelesen (Quelle ``'pdf'``, Werte von PDFSM haben Vorrang), und von PDFSM
 verwaltete Dokumente bleiben beim Aufraeumen stehen, solange die Datei
 existiert. ``einzeldatei_indizieren`` liest eine Datei synchron (Meldungen der
-Oberflaeche).
+Oberflaeche). Phase 5b: Nach der OCR schreibt der Lauf die unsichtbare
+Textebene in die PDFs (``textebene.py``; Stufe ``alle`` auch fuer den
+Altbestand). Eine Datei ``indexer.anhalten`` im Datenordner haelt den Lauf an;
+der naechste Lauf setzt fort.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.search import db, extract, mbox, office, plattform
+from src.search import db, extract, mbox, office, plattform, textebene
 from src.search.konfig import SearchConfig
 
 log = logging.getLogger("pdf_sortier_meister.suche")
@@ -47,6 +50,7 @@ MBOX_STAPEL_BYTES = 24 * 1024 * 1024
 LEERLAUF_PRUEFEN_S = 30       # nur_leerlauf: so oft wird die Leerlaufzeit abgefragt ...
 LEERLAUF_MIN_S = 60           # ... und so lange muss der Nutzer untaetig sein, damit der Lauf (weiter)arbeitet
 LEERLAUF_PAUSE_S = 10         # Wartezeit zwischen zwei Pruefungen waehrend einer Pause
+ANHALTEN_PRUEFEN_S = 2        # so oft sieht der Lauf nach, ob er angehalten werden soll
 
 
 # --------------------------------------------------------------------------- Hilfen
@@ -95,6 +99,22 @@ def sperre_freigeben() -> None:
         plattform.entsperren(_sperre_datei)
         _sperre_datei.close()
         _sperre_datei = None
+
+
+def anhalten_datei(konfig: SearchConfig) -> Path:
+    """Liegt diese Datei im Datenordner, haelt der laufende Lauf an (Oberflaeche: „Anhalten“)."""
+    return konfig.daten_ordner / "indexer.anhalten"
+
+
+def anhalten(konfig: SearchConfig) -> bool:
+    """Den laufenden Lauf bitten anzuhalten; laufende Auftraege werden noch beendet. False ohne Lauf."""
+    if not laeuft_gerade(konfig):
+        return False
+    try:
+        anhalten_datei(konfig).touch()
+    except OSError:
+        return False
+    return True
 
 
 def laeuft_gerade(konfig: SearchConfig) -> bool:
@@ -186,9 +206,16 @@ def dokument_speichern(con, basis: dict, fmt: str, res: dict) -> tuple[int, dict
                "mail_von": res["von"], "mail_an": res["an"], "mail_datum": res["datum_iso"],
                "mail_betreff": res["betreff"], "mail_anhaenge": res["anhaenge"], "titel": res["betreff"]}
         seiten = [(1, "text", res["text"])] if res["text"] else []
+    vorher = None
+    if fmt == "pdf":
+        vorher = con.execute("SELECT textebene_am FROM dokumente WHERE pfad = ?", (basis["pfad"],)).fetchone()
     dok_id = db.speichere(con, dok, seiten, bild_hashes=hashes)
     if fmt == "pdf" and res.get("metadaten"):
         db.metadaten_setzen(con, dok_id, res["metadaten"], quelle="pdf")
+    if vorher is not None and vorher[0] and any(q == "ocr" and (t or "").strip() for _, q, t in seiten):
+        # Seiten mit Textebene lesen sich als Text; erkannte Bildseiten heissen, sie ist verloren gegangen
+        # (z. B. aeltere Fassung zurueckkopiert) - der naechste Lauf schreibt sie neu
+        con.execute("UPDATE dokumente SET textebene_am = NULL WHERE id = ?", (dok_id,))
     return dok_id, dok, zaehler
 
 
@@ -284,6 +311,7 @@ class Indexer:
         self.gesehen: set[str] = set()
         self.lauf_id = None
         self._mbox_stand_zeit = 0.0
+        self._anhalten_geprueft = 0.0
 
     # ---------------------------------------------------------------- Pool
     def _pool(self):
@@ -404,6 +432,10 @@ class Indexer:
             self._mbox_stapel_fertig(i)
         elif a.art == "hash":
             log.info("OCR-Cache ergänzen fehlgeschlagen: %s – %s", i.get("pfad"), grund)
+        elif a.art == "textebene":
+            textebene.ergebnis_eintragen(self.con, i["dok_id"], {"status": "fehler", "grund": "fehler",
+                                                                 "pfad": i.get("pfad"), "fehler": grund})
+            self.stat["textebene_fehler"] += 1
         self.aenderungen += 1
 
     # ---------------------------------------------------------------- Ergebnisse
@@ -430,7 +462,7 @@ class Indexer:
             for s in i["seiten"]:
                 texte.setdefault(s, None)   # nicht geliefert = Fehler
             erkannt = db.ocr_text_eintragen(self.con, dok_id, texte, self.ocr.get("sprachen"), self.ocr.get("dpi"),
-                                            nur_offene=True)
+                                            nur_offene=True, ebenen=res.get("ebenen"))
             self.stat["ocr_seiten"] += erkannt
             self._ocr_status(dok_id, res.get("fehler"))
         elif a.art == "hash":
@@ -446,6 +478,11 @@ class Indexer:
                     (dok_id, *res.keys())).fetchall()
                 self.stat["ocr_cache_ergaenzt"] += db.ocr_cache_eintragen(
                     self.con, [(r[0], r[1]) for r in zeilen], self.ocr.get("sprachen"), self.ocr.get("dpi"))
+        elif a.art == "textebene":
+            status = textebene.ergebnis_eintragen(self.con, i["dok_id"], res)
+            self.stat[f"textebene_{status}"] += 1
+            if status == "geschrieben":
+                self._stand_nachziehen(res["pfad"], res["groesse"], res["mtime_ns"])
         elif a.art == "mbox":
             for off, laenge, m in res:
                 dok = {
@@ -505,13 +542,26 @@ class Indexer:
 
     def _fortschritt(self) -> str:
         s = self.stat
-        return (f"{self.phase} – gelesen {s['gelesen']}, unverändert {s['unveraendert']}, Mails {s['mails']}, "
+        text = (f"{self.phase} – gelesen {s['gelesen']}, unverändert {s['unveraendert']}, Mails {s['mails']}, "
                 f"OCR-Seiten {s['ocr_seiten']}, Fehler {s['fehler']}")
+        if s["textebene_dateien"]:
+            erledigt = sum(s[f"textebene_{k}"] for k in ("geschrieben", "vorhanden", "uebersprungen", "fehler"))
+            text += f", Textebene {erledigt} von {s['textebene_dateien']} Dateien ({s['textebene_geschrieben']} geschrieben)"
+        return text
 
     def _zeit_pruefen(self) -> None:
         if self.ende_zeit and time.monotonic() > self.ende_zeit:
             raise Abbruch("Zeitlimit erreicht")
+        if self._anhalten_angefordert():
+            raise Abbruch("angehalten")
         self._leerlauf_warten()
+
+    def _anhalten_angefordert(self) -> bool:
+        jetzt = time.monotonic()
+        if jetzt - self._anhalten_geprueft < ANHALTEN_PRUEFEN_S:
+            return False
+        self._anhalten_geprueft = jetzt
+        return anhalten_datei(self.konfig).exists()
 
     def _leerlauf_warten(self) -> None:
         """``nur_leerlauf``: pausiert, solange der Nutzer aktiv ist.
@@ -591,6 +641,9 @@ class Indexer:
             if r.get("metadaten_quelle"):
                 db.metadaten_setzen(self.con, dok_id, {k: r.get(k) for k in db.METADATEN_FELDER},
                                     quelle=r["metadaten_quelle"])
+            # Dieselbe Datei traegt dieselbe Textebene (bzw. denselben Grund, keine zu haben)
+            self.con.execute("UPDATE dokumente SET textebene_am = ?, textebene_grund = ? WHERE id = ?",
+                             (r.get("textebene_am"), r.get("textebene_grund"), dok_id))
             self.bekannt[basis["pfad"].lower()] = [dok_id, alt[1], alt[2], alt[3], basis["prioritaet"],
                                                    r.get("metadaten_quelle")]
             self.stat["kopie"] += 1
@@ -812,12 +865,74 @@ class Indexer:
                 continue
             if not os.path.exists(d["datei"]):
                 continue
+            cfg = dict(self.ocr, textebene=True) if self._ebene_erzeugen(d["id"], d["datei"]) else self.ocr
             for k in range(0, len(seiten), OCR_STUECK):
                 teil = seiten[k:k + OCR_STUECK]
-                self._einreichen(Auftrag("ocr", extract.pdf_ocr, (d["datei"], teil, self.ocr),
+                self._einreichen(Auftrag("ocr", extract.pdf_ocr, (d["datei"], teil, cfg),
                                          {"pfad": d["datei"], "dok_id": d["id"], "seiten": teil},
                                          zeitlimit=120 + 180 * len(teil)))
         self._abarbeiten()
+
+    def _ebene_erzeugen(self, dok_id: int, datei: str) -> bool:
+        """Soll die OCR dieses Dokuments die Textebene mitliefern?
+
+        Ja bei Stufe ``alle``, bei ``neue_scans`` fuer Dateien im ersten
+        Vorrang-Ordner - und fuer Dokumente, deren erste Seiten schon mit
+        Textebene erkannt wurden (der PDF-Analyzer erkennt nur die ersten Seiten,
+        danach wird die Datei womoeglich aus dem Vorrang-Ordner wegsortiert).
+        """
+        if self.konfig.textebene == "aus":
+            return False
+        return self.konfig.textebene_erzeugen(datei) or textebene.hat_ebenen(self.con, dok_id)
+
+    # ---------------------------------------------------------------- Textebene (Phase 5b)
+    def _stand_nachziehen(self, pfad: str, groesse: int, mtime_ns: int) -> None:
+        """Nach dem Schreiben: Groesse/Aenderungszeit in ``bekannt`` und der Signatur fuer Verschiebungen."""
+        k = pfad.lower()
+        alt = self.bekannt.get(k)
+        if alt is None:
+            return
+        pfade = self.signatur.get((alt[1], alt[2]))
+        if pfade and k in pfade:
+            pfade.remove(k)
+        alt[1], alt[2] = groesse, mtime_ns
+        self.signatur.setdefault((groesse, mtime_ns), []).append(k)
+
+    def _textebene(self, altbestand: bool = False) -> None:
+        """Textebene in die PDFs schreiben: aus dem OCR-Cache bzw. (Altbestand) mit erneuter Texterkennung.
+
+        Haelt der Nutzer den Lauf an oder ist die Zeit um, werden die laufenden
+        Auftraege noch fertig geschrieben (keine halben Dateien, keine liegen
+        gebliebenen temporaeren Dateien); der naechste Lauf setzt fort.
+        """
+        if self.konfig.textebene == "aus":
+            return
+        ocr = self.ocr if self.ocr["aktiv"] else None
+        if altbestand and ocr is None:
+            log.warning("Textebene für den Altbestand übersprungen: %s", self.ocr["grund"])
+            return
+        zeilen = textebene.altbestand(self.con) if altbestand else textebene.offene(self.con)
+        if zeilen:
+            log.info("Textebene: %d Dateien%s", len(zeilen), " (Altbestand)" if altbestand else "")
+            self.stat["textebene_dateien"] += len(zeilen)
+        for d in zeilen:
+            if (self.ende_zeit and time.monotonic() > self.ende_zeit) or self._anhalten_angefordert():
+                self._abarbeiten()
+                raise Abbruch("angehalten" if anhalten_datei(self.konfig).exists() else "Zeitlimit erreicht")
+            a = textebene.auftrag(self.con, d, self.konfig, ocr)
+            if a is None:
+                self.aenderungen += 1
+                continue
+            nachholen = sum(1 for v in a["seiten"].values() if v["ebene"] is None)
+            self._einreichen(Auftrag("textebene", textebene.datei_schreiben, (a,),
+                                     {"pfad": d["datei"], "dok_id": d["id"]},
+                                     zeitlimit=120 + 10 * len(a["seiten"]) + 180 * nachholen))
+        self._abarbeiten()
+        if not altbestand:
+            weg = textebene.aufraeumen(self.con, self.konfig)
+            if weg["sicherungen"]:
+                log.info("Textebene: %d abgelaufene Sicherungskopien gelöscht", weg["sicherungen"])
+        self._commit_wenn_noetig(sofort=True)
 
     def _ocr_cache_ergaenzen(self) -> None:
         """Bild-Hashes fuer vorhandene OCR-Seiten ohne Hash nachtragen und ihre Texte in den Cache legen.
@@ -909,7 +1024,8 @@ class Indexer:
 
     # ---------------------------------------------------------------- Ablauf
     def lauf(self, nur_prioritaet: bool = False, ohne_ocr: bool = False, ohne_mail: bool = False,
-             nur_pfad: str | None = None) -> int:
+             nur_pfad: str | None = None, nur_textebene: bool = False) -> int:
+        """Ein Lauf; ``nur_textebene``: nur die Phasen der Textebene (``pdfsm-dienst textebene schreiben``)."""
         if not sperre_holen(self.konfig):
             log.info("Ein anderer Indexierungslauf ist bereits aktiv – Ende.")
             self.con.close()
@@ -922,12 +1038,22 @@ class Indexer:
         self.lauf_id = self.con.execute("INSERT INTO laeufe (beginn, status) VALUES (?, 'laeuft')",
                                         (db.jetzt(),)).lastrowid
         self.con.commit()
+        try:
+            anhalten_datei(self.konfig).unlink(missing_ok=True)   # alte Bitte eines frueheren Laufs
+        except OSError:
+            pass
         t0 = time.monotonic()
         status = "fertig"
         try:
             self._bekannte_laden()
             erledigt: set[str] = set()
-            if nur_pfad:
+            if nur_textebene:
+                self._phase("Textebene schreiben")
+                self._textebene()
+                if self.konfig.textebene == "alle":
+                    self._phase("Textebene Altbestand")
+                    self._textebene(altbestand=True)
+            elif nur_pfad:
                 p = os.path.normpath(nur_pfad)
                 self._phase(f"Ordner {p}")
                 if self._durchlaufen(p, 9, set()):
@@ -936,6 +1062,9 @@ class Indexer:
                 if not ohne_ocr:
                     self._phase("Texterkennung (OCR)")
                     self._ocr(p)
+                if self.konfig.textebene != "aus":
+                    self._phase("Textebene schreiben")
+                    self._textebene()
             else:
                 for prio, wurzel in enumerate(self.konfig.prioritaet):
                     self._phase(f"Vorrang {prio + 1}: {wurzel}")
@@ -963,6 +1092,12 @@ class Indexer:
                     if not nur_prioritaet:
                         self._phase("OCR-Cache ergänzen")
                         self._ocr_cache_ergaenzen()
+                if self.konfig.textebene != "aus":
+                    self._phase("Textebene schreiben")
+                    self._textebene()
+                    if self.konfig.textebene == "alle" and not nur_prioritaet and not ohne_ocr:
+                        self._phase("Textebene Altbestand")
+                        self._textebene(altbestand=True)
             self._abarbeiten()
         except (KeyboardInterrupt, Abbruch) as e:
             status = "abgebrochen"
@@ -986,6 +1121,10 @@ class Indexer:
             except Exception:
                 log.exception("Abschluss fehlgeschlagen")
             self.con.close()
+            try:
+                anhalten_datei(self.konfig).unlink(missing_ok=True)
+            except OSError:
+                pass
             sperre_freigeben()
             log.info("Lauf %s nach %s s: %s", status, self.stat["dauer_s"], dict(self.stat))
         return 0 if status == "fertig" else 1
