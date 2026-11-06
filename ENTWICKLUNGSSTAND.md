@@ -31,7 +31,14 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   Thunderbird-Profil aus `profiles.ini` als Standard fuer `mail_ordner`,
   Wurzel-Vorschlaege je Plattform, Sprachdaten-Pruefung (`ocr_grund` im Status);
   28 Tests mit simuliertem `sys.platform`
-- Offen: Phase 3 (Einrichtung, Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
+- Phase 3 (2026-11-06): Einrichtung und Uebernahme - Registerkarte „Suche“ in den
+  Einstellungen (alle `SearchConfig`-Felder, Thunderbird-/Tesseract-Hinweise,
+  Vorschlaege-Menue, Textebene-Stufen), Assistentenseite „Dokumentensuche“ (Standard aus,
+  Scan-/Zielordner vorbelegt, Mails/OCR nur wenn moeglich), `src/search/migration.py`
+  (PDFsuche finden ueber Aufgabe/MCP-Eintrag, pruefen mit `quick_check`, uebernehmen mit
+  `meta.migriert_von`, optional Kopie ueber die SQLite-Sicherungsschnittstelle),
+  `pdfsm-dienst migration`, Dialog `search_migration_dialog.py`; 18 Tests
+- Offen: Phase 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
   Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo

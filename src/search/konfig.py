@@ -18,6 +18,10 @@ from pathlib import Path
 
 from src.utils.platform_paths import get_app_data_dir
 
+# Stufen fuer „OCR-Text als Textebene in die PDF schreiben“ (Phase 5b):
+# aus | nur neue Scans im ersten Vorrang-Ordner | alle (Altbestand, nur auf Wunsch)
+TEXTEBENE_STUFEN = ("aus", "neue_scans", "alle")
+
 STANDARD_ENDUNGEN = (
     ".pdf", ".md", ".eml", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
 )
@@ -75,6 +79,9 @@ class SearchConfig:
         prozesse: Arbeitsprozesse (0 = halbe Kernzahl, hoechstens 8).
         hintergrund_*: taegliche Hintergrundindexierung (Aufgabenplanung / LaunchAgent).
         web_*: Browser-Oberflaeche (nur 127.0.0.1).
+        textebene: OCR-Text als unsichtbare Textebene in die PDF schreiben
+            (``TEXTEBENE_STUFEN``); ``textebene_sicherung_tage``: Aufbewahrung
+            der Sicherungskopien. Umsetzung in Phase 5b.
     """
 
     aktiv: bool = False
@@ -104,8 +111,13 @@ class SearchConfig:
     web_bei_anmeldung: bool = False
     web_host: str = "127.0.0.1"
     web_port: int = 18425
+    textebene: str = "aus"
+    textebene_sicherung_tage: int = 30
 
     def __post_init__(self) -> None:
+        if self.textebene not in TEXTEBENE_STUFEN:
+            self.textebene = "aus"
+        self.textebene_sicherung_tage = max(0, int(self.textebene_sicherung_tage))
         self.wurzeln = [norm_pfad(p) for p in self.wurzeln if str(p).strip()]
         self.prioritaet = [norm_pfad(p) for p in self.prioritaet if str(p).strip()]
         self.mail_ordner = [norm_pfad(p) for p in self.mail_ordner if str(p).strip()]

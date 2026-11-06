@@ -7,6 +7,7 @@
   pdfsm-dienst status
   pdfsm-dienst web [--port N] [--nicht-oeffnen]
   pdfsm-dienst mcp
+  pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]
   pdfsm-dienst --version
 
 Die Konfiguration kommt aus der ``config.json`` von PDF Sortier Meister (Block
@@ -88,7 +89,48 @@ def parser() -> argparse.ArgumentParser:
     w.add_argument("--nicht-oeffnen", action="store_true")
 
     sub.add_parser("mcp", help="MCP-Server (stdio) für KI-Assistenten starten")
+
+    m = sub.add_parser("migration", help="vorhandene PDFsuche übernehmen (Einstellungen und Datenbank)")
+    m.add_argument("--von", help="Projektordner der PDFsuche (mit config.toml); ohne Angabe wird gesucht")
+    m.add_argument("--kopieren", action="store_true",
+                   help="Datenbank in das Datenverzeichnis kopieren statt sie am bisherigen Ort zu lassen")
+    m.add_argument("--ja", action="store_true", help="ohne Rückfrage übernehmen (sonst nur Vorschau)")
     return p
+
+
+def _migration(a) -> int:
+    """``pdfsm-dienst migration``: Vorschau, mit ``--ja`` Uebernahme in die config.json von PDF Sortier Meister."""
+    from src.search import migration
+    from src.utils.config import Config, get_config
+
+    cfg = Config(a.config) if a.config and not str(a.config).lower().endswith(".toml") else get_config()
+    ordner = a.von
+    if not ordner:
+        kandidaten = migration.finde_pdfsuche()
+        if not kandidaten:
+            print("Keine PDFsuche gefunden – Projektordner mit --von ORDNER angeben.")
+            return 1
+        ordner = kandidaten[0]
+        if len(kandidaten) > 1:
+            print("Mehrere Kandidaten, der erste wird geprüft: " + ", ".join(kandidaten))
+    u = migration.pruefen(ordner)
+    print(u.zusammenfassung())
+    if not u.moeglich:
+        return 1
+    if not a.ja:
+        print("\nVorschau – zum Übernehmen erneut mit --ja aufrufen"
+              + (" (Datenbank wird kopiert)." if a.kopieren else " (Datenbank bleibt am Ort)."))
+        return 0
+
+    def fortschritt(kopiert, gesamt):
+        if gesamt:
+            print(f"\rKopiere Datenbank … {kopiert * 100 // gesamt} %", end="", flush=True)
+
+    konfig = migration.uebernehmen(u, cfg, kopieren=a.kopieren, fortschritt=fortschritt)
+    if a.kopieren:
+        print()
+    print(f"Übernommen. Datenbank: {konfig.db_datei}\nEinstellungen gespeichert in {cfg.config_path}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
         pass  # bereits gesetzt (z. B. unter pytest)
     _utf8()
     a = parser().parse_args(argv)
+    if a.befehl == "migration":
+        return _migration(a)
     konfig = konfig_modul.lade(a.config)
 
     if a.befehl == "index":

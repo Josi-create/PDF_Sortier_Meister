@@ -653,6 +653,28 @@ eingefrorenen Zustand neben `sys.executable`, in der Entwicklungsumgebung als
    Zaehlervergleich auf der Kopie, dann `db_pfad` umstellen. Nicht der
    Standardweg.
 
+**Umsetzung (Phase 3, 06.11.2026):** `src/search/migration.py` (Qt-frei):
+`finde_pdfsuche()` (Aufgabe `\PDFsuche\Indexierung` per `schtasks /Query /XML`,
+MCP-Eintrag `pdfsuche` in `~/.claude.json`; nur Ordner mit `config.toml`),
+`pruefen(ordner)` -> `Uebernahme` (Vorschau aus `lade_config_toml`, `db_pfad`
+relativ zum Projektordner aufgeloest, Sperre ueber `laeuft_gerade`, `quick_check`
+und Zaehler nur lesend, Schema-Version 1 oder 2), `uebernehmen(u, config,
+kopieren)` (setzt `meta.migriert_von/-am`, speichert `SearchConfig` mit
+`aktiv=True`), `kopiere_db` (SQLite-Sicherungsschnittstelle mit Fortschritt,
+Kopie als `.teil`, `quick_check` und Dokumentzahl, dann `os.replace`).
+Kommandozeile `pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]`
+(ohne `--ja` nur Vorschau). Oberflaeche: `src/gui/search_migration_dialog.py`
+(Pruefung und Uebernahme im `QThread`, Fortschrittsbalken beim Kopieren),
+erreichbar aus der Registerkarte „Suche“ und der Assistentenseite. Die
+Registerkarte „Suche“ (`SettingsDialog._create_search_tab`) zeigt alle Felder
+der `SearchConfig` inklusive der Stufen der Textebene (`textebene`,
+`textebene_sicherung_tage`, neu in der Dataclass, Wirkung ab Phase 5b); die
+Assistentenseite „Dokumentensuche“ (`setup_wizard.SearchPage`, nach der
+KI-Seite, Standard **aus**) fragt Ordner (vorbelegt Scan-/Zielordner, Laufwerke
+bzw. Benutzerordner abwaehlbar), Mails (nur bei gefundenem Thunderbird-Profil),
+OCR (nur bei gefundenem Tesseract) und Hintergrundindexierung ab und speichert
+nur, wenn sie gesehen wurde.
+
 ---
 
 ## 8. Oberflaeche (Vorgaben fuer Phase 3 und 4)

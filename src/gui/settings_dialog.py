@@ -103,6 +103,10 @@ class SettingsDialog(QDialog):
         rules_tab = self._create_rules_tab()
         tab_widget.addTab(rules_tab, "Automatisierungs-Regeln")
 
+        # Dokumentensuche (Integration von PDFsuche, Phase 3)
+        search_tab = self._create_search_tab()
+        tab_widget.addTab(search_tab, "Suche")
+
         layout.addWidget(tab_widget)
         self.tab_widget = tab_widget
 
@@ -950,6 +954,435 @@ class SettingsDialog(QDialog):
 
         return tab
 
+    # ------------------------------------------------------------------ Dokumentensuche (Registerkarte „Suche“)
+
+    def _create_search_tab(self) -> QWidget:
+        """Registerkarte „Suche“: alle Felder der ``SearchConfig`` (Dokumentensuche, ``src/search``).
+
+        Die Felder liegen in einem Scrollbereich; geladen wird in
+        ``_load_search_settings``, gespeichert in ``_save_search_settings``.
+        """
+        from PyQt6.QtWidgets import QListWidget, QMenu, QScrollArea, QTimeEdit, QToolButton
+
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+
+        self.search_active_check = QCheckBox(
+            "Dokumentensuche eingeschaltet (Volltextindex über die unten gewählten Ordner)"
+        )
+        self.search_active_check.setToolTip(
+            "Durchsucht PDFs (mit Texterkennung), Office-Dateien, Markdown und Mails\n"
+            "nach Stichwörtern. Der Index ist eine lokale Datenbank; Dateien werden\n"
+            "nur gelesen, nie verändert."
+        )
+        layout.addWidget(self.search_active_check)
+        search_hint = QLabel(
+            "Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
+            "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert."
+        )
+        search_hint.setStyleSheet("color: gray;")
+        search_hint.setWordWrap(True)
+        layout.addWidget(search_hint)
+
+        # Ordner und Laufwerke
+        folders_group = QGroupBox("Ordner und Laufwerke")
+        folders_layout = QVBoxLayout(folders_group)
+        folders_layout.addWidget(QLabel("Vollständig durchsuchte Ordner oder Laufwerke:"))
+        self.search_roots_list = QListWidget()
+        self.search_roots_list.setMaximumHeight(90)
+        folders_layout.addWidget(self.search_roots_list)
+        roots_buttons = QHBoxLayout()
+        self.search_roots_add = QPushButton("Ordner hinzufügen…")
+        self.search_roots_add.clicked.connect(
+            lambda: self._search_list_add_folder(self.search_roots_list, "Ordner oder Laufwerk hinzufügen")
+        )
+        roots_buttons.addWidget(self.search_roots_add)
+        self.search_roots_suggest = QToolButton()
+        self.search_roots_suggest.setText("Vorschläge")
+        self.search_roots_suggest.setToolTip("Scan- und Zielordner, Laufwerke bzw. Benutzerordner und Volumes")
+        self.search_roots_suggest.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.search_roots_suggest_menu = QMenu(self.search_roots_suggest)
+        self.search_roots_suggest_menu.aboutToShow.connect(self._search_fill_suggestions)
+        self.search_roots_suggest.setMenu(self.search_roots_suggest_menu)
+        roots_buttons.addWidget(self.search_roots_suggest)
+        self.search_roots_remove = QPushButton("Entfernen")
+        self.search_roots_remove.clicked.connect(lambda: self._search_list_remove(self.search_roots_list))
+        roots_buttons.addWidget(self.search_roots_remove)
+        roots_buttons.addStretch()
+        folders_layout.addLayout(roots_buttons)
+
+        folders_layout.addWidget(QLabel(
+            "Vorrang-Ordner (bei jedem Lauf zuerst; neue Scans im ersten Ordner werden sofort texterkannt):"
+        ))
+        self.search_priority_list = QListWidget()
+        self.search_priority_list.setMaximumHeight(70)
+        folders_layout.addWidget(self.search_priority_list)
+        prio_buttons = QHBoxLayout()
+        self.search_priority_add = QPushButton("Ordner hinzufügen…")
+        self.search_priority_add.clicked.connect(
+            lambda: self._search_list_add_folder(self.search_priority_list, "Vorrang-Ordner hinzufügen")
+        )
+        prio_buttons.addWidget(self.search_priority_add)
+        self.search_priority_remove = QPushButton("Entfernen")
+        self.search_priority_remove.clicked.connect(lambda: self._search_list_remove(self.search_priority_list))
+        prio_buttons.addWidget(self.search_priority_remove)
+        prio_buttons.addStretch()
+        folders_layout.addLayout(prio_buttons)
+
+        folders_layout.addWidget(QLabel("Ordnernamen, die überall übersprungen werden (einer je Zeile):"))
+        self.search_exclude_names_edit = QPlainTextEdit()
+        self.search_exclude_names_edit.setMaximumHeight(70)
+        folders_layout.addWidget(self.search_exclude_names_edit)
+
+        folders_layout.addWidget(QLabel("Vollständige Pfade, die übersprungen werden:"))
+        self.search_exclude_paths_list = QListWidget()
+        self.search_exclude_paths_list.setMaximumHeight(60)
+        folders_layout.addWidget(self.search_exclude_paths_list)
+        excl_buttons = QHBoxLayout()
+        self.search_exclude_paths_add = QPushButton("Pfad hinzufügen…")
+        self.search_exclude_paths_add.clicked.connect(
+            lambda: self._search_list_add_folder(self.search_exclude_paths_list, "Auszuschließenden Ordner wählen")
+        )
+        excl_buttons.addWidget(self.search_exclude_paths_add)
+        self.search_exclude_paths_remove = QPushButton("Entfernen")
+        self.search_exclude_paths_remove.clicked.connect(
+            lambda: self._search_list_remove(self.search_exclude_paths_list)
+        )
+        excl_buttons.addWidget(self.search_exclude_paths_remove)
+        excl_buttons.addStretch()
+        folders_layout.addLayout(excl_buttons)
+
+        ext_row = QFormLayout()
+        self.search_extensions_edit = QLineEdit()
+        self.search_extensions_edit.setToolTip("Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg")
+        ext_row.addRow("Dateiendungen:", self.search_extensions_edit)
+        folders_layout.addLayout(ext_row)
+        layout.addWidget(folders_group)
+
+        # Mails
+        mail_group = QGroupBox("Mails (Thunderbird-Postfächer)")
+        mail_layout = QVBoxLayout(mail_group)
+        self.search_mails_check = QCheckBox("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)")
+        mail_layout.addWidget(self.search_mails_check)
+        self.search_thunderbird_label = QLabel("")
+        self.search_thunderbird_label.setStyleSheet("color: gray;")
+        self.search_thunderbird_label.setWordWrap(True)
+        mail_layout.addWidget(self.search_thunderbird_label)
+        mail_layout.addWidget(QLabel("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):"))
+        self.search_mail_folders_list = QListWidget()
+        self.search_mail_folders_list.setMaximumHeight(60)
+        mail_layout.addWidget(self.search_mail_folders_list)
+        mail_buttons = QHBoxLayout()
+        self.search_mail_folders_add = QPushButton("Ordner hinzufügen…")
+        self.search_mail_folders_add.clicked.connect(
+            lambda: self._search_list_add_folder(self.search_mail_folders_list, "Postfach-Ordner (Mail/, ImapMail/) wählen")
+        )
+        mail_buttons.addWidget(self.search_mail_folders_add)
+        self.search_mail_folders_remove = QPushButton("Entfernen")
+        self.search_mail_folders_remove.clicked.connect(
+            lambda: self._search_list_remove(self.search_mail_folders_list)
+        )
+        mail_buttons.addWidget(self.search_mail_folders_remove)
+        mail_buttons.addStretch()
+        mail_layout.addLayout(mail_buttons)
+        layout.addWidget(mail_group)
+
+        # Texterkennung
+        ocr_group = QGroupBox("Texterkennung (OCR) für gescannte PDFs")
+        ocr_layout = QFormLayout(ocr_group)
+        self.search_ocr_check = QCheckBox("Bildseiten ohne Text mit Tesseract erkennen")
+        ocr_layout.addRow(self.search_ocr_check)
+        self.search_ocr_languages_edit = QLineEdit()
+        self.search_ocr_languages_edit.setToolTip("Tesseract-Sprachen, mit + verbunden, z. B. deu+eng")
+        ocr_layout.addRow("Sprachen:", self.search_ocr_languages_edit)
+        self.search_ocr_max_pages_spin = QSpinBox()
+        self.search_ocr_max_pages_spin.setRange(0, 100000)
+        self.search_ocr_max_pages_spin.setSpecialValueText("keine Grenze")
+        self.search_ocr_max_pages_spin.setToolTip("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt")
+        ocr_layout.addRow("Höchstens Bildseiten je PDF:", self.search_ocr_max_pages_spin)
+        self.search_ocr_status_label = QLabel("")
+        self.search_ocr_status_label.setStyleSheet("color: gray;")
+        self.search_ocr_status_label.setWordWrap(True)
+        ocr_layout.addRow(self.search_ocr_status_label)
+        layout.addWidget(ocr_group)
+
+        # Cloud-Dateien und Grenzen
+        limits_group = QGroupBox("Cloud-Dateien und Grenzen")
+        limits_layout = QFormLayout(limits_group)
+        self.search_cloud_check = QCheckBox(
+            "Nur in der Cloud liegende Dateien (OneDrive, iCloud Drive) zum Lesen herunterladen"
+        )
+        self.search_cloud_check.setToolTip("Sonst werden solche Dateien nur mit ihrem Namen aufgenommen.")
+        limits_layout.addRow(self.search_cloud_check)
+        self.search_max_size_spin = QSpinBox()
+        self.search_max_size_spin.setRange(1, 100000)
+        self.search_max_size_spin.setSuffix(" MB")
+        limits_layout.addRow("Größere Dateien nur mit Namen aufnehmen ab:", self.search_max_size_spin)
+        layout.addWidget(limits_group)
+
+        # Hintergrundindexierung
+        bg_group = QGroupBox("Hintergrundindexierung")
+        bg_layout = QFormLayout(bg_group)
+        self.search_background_check = QCheckBox("Täglich im Hintergrund indizieren (nur bei Leerlauf des Rechners)")
+        bg_layout.addRow(self.search_background_check)
+        self.search_background_time_edit = QTimeEdit()
+        self.search_background_time_edit.setDisplayFormat("HH:mm")
+        bg_layout.addRow("Uhrzeit:", self.search_background_time_edit)
+        bg_hint = QLabel(
+            "Der tägliche Lauf wird über die Aufgabenplanung (Windows) bzw. einen "
+            "LaunchAgent (macOS) vom Hintergrunddienst ausgeführt und bricht ab, "
+            "sobald Sie den Rechner wieder benutzen."
+        )
+        bg_hint.setStyleSheet("color: gray;")
+        bg_hint.setWordWrap(True)
+        bg_layout.addRow(bg_hint)
+        layout.addWidget(bg_group)
+
+        # Browser-Oberflaeche
+        web_group = QGroupBox("Browser-Oberfläche (nur auf diesem Rechner erreichbar)")
+        web_layout = QFormLayout(web_group)
+        self.search_web_check = QCheckBox("Browser-Oberfläche der Suche einschalten")
+        web_layout.addRow(self.search_web_check)
+        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten")
+        web_layout.addRow(self.search_web_login_check)
+        self.search_web_port_spin = QSpinBox()
+        self.search_web_port_spin.setRange(1024, 65535)
+        web_layout.addRow("Port:", self.search_web_port_spin)
+        layout.addWidget(web_group)
+
+        # Leistung
+        perf_group = QGroupBox("Leistung")
+        perf_layout = QFormLayout(perf_group)
+        self.search_processes_spin = QSpinBox()
+        self.search_processes_spin.setRange(0, 64)
+        self.search_processes_spin.setSpecialValueText("automatisch (halbe Kernzahl, höchstens 8)")
+        perf_layout.addRow("Arbeitsprozesse:", self.search_processes_spin)
+        layout.addWidget(perf_group)
+
+        # Textebene (Phase 5b)
+        text_group = QGroupBox("Textebene in gescannte PDFs schreiben")
+        text_layout = QFormLayout(text_group)
+        self.search_textlayer_combo = QComboBox()
+        for label, stufe in (
+            ("Aus (Standard)", "aus"),
+            ("Nur neue Scans im ersten Vorrang-Ordner", "neue_scans"),
+            ("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)", "alle"),
+        ):
+            self.search_textlayer_combo.addItem(label, stufe)
+        text_layout.addRow("Textebene schreiben:", self.search_textlayer_combo)
+        self.search_textlayer_backup_days_spin = QSpinBox()
+        self.search_textlayer_backup_days_spin.setRange(0, 3650)
+        self.search_textlayer_backup_days_spin.setSuffix(" Tage")
+        text_layout.addRow("Sicherungskopien aufbewahren:", self.search_textlayer_backup_days_spin)
+        text_hint = QLabel(
+            "Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit auch "
+            "andere Programme (Explorer-Suche, Acrobat, PaperPort) ihn finden und man ihn "
+            "markieren kann. Das Scanbild bleibt unverändert; vor jeder Änderung entsteht "
+            "eine Sicherungskopie."
+        )
+        text_hint.setStyleSheet("color: gray;")
+        text_hint.setWordWrap(True)
+        text_layout.addRow(text_hint)
+        layout.addWidget(text_group)
+
+        # Speicherort und Uebernahme
+        storage_group = QGroupBox("Speicherort und Übernahme")
+        storage_layout = QFormLayout(storage_group)
+        db_row = QHBoxLayout()
+        self.search_db_path_edit = QLineEdit()
+        self.search_db_path_edit.setToolTip(
+            "Leer = Standardort im Datenverzeichnis. Bei einer übernommenen PDFsuche\n"
+            "zeigt der Wert auf deren bisherige Datenbank."
+        )
+        db_row.addWidget(self.search_db_path_edit, 1)
+        self.search_db_browse = QPushButton("Durchsuchen…")
+        self.search_db_browse.clicked.connect(self._browse_search_db)
+        db_row.addWidget(self.search_db_browse)
+        storage_layout.addRow("Datenbank:", db_row)
+        self.search_migrate_button = QPushButton("Vorhandene PDFsuche übernehmen…")
+        self.search_migrate_button.setToolTip(
+            "Einstellungen und Datenbank des früheren, eigenständigen Programms PDFsuche übernehmen"
+        )
+        self.search_migrate_button.clicked.connect(self._open_search_migration)
+        storage_layout.addRow(self.search_migrate_button)
+        layout.addWidget(storage_group)
+
+        layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(inner)
+        return scroll
+
+    # Listen-Helfer der Registerkarte „Suche“
+
+    def _search_list_add_folder(self, liste, titel: str) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        ordner = QFileDialog.getExistingDirectory(self, titel, "")
+        if ordner:
+            self._search_list_add(liste, ordner)
+
+    @staticmethod
+    def _search_list_add(liste, pfad: str) -> None:
+        from src.search.konfig import norm_pfad
+
+        pfad = norm_pfad(pfad)
+        vorhanden = {liste.item(i).text().lower() for i in range(liste.count())}
+        if pfad.lower() not in vorhanden:
+            liste.addItem(pfad)
+
+    @staticmethod
+    def _search_list_remove(liste) -> None:
+        for item in liste.selectedItems():
+            liste.takeItem(liste.row(item))
+
+    @staticmethod
+    def _search_list_items(liste) -> list[str]:
+        return [liste.item(i).text() for i in range(liste.count())]
+
+    @staticmethod
+    def _search_list_set(liste, werte) -> None:
+        liste.clear()
+        liste.addItems([str(w) for w in werte])
+
+    def _search_fill_suggestions(self) -> None:
+        """Menue „Vorschläge“: Scan-/Zielordner, dann Laufwerke bzw. Benutzerordner und Volumes."""
+        from src.search import plattform
+        from src.search.konfig import norm_pfad
+
+        menu = self.search_roots_suggest_menu
+        menu.clear()
+        kandidaten = [str(self.config.get_scan_folder() or "")]
+        kandidaten += [str(t) for t in self.config.get_target_folders()]
+        try:
+            kandidaten += plattform.wurzel_vorschlaege()
+        except Exception:
+            pass
+        gesehen = set()
+        for k in kandidaten:
+            if not k.strip():
+                continue
+            p = norm_pfad(k)
+            if p.lower() in gesehen:
+                continue
+            gesehen.add(p.lower())
+            action = menu.addAction(p)
+            action.triggered.connect(lambda _=False, pfad=p: self._search_list_add(self.search_roots_list, pfad))
+        if menu.isEmpty():
+            menu.addAction("Keine Vorschläge").setEnabled(False)
+
+    def _browse_search_db(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        pfad, _ = QFileDialog.getSaveFileName(
+            self, "Datenbank der Dokumentensuche", self.search_db_path_edit.text(),
+            "SQLite-Datenbank (*.db);;Alle Dateien (*)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if pfad:
+            self.search_db_path_edit.setText(pfad)
+
+    def _open_search_migration(self) -> None:
+        """„Vorhandene PDFsuche übernehmen…“: Dialog; danach die Registerkarte neu laden."""
+        from src.gui.search_migration_dialog import SearchMigrationDialog
+
+        dlg = SearchMigrationDialog(self, self.config)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._load_search_settings()
+
+    def _load_search_settings(self) -> None:
+        """Registerkarte „Suche“ aus ``Config.get_search_config()`` fuellen."""
+        from PyQt6.QtCore import QTime
+
+        from src.search import plattform
+        from src.search.konfig import SearchConfig
+
+        cfg = self.config.get_search_config()
+        self.search_active_check.setChecked(cfg.aktiv)
+        self._search_list_set(self.search_roots_list, cfg.wurzeln)
+        self._search_list_set(self.search_priority_list, cfg.prioritaet)
+        self.search_exclude_names_edit.setPlainText("\n".join(sorted(cfg.ordner_ausschliessen)))
+        self._search_list_set(self.search_exclude_paths_list, sorted(cfg.pfade_ausschliessen))
+        self.search_extensions_edit.setText(" ".join(sorted(cfg.endungen)))
+
+        self.search_mails_check.setChecked(cfg.mails_aktiv)
+        self._search_list_set(self.search_mail_folders_list, cfg.mail_ordner)
+        try:
+            profil = plattform.thunderbird_mail_ordner()
+        except Exception:
+            profil = []
+        self.search_thunderbird_label.setText(
+            "Thunderbird-Profil erkannt: " + ", ".join(profil) if profil
+            else "Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen."
+        )
+
+        self.search_ocr_check.setChecked(cfg.ocr_aktiv)
+        self.search_ocr_languages_edit.setText(cfg.ocr_sprachen)
+        self.search_ocr_max_pages_spin.setValue(cfg.ocr_max_seiten)
+        ocr = cfg.ocr_einstellungen()
+        if ocr["tesseract"]:
+            status = f"Tesseract gefunden: {ocr['tesseract']}"
+            if ocr["grund"] and "Sprachdaten" in ocr["grund"]:
+                status += f" – {ocr['grund']}"
+        else:
+            status = "Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist."
+        self.search_ocr_status_label.setText(status)
+
+        self.search_cloud_check.setChecked(cfg.cloud_herunterladen)
+        self.search_max_size_spin.setValue(cfg.max_dateigroesse_mb)
+        self.search_background_check.setChecked(cfg.hintergrund_aktiv)
+        zeit = QTime.fromString(cfg.hintergrund_uhrzeit, "HH:mm")
+        self.search_background_time_edit.setTime(zeit if zeit.isValid() else QTime(3, 0))
+        self.search_web_check.setChecked(cfg.web_aktiv)
+        self.search_web_login_check.setChecked(cfg.web_bei_anmeldung)
+        self.search_web_port_spin.setValue(cfg.web_port)
+        self.search_processes_spin.setValue(cfg.prozesse)
+        self.search_textlayer_combo.setCurrentIndex(max(self.search_textlayer_combo.findData(cfg.textebene), 0))
+        self.search_textlayer_backup_days_spin.setValue(cfg.textebene_sicherung_tage)
+        self.search_db_path_edit.setText(cfg.db_pfad)
+        self.search_db_path_edit.setPlaceholderText(str(SearchConfig().db_datei))
+
+    def _save_search_settings(self) -> None:
+        """Registerkarte „Suche“ als ``SearchConfig`` in den Block ``"suche"`` schreiben."""
+        from src.search.konfig import STANDARD_ENDUNGEN, SearchConfig
+
+        alt = self.config.get_search_config()
+        endungen = set(self.search_extensions_edit.text().split()) or set(STANDARD_ENDUNGEN)
+        cfg = SearchConfig(
+            aktiv=self.search_active_check.isChecked(),
+            db_pfad=self.search_db_path_edit.text().strip(),
+            wurzeln=self._search_list_items(self.search_roots_list),
+            prioritaet=self._search_list_items(self.search_priority_list),
+            endungen=endungen,
+            ordner_ausschliessen={
+                z.strip() for z in self.search_exclude_names_edit.toPlainText().splitlines() if z.strip()
+            },
+            pfade_ausschliessen=set(self._search_list_items(self.search_exclude_paths_list)),
+            cloud_herunterladen=self.search_cloud_check.isChecked(),
+            max_dateigroesse_mb=self.search_max_size_spin.value(),
+            mails_aktiv=self.search_mails_check.isChecked(),
+            mail_ordner=self._search_list_items(self.search_mail_folders_list),
+            ocr_aktiv=self.search_ocr_check.isChecked(),
+            ocr_tesseract=alt.ocr_tesseract,
+            ocr_tessdata=alt.ocr_tessdata,
+            ocr_sprachen=self.search_ocr_languages_edit.text().strip() or "deu+eng",
+            ocr_dpi=alt.ocr_dpi,
+            ocr_min_zeichen=alt.ocr_min_zeichen,
+            ocr_max_seiten=self.search_ocr_max_pages_spin.value(),
+            prozesse=self.search_processes_spin.value(),
+            hintergrund_aktiv=self.search_background_check.isChecked(),
+            hintergrund_uhrzeit=self.search_background_time_edit.time().toString("HH:mm"),
+            web_aktiv=self.search_web_check.isChecked(),
+            web_bei_anmeldung=self.search_web_login_check.isChecked(),
+            web_host=alt.web_host,
+            web_port=self.search_web_port_spin.value(),
+            textebene=self.search_textlayer_combo.currentData() or "aus",
+            textebene_sicherung_tage=self.search_textlayer_backup_days_spin.value(),
+        )
+        self.config.set_search_config(cfg)
+
     def _create_rules_tab(self) -> QWidget:
         """Tab fuer die Verwaltung der Automatisierungs-Regeln (Phase 21).
 
@@ -1515,6 +1948,9 @@ class SettingsDialog(QDialog):
                 "Aktuell nicht eingerichtet."
             )
 
+        # Dokumentensuche (Registerkarte „Suche“)
+        self._load_search_settings()
+
     def _save_settings(self):
         """Speichert die Einstellungen."""
         # LLM-Einstellungen
@@ -1595,6 +2031,9 @@ class SettingsDialog(QDialog):
         # Explorer-Integration nur bei Aenderung anwenden.
         if sys.platform == "win32":
             self._apply_explorer_integration_change()
+
+        # Dokumentensuche (Registerkarte „Suche“)
+        self._save_search_settings()
 
         self.settings_changed.emit()
         self.accept()
