@@ -110,6 +110,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Datenbank am Ort (kein laufender Index, Integritaet, Zaehler) und laesst
   sie dort liegen; auf Wunsch wird sie geprueft in das Datenverzeichnis
   kopiert.
+- **Reiter „Suche“ im Hauptfenster** (Phase 4): Neben „Vorschau“ und „Chat“
+  gibt es den Reiter **Suche** (auch Ansicht > Volltextsuche, Strg+Umschalt+F)
+  fuer die Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown
+  und Mails. Suchfeld mit Hilfe zur Syntax (Wortfolgen, ODER/NICHT, Wortanfang,
+  Naehe), Filter fuer Typ, Ordner, Zeitraum und Sortierung, Trefferliste mit
+  hervorgehobenen Fundstellen und Seiten- bzw. Blattangabe, weitere Treffer auf
+  Knopfdruck. Ein Klick zeigt die PDF rechts in der Vorschau direkt auf der
+  Trefferseite (der Link „S. 3“ springt weiter), Office-Dateien, Markdown und
+  Mails erscheinen als Text mit Hervorhebung. Aktionen je Treffer: Oeffnen (PDFs
+  wie in den Einstellungen gewaehlt), im Explorer bzw. Finder zeigen, Pfad
+  kopieren, Mails mit dem Mailprogramm oeffnen oder als `.eml` speichern.
+  Unten steht der Indexstand (Dokumente je Typ, OCR-Rueckstand, laufender
+  Lauf) mit „Jetzt indizieren“ fuer die Vorrang-Ordner und „Kompletten Lauf
+  starten“. Alle Abfragen laufen im Hintergrund, die Oberflaeche bleibt
+  bedienbar; solange die Suche nicht eingerichtet ist, fuehrt ein Hinweis zu
+  Einstellungen > Suche.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

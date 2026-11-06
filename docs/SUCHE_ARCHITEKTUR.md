@@ -709,6 +709,35 @@ nur, wenn sie gesehen wurde.
   Datenschutzhinweis: Index und OCR-Text bleiben lokal, Dateien werden nur
   gelesen, nichts verlaesst den Rechner. Ohne Zustimmung wird nichts indiziert.
 
+**Umsetzung (Phase 4, 06.11.2026):** `src/gui/search_view.py` (`SearchView`,
+dritter Reiter „Suche“ im mittleren `QTabWidget`, Menue Ansicht >
+„Volltextsuche“, Strg+Umschalt+F) und `src/gui/search_worker.py`
+(`SuchAbfrage`, `DokumentLaden`, `StatusAbfrage` als `QThread`; die Fassade
+oeffnet je Aufruf eine Nur-Lese-Verbindung, Ergebnisse veralteter Generationen
+werden verworfen). Links: Suchfeld (Hilfe als Tooltip, „?“ und in der leeren
+Liste; Suche beim Tippen nach 500 ms ab drei Zeichen, Enter sofort), Filter
+Typ (Alle/PDF/Office/Markdown/Mail), Ordner (Teil des Pfads bzw. Postfachs),
+Zeitraum (von/bis, „–“ = kein Filter), Sortierung; Trefferkarten
+(`TrefferKarte`) mit Typ, Titel, Statusmarke, Metazeile, Pfad und Fundstellen
+mit Hervorhebung und Link „S. n“ bzw. „Blatt n“; „Weitere Treffer laden“ in
+Schritten von 50; Auswahl auch per Pfeiltasten, Enter oeffnet. Rechts: eigene
+`PdfPreviewWidget`-Instanz, die nach `document_loaded` per `go_to_page()` auf
+die Trefferseite springt (Fundstellen-Link springt in der geladenen PDF
+weiter); fuer Office, Markdown, Mails und fehlende PDFs die Textvorschau
+(`QTextBrowser`, Seiten/Blaetter mit Hervorhebung, Anker auf die erste
+Fundstelle). Aktionen (Knoepfe und Kontextmenue): Oeffnen (PDF ueber
+`MainWindow.open_pdf` nach Einstellung, sonst Standardprogramm, Mail als
+`.eml`), im Explorer/Finder zeigen, Pfad kopieren, Mail „Als .eml speichern…“;
+`Suchindex.mail_als_eml()` schreibt die Mail aus der mbox in den Temp-Ordner
+(auch von `web.py` genutzt). Statuszeile unten: `status_zeile()` (Dokumente je
+Typ, OCR-Rueckstand, OCR-Grund, laufender Lauf mit Fortschritt bzw. letzter
+Lauf), „Jetzt indizieren“ (`lauf_starten(nur_prioritaet=True)`) und
+„Kompletten Lauf starten“, waehrend eines Laufs alle 15 s aktualisiert. Ohne
+eingerichtete Suche zeigt der Reiter den Hinweis mit „Einrichten…“
+(Einstellungen > Suche); `refresh_settings()` nach dem Einstellungsdialog.
+Noch offen fuer Phase 5: Metadatenfilter (Steuerjahr, Kategorie, Korrespondent,
+Betrag - brauchen Schema-Version 2) und die Umleitung der Werkzeugleisten-Suche.
+
 ---
 
 ## 9. Behebung der bekannten Schwaechen

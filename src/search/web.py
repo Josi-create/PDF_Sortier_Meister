@@ -11,7 +11,6 @@ from __future__ import annotations
 import io
 import mimetypes
 import os
-import tempfile
 import threading
 import webbrowser
 from pathlib import Path
@@ -27,8 +26,7 @@ ERLAUBTE_HOSTS = {"127.0.0.1", "localhost"}
 
 
 def _dateiname(s: str) -> str:
-    s = "".join(c if c not in '<>:"/\\|?*\r\n\t' else "_" for c in (s or "mail"))
-    return s.strip()[:80] or "mail"
+    return Suchindex.eml_dateiname(s)
 
 
 def erstelle_app(konfig: SearchConfig):
@@ -103,11 +101,7 @@ def erstelle_app(konfig: SearchConfig):
     def oeffnen(dok_id):
         d = _dok_oder_404(dok_id)
         if d["format"] == "mbox":
-            roh = mbox.mail_roh(d["datei"], d["mbox_offset"], d["mbox_laenge"])
-            ziel = Path(tempfile.gettempdir()) / "pdfsm_suche" / f"{dok_id}_{_dateiname(d['name'])}.eml"
-            ziel.parent.mkdir(exist_ok=True)
-            ziel.write_bytes(roh)
-            open_with_default_app(ziel)
+            open_with_default_app(idx.mail_als_eml(d))
         elif os.path.exists(d["datei"]):
             open_with_default_app(d["datei"])
         else:
