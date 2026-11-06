@@ -250,7 +250,9 @@ def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__)
         return 2
-    return Rauchtest(Path(sys.argv[1])).ausfuehren()
+    # Absolut: die Programme laufen mit dem Temp-Ordner als Arbeitsordner, und unter macOS/Linux
+    # sucht subprocess einen relativen Programmpfad dann dort (Windows: im Arbeitsordner des Aufrufers)
+    return Rauchtest(Path(sys.argv[1]).resolve()).ausfuehren()
 
 
 if __name__ == "__main__":
