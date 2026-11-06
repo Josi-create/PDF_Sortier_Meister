@@ -276,54 +276,20 @@ def test_switch_to_large_view_hides_preview(thumbnail_factory):
 
 
 # --------------------------------------------------------------------- #
-# Ordner-Kachel
+# Ordnerzeilen (Issue #147): feste Groesse, unabhaengig von der Ansicht
 # --------------------------------------------------------------------- #
 
 
-def test_folder_tile_matches_pdf_tile_size(qtbot, tmp_path):
+def test_folder_row_has_fixed_height_and_font(qtbot, tmp_path):
     from src.gui.folder_tile import FolderTileWidget
-    view = tile_view("klein")
-    tile = FolderTileWidget(tmp_path, pdf_count=2, view=view)
+    tile = FolderTileWidget(tmp_path, pdf_count=2)
     qtbot.addWidget(tile)
-    assert (tile.minimumWidth(), tile.maximumWidth()) == (view.tile_w, view.tile_max_w)
-    assert (tile.minimumHeight(), tile.maximumHeight()) == (view.tile_h, view.tile_max_h)
+    assert tile.minimumHeight() == tile.maximumHeight() == FolderTileWidget.ROW_HEIGHT
+    assert tile.name_label.font().pixelSize() == FolderTileWidget.NAME_PX
+    assert tile.name_label.font().bold()
     assert tile.count_label.text() == "2 PDFs"
-    assert "22px" in tile.icon_label.styleSheet()
-    assert tile.name_label.font().pixelSize() == 11 and tile.name_label.font().bold()
-
-    tile.set_view(tile_view("gross"))
-    assert tile.minimumWidth() == tile_view("gross").tile_w
-    assert "48px" in tile.icon_label.styleSheet()
-    assert tile.name_label.font().pixelSize() == 12
-
-
-def test_folder_tile_wraps_long_name(qtbot, tmp_path):
-    from src.gui.folder_tile import FolderTileWidget
-    folder = tmp_path / "Versicherungen_und_Altersvorsorge_Unterlagen"
-    folder.mkdir()
-    view = tile_view("klein")
-    tile = FolderTileWidget(folder, pdf_count=0, view=view)
-    qtbot.addWidget(tile)
-    assert len(tile.name_label.text().split("\n")) == view.name_lines
-    assert all(w <= view.text_width for w in _line_widths(tile.name_label))
-    assert tile.toolTip().startswith(str(folder))
-
-
-def test_folder_tile_default_view_is_small(qtbot, tmp_path):
-    from src.gui.folder_tile import FolderTileWidget
-    tile = FolderTileWidget(tmp_path)
-    qtbot.addWidget(tile)
-    assert tile.view.id == "klein"
+    assert not hasattr(tile, "set_view")  # Kachelgroesse wirkt nur auf PDFs
     assert not hasattr(tile, "_hover_popup")  # keine Vorschau fuer Ordner
-
-
-def test_parent_tile_hides_count_text_in_compact_views(qtbot, tmp_path):
-    from src.gui.folder_tile import FolderTileWidget
-    tile = FolderTileWidget(tmp_path, is_parent=True, view=tile_view("klein"))
-    qtbot.addWidget(tile)
-    assert tile.count_label.isHidden()
-    tile.set_view(tile_view("gross"))
-    assert not tile.count_label.isHidden()
 
 
 # --------------------------------------------------------------------- #
@@ -337,17 +303,20 @@ def test_main_window_defaults_to_small_tiles_and_switch_persists(main_window, fr
     assert main_window.tile_view_combo.currentData() == "klein"
     (widget,) = main_window.pdf_widgets
     assert widget.view.id == "klein"
-    assert all(t.view.id == "klein" for t in main_window.folder_tiles)
+    row_heights = [t.height() for t in main_window.folder_tiles]
 
     main_window.tile_view_combo.setCurrentIndex(main_window.tile_view_combo.findData("gross"))
     assert fresh_singletons["config"].get("tile_view") == "gross"
     assert widget.view.id == "gross"
     assert widget.maximumWidth() == tile_view("gross").tile_max_w
-    assert all(t.view.id == "gross" for t in main_window.folder_tiles)
+    # Ordnerzeilen bleiben gleich (Issue #147)
+    assert [t.height() for t in main_window.folder_tiles] == row_heights
 
 
 def test_grid_columns_follow_tile_view(main_window, fresh_singletons):
     scan = _scan_tree(fresh_singletons["tmp_path"])
+    for i in range(3):
+        (scan / f"scan{i}.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
     main_window._navigate_to_folder(scan)
     viewport_w = main_window.pdf_scroll_area.viewport().width()
     assert main_window._grid_cols == max(1, viewport_w // tile_view("klein").slot_width)
@@ -356,13 +325,15 @@ def test_grid_columns_follow_tile_view(main_window, fresh_singletons):
     assert main_window._grid_cols == max(1, viewport_w // tile_view("gross").slot_width)
     assert main_window.tile_view_combo.currentData() == "gross"
 
-    # Raster-Positionen folgen der neuen Spaltenzahl
+    # Raster-Positionen folgen der neuen Spaltenzahl; Ordner liegen seit
+    # Issue #147 nicht mehr im PDF-Raster
     cols = main_window._grid_cols
-    widgets = main_window.folder_tiles + main_window.pdf_widgets
-    for i, w in enumerate(widgets):
+    assert len(main_window.pdf_widgets) == 3
+    for i, w in enumerate(main_window.pdf_widgets):
         idx = main_window.pdf_layout.indexOf(w)
         row, col, _, _ = main_window.pdf_layout.getItemPosition(idx)
         assert (row, col) == (i // cols, i % cols)
+    assert all(main_window.pdf_layout.indexOf(t) == -1 for t in main_window.folder_tiles)
 
 
 def test_stored_view_is_used_at_startup(qtbot, fresh_singletons, monkeypatch):

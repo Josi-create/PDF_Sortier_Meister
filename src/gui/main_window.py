@@ -149,6 +149,8 @@ class MainWindow(QMainWindow):
         self._grid_relayout_timer.setInterval(150)
         self._grid_relayout_timer.timeout.connect(self._relayout_pdf_grid)
         self._grid_cols = 3
+        self._folder_cols = 1  # Ordnerzeilen-Spalten (Issue #147)
+        self.folder_tiles: list = []
         # Kachelgroesse im Scan-Bereich: Klein / Mittel / Gross (Issue #117)
         self._tile_view = tile_view(self.config.get("tile_view"))
 
@@ -433,12 +435,25 @@ class MainWindow(QMainWindow):
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
-        # Container für Thumbnails
+        # Container für Ordnerzeilen und Thumbnails
         self.pdf_container = QWidget()
         self.pdf_container.mousePressEvent = self._on_pdf_container_clicked
-        self.pdf_layout = QGridLayout(self.pdf_container)
+        container_layout = QVBoxLayout(self.pdf_container)
+        container_layout.setSpacing(10)
+        # Ordner als Zeilen (Issue #147): eigenes Raster mit 1 oder 2 Spalten
+        # ueber den PDF-Kacheln; Hoehe und Schrift unabhaengig von der
+        # Kachelgroesse (#117)
+        self.folder_rows_layout = QGridLayout()
+        self.folder_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.folder_rows_layout.setHorizontalSpacing(8)
+        self.folder_rows_layout.setVerticalSpacing(3)
+        container_layout.addLayout(self.folder_rows_layout)
+        self.pdf_layout = QGridLayout()
+        self.pdf_layout.setContentsMargins(0, 0, 0, 0)
         self.pdf_layout.setSpacing(10)
         self.pdf_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        container_layout.addLayout(self.pdf_layout)
+        container_layout.addStretch(1)
 
         self.pdf_scroll_area.setWidget(self.pdf_container)
         self.pdf_scroll_area.hide()  # Anfangs versteckt
@@ -676,13 +691,15 @@ class MainWindow(QMainWindow):
 
     def load_pdfs(self):
         """Lädt die PDFs aus dem Scan-Ordner."""
-        # Alte Widgets aus Layout entfernen
-        while self.pdf_layout.count():
-            item = self.pdf_layout.takeAt(0)
-            if item.widget():
-                item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
-                item.widget().deleteLater()
+        # Alte Widgets aus beiden Rastern entfernen (Ordnerzeilen, PDFs)
+        for grid in (self.folder_rows_layout, self.pdf_layout):
+            while grid.count():
+                item = grid.takeAt(0)
+                if item.widget():
+                    item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
+                    item.widget().deleteLater()
         self.pdf_widgets.clear()
+        self.folder_tiles = []
 
         # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
         pdf_files = self.file_manager.get_pdf_files()
@@ -716,9 +733,9 @@ class MainWindow(QMainWindow):
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
         self.pdf_folder_count_label.setText(count_text)
 
-        # Ordner-Kacheln zuerst (".." und Unterordner), dann die PDFs
+        # Ordnerzeilen zuerst (".." und Unterordner, Issue #147), darunter die PDFs
         self._grid_cols = self._pdf_grid_columns()
-        self.folder_tiles = []
+        self._folder_cols = self._folder_grid_columns()
         tile_folders = ([(parent_folder, True)] if parent_folder else []) + [
             (f, False) for f in subfolders
         ]
@@ -727,17 +744,14 @@ class MainWindow(QMainWindow):
                 folder,
                 pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
                 is_parent=is_parent,
-                view=self._tile_view,
             )
             tile.double_clicked.connect(self.on_folder_tile_double_clicked)
             if is_parent:
-                # Die ".."-Kachel wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
+                # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
-            idx = len(self.folder_tiles)
-            self.pdf_layout.addWidget(tile, idx // self._grid_cols, idx % self._grid_cols)
             self.folder_tiles.append(tile)
-        tile_offset = len(self.folder_tiles)
+        self._place_folder_rows()
 
         if not pdf_files:
             self.pdf_count_label.setText("PDFs: 0")
@@ -772,9 +786,7 @@ class MainWindow(QMainWindow):
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
             widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
 
-            row = (i + tile_offset) // self._grid_cols
-            col = (i + tile_offset) % self._grid_cols
-            self.pdf_layout.addWidget(widget, row, col)
+            self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
 
         # Falls keine PDFs, Signal sofort senden
@@ -1682,37 +1694,66 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_grid_relayout_timer"):
             self._grid_relayout_timer.start()
 
+    # Ordnerzeilen in zwei Spalten erst ab dieser Breite je Spalte (Issue #147)
+    FOLDER_ROW_COLUMN_MIN_WIDTH = 240
+
+    def _scan_viewport_width(self) -> int:
+        """Sichtbare Breite des Scan-Bereichs (eigene Methode, damit Tests sie setzen koennen)."""
+        return self.pdf_scroll_area.viewport().width()
+
     def _pdf_grid_columns(self) -> int:
         """Spaltenzahl fürs PDF-Raster aus der sichtbaren Panelbreite.
 
         Die Rasterbreite pro Kachel (max. Kachelbreite plus 10 px Abstand)
         haengt von der gewaehlten Kachelgroesse ab (Issue #117).
         """
-        width = self.pdf_scroll_area.viewport().width()
-        return max(1, width // self._tile_view.slot_width)
+        return max(1, self._scan_viewport_width() // self._tile_view.slot_width)
+
+    def _folder_grid_columns(self) -> int:
+        """Ordnerzeilen: 2 Spalten ab 2 x 240 px sichtbarer Breite, sonst 1 (Issue #147)."""
+        if self._scan_viewport_width() >= 2 * self.FOLDER_ROW_COLUMN_MIN_WIDTH:
+            return 2
+        return 1
+
+    def _place_folder_rows(self):
+        """Verteilt die Ordnerzeilen zeilenweise auf self._folder_cols Spalten."""
+        cols = self._folder_cols
+        grid = self.folder_rows_layout
+        for tile in self.folder_tiles:
+            grid.removeWidget(tile)
+        for c in range(2):
+            grid.setColumnStretch(c, 1 if c < cols else 0)
+        for i, tile in enumerate(self.folder_tiles):
+            grid.addWidget(tile, i // cols, i % cols)
 
     def _relayout_pdf_grid(self, force: bool = False):
-        """Ordnet Ordner-Kacheln und Thumbnails neu an, wenn sich die
-        nutzbare Spaltenzahl geändert hat (Issue #50)."""
+        """Ordnet Ordnerzeilen und Thumbnails neu an, wenn sich die
+        nutzbare Spaltenzahl geändert hat (Issues #50, #147)."""
         cols = self._pdf_grid_columns()
-        if cols == self._grid_cols and not force:
+        folder_cols = self._folder_grid_columns()
+        if cols == self._grid_cols and folder_cols == self._folder_cols and not force:
             return
-        self._grid_cols = cols
-        widgets = getattr(self, "folder_tiles", []) + self.pdf_widgets
-        for i, widget in enumerate(widgets):
-            self.pdf_layout.addWidget(widget, i // cols, i % cols)
+        if folder_cols != self._folder_cols or force:
+            self._folder_cols = folder_cols
+            self._place_folder_rows()
+        if cols != self._grid_cols or force:
+            self._grid_cols = cols
+            for i, widget in enumerate(self.pdf_widgets):
+                self.pdf_layout.addWidget(widget, i // cols, i % cols)
 
     def set_tile_view(self, view_id: str):
         """Schaltet die Kachelgroesse im Scan-Bereich um (Issue #117).
 
-        Wirkt sofort auf alle Ordner-Kacheln und PDF-Thumbnails, ordnet das
+        Wirkt sofort auf alle PDF-Thumbnails (die Ordnerzeilen haben eine
+        feste Groesse, Issue #147), ordnet das
         Raster neu und merkt sich die Wahl in der Konfiguration.
         """
         view = tile_view(view_id)
         if view.id != self._tile_view.id:
             self._tile_view = view
             self.config.set("tile_view", view.id)
-            for widget in getattr(self, "folder_tiles", []) + self.pdf_widgets:
+            # Ordnerzeilen haben eine feste Groesse (Issue #147)
+            for widget in self.pdf_widgets:
                 widget.set_view(view)
             self._relayout_pdf_grid(force=True)
         combo = getattr(self, "tile_view_combo", None)

@@ -239,7 +239,7 @@ class PDFThumbnailWidget(QFrame):
         """Blendet das Original-Thumbnail neben der Kachel ein.
 
         Nur bei kompakten Ansichten und nur, wenn das Bild schon geladen ist;
-        Ordner-Kacheln haben keine solche Vorschau.
+        Ordnerzeilen haben keine solche Vorschau.
         """
         pixmap = self._original_pixmap
         if not self._view.hover_preview or pixmap is None or pixmap.isNull():
