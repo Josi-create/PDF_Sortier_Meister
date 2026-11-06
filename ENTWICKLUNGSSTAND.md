@@ -46,8 +46,22 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   Explorer/Finder zeigen, Pfad kopieren, Mail als `.eml` (`Suchindex.mail_als_eml`);
   Statuszeile mit „Jetzt indizieren“/„Kompletten Lauf starten“; Hinweis ohne Einrichtung;
   Strg+Umschalt+F; 12 GUI-Tests
-- Offen: Phase 5 (Zusammenfuehren mit document_search/pdf_cache, Schema v2, OCR-Cache,
-  Metadatenfilter im Reiter), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+- Phase 5 (2026-11-06): Zusammenfuehren - eine Such-Datenbank: Schema-Version 2 additiv
+  in-place (`ergaenze_schema`, Erkennung an der Struktur; OCR-Cache nach Bildinhalt
+  `ocr_cache`/`seiten.bild_hash`, Metadatenspalten `pdf_id`/`korrespondent`/`kategorie`/
+  `steuerjahr`/`betrag`/`buchungsdatum`/`zusammenfassung`/`schlagwoerter`/`metadaten_quelle`,
+  `metadaten_fts`); Indexer liest PDFSM-Metadaten aus Info-Dict/XMP (Quelle `pdf`, Vorrang
+  fuer `pdfsm`), fuellt Bildseiten aus dem Cache, ergaenzt den Cache fuer den Altbestand,
+  erkennt Umbenennungen ueber (Groesse, mtime), behaelt PDFSM-verwaltete Dokumente beim
+  Aufraeumen; `Suchindex.datei_aufnehmen/datei_geaendert/ocr_eintragen/metadaten_setzen/
+  metadaten_ersetzen/werte`; `src/search/meldungen.py` (Warteschlange, eigener Thread) mit
+  Meldungen aus `FileManager` und Hauptfenster; `document_search` abgeschafft (einmalige
+  Uebernahme beim Start), `Database.search_documents` & Co. als Fassade auf den Index;
+  `PDFAnalyzer.extract_text` aus dem Index mit gemeinsamer OCR (keine doppelte OCR,
+  `pytesseract` nicht mehr genutzt); Reiter „Suche“ mit Metadatenfiltern, Werkzeugleisten-
+  Suche (Strg+F) in den Reiter umgeleitet; Chat-Zitate mit Seite; MCP/CLI mit
+  Metadatenfiltern; 31 neue Tests, bestehende angepasst
+- Offen: Phase 5b (Textebene), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;

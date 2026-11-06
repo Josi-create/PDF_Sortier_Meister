@@ -1,8 +1,14 @@
 """SQLite-Datenbank der Dokumentensuche: Schema, Speichern, Suchen.
 
-Uebernommen aus PDFsuche (``db.py``). Das Schema (Version 1) ist in
-``docs/SUCHE_ARCHITEKTUR.md`` beschrieben; die Erweiterung auf Version 2
-(OCR-Cache, Metadatenspalten) folgt in Phase 5 der Integration.
+Uebernommen aus PDFsuche (``db.py``). Das Schema ist in
+``docs/SUCHE_ARCHITEKTUR.md`` beschrieben. Version 1 stammt aus PDFsuche;
+Version 2 (Phase 5 der Integration) ergaenzt **additiv und in-place** den
+OCR-Cache nach Bildinhalt (``ocr_cache``, ``seiten.bild_hash``) und die
+PDFSM-Metadaten in ``dokumente`` (``pdf_id``, ``korrespondent``, ``kategorie``,
+``steuerjahr``, ``betrag``, ``buchungsdatum``, ``zusammenfassung``,
+``schlagwoerter``, ``metadaten_quelle``) samt ``metadaten_fts``. Die Version
+wird an der Struktur erkannt (``schema_stand``), weil das alte PDFsuche
+``meta.schema_version`` bei jedem Start auf 1 zuruecksetzt.
 
 Alle Funktionen arbeiten auf einer ``sqlite3.Connection`` aus ``verbinde()``.
 """
@@ -17,7 +23,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -119,10 +125,59 @@ CREATE VIEW IF NOT EXISTS v_dokument_text AS
     GROUP BY d.id;
 """
 
+# Version 2: additiv, idempotent (``ergaenze_schema``); Spalten kommen per ALTER TABLE dazu
+V2_SPALTEN = {
+    "pdf_id": "TEXT",            # stabile Kennung aus der pdfs-Tabelle von PDFSM
+    "korrespondent": "TEXT",
+    "kategorie": "TEXT",
+    "steuerjahr": "TEXT",
+    "betrag": "REAL",            # brutto
+    "buchungsdatum": "TEXT",     # ISO
+    "zusammenfassung": "TEXT",
+    "schlagwoerter": "TEXT",
+    "metadaten_quelle": "TEXT",  # 'pdf' = beim Indizieren aus der Datei gelesen, 'pdfsm' = von PDFSM gesetzt (Vorrang)
+}
+METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
+                    "schlagwoerter")
+_META_FTS = "korrespondent, kategorie, zusammenfassung, schlagwoerter"
+_META_FTS_NEU = ", ".join(f"coalesce(new.{f}, '')" for f in _META_FTS.split(", "))
+_META_FTS_ALT = ", ".join(f"coalesce(old.{f}, '')" for f in _META_FTS.split(", "))
+
+SCHEMA_V2 = f"""
+CREATE TABLE IF NOT EXISTS ocr_cache (
+    bild_hash TEXT PRIMARY KEY,   -- BLAKE2b (16 Byte, hex) ueber die Bild-Streams einer Seite
+    text      TEXT NOT NULL,
+    sprachen  TEXT,
+    dpi       INTEGER,
+    erstellt  TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_seiten_hash      ON seiten(bild_hash);
+CREATE INDEX IF NOT EXISTS ix_dok_pdf_id       ON dokumente(pdf_id);
+CREATE INDEX IF NOT EXISTS ix_dok_steuerjahr   ON dokumente(steuerjahr);
+CREATE INDEX IF NOT EXISTS ix_dok_korrespondent ON dokumente(korrespondent);
+CREATE INDEX IF NOT EXISTS ix_dok_kategorie    ON dokumente(kategorie);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS metadaten_fts USING fts5(
+    {_META_FTS}, content='dokumente', content_rowid='id',
+    tokenize="unicode61 remove_diacritics 2"
+);
+CREATE TRIGGER IF NOT EXISTS meta_ai AFTER INSERT ON dokumente BEGIN
+    INSERT INTO metadaten_fts(rowid, {_META_FTS}) VALUES (new.id, {_META_FTS_NEU});
+END;
+CREATE TRIGGER IF NOT EXISTS meta_ad AFTER DELETE ON dokumente BEGIN
+    INSERT INTO metadaten_fts(metadaten_fts, rowid, {_META_FTS}) VALUES ('delete', old.id, {_META_FTS_ALT});
+END;
+CREATE TRIGGER IF NOT EXISTS meta_au AFTER UPDATE OF {_META_FTS} ON dokumente BEGIN
+    INSERT INTO metadaten_fts(metadaten_fts, rowid, {_META_FTS}) VALUES ('delete', old.id, {_META_FTS_ALT});
+    INSERT INTO metadaten_fts(rowid, {_META_FTS}) VALUES (new.id, {_META_FTS_NEU});
+END;
+"""
+
 # Statuswerte, die bedeuten "Text vollstaendig im Index"
 FERTIG = ("text", "ocr", "leer")
 # Statuswerte, bei denen der vorhandene Text verwendbar ist (ggf. unvollstaendig)
 VERWENDBAR = FERTIG + ("ocr_teilweise", "ocr_ausstehend")
+# 'ausstehend': von PDFSM nur mit Metadaten angelegt, Text liest der naechste Lauf (Groesse/mtime fehlen)
 
 
 def jetzt() -> str:
@@ -147,9 +202,55 @@ def verbinde(pfad: str | Path, nur_lesen: bool = False) -> sqlite3.Connection:
 
 
 def init(con: sqlite3.Connection) -> None:
+    """Schema anlegen (neue Datenbank) bzw. eine Version-1-Datenbank additiv auf Version 2 bringen."""
     con.executescript(SCHEMA)
-    con.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+    ergaenze_schema(con)
+
+
+def _spalten(con, tabelle: str) -> set[str]:
+    return {r[1] for r in con.execute(f"PRAGMA table_info({tabelle})")}
+
+
+def _tabelle_vorhanden(con, name: str) -> bool:
+    return con.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (name,)).fetchone() is not None
+
+
+def schema_stand(con) -> int:
+    """Schema-Version an der Struktur erkennen: 0 (leer), 1 (PDFsuche) oder 2 (mit OCR-Cache und Metadaten)."""
+    spalten = _spalten(con, "dokumente")
+    if not spalten:
+        return 0
+    if (set(V2_SPALTEN) <= spalten and "bild_hash" in _spalten(con, "seiten")
+            and _tabelle_vorhanden(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")):
+        return 2
+    return 1
+
+
+def ergaenze_schema(con) -> bool:
+    """Version 2 additiv und idempotent ergaenzen (Spalten nur, wenn sie fehlen; Tabellen ``IF NOT EXISTS``).
+
+    Kein Neuaufbau, keine OCR geht verloren; auch bei 3 GB unter einer Sekunde.
+    Liefert True, wenn etwas geaendert wurde.
+    """
+    geaendert = False
+    spalten = _spalten(con, "dokumente")
+    for name, typ in V2_SPALTEN.items():
+        if name not in spalten:
+            con.execute(f"ALTER TABLE dokumente ADD COLUMN {name} {typ}")
+            geaendert = True
+    if "bild_hash" not in _spalten(con, "seiten"):
+        con.execute("ALTER TABLE seiten ADD COLUMN bild_hash TEXT")
+        geaendert = True
+    fts_neu = not _tabelle_vorhanden(con, "metadaten_fts")
+    con.executescript(SCHEMA_V2)
+    if fts_neu:
+        con.execute("INSERT INTO metadaten_fts(metadaten_fts) VALUES ('rebuild')")
+        geaendert = True
+    if lies_meta(con, "schema_version") != str(SCHEMA_VERSION):
+        setze_meta(con, "schema_version", str(SCHEMA_VERSION))
+        geaendert = True
     con.commit()
+    return geaendert
 
 
 def setze_meta(con, schluessel: str, wert) -> None:
@@ -173,8 +274,14 @@ DOK_FELDER = (
 )
 
 
-def speichere(con: sqlite3.Connection, dok: dict, seiten: list[tuple[int, str, str]]) -> int:
-    """Dokument anlegen oder ersetzen. ``seiten = [(seite, quelle, text), ...]``. Liefert die id."""
+def speichere(con: sqlite3.Connection, dok: dict, seiten: list[tuple[int, str, str]],
+              bild_hashes: dict[int, str] | None = None) -> int:
+    """Dokument anlegen oder ersetzen. ``seiten = [(seite, quelle, text), ...]``. Liefert die id.
+
+    Die Metadatenspalten (Version 2) gehoeren nicht zu ``DOK_FELDER`` und bleiben
+    beim Ersetzen erhalten (Vorrangregel fuer Werte von PDFSM). ``bild_hashes``
+    (Seite -> Hash) kommt in ``seiten.bild_hash`` (OCR-Cache).
+    """
     dok = {**dok, "indiziert_am": jetzt()}
     dok.setdefault("ocr_seiten", 0)
     dok.setdefault("prioritaet", 9)
@@ -194,9 +301,10 @@ def speichere(con: sqlite3.Connection, dok: dict, seiten: list[tuple[int, str, s
         )
         dok_id = cur.lastrowid
     if seiten:
+        hashes = bild_hashes or {}
         con.executemany(
-            "INSERT INTO seiten (dok_id, seite, quelle, text) VALUES (?, ?, ?, ?)",
-            [(dok_id, s, q, t) for s, q, t in seiten],
+            "INSERT INTO seiten (dok_id, seite, quelle, text, bild_hash) VALUES (?, ?, ?, ?, ?)",
+            [(dok_id, s, q, t, hashes.get(s)) for s, q, t in seiten],
         )
     return dok_id
 
@@ -208,6 +316,169 @@ def loesche(con: sqlite3.Connection, dok_ids) -> None:
         ph = ",".join("?" * len(teil))
         con.execute(f"DELETE FROM seiten WHERE dok_id IN ({ph})", teil)
         con.execute(f"DELETE FROM dokumente WHERE id IN ({ph})", teil)
+
+
+def _betrag(wert) -> float | None:
+    """'59,99 EUR' / '1.234,50' / 59.99 -> 59.99; Unbrauchbares -> None."""
+    if wert is None or wert == "":
+        return None
+    if isinstance(wert, (int, float)):
+        return float(wert)
+    s = re.sub(r"[^\d,.\-]", "", str(wert))
+    if not s:
+        return None
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".") if s.rfind(",") > s.rfind(".") else s.replace(",", "")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _meta_wert(feld: str, wert):
+    if feld == "betrag":
+        return _betrag(wert)
+    if wert is None:
+        return None
+    s = str(wert).strip()
+    return s or None
+
+
+def metadaten_setzen(con, dok_id: int, felder: dict, pdf_id: str | None = None, quelle: str = "pdfsm") -> bool:
+    """PDFSM-Metadaten eines Dokuments setzen (nur die uebergebenen Felder; None/leer loescht).
+
+    Vorrangregel: Werte mit Quelle ``'pdfsm'`` ueberschreibt die Quelle ``'pdf'``
+    (beim Indizieren aus der Datei gelesen) nie. Liefert True, wenn geschrieben wurde.
+    """
+    werte = {k: _meta_wert(k, v) for k, v in (felder or {}).items() if k in METADATEN_FELDER}
+    gefuellt = any(v is not None for v in werte.values())
+    if quelle == "pdf":
+        r = con.execute("SELECT metadaten_quelle FROM dokumente WHERE id = ?", (dok_id,)).fetchone()
+        if r is None or r[0] == "pdfsm" or not gefuellt:
+            return False
+    elif not gefuellt:
+        # Nur leere Werte: nichts ueberschreiben und keinen Vorrang beanspruchen (z. B. reiner pdf_id-Nachtrag)
+        werte = {}
+    if pdf_id:
+        werte["pdf_id"] = str(pdf_id)
+    if not werte:
+        return False
+    if gefuellt:
+        werte["metadaten_quelle"] = quelle
+    cur = con.execute("UPDATE dokumente SET " + ", ".join(f"{k} = ?" for k in werte) + " WHERE id = ?",
+                      (*werte.values(), dok_id))
+    return cur.rowcount > 0
+
+
+def metadaten_ersetzen(con, feld: str, alt: str, neu: str) -> int:
+    """Einen Wert in allen Dokumenten ersetzen (z. B. Korrespondenten-Merge). Liefert die Trefferzahl."""
+    if feld not in METADATEN_FELDER:
+        raise ValueError(f"Unbekanntes Metadatenfeld: {feld}")
+    return con.execute(f"UPDATE dokumente SET {feld} = ? WHERE {feld} = ?", (neu, alt)).rowcount
+
+
+def werte(con, feld: str, absteigend: bool = False) -> list[str]:
+    """Vorkommende Werte eines Metadatenfelds (ohne leere), sortiert."""
+    if feld not in METADATEN_FELDER:
+        raise ValueError(f"Unbekanntes Metadatenfeld: {feld}")
+    return [r[0] for r in con.execute(
+        f"SELECT DISTINCT {feld} FROM dokumente WHERE {feld} IS NOT NULL AND {feld} != '' "
+        f"ORDER BY {feld} {'DESC' if absteigend else 'ASC'}")]
+
+
+def top_werte(con, feld: str, limit: int = 10) -> list[str]:
+    """Die haeufigsten Werte eines Metadatenfelds, haeufigste zuerst."""
+    if feld not in METADATEN_FELDER:
+        raise ValueError(f"Unbekanntes Metadatenfeld: {feld}")
+    return [r[0] for r in con.execute(
+        f"SELECT {feld}, count(*) n FROM dokumente WHERE {feld} IS NOT NULL AND {feld} != '' "
+        f"GROUP BY {feld} ORDER BY n DESC, {feld} LIMIT ?", (int(limit),))]
+
+
+def anzahl(con, typ: str | None = None) -> int:
+    if typ:
+        return con.execute("SELECT count(*) FROM dokumente WHERE typ = ?", (typ,)).fetchone()[0]
+    return con.execute("SELECT count(*) FROM dokumente").fetchone()[0]
+
+
+# --------------------------------------------------------------------------- OCR-Cache (Version 2)
+
+def ocr_cache_holen(con, hashes) -> dict[str, str]:
+    """Bekannte OCR-Texte zu Bild-Hashes: ``{hash: text}``."""
+    hs = sorted({h for h in hashes if h})
+    erg: dict[str, str] = {}
+    for i in range(0, len(hs), 500):
+        teil = hs[i:i + 500]
+        for r in con.execute(f"SELECT bild_hash, text FROM ocr_cache WHERE bild_hash IN ({','.join('?' * len(teil))})",
+                             teil):
+            erg[r[0]] = r[1]
+    return erg
+
+
+def ocr_cache_eintragen(con, eintraege, sprachen: str | None = None, dpi: int | None = None) -> int:
+    """``[(hash, text), ...]`` in den Cache (vorhandene Hashes bleiben). Liefert die Zahl neuer Eintraege."""
+    zeilen = [(h, t, sprachen, dpi, jetzt()) for h, t in eintraege if h and t is not None]
+    if not zeilen:
+        return 0
+    vorher = con.total_changes
+    con.executemany("INSERT OR IGNORE INTO ocr_cache (bild_hash, text, sprachen, dpi, erstellt) VALUES (?, ?, ?, ?, ?)",
+                    zeilen)
+    return con.total_changes - vorher
+
+
+def ocr_status_aktualisieren(con, dok_id: int, fehler: str | None = None) -> str:
+    """Textstatus und ``ocr_seiten`` eines Dokuments aus seinen Seiten ableiten; liefert den Status."""
+    r = con.execute(
+        """SELECT sum(quelle = 'ohne_text') rest, sum(quelle = 'ocr') ocr, sum(quelle = 'ocr_fehler') fehl
+           FROM seiten WHERE dok_id = ?""", (dok_id,)).fetchone()
+    if r["rest"]:
+        status = "ocr_ausstehend"
+    elif r["fehl"]:
+        status = "ocr_teilweise"
+    else:
+        status = "ocr"
+    con.execute("UPDATE dokumente SET textstatus = ?, ocr_seiten = ?, fehler = coalesce(?, fehler) WHERE id = ?",
+                (status, r["ocr"] or 0, fehler, dok_id))
+    return status
+
+
+def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = None, dpi: int | None = None,
+                       nur_offene: bool = True) -> int:
+    """OCR-Ergebnis (``{seite: text | None}``) uebernehmen: Seiten fuellen, Cache befuellen, Status ableiten.
+
+    ``None`` als Text markiert die Seite als ``ocr_fehler``. Mit ``nur_offene``
+    werden nur Seiten geaendert, die noch auf OCR warten (``ohne_text``/``ocr_fehler``).
+    Liefert die Zahl der erkannten Seiten.
+    """
+    bedingung = " AND quelle IN ('ohne_text', 'ocr_fehler')" if nur_offene else ""
+    erkannt = []
+    for seite, text in texte.items():
+        if text is None:
+            con.execute(f"UPDATE seiten SET quelle = 'ocr_fehler' WHERE dok_id = ? AND seite = ?{bedingung}",
+                        (dok_id, seite))
+        else:
+            cur = con.execute(f"UPDATE seiten SET text = ?, quelle = 'ocr' WHERE dok_id = ? AND seite = ?{bedingung}",
+                              (text, dok_id, seite))
+            if cur.rowcount:
+                erkannt.append(seite)
+    if erkannt:
+        ph = ",".join("?" * len(erkannt))
+        zeilen = con.execute(f"SELECT bild_hash, text FROM seiten WHERE dok_id = ? AND seite IN ({ph})",
+                             (dok_id, *erkannt)).fetchall()
+        ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi)
+        # Weitere offene Seiten desselben Dokuments mit bekanntem Bild (z. B. gleiches Deckblatt) gleich mit fuellen
+        offen = con.execute("SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND quelle = 'ohne_text' "
+                            "AND bild_hash IS NOT NULL", (dok_id,)).fetchall()
+        if offen:
+            cache = ocr_cache_holen(con, [r[1] for r in offen])
+            for seite, h in offen:
+                if h in cache:
+                    con.execute("UPDATE seiten SET text = ?, quelle = 'ocr' WHERE dok_id = ? AND seite = ?",
+                                (cache[h], dok_id, seite))
+    ocr_status_aktualisieren(con, dok_id)
+    return len(erkannt)
 
 
 # --------------------------------------------------------------------------- Suchen
@@ -243,7 +514,9 @@ def fts_abfrage(text: str) -> str:
     return t
 
 
-def _filter(typ=None, ordner=None, von=None, bis=None, status=None) -> tuple[str, list]:
+def _filter(typ=None, ordner=None, von=None, bis=None, status=None, steuerjahr=None, kategorie=None,
+            korrespondent=None, betrag_von=None, betrag_bis=None, pdf_id=None, steuerjahr_von=None,
+            steuerjahr_bis=None) -> tuple[str, list]:
     sql, args = [], []
     if typ:
         typen = [t.strip() for t in str(typ).split(",") if t.strip()]
@@ -266,6 +539,23 @@ def _filter(typ=None, ordner=None, von=None, bis=None, status=None) -> tuple[str
     if status:
         sql.append("d.textstatus = ?")
         args.append(status)
+    for spalte, wert in (("steuerjahr", steuerjahr), ("kategorie", kategorie), ("korrespondent", korrespondent),
+                         ("pdf_id", pdf_id)):
+        if wert:
+            sql.append(f"d.{spalte} = ?")
+            args.append(str(wert))
+    if betrag_von is not None and betrag_von != "":
+        sql.append("d.betrag >= ?")
+        args.append(float(betrag_von))
+    if betrag_bis is not None and betrag_bis != "":
+        sql.append("d.betrag <= ?")
+        args.append(float(betrag_bis))
+    if steuerjahr_von:
+        sql.append("d.steuerjahr >= ?")
+        args.append(str(steuerjahr_von)[:4])
+    if steuerjahr_bis:
+        sql.append("d.steuerjahr <= ?")
+        args.append(str(steuerjahr_bis)[:4])
     return (" AND " + " AND ".join(sql)) if sql else "", args
 
 
@@ -280,14 +570,23 @@ def _zeit(datum: str) -> float:
 
 
 def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortierung="relevanz",
-          anzahl=30, start=0, max_stellen=3, nur_namen=False) -> dict:
+          anzahl=30, start=0, max_stellen=3, nur_namen=False, steuerjahr=None, kategorie=None,
+          korrespondent=None, betrag_von=None, betrag_bis=None, pdf_id=None, steuerjahr_von=None,
+          steuerjahr_bis=None) -> dict:
     """Volltextsuche. Liefert ``{'treffer': [...], 'gesamt': n, 'mehr': bool, 'abfrage': fts, 'dauer_ms': ms}``.
 
     Ausschnitte enthalten die Marker ``\\x02`` (Beginn) und ``\\x03`` (Ende) um Fundstellen.
     Bei FTS5-Syntaxfehlern wird die Abfrage als Folge einzelner Woerter wiederholt.
+    Die Metadatenfilter (Version 2) sind Gleichheitsbedingungen auf ``dokumente``;
+    ``betrag_von/bis`` sind Zahlen. Ohne ``abfrage`` liefert die Suche alle
+    Dokumente, die zu den Filtern passen (neueste zuerst bzw. nach ``sortierung``).
     """
-    filt, fargs = _filter(typ, ordner, von, bis)
+    filt, fargs = _filter(typ, ordner, von, bis, None, steuerjahr, kategorie, korrespondent, betrag_von, betrag_bis,
+                          pdf_id, steuerjahr_von, steuerjahr_bis)
     t0 = time.perf_counter()
+    if not (abfrage or "").strip():
+        return _nur_filter(con, filt, fargs, sortierung, anzahl, start, t0)
+    hat_meta_fts = _tabelle_vorhanden(con, "metadaten_fts")
 
     def ausfuehren(fts: str):
         # 1) Fundstellen im Inhalt, nach Relevanz
@@ -313,27 +612,44 @@ def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortieru
                 ORDER BY rang LIMIT 1000""",
             (fts, *fargs),
         ).fetchall()
-        return zeilen, namen, len(zeilen) >= grenze
+        # 3) Treffer in den PDFSM-Metadaten (Korrespondent, Kategorie, Zusammenfassung, Schlagwoerter)
+        meta = []
+        if hat_meta_fts:
+            meta = con.execute(
+                f"""SELECT d.id, bm25(metadaten_fts) AS rang
+                    FROM metadaten_fts JOIN dokumente d ON d.id = metadaten_fts.rowid
+                    WHERE metadaten_fts MATCH ? {filt}
+                    ORDER BY rang LIMIT 1000""",
+                (fts, *fargs),
+            ).fetchall()
+        return zeilen, namen, meta, len(zeilen) >= grenze
 
     fts = fts_abfrage(abfrage)
     try:
-        zeilen, namen, abgeschnitten = ausfuehren(fts)
+        zeilen, namen, meta, abgeschnitten = ausfuehren(fts)
     except sqlite3.OperationalError:
         fts = _als_woerter(abfrage)
         if not fts:
             return {"treffer": [], "gesamt": 0, "mehr": False, "abfrage": fts, "dauer_ms": 0}
-        zeilen, namen, abgeschnitten = ausfuehren(fts)
+        zeilen, namen, meta, abgeschnitten = ausfuehren(fts)
 
     dok: dict[int, dict] = {}
     for z in zeilen:
-        e = dok.setdefault(z["dok_id"], {"rang": z["rang"], "stellen": [], "treffer_seiten": 0, "im_namen": False})
+        e = dok.setdefault(z["dok_id"], {"rang": z["rang"], "stellen": [], "treffer_seiten": 0, "im_namen": False,
+                                         "im_metadaten": False})
         e["treffer_seiten"] += 1
         if len(e["stellen"]) < max_stellen:
             e["stellen"].append({"seite": z["seite"], "quelle": z["quelle"], "text": z["ausschnitt"]})
     for z in namen:
-        e = dok.setdefault(z["id"], {"rang": 0.0, "stellen": [], "treffer_seiten": 0, "im_namen": True})
+        e = dok.setdefault(z["id"], {"rang": 0.0, "stellen": [], "treffer_seiten": 0, "im_namen": True,
+                                     "im_metadaten": False})
         e["im_namen"] = True
         e["rang"] = min(e["rang"], 0.0) - 5.0  # Namenstreffer nach vorn
+    for z in meta:
+        e = dok.setdefault(z["id"], {"rang": 0.0, "stellen": [], "treffer_seiten": 0, "im_namen": False,
+                                     "im_metadaten": True})
+        e["im_metadaten"] = True
+        e["rang"] = min(e["rang"], 0.0) - 5.0  # Metadatentreffer ebenfalls nach vorn
 
     if not dok:
         return {"treffer": [], "gesamt": 0, "mehr": False, "abfrage": fts,
@@ -367,10 +683,28 @@ def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortieru
     }
 
 
+def _nur_filter(con, filt: str, fargs: list, sortierung: str, anzahl: int, start: int, t0: float) -> dict:
+    """Ohne Suchbegriff: alle Dokumente, die zu den Filtern passen (fuer die Metadatenfilter von PDFSM)."""
+    if not filt:
+        return {"treffer": [], "gesamt": 0, "mehr": False, "abfrage": "", "dauer_ms": 0}
+    reihenfolge = "d.datum ASC" if sortierung == "alt" else "d.datum DESC"
+    gesamt = con.execute(f"SELECT count(*) FROM dokumente d WHERE 1 = 1 {filt}", fargs).fetchone()[0]
+    zeilen = con.execute(
+        f"SELECT * FROM dokumente d WHERE 1 = 1 {filt} ORDER BY {reihenfolge}, d.name LIMIT ? OFFSET ?",
+        (*fargs, int(anzahl), int(start)),
+    ).fetchall()
+    treffer = [{**_kurz(dict(r)), "rang": 0.0, "stellen": [], "treffer_seiten": 0, "im_namen": False,
+                "im_metadaten": False} for r in zeilen]
+    return {"treffer": treffer, "gesamt": gesamt, "mehr": False, "abfrage": "",
+            "dauer_ms": round((time.perf_counter() - t0) * 1000)}
+
+
 def _kurz(r: dict) -> dict:
     return {k: r.get(k) for k in (
         "id", "pfad", "datei", "name", "ordner", "typ", "format", "groesse", "datum", "seiten",
         "textstatus", "ocr_seiten", "mail_von", "mail_an", "mail_datum", "mail_betreff", "mail_anhaenge", "fehler",
+        "pdf_id", "korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
+        "schlagwoerter", "metadaten_quelle",
     )}
 
 
@@ -416,11 +750,17 @@ def seiten_text(con, dok_id: int, von: int | None = None, bis: int | None = None
     return zeilen
 
 
-def volltext(con, dok_id: int) -> str:
-    """Gesamter Text eines Dokuments, Seiten durch Seitenvorschub (\\f) getrennt."""
-    return "\f".join(
-        r[0] for r in con.execute("SELECT text FROM seiten WHERE dok_id = ? ORDER BY seite", (dok_id,))
-    )
+def volltext(con, dok_id: int, max_zeichen: int = 0) -> str:
+    """Gesamter Text eines Dokuments, Seiten durch Seitenvorschub (\\f) getrennt; optional gekappt."""
+    teile = []
+    laenge = 0
+    for r in con.execute("SELECT text FROM seiten WHERE dok_id = ? ORDER BY seite", (dok_id,)):
+        teile.append(r[0])
+        laenge += len(r[0]) + 1
+        if max_zeichen and laenge >= max_zeichen:
+            break
+    text = "\f".join(teile)
+    return text[:max_zeichen] if max_zeichen else text
 
 
 def text_fuer_datei(con, pfad: str) -> dict | None:

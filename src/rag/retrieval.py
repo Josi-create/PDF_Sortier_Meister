@@ -103,6 +103,11 @@ class RetrievedDoc:
     # ``pdfs``-Master-Tabelle. Default leerer String, damit alte
     # Aufrufer (ohne DB-Lookup) nicht brechen.
     pdf_id: str = ""
+    # Phase 5 (PDFsuche-Integration): Dokument-Id im Suchindex und die Seite
+    # der ersten Fundstelle (1-basiert; 0 = unbekannt), damit Zitate auf
+    # Dokument UND Seite verlinken.
+    dok_id: int = 0
+    seite: int = 0
     # Optional: Score aus FTS5 (rank). Niedriger = besser.
     extra: dict = field(default_factory=dict)
 
@@ -264,6 +269,8 @@ class RetrievalService:
             # Default "", damit alte Aufrufer ohne pdf_id-Feld nicht
             # brechen (rueckwaertskompatibel).
             pdf_id=raw.get("pdf_id", "") or "",
+            dok_id=int(raw.get("dok_id") or 0),
+            seite=int(raw.get("seite") or 0),
         )
 
     @staticmethod

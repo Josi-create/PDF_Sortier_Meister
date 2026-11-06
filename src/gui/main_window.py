@@ -70,6 +70,7 @@ from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
 from src.gui.search_view import SearchView
+from src.search.meldungen import melden as index_melden
 
 
 class _ClickableLabel(QLabel):
@@ -254,6 +255,7 @@ class MainWindow(QMainWindow):
             self.config.get_chat_config(),
         )
         self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
         self.center_tabs.addTab(self.chat_view, "Chat")
         self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
@@ -262,6 +264,7 @@ class MainWindow(QMainWindow):
         self.search_view.open_pdf_requested.connect(self.open_pdf)
         self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
         self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
         self.center_tabs.setTabToolTip(
             2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
@@ -289,20 +292,27 @@ class MainWindow(QMainWindow):
             return
         self.open_pdf(Path(file_path))
 
+    def _open_pdf_page(self, file_path: str, seite: int) -> None:
+        """Zitat mit Seite (Phase 5): die integrierte Vorschau springt auf die Fundstelle."""
+        if not file_path:
+            return
+        self.open_pdf(Path(file_path), seite=seite)
+
     # ------------------------------------------------------------------ #
     # PDF oeffnen / Vorschau (Issues #74, #76)
     # ------------------------------------------------------------------ #
 
-    def open_pdf(self, pdf_path: Path) -> None:
+    def open_pdf(self, pdf_path: Path, seite: int | None = None) -> None:
         """Oeffnet eine PDF so, wie es in den Einstellungen gewaehlt ist.
 
         Default ist die integrierte Vorschau (QtPdf, schnell); alternativ das
         Standardprogramm des Systems oder ein eigenes Programm (PDF-XChange, ...).
+        ``seite`` (1-basiert) springt in der integrierten Vorschau auf die Fundstelle.
         """
         pdf_path = Path(pdf_path)
         mode = normalize_open_mode(self.config.get("pdf_open_mode"))
         if mode == OPEN_MODE_INTEGRATED:
-            self.show_preview_window(pdf_path)
+            self.show_preview_window(pdf_path, seite)
         else:
             self.open_pdf_external(pdf_path)
 
@@ -316,8 +326,8 @@ class MainWindow(QMainWindow):
         if not ok:
             QMessageBox.warning(self, "PDF öffnen", note)
 
-    def show_preview_window(self, pdf_path: Path) -> None:
-        """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster."""
+    def show_preview_window(self, pdf_path: Path, seite: int | None = None) -> None:
+        """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster, optional direkt auf ``seite``."""
         if self._preview_window is None:
             self._preview_window = PdfPreviewWindow(
                 self, geometry=self.config.get("preview_window_geometry") or None
@@ -325,7 +335,7 @@ class MainWindow(QMainWindow):
             self._preview_window.open_external_requested.connect(self.open_pdf_external)
             self._preview_window.geometry_changed.connect(self._on_preview_geometry_changed)
             self._preview_window.apply_text_requested.connect(self._on_preview_window_text_applied)
-        self._preview_window.show_pdf(Path(pdf_path))
+        self._preview_window.show_pdf(Path(pdf_path), seite)
 
     def _on_preview_window_text_applied(self, field_key: str, text: str) -> None:
         """Markierter Text aus dem grossen Vorschau-Fenster -> Metadaten-Feld (Issue #109).
@@ -2510,6 +2520,7 @@ class MainWindow(QMainWindow):
                 success = write_metadata(pdf_path, metadata)
                 if success:
                     print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
+                    self._metadaten_an_index(pdf_path, metadata)
                 else:
                     print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
 
@@ -2517,6 +2528,24 @@ class MainWindow(QMainWindow):
             pass  # pikepdf nicht installiert - kein Fehler
         except Exception as e:
             print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
+    def _metadaten_an_index(self, pdf_path: Path, metadata) -> None:
+        """Nach dem Schreiben in die PDF: Inhalt neu lesen lassen und die PDFSM-Metadaten (Vorrang)
+        in den Suchindex melden - beides ueber die Warteschlange, nie im GUI-Thread (Phase 5)."""
+        try:
+            index_melden("datei_geaendert", str(pdf_path))
+            felder = {
+                "korrespondent": metadata.korrespondent,
+                "kategorie": metadata.subject,
+                "steuerjahr": metadata.steuerjahr,
+                "betrag": metadata.betrag_brutto or metadata.betrag,
+                "buchungsdatum": metadata.buchungsdatum,
+                "zusammenfassung": metadata.description,
+                "schlagwoerter": metadata.keywords,
+            }
+            self.db.set_document_metadata(str(pdf_path), {k: v for k, v in felder.items() if v}, sofort=False)
+        except Exception as e:  # noqa: BLE001 - der Index ist Zusatz, nie Blocker
+            print(f"Suchindex: Metadaten nicht gemeldet: {e}")
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
@@ -2882,6 +2911,7 @@ class MainWindow(QMainWindow):
 
             # Datei kopieren
             shutil.copy2(pdf_path, new_path)
+            index_melden("datei_aufnehmen", str(new_path))
 
             self.statusbar.showMessage(f"Kopie erstellt: {new_name}", 3000)
 
@@ -3205,6 +3235,7 @@ class MainWindow(QMainWindow):
                     target_dir.mkdir(parents=True, exist_ok=True)
                 restored_path = target_dir / dest_path.name
                 shutil.move(str(dest_path), str(restored_path))
+                index_melden("datei_verschoben", str(dest_path), str(restored_path))
                 restored += 1
             except Exception as e:
                 errors.append(f"{dest_path.name}: {e}")
@@ -3957,34 +3988,36 @@ class MainWindow(QMainWindow):
             self._clear_search()
             return
 
-        results = self.db.search_documents(
+        # Phase 5 der PDFsuche-Integration: Die Treffer erscheinen im Reiter „Suche“
+        # (Volltext in PDFs, Office-Dateien, Markdown und Mails), die Metadatenfilter
+        # der Filterleiste gelten dort mit.
+        self.search_view.suchen(
             query,
-            limit=50,
             steuerjahr=steuerjahr,
             kategorie=kategorie,
             korrespondent=korrespondent,
-            datum_von=datum_von,
-            datum_bis=datum_bis,
+            von=datum_von,
+            bis=datum_bis,
             betrag_von=betrag_von,
             betrag_bis=betrag_bis,
         )
+        if self.center_tabs.currentWidget() is not self.search_view:
+            self.center_tabs.setCurrentWidget(self.search_view)
 
-        if results:
-            self.search_count_label.setText(f"{len(results)} Treffer")
-            self._show_search_results(results)
-        else:
-            self.search_count_label.setText("Keine Treffer")
-            self.detail_panel.clear()
-            self.statusbar.showMessage("Keine Dokumente gefunden", 3000)
+    def _on_search_view_result(self, ergebnis: dict) -> None:
+        """Trefferzahl des Reiters „Suche“ in der Werkzeugleiste anzeigen."""
+        gesamt = int(ergebnis.get("gesamt") or 0)
+        self.search_count_label.setText(f"{gesamt} Treffer" if gesamt else "Keine Treffer")
 
     def _show_search_results(self, results: list[dict]):
-        """Zeigt Suchergebnisse im Detail-Panel an."""
+        """Zeigt Suchergebnisse der alten Fassade im Detail-Panel an (nur noch fuer Aufrufer von aussen)."""
         self.detail_panel.show_search_results(results)
 
     def _clear_search(self):
         """Setzt den Suchfilter zurück."""
         self.search_input.clear()
         self.search_count_label.setText("")
+        self.search_view.leeren()
         # Zurück zur normalen Ansicht wenn ein PDF ausgewählt war
         if self.selected_pdf:
             cached = self.pdf_cache.get(self.selected_pdf)
@@ -4059,8 +4092,30 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Keine PDFs", f"Keine PDF-Dateien in '{folder_path.name}' gefunden.")
             return
 
+        if not use_llm.isChecked():
+            # Ohne KI-Metadaten liest der Hintergrunddienst den Ordner (Phase 5): Textebene, OCR,
+            # Metadaten aus den PDFs - die Oberflaeche bleibt frei
+            self._index_folder_im_dienst(folder_path, len(pdf_files))
+            return
+
         # Batch-Indexierung starten
-        self._index_pdfs_batch(pdf_files, use_llm=use_llm.isChecked())
+        self._index_pdfs_batch(pdf_files, use_llm=True)
+
+    def _index_folder_im_dienst(self, folder_path: Path, anzahl: int) -> None:
+        """Startet ``pdfsm-dienst index --pfad`` fuer den Ordner als eigenen Prozess."""
+        try:
+            prozess = self.db.suchindex.lauf_starten(pfad=str(folder_path))
+        except OSError as e:
+            QMessageBox.warning(self, "Suchindex", f"Der Indexlauf konnte nicht gestartet werden:\n{e}")
+            return
+        if prozess is None:
+            self.statusbar.showMessage("Ein Indexlauf läuft bereits – der Ordner kommt beim nächsten Lauf dazu.",
+                                       6000)
+            return
+        self.statusbar.showMessage(
+            f"Suchindex: {anzahl} PDFs in '{folder_path.name}' werden im Hintergrund gelesen", 6000
+        )
+        self.search_view.refresh_status()
 
     def _index_pdfs_batch(self, pdf_files: list[Path], use_llm: bool = False):
         """Indexiert eine Liste von PDFs in den Suchindex (mit Fortschrittsanzeige)."""

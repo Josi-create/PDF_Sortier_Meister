@@ -126,6 +126,31 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   starten“. Alle Abfragen laufen im Hintergrund, die Oberflaeche bleibt
   bedienbar; solange die Suche nicht eingerichtet ist, fuehrt ein Hinweis zu
   Einstellungen > Suche.
+- **Eine Such-Datenbank** (Phase 5): Volltext und die PDFSM-Metadaten
+  (Korrespondent, Kategorie, Steuerjahr, Betrag, Buchungsdatum,
+  Zusammenfassung, Schlagwoerter) liegen jetzt gemeinsam im Suchindex. Beim
+  ersten Start wird die bisherige Suchtabelle einmalig uebernommen; die
+  Metadaten jeder sortierten PDF liest der Index ausserdem aus der Datei
+  selbst (Info-Dict und XMP), so dass auch auf anderen Rechnern sortierte
+  PDFs ihre Werte mitbringen. Werte, die PDF Sortier Meister gesetzt hat,
+  haben Vorrang. Der Reiter **Suche** bekommt dafuer Filter fuer Steuerjahr,
+  Kategorie, Korrespondent und Betrag (auch ohne Suchbegriff), die
+  Werkzeugleisten-Suche (Strg+F) samt Filterleiste zeigt ihre Treffer dort,
+  und Chat-Zitate oeffnen die PDF direkt auf der Seite der Fundstelle.
+  Umbenennen, Verschieben, Loeschen, Kopieren, Stapeln, Teilen und
+  Zusammenfuegen melden sich sofort beim Index (im Hintergrund), der
+  Dokumenten-Chat sucht im neuen Index (auch Mails und Office-Dateien).
+- **Nie doppelt OCR**: Die PDF-Analyse holt ihren Text aus dem Suchindex,
+  wenn er aktuell ist, und nutzt sonst dieselbe Texterkennung wie der Index
+  (Tesseract, deu+eng, 300 dpi, hoechstens fuenf Bildseiten interaktiv);
+  was sie erkennt, geht an den Index zurueck. Ein OCR-Cache nach Bildinhalt
+  sorgt dafuer, dass erkannter Text Umbenennen, Verschieben, das Schreiben
+  von Metadaten in die PDF, Stapeln, Teilen und Kopieren ueberlebt; fuer den
+  Altbestand wird der Cache beim naechsten vollstaendigen Lauf nachgefuellt.
+  Die Datenbank wird beim ersten Zugriff in-place auf Schema-Version 2
+  erweitert (keine OCR geht verloren). `pdfsm-dienst suche` und das
+  MCP-Werkzeug `suche` kennen die Filter `steuerjahr`, `kategorie` und
+  `korrespondent`.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

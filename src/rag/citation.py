@@ -33,6 +33,8 @@ class Citation:
         pdf_id: Stabile 32-stellige Hex-UUID aus der ``pdfs``-Master-
             Tabelle (Phase 3, Issue #25). Default leerer String, damit
             alte Aufrufer (ohne DB-Lookup) nicht brechen.
+        seite: Seite der ersten Fundstelle im Suchindex (1-basiert, 0 =
+            unbekannt); die Oberflaeche oeffnet die PDF dort.
         valid: ``True`` wenn der Index zu einem retrieved Doc passt.
     """
     index: int
@@ -40,6 +42,7 @@ class Citation:
     file_path: str = ""
     pdf_id: str = ""
     valid: bool = False
+    seite: int = 0
 
 
 class CitationParser:
@@ -92,19 +95,25 @@ class CitationParser:
                 fn = doc.get("filename", "")
                 fp = doc.get("file_path", "")
                 pid = doc.get("pdf_id", "")
+                seite = doc.get("seite", 0)
             else:
                 # RetrievedDoc-Instanz
                 idx = getattr(doc, "index", None)
                 fn = getattr(doc, "filename", "")
                 fp = getattr(doc, "file_path", "")
                 pid = getattr(doc, "pdf_id", "")
+                seite = getattr(doc, "seite", 0)
             if idx is None:
                 continue
             try:
                 idx = int(idx)
             except (TypeError, ValueError):
                 continue
-            whitelist[idx] = {"filename": fn, "file_path": fp, "pdf_id": pid}
+            try:
+                seite = int(seite or 0)
+            except (TypeError, ValueError):
+                seite = 0
+            whitelist[idx] = {"filename": fn, "file_path": fp, "pdf_id": pid, "seite": seite}
 
         # 1) Footer-Zeilen einsammeln (fuer zusaetzliche Whitelist-Updates).
         for m in self.FOOTER_PATTERN.finditer(raw_answer):
@@ -153,6 +162,7 @@ class CitationParser:
                     # uebernehmen (default "", wenn nicht vorhanden).
                     pdf_id=entry.get("pdf_id", ""),
                     valid=True,
+                    seite=int(entry.get("seite") or 0),
                 ))
             else:
                 dropped.append(Citation(

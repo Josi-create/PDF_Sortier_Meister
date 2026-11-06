@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDateEdit,
+    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -55,7 +56,9 @@ SORTIERUNGEN = (("relevanz", "Relevanz"), ("neu", "Neueste zuerst"), ("alt", "Ä
 STATUS_MARKEN = {
     "ocr_ausstehend": "OCR ausstehend", "ocr_teilweise": "OCR teilweise", "fehler": "Fehler",
     "cloud": "nur in der Cloud", "zu_gross": "zu groß", "verschluesselt": "verschlüsselt", "leer": "ohne Text",
+    "ausstehend": "noch nicht gelesen",
 }
+METADATEN_FILTER = ("steuerjahr", "kategorie", "korrespondent")
 TYP_NAMEN = {"pdf": "PDF", "office": "Office", "md": "Markdown", "mail": "Mails"}
 TABELLEN_FORMATE = ("xlsx", "xlsm", "xls")
 
@@ -149,6 +152,21 @@ def meta_zeile(d: dict) -> str:
         if d.get("ocr_seiten"):
             teile.append(f"{d['ocr_seiten']} S. per OCR")
     return " · ".join(t for t in teile if t)
+
+
+def metadaten_zeile(d: dict) -> str:
+    """PDFSM-Metadaten eines Treffers: Korrespondent · Kategorie · Steuerjahr · Betrag · Buchungsdatum."""
+    teile = [d.get("korrespondent"), d.get("kategorie")]
+    if d.get("steuerjahr"):
+        teile.append(f"Steuerjahr {d['steuerjahr']}")
+    if d.get("betrag") is not None and d.get("betrag") != "":
+        try:
+            teile.append(f"{float(d['betrag']):,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+        except (TypeError, ValueError):
+            teile.append(str(d["betrag"]))
+    if d.get("buchungsdatum"):
+        teile.append(str(d["buchungsdatum"]))
+    return " · ".join(str(x) for x in teile if x)
 
 
 def stellen_beschriftung(d: dict, seite) -> str:
@@ -274,6 +292,8 @@ class TrefferKarte(QFrame):
             marken.append(marke)
         if d.get("im_namen"):
             marken.append("Treffer im Namen")
+        if d.get("im_metadaten"):
+            marken.append("Treffer in Metadaten")
         kopf = (f'<span style="color:#2563eb; font-weight:bold;">{escape(typ_kuerzel(d))}</span>&nbsp; '
                 f"<b>{escape(titel_von(d))}</b>"
                 + "".join(f'&nbsp; <span style="color:#9a3412;">[{escape(m)}]</span>' for m in marken))
@@ -282,6 +302,10 @@ class TrefferKarte(QFrame):
 
         self.meta_label = self._label(escape(meta_zeile(d)), "color: #666666; font-size: 11px;")
         lay.addWidget(self.meta_label)
+        self.metadaten_label = None
+        if metadaten_zeile(d):
+            self.metadaten_label = self._label(escape(metadaten_zeile(d)), "color: #166534; font-size: 11px;")
+            lay.addWidget(self.metadaten_label)
 
         pfad = d.get("ordner") if d.get("typ") == "mail" and d.get("format") == "mbox" else d.get("pfad")
         self.pfad_label = self._label(escape(pfad or ""), "color: #888888; font-size: 11px;")
@@ -522,6 +546,26 @@ class SearchView(QWidget):
         filter2.addWidget(self.datum_reset)
         lay.addLayout(filter2)
 
+        # PDFSM-Metadaten (Phase 5): Steuerjahr, Kategorie, Korrespondent, Betrag
+        filter3 = QHBoxLayout()
+        self.meta_combos: dict[str, QComboBox] = {}
+        for feld, beschriftung in (("steuerjahr", "Steuerjahr:"), ("kategorie", "Kategorie:"),
+                                   ("korrespondent", "Korrespondent:")):
+            filter3.addWidget(QLabel(beschriftung))
+            combo = QComboBox()
+            combo.addItem("Alle", "")
+            combo.setMinimumWidth(90)
+            combo.currentIndexChanged.connect(lambda _i: self._filter_geaendert())
+            self.meta_combos[feld] = combo
+            filter3.addWidget(combo, 1 if feld != "steuerjahr" else 0)
+        filter3.addWidget(QLabel("Betrag von:"))
+        self.betrag_von_spin = self._betrag_feld()
+        filter3.addWidget(self.betrag_von_spin)
+        filter3.addWidget(QLabel("bis:"))
+        self.betrag_bis_spin = self._betrag_feld()
+        filter3.addWidget(self.betrag_bis_spin)
+        lay.addLayout(filter3)
+
         self.count_label = QLabel("")
         self.count_label.setStyleSheet("color: #666666;")
         self.count_label.setWordWrap(True)
@@ -614,6 +658,16 @@ class SearchView(QWidget):
         lay.addWidget(self.vorschau_stack, 1)
         return rechts
 
+    def _betrag_feld(self) -> QDoubleSpinBox:
+        feld = QDoubleSpinBox()
+        feld.setRange(0.0, 1_000_000_000.0)
+        feld.setDecimals(2)
+        feld.setSpecialValueText("–")
+        feld.setSuffix(" €")
+        feld.setToolTip("Bruttobetrag aus den PDFSM-Metadaten; „–“ = kein Filter")
+        feld.valueChanged.connect(lambda _v: self._filter_geaendert())
+        return feld
+
     def _datum_feld(self) -> QDateEdit:
         feld = QDateEdit()
         feld.setCalendarPopup(True)
@@ -688,6 +742,9 @@ class SearchView(QWidget):
         t = text.strip()
         if not t:
             self._tipp_timer.stop()
+            if self._hat_filter():
+                self._tipp_timer.start()   # reine Filterabfrage
+                return
             self._generation += 1  # laufende Abfragen verfallen
             self._liste_leeren(hilfe=True)
             self.count_label.setText("")
@@ -696,8 +753,10 @@ class SearchView(QWidget):
             self._tipp_timer.start()
 
     def _filter_geaendert(self) -> None:
-        if self.search_edit.text().strip():
+        if self.search_edit.text().strip() or self._hat_filter():
             self._tipp_timer.start()
+        else:
+            self._text_geaendert("")
 
     def _zeitraum_zuruecksetzen(self) -> None:
         for feld in (self.von_edit, self.bis_edit):
@@ -723,7 +782,94 @@ class SearchView(QWidget):
             args["von"] = von
         if bis:
             args["bis"] = bis
+        for feld, combo in self.meta_combos.items():
+            wert = combo.currentData() if combo.currentIndex() > 0 else ""
+            if wert:
+                args[feld] = wert
+        if self.betrag_von_spin.value() > 0:
+            args["betrag_von"] = self.betrag_von_spin.value()
+        if self.betrag_bis_spin.value() > 0:
+            args["betrag_bis"] = self.betrag_bis_spin.value()
         return args
+
+    def _hat_filter(self) -> bool:
+        """Mindestens ein Filter gesetzt (dann sucht der Index auch ohne Suchbegriff)?"""
+        args = self._filter_argumente()
+        args.pop("sortierung", None)
+        return bool(args)
+
+    def suchen(self, text: str, typ: str | None = None, steuerjahr: str = "", kategorie: str = "",
+               korrespondent: str = "", von: str = "", bis: str = "", betrag_von: float = 0.0,
+               betrag_bis: float = 0.0) -> None:
+        """Suche von aussen (Werkzeugleiste, Strg+F): Suchbegriff und Filter setzen, sofort suchen."""
+        for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.von_edit, self.bis_edit,
+                  self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
+            w.blockSignals(True)
+        try:
+            self.search_edit.setText(text or "")
+            if typ is not None and typ in self.typ_buttons:
+                self.typ_buttons[typ].setChecked(True)
+            for feld, wert in (("steuerjahr", steuerjahr), ("kategorie", kategorie), ("korrespondent", korrespondent)):
+                self._combo_waehlen(self.meta_combos[feld], wert)
+            self.von_edit.setDate(QDate.fromString(von, "yyyy-MM-dd") if von else _KEIN_DATUM)
+            self.bis_edit.setDate(QDate.fromString(bis, "yyyy-MM-dd") if bis else _KEIN_DATUM)
+            self.betrag_von_spin.setValue(float(betrag_von or 0))
+            self.betrag_bis_spin.setValue(float(betrag_bis or 0))
+        finally:
+            for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.von_edit, self.bis_edit,
+                      self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
+                w.blockSignals(False)
+        self._suche_starten()
+
+    @staticmethod
+    def _combo_waehlen(combo: QComboBox, wert: str) -> None:
+        """Wert waehlen; ein noch unbekannter Wert wird als Eintrag ergaenzt."""
+        if not wert:
+            combo.setCurrentIndex(0)
+            return
+        i = combo.findData(wert)
+        if i < 0:
+            combo.addItem(str(wert), str(wert))
+            i = combo.count() - 1
+        combo.setCurrentIndex(i)
+
+    def leeren(self) -> None:
+        """Suchfeld, Filter und Trefferliste zuruecksetzen (Werkzeugleiste „Suche leeren“)."""
+        self._tipp_timer.stop()
+        felder = (self.search_edit, self.ordner_edit, self.von_edit, self.bis_edit, self.betrag_von_spin,
+                  self.betrag_bis_spin, *self.meta_combos.values())
+        for w in felder:
+            w.blockSignals(True)
+        try:
+            self.search_edit.clear()
+            self.ordner_edit.clear()
+            for combo in self.meta_combos.values():
+                combo.setCurrentIndex(0)
+            for spin in (self.betrag_von_spin, self.betrag_bis_spin):
+                spin.setValue(0.0)
+            self._zeitraum_zuruecksetzen()
+        finally:
+            for w in felder:
+                w.blockSignals(False)
+        self._generation += 1  # laufende Abfragen verfallen
+        self._liste_leeren(hilfe=True)
+        self.count_label.setText("")
+        self.angezeigte_abfrage = ""
+
+    def _werte_fuellen(self, werte: dict | None) -> None:
+        """Auswahllisten der Metadatenfilter aus dem Index fuellen; die Auswahl bleibt erhalten."""
+        for feld, combo in self.meta_combos.items():
+            liste = list((werte or {}).get(feld) or [])
+            aktuell = combo.currentData() if combo.currentIndex() > 0 else ""
+            combo.blockSignals(True)
+            try:
+                combo.clear()
+                combo.addItem("Alle", "")
+                for w in liste:
+                    combo.addItem(str(w), str(w))
+                self._combo_waehlen(combo, aktuell)
+            finally:
+                combo.blockSignals(False)
 
     def _suche_starten(self, start: int = 0) -> None:
         """Abfrage mit den aktuellen Filtern starten; ``start`` > 0 haengt weitere Treffer an."""
@@ -731,7 +877,7 @@ class SearchView(QWidget):
         if self.index is None or not self.konfig.aktiv:
             return
         text = self.search_edit.text().strip()
-        if not text:
+        if not text and not self._hat_filter():
             self._text_geaendert("")
             return
         self._generation += 1
@@ -766,8 +912,10 @@ class SearchView(QWidget):
         if gesamt:
             self.count_label.setText(f"{zahl(gesamt)}{'+' if ergebnis.get('mehr') else ''} Dokumente · "
                                      f"{ergebnis.get('dauer_ms', 0)} ms")
-        else:
+        elif text:
             self.count_label.setText(f"Keine Treffer für „{text}“ (Abfrage: {ergebnis.get('abfrage', '')})")
+        else:
+            self.count_label.setText("Keine Dokumente mit diesen Filtern")
         geladen = start + len(ergebnis.get("treffer") or [])
         self.mehr_button.setVisible(geladen < gesamt)
         self.mehr_button.setEnabled(True)
@@ -1018,6 +1166,7 @@ class SearchView(QWidget):
     def _status_da(self, st: dict) -> None:
         self._status_laeuft = False
         self.status = dict(st or {})
+        self._werte_fuellen(self.status.get("werte"))
         self.status_label.setText(status_zeile(self.status))
         laeuft = bool(self.status.get("laeuft"))
         aktiv = bool(self.konfig and self.konfig.aktiv)

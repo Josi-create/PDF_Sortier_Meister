@@ -7,6 +7,7 @@ dicts/lists zurueck (picklebar) und importieren PyMuPDF erst bei Bedarf.
 from __future__ import annotations
 
 import email
+import hashlib
 import html
 import os
 import re
@@ -74,10 +75,16 @@ def _saeubern(t: str) -> str:
 # --------------------------------------------------------------------------- PDF
 
 def pdf_text(pfad: str, min_zeichen: int) -> dict:
-    """Textebene lesen. Seiten ohne Text, aber mit Bild, werden fuer OCR markiert."""
+    """Textebene lesen. Seiten ohne Text, aber mit Bild, werden fuer OCR markiert.
+
+    Dazu kommen ``bild_hashes`` (Seite -> Hash der Bild-Streams, fuer den
+    OCR-Cache; nur fuer Seiten ohne Text) und ``metadaten`` (PDFSM-Felder aus
+    Info-Dict und XMP, siehe ``pdf_metadaten``).
+    """
     import pymupdf
 
-    erg = {"seiten": [], "anzahl": 0, "ohne_text": [], "titel": None, "autor": None, "status": "text", "fehler": None}
+    erg = {"seiten": [], "anzahl": 0, "ohne_text": [], "titel": None, "autor": None, "status": "text", "fehler": None,
+           "bild_hashes": {}, "metadaten": {}}
     try:
         doc = pymupdf.open(pfad)
     except Exception as e:
@@ -91,6 +98,10 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
         erg["titel"] = (md.get("title") or "").strip() or None
         erg["autor"] = (md.get("author") or "").strip() or None
         erg["anzahl"] = doc.page_count
+        try:
+            erg["metadaten"] = pdf_metadaten(doc)
+        except Exception:
+            erg["metadaten"] = {}
         for i in range(doc.page_count):
             try:
                 seite = doc[i]
@@ -101,6 +112,9 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
             if len(t.strip()) < min_zeichen and seite is not None and _hat_bild(seite):
                 erg["ohne_text"].append(i + 1)
                 erg["seiten"].append((i + 1, "ohne_text", t))
+                h = _bild_hash(doc, seite)
+                if h:
+                    erg["bild_hashes"][i + 1] = h
             else:
                 erg["seiten"].append((i + 1, "text", t))
         if erg["ohne_text"]:
@@ -122,6 +136,130 @@ def _hat_bild(seite) -> bool:
         return any(b.get("type") == 1 for b in seite.get_text("dict", flags=0)["blocks"])
     except Exception:
         return False
+
+
+def _bild_hash(doc, seite) -> str | None:
+    """BLAKE2b (16 Byte) ueber die Bild-Streams einer Seite (Inline-Bilder: Content-Stream).
+
+    Gehasht werden die entpackten Streams (``xref_stream``): Flate packt jedes
+    Programm anders (pikepdf beim XMP-Schreiben, PyMuPDF beim Stapeln), die
+    Bilddaten bleiben gleich; JPEG-Daten (DCT) bleiben ohnehin unveraendert.
+    Nichts wird gerendert. Derselbe Scan liefert nach Umbenennen, Verschieben,
+    XMP-Schreiben, Stapeln, Teilen oder Kopieren denselben Hash, der OCR-Text
+    kommt dann aus dem Cache.
+    """
+    h = hashlib.blake2b(digest_size=16)
+    gefunden = False
+    try:
+        for bild in seite.get_images(full=False):
+            try:
+                h.update(doc.xref_stream(bild[0]))
+                gefunden = True
+            except Exception:
+                try:
+                    h.update(doc.xref_stream_raw(bild[0]))
+                    gefunden = True
+                except Exception:
+                    continue
+        if not gefunden:
+            h.update(seite.read_contents())
+            gefunden = True
+    except Exception:
+        return None
+    return h.hexdigest() if gefunden else None
+
+
+def pdf_bild_hashes(pfad: str, seiten: list[int]) -> dict:
+    """Bild-Hashes fuer ausgewaehlte Seiten (OCR-Cache des Bestands auffuellen). ``{seite: hash}``."""
+    import pymupdf
+
+    erg: dict = {}
+    try:
+        doc = pymupdf.open(pfad)
+    except Exception:
+        return erg
+    try:
+        if doc.needs_pass and not doc.authenticate(""):
+            return erg
+        for nr in seiten:
+            if 1 <= nr <= doc.page_count:
+                h = _bild_hash(doc, doc[nr - 1])
+                if h:
+                    erg[nr] = h
+    except Exception:
+        pass
+    finally:
+        doc.close()
+    return erg
+
+
+_INFO_FELDER = {"Korrespondent": "korrespondent", "Steuerjahr": "steuerjahr", "Buchungsdatum": "buchungsdatum",
+                "Subject": "zusammenfassung", "Keywords": "schlagwoerter"}
+_XMP_SUBJECT = re.compile(r"<dc:subject[^>]*>(.*?)</dc:subject>", re.S)
+_TAG = re.compile(r"<[^>]+>")
+_DATEINAME = re.compile(r"[^\s/\\]+\.pdf", re.I)
+
+
+def pdf_metadaten(doc) -> dict:
+    """PDFSM-Metadaten aus einer PDF (``src/core/pdf_metadata.py`` schreibt sie beim Sortieren).
+
+    Info-Dict: ``/Korrespondent``, ``/Steuerjahr``, ``/Buchungsdatum``,
+    ``/BetragBrutto`` bzw. ``/Betrag``, ``/Subject`` (= dc:description, die
+    Zusammenfassung), ``/Keywords``; die Kategorie steht nur im XMP (``dc:subject``).
+    Liefert nur gefuellte Felder; ein Dateiname als Zusammenfassung (fremde
+    Dokumentensysteme) wird verworfen.
+    """
+    erg: dict = {}
+    try:
+        info = doc.xref_get_key(-1, "Info")
+    except Exception:
+        info = None
+    xref = None
+    if info and info[0] == "xref":
+        try:
+            xref = int(str(info[1]).split()[0])
+        except (ValueError, IndexError):
+            xref = None
+    if xref:
+        try:
+            schluessel = set(doc.xref_get_keys(xref))
+        except Exception:
+            schluessel = set()
+        for k, feld in _INFO_FELDER.items():
+            if k in schluessel:
+                wert = _info_wert(doc, xref, k)
+                if wert:
+                    erg[feld] = wert
+        for k in ("BetragBrutto", "Betrag"):
+            if k in schluessel:
+                wert = _info_wert(doc, xref, k)
+                if wert:
+                    erg["betrag"] = wert
+                    break
+    if erg.get("zusammenfassung") and _DATEINAME.fullmatch(erg["zusammenfassung"].strip()):
+        del erg["zusammenfassung"]
+    try:
+        xmp = doc.get_xml_metadata() or ""
+    except Exception:
+        xmp = ""
+    if xmp:
+        m = _XMP_SUBJECT.search(xmp)
+        if m:
+            kategorie = html.unescape(_TAG.sub(" ", m.group(1))).strip()
+            if kategorie:
+                erg["kategorie"] = " ".join(kategorie.split())[:200]
+    return erg
+
+
+def _info_wert(doc, xref: int, schluessel: str) -> str | None:
+    try:
+        art, wert = doc.xref_get_key(xref, schluessel)
+    except Exception:
+        return None
+    if art != "string" or wert is None:
+        return None
+    s = str(wert).strip()
+    return s[:500] or None
 
 
 def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:

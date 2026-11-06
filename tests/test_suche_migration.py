@@ -80,11 +80,11 @@ def test_pruefen_liefert_vorschau(projekt):
     u = migration.pruefen(projekt)
     assert u.moeglich and u.db_vorhanden and u.laeuft is False and u.fehler == []
     assert u.db_pfad == norm_pfad(str(projekt / "data" / "pdfsuche.db"))
-    assert u.schema_version == "1" and u.integritaet == "ok"
+    assert u.schema_version == "2" and u.integritaet == "ok"
     assert u.zaehler["dokumente"] == 2 and u.zaehler["pro_typ"] == {"md": 1, "pdf": 1}
     assert u.konfig.aktiv is True and u.konfig.ocr_aktiv is False and u.konfig.web_port == 18425
     text = u.zusammenfassung()
-    assert "Dokumente: 2" in text and "Schema-Version: 1" in text and "Fehler" not in text
+    assert "Dokumente: 2" in text and "Schema-Version: 2" in text and "Fehler" not in text
 
 
 def test_pruefen_fehler_ohne_config_db_oder_mit_kaputter_toml(tmp_path, projekt):
@@ -123,7 +123,7 @@ def test_uebernehmen_laesst_datenbank_am_ort(tmp_path, projekt, app_data):
     try:
         assert db.lies_meta(con, "migriert_von") == norm_pfad(str(projekt))
         assert db.lies_meta(con, "migriert_am")
-        assert db.lies_meta(con, "schema_version") == "1"
+        assert db.lies_meta(con, "schema_version") == "2"
     finally:
         con.close()
     with pytest.raises(ValueError):

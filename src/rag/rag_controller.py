@@ -172,6 +172,7 @@ class RAGController:
                         # mitschreiben, damit spaetere Folgefragen den
                         # stabilen Identitaetsanker haben.
                         "pdf_id": c.pdf_id,
+                        "seite": getattr(c, "seite", 0),
                     }
                     for c in response.citations
                 ],
@@ -296,6 +297,8 @@ class RAGController:
             # Phase 3 (Issue #25): pdf_id in den Prompt-Dict
             # durchreichen, damit LLM-Provider sie ebenfalls sehen.
             "pdf_id": getattr(doc, "pdf_id", ""),
+            # Phase 5: Seite der Fundstelle (fuer Zitate auf Dokument und Seite)
+            "seite": getattr(doc, "seite", 0),
         }
 
     def _cache_key(self, question: str) -> str:
