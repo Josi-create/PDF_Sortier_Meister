@@ -8,6 +8,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
+  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
+  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
+  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
+  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
+  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
+  geladenen Baumtiefe erscheinen jetzt.
 - **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
   konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
   Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
