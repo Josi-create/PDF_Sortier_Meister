@@ -180,3 +180,47 @@ def test_consent_loaded_from_config(qtbot, fresh_config):
     fresh_config.set("llm", llm)
     d = _dialog(qtbot)
     assert d.cloud_consent_check.isChecked()
+
+
+def test_server_url_pro_provider_ollama_und_strata(qtbot, fresh_config):
+    """Ollama- und Strata-URL ueberschreiben sich beim Wechsel nicht."""
+    d = _dialog(qtbot)
+
+    _select(d, "ollama")
+    assert d.base_url_input.isEnabled()
+    d.base_url_input.setText("http://localhost:11434")
+
+    _select(d, "strata")
+    assert d.base_url_input.isEnabled()
+    assert d.base_url_input.text() == ""
+    assert d.base_url_input.placeholderText() == "http://127.0.0.1:8080/v1"
+    assert d.api_key_label.text() == "API-Key (Strata):"
+    d.base_url_input.setText("http://127.0.0.1:9090/v1")
+    d.api_key_input.setText("sk-strata-test")
+
+    _select(d, "openrouter")
+    assert not d.base_url_input.isEnabled()
+
+    _select(d, "ollama")
+    assert d.base_url_input.text() == "http://localhost:11434"
+
+    _select(d, "strata")
+    d._save_settings()
+    llm = fresh_config.get_llm_config()
+    assert llm["provider"] == "strata"
+    assert llm["base_url"] == "http://127.0.0.1:9090/v1"
+    assert llm["base_urls"] == {"ollama": "http://localhost:11434",
+                                "strata": "http://127.0.0.1:9090/v1"}
+    assert llm["api_keys"]["strata"] == "sk-strata-test"
+
+
+def test_alte_ollama_url_wird_uebernommen(qtbot, fresh_config):
+    """Vor Strata gab es nur base_url (immer Ollama) - bleibt bei Ollama."""
+    llm = fresh_config.get_llm_config()
+    llm.update({"provider": "openrouter", "base_url": "http://nas:11434"})
+    fresh_config.set("llm", llm)
+    d = _dialog(qtbot)
+    _select(d, "ollama")
+    assert d.base_url_input.text() == "http://nas:11434"
+    _select(d, "strata")
+    assert d.base_url_input.text() == ""

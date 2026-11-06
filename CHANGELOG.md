@@ -8,6 +8,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
+  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
+  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
+  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
+  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
+  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
+  geladenen Baumtiefe erscheinen jetzt.
+- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
+  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
+  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
+  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
+  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
+  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
+  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
+  bleiben wie bisher gruen.
 - **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
   galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
   oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
@@ -47,6 +62,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   `styles.xml`: eingebaute und eigene Datumsformate, 1904-Datumssystem). Nach
   einem vollstaendigen Lauf verschwinden Eintraege, die ausserhalb aller
   konfigurierten Ordner liegen (bisher blieben sie fuer immer stehen).
+- **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
+  neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
+  Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit
+  Ordner und Jahr. Sie nennt daraufhin einen Zielordner, der als
+  Ordnervorschlag „KI: aehnliche Dokumente liegen dort“ ganz oben erscheint
+  bzw. einen vorhandenen Vorschlag bestaetigt. Jahres-Regel: Eine Rechnung,
+  die fast genauso aussieht wie eine in „Steuer 2024“, gehoert trotzdem in
+  den Ordner fuer ihr eigenes Jahr. Der Prompt sagt das ausdruecklich und
+  nennt die passende Jahres-Variante („Steuer 2026/…“), und uebernimmt die KI
+  doch das Beispieljahr, korrigiert PDFSM den Ordner auf das Dokumentjahr.
+- **Strata als lokaler KI-Anbieter**: In den Einstellungen gibt es den
+  Anbieter „Strata“ fuer einen lokalen Modell-Server mit OpenAI-kompatibler
+  Schnittstelle (Standard `http://127.0.0.1:8080/v1`, Angabe ohne `/v1`
+  geht auch). Strata braucht einen eigenen API-Key, schickt aber nichts ins
+  Internet und zaehlt deshalb nicht als Cloud-Anbieter. Ohne Modellangabe
+  nimmt PDFSM das Modell, das der Server gerade geladen hat; „Modelle
+  aktualisieren“ und „Verbindung testen“ funktionieren. Die Server-URL wird
+  jetzt pro Anbieter gemerkt, Ollama- und Strata-URL ueberschreiben sich
+  nicht mehr.
 - **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
   auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
   leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt

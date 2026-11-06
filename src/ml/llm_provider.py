@@ -192,6 +192,7 @@ class LLMProviderType(Enum):
     OPENROUTER = "openrouter"  # OpenRouter.ai - viele Modelle, OpenAI-kompatibel
     OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama-Modelle in der Cloud (ollama.com, API-Key)
+    STRATA = "strata"  # Lokaler Strata-Server (OpenAI-kompatibel, eigener Key)
     NONE = "none"  # Kein LLM verwenden
 
 
@@ -282,6 +283,7 @@ class LLMProvider(ABC):
         file_date: str = None,
         examples: list[str] | None = None,
         source_folder: str | None = None,
+        similar_info: str = "",
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen für das Dokument vor.
@@ -295,6 +297,8 @@ class LLMProvider(ABC):
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
             examples: Dateinamen, die der Nutzer fuer aehnliche Dokumente gewaehlt hat
             source_folder: Name des Ordners, in dem die PDF liegt (Hinweis, Issue #132)
+            similar_info: Prompt-Abschnitt mit Ablageorten aehnlicher Dokumente
+                (siehe :mod:`src.core.similar_documents`), leer = keiner
 
         Returns:
             LLMResponse mit Dateinamenvorschlag und Begründung
@@ -441,6 +445,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         file_date: str = None,
         examples: list[str] | None = None,
         source_folder: str | None = None,
+        similar_info: str = "",
     ) -> str:
         """
         Erstellt den Prompt für Dateinamenvorschläge.
@@ -454,6 +459,8 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             file_date: Änderungsdatum der Datei (Fallback wenn kein Datum im Dokument)
             examples: Dateinamen aehnlicher Dokumente aus der Historie (Stil-Beispiele)
             source_folder: Name des Quellordners (z.B. "Briefe 2004") als Hinweis
+            similar_info: Abschnitt mit Ablageorten aehnlicher Dokumente (fertig
+                formatiert); dann fragt das Antwortschema auch nach "zielordner"
 
         Returns:
             Formatierter Prompt (JSON Format gefordert)
@@ -491,6 +498,14 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         from src.core.rename_examples import describe_examples_for_prompt
         examples_info = describe_examples_for_prompt(examples or [])
 
+        # Ablageorte aehnlicher Dokumente: nur dann auch "zielordner" abfragen,
+        # sonst raet die KI einen Ordner, den es nicht gibt.
+        similar_info = similar_info or ""
+        zielordner_field = (
+            '\n    "zielordner": "Ablageort wie in den Beispielen, Jahr an dieses Dokument angepasst, oder UNBEKANNT",'
+            if similar_info else ""
+        )
+
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}
 AKTUELLER DATEINAME: {current_filename}
@@ -498,7 +513,7 @@ AKTUELLER DATEINAME: {current_filename}
 DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}{source_info}
-{pattern_info}{examples_info}
+{pattern_info}{examples_info}{similar_info}
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
@@ -538,7 +553,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
     "datum": "JJJJ-MM-TT (Datum des Dokuments) oder UNBEKANNT",
-    "steuerjahr": "JJJJ oder UNBEKANNT",
+    "steuerjahr": "JJJJ oder UNBEKANNT",{zielordner_field}
     "beschreibung": "Zusammenfassung in einem Satz"
   }}
 }}"""

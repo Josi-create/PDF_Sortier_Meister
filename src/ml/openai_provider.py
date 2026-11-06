@@ -193,6 +193,7 @@ class OpenAIProvider(LLMProvider):
         file_date: str = None,
         examples: list[str] | None = None,
         source_folder: str | None = None,
+        similar_info: str = "",
     ) -> LLMResponse:
         """
         Schlägt einen Dateinamen mit OpenAI vor.
@@ -216,7 +217,7 @@ class OpenAIProvider(LLMProvider):
 
         prompt = self._build_filename_prompt(
             text, current_filename, keywords, detected_date, target_folder, file_date,
-            examples=examples, source_folder=source_folder,
+            examples=examples, source_folder=source_folder, similar_info=similar_info,
         )
 
         try:
