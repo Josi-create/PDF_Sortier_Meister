@@ -62,6 +62,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   `styles.xml`: eingebaute und eigene Datumsformate, 1904-Datumssystem). Nach
   einem vollstaendigen Lauf verschwinden Eintraege, die ausserhalb aller
   konfigurierten Ordner liegen (bisher blieben sie fuer immer stehen).
+- **Dokumentensuche, Plattformschicht** (Phase 2): Alles
+  Betriebssystem-abhaengige liegt jetzt in `src/search/plattform.py`, damit
+  die Suche unter Windows und macOS gleich laeuft - Dateisperre gegen
+  Doppellaeufe, Arbeitsprozesse enden mit dem Dienst (Windows-Job-Objekt bzw.
+  Prozessgruppe mit Elternwaechter), Hintergrundprioritaet fuer CPU und
+  Festplatte, Erkennung nur in der Cloud liegender Dateien (OneDrive-
+  Platzhalter, iCloud-Drive-Platzhalter `.Name.pdf.icloud`,
+  File-Provider-Flag), Junctions und Symlinks werden uebersprungen. Neu:
+  `pdfsm-dienst index --nur-leerlauf` pausiert den Lauf, solange der Nutzer
+  aktiv ist (fuer den macOS-Zeitplan; unter Windows erledigt das die
+  Aufgabenplanung); das Thunderbird-Profil wird ueber `profiles.ini` gefunden
+  und ist der Standard fuer die Postfaecher; der Einrichtungsassistent bekommt
+  Vorschlaege fuer Wurzeln (Laufwerke bzw. Benutzerordner und `/Volumes`);
+  fehlen Tesseract oder die Sprachdaten `deu+eng`, bleibt die Texterkennung
+  aus und der Status nennt den Grund.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

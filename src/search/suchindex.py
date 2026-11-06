@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.search import db
+from src.search import db, plattform
 from src.search.konfig import SearchConfig, norm_pfad
 
 
@@ -110,13 +110,15 @@ class Suchindex:
         if con is None:
             return {"vorhanden": False, "dokumente": 0, "pro_typ": {}, "pro_status": {}, "seiten": 0,
                     "ocr_seiten": 0, "ocr_ausstehend_seiten": 0, "laeufe": [], "fortschritt": "",
-                    "schema_version": "", "laeuft": self.laeuft_gerade(), "db_groesse": 0}
+                    "schema_version": "", "laeuft": self.laeuft_gerade(), "db_groesse": 0,
+                    "ocr_grund": self.konfig.ocr_einstellungen()["grund"]}
         try:
             st = db.status(con)
         finally:
             con.close()
         st["vorhanden"] = True
         st["laeuft"] = self.laeuft_gerade()
+        st["ocr_grund"] = self.konfig.ocr_einstellungen()["grund"]  # None = Texterkennung einsatzbereit
         st["db_groesse"] = sum(
             os.path.getsize(p) for p in (str(self.db_datei), str(self.db_datei) + "-wal") if os.path.exists(p)
         )
@@ -196,11 +198,8 @@ class Suchindex:
             args.append("--nur-prioritaet")
         if pfad:
             args += ["--pfad", str(pfad)]
-        extra: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-        if sys.platform == "win32":
-            extra["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        else:
-            extra["start_new_session"] = True
+        extra: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+                       **plattform.popen_flags(abgekoppelt=True)}
         if not getattr(sys, "frozen", False):
             extra["cwd"] = str(Path(__file__).resolve().parents[2])
         return subprocess.Popen(args, **extra)

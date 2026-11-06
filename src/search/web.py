@@ -11,8 +11,6 @@ from __future__ import annotations
 import io
 import mimetypes
 import os
-import subprocess
-import sys
 import tempfile
 import threading
 import webbrowser
@@ -20,21 +18,12 @@ from pathlib import Path
 
 from src.search import mbox
 from src.search.konfig import SearchConfig
+from src.search.plattform import im_dateimanager_zeigen as _im_dateimanager_zeigen
 from src.search.suchindex import Suchindex
 from src.utils.platform_paths import open_with_default_app
 
 STATIC = Path(__file__).parent / "static"
 ERLAUBTE_HOSTS = {"127.0.0.1", "localhost"}
-
-
-def _im_dateimanager_zeigen(pfad: str) -> None:
-    """Datei im Explorer (Windows) bzw. Finder (macOS) markieren; sonst den Ordner oeffnen."""
-    if sys.platform == "win32":
-        subprocess.Popen(["explorer", "/select,", os.path.normpath(pfad)])
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", "-R", pfad])
-    else:
-        open_with_default_app(os.path.dirname(pfad))
 
 
 def _dateiname(s: str) -> str:

@@ -145,21 +145,43 @@ class SearchConfig:
             return int(self.prozesse)
         return max(1, min(8, (os.cpu_count() or 2) // 2))
 
+    def mail_ordner_effektiv(self) -> list[str]:
+        """Postfach-Ordner fuer den Lauf: die konfigurierten, sonst ``Mail/`` und
+        ``ImapMail/`` des Thunderbird-Standardprofils (``plattform.thunderbird_mail_ordner``)."""
+        if self.mail_ordner:
+            return list(self.mail_ordner)
+        from src.search.plattform import thunderbird_mail_ordner
+
+        return [norm_pfad(p) for p in thunderbird_mail_ordner()]
+
     def ocr_einstellungen(self) -> dict:
         """Einstellungen fuer ``extract.pdf_ocr`` (picklebar, fuer die Arbeitsprozesse).
 
-        Ohne auffindbares Tesseract ist ``aktiv`` False; der Lauf laesst die
-        Seiten dann auf ``ohne_text`` stehen und holt die OCR spaeter nach.
+        Ohne auffindbares Tesseract oder ohne die Sprachdaten (``deu+eng``) ist
+        ``aktiv`` False und ``grund`` nennt die Ursache (Protokoll, Status); der
+        Lauf laesst die Seiten dann auf ``ohne_text`` stehen und holt die OCR
+        spaeter nach.
         """
-        from src.utils.tesseract import find_tesseract, tessdata_dir
+        from src.utils.tesseract import fehlende_sprachen, find_tesseract, tessdata_dir
 
         tesseract = self.ocr_tesseract or find_tesseract()
         tessdata = self.ocr_tessdata or tessdata_dir(tesseract)
+        sprachen = self.ocr_sprachen or "deu+eng"
+        fehlend = fehlende_sprachen(tessdata, sprachen) if tesseract else []
+        if not self.ocr_aktiv:
+            grund = "in den Einstellungen ausgeschaltet"
+        elif not tesseract:
+            grund = "Tesseract nicht gefunden"
+        elif fehlend:
+            grund = "Sprachdaten fehlen: " + ", ".join(fehlend)
+        else:
+            grund = None
         return {
-            "aktiv": bool(self.ocr_aktiv and tesseract),
+            "aktiv": grund is None,
+            "grund": grund,
             "tesseract": tesseract,
             "tessdata": tessdata or None,
-            "sprachen": self.ocr_sprachen or "deu+eng",
+            "sprachen": sprachen,
             "dpi": int(self.ocr_dpi),
             "min_zeichen": int(self.ocr_min_zeichen),
             "max_seiten": int(self.ocr_max_seiten),

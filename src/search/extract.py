@@ -11,10 +11,11 @@ import html
 import os
 import re
 import subprocess
-import sys
 from email import policy
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+
+from src.search import plattform
 
 MAX_TEXT_PRO_SEITE = 2_000_000
 MAX_MAIL_ROH = 6 * 1024 * 1024
@@ -42,40 +43,21 @@ def fehlertext(e: BaseException | str, pfad: str | None = None, max_len: int = M
 
 
 def _popen_kwargs() -> dict:
-    """Unterprozess ohne Konsolenfenster (nur Windows kennt das Flag)."""
-    if sys.platform == "win32":
-        return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
-    return {}
+    """Unterprozess (Tesseract) ohne Konsolenfenster (``plattform.popen_flags``)."""
+    return plattform.popen_flags()
 
 
 def setze_niedrige_prioritaet() -> None:
-    """Prozess im Hintergrundmodus: niedrige CPU- und Festplatten-Prioritaet.
-
-    Windows: PROCESS_MODE_BACKGROUND_BEGIN (Fallback BELOW_NORMAL). Andere
-    Plattformen: ``os.nice``; die Feinheiten (taskpolicy) kommen mit der
-    Plattformschicht in Phase 2.
-    """
-    if sys.platform == "win32":
-        import ctypes
-
-        k32 = ctypes.windll.kernel32
-        h = k32.GetCurrentProcess()
-        PROCESS_MODE_BACKGROUND_BEGIN = 0x00100000
-        BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
-        if not k32.SetPriorityClass(h, PROCESS_MODE_BACKGROUND_BEGIN):
-            k32.SetPriorityClass(h, BELOW_NORMAL_PRIORITY_CLASS)
-        return
-    try:
-        os.nice(10)
-    except (AttributeError, OSError):
-        pass
+    """Prozess im Hintergrundmodus (``plattform.niedrige_prioritaet_setzen``)."""
+    plattform.niedrige_prioritaet_setzen()
 
 
 def arbeiter_start(hintergrund: bool) -> None:
-    """Initializer der Arbeitsprozesse."""
+    """Initializer der Arbeitsprozesse: Prioritaet, Elternwaechter (macOS/Linux), PyMuPDF-Meldungen aus."""
     os.environ["OMP_THREAD_LIMIT"] = "1"
     if hintergrund:
         setze_niedrige_prioritaet()
+    plattform.elternwaechter_starten()
     try:
         import pymupdf
         pymupdf.TOOLS.mupdf_display_errors(False)

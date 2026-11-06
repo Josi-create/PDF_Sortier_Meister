@@ -9,7 +9,7 @@ import time
 import pytest
 
 import helfer_suche as h
-from src.search import db, extract, indexer, mbox
+from src.search import db, extract, indexer, mbox, plattform
 from src.search.indexer import Auftrag, Indexer
 
 
@@ -154,7 +154,7 @@ def test_nur_pfad_und_ausschluesse(tmp_path, ablage):
 
 def test_cloud_platzhalter_nur_mit_namen(tmp_path, ablage, monkeypatch):
     konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
-    monkeypatch.setattr(indexer, "_nur_cloud", lambda st: True)
+    monkeypatch.setattr(plattform, "nur_cloud", lambda st: True)
     stat = _lauf(konfig)
     assert stat["cloud"] == 4 and stat["gelesen"] == 0
     con = _con(konfig)
@@ -452,3 +452,75 @@ def test_zeitueberschreitung_beendet_arbeitsprozesse_unter_python_311(tmp_path):
     finally:
         ix._pool_beenden()
         ix.con.close()
+
+
+def test_icloud_platzhalter_nur_mit_namen(tmp_path, ablage):
+    """macOS: ``.Name.pdf.icloud`` steht fuer eine ausgelagerte Datei; sie kommt nur mit Namen in den Index."""
+    (ablage / ".Bericht.pdf.icloud").write_bytes(b"<plist/>")
+    (ablage / ".Notiz.txt.icloud").write_bytes(b"<plist/>")     # Endung nicht konfiguriert: ignoriert
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    stat = _lauf(konfig)
+    assert stat["cloud"] == 1 and stat["gelesen"] == 4
+    con = _con(konfig)
+    try:
+        r = con.execute("SELECT pfad, textstatus FROM dokumente WHERE name = 'Bericht.pdf'").fetchone()
+        assert r["textstatus"] == "cloud" and r["pfad"] == str(ablage / "Bericht.pdf")
+        assert db.suche(con, "Bericht")["treffer"][0]["im_namen"] is True
+    finally:
+        con.close()
+    # Zweiter Lauf: Platzhalter unveraendert, Eintrag bleibt (kein Aufraeumen)
+    stat = _lauf(konfig)
+    assert stat["cloud"] == 0 and stat["unveraendert"] == 5 and stat["entfernt"] == 0
+    # Datei wird heruntergeladen: Platzhalter weg, echte Datei da -> jetzt wird gelesen
+    (ablage / ".Bericht.pdf.icloud").unlink()
+    h.pdf_mit_text(ablage / "Bericht.pdf", ["Quartalsbericht der Beispiel AG"])
+    stat = _lauf(konfig)
+    assert stat["gelesen"] == 1
+    con = _con(konfig)
+    try:
+        assert con.execute("SELECT textstatus FROM dokumente WHERE name = 'Bericht.pdf'").fetchone()[0] == "text"
+        assert db.suche(con, "Quartalsbericht")["gesamt"] == 1
+    finally:
+        con.close()
+
+
+def test_icloud_platzhalter_laesst_gelesenen_text_stehen(tmp_path, ablage):
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    _lauf(konfig)
+    # Brief.pdf wird nach dem Lesen in die Cloud ausgelagert: nur noch der Platzhalter liegt im Ordner
+    (ablage / "Brief.pdf").unlink()
+    (ablage / ".Brief.pdf.icloud").write_bytes(b"<plist/>")
+    stat = _lauf(konfig)
+    assert stat["entfernt"] == 0 and stat["cloud"] == 0
+    con = _con(konfig)
+    try:
+        assert con.execute("SELECT textstatus FROM dokumente WHERE name = 'Brief.pdf'").fetchone()[0] == "text"
+        assert db.suche(con, "Beispiel")["gesamt"] == 1
+    finally:
+        con.close()
+
+
+def test_nur_leerlauf_pausiert_bis_nutzer_untaetig(tmp_path, ablage, monkeypatch):
+    werte = iter([5.0, 5.0, 30.0, 300.0])            # aktiv, aktiv, noch nicht lange genug, dann Leerlauf
+    abfragen = []
+
+    def leerlauf():
+        s = next(werte, 300.0)
+        abfragen.append(s)
+        return s
+
+    monkeypatch.setattr(plattform, "leerlauf_sekunden", leerlauf)
+    monkeypatch.setattr(indexer, "LEERLAUF_PRUEFEN_S", 0)
+    monkeypatch.setattr(indexer, "LEERLAUF_PAUSE_S", 0.001)
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)])
+    ix = Indexer(konfig, synchron=True, nur_leerlauf=True)
+    assert ix.lauf() == 0
+    assert ix.stat["pausen"] == 1 and ix.stat["gelesen"] == 4 and abfragen[:4] == [5.0, 5.0, 30.0, 300.0]
+    # Ohne nur_leerlauf wird die Leerlaufzeit nie abgefragt
+    abfragen.clear()
+    assert Indexer(konfig, synchron=True).lauf() == 0 and abfragen == []
+    # Pause laeuft ins Zeitlimit: Abbruch statt Endlosschleife (eine neue Datei, damit ein Auftrag ansteht)
+    (ablage / "Neu.md").write_text("Neue Notiz", encoding="utf-8")
+    monkeypatch.setattr(plattform, "leerlauf_sekunden", lambda: 1.0)
+    ix = Indexer(konfig, synchron=True, nur_leerlauf=True, max_minuten=0.0005)
+    assert ix.lauf() == 1

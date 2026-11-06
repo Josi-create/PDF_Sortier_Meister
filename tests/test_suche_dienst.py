@@ -80,8 +80,8 @@ def test_index_befehl_startet_indexer(toml, monkeypatch):
     aufrufe = {}
 
     class FakeIndexer:
-        def __init__(self, konfig, hintergrund=False, max_minuten=0):
-            aufrufe["init"] = (konfig.wurzeln, hintergrund, max_minuten)
+        def __init__(self, konfig, hintergrund=False, max_minuten=0, nur_leerlauf=False):
+            aufrufe["init"] = (konfig.wurzeln, hintergrund, max_minuten, nur_leerlauf)
 
         def lauf(self, **kw):
             aufrufe["lauf"] = kw
@@ -90,8 +90,8 @@ def test_index_befehl_startet_indexer(toml, monkeypatch):
     monkeypatch.setattr("src.search.indexer.Indexer", FakeIndexer)
     monkeypatch.setattr("src.search.indexer.logging_einrichten", lambda konfig, konsole=True: aufrufe.setdefault("log", konsole))
     assert dienst.main(["--config", str(toml), "index", "--hintergrund", "--nur-prioritaet", "--ohne-mail",
-                        "--max-minuten", "5"]) == 0
-    assert aufrufe["init"][1:] == (True, 5.0) and aufrufe["log"] is False
+                        "--max-minuten", "5", "--nur-leerlauf"]) == 0
+    assert aufrufe["init"][1:] == (True, 5.0, True) and aufrufe["log"] is False
     assert aufrufe["lauf"] == {"nur_prioritaet": True, "ohne_ocr": False, "ohne_mail": True, "nur_pfad": None}
 
 

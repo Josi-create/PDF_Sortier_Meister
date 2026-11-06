@@ -43,9 +43,29 @@ def test_ocr_einstellungen(monkeypatch):
     assert e["aktiv"] is False and e["tesseract"] is None and e["tessdata"] is None
     c2 = SearchConfig(ocr_aktiv=True, ocr_tesseract="/opt/tesseract", ocr_tessdata="/opt/tessdata", ocr_sprachen="deu")
     e2 = c2.ocr_einstellungen()
-    assert e2 == {"aktiv": True, "tesseract": "/opt/tesseract", "tessdata": "/opt/tessdata", "sprachen": "deu",
-                  "dpi": 300, "min_zeichen": 25, "max_seiten": 1000}
-    assert SearchConfig(ocr_aktiv=False, ocr_tesseract="/opt/tesseract").ocr_einstellungen()["aktiv"] is False
+    assert e2 == {"aktiv": True, "grund": None, "tesseract": "/opt/tesseract", "tessdata": "/opt/tessdata",
+                  "sprachen": "deu", "dpi": 300, "min_zeichen": 25, "max_seiten": 1000}
+    e3 = SearchConfig(ocr_aktiv=False, ocr_tesseract="/opt/tesseract").ocr_einstellungen()
+    assert e3["aktiv"] is False and "ausgeschaltet" in e3["grund"]
+    assert "Tesseract nicht gefunden" == e["grund"]
+
+
+def test_ocr_ohne_sprachdaten_aus(tmp_path):
+    tessdata = tmp_path / "tessdata"
+    tessdata.mkdir()
+    (tessdata / "eng.traineddata").write_bytes(b"x")
+    c = SearchConfig(ocr_aktiv=True, ocr_tesseract="/opt/tesseract", ocr_tessdata=str(tessdata), ocr_sprachen="deu+eng")
+    e = c.ocr_einstellungen()
+    assert e["aktiv"] is False and e["grund"] == "Sprachdaten fehlen: deu"
+    (tessdata / "deu.traineddata").write_bytes(b"x")
+    assert c.ocr_einstellungen()["aktiv"] is True
+
+
+def test_mail_ordner_effektiv(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.search.plattform.thunderbird_mail_ordner", lambda: [str(tmp_path / "Profil" / "Mail")])
+    assert SearchConfig().mail_ordner_effektiv() == [norm_pfad(str(tmp_path / "Profil" / "Mail"))]
+    eigen = SearchConfig(mail_ordner=[str(tmp_path / "Eigene")])
+    assert eigen.mail_ordner_effektiv() == [norm_pfad(str(tmp_path / "Eigene"))]
 
 
 def test_alte_config_toml(tmp_path):
