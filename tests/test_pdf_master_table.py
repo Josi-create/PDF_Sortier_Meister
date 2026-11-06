@@ -6,20 +6,31 @@ ab, die Verschieben und Umbenennen ueberlebt. Diese Tests pruefen:
     * get_pdf_by_path liefert None / Dict korrekt
     * update_pdf_metadata aktualisiert file_path/filename und last_seen_at
     * update_pdf_metadata legt einen fehlenden Eintrag neu an (UPSERT)
-    * update_pdf_path migriert pdfs-Eintrag konsistent mit document_search
+    * update_pdf_path migriert pdfs-Eintrag konsistent mit dem Suchindex
     * search_documents liefert pdf_id im Result (Phase 2)
     * pdf_id ist stabil ueber Re-Indizierung hinweg (Phase 2)
     * search_documents akzeptiert pdf_id als Filter (Phase 2)
+    * die alte FTS5-Tabelle ``document_search`` wird einmalig in den Suchindex
+      uebernommen und dann entfernt (Phase 5 der PDFsuche-Integration)
 """
 
 import sqlite3
-import tempfile
 import uuid
 from pathlib import Path
 
+import fitz
 import pytest
 
+from src.search.konfig import norm_pfad
 from src.utils.database import Database
+
+
+def _pdf(path: Path, text: str) -> Path:
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), text)
+    doc.save(str(path))
+    doc.close()
+    return path
 
 
 def _make_db(tmp_path: Path) -> Database:
@@ -120,8 +131,8 @@ def test_search_documents_returns_pdf_id(tmp_path: Path) -> None:
         # Bestehende Felder unveraendert vorhanden
         assert r["file_path"]
         assert r["filename"]
-        # pdf_id stimmt mit dem Master-Eintrag ueberein
-        master = db.get_pdf_by_path(r["file_path"])
+        # pdf_id stimmt mit dem Master-Eintrag ueberein (dort steht der Pfad wie uebergeben)
+        master = db.get_pdf_by_path("/tmp/" + r["filename"])
         assert master is not None
         assert master["pdf_id"] == r["pdf_id"]
 
@@ -151,6 +162,7 @@ def test_search_documents_pdf_id_is_stable_across_reindex(tmp_path: Path) -> Non
     assert len(second) == 1
     pid_second = second[0]["pdf_id"]
     assert pid_first == pid_second
+    assert second[0]["file_path"] == norm_pfad("/tmp/stable.pdf")
 
     # Master-Tabelle hat konsistent dieselbe pdf_id
     master = db.get_pdf_by_path("/tmp/stable.pdf")
@@ -199,88 +211,69 @@ def test_search_documents_filter_by_pdf_id(tmp_path: Path) -> None:
     assert pure_filter[0]["pdf_id"] == pid_a
 
 
-def test_migrate_document_search_from_phase1_schema(tmp_path: Path) -> None:
-    """Migration von Phase-1-FTS5-Schema (ohne pdf_id) auf Phase-2-Schema.
+def _legacy_db(db_path: Path, rows: list[tuple], mit_pdf_id: bool = False) -> None:
+    """``history.db`` mit der FTS5-Tabelle ``document_search`` (Stand v0.23) anlegen."""
+    conn = sqlite3.connect(str(db_path))
+    spalten = ("pdf_id UNINDEXED, " if mit_pdf_id else "") + (
+        "file_path, filename, extracted_text, keywords, korrespondent, kategorie, steuerjahr, betrag, "
+        "zusammenfassung, target_folder")
+    conn.execute(f"CREATE VIRTUAL TABLE document_search USING fts5({spalten}, tokenize='unicode61')")
+    n = 11 if mit_pdf_id else 10
+    conn.executemany(f"INSERT INTO document_search VALUES ({','.join('?' * n)})", rows)
+    conn.commit()
+    conn.close()
 
-    Phase 2 (Issue #25): Wenn eine bestehende Datenbank die alte
-    ``document_search``-Tabelle (ohne ``pdf_id``) hat, muss die
-    Migration sie auf das neue Schema bringen und alle bestehenden
-    Zeilen erhalten. ``file_path`` und ``filename`` muessen erhalten
-    bleiben, ``pdf_id`` muss neu befuellt werden.
+
+def test_uebernahme_document_search_in_den_suchindex(tmp_path: Path) -> None:
+    """Die alte Tabelle wird beim ersten Start in den Suchindex uebernommen und entfernt (Phase 5).
+
+    Zeilen mit vorhandener Datei behalten Metadaten (Quelle 'pdfsm') und den alten
+    Text als Notnagel, bis der naechste Lauf die Datei liest; Zeilen ohne Datei
+    werden verworfen. Der zweite Start findet keine Tabelle mehr vor.
     """
     db_path = tmp_path / "legacy.db"
+    vorhanden = _pdf(tmp_path / "legacy_a.pdf", "Neuer Text aus der Datei")
+    _legacy_db(db_path, [
+        (str(vorhanden), "legacy_a.pdf", "Legacy Inhalt A", "kw1,kw2", "LegacyFirma", "Rechnung", "2023",
+         "42.00", "Legacy Zsam A", "/legacy/folder"),
+        ("/legacy/weg.pdf", "weg.pdf", "Legacy Inhalt B", "", "WegFirma", "Rechnung", "2022", "1.00", "", ""),
+    ])
 
-    # 1) Alte Datenbank anlegen (vor Phase 2)
-    legacy_conn = sqlite3.connect(str(db_path))
-    legacy_conn.execute("""
-        CREATE VIRTUAL TABLE document_search
-        USING fts5(
-            file_path,
-            filename,
-            extracted_text,
-            keywords,
-            korrespondent,
-            kategorie,
-            steuerjahr,
-            betrag,
-            zusammenfassung,
-            target_folder,
-            tokenize='unicode61'
-        )
-    """)
-    legacy_conn.execute(
-        "INSERT INTO document_search "
-        "(file_path, filename, extracted_text, keywords, korrespondent, "
-        " kategorie, steuerjahr, betrag, zusammenfassung, target_folder) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            "/legacy/a.pdf", "legacy_a.pdf", "Legacy Inhalt A",
-            "kw1,kw2", "LegacyFirma", "Rechnung", "2023",
-            "42.00", "Legacy Zsam A", "/legacy/folder",
-        ),
-    )
-    legacy_conn.commit()
-    legacy_conn.close()
-
-    # 2) Database-Init -> Migration laeuft
     db = Database(db_path)
 
-    # 3) Daten sind erhalten geblieben
+    conn = sqlite3.connect(str(db_path))
+    assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'document_search'").fetchone() is None
+    conn.close()
     results = db.search_documents("Legacy")
-    assert len(results) == 1
+    assert [r["filename"] for r in results] == ["legacy_a.pdf"]
     r = results[0]
-    assert r["file_path"] == "/legacy/a.pdf"
-    assert r["filename"] == "legacy_a.pdf"
-    assert r["korrespondent"] == "LegacyFirma"
-    assert r["kategorie"] == "Rechnung"
-    assert r["steuerjahr"] == "2023"
-    assert r["betrag"] == "42.00"
-    # 4) pdf_id ist nun gesetzt (32-Zeichen Hex)
+    assert r["file_path"] == str(vorhanden)
+    assert r["korrespondent"] == "LegacyFirma" and r["kategorie"] == "Rechnung"
+    assert r["steuerjahr"] == "2023" and r["betrag"] == "42.00" and r["keywords"] == "kw1,kw2"
     assert len(r["pdf_id"]) == 32
     uuid.UUID(hex=r["pdf_id"])
-    # 5) pdfs-Master hat den Eintrag uebernommen
-    master = db.get_pdf_by_path("/legacy/a.pdf")
-    assert master is not None
-    assert master["pdf_id"] == r["pdf_id"]
+    master = db.get_pdf_by_path(str(vorhanden))
+    assert master is not None and master["pdf_id"] == r["pdf_id"]
+    eintrag = db.suchindex.dokument_nach_pfad(str(vorhanden))
+    assert eintrag["textstatus"] == "ausstehend" and eintrag["metadaten_quelle"] == "pdfsm"
+    assert db.get_search_index_count() == 1
 
-    # 6) Migration ist idempotent: ein zweites Database-Init darf nicht crashen
+    # Der naechste Lauf liest die Datei: Text aus der Datei, Metadaten bleiben
+    assert db.suchindex.datei_geaendert(str(vorhanden)) is not None
+    eintrag = db.suchindex.dokument_nach_pfad(str(vorhanden))
+    assert eintrag["textstatus"] == "text" and eintrag["korrespondent"] == "LegacyFirma"
+    assert db.search_documents("Neuer") and not db.search_documents("Legacy Inhalt")
+
+    # Idempotent: ein zweites Database-Init darf nicht crashen und nichts doppeln
     db2 = Database(db_path)
-    results2 = db2.search_documents("Legacy")
-    assert len(results2) == 1
-    assert results2[0]["pdf_id"] == r["pdf_id"]
+    assert db2.get_search_index_count() == 1
 
 
-def test_migrate_document_search_reuses_existing_pdf_id(tmp_path: Path) -> None:
-    """Migration verwendet vorhandene pdfs-Eintraege (kein Doppel-Insert).
-
-    Edge-Case: Eine DB, in der pdfs-Master und document_search
-    bereits konsistent verlinkt sind, darf bei der Migration nicht
-    einen zweiten pdfs-Eintrag mit anderer pdf_id anlegen.
-    """
+def test_uebernahme_verwendet_vorhandene_pdf_id(tmp_path: Path) -> None:
+    """Die Uebernahme nutzt die pdf_id der alten Zeile bzw. des pdfs-Eintrags (kein Doppel-Insert)."""
     db_path = tmp_path / "preexisting.db"
     pre_pid = uuid.uuid4().hex
-
-    # Phase-1-DB mit bereits vorhandenem Master-Eintrag anlegen
+    datei = _pdf(tmp_path / "pre_a.pdf", "Pre content")
     conn = sqlite3.connect(str(db_path))
     conn.execute("""
         CREATE TABLE pdfs (
@@ -293,34 +286,16 @@ def test_migrate_document_search_reuses_existing_pdf_id(tmp_path: Path) -> None:
             page_count INTEGER
         )
     """)
-    conn.execute(
-        "INSERT INTO pdfs VALUES (?, ?, ?, ?, ?, NULL, NULL)",
-        (pre_pid, "/pre/a.pdf", "pre_a.pdf", "2024-01-01", "2024-01-01"),
-    )
-    conn.execute("""
-        CREATE VIRTUAL TABLE document_search USING fts5(
-            file_path, filename, extracted_text, keywords,
-            korrespondent, kategorie, steuerjahr, betrag,
-            zusammenfassung, target_folder,
-            tokenize='unicode61'
-        )
-    """)
-    conn.execute(
-        "INSERT INTO document_search VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            "/pre/a.pdf", "pre_a.pdf", "Pre content", "kw",
-            "PreFirma", "Kat", "2024", "10.00", "Zsam", "/pre/folder",
-        ),
-    )
+    conn.execute("INSERT INTO pdfs VALUES (?, ?, ?, ?, ?, NULL, NULL)",
+                 (pre_pid, str(datei), "pre_a.pdf", "2024-01-01", "2024-01-01"))
     conn.commit()
     conn.close()
+    _legacy_db(db_path, [(str(datei), "pre_a.pdf", "Pre content", "kw", "PreFirma", "Kat", "2024", "10.00", "Zsam",
+                          "/pre/folder")])
 
     db = Database(db_path)
     results = db.search_documents("Pre")
     assert len(results) == 1
-    # Vorhandene pdf_id muss wiederverwendet werden, nicht eine neue generiert
     assert results[0]["pdf_id"] == pre_pid
-    # pdfs-Master hat nur einen Eintrag
-    master = db.get_pdf_by_path("/pre/a.pdf")
-    assert master is not None
-    assert master["pdf_id"] == pre_pid
+    master = db.get_pdf_by_path(str(datei))
+    assert master is not None and master["pdf_id"] == pre_pid

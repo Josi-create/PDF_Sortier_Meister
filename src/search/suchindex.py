@@ -3,7 +3,10 @@
 ``Suchindex`` kapselt den Datenbankpfad aus der ``SearchConfig``, oeffnet fuer
 jeden Lesezugriff eine eigene Nur-Lese-Verbindung (deshalb aus jedem Thread
 nutzbar) und bietet die kurzen Schreibmeldungen, mit denen die Oberflaeche
-Umbenennen, Verschieben und Loeschen sofort an den Index meldet.
+Umbenennen, Verschieben, Loeschen, Inhaltsaenderungen, eigene OCR-Ergebnisse
+und PDFSM-Metadaten sofort an den Index meldet (Phase 5). Eine
+Schreibverbindung bringt eine Version-1-Datenbank beim ersten Zugriff additiv
+auf Version 2.
 
 Indexlaeufe starten immer in einem eigenen Prozess (``pdfsm-dienst index``),
 nie in-process: ``lauf_starten()``.
@@ -20,10 +23,14 @@ from pathlib import Path
 from src.search import db, plattform
 from src.search.konfig import SearchConfig, norm_pfad
 
+# Statuswerte, bei denen der Text im Index fuer den PDF-Analyzer reicht
+TEXT_AUS_INDEX = ("text", "ocr", "leer", "ocr_teilweise")
+
 
 class Suchindex:
     def __init__(self, konfig: SearchConfig) -> None:
         self.konfig = konfig
+        self._schema_geprueft = False
 
     # ------------------------------------------------------------------ Zugang
 
@@ -40,21 +47,93 @@ class Suchindex:
             return None
         return db.verbinde(self.db_datei, nur_lesen=True)
 
+    def _schreiben(self):
+        """Schreibverbindung; eine Version-1-Datenbank wird dabei einmal je Instanz auf Version 2 ergaenzt."""
+        con = db.verbinde(self.db_datei)
+        if not self._schema_geprueft:
+            db.init(con)
+            self._schema_geprueft = True
+        return con
+
+    def unter_wurzel(self, pfad: str) -> bool:
+        """Liegt die Datei unter einem Vorrang-Ordner oder einer Wurzel der Konfiguration?"""
+        p = norm_pfad(pfad).lower()
+        for w in (*self.konfig.prioritaet, *self.konfig.wurzeln):
+            w = norm_pfad(w).lower().rstrip(os.sep) + os.sep
+            if p.startswith(w):
+                return True
+        return False
+
     @staticmethod
     def _leer(abfrage: str = "") -> dict:
         return {"treffer": [], "gesamt": 0, "mehr": False, "abfrage": abfrage, "dauer_ms": 0}
 
     # ------------------------------------------------------------------ Lesen
 
+    FILTER = ("typ", "ordner", "von", "bis", "steuerjahr", "kategorie", "korrespondent", "betrag_von", "betrag_bis",
+              "pdf_id", "steuerjahr_von", "steuerjahr_bis")
+
     def suche(self, abfrage: str, **argumente) -> dict:
-        """Volltextsuche; Argumente wie ``db.suche`` (typ, ordner, von, bis, sortierung, anzahl, start, ...)."""
-        if not abfrage or not abfrage.strip():
+        """Volltextsuche; Argumente wie ``db.suche`` (typ, ordner, von, bis, sortierung, anzahl, start,
+        steuerjahr, kategorie, korrespondent, betrag_von, betrag_bis, pdf_id, ...).
+
+        Ohne Suchbegriff, aber mit Filtern, kommen alle passenden Dokumente.
+        """
+        abfrage = (abfrage or "").strip()
+        if not abfrage and not any(argumente.get(k) not in (None, "", 0, 0.0) for k in self.FILTER):
             return self._leer()
         con = self._lesen()
         if con is None:
             return self._leer(abfrage)
         try:
             return db.suche(con, abfrage, **argumente)
+        finally:
+            con.close()
+
+    def werte(self, feld: str, absteigend: bool = False) -> list[str]:
+        """Vorkommende Werte eines Metadatenfelds (steuerjahr, kategorie, korrespondent, ...)."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.werte(con, feld, absteigend)
+        except Exception:
+            return []
+        finally:
+            con.close()
+
+    def top_werte(self, feld: str, limit: int = 10) -> list[str]:
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.top_werte(con, feld, limit)
+        except Exception:
+            return []
+        finally:
+            con.close()
+
+    def anzahl(self, typ: str | None = None) -> int:
+        con = self._lesen()
+        if con is None:
+            return 0
+        try:
+            return db.anzahl(con, typ)
+        finally:
+            con.close()
+
+    def dokumente_kurz(self, typ: str | None = "pdf", limit: int = 20000) -> list[dict]:
+        """Dokumente ohne Volltext (Aehnlichkeitssuche von PDFSM): filename, file_path, keywords, korrespondent,
+        steuerjahr, target_folder."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            sql = ("SELECT name, pfad, schlagwoerter, korrespondent, steuerjahr, ordner FROM dokumente"
+                   + (" WHERE typ = ?" if typ else "") + " ORDER BY id LIMIT ?")
+            args = (typ, int(limit)) if typ else (int(limit),)
+            return [{"filename": r[0], "file_path": r[1], "keywords": r[2], "korrespondent": r[3],
+                     "steuerjahr": r[4], "target_folder": r[5]} for r in con.execute(sql, args)]
         finally:
             con.close()
 
@@ -86,12 +165,12 @@ class Suchindex:
         finally:
             con.close()
 
-    def volltext(self, dok_id: int) -> str:
+    def volltext(self, dok_id: int, max_zeichen: int = 0) -> str:
         con = self._lesen()
         if con is None:
             return ""
         try:
-            return db.volltext(con, dok_id)
+            return db.volltext(con, dok_id, max_zeichen)
         finally:
             con.close()
 
@@ -163,7 +242,7 @@ class Suchindex:
     # ------------------------------------------------------------------ Schreibmeldungen der Oberflaeche
 
     def datei_verschoben(self, alt: str, neu: str) -> bool:
-        """Umbenennen oder Verschieben melden: der Eintrag behaelt Text und OCR, nur der Pfad aendert sich.
+        """Umbenennen oder Verschieben melden: der Eintrag behaelt Text, OCR und Metadaten, nur der Pfad aendert sich.
 
         Liefert True, wenn ein Eintrag angepasst wurde. Ein Eintrag, der unter dem
         neuen Pfad schon existierte (ueberschriebene Datei), wird entfernt.
@@ -173,7 +252,7 @@ class Suchindex:
         alt, neu = norm_pfad(alt), norm_pfad(neu)
         if alt == neu:
             return False
-        con = db.verbinde(self.db_datei)
+        con = self._schreiben()
         try:
             r = con.execute("SELECT id FROM dokumente WHERE pfad = ? AND format != 'mbox'", (alt,)).fetchone()
             if not r:
@@ -194,7 +273,7 @@ class Suchindex:
         """Loeschen melden; liefert True, wenn ein Eintrag entfernt wurde."""
         if not self.vorhanden():
             return False
-        con = db.verbinde(self.db_datei)
+        con = self._schreiben()
         try:
             r = con.execute("SELECT id FROM dokumente WHERE pfad = ? AND format != 'mbox'", (norm_pfad(pfad),)).fetchone()
             if not r:
@@ -202,6 +281,117 @@ class Suchindex:
             db.loesche(con, [r[0]])
             con.commit()
             return True
+        finally:
+            con.close()
+
+    def datei_aufnehmen(self, pfad: str, prioritaet: int | None = None, erzwingen: bool = False,
+                        vorab: dict | None = None) -> int | None:
+        """Eine Datei sofort indizieren (Textebene; Bildseiten bleiben fuer den naechsten OCR-Lauf offen).
+
+        Ohne ``erzwingen`` nur, wenn die Datei schon im Index ist oder unter einer
+        Wurzel bzw. einem Vorrang-Ordner liegt (sonst wuerde die Oberflaeche Dateien
+        aufnehmen, die der Nutzer nie zur Suche freigegeben hat). ``vorab`` ist ein
+        fertiges Ergebnis von ``extract.pdf_text`` (PDF-Analyzer). Liefert die
+        Dokument-Id oder None.
+        """
+        from src.search.indexer import einzeldatei_indizieren
+
+        pfad = norm_pfad(pfad)
+        if not os.path.isfile(pfad):
+            return None
+        if not erzwingen and not self.unter_wurzel(pfad) and self.dokument_nach_pfad(pfad) is None:
+            return None
+        con = self._schreiben()
+        try:
+            dok_id = einzeldatei_indizieren(con, self.konfig, pfad, prioritaet, vorab)
+            con.commit()
+            return dok_id
+        finally:
+            con.close()
+
+    def datei_geaendert(self, pfad: str) -> int | None:
+        """Inhalt hat sich geaendert (XMP-Metadaten, Stapeln, Teilen): Textebene neu lesen, OCR aus dem Cache.
+
+        Bekannte Dateien werden immer neu gelesen, unbekannte nur unter einer Wurzel.
+        """
+        return self.datei_aufnehmen(pfad)
+
+    def ocr_eintragen(self, pfad: str, texte: dict) -> int:
+        """OCR-Ergebnis der Oberflaeche uebernehmen (``{seite: text}``), auch in den Cache; 0, wenn unbekannt."""
+        if not self.vorhanden() or not texte:
+            return 0
+        con = self._schreiben()
+        try:
+            r = con.execute("SELECT id FROM dokumente WHERE pfad = ?", (norm_pfad(pfad),)).fetchone()
+            if not r:
+                return 0
+            ocr = self.konfig.ocr_einstellungen()
+            n = db.ocr_text_eintragen(con, r[0], dict(texte), ocr.get("sprachen"), ocr.get("dpi"))
+            con.commit()
+            return n
+        finally:
+            con.close()
+
+    def metadaten_setzen(self, pfad: str, felder: dict, pdf_id: str | None = None, text: str | None = None,
+                         lesen: bool = True, name: str | None = None) -> bool:
+        """PDFSM-Metadaten (Korrespondent, Kategorie, Steuerjahr, Betrag, Buchungsdatum, Zusammenfassung,
+        Schlagwoerter) mit Quelle ``'pdfsm'`` setzen; sie haben Vorrang vor Werten aus der PDF.
+
+        Unbekannte Dateien werden aufgenommen, auch ausserhalb der Wurzeln (PDFSM
+        verwaltet sie): mit ``lesen`` sofort gelesen, sonst nur mit Namen und
+        Metadaten angelegt (Status ``ausstehend``, der naechste Lauf liest sie).
+        ``text`` dient dabei als Notnagel-Text, bis die Datei gelesen wurde (auch
+        fuer Dateien, die es nicht mehr gibt); ``name`` ersetzt dann den
+        Dateinamen aus dem Pfad. Liefert True, wenn geschrieben wurde.
+        """
+        pfad = norm_pfad(pfad)
+        con = self._schreiben()
+        try:
+            r = con.execute("SELECT id, textstatus FROM dokumente WHERE pfad = ?", (pfad,)).fetchone()
+            dok_id = r[0] if r else None
+            if dok_id is None and lesen and os.path.isfile(pfad):
+                from src.search.indexer import einzeldatei_indizieren
+                dok_id = einzeldatei_indizieren(con, self.konfig, pfad)
+            if dok_id is None:
+                dok_id = self._platzhalter(con, pfad, text, name)
+            elif text and r is not None and r[1] in ("ausstehend", "fehler") and not os.path.isfile(pfad):
+                # Platzhalter ohne lesbare Datei: Notnagel-Text (und Name) erneuern
+                con.execute("DELETE FROM seiten WHERE dok_id = ?", (dok_id,))
+                con.execute("INSERT INTO seiten (dok_id, seite, quelle, text) VALUES (?, 1, 'pdfsm', ?)",
+                            (dok_id, text))
+                if name:
+                    con.execute("UPDATE dokumente SET name = ? WHERE id = ?", (name, dok_id))
+            ok = db.metadaten_setzen(con, dok_id, felder, pdf_id, quelle="pdfsm")
+            con.commit()
+            return ok
+        finally:
+            con.close()
+
+    @staticmethod
+    def _platzhalter(con, pfad: str, text: str | None, name: str | None = None) -> int:
+        """Dokument nur mit Namen (und Notnagel-Text) anlegen; Groesse/mtime fehlen, der naechste Lauf liest es."""
+        from src.search.indexer import TYP
+
+        ext = os.path.splitext(pfad)[1].lower()
+        typ, fmt = TYP.get(ext, ("pdf", "pdf"))
+        vorhanden = os.path.isfile(pfad)
+        dok = {"pfad": pfad, "datei": pfad, "name": name or os.path.basename(pfad), "ordner": os.path.dirname(pfad),
+               "typ": typ, "format": fmt, "groesse": None, "mtime_ns": None,
+               "datum": os.path.getmtime(pfad) if vorhanden else None, "seiten": None,
+               "textstatus": "ausstehend" if vorhanden else "fehler",
+               "fehler": None if vorhanden else "Datei nicht gefunden", "prioritaet": 9}
+        seiten = [(1, "pdfsm", text)] if text else []
+        return db.speichere(con, dok, seiten)
+
+    def metadaten_ersetzen(self, feld: str, alt: str, neu: str) -> int:
+        """Einen Wert in allen Dokumenten ersetzen (Korrespondenten-Merge). Liefert die Trefferzahl."""
+        if not self.vorhanden():
+            return 0
+        con = self._schreiben()
+        try:
+            n = db.metadaten_ersetzen(con, feld, alt, neu)
+            con.commit()
+            return n
         finally:
             con.close()
 

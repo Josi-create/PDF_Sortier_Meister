@@ -85,6 +85,8 @@ class ChatView(QWidget):
     """
 
     open_pdf_requested = pyqtSignal(str)
+    # Phase 5 (PDFsuche-Integration): PDF direkt auf der Seite der Fundstelle oeffnen
+    open_pdf_page_requested = pyqtSignal(str, int)
 
     def __init__(self, db, hybrid_classifier, chat_config, parent=None):
         """
@@ -547,6 +549,9 @@ class ChatView(QWidget):
                 p for p in (doc.kategorie, doc.steuerjahr, doc.betrag) if p
             ]
             label = f"D{doc.index}: {doc.filename}"
+            seite = int(getattr(doc, "seite", 0) or 0)
+            if seite > 0:
+                label += f"  (S. {seite})"
             if meta_parts:
                 label += f"  ({' | '.join(meta_parts)})"
             # Phase 3 (Issue #25): gekuerzte pdf_id im Label, sofern vorhanden.
@@ -561,6 +566,7 @@ class ChatView(QWidget):
             # auswerten kann.
             if pdf_id:
                 item.setData(Qt.ItemDataRole.UserRole + 1, pdf_id)
+            item.setData(Qt.ItemDataRole.UserRole + 2, seite)
             # toolTip enthaelt Pfad + pdf_id (falls vorhanden)
             tooltip = doc.file_path
             if pdf_id:
@@ -581,9 +587,17 @@ class ChatView(QWidget):
         """
         file_path = item.data(Qt.ItemDataRole.UserRole)
         pdf_id = item.data(Qt.ItemDataRole.UserRole + 1)
+        seite = item.data(Qt.ItemDataRole.UserRole + 2) or 0
         resolved = self._resolve_file_path(file_path, pdf_id)
         if resolved:
-            self.open_pdf_requested.emit(resolved)
+            self._oeffnen(resolved, int(seite))
+
+    def _oeffnen(self, pfad: str, seite: int = 0) -> None:
+        """PDF oeffnen; mit bekannter Seite direkt auf der Fundstelle (Phase 5)."""
+        if seite and seite > 0:
+            self.open_pdf_page_requested.emit(pfad, int(seite))
+        else:
+            self.open_pdf_requested.emit(pfad)
 
     def _on_citation_link(self, href: str, cite_map: dict) -> None:
         """Mappt einen geklickten Citation-Link auf eine PDF.
@@ -604,12 +618,14 @@ class ChatView(QWidget):
         if isinstance(entry, dict):
             file_path = entry.get("file_path", "")
             pdf_id = entry.get("pdf_id", "")
+            seite = int(entry.get("seite", 0) or 0)
         else:
             file_path = entry
             pdf_id = ""
+            seite = 0
         resolved = self._resolve_file_path(file_path, pdf_id)
         if resolved:
-            self.open_pdf_requested.emit(resolved)
+            self._oeffnen(resolved, seite)
 
     def _resolve_file_path(
         self, file_path: str = "", pdf_id: str = ""

@@ -5,6 +5,12 @@ Funktionen:
 - PDFs im Scan-Ordner finden
 - Dateien verschieben und umbenennen
 - Ordnerstruktur verwalten
+
+Jede Dateiaenderung wird an den Suchindex gemeldet (``src.search.meldungen``,
+Phase 5 der PDFsuche-Integration): Verschieben und Umbenennen behalten Text,
+OCR und Metadaten im Index, Loeschen entfernt den Eintrag, neue bzw. veraenderte
+Dateien (Kopie, Stapel, Teilen, Zusammenfuegen) werden gelesen. Die Meldungen
+laufen in einem eigenen Thread und sind ohne eingerichtete Suche wirkungslos.
 """
 
 import os
@@ -15,6 +21,8 @@ from typing import Optional, Generator
 from datetime import datetime
 
 import fitz  # PyMuPDF
+
+from src.search.meldungen import melden as index_melden
 
 
 class FileManager:
@@ -124,6 +132,7 @@ class FileManager:
 
         # Datei verschieben
         self._move_with_retry(source, target_path)
+        index_melden("datei_verschoben", str(source), str(target_path))
 
         return target_path
 
@@ -181,6 +190,7 @@ class FileManager:
         target_path = self._get_unique_path(target_path)
 
         shutil.copy2(str(source), str(target_path))
+        index_melden("datei_aufnehmen", str(target_path))
 
         return target_path
 
@@ -207,6 +217,7 @@ class FileManager:
         target_path = self._get_unique_path(target_path)
 
         source.rename(target_path)
+        index_melden("datei_verschoben", str(source), str(target_path))
 
         return target_path
 
@@ -223,6 +234,7 @@ class FileManager:
             raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
 
         file_path.unlink()
+        index_melden("datei_geloescht", str(file_path))
 
     def merge_pdfs(
         self,
@@ -267,6 +279,7 @@ class FileManager:
             merged_doc.save(str(output_path))
         finally:
             merged_doc.close()
+        index_melden("datei_aufnehmen", str(output_path))
 
         return output_path
 
@@ -332,6 +345,9 @@ class FileManager:
             source_backup = backup_dir / f"{i}_{source.name}"
             shutil.move(str(source), str(source_backup))
             backups.append((source, source_backup))
+            index_melden("datei_geloescht", str(source))
+        # Die Ziel-PDF hat neuen Inhalt (Textebene neu, OCR-Seiten aus dem Cache)
+        index_melden("datei_geaendert", str(target))
 
         return backups
 
@@ -356,10 +372,12 @@ class FileManager:
             if i == 0:
                 os.replace(str(backup), str(original))
                 restored.append(original)
+                index_melden("datei_geaendert", str(original))
             else:
                 dest = self._get_unique_path(original)
                 shutil.move(str(backup), str(dest))
                 restored.append(dest)
+                index_melden("datei_aufnehmen", str(dest))
         return restored
 
     def split_pdf(
@@ -415,6 +433,7 @@ class FileManager:
                     new_doc.close()
 
                 output_paths.append(output_path)
+                index_melden("datei_aufnehmen", str(output_path))
 
         return output_paths
 

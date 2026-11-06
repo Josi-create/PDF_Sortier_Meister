@@ -35,7 +35,8 @@ def gefuellt(con):
 
 def test_schema_version(con):
     assert db.lies_meta(con, "schema_version") == str(db.SCHEMA_VERSION)
-    assert db.status(con)["schema_version"] == "1"
+    assert db.status(con)["schema_version"] == "2"
+    assert db.schema_stand(con) == 2
 
 
 def test_speichere_ersetzt_bei_gleichem_pfad(con):

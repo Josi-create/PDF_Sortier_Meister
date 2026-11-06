@@ -64,3 +64,17 @@ def fresh_config(monkeypatch, tmp_path):
     cfg = cfg_mod.Config(config_path=tmp_path / "config.json")
     patch_singletons(monkeypatch, {"get_config": lambda: cfg})
     return cfg
+
+
+@pytest.fixture(autouse=True)
+def _index_meldungen_aus():
+    """Schreibmeldungen an den Suchindex (FileManager, Hauptfenster) sind in Tests abgeschaltet:
+    Die Standardquelle liest die Konfiguration des Nutzers. Tests, die die Meldungen brauchen,
+    rufen ``meldungen.konfigurieren(lambda: Suchindex(konfig))`` selbst auf."""
+    from src.search.meldungen import meldungen
+
+    alt = meldungen._quelle
+    meldungen.konfigurieren(None)
+    yield
+    meldungen.warten(5.0)
+    meldungen.konfigurieren(alt)

@@ -82,6 +82,12 @@ class StatusAbfrage(QThread):
     def run(self) -> None:
         try:
             status = self.index.status()
+            # Werte der PDFSM-Metadaten fuer die Filter-Auswahllisten (Phase 5)
+            status["werte"] = {
+                "steuerjahr": self.index.werte("steuerjahr", absteigend=True),
+                "kategorie": self.index.werte("kategorie"),
+                "korrespondent": self.index.werte("korrespondent"),
+            }
         except Exception as e:  # noqa: BLE001
             status = {"vorhanden": False, "fehler": str(e)}
         self.fertig.emit(status)

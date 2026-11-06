@@ -413,6 +413,55 @@ Version **an der Struktur** (Tabellen und Spalten vorhanden?) und fuehrt die
 Ergaenzung bei Bedarf erneut aus. Beim Auftraggeber geschieht der Sprung auf
 Version 2 erst in Phase 7 an der Datenbank am bisherigen Ort (Abschnitt 7).
 
+**Umsetzung (Phase 5, 06.11.2026):** `src/search/db.py`: `SCHEMA_VERSION = 2`,
+`V2_SPALTEN`, `SCHEMA_V2` (`ocr_cache`, `seiten.bild_hash`, Indizes,
+`metadaten_fts` mit Triggern), `schema_stand(con)` (Erkennung an der Struktur),
+`ergaenze_schema(con)` (ALTER TABLE nur fuer fehlende Spalten, `IF NOT EXISTS`,
+`rebuild` der Metadaten-FTS, idempotent; `init()` ruft es nach dem Schema), dazu
+`metadaten_setzen` (Vorrangregel: Quelle `'pdf'` ueberschreibt `'pdfsm'` nie;
+nur eine `pdf_id` nachzutragen beansprucht keinen Vorrang), `metadaten_ersetzen`,
+`werte`, `top_werte`, `anzahl`, `ocr_cache_holen`, `ocr_cache_eintragen`,
+`ocr_text_eintragen` (fuellt auch weitere offene Seiten desselben Dokuments mit
+bekanntem Bild), `ocr_status_aktualisieren`; `suche()` mit den Filtern
+`steuerjahr`, `kategorie`, `korrespondent`, `betrag_von/bis`, `pdf_id`,
+`steuerjahr_von/bis`, Treffern in `metadaten_fts` (`im_metadaten`) und reiner
+Filterabfrage ohne Suchbegriff; `speichere()` schreibt `bild_hash`, laesst die
+Metadatenspalten unberuehrt. `extract.pdf_text` liefert `bild_hashes` (BLAKE2b
+ueber die **entpackten** Bild-Streams, weil pikepdf und PyMuPDF Flate
+unterschiedlich packen) und `metadaten` (`pdf_metadaten`: Info-Dict
+`/Korrespondent`, `/Steuerjahr`, `/Buchungsdatum`, `/BetragBrutto` bzw.
+`/Betrag`, `/Subject` = Zusammenfassung, `/Keywords`; Kategorie aus XMP
+`dc:subject`); `extract.pdf_bild_hashes` fuer den Altbestand.
+`indexer.dokument_speichern` (Lauf und Einzeldatei) bedient den Cache und setzt
+die PDF-Metadaten mit Quelle `'pdf'`; `Indexer._ocr_cache_ergaenzen` (Phase
+„OCR-Cache ergänzen“ am Ende eines vollstaendigen Laufs) traegt Hashes des
+Bestands nach; die Signatur verschobener Dateien ist jetzt `(Groesse,
+mtime_ns)` mit dem Namen als Vorzug (`_signatur_quelle`). `Suchindex`:
+`datei_aufnehmen` (nur bekannte Dateien oder unter einer Wurzel, sonst
+`erzwingen`), `datei_geaendert`, `ocr_eintragen`, `metadaten_setzen` (nimmt
+unbekannte Dateien auf, auch ausserhalb der Wurzeln; `lesen=False` legt einen
+Platzhalter mit Status `ausstehend` und Notnagel-Text an, den der naechste Lauf
+liest), `metadaten_ersetzen`, `werte`, `top_werte`, `anzahl`, `dokumente_kurz`;
+eine Schreibverbindung ergaenzt eine Version-1-Datenbank beim ersten Zugriff.
+`src/utils/database.py`: `document_search`, `_create_fts_index` und
+`_migrate_document_search` sind entfernt; `Database(db_path, suchindex=None)`
+nutzt den Index des Nutzers (Standardpfade) bzw. bei eigenem `db_path` einen
+Index daneben (`<ordner>/suche/suche.db`, Tests); `_document_search_uebernehmen`
+(einmalig beim ersten Start: Zeilen mit vorhandener Datei als Platzhalter mit
+Metadaten, Quelle `'pdfsm'`, altem Text; dann `DROP TABLE`), `index_document`
+(liest die Datei, `extracted_text` nur Notnagel), `set_document_metadata`
+(auch ueber die Warteschlange), `update_pdf_path` (`pdfs` plus
+`datei_verschoben`), `search_documents` (bisherige Schluessel plus `dok_id`,
+`seite`, `typ`, `extracted_text`; Wortanfaenge wie bisher), `get_distinct_*`,
+`get_top_kategorien`, `get_search_index_count`, `get_indexed_documents_brief`,
+`bulk_index_directory` und `merge_korrespondenten` ueber den Index.
+`PDFAnalyzer.extract_text` (Abschnitt 3.2): Text aus dem Index, wenn aktuell;
+sonst `extract.pdf_text` mit Rueckschreiben (`datei_aufnehmen(vorab=...)`),
+interaktive OCR hoechstens `OCR_MAX_SEITEN = 5` Seiten ueber `extract.pdf_ocr`
+(`deu+eng`, 300 dpi; fehlende Sprachdaten werden weggelassen) mit
+`ocr_eintragen`; `suchindex_fuer_analyse()` ist der Haken fuer Tests.
+`pytesseract` wird nicht mehr aufgerufen.
+
 ---
 
 ## 4. Prozessmodell
@@ -483,6 +532,23 @@ uebrigen Meldungen ignoriert.
 Die GUI liest `status()` (Zaehler, OCR-Rueckstand, `laeufe`, `meta.fortschritt`)
 und `laeuft_gerade()` per `QTimer` alle 3 s, solange ein Lauf aktiv ist, sonst
 beim Oeffnen des Reiters. Kein IPC noetig.
+
+**Umsetzung (Phase 5, 06.11.2026):** `src/search/meldungen.py` (Qt-frei):
+`IndexMeldungen` mit einem Arbeits-Thread und FIFO-Warteschlange (`melden`,
+`warten`, `konfigurieren`); die Quelle des Index ist im Programm
+`standard_quelle` (nur bei eingeschalteter Suche), in Tests ein Index unter
+`tmp_path` oder keiner (`tests/conftest.py` schaltet die Meldungen autouse ab).
+`FileManager` meldet `move_file`/`rename_file` -> `datei_verschoben`,
+`delete_file` -> `datei_geloescht`, `copy_file`/`split_pdf`/`merge_pdfs` ->
+`datei_aufnehmen`, `stack_pdfs` -> `datei_geaendert` (Ziel) und
+`datei_geloescht` (aufgegangene Quellen), `restore_stack` -> `datei_geaendert`
+und `datei_aufnehmen`; das Hauptfenster meldet die Kopie (`on_pdf_copy`), das
+Zurueckverschieben (`_undo_move`) und nach `_write_pdf_metadata` erst
+`datei_geaendert`, dann die Metadaten (`Database.set_document_metadata`,
+`sofort=False`). Die Aufraeumregel aus 4.2 ist umgesetzt (`Indexer._bleibt`:
+Quelle `'pdfsm'` und Datei vorhanden). Der Reiter „Suche“ liest den Stand alle
+15 s waehrend eines Laufs (Phase 4), die Statusabfrage liefert jetzt auch die
+Werte der Metadatenfelder fuer die Auswahllisten.
 
 ---
 
@@ -735,8 +801,17 @@ Lauf), „Jetzt indizieren“ (`lauf_starten(nur_prioritaet=True)`) und
 „Kompletten Lauf starten“, waehrend eines Laufs alle 15 s aktualisiert. Ohne
 eingerichtete Suche zeigt der Reiter den Hinweis mit „Einrichten…“
 (Einstellungen > Suche); `refresh_settings()` nach dem Einstellungsdialog.
-Noch offen fuer Phase 5: Metadatenfilter (Steuerjahr, Kategorie, Korrespondent,
-Betrag - brauchen Schema-Version 2) und die Umleitung der Werkzeugleisten-Suche.
+In Phase 5 ergaenzt: dritte Filterzeile mit den PDFSM-Metadaten (Steuerjahr,
+Kategorie, Korrespondent als Auswahllisten aus `Suchindex.werte`, Betrag
+von/bis), reine Filterabfragen ohne Suchbegriff, Metadatenzeile und Marke
+„Treffer in Metadaten“ auf den Karten, `SearchView.suchen(text, **filter)` und
+`leeren()`; die Werkzeugleisten-Suche (Strg+F, Filterleiste) laeuft ueber
+`MainWindow._execute_search` im Reiter, die Trefferzahl steht weiter in der
+Werkzeugleiste. Zitate im Chat tragen die Seite (`RetrievedDoc.seite`,
+`Citation.seite`, `ChatView.open_pdf_page_requested`,
+`PdfPreviewWindow.show_pdf(path, seite)`, `MainWindow.open_pdf(path, seite)`).
+`pdfsm-dienst suche` und das MCP-Werkzeug `suche` kennen `steuerjahr`,
+`kategorie`, `korrespondent`.
 
 ---
 

@@ -30,9 +30,11 @@ def beschreibung(konfig: SearchConfig) -> str:
 
 def werkzeug_suche(idx: Suchindex, abfrage: str, typ: str | None = None, ordner: str | None = None,
                    von: str | None = None, bis: str | None = None, sortierung: str = "relevanz",
-                   anzahl: int = 20) -> str:
+                   anzahl: int = 20, steuerjahr: str | None = None, kategorie: str | None = None,
+                   korrespondent: str | None = None) -> str:
     erg = idx.suche(abfrage, typ=typ, ordner=ordner, von=von, bis=bis, sortierung=sortierung,
-                    anzahl=max(1, min(int(anzahl), 200)))
+                    anzahl=max(1, min(int(anzahl), 200)), steuerjahr=steuerjahr or None,
+                    kategorie=kategorie or None, korrespondent=korrespondent or None)
     return ausgabe.ergebnisse(erg, abfrage)
 
 
@@ -52,7 +54,9 @@ def erstelle_server(konfig: SearchConfig):
 
     @server.tool()
     def suche(abfrage: str, typ: str | None = None, ordner: str | None = None, von: str | None = None,
-              bis: str | None = None, sortierung: str = "relevanz", anzahl: int = 20) -> str:
+              bis: str | None = None, sortierung: str = "relevanz", anzahl: int = 20,
+              steuerjahr: str | None = None, kategorie: str | None = None,
+              korrespondent: str | None = None) -> str:
         """Volltextsuche im lokalen Dokumentenindex.
 
         abfrage: Suchbegriffe. Mehrere Wörter = alle müssen vorkommen. Syntax: "genaue Phrase",
@@ -63,9 +67,12 @@ def erstelle_server(konfig: SearchConfig):
         von / bis: Datum JJJJ-MM-TT (Mail-Datum bzw. Datei-Änderungsdatum)
         sortierung: 'relevanz' | 'neu' | 'alt'
         anzahl: maximale Zahl an Dokumenten (Standard 20)
+        steuerjahr / kategorie / korrespondent: PDFSM-Metadaten sortierter PDFs (genauer Wert),
+                 z. B. steuerjahr='2024', kategorie='Rechnung', korrespondent='Telekom'
         Ergebnis: je Dokument [ID], Pfad und Textausschnitte mit «Fundstelle» und Seitenzahl.
         """
-        return werkzeug_suche(idx, abfrage, typ, ordner, von, bis, sortierung, anzahl)
+        return werkzeug_suche(idx, abfrage, typ, ordner, von, bis, sortierung, anzahl, steuerjahr, kategorie,
+                              korrespondent)
 
     @server.tool()
     def dokument_lesen(dok_id: int, seiten: str | None = None, max_zeichen: int = 40000) -> str:

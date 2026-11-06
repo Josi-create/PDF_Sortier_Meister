@@ -357,8 +357,9 @@ def test_source_click_uses_pdf_id_via_db_lookup(qtbot, tmp_path):
         view.sources_list.itemClicked.emit(item)
 
     args = signal.args
-    # Der DB-Pfad wurde aufgeloest
-    assert args == ["/real/path/to/aktuell.pdf"]
+    # Der DB-Pfad wurde aufgeloest (der Suchindex liefert ihn in Betriebssystemschreibweise)
+    from src.search.konfig import norm_pfad
+    assert args == [norm_pfad("/real/path/to/aktuell.pdf")]
 
 
 def test_source_click_falls_back_to_file_path_when_no_pdf_id(qtbot, chat_view):
@@ -405,7 +406,8 @@ def test_resolve_file_path_prefers_pdf_id(tmp_path):
     view = ChatView(db=db, hybrid_classifier=_StubHC(),
                     chat_config=ChatConfig())
     # Wenn pdf_id gesetzt ist, wird der DB-Pfad zurueckgegeben
-    assert view._resolve_file_path("/old/path.pdf", pid) == "/resolved/path.pdf"
+    from src.search.konfig import norm_pfad
+    assert view._resolve_file_path("/old/path.pdf", pid) == norm_pfad("/resolved/path.pdf")
     # Wenn nur file_path: bleibt er
     assert view._resolve_file_path("/only/path.pdf", "") == "/only/path.pdf"
     # Wenn beides leer: leerer String

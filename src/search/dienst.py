@@ -64,6 +64,9 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--von", help="ab Datum (JJJJ-MM-TT)")
     s.add_argument("--bis", help="bis Datum (JJJJ-MM-TT)")
     s.add_argument("--sort", choices=["relevanz", "neu", "alt"], default="relevanz")
+    s.add_argument("--steuerjahr", help="PDFSM-Metadaten: Steuerjahr, z. B. 2024")
+    s.add_argument("--kategorie", help="PDFSM-Metadaten: Kategorie, z. B. Rechnung")
+    s.add_argument("--korrespondent", help="PDFSM-Metadaten: Korrespondent, z. B. Telekom")
     s.add_argument("-n", "--anzahl", type=int, default=20)
     s.add_argument("--json", action="store_true")
 
@@ -164,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
     idx = Suchindex(konfig)
     if a.befehl == "suche":
         abfrage = " ".join(a.abfrage)
-        erg = idx.suche(abfrage, typ=a.typ, ordner=a.ordner, von=a.von, bis=a.bis, sortierung=a.sort, anzahl=a.anzahl)
+        erg = idx.suche(abfrage, typ=a.typ, ordner=a.ordner, von=a.von, bis=a.bis, sortierung=a.sort, anzahl=a.anzahl,
+                        steuerjahr=a.steuerjahr, kategorie=a.kategorie, korrespondent=a.korrespondent)
         if a.json:
             print(json.dumps(erg, ensure_ascii=False, indent=1, default=str))
         else:

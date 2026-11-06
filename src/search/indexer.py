@@ -6,9 +6,15 @@ im eigenen Prozess. Plattformabhaengiges (Sperre, Job-Objekt bzw. Prozessgruppe,
 Hintergrundprioritaet, Cloud-Platzhalter, Leerlaufzeit) liegt in ``plattform.py``.
 
 Ablauf eines Laufs: Vorrang-Ordner (im ersten sofort OCR) -> Wurzeln -> Mails ->
-restliche OCR. Unveraenderte Dateien (Groesse + mtime_ns) werden uebersprungen,
-verschobene oder kopierte Dateien uebernehmen den vorhandenen Text samt OCR,
-Aufraeumen nur nach vollstaendig durchlaufener Wurzel.
+restliche OCR -> OCR-Cache des Bestands auffuellen. Unveraenderte Dateien
+(Groesse + mtime_ns) werden uebersprungen, verschobene oder kopierte Dateien
+uebernehmen den vorhandenen Text samt OCR, Aufraeumen nur nach vollstaendig
+durchlaufener Wurzel. Seit Schema-Version 2 (Phase 5): Bildseiten bekommen
+ihren OCR-Text aus dem Cache nach Bildinhalt, PDFSM-Metadaten werden aus der
+PDF gelesen (Quelle ``'pdf'``, Werte von PDFSM haben Vorrang), und von PDFSM
+verwaltete Dokumente bleiben beim Aufraeumen stehen, solange die Datei
+existiert. ``einzeldatei_indizieren`` liest eine Datei synchron (Meldungen der
+Oberflaeche).
 """
 
 from __future__ import annotations
@@ -133,6 +139,118 @@ class _SynchronAusfuehrer:
 
     def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
         pass
+
+
+# --------------------------------------------------------------------------- Ergebnis speichern
+
+def dokument_speichern(con, basis: dict, fmt: str, res: dict) -> tuple[int, dict, dict]:
+    """Ergebnis eines Lese-Auftrags speichern (Lauf und Einzeldatei-Meldungen der Oberflaeche).
+
+    PDFs: Seiten ohne Text bekommen ihren OCR-Text aus dem Cache (Bild-Hash),
+    die PDFSM-Metadaten aus Info-Dict und XMP landen mit Quelle ``'pdf'``
+    (Werte mit Quelle ``'pdfsm'`` bleiben, Vorrangregel). Liefert
+    ``(dok_id, dok, zaehler)`` mit ``zaehler = {"ocr_cache": n}``.
+    """
+    zaehler = {"ocr_cache": 0}
+    hashes: dict = {}
+    if fmt == "pdf":
+        seiten = list(res["seiten"])
+        hashes = dict(res.get("bild_hashes") or {})
+        status = res["status"]
+        if hashes:
+            cache = db.ocr_cache_holen(con, hashes.values())
+            if cache:
+                neu = []
+                for nr, quelle, text in seiten:
+                    h = hashes.get(nr)
+                    if quelle == "ohne_text" and h in cache:
+                        neu.append((nr, "ocr", cache[h]))
+                        zaehler["ocr_cache"] += 1
+                    else:
+                        neu.append((nr, quelle, text))
+                seiten = neu
+                if zaehler["ocr_cache"] and status == "ocr_ausstehend":
+                    status = "ocr_ausstehend" if any(q == "ohne_text" for _, q, _ in seiten) else "ocr"
+        dok = {**basis, "seiten": res["anzahl"], "textstatus": status, "fehler": res["fehler"],
+               "titel": res["titel"], "autor": res["autor"],
+               "ocr_seiten": sum(1 for _, q, _ in seiten if q == "ocr")}
+    elif fmt in OFFICE:
+        dok = {**basis, "seiten": len(res["seiten"]) or None, "textstatus": res["status"],
+               "fehler": res["fehler"], "titel": res["titel"], "autor": res["autor"]}
+        seiten = res["seiten"]
+    elif fmt == "md":
+        dok = {**basis, "seiten": 1, "textstatus": res["status"], "fehler": res["fehler"], "titel": res["titel"]}
+        seiten = [(1, "text", res["text"])] if res["text"] else []
+    else:
+        dok = {**basis, "seiten": 1, "textstatus": res["status"], "fehler": res["fehler"],
+               "mail_von": res["von"], "mail_an": res["an"], "mail_datum": res["datum_iso"],
+               "mail_betreff": res["betreff"], "mail_anhaenge": res["anhaenge"], "titel": res["betreff"]}
+        seiten = [(1, "text", res["text"])] if res["text"] else []
+    dok_id = db.speichere(con, dok, seiten, bild_hashes=hashes)
+    if fmt == "pdf" and res.get("metadaten"):
+        db.metadaten_setzen(con, dok_id, res["metadaten"], quelle="pdf")
+    return dok_id, dok, zaehler
+
+
+def datei_lesen(pfad: str, konfig: SearchConfig) -> tuple[dict, str, dict] | None:
+    """Eine Datei synchron im eigenen Prozess lesen: ``(basis, format, ergebnis)``; None bei unbekannter Endung."""
+    ext = os.path.splitext(pfad)[1].lower()
+    if ext not in TYP:
+        return None
+    st = os.stat(pfad)
+    typ, fmt = TYP[ext]
+    basis = {"pfad": pfad, "datei": pfad, "name": os.path.basename(pfad), "ordner": os.path.dirname(pfad),
+             "typ": typ, "format": fmt, "groesse": st.st_size, "mtime_ns": st.st_mtime_ns, "datum": st.st_mtime,
+             "prioritaet": 9}
+    if fmt == "pdf":
+        res = extract.pdf_text(pfad, konfig.ocr_einstellungen()["min_zeichen"])
+    elif fmt in OFFICE:
+        res = office.office_text(pfad, fmt)
+    elif fmt == "md":
+        res = extract.md_text(pfad)
+    elif fmt == "eml":
+        res = extract.eml_text(pfad)
+    else:
+        res = extract.msg_text(pfad)
+    return basis, fmt, res
+
+
+def einzeldatei_indizieren(con, konfig: SearchConfig, pfad: str, prioritaet: int | None = None,
+                           vorab: dict | None = None) -> int | None:
+    """Eine Datei sofort indizieren (Textebene; Bildseiten bleiben fuer den naechsten OCR-Lauf offen).
+
+    Fuer die Schreibmeldungen der Oberflaeche (``Suchindex.datei_aufnehmen`` /
+    ``datei_geaendert``). ``vorab`` ist ein schon vorliegendes Ergebnis von
+    ``extract.pdf_text`` (spart das zweite Lesen im PDF-Analyzer). Die
+    Prioritaet bleibt bei einem bekannten Dokument erhalten, sonst ``prioritaet``
+    bzw. 9. Liefert die Dokument-Id; None, wenn die Datei fehlt oder die Endung
+    unbekannt ist.
+    """
+    pfad = str(pfad)
+    if not os.path.isfile(pfad):
+        return None
+    gelesen = datei_lesen(pfad, konfig) if vorab is None else None
+    if vorab is not None:
+        ext = os.path.splitext(pfad)[1].lower()
+        if ext not in TYP:
+            return None
+        st = os.stat(pfad)
+        typ, fmt = TYP[ext]
+        basis = {"pfad": pfad, "datei": pfad, "name": os.path.basename(pfad), "ordner": os.path.dirname(pfad),
+                 "typ": typ, "format": fmt, "groesse": st.st_size, "mtime_ns": st.st_mtime_ns,
+                 "datum": st.st_mtime, "prioritaet": 9}
+        res = vorab
+    elif gelesen is None:
+        return None
+    else:
+        basis, fmt, res = gelesen
+    alt = con.execute("SELECT prioritaet FROM dokumente WHERE pfad = ?", (pfad,)).fetchone()
+    if alt is not None:
+        basis["prioritaet"] = alt[0]
+    elif prioritaet is not None:
+        basis["prioritaet"] = int(prioritaet)
+    dok_id, _dok, _z = dokument_speichern(con, basis, fmt, res)
+    return dok_id
 
 
 # --------------------------------------------------------------------------- Lauf
@@ -284,6 +402,8 @@ class Indexer:
         elif a.art == "mbox":
             log.warning("mbox-Stapel fehlgeschlagen (%s, Mails ab Offset %s): %s", i["pfad"], i.get("von"), grund)
             self._mbox_stapel_fertig(i)
+        elif a.art == "hash":
+            log.info("OCR-Cache ergänzen fehlgeschlagen: %s – %s", i.get("pfad"), grund)
         self.aenderungen += 1
 
     # ---------------------------------------------------------------- Ergebnisse
@@ -292,24 +412,12 @@ class Indexer:
         if a.art == "datei":
             basis = i["basis"]
             fmt = basis["format"]
-            if fmt == "pdf":
-                dok = {**basis, "seiten": res["anzahl"], "textstatus": res["status"], "fehler": res["fehler"],
-                       "titel": res["titel"], "autor": res["autor"]}
-                seiten = res["seiten"]
-            elif fmt in OFFICE:
-                dok = {**basis, "seiten": len(res["seiten"]) or None, "textstatus": res["status"],
-                       "fehler": res["fehler"], "titel": res["titel"], "autor": res["autor"]}
-                seiten = res["seiten"]
-            elif fmt == "md":
-                dok = {**basis, "seiten": 1, "textstatus": res["status"], "fehler": res["fehler"], "titel": res["titel"]}
-                seiten = [(1, "text", res["text"])] if res["text"] else []
-            else:
-                dok = {**basis, "seiten": 1, "textstatus": res["status"], "fehler": res["fehler"],
-                       "mail_von": res["von"], "mail_an": res["an"], "mail_datum": res["datum_iso"],
-                       "mail_betreff": res["betreff"], "mail_anhaenge": res["anhaenge"], "titel": res["betreff"]}
-                seiten = [(1, "text", res["text"])] if res["text"] else []
-            dok_id = db.speichere(self.con, dok, seiten)
-            self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], dok["textstatus"], basis["prioritaet"]]
+            dok_id, dok, zaehler = dokument_speichern(self.con, basis, fmt, res)
+            if zaehler["ocr_cache"]:
+                self.stat["ocr_cache"] += zaehler["ocr_cache"]
+            alt_quelle = (self.bekannt.get(basis["pfad"].lower()) or [None] * 6)[5]
+            self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], dok["textstatus"],
+                                                   basis["prioritaet"], alt_quelle]
             self.stat["gelesen"] += 1
             if dok["textstatus"] == "ocr_ausstehend":
                 self.stat["ocr_vorgemerkt"] += 1
@@ -318,17 +426,26 @@ class Indexer:
                 log.info("Fehler: %s – %s", basis["pfad"], dok["fehler"])
         elif a.art == "ocr":
             dok_id = i["dok_id"]
-            werte, fehl = [], []
-            for s, t in res["texte"].items():
-                (werte if t is not None else fehl).append((t, dok_id, s) if t is not None else (dok_id, s))
-            self.con.executemany(
-                "UPDATE seiten SET text = ?, quelle = 'ocr' WHERE dok_id = ? AND seite = ?", werte)
-            ohne = [s for s in i["seiten"] if s not in res["texte"]]
-            self.con.executemany(
-                "UPDATE seiten SET quelle = 'ocr_fehler' WHERE dok_id = ? AND seite = ?",
-                fehl + [(dok_id, s) for s in ohne])
-            self.stat["ocr_seiten"] += len(werte)
+            texte = dict(res["texte"])
+            for s in i["seiten"]:
+                texte.setdefault(s, None)   # nicht geliefert = Fehler
+            erkannt = db.ocr_text_eintragen(self.con, dok_id, texte, self.ocr.get("sprachen"), self.ocr.get("dpi"),
+                                            nur_offene=True)
+            self.stat["ocr_seiten"] += erkannt
             self._ocr_status(dok_id, res.get("fehler"))
+        elif a.art == "hash":
+            # OCR-Cache des Bestands auffuellen: Hashes nachtragen, Texte in den Cache
+            dok_id = i["dok_id"]
+            for seite, h in res.items():
+                self.con.execute("UPDATE seiten SET bild_hash = ? WHERE dok_id = ? AND seite = ? AND bild_hash IS NULL",
+                                 (h, dok_id, seite))
+            if res:
+                ph = ",".join("?" * len(res))
+                zeilen = self.con.execute(
+                    f"SELECT bild_hash, text FROM seiten WHERE dok_id = ? AND quelle = 'ocr' AND seite IN ({ph})",
+                    (dok_id, *res.keys())).fetchall()
+                self.stat["ocr_cache_ergaenzt"] += db.ocr_cache_eintragen(
+                    self.con, [(r[0], r[1]) for r in zeilen], self.ocr.get("sprachen"), self.ocr.get("dpi"))
         elif a.art == "mbox":
             for off, laenge, m in res:
                 dok = {
@@ -373,17 +490,7 @@ class Indexer:
             self._commit_wenn_noetig(sofort=True)
 
     def _ocr_status(self, dok_id: int, fehler: str | None) -> None:
-        r = self.con.execute(
-            """SELECT sum(quelle = 'ohne_text') rest, sum(quelle = 'ocr') ocr, sum(quelle = 'ocr_fehler') fehl
-               FROM seiten WHERE dok_id = ?""", (dok_id,)).fetchone()
-        if r["rest"]:
-            status = "ocr_ausstehend"
-        elif r["fehl"]:
-            status = "ocr_teilweise"
-        else:
-            status = "ocr"
-        self.con.execute("UPDATE dokumente SET textstatus = ?, ocr_seiten = ?, fehler = coalesce(?, fehler) WHERE id = ?",
-                         (status, r["ocr"] or 0, fehler, dok_id))
+        status = db.ocr_status_aktualisieren(self.con, dok_id, fehler)
         if status != "ocr_ausstehend":
             self.stat["ocr_dokumente"] += 1
 
@@ -449,12 +556,17 @@ class Indexer:
     # ---------------------------------------------------------------- Dateien finden
     def _bekannte_laden(self) -> None:
         self.bekannt = {
-            r["pfad"].lower(): [r["id"], r["groesse"], r["mtime_ns"], r["textstatus"], r["prioritaet"]]
+            r["pfad"].lower(): [r["id"], r["groesse"], r["mtime_ns"], r["textstatus"], r["prioritaet"],
+                                r["metadaten_quelle"]]
             for r in self.con.execute(
-                "SELECT id, pfad, groesse, mtime_ns, textstatus, prioritaet FROM dokumente WHERE format != 'mbox'")
+                "SELECT id, pfad, groesse, mtime_ns, textstatus, prioritaet, metadaten_quelle "
+                "FROM dokumente WHERE format != 'mbox'")
         }
-        # Signatur (Name, Groesse, Aenderungszeit) -> Pfad: erkennt verschobene/kopierte Dateien
-        self.signatur = {(os.path.basename(k), v[1], v[2]): k for k, v in self.bekannt.items()}
+        # Signatur (Groesse, Aenderungszeit) -> Pfade: erkennt verschobene, umbenannte und kopierte
+        # Dateien auch ohne Meldung der Oberflaeche; der gleiche Name ist nur Vorzugskriterium
+        self.signatur = {}
+        for k, v in self.bekannt.items():
+            self.signatur.setdefault((v[1], v[2]), []).append(k)
         log.info("%d Dateien bereits im Index", len(self.bekannt))
 
     def _uebernehmen(self, alt_key: str, basis: dict, verschoben: bool) -> None:
@@ -466,18 +578,26 @@ class Indexer:
                 "WHERE id = ?",
                 (basis["pfad"], basis["datei"], basis["name"], basis["ordner"], basis["prioritaet"], db.jetzt(), alt[0]))
             del self.bekannt[alt_key]
-            self.bekannt[basis["pfad"].lower()] = [alt[0], alt[1], alt[2], alt[3], basis["prioritaet"]]
+            self.bekannt[basis["pfad"].lower()] = [alt[0], alt[1], alt[2], alt[3], basis["prioritaet"], alt[5]]
             self.stat["verschoben"] += 1
         else:
             r = dict(self.con.execute("SELECT * FROM dokumente WHERE id = ?", (alt[0],)).fetchone())
             neu = {**r, **basis}
             neu.pop("id", None)
             dok_id = db.speichere(self.con, neu, [])
-            self.con.execute("INSERT INTO seiten (dok_id, seite, quelle, text) "
-                             "SELECT ?, seite, quelle, text FROM seiten WHERE dok_id = ?", (dok_id, alt[0]))
-            self.bekannt[basis["pfad"].lower()] = [dok_id, alt[1], alt[2], alt[3], basis["prioritaet"]]
+            self.con.execute("INSERT INTO seiten (dok_id, seite, quelle, text, bild_hash) "
+                             "SELECT ?, seite, quelle, text, bild_hash FROM seiten WHERE dok_id = ?", (dok_id, alt[0]))
+            # Metadaten der Kopie: dieselbe Datei traegt dieselben Felder (Quelle wie das Original)
+            if r.get("metadaten_quelle"):
+                db.metadaten_setzen(self.con, dok_id, {k: r.get(k) for k in db.METADATEN_FELDER},
+                                    quelle=r["metadaten_quelle"])
+            self.bekannt[basis["pfad"].lower()] = [dok_id, alt[1], alt[2], alt[3], basis["prioritaet"],
+                                                   r.get("metadaten_quelle")]
             self.stat["kopie"] += 1
-        self.signatur[(basis["name"].lower(), basis["groesse"], basis["mtime_ns"])] = basis["pfad"].lower()
+        pfade = self.signatur.setdefault((basis["groesse"], basis["mtime_ns"]), [])
+        if verschoben and alt_key in pfade:
+            pfade.remove(alt_key)
+        pfade.append(basis["pfad"].lower())
         self.aenderungen += 1
 
     def _durchlaufen(self, wurzel: str, prio: int, auslassen: set[str]) -> bool:
@@ -544,9 +664,8 @@ class Indexer:
                  "format": fmt, "groesse": st.st_size, "mtime_ns": st.st_mtime_ns, "datum": st.st_mtime,
                  "prioritaet": prio}
         if not alt:
-            quelle = self.signatur.get((e.name.lower(), st.st_size, st.st_mtime_ns))
-            if quelle and quelle in self.bekannt and quelle != key and self.bekannt[quelle][3] not in ("cloud", "fehler"):
-                verschoben = quelle not in self.gesehen and not os.path.exists(quelle)
+            quelle, verschoben = self._signatur_quelle(e.name, key, st)
+            if quelle is not None:
                 self._uebernehmen(quelle, basis, verschoben)
                 return
         self.stat["neu" if not alt else "geaendert"] += 1
@@ -573,6 +692,23 @@ class Indexer:
         else:
             a = Auftrag("datei", extract.msg_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
         self._einreichen(a)
+
+    def _signatur_quelle(self, name: str, key: str, st: os.stat_result) -> tuple[str | None, bool]:
+        """Bekannte Datei mit gleicher Groesse und Aenderungszeit: ``(pfad, verschoben)`` oder ``(None, False)``.
+
+        Bevorzugt den gleichen Namen und darunter eine Datei, die nicht mehr da ist
+        (verschoben bzw. umbenannt); sonst gilt die neue Datei als Kopie.
+        """
+        kandidaten = [q for q in self.signatur.get((st.st_size, st.st_mtime_ns), [])
+                      if q != key and q in self.bekannt and self.bekannt[q][3] not in ("cloud", "fehler")]
+        if not kandidaten:
+            return None, False
+        gleicher_name = [q for q in kandidaten if os.path.basename(q) == name.lower()]
+        reihe = gleicher_name or kandidaten
+        weg = [q for q in reihe if q not in self.gesehen and not os.path.exists(q)]
+        if weg:
+            return weg[0], True
+        return reihe[0], False
 
     def _cloud_platzhalter(self, e: os.DirEntry, prio: int) -> None:
         """iCloud-Platzhalter ``.Name.pdf.icloud``: die echte Datei nur mit Namen aufnehmen (Status ``cloud``).
@@ -603,14 +739,21 @@ class Indexer:
 
     def _nur_name(self, basis: dict, status: str) -> None:
         dok_id = db.speichere(self.con, {**basis, "seiten": None, "textstatus": status}, [])
-        self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], status, basis["prioritaet"]]
+        alt_quelle = (self.bekannt.get(basis["pfad"].lower()) or [None] * 6)[5]
+        self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], status,
+                                               basis["prioritaet"], alt_quelle]
         self.stat[status] += 1
         self.aenderungen += 1
+
+    def _bleibt(self, key: str, v: list) -> bool:
+        """Von PDFSM verwaltete Dokumente (Quelle 'pdfsm') werden nie entfernt, solange die Datei existiert."""
+        return v[5] == "pdfsm" and os.path.exists(key)
 
     def _aufraeumen(self, wurzel: str) -> None:
         """Eintraege entfernen, deren Datei unter ``wurzel`` nicht mehr existiert."""
         w = wurzel.lower().rstrip(os.sep) + os.sep
-        weg = [(k, v[0]) for k, v in self.bekannt.items() if k.startswith(w) and k not in self.gesehen]
+        weg = [(k, v[0]) for k, v in self.bekannt.items()
+               if k.startswith(w) and k not in self.gesehen and not self._bleibt(k, v)]
         if weg:
             db.loesche(self.con, [i for _, i in weg])
             for k, _ in weg:
@@ -629,7 +772,8 @@ class Indexer:
                    for w in (*self.konfig.prioritaet, *self.konfig.wurzeln)]
         if not wurzeln:
             return
-        weg = [(k, v[0]) for k, v in self.bekannt.items() if not any(k.startswith(w) for w in wurzeln)]
+        weg = [(k, v[0]) for k, v in self.bekannt.items()
+               if not any(k.startswith(w) for w in wurzeln) and not self._bleibt(k, v)]
         if weg:
             db.loesche(self.con, [i for _, i in weg])
             for k, _ in weg:
@@ -673,6 +817,29 @@ class Indexer:
                 self._einreichen(Auftrag("ocr", extract.pdf_ocr, (d["datei"], teil, self.ocr),
                                          {"pfad": d["datei"], "dok_id": d["id"], "seiten": teil},
                                          zeitlimit=120 + 180 * len(teil)))
+        self._abarbeiten()
+
+    def _ocr_cache_ergaenzen(self) -> None:
+        """Bild-Hashes fuer vorhandene OCR-Seiten ohne Hash nachtragen und ihre Texte in den Cache legen.
+
+        Idempotent; danach ueberleben auch die OCR-Texte des Altbestands
+        Umbenennen, Verschieben, XMP-Schreiben, Stapeln und Teilen.
+        """
+        zeilen = self.con.execute(
+            """SELECT d.id, d.datei, s.seite FROM seiten s JOIN dokumente d ON d.id = s.dok_id
+               WHERE d.typ = 'pdf' AND s.quelle = 'ocr' AND s.bild_hash IS NULL ORDER BY d.id, s.seite""").fetchall()
+        if not zeilen:
+            return
+        je_dok: dict[int, tuple[str, list[int]]] = {}
+        for r in zeilen:
+            je_dok.setdefault(r["id"], (r["datei"], []))[1].append(r["seite"])
+        log.info("OCR-Cache ergänzen: %d Dokumente", len(je_dok))
+        for dok_id, (datei, seiten) in je_dok.items():
+            if not os.path.exists(datei):
+                continue
+            self._einreichen(Auftrag("hash", extract.pdf_bild_hashes, (datei, seiten),
+                                     {"pfad": datei, "dok_id": dok_id, "seiten": seiten},
+                                     zeitlimit=120 + len(seiten)))
         self._abarbeiten()
 
     # ---------------------------------------------------------------- Mails
@@ -793,6 +960,9 @@ class Indexer:
                 if not ohne_ocr:
                     self._phase("Texterkennung (OCR)")
                     self._ocr()
+                    if not nur_prioritaet:
+                        self._phase("OCR-Cache ergänzen")
+                        self._ocr_cache_ergaenzen()
             self._abarbeiten()
         except (KeyboardInterrupt, Abbruch) as e:
             status = "abgebrochen"
