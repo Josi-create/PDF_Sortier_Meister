@@ -8,6 +8,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
+  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
+  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
+  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
+  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
+  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
+  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
+  bleiben wie bisher gruen.
 - **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
   galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
   oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004

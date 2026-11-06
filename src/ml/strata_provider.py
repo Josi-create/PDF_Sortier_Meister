@@ -83,6 +83,35 @@ class StrataProvider(OpenAIProvider):
         except Exception:
             return []
 
+    PING_TIMEOUT = 5
+
+    def ping(self) -> tuple[bool, str]:
+        """Prueft per kurzem HTTP-Request, ob der Server antwortet und den Key annimmt.
+
+        Bewusst ohne openai-Client: dessen Standard-Timeout betraegt Minuten.
+        """
+        import json
+        import urllib.error
+        import urllib.request
+
+        req = urllib.request.Request(
+            f"{self.base_url}/models",
+            headers={"Authorization": f"Bearer {self.config.api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.PING_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            anzahl = len(data.get("data") or [])
+            return True, f"{anzahl} Modell(e) geladen"
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return False, "API-Key wird nicht angenommen"
+            return False, f"HTTP {e.code}"
+        except urllib.error.URLError as e:
+            return False, f"Verbindung fehlgeschlagen: {e.reason}"
+        except Exception as e:  # noqa: BLE001
+            return False, f"Fehler: {e}"
+
     def _get_model_id(self) -> str:
         """Eingestelltes Modell unveraendert; leer -> erstes Modell des Servers."""
         model = (self.config.model or "").strip()

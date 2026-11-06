@@ -604,6 +604,39 @@ class HybridClassifier:
             model = model.rsplit("/", 1)[-1]
         return model
 
+    def check_llm_connection(self) -> Optional[tuple[bool, str]]:
+        """Prueft, ob ein lokaler LLM-Server (Ollama, Strata) gerade antwortet.
+
+        Blockiert bis zu einigen Sekunden - nur im Hintergrund aufrufen.
+
+        Returns:
+            (erreichbar, Detail) oder None, wenn nichts zu pruefen ist
+            (kein Provider aktiv oder Cloud-Anbieter).
+        """
+        provider = self.llm_provider
+        if not self.llm_connection_checkable():
+            return None
+        ok, detail = provider.ping()
+        if not ok or not isinstance(provider, OllamaProvider):
+            return ok, detail
+        # Ollama antwortet auch ohne das eingestellte Modell - dann scheitert
+        # trotzdem jeder Aufruf. Deshalb das Modell mitpruefen.
+        model = provider._get_model_id()
+        installed = provider.list_models()
+        if not _ollama_model_installed(model, installed):
+            return False, (f"Modell „{model}“ ist in Ollama nicht installiert "
+                           f"({len(installed)} Modell(e) vorhanden).")
+        return True, detail
+
+    def llm_connection_checkable(self) -> bool:
+        """True, wenn der aktive Provider ein lokaler Server mit ping() ist."""
+        provider = self.llm_provider
+        if not self.llm_enabled or provider is None:
+            return False
+        if isinstance(provider, OllamaCloudProvider):
+            return False
+        return isinstance(provider, (OllamaProvider, StrataProvider))
+
     def get_llm_provider_name(self) -> str:
         """Gibt den Namen des aktuellen LLM-Providers zurück."""
         if not self.llm_enabled or not self.llm_provider:
@@ -623,6 +656,15 @@ class HybridClassifier:
         if isinstance(self.llm_provider, OllamaProvider):
             return "Ollama"
         return "Unbekannt"
+
+
+def _ollama_model_installed(model: str, installed: list[str]) -> bool:
+    """Ollama-Modellnamen vergleichen; ":latest" ist optional."""
+    def norm(name: str) -> str:
+        name = (name or "").strip().lower()
+        return name[:-len(":latest")] if name.endswith(":latest") else name
+    want = norm(model)
+    return bool(want) and any(norm(n) == want for n in installed)
 
 
 # Globale Instanz
