@@ -17,6 +17,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Vorschlagskacheln haben „Pfad kopieren“ zusätzlich. Unter macOS heißen die
   Einträge „Im Finder zeigen“ bzw. „Im Finder öffnen“.
 
+### Geaendert
+- **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die
+  Vorschlagsliste steht nicht mehr als eigener Block über dem Namen, sondern
+  eingeklappt in der Gruppe „Neuer Dateiname“. Rechts in deren Kopfzeile
+  zeigt ein Pfeil „Vorschläge (n)“, wie viele Vorschläge es gibt; ein Klick
+  klappt darunter den Schalter „Ordnerstruktur im Namen“, „Muster
+  bearbeiten…“ und die Liste auf. Eingeklappt (Standard) bleiben nur
+  Namensfeld, Vorschau und Warnung stehen, und die Vorschau der PDF bekommt
+  den Platz. Der oberste Vorschlag wird wie bisher automatisch als Dateiname
+  eingetragen. Der gewählte Zustand gilt für alle folgenden Dokumente und
+  bleibt nach einem Neustart erhalten; treffen KI-Vorschläge im Hintergrund
+  ein, zählt der Pfeil mit, ohne aufzuklappen.
+
 ## [0.24.0] - 2026-11-06
 
 ### Neu
