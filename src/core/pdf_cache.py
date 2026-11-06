@@ -798,6 +798,25 @@ class PDFCache(QObject):
             self.start_llm_worker()
             self._llm_worker.add_task(failed, cached, priority=20)
 
+    def retry_one_failed_llm(self) -> Optional[Path]:
+        """Fragt EINE zuvor gescheiterte PDF erneut an (Probe nach einem Fehler).
+
+        Gelingt die Probe, reiht der Erfolgs-Handler die uebrigen gescheiterten
+        PDFs von selbst neu ein. So erholt sich die Vorabfrage, sobald der
+        Anbieter wieder funktioniert (z.B. Ollama neu installiert), ohne bei
+        jedem Takt alle PDFs erneut scheitern zu lassen.
+        """
+        with self._lock:
+            if self._llm_queued:
+                return None  # es laeuft ohnehin noch etwas
+            kandidaten = sorted(self._llm_failed, key=str)
+        for kandidat in kandidaten:
+            cached = self.get(kandidat)
+            if cached and not cached.llm_fetched and kandidat.exists():
+                self._retry_failed_llm([kandidat])
+                return kandidat
+        return None
+
     def _on_llm_suggestions_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn LLM-Abruf fehlschlägt."""
         logger.warning(f"LLM-Pre-Cache Fehler für {pdf_path.name}: {error}")

@@ -23,6 +23,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
   und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
   bleiben wie bisher gruen.
+- **KI-Statusanzeige sagt jetzt, was zu tun ist**: Antwortet Ollama zwar,
+  kann aber kein Modell laden (z.B. fehlender `llama-server` nach einem
+  abgebrochenen Update), wurde die Anzeige nach jeder Minutenpruefung wieder
+  gruen. Jetzt zaehlt der echte Fehler einer KI-Anfrage: die Anzeige bleibt
+  rot (mit ⚠), bis wieder eine Anfrage gelingt oder die Einstellungen
+  geaendert werden - das gilt auch fuer Cloud-Anbieter (z.B. ungueltiger
+  API-Key, Guthaben aufgebraucht). Der Tooltip nennt in einfachen Worten
+  Problem und Abhilfe („Ollama neu installieren bzw. aktualisieren“,
+  „ein vorhandenes Modell auswaehlen“ ...), ein Doppelklick oeffnet die
+  Einstellungen. Fehler, die nur ein einzelnes Dokument betreffen („KI hat
+  keinen Vorschlag geliefert“), faerben die Anzeige nicht rot. Nach einem
+  Fehler fragt PDFSM jede Minute eine gescheiterte PDF erneut an; klappt das
+  wieder, holt die Vorabfrage die uebrigen von selbst nach. Der Dialog
+  „Hintergrund-Analyse“ zeigt denselben Hinweis und hat einen Knopf
+  „Einstellungen oeffnen“.
 - **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
   galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
   oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
