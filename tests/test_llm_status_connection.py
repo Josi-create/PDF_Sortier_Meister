@@ -104,7 +104,12 @@ def test_ollama_modell_wird_mitgeprueft(monkeypatch, model, installed, ok):
 
 # --- Farbe der Statusanzeige --------------------------------------------------
 
-def _fake_window(qtbot, checkable, connection):
+LLAMA_FEHLT = ("Ollama HTTP 500: error starting llama-server: "
+               "llama-server binary not found")
+
+
+def _fake_window(qtbot, checkable, connection, request_error=None):
+    """Minimales Fenster-Objekt mit den echten MainWindow-Methoden."""
     from src.gui.main_window import MainWindow
     label = QLabel()
     qtbot.addWidget(label)
@@ -114,20 +119,89 @@ def _fake_window(qtbot, checkable, connection):
         get_llm_model_name=lambda short=False: "gpt-oss",
         llm_connection_checkable=lambda: checkable,
     )
-    win = types.SimpleNamespace(hybrid_classifier=hc, llm_status_label=label,
-                                _llm_connection=connection)
-    MainWindow._update_llm_status(win)
-    return label
+    win = types.SimpleNamespace(
+        hybrid_classifier=hc, llm_status_label=label,
+        _llm_connection=connection, _llm_request_error=request_error,
+        _last_llm_error=None, _llm_success_since_error=False,
+        LLM_STATUS_RED=MainWindow.LLM_STATUS_RED,
+        config=types.SimpleNamespace(get=lambda key, default=None: default),
+        pings=[], probes=[],
+    )
+    win.pdf_cache = types.SimpleNamespace(retry_one_failed_llm=lambda: win.probes.append(1))
+    win._check_llm_connection = lambda: win.pings.append(1)
+    win._update_cache_status = lambda: None
+    for name in ("_llm_health", "_update_llm_status", "_set_llm_reachable",
+                 "_on_llm_suggestions_failed", "_on_llm_check_tick"):
+        setattr(win, name, types.MethodType(getattr(MainWindow, name), win))
+    win._update_llm_status()
+    return win
 
 
 @pytest.mark.parametrize("checkable, connection, farbe, tooltip", [
-    (True, (False, "Verbindung fehlgeschlagen"), "#c0392b", "nicht einsatzbereit"),
-    (True, (True, "0.9.0"), "green", "aktiv"),
+    (True, (True, "0.9.0"), "green", "bereit"),
     (True, None, "gray", "wird geprüft"),
-    (False, None, "green", "aktiv"),  # Cloud: keine Pruefung, wie bisher gruen
+    (False, None, "green", "bereit"),  # Cloud: keine Pruefung, ohne Fehler gruen
 ])
-def test_statusfarbe(qtbot, checkable, connection, farbe, tooltip):
-    label = _fake_window(qtbot, checkable, connection)
+def test_statusfarbe_ohne_fehler(qtbot, checkable, connection, farbe, tooltip):
+    label = _fake_window(qtbot, checkable, connection).llm_status_label
     assert label.text() == "LLM: Ollama/gpt-oss"
     assert label.styleSheet() == f"color: {farbe};"
     assert tooltip in label.toolTip()
+    assert "Doppelklick öffnet die Einstellungen" in label.toolTip()
+
+
+def test_server_aus_rot_mit_abhilfe(qtbot):
+    label = _fake_window(qtbot, True, (False, "Verbindung fehlgeschlagen: refused")).llm_status_label
+    assert label.text() == "⚠ LLM: Ollama/gpt-oss"
+    assert label.styleSheet() == "color: #c0392b;"
+    tip = label.toolTip()
+    assert "Die KI funktioniert gerade nicht" in tip
+    assert "Problem: Ollama läuft nicht" in tip and "Abhilfe: Ollama starten" in tip
+    assert "Doppelklick öffnet die Einstellungen" in tip
+
+
+def test_echter_fehler_schlaegt_minutenpruefung(qtbot):
+    """Ollama antwortet und listet das Modell, kann es aber nicht laden:
+    die Anzeige bleibt rot, auch wenn die Minutenpruefung OK meldet."""
+    from pathlib import Path
+    win = _fake_window(qtbot, True, (True, "0.40.0"))
+    win._on_llm_suggestions_failed(Path("scan.pdf"), LLAMA_FEHLT)
+    label = win.llm_status_label
+    assert label.styleSheet() == "color: #c0392b;"
+    assert "unvollständig installiert" in label.toolTip()
+    assert win.pings == [1]  # Erreichbarkeit wird zusaetzlich neu geprueft
+
+    win._llm_connection = (True, "0.40.0")  # Minutenpruefung: alles OK
+    win._update_llm_status()
+    assert label.styleSheet() == "color: #c0392b;"
+
+    win._set_llm_reachable(True)  # erste gelungene KI-Anfrage
+    assert label.styleSheet() == "color: green;"
+    assert win._llm_request_error is None
+
+
+def test_cloud_anbieter_wird_bei_fehler_rot(qtbot):
+    from pathlib import Path
+    win = _fake_window(qtbot, False, None)
+    win._on_llm_suggestions_failed(Path("scan.pdf"), "Error code: 401 - invalid api key")
+    assert win.llm_status_label.styleSheet() == "color: #c0392b;"
+    assert "API-Key prüfen" in win.llm_status_label.toolTip()
+    win._set_llm_reachable(True)
+    assert win.llm_status_label.styleSheet() == "color: green;"
+
+
+def test_dokumentfehler_macht_nicht_rot(qtbot):
+    from pathlib import Path
+    win = _fake_window(qtbot, True, (True, "0.40.0"))
+    win._on_llm_suggestions_failed(Path("scan.pdf"), "KI hat keinen Vorschlag geliefert.")
+    assert win.llm_status_label.styleSheet() == "color: green;"
+    assert win._last_llm_error == ("scan.pdf", "KI hat keinen Vorschlag geliefert.")
+
+
+def test_minutentakt_probt_nur_nach_fehler(qtbot):
+    win = _fake_window(qtbot, True, (True, "0.40.0"))
+    win._on_llm_check_tick()
+    assert win.probes == [] and win.pings == [1]
+    win._llm_request_error = LLAMA_FEHLT
+    win._on_llm_check_tick()
+    assert win.probes == [1] and win.pings == [1, 1]

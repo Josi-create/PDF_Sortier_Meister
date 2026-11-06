@@ -939,15 +939,28 @@ class MainWindow(QMainWindow):
         """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
         self._last_llm_error = (pdf_path.name, error)
         self._llm_success_since_error = False
-        self._set_llm_reachable(False)
+        from src.ml.llm_hinweis import betrifft_nur_dokument
+        if not betrifft_nur_dokument(error):
+            # Anbieter-Problem: Anzeige bleibt rot, bis wieder eine Anfrage
+            # gelingt - die Minutenpruefung allein macht sie nicht gruen.
+            self._llm_request_error = error
+            self._set_llm_reachable(False)
         self._update_cache_status()
 
     def _show_precache_details(self):
         """Zeigt Details zur Hintergrund-Analyse (Doppelklick auf Statuslabel)."""
         from src.utils.logging_config import get_log_directory
         analyzed, llm_done, total = self._precache_progress()
-        if self.hybrid_classifier.is_llm_available():
-            llm_state = f"aktiv ({self.hybrid_classifier.get_llm_provider_name()})"
+        health, hinweis = self._llm_health()
+        provider = self.hybrid_classifier.get_llm_provider_name()
+        if health == "fehler":
+            llm_state = (f"{provider} funktioniert gerade nicht.\n"
+                         f"  Problem: {hinweis.problem}\n"
+                         f"  Abhilfe: {hinweis.abhilfe}")
+        elif health == "pruefen":
+            llm_state = f"{provider} (Verbindung wird geprüft …)"
+        elif health == "bereit":
+            llm_state = f"bereit ({provider})"
         else:
             llm_state = "aus"
         precache = "an" if self.config.get("llm_precache_enabled", True) else "aus"
@@ -966,12 +979,16 @@ class MainWindow(QMainWindow):
 
         box = QMessageBox(self)
         box.setWindowTitle("Hintergrund-Analyse")
-        box.setIcon(QMessageBox.Icon.Warning if self._last_llm_error else QMessageBox.Icon.Information)
+        warn = bool(self._last_llm_error) or health == "fehler"
+        box.setIcon(QMessageBox.Icon.Warning if warn else QMessageBox.Icon.Information)
         box.setText("\n".join(lines))
+        settings_btn = box.addButton("Einstellungen öffnen", QMessageBox.ButtonRole.ActionRole)
         open_log_btn = box.addButton("Log-Datei öffnen", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
-        if box.clickedButton() is open_log_btn:
+        if box.clickedButton() is settings_btn:
+            self.open_settings()
+        elif box.clickedButton() is open_log_btn:
             from src.utils.platform_paths import open_with_default_app
             try:
                 open_with_default_app(log_file)
@@ -1526,11 +1543,14 @@ class MainWindow(QMainWindow):
         # Erreichbarkeit lokaler Server (Ollama, Strata): Ergebnis der letzten
         # Hintergrund-Pruefung, None = noch offen / nicht pruefbar
         self._llm_connection: Optional[tuple[bool, str]] = None
+        # Letzter echter KI-Fehler (Anbieter-Problem), bis wieder eine Anfrage
+        # gelingt oder die Einstellungen geaendert werden. None = kein Fehler.
+        self._llm_request_error: Optional[str] = None
         self._llm_check_generation = 0
         self._llm_connection_checked.connect(self._on_llm_connection_checked)
         self._llm_check_timer = QTimer(self)
         self._llm_check_timer.setInterval(self.LLM_CHECK_INTERVAL_MS)
-        self._llm_check_timer.timeout.connect(self._check_llm_connection)
+        self._llm_check_timer.timeout.connect(self._on_llm_check_tick)
         self._llm_check_timer.start()
         self._update_llm_status()
         self._check_llm_connection()
@@ -4457,6 +4477,7 @@ class MainWindow(QMainWindow):
         # Hybrid-Klassifikator neu initialisieren
         self.hybrid_classifier._init_llm_provider()
         self._llm_connection = None  # anderer Provider/Server: neu pruefen
+        self._llm_request_error = None
         self._update_llm_status()
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
@@ -4470,32 +4491,62 @@ class MainWindow(QMainWindow):
         else:
             self._update_cache_status()
 
+    LLM_STATUS_RED = "#c0392b"
+
+    def _llm_health(self):
+        """Zustand des KI-Assistenten fuer Statusleiste und Details-Dialog.
+
+        Liefert (zustand, hinweis): zustand ist "aus", "pruefen", "bereit" oder
+        "fehler"; hinweis (nur bei "fehler") sagt verstaendlich, was los ist
+        und was der Nutzer tun kann. Ein echter Fehler einer KI-Anfrage zaehlt
+        mehr als die Minutenpruefung: Ollama kann z.B. antworten und Modelle
+        auflisten, sie aber nicht laden (fehlender llama-server).
+        """
+        hc = self.hybrid_classifier
+        if not hc.is_llm_available():
+            return "aus", None
+        from src.ml.llm_hinweis import ki_hinweis
+        provider = hc.get_llm_provider_name()
+        model = hc.get_llm_model_name()
+        request_error = getattr(self, "_llm_request_error", None)
+        if request_error:
+            return "fehler", ki_hinweis(provider, request_error, model)
+        if not hc.llm_connection_checkable():
+            return "bereit", None
+        connection = self._llm_connection
+        if connection is None:
+            return "pruefen", None
+        if connection[0]:
+            return "bereit", None
+        return "fehler", ki_hinweis(provider, connection[1], model)
+
     def _update_llm_status(self):
-        """Aktualisiert die LLM-Statusanzeige."""
-        if self.hybrid_classifier.is_llm_available():
+        """Aktualisiert die LLM-Statusanzeige (Farbe, Text, Tooltip)."""
+        health, hinweis = self._llm_health()
+        if health != "aus":
             provider = self.hybrid_classifier.get_llm_provider_name()
             model_short = self.hybrid_classifier.get_llm_model_name(short=True)
             model_full = self.hybrid_classifier.get_llm_model_name()
             # z.B. "LLM: OpenRouter/glm-5.3-flash" - das Modell entscheidet
             # ueber Tempo und Qualitaet, deshalb gehoert es in die Anzeige
             text = f"LLM: {provider}/{model_short}" if model_short else f"LLM: {provider}"
-            self.llm_status_label.setText(text)
             detail = f"{provider}, Modell: {model_full}" if model_full else provider
-            connection = (self._llm_connection
-                          if self.hybrid_classifier.llm_connection_checkable() else (True, ""))
-            if connection is None:
+            if health == "pruefen":
                 color = "gray"
                 state = f"KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …"
-            elif connection[0]:
+            elif health == "bereit":
                 color = "green"
-                state = f"KI-Assistent aktiv ({detail})."
+                state = f"KI-Assistent bereit ({detail})."
             else:
-                color = "#c0392b"
-                state = (f"{provider} ist nicht einsatzbereit ({detail}).\n"
-                         f"{connection[1]}")
+                color = self.LLM_STATUS_RED
+                text = f"⚠ {text}"
+                state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
+                         f"Problem: {hinweis.problem}\n"
+                         f"Abhilfe: {hinweis.abhilfe}")
+            self.llm_status_label.setText(text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}\nDoppelklick öffnet die Einstellungen."
+                f"{state}\n\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -4510,6 +4561,15 @@ class MainWindow(QMainWindow):
             self.llm_status_label.setToolTip(
                 f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
             )
+
+    def _on_llm_check_tick(self):
+        """Minuten-Takt: Erreichbarkeit pruefen; nach einem KI-Fehler zusaetzlich
+        eine gescheiterte PDF erneut anfragen, damit sich die Anzeige nach der
+        Behebung (z.B. Ollama neu installiert) von selbst wieder erholt."""
+        if self._llm_request_error and self.hybrid_classifier.is_llm_available():
+            if self.config.get("llm_precache_enabled", True):
+                self.pdf_cache.retry_one_failed_llm()
+        self._check_llm_connection()
 
     def _check_llm_connection(self):
         """Prueft im Hintergrund, ob der lokale LLM-Server (Ollama, Strata) antwortet."""
@@ -4542,13 +4602,17 @@ class MainWindow(QMainWindow):
 
     def _set_llm_reachable(self, reachable: bool):
         """Echte KI-Antwort bzw. -Fehler: Anzeige sofort anpassen."""
-        if not self.hybrid_classifier.llm_connection_checkable():
-            return
         if reachable:
-            if self._llm_connection is None or not self._llm_connection[0]:
+            changed = self._llm_request_error is not None
+            self._llm_request_error = None
+            if (self.hybrid_classifier.llm_connection_checkable()
+                    and (self._llm_connection is None or not self._llm_connection[0])):
                 self._llm_connection = (True, "")
+                changed = True
+            if changed:
                 self._update_llm_status()
         else:
+            self._update_llm_status()
             self._check_llm_connection()
 
     def show_about(self):
