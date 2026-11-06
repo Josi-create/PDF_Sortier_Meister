@@ -110,6 +110,9 @@ class Config:
         "pdf_open_command": "",  # Pfad zum eigenen Programm bei "custom"
         "preview_window_geometry": [],  # [x, y, w, h] des Vorschau-Fensters
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
+        # Dokumentensuche (src/search): Felder siehe src.search.konfig.SearchConfig.
+        # Leer = nicht eingerichtet; Standard-Wurzeln sind Scan- und Zielordner.
+        "suche": {},
     }
 
     def __init__(self, config_path: str = None):
@@ -384,6 +387,33 @@ class Config:
         known = {f for f in ChatConfig.__dataclass_fields__}
         cleaned = {k: raw[k] for k in raw if k in known}
         return ChatConfig(**cleaned)
+
+    # Dokumentensuche (src/search)
+    def get_search_config(self):
+        """Konfiguration der Dokumentensuche aus dem ``"suche"``-Block.
+
+        Fehlen ``wurzeln`` bzw. ``prioritaet`` im Block, gelten Scan- und
+        Zielordner als Wurzeln und der Scan-Ordner als Vorrang-Ordner, damit
+        ohne weitere Einrichtung genau die PDFSM-Welt durchsucht wird und
+        nichts anderes.
+        """
+        from src.search.konfig import SearchConfig
+
+        raw = self.get("suche", {}) or {}
+        if not isinstance(raw, dict):
+            raw = {}
+        cfg = SearchConfig.aus_dict(raw)
+        scan = self.get("scan_folder", "") or ""
+        if "wurzeln" not in raw:
+            cfg.wurzeln = [str(p) for p in ([scan] if scan else []) + list(self.get("target_folders", []) or [])]
+        if "prioritaet" not in raw and scan:
+            cfg.prioritaet = [str(scan)]
+        cfg.__post_init__()
+        return cfg
+
+    def set_search_config(self, search_config) -> None:
+        """Speichert eine ``SearchConfig`` im ``"suche"``-Block."""
+        self.set("suche", search_config.als_dict())
 
 
 # Globale Konfigurationsinstanz

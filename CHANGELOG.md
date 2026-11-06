@@ -27,6 +27,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **Dokumentensuche, Grundstein** (Integration von PDFsuche, Phase 1): Neues,
+  Qt-freies Modul `src/search` mit lokalem Volltextindex (SQLite FTS5) ueber
+  PDFs mit OCR, Office-Dateien (docx, xlsx, odt, doc, xls), Markdown und Mails
+  (Thunderbird-mbox, .eml, .msg), uebernommen aus dem bisher eigenstaendigen
+  Programm PDFsuche und mit 77 Tests abgesichert. Noch ohne Oberflaeche und
+  ohne Einrichtung: Kommandozeile `python -m src.search.dienst` (Befehle
+  `index`, `suche`, `lesen`, `status`, `web`, `mcp`). Entwurf und Plan:
+  `docs/SUCHE_ARCHITEKTUR.md`.
 - **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
   auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
   leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt

@@ -214,6 +214,9 @@ ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 | pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch, erste 5 Seiten; siehe #46) |
 | scikit-learn | TF-IDF-Klassifikator (lokal, lernend) |
 | SQLAlchemy + SQLite FTS5 | Lernhistorie, Metadaten-Index, Volltextsuche |
+| extract-msg, olefile, xlrd | Dokumentensuche: Outlook-Mails (.msg), Word 97–2003 (.doc), Excel 97–2003 (.xls) |
+| mcp | MCP-Server der Dokumentensuche für KI-Assistenten (z. B. Claude) |
+| Flask + waitress (optional) | Browser-Oberfläche der Dokumentensuche |
 | anthropic / openai (optional) | Cloud-KI-Anbieter |
 
 ---
@@ -232,6 +235,10 @@ ersten fünf Seiten; der Suchindex hält pro Dokument die ersten 5.000 Zeichen.
 | pikepdf | MPL-2.0 |
 | scikit-learn, SQLAlchemy, numpy, python-dateutil, watchdog | BSD / permissiv |
 | pytesseract | Apache-2.0 |
+| extract-msg | GPL v3 |
+| olefile, xlrd, Flask | BSD |
+| mcp | MIT |
+| waitress (optional) | ZPL 2.1 |
 | anthropic, openai (optional) | MIT / Apache-2.0 |
 
 ---

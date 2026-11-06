@@ -395,44 +395,11 @@ def coerce_dates(values) -> list[datetime]:
     return result
 
 
-def _tesseract_candidates() -> list[Path]:
-    """Moegliche Tesseract-Installationsorte in Prioritaetsreihenfolge."""
-    exe_name = "tesseract.exe" if sys.platform == "win32" else "tesseract"
-    candidates = []
-    bundle_root = getattr(sys, "_MEIPASS", None)
-    if bundle_root:
-        candidates.append(Path(bundle_root) / "tesseract" / exe_name)
-    if sys.platform == "win32":
-        for env_var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
-            base = os.environ.get(env_var)
-            if not base:
-                continue
-            candidates.append(Path(base) / "Tesseract-OCR" / "tesseract.exe")
-            if env_var == "LOCALAPPDATA":
-                candidates.append(Path(base) / "Programs" / "Tesseract-OCR" / "tesseract.exe")
-    elif sys.platform == "darwin":
-        # Aus dem Finder gestartete Apps haben Homebrew nicht im PATH,
-        # darum die Standardpfade explizit pruefen.
-        candidates.append(Path("/opt/homebrew/bin/tesseract"))
-        candidates.append(Path("/usr/local/bin/tesseract"))
-    return candidates
-
-
-def find_tesseract() -> Optional[str]:
-    """
-    Sucht die Tesseract-Binary in dieser Reihenfolge:
-    1. Mit der App gebuendelt (PyInstaller: <_internal>/tesseract/)
-    2. Standard-Installationsorte (Windows: Programme/LocalAppData,
-       macOS: Homebrew)
-    3. PATH
-
-    Returns:
-        Voller Pfad zur Tesseract-Binary oder None
-    """
-    for candidate in _tesseract_candidates():
-        if candidate.is_file():
-            return str(candidate)
-    return shutil.which("tesseract")
+# Die Tesseract-Suche liegt Qt-frei in src/utils/tesseract.py, damit auch die
+# Dokumentensuche (Hintergrunddienst, Arbeitsprozesse) sie ohne PyQt6 laden
+# kann. Hier nur re-exportiert, damit bestehende Importe und Tests weiter
+# funktionieren (``import shutil`` oben bleibt dafuer ebenfalls erhalten).
+from src.utils.tesseract import _tesseract_candidates, find_tesseract  # noqa: E402,F401
 
 
 class PDFThumbnailCache:
