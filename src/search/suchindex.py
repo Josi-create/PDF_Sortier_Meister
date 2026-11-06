@@ -456,12 +456,54 @@ class Suchindex:
         return anhalten(self.konfig)
 
     @staticmethod
-    def dienst_kommando() -> list[str]:
-        """Aufruf des Hintergrunddienstes: EXE neben dem Programm (gebaut) bzw. ``python -m`` (Entwicklung)."""
+    def dienst_kommando(zeitplan: bool = False) -> list[str]:
+        """Aufruf des Hintergrunddienstes: EXE neben dem Programm (gebaut) bzw. ``python -m`` (Entwicklung).
+
+        Gebaut ist es unter Windows ``pdfsm-dienstw.exe`` (ohne Konsolenfenster).
+        ``zeitplan``: fuer die Aufgabenplanung nimmt die Entwicklungsumgebung unter
+        Windows ``pythonw.exe``, sonst oeffnete jeder Lauf ein Konsolenfenster.
+        """
         if getattr(sys, "frozen", False):
             name = "pdfsm-dienstw.exe" if sys.platform == "win32" else "pdfsm-dienst"
             return [str(Path(sys.executable).with_name(name))]
-        return [sys.executable, "-m", "src.search.dienst"]
+        python = sys.executable
+        if zeitplan and sys.platform == "win32":
+            fensterlos = Path(python).with_name("pythonw.exe")
+            if fensterlos.exists():
+                python = str(fensterlos)
+        return [python, "-m", "src.search.dienst"]
+
+    # ------------------------------------------------------------------ Browser-Oberflaeche
+
+    def web_adresse(self) -> str:
+        return f"http://127.0.0.1:{self.konfig.web_port}/"
+
+    def web_erreichbar(self, timeout: float = 0.5) -> bool:
+        """Antwortet die Browser-Oberflaeche der Dokumentensuche auf ihrem Port (und nicht ein anderes Programm)?"""
+        import json
+        import urllib.error
+        import urllib.request
+
+        try:
+            with urllib.request.urlopen(self.web_adresse() + "api/status", timeout=timeout) as r:
+                daten = json.loads(r.read().decode("utf-8"))
+        except (OSError, ValueError, urllib.error.URLError):
+            return False
+        return isinstance(daten, dict) and ("vorhanden" in daten or "dokumente" in daten)
+
+    def web_starten(self, oeffnen: bool = True, konfig_pfad: str | None = None) -> subprocess.Popen:
+        """Browser-Oberflaeche als eigenen Prozess starten; mit ``oeffnen`` oeffnet sie den Browser selbst."""
+        args = list(self.dienst_kommando())
+        if konfig_pfad:
+            args += ["--config", str(konfig_pfad)]
+        args += ["web", "--port", str(self.konfig.web_port)]
+        if not oeffnen:
+            args.append("--nicht-oeffnen")
+        extra: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+                       **plattform.popen_flags(abgekoppelt=True)}
+        if not getattr(sys, "frozen", False):
+            extra["cwd"] = str(Path(__file__).resolve().parents[2])
+        return subprocess.Popen(args, **extra)
 
     def lauf_starten(self, nur_prioritaet: bool = False, pfad: str | None = None, hintergrund: bool = True,
                      konfig_pfad: str | None = None) -> subprocess.Popen | None:

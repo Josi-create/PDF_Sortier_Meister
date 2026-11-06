@@ -73,7 +73,17 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   wird neu geschrieben; `textebene_protokoll` mit Rueckgaengig (Dialog
   `textebene_dialog.py`, `pdfsm-dienst textebene`), Aufbewahrung, Anhalten
   (`indexer.anhalten`); 47 neue Tests (2 davon mit echtem Tesseract)
-- Offen: Phase 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+- Phase 6 (2026-11-06): Hintergrunddienst, MCP, Build - `pdf_sortier_meister.spec` baut
+  zusaetzlich `pdfsm-dienst` (Konsole: MCP, Kommandozeile) und unter Windows `pdfsm-dienstw`
+  (ohne Konsole) aus `packaging/pdfsm_dienst.py`, eigene Analyse ohne Qt/sklearn, gemeinsames
+  `_internal`; `src/search/zeitplan.py` (Aufgabenplanung ohne Adminrechte mit Leerlaufbedingung
+  wie bei PDFsuche, macOS-LaunchAgents mit `--nur-leerlauf`, Abgleich nur bei Abweichung),
+  `pdfsm-dienst zeitplan --einrichten|--entfernen|--status`; Einstellungen und Assistent richten
+  den Zeitplan beim Speichern ein; „Im Browser öffnen“ im Reiter Suche; Installer richtet nach
+  der Installation ein und entfernt beim Deinstallieren; `scripts/rauchtest_dienst.py` (Index mit
+  Arbeitsprozessen und OCR, MCP-Handshake, Web, `pdfsm-dienstw`) in `build.bat`, `build.sh` und
+  `release.yml`; lokaler Build und Rauchtest bestanden; 20 neue Tests
+- Offen: Phase 7 (Umstellung beim Entwickler), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;

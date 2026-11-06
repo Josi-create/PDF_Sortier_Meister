@@ -54,6 +54,9 @@ jobs:
       - name: PyInstaller-Build
         run: pyinstaller pdf_sortier_meister.spec --clean --noconfirm
 
+      - name: Rauchtest pdfsm-dienst / pdfsm-dienstw (Index, OCR, MCP, Web)
+        run: python scripts\rauchtest_dienst.py dist\PDF_Sortier_Meister
+
       - name: Installer bauen (Inno Setup)
         run: python scripts\build_installer.py
 

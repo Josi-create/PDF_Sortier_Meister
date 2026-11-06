@@ -122,3 +122,22 @@ def test_uebernahme_sperrt_seite_und_speichert_nicht_doppelt(qtbot, fresh_config
     w.accept()
     s = fresh_config.get_search_config()
     assert s.db_pfad == norm_pfad(str(tmp_path / "alt" / "x.db")) and s.wurzeln == [norm_pfad(str(tmp_path))]
+
+
+def test_fertig_mit_hintergrund_richtet_den_zeitplan_ein(qtbot, fresh_config, zeitplan_speicher):
+    w, page = _zur_suchseite(qtbot)
+    page.enable_check.setChecked(True)
+    assert page.background_check.isChecked()             # Vorschlag: täglich im Hintergrund
+    w.next()
+    w.accept()
+    index = zeitplan_speicher.eintraege["index"]
+    assert index.uhrzeit == "03:00" and index.argumente[-2:] == ("index", "--hintergrund")
+
+
+def test_fertig_ohne_hintergrund_plant_nichts(qtbot, fresh_config, zeitplan_speicher):
+    w, page = _zur_suchseite(qtbot)
+    page.enable_check.setChecked(True)
+    page.background_check.setChecked(False)
+    w.next()
+    w.accept()
+    assert zeitplan_speicher.eintraege == {}

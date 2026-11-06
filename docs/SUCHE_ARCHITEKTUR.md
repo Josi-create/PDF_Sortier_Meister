@@ -790,6 +790,64 @@ eingefrorenen Zustand neben `sys.executable`, in der Entwicklungsumgebung als
   ein `index --pfad` auf einen Testordner mit synthetischen PDFs (prueft
   Pool/spawn im eingefrorenen Zustand), `mcp`-Handshake per `claude mcp get`.
 
+**Umsetzung (Phase 6, 06.11.2026):**
+
+- **Einstieg und Build:** `packaging/pdfsm_dienst.py` ruft `freeze_support()`
+  vor allem anderen auf und dann `src.search.dienst.main`. Die Spec analysiert
+  ihn getrennt von der Oberflaeche, ohne PyQt6, sklearn, scipy und SQLAlchemy.
+  Daraus entstehen `pdfsm-dienst` (Konsole) und unter Windows `pdfsm-dienstw`
+  (ohne Konsole und ohne Traceback-Fenster, das nachts auf einen Klick warten
+  wuerde). Alle Programme liegen in einem `COLLECT` und teilen sich
+  `_internal`. Mitgeliefert werden `src/search/static` (Browser-Oberflaeche)
+  und `src/main.py` (Version fuer `--version`). Versteckte Importe:
+  `anyio._backends._asyncio`, `mcp.server.mcpserver`, `flask`, `waitress`.
+- **Zeitplan** (`src/search/zeitplan.py`): `gewuenscht` leitet die Eintraege aus
+  den Einstellungen ab, `abgleichen` richtet ein und entfernt, aber nur, was
+  abweicht (Programm, Argumente, Uhrzeit, Arbeitsordner, deaktiviert).
+  `entfernen`, `zustand` und `zustand_text` ergaenzen das.
+  - `Aufgabenplanung` (Windows): `schtasks /Create /XML` mit derselben
+    Leerlaufbedingung wie bisher bei PDFsuche: Start erst nach 10 Minuten
+    Leerlauf, Abbruch bei Aktivitaet, Fortsetzung bei erneutem Leerlauf,
+    hoechstens 20 Stunden, Prioritaet 7, `InteractiveToken` mit
+    `LeastPrivilege`, also ohne Adminrechte. Die Web-Oberflaeche bekommt einen
+    Anmelde-Ausloeser fuer den eigenen Nutzer und wird nach dem Einrichten
+    sofort gestartet. Ein leerer Aufgabenordner wird ueber den COM-Dienst
+    entfernt. `schtasks` gibt in der OEM-Codepage aus.
+  - `LaunchAgents` (macOS): plist mit `StartCalendarInterval`,
+    `ProcessType=Background`, `LowPriorityIO` und `--nur-leerlauf`; die
+    Web-Oberflaeche mit `RunAtLoad`; Laden ueber
+    `launchctl bootstrap/bootout gui/<uid>`.
+  - `Speicher` ersetzt das Betriebssystem in Tests. `tests/conftest.py` setzt
+    ihn fuer jeden Test und sperrt `zeitplan._ausfuehren`, damit kein Test eine
+    echte Aufgabe anlegt.
+- **Kommandozeile:** `pdfsm-dienst zeitplan --einrichten | --entfernen |
+  --status`. `--entfernen` liest keine Konfiguration, damit die Deinstallation
+  auch mit kaputter `config.json` aufraeumt.
+- **Oberflaeche:** Einstellungen und Assistent gleichen beim Speichern ab.
+  Ist etwas eingeschaltet, geschieht das bei jedem Speichern und repariert
+  so auch eine geloeschte Aufgabe; sonst nur bei einer Aenderung. Ein Fehler
+  erscheint als Hinweis, die Einstellung bleibt gespeichert. In der
+  Entwicklungsumgebung plant `Suchindex.dienst_kommando(zeitplan=True)`
+  `pythonw.exe -m src.search.dienst` mit dem Projektordner als Arbeitsordner.
+  Der Reiter „Suche“ hat bei eingeschalteter Web-Oberflaeche den Knopf „Im
+  Browser oeffnen“: Er oeffnet die laufende Oberflaeche oder startet sie
+  (`Suchindex.web_starten`). `web_erreichbar` erkennt die eigene Oberflaeche an
+  `/api/status`; antwortet sie nicht, weist der Reiter auf einen belegten Port
+  hin.
+- **Installer und Build:** `installer.iss` ruft nach der Installation
+  `pdfsm-dienstw zeitplan --einrichten` als urspruenglicher Nutzer auf
+  (Abweichung: richtet die Aufgaben nach einer Neuinstallation an anderem Ort
+  wieder ein) und beim Deinstallieren `zeitplan --entfernen`. `build.bat` und
+  `build.sh` installieren bei Bedarf flask, waitress und mcp und fuehren den
+  Rauchtest aus; `release.yml` ebenso unter Windows, macOS ueber `build.sh`.
+- **Rauchtest** (`scripts/rauchtest_dienst.py`, Abweichung vom Entwurf): Er
+  laeuft mit eigener `config.json` im Temp-Ordner; `APPDATA` bzw. `HOME` zeigen
+  dorthin. Geprueft werden `--version`, `status`, ein vollstaendiger Indexlauf
+  mit zwei Arbeitsprozessen und OCR einer Bildseite, `suche` und `lesen`, der
+  MCP-Handshake mit dem MCP-Client aus dem Paket `mcp` statt `claude mcp get`
+  (das setzte eine Registrierung beim Nutzer voraus), die Browser-Oberflaeche,
+  `zeitplan --status` und unter Windows `pdfsm-dienstw`.
+
 ---
 
 ## 7. Speicherort und Migration der Datenbank
@@ -1047,6 +1105,7 @@ Stelle, Bild byte-gleich, Seitengroesse gleich.
 
 ### Phase 6 – Dienst, MCP, Build (Branch `feat/suche-6-dienst-build`)
 
+Umgesetzt, siehe Abschnitt 6 „Umsetzung“.
 `pdfsm-dienst` (alle Plattformen) und `pdfsm-dienstw` (nur Windows) nach
 Abschnitt 6, `zeitplan.py` (Aufgabenplanung ohne Adminrechte, LaunchAgent),
 Einstellungen schalten die Hintergrundindexierung und die Web-Oberflaeche

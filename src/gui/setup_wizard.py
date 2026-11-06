@@ -1241,6 +1241,7 @@ class SetupWizard(QWizard):
             search_cfg = self._search_page.get_search_config()
             if search_cfg is not None:
                 config.set_search_config(search_cfg)
+                self._search_schedule_sync(search_cfg)
 
         # Provider und API-Key bzw. Server-URL speichern
         provider_id = self._provider_page.get_provider_id()
@@ -1283,6 +1284,24 @@ class SetupWizard(QWizard):
                     # darf den Wizard nicht zum Crash bringen. Der User
                     # kann es spaeter unter Einstellungen erneut versuchen.
                     pass
+
+    def _search_schedule_sync(self, search_cfg) -> None:
+        """Hintergrundindexierung gleich einrichten (Aufgabenplanung bzw. LaunchAgent), wenn eingeschaltet."""
+        import subprocess
+
+        from PyQt6.QtWidgets import QMessageBox
+
+        from src.search import zeitplan
+
+        if not zeitplan.etwas_gewuenscht(search_cfg):
+            return
+        try:
+            zeitplan.abgleichen(search_cfg)
+        except (zeitplan.ZeitplanFehler, OSError, subprocess.SubprocessError) as e:
+            QMessageBox.warning(
+                self, "Hintergrundindexierung",
+                "Die Dokumentensuche ist eingerichtet, aber der tägliche Lauf ließ sich nicht planen:\n\n"
+                f"{e}\n\nUnter Einstellungen > Suche lässt er sich erneut speichern.")
 
     @staticmethod
     def _ensure_folder_exists(folder: str) -> None:

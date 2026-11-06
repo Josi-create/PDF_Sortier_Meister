@@ -10,6 +10,7 @@
   pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]
   pdfsm-dienst textebene schaetzen | protokoll [-n 50] | rueckgaengig ID [--erzwingen]
                          | schreiben [--max-minuten N] [--hintergrund]
+  pdfsm-dienst zeitplan --einrichten | --entfernen | --status
   pdfsm-dienst --version
 
 Die Konfiguration kommt aus der ``config.json`` von PDF Sortier Meister (Block
@@ -114,7 +115,36 @@ def parser() -> argparse.ArgumentParser:
     ts = tsub.add_parser("schreiben", help="nur die Textebene schreiben (Stufe aus den Einstellungen)")
     ts.add_argument("--max-minuten", type=float, default=0)
     ts.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
+
+    z = sub.add_parser("zeitplan", help="Hintergrundindexierung und Web-Oberfläche bei Anmeldung "
+                                        "(Aufgabenplanung bzw. LaunchAgent)")
+    za = z.add_mutually_exclusive_group(required=True)
+    za.add_argument("--einrichten", action="store_true",
+                    help="nach den Einstellungen einrichten (Ausgeschaltetes wird entfernt)")
+    za.add_argument("--entfernen", action="store_true", help="alles entfernen (z. B. beim Deinstallieren)")
+    za.add_argument("--status", action="store_true", help="eingerichtete Einträge anzeigen")
     return p
+
+
+def _zeitplan(a) -> int:
+    """``pdfsm-dienst zeitplan ...``; ``--entfernen`` braucht keine (lesbare) Konfiguration."""
+    from src.search import zeitplan
+
+    try:
+        if a.entfernen:
+            for zeile in zeitplan.entfernen() or ["Nichts eingerichtet."]:
+                print(zeile)
+            return 0
+        if a.einrichten:
+            konfig = konfig_modul.lade(a.config)
+            konfig_pfad = a.config if a.config and not str(a.config).lower().endswith(".toml") else None
+            for zeile in zeitplan.abgleichen(konfig, konfig_pfad=konfig_pfad) or ["Bereits wie eingestellt."]:
+                print(zeile)
+        print(zeitplan.zustand_text(zeitplan.zustand()))
+    except zeitplan.ZeitplanFehler as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
 
 
 def _textebene(a, konfig) -> int:
@@ -194,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
     a = parser().parse_args(argv)
     if a.befehl == "migration":
         return _migration(a)
+    if a.befehl == "zeitplan":
+        return _zeitplan(a)
     konfig = konfig_modul.lade(a.config)
 
     if a.befehl == "index":
