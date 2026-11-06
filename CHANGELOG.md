@@ -8,6 +8,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Tiefe Zielordner liessen sich nicht aufklappen**: Der Zielordner-Baum
+  liest nur drei Ebenen unter jedem Zielordner ein. Ordner auf der dritten
+  Ebene zeigten deshalb keinen Pfeil, auch wenn sie Unterordner hatten.
+  Jetzt bekommen sie den Pfeil, und die Unterordner werden beim ersten
+  Aufklappen nachgeladen, samt PDF-Zaehler. Das gilt auch, wenn eine PDF beim
+  Ziehen ueber dem Ordner verweilt.
 - **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
   erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
   aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
