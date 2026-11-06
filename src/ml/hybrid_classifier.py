@@ -496,6 +496,27 @@ class HybridClassifier:
             return []
         return [e.new_filename for e in entries if e.new_filename]
 
+    def _similar_documents_info(
+        self, text: str, keywords, detected_date: str | None, file_date: str | None,
+    ) -> str:
+        """Prompt-Abschnitt: wo liegen aehnliche, bereits einsortierte Dokumente?
+
+        Aus Sortierhistorie und Suchindex; mit Jahres-Hinweis, damit eine
+        Rechnung von 2026 nicht wegen eines Zwillings in "Steuer 2024" landet.
+        """
+        try:
+            from src.core.similar_documents import (
+                describe_similar_for_prompt, document_year, find_similar_documents,
+            )
+            roots = get_config().get_target_folders()
+            if not roots:
+                return ""
+            similar = find_similar_documents(text, keywords, roots, db=get_database(), limit=5)
+            return describe_similar_for_prompt(similar, document_year(detected_date, file_date), roots)
+        except Exception as e:  # noqa: BLE001 - Kontext ist optional
+            logger.debug(f"Aehnliche Dokumente nicht verfuegbar: {e}")
+            return ""
+
     def _get_llm_filename_suggestion(
         self,
         text: str,
@@ -520,6 +541,7 @@ class HybridClassifier:
             file_date=file_date,
             examples=self._rename_examples(text, keywords),
             source_folder=source_folder,
+            similar_info=self._similar_documents_info(text, keywords, detected_date, file_date),
         )
 
         self.total_tokens_used += response.tokens_used
