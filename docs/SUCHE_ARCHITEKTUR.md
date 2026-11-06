@@ -1135,7 +1135,8 @@ Zeitplan mit `pdfsm-dienst zeitplan --einrichten`, Testlauf
 `index --nur-prioritaet` (arbeitet die uebernommene OCR-Warteschlange ab), MCP
 mit `claude mcp remove/add` umgestellt, je eine Suche ueber MCP, Reiter
 „Suche“ und Browser-Oberflaeche (gleiche Trefferzahl), Textebene „nur neue
-Scans“ eingeschaltet. Dabei gefunden und behoben:
+Scans“ eingeschaltet. Nach Bestaetigung: alte Aufgaben geloescht (XML
+gesichert), Repository PDFsuche archiviert. Dabei gefunden und behoben:
 
 - `migration.uebernehmen` setzte `meta.migriert_von`, ergaenzte das Schema aber
   erst beim ersten Schreiben ueber `Suchindex` auf Version 2. Jetzt geschieht
@@ -1150,6 +1151,16 @@ Scans“ eingeschaltet. Dabei gefunden und behoben:
   des Docstrings (erst ab 3.13 entfernt der Compiler sie). `mcp_server._werkzeug`
   bereinigt sie mit `inspect.cleandoc`; Namen und Beschreibungen entsprechen
   jetzt PDFsuche, ergaenzt um die Metadatenfilter von `suche`.
+- Im Arbeitsstand von PDFsuche lag eine nicht eingecheckte Verbesserung, die beim
+  Kopieren in Phase 1 fehlte: Die Browser-Oberflaeche laeuft als
+  Hintergrundaufgabe, deshalb duerfen Programme, die sie oeffnet (Excel, Word,
+  Mailprogramm, Explorer), ihr Fenster nicht selbst nach vorn bringen.
+  `src/search/fenster.py` sucht das neue Fenster am Titel (beim Explorer am
+  Ordnernamen und der Fensterklasse) und aktiviert es mit `AttachThreadInput`;
+  `web.py` nutzt `fenster.starte` und `fenster.ordner_zeigen`. Die
+  Win32-Schnittstelle wird erst beim ersten Gebrauch geladen, unter macOS und
+  Linux ist das Modul ohne Wirkung; `tests/conftest.py` schaltet es fuer alle
+  Tests ab.
 - Hinweis fuer Installationen: Inno Setup uebernimmt das Verzeichnis einer
   frueheren Installation aus der Registrierung, auch wenn der Ordner nicht mehr
   existiert. Wer an einen festen Ort installieren will, gibt `/DIR=` an.

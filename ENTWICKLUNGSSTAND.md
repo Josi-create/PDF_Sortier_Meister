@@ -88,8 +88,9 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   Aufgaben eingerichtet, MCP umgestellt, Suche ueber MCP, Reiter und Web geprueft; dabei behoben:
   `migration.uebernehmen` ergaenzt gleich auf Version 2 und nimmt die PDFSM-Metadaten aus dem
   bisherigen Index mit (`metadaten_mitnehmen`), MCP-Beschreibungen ohne Docstring-Einrueckung
-  (`mcp_server._werkzeug`); 3 neue Tests
-- Offen: Loeschen der alten Aufgaben und Archivieren von PDFsuche (nach Bestaetigung), Phase 8 (Doku, Release)
+  (`mcp_server._werkzeug`), Programme aus der Browser-Oberflaeche kommen nach vorn (`src/search/fenster.py`,
+  aus dem Arbeitsstand von PDFsuche); alte Aufgaben geloescht, Repository PDFsuche archiviert; 12 neue Tests
+- Offen: Phase 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;

@@ -81,6 +81,14 @@ def _index_meldungen_aus():
 
 
 @pytest.fixture(autouse=True)
+def fenster_aus(monkeypatch):
+    """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
+    from src.search import fenster
+
+    monkeypatch.setattr(fenster, "AKTIV", False)
+
+
+@pytest.fixture(autouse=True)
 def zeitplan_speicher(monkeypatch):
     """Kein Test richtet echte Aufgaben ein (Windows-Aufgabenplanung, macOS-LaunchAgent).
 

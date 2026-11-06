@@ -13,6 +13,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
   Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
   Stand gebracht.
+- **Browser-Oberfläche der Suche**: Öffnet man dort ein Dokument oder seinen
+  Ordner, erscheint das Programm (Excel, Word, Mailprogramm, Explorer) jetzt
+  im Vordergrund statt hinter dem Browser (Windows).
 - **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
   `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
 - **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
