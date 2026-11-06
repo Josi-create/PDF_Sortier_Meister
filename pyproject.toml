@@ -38,12 +38,22 @@ dependencies = [
     "python-dateutil>=2.8.0",
     "watchdog>=3.0.0",
     "numpy>=1.24.0",
+    # Dokumentensuche (src/search): Outlook-Mails, Word 97-2003, Excel 97-2003, MCP-Server
+    "extract-msg>=0.50.0",
+    "olefile>=0.46",
+    "xlrd>=2.0.0",
+    "mcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
 llm = [
     "anthropic>=0.18.0",
     "openai>=1.12.0",
+]
+# Browser-Oberflaeche der Dokumentensuche (Einstellungen -> Suche, standardmaessig aus)
+suche-web = [
+    "flask>=3.0.0",
+    "waitress>=3.0.0",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -53,9 +63,11 @@ dev = [
     "ruff>=0.1.0",
     # Build-Zeit-Abhaengigkeit von scripts/prepare_tesseract.py (DLL-Analyse)
     "pefile>=2023.2.7; sys_platform == 'win32'",
+    # erzeugt .xls-Testdateien fuer die Dokumentensuche
+    "xlwt>=1.3.0",
 ]
 all = [
-    "pdf-sortier-meister[llm,dev]",
+    "pdf-sortier-meister[llm,dev,suche-web]",
 ]
 
 [project.urls]
@@ -66,12 +78,16 @@ Issues = "https://github.com/Josi-create/PDF_Sortier_Meister/issues"
 [project.gui-scripts]
 pdf-sortier-meister = "src.main:main"
 
+[project.scripts]
+# Hintergrunddienst der Dokumentensuche: Indexierung, MCP-Server, Web, Kommandozeile
+pdfsm-dienst = "src.search.dienst:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.png", "*.ico", "*.json"]
+"*" = ["*.png", "*.ico", "*.json", "*.html"]
 
 [tool.black]
 line-length = 100

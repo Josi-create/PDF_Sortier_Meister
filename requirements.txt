@@ -21,6 +21,16 @@ SQLAlchemy>=2.0.0
 python-dateutil>=2.8.0
 watchdog>=3.0.0
 
+# Dokumentensuche (src/search): Outlook-Mails (.msg), Word/Excel 97-2003, MCP-Server
+extract-msg>=0.50.0
+olefile>=0.46
+xlrd>=2.0.0
+mcp>=2.0.0
+
+# Browser-Oberflaeche der Dokumentensuche (optional, standardmaessig aus)
+flask>=3.0.0
+waitress>=3.0.0
+
 # LLM Integration (optional - für KI-gestützte Klassifikation)
 # Installieren mit: pip install anthropic openai
 # anthropic>=0.18.0

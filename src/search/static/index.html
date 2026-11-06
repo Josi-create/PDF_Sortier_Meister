@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Sortier Meister – Suche</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ccircle cx='14' cy='14' r='6.5' fill='none' stroke='white' stroke-width='3'/%3E%3Cpath d='M19 19l6 6' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f6f7f9; --flaeche:#fff; --rand:#e3e6eb; --text:#1b1f24; --leise:#5f6873; --akzent:#2563eb;
+  --akzent-weich:#e8effd; --mark:#fff1a8; --mark-text:#1b1f24; --ok:#15803d; --warn:#b45309; --fehler:#b91c1c;
+  --schatten:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#111418; --flaeche:#1a1e24; --rand:#2c323a; --text:#e6e9ed; --leise:#99a3ae; --akzent:#6b9cff;
+  --akzent-weich:#1e2a44; --mark:#6b5a12; --mark-text:#fff7cc; --ok:#4ade80; --warn:#fbbf24; --fehler:#f87171;
+  --schatten:none;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--akzent);text-decoration:none} a:hover{text-decoration:underline}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rand)}
+.kopf{max-width:1100px;margin:0 auto;padding:14px 16px 10px}
+.zeile1{display:flex;align-items:center;gap:14px}
+.logo{font-weight:700;font-size:18px;letter-spacing:-.01em;white-space:nowrap;cursor:pointer}
+.logo span{color:var(--akzent)}
+.suchfeld{flex:1;display:flex;background:var(--flaeche);border:1px solid var(--rand);border-radius:10px;overflow:hidden;box-shadow:var(--schatten)}
+.suchfeld:focus-within{border-color:var(--akzent)}
+.suchfeld input{flex:1;border:0;background:transparent;padding:10px 14px;font-size:16px;outline:none;min-width:0}
+.suchfeld button{border:0;background:var(--akzent);color:#fff;padding:0 18px;cursor:pointer;font-weight:600}
+.reiter{display:flex;gap:4px}
+.reiter button{border:1px solid transparent;background:none;padding:6px 10px;border-radius:8px;cursor:pointer;color:var(--leise)}
+.reiter button.aktiv{background:var(--flaeche);border-color:var(--rand);color:var(--text)}
+.filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:14px}
+.chips{display:flex;gap:4px}
+.chip{border:1px solid var(--rand);background:var(--flaeche);border-radius:999px;padding:3px 12px;cursor:pointer}
+.chip.aktiv{background:var(--akzent-weich);border-color:var(--akzent);color:var(--akzent);font-weight:600}
+.filter input,.filter select{border:1px solid var(--rand);background:var(--flaeche);border-radius:8px;padding:4px 8px}
+.filter label{color:var(--leise);display:flex;align-items:center;gap:6px}
+.filter .ordner{width:200px}
+main{max-width:1100px;margin:0 auto;padding:14px 16px 60px}
+.info{color:var(--leise);font-size:13px;margin:4px 0 12px}
+.karte{background:var(--flaeche);border:1px solid var(--rand);border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--schatten)}
+.k-kopf{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.typ{font-size:11px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:var(--akzent-weich);color:var(--akzent)}
+.typ.mail{background:#e8f6ee;color:#166534} .typ.md{background:#f3e8fd;color:#7e22ce} .typ.office{background:#fdf0e6;color:#9a3412}
+@media (prefers-color-scheme: dark){.typ.mail{background:#14321f;color:#86efac}.typ.md{background:#2e1a45;color:#d8b4fe}.typ.office{background:#3a2210;color:#fdba74}}
+.titel{font-weight:600;font-size:16px;word-break:break-word}
+.meta{color:var(--leise);font-size:13px}
+.pfad{color:var(--leise);font-size:12.5px;font-family:Consolas,monospace;word-break:break-all;margin-top:2px}
+.stelle{margin-top:6px;font-size:14px;line-height:1.55}
+.stelle .s{display:inline-block;min-width:44px;color:var(--akzent);font-size:12px;font-weight:600}
+mark{background:var(--mark);color:var(--mark-text);border-radius:3px;padding:0 1px}
+.aktionen{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.knopf{border:1px solid var(--rand);background:var(--flaeche);border-radius:8px;padding:3px 10px;font-size:13px;cursor:pointer}
+.knopf:hover{border-color:var(--akzent);color:var(--akzent)}
+.marke{font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid var(--rand);color:var(--leise)}
+.marke.warn{color:var(--warn);border-color:currentColor} .marke.fehler{color:var(--fehler);border-color:currentColor}
+.leer{color:var(--leise);text-align:center;padding:50px 0}
+.hilfe{background:var(--flaeche);border:1px solid var(--rand);border-radius:12px;padding:16px 20px;font-size:14px}
+.hilfe code{background:var(--bg);padding:1px 5px;border-radius:4px}
+.mehr{display:block;margin:14px auto;padding:8px 18px}
+/* Vorschau */
+#vorschau{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:20}
+#vorschau.offen{display:flex;justify-content:flex-end}
+.panel{background:var(--flaeche);width:min(820px,100%);height:100%;display:flex;flex-direction:column;border-left:1px solid var(--rand)}
+.panel-kopf{padding:14px 18px;border-bottom:1px solid var(--rand)}
+.panel-inhalt{overflow:auto;padding:6px 18px 40px;flex:1}
+.seite{border-top:1px dashed var(--rand);padding-top:8px;margin-top:12px}
+.seite h4{margin:0 0 4px;font-size:12px;color:var(--leise);font-weight:600}
+.seite pre{white-space:pre-wrap;word-break:break-word;font:13.5px/1.55 "Segoe UI",system-ui,sans-serif;margin:0}
+.schliessen{float:right}
+/* Status */
+.kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.kachel{background:var(--flaeche);border:1px solid var(--rand);border-radius:12px;padding:12px 14px}
+.kachel b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
+.kachel span{color:var(--leise);font-size:13px}
+table{width:100%;border-collapse:collapse;background:var(--flaeche);border:1px solid var(--rand);border-radius:12px;overflow:hidden;font-size:13.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rand);vertical-align:top}
+th{color:var(--leise);font-weight:600;background:var(--bg)}
+.laeuft{color:var(--ok);font-weight:600}
+@media (max-width:640px){.zeile1{flex-wrap:wrap}.suchfeld{order:3;flex-basis:100%}.filter .ordner{width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="kopf">
+    <div class="zeile1">
+      <div class="logo" onclick="zeige('suche')">PDF Sortier Meister <span>Suche</span></div>
+      <form class="suchfeld" id="form">
+        <input id="q" type="search" placeholder="Suchen in PDFs, Office-Dateien, Notizen und Mails …" autocomplete="off" autofocus>
+        <button type="submit">Suchen</button>
+      </form>
+      <nav class="reiter">
+        <button id="r-suche" class="aktiv" onclick="zeige('suche')">Suche</button>
+        <button id="r-status" onclick="zeige('status')">Status</button>
+      </nav>
+    </div>
+    <div class="filter" id="filter">
+      <div class="chips" id="typen">
+        <button class="chip aktiv" data-typ="">Alle</button>
+        <button class="chip" data-typ="pdf">PDF</button>
+        <button class="chip" data-typ="office">Office</button>
+        <button class="chip" data-typ="md">Markdown</button>
+        <button class="chip" data-typ="mail">Mail</button>
+      </div>
+      <label>Ordner <input class="ordner" id="ordner" placeholder="z. B. Steuer"></label>
+      <label>von <input type="date" id="von"></label>
+      <label>bis <input type="date" id="bis"></label>
+      <label>Sortierung
+        <select id="sort"><option value="relevanz">Relevanz</option><option value="neu">Neueste zuerst</option><option value="alt">Älteste zuerst</option></select>
+      </label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="v-suche">
+    <div class="info" id="info"></div>
+    <div id="liste"></div>
+  </section>
+  <section id="v-status" hidden></section>
+</main>
+
+<div id="vorschau" onclick="if(event.target===this)schliessen()">
+  <div class="panel">
+    <div class="panel-kopf" id="v-kopf"></div>
+    <div class="panel-inhalt" id="v-inhalt"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const zustand = {typ:"", start:0, treffer:[]};
+const SEITE = 50;
+
+function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function marken(s){return esc(s).replace(/\x02/g,"<mark>").replace(/\x03/g,"</mark>")}
+const TABELLE = d => ["xlsx","xlsm","xls"].includes(d.format);
+function datum(ts){ if(!ts) return ""; const d=new Date(ts*1000); return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}) }
+function groesse(b){ if(b==null) return ""; if(b<1024) return b+" B"; if(b<1048576) return (b/1024).toFixed(0)+" KB"; if(b<1073741824) return (b/1048576).toFixed(1)+" MB"; return (b/1073741824).toFixed(2)+" GB" }
+const STATUS = {ocr_ausstehend:["OCR ausstehend","warn"], ocr_teilweise:["OCR teilweise","warn"], fehler:["Fehler","fehler"],
+  cloud:["nur in der Cloud","warn"], zu_gross:["zu groß","warn"], verschluesselt:["verschlüsselt","warn"], leer:["ohne Text","warn"]};
+
+async function post(url){ const r = await fetch(url,{method:"POST",headers:{"X-PDFsuche":"1"}}); const j = await r.json().catch(()=>({})); if(!r.ok||j.ok===false) alert(j.fehler||"Fehler"); return j }
+
+function parameter(){
+  return new URLSearchParams(Object.fromEntries(Object.entries({
+    q:$("#q").value.trim(), typ:zustand.typ, ordner:$("#ordner").value.trim(), von:$("#von").value, bis:$("#bis").value, sort:$("#sort").value
+  }).filter(([k,v])=>v && !(k==="sort"&&v==="relevanz"))));
+}
+
+async function suche(anhaengen=false){
+  const p = parameter();
+  if(!anhaengen){ zustand.start=0; history.replaceState(null,"","?"+p.toString()); }
+  if(!p.get("q")){ hilfe(); return; }
+  p.set("start", zustand.start); p.set("anzahl", SEITE);
+  $("#info").textContent = "Suche …";
+  const r = await fetch("/api/suche?"+p);
+  const j = await r.json();
+  if(!r.ok){ $("#info").textContent = j.fehler || "Fehler"; return; }
+  zustand.treffer = anhaengen ? zustand.treffer.concat(j.treffer) : j.treffer;
+  $("#info").textContent = j.gesamt ? `${j.gesamt.toLocaleString("de-DE")}${j.mehr?"+":""} Dokumente · ${j.dauer_ms} ms` : "";
+  zeichne(j);
+}
+
+function karte(d){
+  const st = STATUS[d.textstatus];
+  const titel = d.typ==="mail" ? (d.mail_betreff||d.name) : d.name;
+  const mehrSeiten = d.treffer_seiten > d.stellen.length ? `<div class="meta">… insgesamt ${d.treffer_seiten} Seiten mit Treffern</div>` : "";
+  const meta = d.typ==="mail"
+    ? `${esc(datum(d.datum))} · Von: ${esc(d.mail_von)}${d.mail_anhaenge?` · 📎 ${esc(d.mail_anhaenge)}`:""}`
+    : [datum(d.datum), d.seiten?d.seiten+(TABELLE(d)?(d.seiten>1?" Blätter":" Blatt"):" S."):"", groesse(d.groesse), d.ocr_seiten?d.ocr_seiten+" S. per OCR":""].filter(Boolean).map(esc).join(" · ");
+  const stellen = d.stellen.map(s=>{
+    const lbl = d.typ==="pdf" ? `<a class="s" href="/datei/${d.id}#page=${s.seite}" target="_blank">S. ${s.seite}</a>`
+              : TABELLE(d) ? `<span class="s">Blatt ${s.seite}</span>` : "";
+    return `<div class="stelle">${lbl}${marken(s.text.replace(/\s+/g," "))}</div>`}).join("");
+  const oeffnenLink = d.typ==="mail" ? `href="#" onclick="vorschau(${d.id});return false"`
+                    : d.typ==="office" ? `href="#" onclick="post('/api/oeffnen/${d.id}');return false"`
+                    : `href="/datei/${d.id}" target="_blank"`;
+  const typName = d.typ==="office" ? d.format.toUpperCase() : d.typ.toUpperCase();
+  return `<article class="karte">
+    <div class="k-kopf"><span class="typ ${d.typ}">${esc(typName)}</span>
+      <a class="titel" ${oeffnenLink}>${esc(titel)}</a>
+      ${st?`<span class="marke ${st[1]}">${st[0]}</span>`:""}${d.im_namen?`<span class="marke">Treffer im Namen</span>`:""}</div>
+    <div class="meta">${meta}</div>
+    <div class="pfad">${esc(d.typ==="mail"?d.ordner:d.pfad)}</div>
+    ${stellen}${mehrSeiten}
+    <div class="aktionen">
+      <button class="knopf" onclick="vorschau(${d.id})">Text ansehen</button>
+      <button class="knopf" onclick="post('/api/oeffnen/${d.id}')">Mit Programm öffnen</button>
+      ${d.format!=="mbox"?`<button class="knopf" onclick="post('/api/ordner/${d.id}')">Im Ordner zeigen</button>`:""}
+      ${d.format!=="mbox"?`<button class="knopf" onclick="kopiere(${JSON.stringify(d.pfad).replace(/"/g,'&quot;')})">Pfad kopieren</button>`:`<a class="knopf" href="/datei/${d.id}">.eml laden</a>`}
+    </div></article>`;
+}
+
+function zeichne(j){
+  const l = $("#liste");
+  if(!zustand.treffer.length){ l.innerHTML = `<div class="leer">Keine Treffer.<br><small>Abfrage: ${esc(j.abfrage)}</small></div>`; return; }
+  l.innerHTML = zustand.treffer.map(karte).join("") +
+    (zustand.treffer.length < j.gesamt ? `<button class="knopf mehr" onclick="zustand.start+=${SEITE};suche(true)">Weitere Treffer laden</button>` : "");
+}
+
+function kopiere(t){ navigator.clipboard.writeText(t) }
+
+async function vorschau(id){
+  const q = $("#q").value.trim();
+  const j = await (await fetch(`/api/dokument/${id}?q=${encodeURIComponent(q)}`)).json();
+  const d = j.dokument;
+  $("#v-kopf").innerHTML = `<button class="knopf schliessen" onclick="schliessen()">Schließen ✕</button>
+    <div class="titel">${esc(d.name)}</div>
+    <div class="pfad">${esc(d.pfad)}</div>
+    ${d.typ==="mail"?`<div class="meta">Von: ${esc(d.mail_von)}<br>An: ${esc(d.mail_an)}<br>Datum: ${esc(d.mail_datum||"")}</div>`:
+      `<div class="meta">${esc(datum(d.datum))} · ${d.seiten||1} Seite(n) · Status: ${esc(d.textstatus)}</div>`}
+    <div class="aktionen">${d.typ!=="mail"?`<a class="knopf" href="/datei/${id}" target="_blank">Original im Browser</a>`:""}
+      <button class="knopf" onclick="post('/api/oeffnen/${id}')">Mit Programm öffnen</button>
+      ${j.seiten.some(s=>s.treffer)?`<button class="knopf" onclick="document.querySelector('.panel-inhalt mark')?.scrollIntoView({block:'center'})">Zum ersten Treffer</button>`:""}</div>`;
+  $("#v-inhalt").innerHTML = j.seiten.length ? j.seiten.map(s=>`<div class="seite">
+    ${d.typ==="pdf"?`<h4><a href="/datei/${id}#page=${s.seite}" target="_blank">Seite ${s.seite}</a>${s.quelle==="ocr"?" · OCR":s.quelle!=="text"?" · "+esc(s.quelle):""}</h4>`:
+      TABELLE(d)?`<h4>Blatt ${s.seite}</h4>`:""}
+    <pre>${marken(s.text)||"<i>(kein Text)</i>"}</pre></div>`).join("") : `<p class="leer">Kein Text vorhanden.</p>`;
+  $("#vorschau").classList.add("offen");
+  $("#v-inhalt").scrollTop = 0;
+  setTimeout(()=>document.querySelector(".panel-inhalt mark")?.scrollIntoView({block:"center"}), 50);
+}
+function schliessen(){ $("#vorschau").classList.remove("offen") }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") schliessen() });
+
+function hilfe(){
+  $("#info").textContent = "";
+  $("#liste").innerHTML = `<div class="hilfe"><b>So wird gesucht</b>
+  <ul>
+    <li>Mehrere Wörter: alle müssen vorkommen – <code>Rechnung Telekom</code></li>
+    <li>Genaue Wortfolge: <code>"Betrag in Höhe von"</code></li>
+    <li>Oder / Nicht: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li>
+    <li>Wortanfang: <code>Rechnung*</code> findet Rechnungen, Rechnungsnummer …</li>
+    <li>Nähe: <code>NEAR(Kündigung Frist, 10)</code> – beide Wörter höchstens 10 Wörter auseinander</li>
+    <li>Umlaute sind egal: <code>Muller</code> findet auch <code>Müller</code></li>
+    <li>Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht.</li>
+  </ul></div>`;
+}
+
+async function status(){
+  const s = await (await fetch("/api/status")).json();
+  const n = x => (x||0).toLocaleString("de-DE");
+  const st = s.pro_status||{};
+  const zeilen = (s.laeufe||[]).map(l=>`<tr><td>${esc((l.beginn||"").replace("T"," "))}</td><td>${esc((l.ende||"").replace("T"," "))}</td>
+    <td>${l.status==="laeuft"?'<span class="laeuft">läuft</span>':esc(l.status)}</td><td>${esc(l.phase||"")}</td>
+    <td>${esc(Object.entries(l.statistik||{}).map(([k,v])=>k+": "+v).join(", "))}</td></tr>`).join("");
+  $("#v-status").innerHTML = `
+    <div class="kacheln">
+      <div class="kachel"><b>${n(s.dokumente)}</b><span>Dokumente</span></div>
+      <div class="kachel"><b>${n(s.pro_typ?.pdf)}</b><span>PDFs</span></div>
+      <div class="kachel"><b>${n(s.pro_typ?.mail)}</b><span>Mails</span></div>
+      <div class="kachel"><b>${n(s.pro_typ?.md)}</b><span>Markdown</span></div>
+      <div class="kachel"><b>${n(s.seiten)}</b><span>Seiten im Index</span></div>
+      <div class="kachel"><b>${n(s.ocr_seiten)}</b><span>Seiten per OCR erkannt</span></div>
+      <div class="kachel"><b>${n(s.ocr_ausstehend_seiten)}</b><span>Seiten warten auf OCR</span></div>
+      <div class="kachel"><b>${groesse(s.db_groesse)}</b><span>Datenbank</span></div>
+    </div>
+    <p>Indexierung: ${s.laeuft?'<span class="laeuft">läuft gerade</span>':"ruht"} — ${esc(s.fortschritt||"")}</p>
+    <div class="aktionen" style="margin-bottom:14px">
+      <button class="knopf" onclick="post('/api/index-starten?nur_prioritaet=1').then(()=>setTimeout(status,1500))">Jetzt neue Scans einlesen</button>
+      <button class="knopf" onclick="post('/api/index-starten').then(()=>setTimeout(status,1500))">Kompletten Lauf starten</button>
+    </div>
+    <p class="meta">Textstatus: ${Object.entries(st).map(([k,v])=>esc(k)+": "+n(v)).join(" · ")}</p>
+    <h3>Letzte Läufe</h3>
+    <table><tr><th>Beginn</th><th>Ende</th><th>Status</th><th>Phase</th><th>Statistik</th></tr>${zeilen}</table>`;
+}
+
+let statusTimer;
+function zeige(v){
+  $("#v-suche").hidden = v!=="suche"; $("#v-status").hidden = v!=="status";
+  $("#filter").style.display = v==="suche" ? "" : "none";
+  $("#r-suche").classList.toggle("aktiv", v==="suche"); $("#r-status").classList.toggle("aktiv", v==="status");
+  clearInterval(statusTimer);
+  if(v==="status"){ status(); statusTimer = setInterval(status, 5000); }
+}
+
+$("#form").addEventListener("submit", e=>{ e.preventDefault(); zeige("suche"); suche(); });
+$("#typen").addEventListener("click", e=>{
+  const b = e.target.closest(".chip"); if(!b) return;
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("aktiv", c===b));
+  zustand.typ = b.dataset.typ; suche();
+});
+["#ordner","#von","#bis","#sort"].forEach(s=>$(s).addEventListener("change", ()=>suche()));
+
+// Zustand aus der Adresse wiederherstellen
+const start = new URLSearchParams(location.search);
+$("#q").value = start.get("q")||""; $("#ordner").value = start.get("ordner")||"";
+$("#von").value = start.get("von")||""; $("#bis").value = start.get("bis")||""; $("#sort").value = start.get("sort")||"relevanz";
+if(start.get("typ")){ zustand.typ = start.get("typ"); document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("aktiv", c.dataset.typ===zustand.typ)); }
+suche();
+</script>
+</body>
+</html>

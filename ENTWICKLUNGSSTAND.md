@@ -6,6 +6,20 @@
 > **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
 
 ---
+### Dokumentensuche - Integration von PDFsuche (in Arbeit, Phasen 0 bis 8)
+Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
+- Phase 0 (2026-11-05): Analyse beider Codebasen und Architekturentwurf (PR #136)
+- Phase 1 (2026-11-06): Modul `src/search/` (Qt-frei) aus PDFsuche uebernommen
+  (`konfig`, `db`, `extract`, `office`, `mbox`, `indexer`, `suchindex`, `ausgabe`,
+  `dienst`, `mcp_server`, `web`), Importe auf `src.search`, Python 3.11,
+  Windows-Importe hinter Funktionen, `find_tesseract()` Qt-frei in
+  `src/utils/tesseract.py`, `SearchConfig` im Block `"suche"` der `config.json`,
+  Abhaengigkeiten extract-msg/olefile/xlrd/mcp (Extra `suche-web`: flask, waitress),
+  77 Tests mit synthetischen Dateien (eigener OLE2-Container fuer Word 97)
+- Offen: Phase 1b (bekannte Schwaechen), 2 (Plattformschicht macOS), 3 (Einrichtung,
+  Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
+  Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;
   Doppelklick im Zielordner-Baum verschiebt nicht mehr vorher die PDF
