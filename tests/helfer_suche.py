@@ -28,6 +28,8 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("mails_aktiv", False)
     # Sicherungskopien der Textebene nie ins echte Datenverzeichnis
     kw.setdefault("textebene_sicherung_ordner", str(tmp_path / "textebene_sicherung"))
+    # Indextests schreiben keine Textebene, solange sie es nicht ausdruecklich wollen (Standard ist "neue_scans")
+    kw.setdefault("textebene", "aus")
     return SearchConfig(**kw)
 
 
@@ -393,6 +395,25 @@ def mbox(pfad: Path, mails: list[bytes]) -> Path:
 
 
 # --------------------------------------------------------------------------- PDFsuche-Projektordner (Uebernahme)
+
+def v1_datenbank(pfad) -> int:
+    """Datenbank im Stand von PDFsuche (Version 1) mit einem OCR-Dokument anlegen; liefert dessen id."""
+    from src.search import db
+
+    con = db.verbinde(pfad)
+    con.executescript(db.SCHEMA)
+    con.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', '1')")
+    cur = con.execute(
+        "INSERT INTO dokumente (pfad, datei, name, ordner, typ, format, groesse, mtime_ns, datum, seiten, "
+        "textstatus, ocr_seiten, prioritaet, indiziert_am) VALUES (?, ?, ?, ?, 'pdf', 'pdf', 10, 1, 1.0, 1, "
+        "'ocr', 1, 9, '2026-01-01T00:00:00')",
+        (os.path.join("alt", "a.pdf"), os.path.join("alt", "a.pdf"), "a.pdf", "alt"))
+    dok_id = cur.lastrowid
+    con.execute("INSERT INTO seiten (dok_id, seite, quelle, text) VALUES (?, 1, 'ocr', 'Alter OCR-Text')", (dok_id,))
+    con.commit()
+    con.close()
+    return dok_id
+
 
 def pdfsuche_projekt(tmp_path: Path) -> Path:
     """Synthetischer Projektordner des frueheren Programms PDFsuche: config.toml + data/pdfsuche.db mit zwei Dokumenten."""

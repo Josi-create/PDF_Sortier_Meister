@@ -15,11 +15,10 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from src.search import mbox
+from src.search import fenster, mbox
 from src.search.konfig import SearchConfig
 from src.search.plattform import im_dateimanager_zeigen as _im_dateimanager_zeigen
 from src.search.suchindex import Suchindex
-from src.utils.platform_paths import open_with_default_app
 
 STATIC = Path(__file__).parent / "static"
 ERLAUBTE_HOSTS = {"127.0.0.1", "localhost"}
@@ -100,10 +99,12 @@ def erstelle_app(konfig: SearchConfig):
     @app.post("/api/oeffnen/<int:dok_id>")
     def oeffnen(dok_id):
         d = _dok_oder_404(dok_id)
+        # Die Oberflaeche laeuft als Hintergrundaufgabe: das geoeffnete Programm nach vorn holen (fenster.py)
         if d["format"] == "mbox":
-            open_with_default_app(idx.mail_als_eml(d))
+            eml = idx.mail_als_eml(d)
+            fenster.starte(eml, [Path(eml).name, d["name"]])
         elif os.path.exists(d["datei"]):
-            open_with_default_app(d["datei"])
+            fenster.starte(d["datei"])
         else:
             return jsonify({"ok": False, "fehler": "Datei existiert nicht mehr"}), 404
         return jsonify({"ok": True})
@@ -113,7 +114,7 @@ def erstelle_app(konfig: SearchConfig):
         d = _dok_oder_404(dok_id)
         if not os.path.exists(d["datei"]):
             return jsonify({"ok": False, "fehler": "Datei existiert nicht mehr"}), 404
-        _im_dateimanager_zeigen(d["datei"])
+        fenster.ordner_zeigen(d["datei"], _im_dateimanager_zeigen)
         return jsonify({"ok": True})
 
     @app.post("/api/index-starten")

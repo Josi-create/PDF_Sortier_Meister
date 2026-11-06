@@ -110,8 +110,11 @@ def gewuenscht(konfig: SearchConfig, kommando: list[str] | None = None, konfig_p
         vorne += ["--config", str(konfig_pfad)]
     erg: dict[str, Eintrag | None] = {"index": None, "web": None}
     if konfig.aktiv and konfig.hintergrund_aktiv:
-        hinten = ["index", "--hintergrund"] + (["--nur-leerlauf"] if leerlauf_selbst else [])
-        erg["index"] = Eintrag("index", programm, tuple(vorne + hinten), konfig.hintergrund_uhrzeit or "03:00",
+        # macOS: der LaunchAgent startet auch bei der Anmeldung (ein ausgeschalteter Mac holt den
+        # Kalendertermin nicht nach); der Lauf wartet selbst auf Leerlauf und tut nichts, wenn heute
+        # schon ein vollstaendiger Lauf fertig wurde.
+        hinten = ["index", "--hintergrund"] + (["--nur-leerlauf", "--einmal-taeglich"] if leerlauf_selbst else [])
+        erg["index"] = Eintrag("index", programm, tuple(vorne + hinten), konfig.hintergrund_uhrzeit or "00:00",
                                arbeitsordner)
     if konfig.aktiv and konfig.web_aktiv and konfig.web_bei_anmeldung:
         erg["web"] = Eintrag("web", programm, tuple(vorne + ["web", "--nicht-oeffnen"]), None, arbeitsordner)
@@ -302,8 +305,7 @@ def launchagent(e: Eintrag, label: str) -> dict:
         stunde, minute = (int(t) for t in e.uhrzeit.split(":"))
         p.update({"StartCalendarInterval": {"Hour": stunde, "Minute": minute},
                   "ProcessType": "Background", "LowPriorityIO": True, "Nice": 10})
-    else:
-        p["RunAtLoad"] = True
+    p["RunAtLoad"] = True        # Indexierung: auch nach dem Einschalten (wartet selbst auf Leerlauf)
     return p
 
 
@@ -326,7 +328,7 @@ class LaunchAgents:
 
     def merkmale(self, e: Eintrag) -> dict:
         return {"argumente": [e.programm, *e.argumente], "arbeitsordner": e.arbeitsordner or "",
-                "uhrzeit": e.uhrzeit, "anmeldung": e.uhrzeit is None}
+                "uhrzeit": e.uhrzeit, "anmeldung": True}
 
     def abfragen(self, art: str) -> dict | None:
         try:
@@ -486,7 +488,8 @@ def zustand_text(z: dict) -> str:
         if not ist:
             zeilen.append(f"{titel}: nicht eingerichtet")
             continue
-        wann = f"täglich um {ist['uhrzeit']}" if ist.get("uhrzeit") else "bei der Anmeldung"
+        wann = (f"täglich beim ersten Leerlauf ab {ist['uhrzeit']} (nach dem Einschalten nachgeholt)"
+                if ist.get("uhrzeit") else "bei der Anmeldung")
         aus = "" if ist.get("aktiviert", True) else " (deaktiviert)"
         zeilen.append(f"{titel}: {wann}{aus} – {z['titel']} {ist['name']}")
     return "\n".join(zeilen)

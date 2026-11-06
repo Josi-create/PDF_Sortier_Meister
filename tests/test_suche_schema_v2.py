@@ -23,20 +23,7 @@ from tests import helfer_suche as h
 
 
 def _v1_db(pfad) -> int:
-    """Datenbank im Stand von PDFsuche (Version 1) mit einem OCR-Dokument anlegen."""
-    con = db.verbinde(pfad)
-    con.executescript(db.SCHEMA)
-    con.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', '1')")
-    cur = con.execute(
-        "INSERT INTO dokumente (pfad, datei, name, ordner, typ, format, groesse, mtime_ns, datum, seiten, "
-        "textstatus, ocr_seiten, prioritaet, indiziert_am) VALUES (?, ?, ?, ?, 'pdf', 'pdf', 10, 1, 1.0, 1, "
-        "'ocr', 1, 9, '2026-01-01T00:00:00')",
-        (os.path.join("alt", "a.pdf"), os.path.join("alt", "a.pdf"), "a.pdf", "alt"))
-    dok_id = cur.lastrowid
-    con.execute("INSERT INTO seiten (dok_id, seite, quelle, text) VALUES (?, 1, 'ocr', 'Alter OCR-Text')", (dok_id,))
-    con.commit()
-    con.close()
-    return dok_id
+    return h.v1_datenbank(pfad)
 
 
 def _statistik(konfig) -> dict:

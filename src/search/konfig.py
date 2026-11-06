@@ -110,12 +110,12 @@ class SearchConfig:
     ocr_max_seiten: int = 1000
     prozesse: int = 0
     hintergrund_aktiv: bool = False
-    hintergrund_uhrzeit: str = "03:00"
+    hintergrund_uhrzeit: str = "00:00"      # frueheste Startzeit; gestartet wird erst im Leerlauf
     web_aktiv: bool = False
     web_bei_anmeldung: bool = False
     web_host: str = "127.0.0.1"
     web_port: int = 18425
-    textebene: str = "aus"
+    textebene: str = "neue_scans"          # Opt-out (06.11.2026): neue Scans bekommen die Textebene
     textebene_sicherung_tage: int = 30
     textebene_sicherung_ordner: str = ""
 

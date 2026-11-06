@@ -131,7 +131,7 @@ def test_fertig_mit_hintergrund_richtet_den_zeitplan_ein(qtbot, fresh_config, ze
     w.next()
     w.accept()
     index = zeitplan_speicher.eintraege["index"]
-    assert index.uhrzeit == "03:00" and index.argumente[-2:] == ("index", "--hintergrund")
+    assert index.uhrzeit == "00:00" and index.argumente[-2:] == ("index", "--hintergrund")
 
 
 def test_fertig_ohne_hintergrund_plant_nichts(qtbot, fresh_config, zeitplan_speicher):
@@ -141,3 +141,13 @@ def test_fertig_ohne_hintergrund_plant_nichts(qtbot, fresh_config, zeitplan_spei
     w.next()
     w.accept()
     assert zeitplan_speicher.eintraege == {}
+
+
+def test_textebene_im_assistenten_vorausgewaehlt_und_abwaehlbar(qtbot, fresh_config):
+    """Opt-out: die Textebene fuer neue Scans ist vorausgewaehlt und laesst sich abwaehlen."""
+    w, page = _zur_suchseite(qtbot)
+    page.enable_check.setChecked(True)
+    assert page.textlayer_check.isChecked()
+    assert page.get_search_config().textebene == "neue_scans"
+    page.textlayer_check.setChecked(False)
+    assert page.get_search_config().textebene == "aus"

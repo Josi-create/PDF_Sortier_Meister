@@ -8,6 +8,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Hintergrundindexierung, wenn der Rechner nachts aus ist**: Die
+  Einstellung heißt jetzt „Einmal täglich im Hintergrund indizieren, sobald
+  der Rechner nicht benutzt wird“ mit „Frühestens ab“ (Standard 00:00) statt
+  einer festen Uhrzeit. War der Rechner zu dieser Zeit aus, wird der Lauf
+  nach dem Einschalten nachgeholt, aber erst, wenn der Rechner zehn Minuten
+  nicht benutzt wurde. Unter macOS startet die Indexierung dafür zusätzlich
+  bei der Anmeldung und wartet auf Leerlauf, höchstens einmal am Tag.
+- **Übernahme einer vorhandenen PDFsuche** (Dokumentensuche): Korrespondent,
+  Steuerjahr, Betrag und die anderen Angaben, die PDF Sortier Meister vor der
+  Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
+  Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
+  Stand gebracht.
+- **Browser-Oberfläche der Suche**: Öffnet man dort ein Dokument oder seinen
+  Ordner, erscheint das Programm (Excel, Word, Mailprogramm, Explorer) jetzt
+  im Vordergrund statt hinter dem Browser (Windows).
+- **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
+  `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
 - **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
   erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
   aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
@@ -250,6 +267,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die KI konkret benennen, worum es geht.
 
 ### Geaendert
+- **Textebene für neue Scans ist Standard**: Gescannte PDFs ohne Text im
+  Scan-Eingang bekommen den erkannten Text als unsichtbare Ebene, mit
+  Sicherungskopie und Protokoll. Abschalten lässt sich das im Assistenten
+  (Häkchen) und unter Einstellungen > Suche > Textebene („Aus“).
 - **Neue Abhaengigkeit PyQt6-Pdf:** Seit PyQt6 6.12 (Oktober 2026) liegen
   die Module `QtPdf` und `QtPdfWidgets` der integrierten PDF-Vorschau im
   eigenen Paket `PyQt6-Pdf`. `requirements.txt` und `pyproject.toml`

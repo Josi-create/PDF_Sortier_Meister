@@ -6,10 +6,11 @@ kleinen Datenbank (``helfer_suche.pdfsuche_projekt``). Weder die echte
 """
 
 import json
-
-import pytest
+from pathlib import Path
 
 import helfer_suche as h
+import pytest
+
 from src.search import db, indexer, migration
 from src.search.konfig import norm_pfad
 from src.utils.config import Config
@@ -129,6 +130,85 @@ def test_uebernehmen_laesst_datenbank_am_ort(tmp_path, projekt, app_data):
     with pytest.raises(ValueError):
         migration.uebernehmen(migration.pruefen(tmp_path), cfg)
     assert not (app_data / "suche").exists()
+
+
+def test_uebernehmen_ergaenzt_version_1_gleich_auf_version_2(tmp_path, app_data):
+    ordner = tmp_path / "Alt"
+    (ordner / "data").mkdir(parents=True)
+    (ordner / "config.toml").write_text('[datenbank]\npfad = "data/pdfsuche.db"\n', encoding="utf-8")
+    h.v1_datenbank(ordner / "data" / "pdfsuche.db")
+    u = migration.pruefen(ordner)
+    assert u.moeglich and u.schema_version == "1"
+    k = migration.uebernehmen(u, Config(config_path=tmp_path / "config.json"))
+    con = db.verbinde(k.db_datei, nur_lesen=True)
+    try:
+        assert db.schema_stand(con) == 2 and db.lies_meta(con, "schema_version") == "2"
+        assert db.lies_meta(con, "migriert_von") == norm_pfad(str(ordner))
+        assert con.execute("SELECT text FROM seiten").fetchone()[0] == "Alter OCR-Text"     # nichts verloren
+    finally:
+        con.close()
+
+
+def test_uebernehmen_nimmt_pdfsm_metadaten_aus_dem_bisherigen_index_mit(tmp_path, projekt, app_data):
+    """Was PDFSM vor der Uebernahme am Standardort gesetzt hat, geht nicht verloren; der bisherige Index bleibt."""
+    from src.search.suchindex import Suchindex
+
+    ablage = tmp_path / "Ablage"
+    bisher_db = app_data / "suche" / "suche.db"
+    bisher = Suchindex(h.konfig_fuer(tmp_path, db_pfad=str(bisher_db), wurzeln=[], prioritaet=[]))
+    assert bisher.metadaten_setzen(str(ablage / "Brief.pdf"), {"korrespondent": "Beispiel GmbH", "steuerjahr": "2025"},
+                                   pdf_id="p1", lesen=False)
+    # Datei, die es nicht (mehr) gibt: nur Name, Metadaten und Notnagel-Text
+    assert bisher.metadaten_setzen(str(tmp_path / "Archiv" / "Alt.pdf"), {"kategorie": "Versicherung", "betrag": 12.5},
+                                   pdf_id="p2", text="Police Beispielversicherung", lesen=False,
+                                   name="Police 2024.pdf")
+
+    u = migration.pruefen(projekt)
+    k = migration.uebernehmen(u, Config(config_path=tmp_path / "config.json"))
+    assert u.mitgenommen == 2
+    con = db.verbinde(k.db_datei, nur_lesen=True)
+    try:
+        brief = con.execute("SELECT korrespondent, steuerjahr, pdf_id, metadaten_quelle, seiten FROM dokumente "
+                            "WHERE pfad = ?", (norm_pfad(str(ablage / "Brief.pdf")),)).fetchone()
+        assert tuple(brief) == ("Beispiel GmbH", "2025", "p1", "pdfsm", 1)    # vorhandenes Dokument, Text bleibt
+        alt = con.execute("SELECT name, kategorie, betrag, textstatus FROM dokumente WHERE pdf_id = 'p2'").fetchone()
+        assert tuple(alt) == ("Police 2024.pdf", "Versicherung", 12.5, "fehler")
+        assert db.status(con)["dokumente"] == 3
+    finally:
+        con.close()
+    neu = Suchindex(k)
+    assert neu.suche("Beispielversicherung")["gesamt"] == 1
+    assert neu.suche("", korrespondent="Beispiel GmbH")["gesamt"] == 1
+    # Der bisherige Index wird nur gelesen
+    con = db.verbinde(bisher_db, nur_lesen=True)
+    try:
+        assert db.status(con)["dokumente"] == 2 and db.lies_meta(con, "migriert_von") is None
+    finally:
+        con.close()
+    # Zweite Uebernahme: dieselben Werte, nichts doppelt
+    u2 = migration.pruefen(projekt)
+    migration.uebernehmen(u2, Config(config_path=tmp_path / "config.json"))
+    con = db.verbinde(k.db_datei, nur_lesen=True)
+    try:
+        assert db.status(con)["dokumente"] == 3
+    finally:
+        con.close()
+
+
+def test_metadaten_mitnehmen_ohne_pdfsm_spalten_oder_bei_gleichem_index(tmp_path, projekt, app_data):
+    # Bisheriger Index im Format von Version 1 (ohne Metadatenspalten): nichts mitzunehmen
+    import sqlite3
+
+    v1 = tmp_path / "v1.db"
+    con = sqlite3.connect(v1)
+    con.execute("CREATE TABLE dokumente (id INTEGER PRIMARY KEY, pfad TEXT)")
+    con.commit()
+    con.close()
+    k = migration.pruefen(projekt).konfig
+    assert migration.metadaten_mitnehmen(v1, k) == 0
+    # Zeigt db_pfad schon auf den Standardort, gibt es keinen "bisherigen" Index
+    assert migration._gleiche_datei(k.db_datei, Path(str(k.db_datei)))
+    assert not migration._gleiche_datei(k.db_datei, tmp_path / "gibt-es-nicht.db")
 
 
 def test_uebernehmen_mit_kopie_prueft_die_kopie(tmp_path, projekt, app_data):

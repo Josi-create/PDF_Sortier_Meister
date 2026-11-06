@@ -217,7 +217,7 @@ class SearchConfig:                      # src/search/konfig.py
     ocr_max_seiten: int = 1000
     prozesse: int = 0                    # 0 = halbe Kernzahl, hoechstens 8
     hintergrund_aktiv: bool = False      # taegliche Aufgabe / LaunchAgent
-    hintergrund_uhrzeit: str = "03:00"
+    hintergrund_uhrzeit: str = "00:00"   # frueheste Startzeit, gestartet wird im Leerlauf
     web_aktiv: bool = False
     web_bei_anmeldung: bool = False
     web_port: int = 18425
@@ -475,9 +475,13 @@ Nutzers veraendert. Sie ist standardmaessig aus.
 
 **Stufen** (`SearchConfig.textebene`):
 
-- `aus` (Standard): nichts wird geschrieben, kein Text-PDF gespeichert.
-- `neue_scans`: PDFs unter dem ersten Vorrang-Ordner (Scan-Eingang) bekommen
-  die Ebene aus der OCR, die ohnehin laeuft (`SearchConfig.textebene_erzeugen`).
+- `aus`: nichts wird geschrieben, kein Text-PDF gespeichert.
+- `neue_scans` (Standard seit 06.11.2026, Opt-out auf Wunsch des
+  Auftraggebers; vorher `aus`): PDFs unter dem ersten Vorrang-Ordner
+  (Scan-Eingang) bekommen die Ebene aus der OCR, die ohnehin laeuft
+  (`SearchConfig.textebene_erzeugen`). Der Assistent zeigt dafuer ein
+  vorausgewaehltes Haekchen, die Einstellungen die Stufe „Aus“. Scans, die
+  schon Text haben (z. B. die OCR des Scanprogramms), bleiben unberuehrt.
 - `alle`: zusaetzlich der Altbestand, also PDFs mit `ocr_seiten > 0`, deren Text
   bisher nur im Index steht. Tesseract liest diese Seiten noch einmal, weil der
   Index den Text kennt, nicht seine Lage. Die Einstellungen fragen vorher mit
@@ -1122,6 +1126,58 @@ im neuen Dienst weiterlaeuft, neue Aufgaben einrichten, Testlauf
 Pfad), je eine Suche ueber MCP, GUI und Web, Bericht mit Zaehlern
 vorher/nachher. Alte Aufgaben nur deaktivieren; Loeschen und
 `gh repo archive` erst nach Bestaetigung.
+
+**Umsetzung (06.11.2026):** Dienst und MCP laufen aus einer lokalen
+Installation (Installer von `main`, ohne Adminrechte, Benutzerbereich), nicht
+aus dem Projektordner: Dort wechseln parallele Sitzungen Branches, und der
+naechtliche Lauf soll nicht von deren Stand abhaengen. Ablauf: alte Aufgaben
+deaktiviert, Sicherungskopie der Datenbank mit der SQLite-Sicherungsschnittstelle
+(Integritaet und Dokumentzahl geprueft), Uebernahme am Ort mit
+`pdfsm-dienst migration --ja`, PDFSM-Metadaten aus dem bisherigen Index am
+Standardort mitgenommen, alte Browser-Oberflaeche beendet (gleicher Port),
+Zeitplan mit `pdfsm-dienst zeitplan --einrichten`, Testlauf
+`index --nur-prioritaet` (arbeitet die uebernommene OCR-Warteschlange ab), MCP
+mit `claude mcp remove/add` umgestellt, je eine Suche ueber MCP, Reiter
+„Suche“ und Browser-Oberflaeche (gleiche Trefferzahl), Textebene „nur neue
+Scans“ eingeschaltet. Nach Bestaetigung: alte Aufgaben geloescht (XML
+gesichert), Repository PDFsuche archiviert. Dabei gefunden und behoben:
+
+- `migration.uebernehmen` setzte `meta.migriert_von`, ergaenzte das Schema aber
+  erst beim ersten Schreiben ueber `Suchindex` auf Version 2. Jetzt geschieht
+  beides zusammen (`db.init`), wie in Abschnitt 7 beschrieben.
+- PDFSM schreibt seine Metadaten bis zur Uebernahme in den Index am Standardort.
+  `migration.metadaten_mitnehmen` uebertraegt alle Dokumente mit Quelle
+  `'pdfsm'` in die uebernommene Datenbank (vorhandene bekommen die Werte,
+  fehlende werden als Platzhalter mit dem bisherigen Text angelegt); der
+  bisherige Index wird nur gelesen. `uebernehmen` ruft es auf, wenn die
+  Datenbank am Ort bleibt; `Uebernahme.mitgenommen` zaehlt.
+- Die MCP-Werkzeugbeschreibungen enthielten unter Python 3.11 die Einrueckung
+  des Docstrings (erst ab 3.13 entfernt der Compiler sie). `mcp_server._werkzeug`
+  bereinigt sie mit `inspect.cleandoc`; Namen und Beschreibungen entsprechen
+  jetzt PDFsuche, ergaenzt um die Metadatenfilter von `suche`.
+- Im Arbeitsstand von PDFsuche lag eine nicht eingecheckte Verbesserung, die beim
+  Kopieren in Phase 1 fehlte: Die Browser-Oberflaeche laeuft als
+  Hintergrundaufgabe, deshalb duerfen Programme, die sie oeffnet (Excel, Word,
+  Mailprogramm, Explorer), ihr Fenster nicht selbst nach vorn bringen.
+  `src/search/fenster.py` sucht das neue Fenster am Titel (beim Explorer am
+  Ordnernamen und der Fensterklasse) und aktiviert es mit `AttachThreadInput`;
+  `web.py` nutzt `fenster.starte` und `fenster.ordner_zeigen`. Die
+  Win32-Schnittstelle wird erst beim ersten Gebrauch geladen, unter macOS und
+  Linux ist das Modul ohne Wirkung; `tests/conftest.py` schaltet es fuer alle
+  Tests ab.
+- Zeitplan: Der Rechner des Auftraggebers ist nachts meist aus. Die Windows-
+  Aufgabe holt einen verpassten Termin schon nach (`StartWhenAvailable`) und
+  startet auch dann erst nach 10 Minuten Leerlauf; Einstellungen und
+  `zeitplan --status` beschrieben das aber als „taeglich um 03:00“. Jetzt:
+  „einmal taeglich beim ersten Leerlauf, fruehestens ab“ der eingestellten
+  Zeit, Standard 00:00. macOS holt einen Kalendertermin nach dem Ausschalten
+  nicht nach: Der LaunchAgent der Indexierung startet zusaetzlich bei der
+  Anmeldung (`RunAtLoad`), der Lauf wartet selbst auf Leerlauf
+  (`--nur-leerlauf`) und endet sofort, wenn heute schon ein vollstaendiger
+  Lauf fertig wurde (`--einmal-taeglich`, `meta.voller_lauf_am`).
+- Hinweis fuer Installationen: Inno Setup uebernimmt das Verzeichnis einer
+  frueheren Installation aus der Registrierung, auch wenn der Ordner nicht mehr
+  existiert. Wer an einen festen Ort installieren will, gibt `/DIR=` an.
 
 ### Phase 8 – Dokumentation und Release
 

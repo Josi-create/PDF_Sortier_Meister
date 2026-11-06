@@ -930,14 +930,24 @@ class SearchPage(QWizardPage):
         self.ocr_label.setWordWrap(True)
         layout.addWidget(self.ocr_label)
 
+        self.textlayer_check = QCheckBox(
+            "Erkannten Text unsichtbar in neue Scans schreiben (Textebene, mit Sicherungskopie)"
+        )
+        self.textlayer_check.setToolTip(
+            "Dann finden auch andere Programme den Text der Scans. Das Scanbild bleibt unveraendert; "
+            "abschalten unter Einstellungen > Suche > Textebene."
+        )
+        layout.addWidget(self.textlayer_check)
+
         self.background_check = QCheckBox(
-            "Taeglich im Hintergrund indizieren (nur bei Leerlauf des Rechners)"
+            "Einmal taeglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird"
         )
         layout.addWidget(self.background_check)
 
         privacy = QLabel(
             "<b>Datenschutz:</b> Index und erkannter Text liegen in einer lokalen\n"
-            "Datenbank. Dateien werden nur gelesen, nichts verlaesst den Rechner.\n"
+            "Datenbank, nichts verlaesst den Rechner. Dateien werden nur gelesen;\n"
+            "einzige Ausnahme ist die Textebene fuer neue Scans (abschaltbar).\n"
             "Ohne Ihre Zustimmung wird nichts indiziert. Alles laesst sich spaeter\n"
             "unter <b>Extras &rarr; Einstellungen &rarr; Suche</b> aendern."
         )
@@ -1005,6 +1015,7 @@ class SearchPage(QWizardPage):
         tesseract = find_tesseract()
         self._ocr_moeglich = bool(tesseract)
         self.ocr_check.setChecked(self._ocr_moeglich and cfg.ocr_aktiv)
+        self.textlayer_check.setChecked(cfg.textebene != "aus")
         self.ocr_label.setText(
             "Braucht Rechenzeit und laeuft mit niedriger Prioritaet; der erkannte\n"
             "Text landet nur im Index." if tesseract
@@ -1063,6 +1074,7 @@ class SearchPage(QWizardPage):
             w.setEnabled(on)
         self.mails_check.setEnabled(on and self._mails_moeglich)
         self.ocr_check.setEnabled(on and self._ocr_moeglich)
+        self.textlayer_check.setEnabled(on and self._ocr_moeglich)
 
     def selected_folders(self) -> list[str]:
         return [
@@ -1086,6 +1098,10 @@ class SearchPage(QWizardPage):
         if self._ocr_moeglich:
             cfg.ocr_aktiv = self.ocr_check.isChecked()
         cfg.hintergrund_aktiv = self.background_check.isChecked()
+        if not self.textlayer_check.isChecked():
+            cfg.textebene = "aus"
+        elif cfg.textebene == "aus":
+            cfg.textebene = "neue_scans"           # "alle" bleibt, wenn es schon eingestellt war
         cfg.__post_init__()
         return cfg
 

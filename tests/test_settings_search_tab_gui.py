@@ -47,8 +47,8 @@ def test_tab_laedt_standardwerte_aus_scan_und_zielordner(qtbot, monkeypatch, tmp
     assert _items(dlg.search_priority_list) == [norm_pfad(str(scan))]
     assert "Thunderbird-Profil erkannt" in dlg.search_thunderbird_label.text()
     assert "nicht gefunden" in dlg.search_ocr_status_label.text()
-    assert dlg.search_web_port_spin.value() == 18425 and dlg.search_textlayer_combo.currentData() == "aus"
-    assert dlg.search_background_time_edit.time() == QTime(3, 0) and dlg.search_processes_spin.value() == 0
+    assert dlg.search_web_port_spin.value() == 18425 and dlg.search_textlayer_combo.currentData() == "neue_scans"
+    assert dlg.search_background_time_edit.time() == QTime(0, 0) and dlg.search_processes_spin.value() == 0
     assert ".pdf" in dlg.search_extensions_edit.text() and "appdata" in dlg.search_exclude_names_edit.toPlainText()
     assert dlg.search_db_path_edit.text() == "" and dlg.search_db_path_edit.placeholderText().endswith("suche.db")
 

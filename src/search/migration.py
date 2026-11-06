@@ -9,7 +9,8 @@ Datenverzeichnis kopieren (``kopieren=True``, mit Pruefung der Kopie).
 
 Ablauf: ``finde_pdfsuche()`` (Kandidaten ohne festen Pfad im Code) ->
 ``pruefen(ordner)`` (Vorschau: Einstellungen, Sperre, Integritaet, Zaehler) ->
-``uebernehmen(...)`` (Einstellungen speichern, ``meta.migriert_von`` setzen).
+``uebernehmen(...)`` (Einstellungen speichern, ``meta.migriert_von`` setzen,
+PDFSM-Metadaten aus dem bisherigen Index mitnehmen).
 Die alten Aufgaben der Aufgabenplanung werden hier nicht angefasst.
 """
 
@@ -47,6 +48,7 @@ class Uebernahme:
     integritaet: str = ""                      # "ok" oder der Befund von quick_check
     zaehler: dict = field(default_factory=dict)
     fehler: list[str] = field(default_factory=list)
+    mitgenommen: int = 0                       # nach ``uebernehmen``: Dokumente mit PDFSM-Metadaten aus dem bisherigen Index
 
     @property
     def moeglich(self) -> bool:
@@ -228,20 +230,67 @@ def uebernehmen(u: Uebernahme, config, kopieren: bool = False, fortschritt=None)
         raise ValueError("; ".join(u.fehler) or "Prüfung fehlt")
     konfig = u.konfig
     assert konfig is not None
+    bisher = get_app_data_dir() / "suche" / "suche.db"
     if kopieren:
-        ziel = get_app_data_dir() / "suche" / "suche.db"
-        kopiere_db(u.db_pfad, ziel, fortschritt)
+        kopiere_db(u.db_pfad, bisher, fortschritt)
         konfig.db_pfad = ""                      # Standardort
     con = db.verbinde(konfig.db_datei)
     try:
+        db.init(con)                             # Version 1 -> 2, additiv (Abschnitt 3.3), zusammen mit migriert_von
         db.setze_meta(con, "migriert_von", u.ordner)
         db.setze_meta(con, "migriert_am", db.jetzt())
         con.commit()
     finally:
         con.close()
+    if not kopieren and bisher.is_file() and not _gleiche_datei(bisher, konfig.db_datei):
+        u.mitgenommen = metadaten_mitnehmen(bisher, konfig)
     konfig.aktiv = True
     config.set_search_config(konfig)
     return konfig
+
+
+def _gleiche_datei(a: Path, b: Path) -> bool:
+    try:
+        return Path(a).resolve() == Path(b).resolve() or os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def metadaten_mitnehmen(alt_db: str | Path, konfig: SearchConfig) -> int:
+    """PDFSM-Metadaten aus einem bisherigen Index in den Index von ``konfig`` uebertragen.
+
+    Bis zur Uebernahme schreibt PDF Sortier Meister Korrespondent, Steuerjahr,
+    Betrag usw. in den Index am Standardort; nach der Uebernahme zeigt
+    ``db_pfad`` auf die PDFsuche-Datenbank. Damit nichts verloren geht, kommen
+    alle Dokumente mit Quelle ``'pdfsm'`` mit: Vorhandene erhalten die Werte
+    (Vorrang vor Werten aus der PDF), fehlende werden wie in PDFSM als
+    Platzhalter mit dem bisherigen Text angelegt (Status ``ausstehend``, der
+    naechste Lauf liest sie). Der bisherige Index wird nur gelesen.
+    Liefert die Zahl der uebertragenen Dokumente.
+    """
+    from src.search.suchindex import Suchindex
+
+    alt = db.verbinde(alt_db, nur_lesen=True)
+    try:
+        if "metadaten_quelle" not in db._spalten(alt, "dokumente"):
+            return 0
+        felder = ", ".join(db.METADATEN_FELDER)
+        zeilen = alt.execute(f"SELECT id, pfad, name, pdf_id, {felder} FROM dokumente "
+                             "WHERE metadaten_quelle = 'pdfsm' ORDER BY id").fetchall()
+        eintraege = []
+        for z in zeilen:
+            text = "\n\n".join(t for (t,) in alt.execute(
+                "SELECT text FROM seiten WHERE dok_id = ? ORDER BY seite", (z["id"],)) if t)
+            eintraege.append((z["pfad"], {f: z[f] for f in db.METADATEN_FELDER}, z["pdf_id"], text or None,
+                              z["name"]))
+    finally:
+        alt.close()
+    index = Suchindex(konfig)
+    n = 0
+    for pfad, werte, pdf_id, text, name in eintraege:
+        if index.metadaten_setzen(pfad, werte, pdf_id=pdf_id, text=text, lesen=False, name=name):
+            n += 1
+    return n
 
 
 def kopiere_db(quelle: str | Path, ziel: str | Path, fortschritt=None) -> None:
