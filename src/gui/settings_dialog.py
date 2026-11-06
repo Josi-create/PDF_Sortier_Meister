@@ -35,6 +35,7 @@ class SettingsDialog(QDialog):
     _LLM_PROVIDERS: list[tuple[str, str]] = [
         ("ollama", "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
         ("ollama_cloud", "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
+        ("strata", "Strata (lokaler Modell-Server, OpenAI-kompatibel, eigener Key)"),
         ("openrouter", "OpenRouter (viele Modelle, ein API-Key)"),
         ("poe", "Poe.com (viele KI-Modelle, ein API-Key)"),
         ("claude", "Anthropic Claude"),
@@ -141,6 +142,9 @@ class SettingsDialog(QDialog):
         # API-Keys pro Provider (Puffer, bis "Speichern" gedrueckt wird)
         self._api_keys: dict[str, str] = {}
         self._key_provider = ""  # Provider, dessen Key gerade im Feld steht
+        # Server-URLs pro lokalem Provider (Ollama, Strata), gleiches Prinzip
+        self._base_urls: dict[str, str] = {}
+        self._url_provider = ""
 
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([label for _, label in self._LLM_PROVIDERS])
@@ -168,12 +172,12 @@ class SettingsDialog(QDialog):
         key_button_layout.addStretch()
         api_layout.addRow("", key_button_layout)
 
-        # Server-URL (nur fuer Ollama relevant)
+        # Server-URL (nur fuer lokale Server: Ollama, Strata)
         self.base_url_input = QLineEdit()
         self.base_url_input.setPlaceholderText("http://localhost:11434")
         self.base_url_input.setToolTip(
-            "Nur fuer Ollama: URL des lokalen Ollama-Servers.\n"
-            "Standard: http://localhost:11434"
+            "Nur fuer lokale Server (Ollama, Strata): URL des Servers.\n"
+            "Leer = Standard-URL (siehe Platzhalter)."
         )
         api_layout.addRow("Server-URL:", self.base_url_input)
 
@@ -1297,8 +1301,15 @@ class SettingsDialog(QDialog):
         "poe": "Poe.com",
         "openrouter": "OpenRouter",
         "ollama_cloud": "Ollama Cloud",
+        "strata": "Strata",
+    }
+    # Provider mit eigener Server-URL -> Standard-URL (Platzhalter)
+    _URL_PROVIDER_DEFAULTS = {
+        "ollama": "http://localhost:11434",
+        "strata": "http://127.0.0.1:8080/v1",
     }
     _API_KEY_PLACEHOLDERS = {
+        "strata": "sk-strata-... (in Strata unter Connect, Taste k)",
         "claude": "sk-ant-...",
         "openai": "sk-...",
         "poe": "Poe API-Key von poe.com/api_key",
@@ -1321,6 +1332,16 @@ class SettingsDialog(QDialog):
         """Merkt sich den Feldinhalt fuer den Provider, dem er gehoert."""
         if self._key_provider:
             self._api_keys[self._key_provider] = self.api_key_input.text().strip()
+
+    def _stash_base_url(self):
+        """Merkt sich die Server-URL fuer den Provider, dem sie gehoert."""
+        if self._url_provider:
+            self._base_urls[self._url_provider] = self.base_url_input.text().strip()
+
+    def _current_base_url(self, provider_id: str) -> str:
+        """Server-URL aus dem Feld, leer -> Standard des Providers."""
+        return (self.base_url_input.text().strip()
+                or self._URL_PROVIDER_DEFAULTS.get(provider_id, ""))
 
     def _models_for_provider(self, provider_name: str) -> list[str]:
         """Liefert gecachte Modelle oder Defaults fuer einen Provider."""
@@ -1346,9 +1367,14 @@ class SettingsDialog(QDialog):
         # Modelle je nach Provider aktualisieren
         self.model_combo.clear()
 
-        # Server-URL ist nur fuer Ollama relevant - standardmaessig deaktivieren
+        # Server-URL nur fuer lokale Server (Ollama, Strata), je Provider gemerkt
+        self._stash_base_url()
+        default_url = self._URL_PROVIDER_DEFAULTS.get(new_provider, "")
+        self._url_provider = new_provider if default_url else ""
+        self.base_url_input.setText(self._base_urls.get(self._url_provider, ""))
+        self.base_url_input.setPlaceholderText(default_url)
+        self.base_url_input.setEnabled(bool(default_url))
         is_ollama = (new_provider == "ollama")
-        self.base_url_input.setEnabled(is_ollama)
 
         if new_provider == "none":
             self.api_key_input.setEnabled(False)
@@ -1406,11 +1432,18 @@ class SettingsDialog(QDialog):
         if legacy_key and provider in self._KEY_PROVIDER_LABELS:
             self._api_keys.setdefault(provider, legacy_key)
 
+        # Server-URLs je Provider; das alte Einzelfeld "base_url" gehoerte
+        # dem aktiven lokalen Provider bzw. (vor Strata) immer Ollama.
+        self._url_provider = ""
+        self._base_urls = dict(llm_config.get("base_urls", {}))
+        legacy_url = llm_config.get("base_url", "")
+        if legacy_url:
+            owner = provider if provider in self._URL_PROVIDER_DEFAULTS else "ollama"
+            self._base_urls.setdefault(owner, legacy_url)
+
         self.provider_combo.setCurrentIndex(self._index_for_provider(provider))
         # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
         self._on_provider_changed(self.provider_combo.currentIndex())
-
-        self.base_url_input.setText(llm_config.get("base_url", ""))
 
         model = llm_config.get("model", "")
         if model:
@@ -1494,6 +1527,8 @@ class SettingsDialog(QDialog):
 
         self._stash_api_key()
         api_keys = {k: v for k, v in self._api_keys.items() if v}
+        self._stash_base_url()
+        base_urls = {k: v for k, v in self._base_urls.items() if v}
 
         # Bestehende Werte (cloud_consent, cached_models, ...) erhalten,
         # nur die Dialog-Felder ueberschreiben.
@@ -1506,7 +1541,8 @@ class SettingsDialog(QDialog):
             "max_tokens": self.max_tokens_spin.value(),
             "temperature": self.temperature_spin.value(),
             "text_limit": self.text_limit_spin.value(),
-            "base_url": self.base_url_input.text().strip(),
+            "base_url": base_urls.get(provider, ""),
+            "base_urls": base_urls,
             "cloud_consent": self.cloud_consent_check.isChecked(),
         }
         self.config.set("llm", llm_config)
@@ -1615,8 +1651,9 @@ class SettingsDialog(QDialog):
         api_key = self.api_key_input.text().strip()
 
         # Ollama braucht keinen API-Key, aber eine URL.
+        base_url = self._current_base_url(provider_id)
         if provider_id == "ollama":
-            base_url = self.base_url_input.text().strip() or "http://localhost:11434"
+            pass
         elif not api_key:
             QMessageBox.warning(
                 self, "Fehler",
@@ -1644,6 +1681,8 @@ class SettingsDialog(QDialog):
                 self._test_openrouter(api_key, model)
             elif provider_id == "ollama_cloud":
                 self._test_ollama_cloud(api_key, model)
+            elif provider_id == "strata":
+                self._test_strata(api_key, model, base_url)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -1899,6 +1938,52 @@ class SettingsDialog(QDialog):
                 f"Verbindungsfehler: {str(e)}"
             )
 
+    def _test_strata(self, api_key: str, model: str, base_url: str):
+        """Testet einen lokalen Strata-Server (OpenAI-kompatibel)."""
+        try:
+            import openai
+            from src.ml.llm_provider import LLMConfig
+            from src.ml.strata_provider import StrataProvider
+
+            provider = StrataProvider(LLMConfig(
+                api_key=api_key, model=model, base_url=base_url,
+            ))
+            if provider._client is None:
+                raise RuntimeError("OpenAI-kompatibler Client nicht verfuegbar.")
+            model_id = provider._get_model_id()
+            if not model_id:
+                raise RuntimeError(
+                    f"Kein Modell gefunden. Laeuft Strata unter {provider.base_url}?"
+                )
+            response = provider._create_chat_completion(
+                model=model_id,
+                max_tokens=200,
+                messages=[{"role": "user", "content": "Sage 'OK'"}],
+            )
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu Strata erfolgreich!\n"
+                f"Server: {provider.base_url}\n"
+                f"Modell: {model_id}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except ImportError:
+            QMessageBox.critical(
+                self, "Fehler",
+                "Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai"
+            )
+        except Exception as e:
+            if type(e).__name__ == "AuthenticationError":
+                text = ("Ungueltiger Strata API-Key.\n"
+                        "Den Key zeigt Strata unter Connect (Taste k).")
+            elif type(e).__name__ == "APIConnectionError":
+                text = (f"Keine Verbindung zu Strata unter {base_url}.\n"
+                        "Laeuft der Strata-Server?")
+            else:
+                text = f"Verbindungsfehler: {str(e)}"
+            QMessageBox.critical(self, "Fehler", text)
+
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
         provider_id = self._provider_id_at(self.provider_combo.currentIndex())
@@ -1933,8 +2018,20 @@ class SettingsDialog(QDialog):
             elif provider_id == "poe":
                 models = self._fetch_poe_models(api_key)
             elif provider_id == "ollama":
-                base_url = self.base_url_input.text().strip() or "http://localhost:11434"
-                models = self._fetch_ollama_models(base_url)
+                models = self._fetch_ollama_models(self._current_base_url(provider_id))
+            elif provider_id == "strata":
+                from src.ml.strata_provider import StrataProvider
+                from src.ml.llm_provider import LLMConfig
+                strata = StrataProvider(LLMConfig(
+                    api_key=api_key, model="",
+                    base_url=self._current_base_url(provider_id),
+                ))
+                models = strata.list_models()
+                if not models:
+                    raise RuntimeError(
+                        f"Keine Modelle gefunden. Laeuft Strata unter "
+                        f"{strata.base_url} und stimmt der API-Key?"
+                    )
             elif provider_id == "openrouter":
                 models = self._fetch_openrouter_models(api_key)
             elif provider_id == "ollama_cloud":

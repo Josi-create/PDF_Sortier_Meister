@@ -8,6 +8,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
+  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
+  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
+  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
+  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
+  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
+  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
+  bleiben wie bisher gruen.
 - **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
   galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
   oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
@@ -37,6 +45,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   den Ordner fuer ihr eigenes Jahr. Der Prompt sagt das ausdruecklich und
   nennt die passende Jahres-Variante („Steuer 2026/…“), und uebernimmt die KI
   doch das Beispieljahr, korrigiert PDFSM den Ordner auf das Dokumentjahr.
+- **Strata als lokaler KI-Anbieter**: In den Einstellungen gibt es den
+  Anbieter „Strata“ fuer einen lokalen Modell-Server mit OpenAI-kompatibler
+  Schnittstelle (Standard `http://127.0.0.1:8080/v1`, Angabe ohne `/v1`
+  geht auch). Strata braucht einen eigenen API-Key, schickt aber nichts ins
+  Internet und zaehlt deshalb nicht als Cloud-Anbieter. Ohne Modellangabe
+  nimmt PDFSM das Modell, das der Server gerade geladen hat; „Modelle
+  aktualisieren“ und „Verbindung testen“ funktionieren. Die Server-URL wird
+  jetzt pro Anbieter gemerkt, Ollama- und Strata-URL ueberschreiben sich
+  nicht mehr.
 - **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
   auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
   leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt
