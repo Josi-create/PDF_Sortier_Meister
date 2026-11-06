@@ -491,17 +491,68 @@ class FolderTreeWidget(QWidget):
             "Name des neuen Ordners:",
         )
 
+        name = (name or "").strip()
         if ok and name:
             new_folder = parent_folder / name
             try:
                 new_folder.mkdir(exist_ok=True)
-                self.refresh_tree()
             except Exception as e:
                 QMessageBox.critical(
                     self,
                     "Fehler",
                     f"Ordner konnte nicht erstellt werden:\n{e}"
                 )
+                return
+            self._show_new_folder(new_folder)
+
+    def _show_new_folder(self, new_folder: Path):
+        """Zeigt einen frisch angelegten Ordner markiert im Baum an.
+
+        Nur markieren, nicht "anklicken": ein Klick (folder_selected) wuerde
+        die ausgewaehlte PDF sofort dorthin verschieben.
+        """
+        if self._ensure_folder_item(new_folder):
+            self._mark_folder(new_folder)
+            return
+
+        # Kein Vorfahr im Baum (z.B. Baum wird gerade noch geladen):
+        # neu scannen und danach markieren.
+        def _after_scan():
+            try:
+                self.scan_finished.disconnect(_after_scan)
+            except TypeError:
+                pass
+            if self._ensure_folder_item(new_folder):
+                self._mark_folder(new_folder)
+
+        self.scan_finished.connect(_after_scan)
+        self.refresh_tree()
+
+    def _ensure_folder_item(self, folder: Path) -> bool:
+        """Haengt den Ordner samt fehlender Zwischenordner in den Baum ein.
+
+        Der Baum laedt nur wenige Ebenen tief; ein neuer Ordner darunter haette
+        sonst keinen sichtbaren Elternteil.
+        """
+        folder = Path(folder)
+        missing = []
+        current = folder
+        while current not in self._items:
+            if current.parent == current:
+                return False  # kein Vorfahr im Baum
+            missing.append(current)
+            current = current.parent
+        for path in reversed(missing):
+            if not self.add_folder_incremental(path):
+                return False
+        return True
+
+    def _mark_folder(self, folder: Path):
+        """Markiert den Ordner, klappt den Pfad auf und scrollt ihn ins Bild."""
+        self.select_folder(folder)
+        item = self._items.get(Path(folder))
+        if item is not None:
+            self.tree.scrollToItem(item)
 
     def _remove_folder(self, folder_path: Path):
         """Entfernt einen Ordner aus der Liste (löscht nicht vom Dateisystem)."""
