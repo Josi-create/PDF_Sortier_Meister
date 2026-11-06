@@ -20,6 +20,7 @@ from src.ml.openai_provider import OpenAIProvider
 from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
+from src.ml.strata_provider import StrataProvider
 from src.utils.config import get_config
 from src.utils.database import get_database
 
@@ -146,6 +147,8 @@ class HybridClassifier:
                 self.llm_provider = OllamaProvider(config)
             elif provider_type == "ollama_cloud":
                 self.llm_provider = OllamaCloudProvider(config)
+            elif provider_type == "strata":
+                self.llm_provider = StrataProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -223,6 +226,8 @@ class HybridClassifier:
                 self.llm_provider = OllamaProvider(config)
             elif provider_type == LLMProviderType.OLLAMA_CLOUD:
                 self.llm_provider = OllamaCloudProvider(config)
+            elif provider_type == LLMProviderType.STRATA:
+                self.llm_provider = StrataProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -607,6 +612,8 @@ class HybridClassifier:
             return "Claude"
         if isinstance(self.llm_provider, OpenRouterProvider):
             return "OpenRouter"
+        if isinstance(self.llm_provider, StrataProvider):
+            return "Strata"
         if isinstance(self.llm_provider, OpenAIProvider):
             return "OpenAI"
         if isinstance(self.llm_provider, PoeProvider):

@@ -27,6 +27,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 
 ### Neu
+- **Strata als lokaler KI-Anbieter**: In den Einstellungen gibt es den
+  Anbieter „Strata“ fuer einen lokalen Modell-Server mit OpenAI-kompatibler
+  Schnittstelle (Standard `http://127.0.0.1:8080/v1`, Angabe ohne `/v1`
+  geht auch). Strata braucht einen eigenen API-Key, schickt aber nichts ins
+  Internet und zaehlt deshalb nicht als Cloud-Anbieter. Ohne Modellangabe
+  nimmt PDFSM das Modell, das der Server gerade geladen hat; „Modelle
+  aktualisieren“ und „Verbindung testen“ funktionieren. Die Server-URL wird
+  jetzt pro Anbieter gemerkt, Ollama- und Strata-URL ueberschreiben sich
+  nicht mehr.
 - **PDFs stapeln wie in PaperPort**: Eine PDF (oder eine Mehrfachauswahl)
   auf eine andere PDF ziehen haengt ihre Seiten hinten an. Die Ziel-Kachel
   leuchtet beim Darueberziehen orange gestrichelt auf; die Ziel-PDF behaelt
