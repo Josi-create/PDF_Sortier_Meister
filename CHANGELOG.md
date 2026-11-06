@@ -29,6 +29,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   eingetragen. Der gewählte Zustand gilt für alle folgenden Dokumente und
   bleibt nach einem Neustart erhalten; treffen KI-Vorschläge im Hintergrund
   ein, zählt der Pfeil mit, ohne aufzuklappen.
+- **Ordner im linken Fenster als Zeilen** (#147): Unterordner und „..“
+  stehen nicht mehr als große Kacheln zwischen den PDFs, sondern als schmale
+  Zeilen darüber – Symbol, Name und rechts in Grau die Anzahl PDFs, z. B.
+  „📁 Archiv … 365 PDFs“. Ab knapp 500 Pixel Breite stehen sie in zwei
+  Spalten, sonst in einer. Lange Namen werden gekürzt, der volle Pfad steht im
+  Tooltip. Höhe und Schrift der Zeilen sind fest; die Kachelgröße
+  (Klein/Mittel/Groß) gilt nur noch für die PDFs. Klick auf „..“, Doppelklick
+  auf einen Ordner, Ablegen von PDFs per Drag & Drop und das Kontextmenü
+  funktionieren wie bisher.
 
 ## [0.24.0] - 2026-11-06
 
