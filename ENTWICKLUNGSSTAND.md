@@ -89,7 +89,10 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   `migration.uebernehmen` ergaenzt gleich auf Version 2 und nimmt die PDFSM-Metadaten aus dem
   bisherigen Index mit (`metadaten_mitnehmen`), MCP-Beschreibungen ohne Docstring-Einrueckung
   (`mcp_server._werkzeug`), Programme aus der Browser-Oberflaeche kommen nach vorn (`src/search/fenster.py`,
-  aus dem Arbeitsstand von PDFsuche); alte Aufgaben geloescht, Repository PDFsuche archiviert; 12 neue Tests
+  aus dem Arbeitsstand von PDFsuche); Textebene standardmaessig „nur neue Scans“ (Opt-out, Haekchen im
+  Assistenten); Hintergrundindexierung „einmal taeglich beim ersten Leerlauf, fruehestens ab“ (Standard 00:00),
+  macOS-LaunchAgent zusaetzlich bei der Anmeldung mit `--einmal-taeglich`; alte Aufgaben geloescht,
+  Repository PDFsuche archiviert; 14 neue Tests
 - Offen: Phase 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo

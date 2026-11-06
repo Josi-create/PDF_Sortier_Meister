@@ -28,6 +28,8 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("mails_aktiv", False)
     # Sicherungskopien der Textebene nie ins echte Datenverzeichnis
     kw.setdefault("textebene_sicherung_ordner", str(tmp_path / "textebene_sicherung"))
+    # Indextests schreiben keine Textebene, solange sie es nicht ausdruecklich wollen (Standard ist "neue_scans")
+    kw.setdefault("textebene", "aus")
     return SearchConfig(**kw)
 
 

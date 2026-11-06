@@ -1123,16 +1123,19 @@ class SettingsDialog(QDialog):
         # Hintergrundindexierung
         bg_group = QGroupBox("Hintergrundindexierung")
         bg_layout = QFormLayout(bg_group)
-        self.search_background_check = QCheckBox("Täglich im Hintergrund indizieren (nur bei Leerlauf des Rechners)")
+        self.search_background_check = QCheckBox("Einmal täglich im Hintergrund indizieren, sobald der Rechner nicht "
+                                                  "benutzt wird")
         bg_layout.addRow(self.search_background_check)
         self.search_background_time_edit = QTimeEdit()
         self.search_background_time_edit.setDisplayFormat("HH:mm")
-        bg_layout.addRow("Uhrzeit:", self.search_background_time_edit)
+        bg_layout.addRow("Frühestens ab:", self.search_background_time_edit)
         bg_hint = QLabel(
-            "Der tägliche Lauf wird über die Aufgabenplanung (Windows) bzw. einen "
-            "LaunchAgent (macOS) vom Hintergrunddienst ausgeführt und bricht ab, "
-            "sobald Sie den Rechner wieder benutzen. Eingerichtet wird er beim "
-            "Speichern, Administratorrechte sind nicht nötig."
+            "Der Lauf beginnt erst, wenn der Rechner 10 Minuten nicht benutzt wurde, und hält an, "
+            "sobald Sie weiterarbeiten; im nächsten Leerlauf geht er weiter. War der Rechner zur "
+            "eingestellten Zeit aus, wird der Lauf nach dem Einschalten nachgeholt – ebenfalls erst "
+            "im Leerlauf, nicht direkt nach dem Start. Eingerichtet wird er beim Speichern über die "
+            "Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind "
+            "nicht nötig."
         )
         bg_hint.setStyleSheet("color: gray;")
         bg_hint.setWordWrap(True)
@@ -1172,8 +1175,8 @@ class SettingsDialog(QDialog):
         text_layout = QFormLayout(text_group)
         self.search_textlayer_combo = QComboBox()
         for label, stufe in (
-            ("Aus (Standard)", "aus"),
-            ("Nur neue Scans im ersten Vorrang-Ordner", "neue_scans"),
+            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
+            ("Aus – keine PDF wird verändert", "aus"),
             ("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)", "alle"),
         ):
             self.search_textlayer_combo.addItem(label, stufe)

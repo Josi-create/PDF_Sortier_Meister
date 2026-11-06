@@ -1,7 +1,7 @@
 """Konsolenprogramm ``pdfsm-dienst`` der Dokumentensuche (Qt-frei).
 
   pdfsm-dienst index [--nur-prioritaet] [--ohne-ocr] [--ohne-mail] [--pfad ORDNER] [--hintergrund]
-                     [--nur-leerlauf] [--max-minuten N]
+                     [--nur-leerlauf] [--einmal-taeglich] [--max-minuten N]
   pdfsm-dienst suche "Unterhalt UND 2019" [--typ pdf] [--ordner X] [--von 2019-01-01] [--bis ...] [-n 20] [--json]
   pdfsm-dienst lesen 1234 [--seiten 2-5]
   pdfsm-dienst status
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import multiprocessing
 import re
 import sys
@@ -88,6 +89,8 @@ def parser() -> argparse.ArgumentParser:
     i.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
     i.add_argument("--nur-leerlauf", action="store_true",
                    help="pausieren, solange der Nutzer aktiv ist (für Zeitpläne ohne Leerlaufbedingung, z. B. macOS)")
+    i.add_argument("--einmal-taeglich", action="store_true",
+                   help="nichts tun, wenn heute schon ein vollständiger Lauf fertig wurde (Start bei der Anmeldung)")
     i.add_argument("--max-minuten", type=float, default=0)
 
     w = sub.add_parser("web", help="Browser-Oberfläche starten")
@@ -231,8 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     konfig = konfig_modul.lade(a.config)
 
     if a.befehl == "index":
-        from src.search.indexer import Indexer, logging_einrichten
+        from src.search.indexer import Indexer, heute_schon_gelaufen, logging_einrichten
         logging_einrichten(konfig, konsole=not a.hintergrund)
+        if a.einmal_taeglich and heute_schon_gelaufen(konfig):
+            logging.getLogger("pdf_sortier_meister.suche").info("Heute lief schon ein vollständiger Lauf – Ende.")
+            return 0
         indexer = Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten, nur_leerlauf=a.nur_leerlauf)
         return indexer.lauf(nur_prioritaet=a.nur_prioritaet, ohne_ocr=a.ohne_ocr, ohne_mail=a.ohne_mail,
                             nur_pfad=a.pfad)

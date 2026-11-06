@@ -135,3 +135,31 @@ def test_migration_befehl(indiziert, tmp_path, capsys, monkeypatch):
     monkeypatch.setattr("src.search.migration.finde_pdfsuche", lambda: [])
     assert dienst.main(["--config", str(cfg_pfad), "migration"]) == 1
     assert "--von" in capsys.readouterr().out
+
+
+def test_einmal_taeglich_ueberspringt_nach_vollstaendigem_lauf(tmp_path, monkeypatch):
+    """``index --einmal-taeglich`` (macOS: Start bei der Anmeldung) laeuft nur, solange heute kein voller Lauf fertig ist."""
+    from src.search import db, indexer
+
+    ordner = tmp_path / "Ablage"
+    ordner.mkdir()
+    (ordner / "a.md").write_text("Notiz", encoding="utf-8")
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ordner)])
+    assert not indexer.heute_schon_gelaufen(konfig)          # noch keine Datenbank
+    assert indexer.Indexer(konfig, synchron=True).lauf(nur_prioritaet=True) == 0
+    assert not indexer.heute_schon_gelaufen(konfig)          # Vorrang-Lauf zaehlt nicht
+    assert indexer.Indexer(konfig, synchron=True).lauf() == 0
+    assert indexer.heute_schon_gelaufen(konfig)
+
+    gestartet = []
+    monkeypatch.setattr(dienst.konfig_modul, "lade", lambda pfad: konfig)
+    monkeypatch.setattr("src.search.indexer.Indexer.lauf", lambda self, **kw: gestartet.append(kw) or 0)
+    assert dienst.main(["index", "--hintergrund", "--nur-leerlauf", "--einmal-taeglich"]) == 0
+    assert gestartet == []
+    # Ein Lauf von gestern zaehlt nicht
+    con = db.verbinde(konfig.db_datei)
+    db.setze_meta(con, indexer.VOLLER_LAUF_META, "2000-01-01T12:00:00")
+    con.commit()
+    con.close()
+    assert dienst.main(["index", "--hintergrund", "--nur-leerlauf", "--einmal-taeglich"]) == 0
+    assert len(gestartet) == 1

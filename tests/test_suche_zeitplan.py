@@ -88,7 +88,7 @@ def test_gewuenscht_folgt_den_einstellungen(tmp_path):
     assert soll["web"] is None
     assert soll["index"] == zeitplan.Eintrag("index", DIENST_WIN[0], ("index", "--hintergrund"), "04:30", "C:\\P")
     mac = zeitplan.gewuenscht(_konfig(tmp_path), DIENST_MAC, leerlauf_selbst=True)["index"]
-    assert mac.argumente == ("index", "--hintergrund", "--nur-leerlauf")
+    assert mac.argumente == ("index", "--hintergrund", "--nur-leerlauf", "--einmal-taeglich")
 
     # Web nur mit „einschalten“ UND „bei Anmeldung“; eine andere config.json geht als --config mit
     assert zeitplan.gewuenscht(_konfig(tmp_path, web_aktiv=True), DIENST_WIN)["web"] is None
@@ -150,7 +150,7 @@ def test_aufgabenplanung_wie_die_frueheren_aufgaben(tmp_path):
     z = zeitplan.zustand(b)
     assert z["index"]["uhrzeit"] == "04:30" and z["web"]["anmeldung"] and z["index"]["aktiviert"]
     text = zeitplan.zustand_text(z)
-    assert "täglich um 04:30" in text and "bei der Anmeldung" in text and "Aufgabenplanung" in text
+    assert "täglich beim ersten Leerlauf ab 04:30" in text and "bei der Anmeldung" in text and "Aufgabenplanung" in text
 
 
 def test_aufgabenplanung_aendern_und_entfernen(tmp_path):
@@ -242,8 +242,9 @@ def test_launchagents(tmp_path):
 
     with open(ordner / "de.josi-create.pdf-sortier-meister.suche.plist", "rb") as f:
         index = plistlib.load(f)
-    assert index["ProgramArguments"] == [*DIENST_MAC, "index", "--hintergrund", "--nur-leerlauf"]
+    assert index["ProgramArguments"] == [*DIENST_MAC, "index", "--hintergrund", "--nur-leerlauf", "--einmal-taeglich"]
     assert index["StartCalendarInterval"] == {"Hour": 3, "Minute": 15}
+    assert index["RunAtLoad"] is True             # ein ausgeschalteter Mac holt den Termin sonst nicht nach
     assert index["ProcessType"] == "Background" and index["LowPriorityIO"] is True
     with open(ordner / "de.josi-create.pdf-sortier-meister.web.plist", "rb") as f:
         web = plistlib.load(f)
@@ -254,7 +255,7 @@ def test_launchagents(tmp_path):
     imitat.aufrufe.clear()
     assert zeitplan.abgleichen(konfig, DIENST_MAC, b=b) == []
     assert not any(a[1] == "bootstrap" for a in imitat.aufrufe)
-    assert "täglich um 03:15" in zeitplan.zustand_text(zeitplan.zustand(b))
+    assert "täglich beim ersten Leerlauf ab 03:15" in zeitplan.zustand_text(zeitplan.zustand(b))
 
     assert zeitplan.entfernen(b) == ["entfernt: de.josi-create.pdf-sortier-meister.suche",
                                      "entfernt: de.josi-create.pdf-sortier-meister.web"]
@@ -290,7 +291,7 @@ def test_dienst_zeitplan(tmp_path, zeitplan_speicher, capsys):
     assert "Hintergrundindexierung: nicht eingerichtet" in capsys.readouterr().out
     assert dienst.main(["--config", pfad, "zeitplan", "--einrichten"]) == 0
     aus = capsys.readouterr().out
-    assert "eingerichtet: \\PDF Sortier Meister\\Indexierung" in aus and "täglich um 03:00" in aus
+    assert "eingerichtet: \\PDF Sortier Meister\\Indexierung" in aus and "täglich beim ersten Leerlauf ab 00:00" in aus
     index = zeitplan_speicher.eintraege["index"]
     assert index.argumente[-4:] == ("--config", pfad, "index", "--hintergrund")
     assert zeitplan_speicher.gestartet == ["web"]

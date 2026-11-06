@@ -217,7 +217,7 @@ class SearchConfig:                      # src/search/konfig.py
     ocr_max_seiten: int = 1000
     prozesse: int = 0                    # 0 = halbe Kernzahl, hoechstens 8
     hintergrund_aktiv: bool = False      # taegliche Aufgabe / LaunchAgent
-    hintergrund_uhrzeit: str = "03:00"
+    hintergrund_uhrzeit: str = "00:00"   # frueheste Startzeit, gestartet wird im Leerlauf
     web_aktiv: bool = False
     web_bei_anmeldung: bool = False
     web_port: int = 18425
@@ -475,9 +475,13 @@ Nutzers veraendert. Sie ist standardmaessig aus.
 
 **Stufen** (`SearchConfig.textebene`):
 
-- `aus` (Standard): nichts wird geschrieben, kein Text-PDF gespeichert.
-- `neue_scans`: PDFs unter dem ersten Vorrang-Ordner (Scan-Eingang) bekommen
-  die Ebene aus der OCR, die ohnehin laeuft (`SearchConfig.textebene_erzeugen`).
+- `aus`: nichts wird geschrieben, kein Text-PDF gespeichert.
+- `neue_scans` (Standard seit 06.11.2026, Opt-out auf Wunsch des
+  Auftraggebers; vorher `aus`): PDFs unter dem ersten Vorrang-Ordner
+  (Scan-Eingang) bekommen die Ebene aus der OCR, die ohnehin laeuft
+  (`SearchConfig.textebene_erzeugen`). Der Assistent zeigt dafuer ein
+  vorausgewaehltes Haekchen, die Einstellungen die Stufe „Aus“. Scans, die
+  schon Text haben (z. B. die OCR des Scanprogramms), bleiben unberuehrt.
 - `alle`: zusaetzlich der Altbestand, also PDFs mit `ocr_seiten > 0`, deren Text
   bisher nur im Index steht. Tesseract liest diese Seiten noch einmal, weil der
   Index den Text kennt, nicht seine Lage. Die Einstellungen fragen vorher mit
@@ -1161,6 +1165,16 @@ gesichert), Repository PDFsuche archiviert. Dabei gefunden und behoben:
   Win32-Schnittstelle wird erst beim ersten Gebrauch geladen, unter macOS und
   Linux ist das Modul ohne Wirkung; `tests/conftest.py` schaltet es fuer alle
   Tests ab.
+- Zeitplan: Der Rechner des Auftraggebers ist nachts meist aus. Die Windows-
+  Aufgabe holt einen verpassten Termin schon nach (`StartWhenAvailable`) und
+  startet auch dann erst nach 10 Minuten Leerlauf; Einstellungen und
+  `zeitplan --status` beschrieben das aber als „taeglich um 03:00“. Jetzt:
+  „einmal taeglich beim ersten Leerlauf, fruehestens ab“ der eingestellten
+  Zeit, Standard 00:00. macOS holt einen Kalendertermin nach dem Ausschalten
+  nicht nach: Der LaunchAgent der Indexierung startet zusaetzlich bei der
+  Anmeldung (`RunAtLoad`), der Lauf wartet selbst auf Leerlauf
+  (`--nur-leerlauf`) und endet sofort, wenn heute schon ein vollstaendiger
+  Lauf fertig wurde (`--einmal-taeglich`, `meta.voller_lauf_am`).
 - Hinweis fuer Installationen: Inno Setup uebernimmt das Verzeichnis einer
   frueheren Installation aus der Registrierung, auch wenn der Ordner nicht mehr
   existiert. Wer an einen festen Ort installieren will, gibt `/DIR=` an.

@@ -101,6 +101,24 @@ def sperre_freigeben() -> None:
         _sperre_datei = None
 
 
+VOLLER_LAUF_META = "voller_lauf_am"     # Ende des letzten vollstaendigen Laufs (alle Ordner)
+
+
+def heute_schon_gelaufen(konfig: SearchConfig) -> bool:
+    """Ist heute (Ortszeit) schon ein vollstaendiger Lauf fertig geworden? (``index --einmal-taeglich``)"""
+    if not konfig.db_datei.exists():
+        return False
+    try:
+        con = db.verbinde(konfig.db_datei, nur_lesen=True)
+        try:
+            wert = db.lies_meta(con, VOLLER_LAUF_META)
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return False
+    return bool(wert) and str(wert)[:10] == db.jetzt()[:10]
+
+
 def anhalten_datei(konfig: SearchConfig) -> Path:
     """Liegt diese Datei im Datenordner, haelt der laufende Lauf an (Oberflaeche: „Anhalten“)."""
     return konfig.daten_ordner / "indexer.anhalten"
@@ -1114,6 +1132,8 @@ class Indexer:
                                  (db.jetzt(), status, self.phase, json.dumps(dict(self.stat)), self.lauf_id))
                 self._commit_wenn_noetig(sofort=True)
                 if status == "fertig":
+                    if not (nur_prioritaet or nur_pfad or nur_textebene):
+                        db.setze_meta(self.con, VOLLER_LAUF_META, db.jetzt())
                     self.con.execute("PRAGMA optimize")
                     if self.stat["gelesen"] + self.stat["mails"] > 5000:
                         self.con.execute("INSERT INTO seiten_fts(seiten_fts) VALUES ('optimize')")

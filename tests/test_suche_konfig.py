@@ -126,6 +126,8 @@ def test_textebene_stufen_und_sicherung():
     c = SearchConfig(textebene="alle", textebene_sicherung_tage=7)
     assert c.textebene == "alle" and c.textebene_sicherung_tage == 7
     assert SearchConfig(textebene="unsinn").textebene == "aus"
+    # Standard (Opt-out): neue Scans bekommen die Textebene; der Lauf beginnt frühestens um 00:00 im Leerlauf
+    assert SearchConfig().textebene == "neue_scans" and SearchConfig().hintergrund_uhrzeit == "00:00"
     assert SearchConfig(textebene_sicherung_tage=-3).textebene_sicherung_tage == 0
     d = c.als_dict()
     assert d["textebene"] == "alle" and SearchConfig.aus_dict(d).textebene == "alle"
