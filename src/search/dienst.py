@@ -1,6 +1,7 @@
 """Konsolenprogramm ``pdfsm-dienst`` der Dokumentensuche (Qt-frei).
 
-  pdfsm-dienst index [--nur-prioritaet] [--ohne-ocr] [--ohne-mail] [--pfad ORDNER] [--hintergrund] [--max-minuten N]
+  pdfsm-dienst index [--nur-prioritaet] [--ohne-ocr] [--ohne-mail] [--pfad ORDNER] [--hintergrund]
+                     [--nur-leerlauf] [--max-minuten N]
   pdfsm-dienst suche "Unterhalt UND 2019" [--typ pdf] [--ordner X] [--von 2019-01-01] [--bis ...] [-n 20] [--json]
   pdfsm-dienst lesen 1234 [--seiten 2-5]
   pdfsm-dienst status
@@ -78,6 +79,8 @@ def parser() -> argparse.ArgumentParser:
     i.add_argument("--ohne-mail", action="store_true")
     i.add_argument("--pfad", help="nur diesen Ordner indizieren")
     i.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
+    i.add_argument("--nur-leerlauf", action="store_true",
+                   help="pausieren, solange der Nutzer aktiv ist (für Zeitpläne ohne Leerlaufbedingung, z. B. macOS)")
     i.add_argument("--max-minuten", type=float, default=0)
 
     w = sub.add_parser("web", help="Browser-Oberfläche starten")
@@ -101,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.befehl == "index":
         from src.search.indexer import Indexer, logging_einrichten
         logging_einrichten(konfig, konsole=not a.hintergrund)
-        indexer = Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten)
+        indexer = Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten, nur_leerlauf=a.nur_leerlauf)
         return indexer.lauf(nur_prioritaet=a.nur_prioritaet, ohne_ocr=a.ohne_ocr, ohne_mail=a.ohne_mail,
                             nur_pfad=a.pfad)
 

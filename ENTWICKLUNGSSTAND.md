@@ -22,8 +22,16 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   mit Wasserstandsmarke (`Indexer._mbox_stapel_fertig`), Excel-Datumsformate aus
   `styles.xml` (`office._xlsx_datumsstile`, `_excel_datum`), Aufraeumen ausserhalb
   aller Wurzeln nach vollstaendigem Lauf (`Indexer._aufraeumen_ausserhalb`); 9 Tests
-- Offen: Phase 2 (Plattformschicht macOS), 3 (Einrichtung,
-  Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
+- Phase 2 (2026-11-06): Plattformschicht `src/search/plattform.py` (Abschnitt 5 des
+  Entwurfs) - Dateisperre (msvcrt/flock), Job-Objekt bzw. Prozessgruppe mit
+  Elternwaechter in den Arbeitsprozessen, Hintergrundprioritaet (Windows-Hintergrundmodus;
+  nice 19, E/A-Drosselung, taskpolicy), Cloud-Platzhalter (OneDrive-Attribute,
+  SF_DATALESS, `.Name.icloud`), Junction/Symlink, Unterprozess-Flags, Leerlaufzeit
+  (GetLastInputInfo, ioreg HIDIdleTime) mit `pdfsm-dienst index --nur-leerlauf`,
+  Thunderbird-Profil aus `profiles.ini` als Standard fuer `mail_ordner`,
+  Wurzel-Vorschlaege je Plattform, Sprachdaten-Pruefung (`ocr_grund` im Status);
+  28 Tests mit simuliertem `sys.platform`
+- Offen: Phase 3 (Einrichtung, Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
   Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo

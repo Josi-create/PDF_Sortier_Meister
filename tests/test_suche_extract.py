@@ -165,7 +165,7 @@ def test_fehlertext_kurz_und_ohne_pfad():
 
 
 def test_popen_kwargs_nur_unter_windows(monkeypatch):
-    monkeypatch.setattr(extract.sys, "platform", "darwin")
+    monkeypatch.setattr(sys, "platform", "darwin")
     assert extract._popen_kwargs() == {}
-    monkeypatch.setattr(extract.sys, "platform", "win32")
+    monkeypatch.setattr(sys, "platform", "win32")
     assert extract._popen_kwargs() == {"creationflags": 0x08000000}

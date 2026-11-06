@@ -63,6 +63,8 @@ def status_text(idx) -> str:
          "Status: " + ", ".join(f"{k}: {v}" for k, v in sorted(st["pro_status"].items())),
          f"Indexierung läuft gerade: {'ja' if st.get('laeuft') else 'nein'}",
          f"Fortschritt: {st['fortschritt']}"]
+    if st.get("ocr_grund"):
+        z.insert(3, f"Texterkennung (OCR): aus – {st['ocr_grund']}")
     if st["laeufe"]:
         lauf = st["laeufe"][0]
         z.append(f"Letzter Lauf: {lauf['beginn']} bis {lauf['ende'] or '…'} – {lauf['status']} ({lauf['phase']})")

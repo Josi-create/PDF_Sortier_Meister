@@ -515,6 +515,30 @@ Alle Windows-Importe (`msvcrt`, `ctypes.wintypes`) liegen in Funktionen hinter
 Die Plattformtests simulieren `sys.platform` per `monkeypatch` wie
 `tests/test_platform_paths.py`.
 
+**Umsetzung (Phase 2, 06.11.2026):** `src/search/plattform.py` buendelt die
+Tabelle in Funktionen: `sperren`/`entsperren`; `kinder_an_mich_binden`
+(Windows Job-Objekt; unter macOS kein eigenes `setpgrp`, weil die Oberflaeche
+den Dienst ohnehin mit `start_new_session=True` in eigener Sitzung startet und
+ein `setpgrp` im Terminal das Strg+C abschneiden wuerde) und
+`elternwaechter_starten` (Thread
+in jedem Arbeitsprozess, prueft `os.getppid()` alle 2 s und ruft bei
+Elternwechsel `os._exit`; unter Windows unnoetig); `niedrige_prioritaet_setzen`
+(`PROCESS_MODE_BACKGROUND_BEGIN` bzw. `nice` 19, unter macOS dazu
+`setiopolicy_np` und `taskpolicy -b -p`); `popen_flags(abgekoppelt)`;
+`nur_cloud` und `icloud_platzhalter` (ein `.Name.pdf.icloud` wird als Eintrag
+`cloud` nur mit Namen aufgenommen, ein schon gelesener Text bleibt stehen);
+`verknuepfung`; `im_dateimanager_zeigen`; `leerlauf_sekunden`
+(`GetLastInputInfo` bzw. `ioreg -c IOHIDSystem`); `thunderbird_profile` und
+`thunderbird_mail_ordner` (Standard fuer leeres `mail_ordner` ueber
+`SearchConfig.mail_ordner_effektiv()`); `wurzel_vorschlaege`. Der Lauf kennt
+`nur_leerlauf` (`pdfsm-dienst index --nur-leerlauf`): alle 30 s wird die
+Leerlaufzeit abgefragt, bei Aktivitaet pausiert der Lauf, bis der Nutzer 60 s
+untaetig war - fuer den macOS-LaunchAgent, der keine Leerlaufbedingung kennt.
+Fehlen Tesseract oder die Sprachdaten (`deu+eng`), ist
+`ocr_einstellungen()["aktiv"]` False und `grund` nennt die Ursache; der Status
+(`Suchindex.status()["ocr_grund"]`, `pdfsm-dienst status`) zeigt sie an.
+Apple Mail (`.emlx`) bleibt vorgemerkt.
+
 ---
 
 ## 6. Build: Konsolenprogramm `pdfsm-dienst`

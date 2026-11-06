@@ -68,3 +68,21 @@ def tessdata_dir(tesseract_cmd: Optional[str]) -> Optional[str]:
         if ordner.is_dir():
             return str(ordner)
     return None
+
+
+def fehlende_sprachen(tessdata: str | None, sprachen: str) -> list[str]:
+    """Sprachen aus ``deu+eng``, deren ``<sprache>.traineddata`` im Ordner fehlt.
+
+    Leer, wenn der Ordner unbekannt ist (dann entscheidet Tesseract selbst)
+    oder alle Sprachdaten vorhanden sind. Die Dokumentensuche schaltet die OCR
+    bei fehlenden Daten aus und nennt den Grund im Status, statt jede Seite
+    scheitern zu lassen.
+    """
+    if not tessdata or not os.path.isdir(tessdata):
+        return []
+    fehlt = []
+    for s in sprachen.split("+"):
+        s = s.strip()
+        if s and not os.path.isfile(os.path.join(tessdata, s + ".traineddata")):
+            fehlt.append(s)
+    return fehlt

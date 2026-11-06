@@ -2,8 +2,8 @@
 
 Uebernommen aus PDFsuche (``indexer.py``; Klasse ``Lauf`` heisst jetzt ``Indexer``).
 Laeuft im Dienstprozess (``pdfsm-dienst index``); die Oberflaeche startet ihn nie
-im eigenen Prozess. Plattformabhaengiges (Sperre, Job-Objekt, Dateiattribute)
-ist in kleine Funktionen gekapselt und wandert in Phase 2 nach ``plattform.py``.
+im eigenen Prozess. Plattformabhaengiges (Sperre, Job-Objekt bzw. Prozessgruppe,
+Hintergrundprioritaet, Cloud-Platzhalter, Leerlaufzeit) liegt in ``plattform.py``.
 
 Ablauf eines Laufs: Vorrang-Ordner (im ersten sofort OCR) -> Wurzeln -> Mails ->
 restliche OCR. Unveraenderte Dateien (Groesse + mtime_ns) werden uebersprungen,
@@ -18,7 +18,6 @@ import logging
 import logging.handlers
 import os
 import sqlite3
-import sys
 import time
 from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
@@ -26,18 +25,10 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.search import db, extract, mbox, office
+from src.search import db, extract, mbox, office, plattform
 from src.search.konfig import SearchConfig
 
 log = logging.getLogger("pdf_sortier_meister.suche")
-
-FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-FILE_ATTRIBUTE_OFFLINE = 0x1000
-FILE_ATTRIBUTE_RECALL_ON_OPEN = 0x40000
-FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x400000
-CLOUD_NUR = FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
-IO_REPARSE_TAG_SYMLINK = 0xA000000C
-IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003
 
 TYP = {".pdf": ("pdf", "pdf"), ".md": ("md", "md"), ".eml": ("mail", "eml"), ".msg": ("mail", "msg"),
        ".docx": ("office", "docx"), ".docm": ("office", "docm"), ".xlsx": ("office", "xlsx"),
@@ -47,89 +38,9 @@ OFFICE = {"docx", "docm", "xlsx", "xlsm", "odt", "doc", "xls"}
 OCR_STUECK = 8            # Seiten je OCR-Auftrag
 MBOX_STAPEL_MAILS = 200
 MBOX_STAPEL_BYTES = 24 * 1024 * 1024
-
-
-# --------------------------------------------------------------------------- Plattform (Phase 2: plattform.py)
-
-def _nur_cloud(st: os.stat_result) -> bool:
-    """Datei liegt nur in der Cloud (OneDrive-Platzhalter); Lesen wuerde einen Download ausloesen."""
-    return bool(getattr(st, "st_file_attributes", 0) & CLOUD_NUR)
-
-
-def _junction_oder_symlink(st: os.stat_result) -> bool:
-    """Windows-Junction oder Symlink (wird uebersprungen, sonst Endlosschleifen/Doppeltes)."""
-    if not getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT:
-        return False
-    return getattr(st, "st_reparse_tag", 0) in (IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT)
-
-
-def _sperren(f) -> None:
-    if sys.platform == "win32":
-        import msvcrt
-        f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-    else:
-        import fcntl
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-def _entsperren(f) -> None:
-    try:
-        if sys.platform == "win32":
-            import msvcrt
-            f.seek(0)
-            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-    except OSError:
-        pass
-
-
-def kinder_an_mich_binden() -> None:
-    """Windows-Job-Objekt: Endet dieser Prozess (z. B. Leerlauf vorbei), enden auch alle Arbeitsprozesse.
-
-    Andere Plattformen: Prozessgruppe und Elternwaechter kommen mit Phase 2.
-    """
-    if sys.platform != "win32":
-        return
-    import ctypes
-    from ctypes import wintypes
-
-    class IO_COUNTERS(ctypes.Structure):
-        _fields_ = [(n, ctypes.c_ulonglong) for n in (
-            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
-            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
-
-    class BASIC(ctypes.Structure):
-        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
-                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
-                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
-                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
-
-    class EXTENDED(ctypes.Structure):
-        _fields_ = [("BasicLimitInformation", BASIC), ("IoInfo", IO_COUNTERS),
-                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
-                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
-
-    global _job
-    try:
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        k32.CreateJobObjectW.restype = wintypes.HANDLE
-        k32.GetCurrentProcess.restype = wintypes.HANDLE
-        k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
-        k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
-        job = k32.CreateJobObjectW(None, None)
-        info = EXTENDED()
-        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-        if k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)) and \
-                k32.AssignProcessToJobObject(job, k32.GetCurrentProcess()):
-            _job = job
-    except Exception as e:  # nicht kritisch
-        log.debug("Job-Objekt nicht möglich: %s", e)
-
-
-_job = None
+LEERLAUF_PRUEFEN_S = 30       # nur_leerlauf: so oft wird die Leerlaufzeit abgefragt ...
+LEERLAUF_MIN_S = 60           # ... und so lange muss der Nutzer untaetig sein, damit der Lauf (weiter)arbeitet
+LEERLAUF_PAUSE_S = 10         # Wartezeit zwischen zwei Pruefungen waehrend einer Pause
 
 
 # --------------------------------------------------------------------------- Hilfen
@@ -164,7 +75,7 @@ def sperre_holen(konfig: SearchConfig) -> bool:
     p.parent.mkdir(parents=True, exist_ok=True)
     f = open(p, "a+")
     try:
-        _sperren(f)
+        plattform.sperren(f)
     except OSError:
         f.close()
         return False
@@ -175,7 +86,7 @@ def sperre_holen(konfig: SearchConfig) -> bool:
 def sperre_freigeben() -> None:
     global _sperre_datei
     if _sperre_datei is not None:
-        _entsperren(_sperre_datei)
+        plattform.entsperren(_sperre_datei)
         _sperre_datei.close()
         _sperre_datei = None
 
@@ -186,8 +97,8 @@ def laeuft_gerade(konfig: SearchConfig) -> bool:
         return False
     try:
         with open(p, "a+") as f:
-            _sperren(f)
-            _entsperren(f)
+            plattform.sperren(f)
+            plattform.entsperren(f)
         return False
     except OSError:
         return True
@@ -233,10 +144,12 @@ class Indexer:
     MBOX_STAND_INTERVALL_S = 30
 
     def __init__(self, konfig: SearchConfig, hintergrund: bool = False, max_minuten: float = 0,
-                 synchron: bool = False):
+                 synchron: bool = False, nur_leerlauf: bool = False):
         self.konfig = konfig
         self.hintergrund = hintergrund
         self.synchron = synchron
+        self.nur_leerlauf = nur_leerlauf
+        self._leerlauf_geprueft = 0.0
         self.ende_zeit = time.monotonic() + max_minuten * 60 if max_minuten else None
         self.con = db.verbinde(konfig.db_datei)
         db.init(self.con)
@@ -491,6 +404,41 @@ class Indexer:
     def _zeit_pruefen(self) -> None:
         if self.ende_zeit and time.monotonic() > self.ende_zeit:
             raise Abbruch("Zeitlimit erreicht")
+        self._leerlauf_warten()
+
+    def _leerlauf_warten(self) -> None:
+        """``nur_leerlauf``: pausiert, solange der Nutzer aktiv ist.
+
+        Die Windows-Aufgabenplanung startet und stoppt den Lauf selbst nach
+        Leerlauf; ein macOS-LaunchAgent kennt keine solche Bedingung, deshalb
+        prueft der Lauf dort alle ``LEERLAUF_PRUEFEN_S`` Sekunden die Zeit seit
+        der letzten Eingabe und wartet, bis der Nutzer ``LEERLAUF_MIN_S``
+        Sekunden untaetig war. Laufende Auftraege werden dabei noch beendet.
+        """
+        if not self.nur_leerlauf:
+            return
+        jetzt = time.monotonic()
+        if jetzt - self._leerlauf_geprueft < LEERLAUF_PRUEFEN_S:
+            return
+        self._leerlauf_geprueft = jetzt
+        if self._leerlauf():
+            return
+        vorher = self.phase
+        log.info("Nutzer aktiv – Lauf pausiert")
+        self.stat["pausen"] += 1
+        self._phase(f"{vorher} – Pause (Nutzer aktiv)")
+        while not self._leerlauf():
+            if self.ende_zeit and time.monotonic() > self.ende_zeit:
+                raise Abbruch("Zeitlimit erreicht")
+            time.sleep(LEERLAUF_PAUSE_S)
+        log.info("Leerlauf – Lauf geht weiter")
+        self._phase(vorher)
+        self._leerlauf_geprueft = time.monotonic()
+
+    @staticmethod
+    def _leerlauf() -> bool:
+        s = plattform.leerlauf_sekunden()
+        return s is None or s >= LEERLAUF_MIN_S
 
     def _phase(self, name: str) -> None:
         self.phase = name
@@ -562,13 +510,15 @@ class Indexer:
                             pl = e.path.lower()
                             if pl in konfig.pfade_ausschliessen or pl in auslassen:
                                 continue
-                            if _junction_oder_symlink(e.stat(follow_symlinks=False)):
+                            if plattform.verknuepfung(e.stat(follow_symlinks=False)):
                                 continue
                             unterordner.append(e.path)
                         elif e.is_file(follow_symlinks=False):
                             ext = os.path.splitext(e.name)[1].lower()
                             if ext in konfig.endungen and ext in TYP and not e.name.startswith("~$"):
                                 self._datei(e, ext, prio)
+                            elif ext == ".icloud":
+                                self._cloud_platzhalter(e, prio)
                     except OSError:
                         continue
             # Rueckwaerts, damit die Ordner in alphabetischer Reihenfolge abgearbeitet werden
@@ -581,7 +531,7 @@ class Indexer:
         key = pfad.lower()
         self.gesehen.add(key)
         alt = self.bekannt.get(key)
-        nur_cloud = _nur_cloud(st) and not self.konfig.cloud_herunterladen
+        nur_cloud = plattform.nur_cloud(st) and not self.konfig.cloud_herunterladen
         if alt and alt[1] == st.st_size and alt[2] == st.st_mtime_ns and not (alt[3] == "cloud" and not nur_cloud):
             if prio < alt[4]:
                 self.con.execute("UPDATE dokumente SET prioritaet = ? WHERE id = ?", (prio, alt[0]))
@@ -624,6 +574,33 @@ class Indexer:
             a = Auftrag("datei", extract.msg_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
         self._einreichen(a)
 
+    def _cloud_platzhalter(self, e: os.DirEntry, prio: int) -> None:
+        """iCloud-Platzhalter ``.Name.pdf.icloud``: die echte Datei nur mit Namen aufnehmen (Status ``cloud``).
+
+        Ist die Datei schon mit Text im Index (sie wurde nach dem Lesen in die
+        Cloud ausgelagert), bleibt der Eintrag unveraendert erhalten.
+        """
+        echt = plattform.icloud_platzhalter(e.name)
+        if not echt:
+            return
+        ext = os.path.splitext(echt)[1].lower()
+        if ext not in self.konfig.endungen or ext not in TYP:
+            return
+        pfad = os.path.join(os.path.dirname(e.path), echt)
+        key = pfad.lower()
+        self.gesehen.add(key)
+        st = e.stat(follow_symlinks=False)
+        alt = self.bekannt.get(key)
+        if alt and (alt[3] != "cloud" or (alt[1] == st.st_size and alt[2] == st.st_mtime_ns)):
+            self.stat["unveraendert"] += 1
+            return
+        typ, fmt = TYP[ext]
+        basis = {"pfad": pfad, "datei": pfad, "name": echt, "ordner": os.path.dirname(pfad), "typ": typ,
+                 "format": fmt, "groesse": st.st_size, "mtime_ns": st.st_mtime_ns, "datum": st.st_mtime,
+                 "prioritaet": prio}
+        self.stat["neu" if not alt else "geaendert"] += 1
+        self._nur_name(basis, "cloud")
+
     def _nur_name(self, basis: dict, status: str) -> None:
         dok_id = db.speichere(self.con, {**basis, "seiten": None, "textstatus": status}, [])
         self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], status, basis["prioritaet"]]
@@ -665,7 +642,7 @@ class Indexer:
     def _ocr(self, praefix: str | None = None) -> None:
         if not self.ocr["aktiv"]:
             if self.konfig.ocr_aktiv:
-                log.warning("Tesseract nicht gefunden – Texterkennung übersprungen")
+                log.warning("Texterkennung übersprungen: %s", self.ocr["grund"])
             return
         sql = "SELECT id, datei FROM dokumente WHERE textstatus = 'ocr_ausstehend'"
         args: list = []
@@ -703,7 +680,10 @@ class Indexer:
         gefunden: set[str] = set()
         erreichbar = False
         stand = {r["datei"].lower(): dict(r) for r in self.con.execute("SELECT * FROM mbox_stand")}
-        for wurzel in self.konfig.mail_ordner:
+        ordner = self.konfig.mail_ordner_effektiv()
+        if not ordner:
+            log.warning("Keine Postfach-Ordner eingestellt und kein Thunderbird-Profil gefunden")
+        for wurzel in ordner:
             if not os.path.isdir(wurzel):
                 log.warning("Mailordner nicht gefunden: %s", wurzel)
                 continue
@@ -767,9 +747,9 @@ class Indexer:
             log.info("Ein anderer Indexierungslauf ist bereits aktiv – Ende.")
             self.con.close()
             return 2
-        kinder_an_mich_binden()
+        plattform.kinder_an_mich_binden()
         if self.hintergrund:
-            extract.setze_niedrige_prioritaet()
+            plattform.niedrige_prioritaet_setzen()
         self.con.execute("UPDATE laeufe SET status = 'abgebrochen', ende = coalesce(ende, ?) WHERE status = 'laeuft'",
                          (db.jetzt(),))
         self.lauf_id = self.con.execute("INSERT INTO laeufe (beginn, status) VALUES (?, 'laeuft')",
