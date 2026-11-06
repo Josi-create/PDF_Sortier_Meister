@@ -69,18 +69,20 @@ def test_datei_verschoben_und_geloescht(tmp_path):
     assert idx.datei_geloescht(str(ordner / "Alt.md")) is False
 
 
-def test_dienst_kommando_entwicklung_und_gebaut(monkeypatch):
+def test_dienst_kommando_entwicklung_und_gebaut(monkeypatch, tmp_path):
     monkeypatch.delattr(sys, "frozen", raising=False)
     assert Suchindex.dienst_kommando() == [sys.executable, "-m", "src.search.dienst"]
+    # Gebaut: Dienst-EXE liegt neben dem Programm. Die simulierten Programmpfade
+    # liegen unter tmp_path, damit der Test auf Windows und macOS gleich rechnet
+    # (ein Windows-Pfad mit Backslashes hat unter POSIX keinen Ordnerteil).
+    programm = tmp_path / "Programme"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Programme\PDF_Sortier_Meister.exe")
+    monkeypatch.setattr(sys, "executable", str(programm / "PDF_Sortier_Meister.exe"))
     monkeypatch.setattr(sys, "platform", "win32")
-    assert Suchindex.dienst_kommando() == [r"C:\Programme\pdfsm-dienstw.exe"]
+    assert Suchindex.dienst_kommando() == [str(programm / "pdfsm-dienstw.exe")]
     monkeypatch.setattr(sys, "platform", "darwin")
-    exe = "/Applications/PDF Sortier Meister.app/Contents/MacOS/PDF_Sortier_Meister"
-    monkeypatch.setattr(sys, "executable", exe)
-    kommando = Suchindex.dienst_kommando()
-    assert len(kommando) == 1 and kommando[0] == str(Path(exe).with_name("pdfsm-dienst"))
+    monkeypatch.setattr(sys, "executable", str(programm / "PDF_Sortier_Meister"))
+    assert Suchindex.dienst_kommando() == [str(programm / "pdfsm-dienst")]
 
 
 def test_lauf_starten_ruft_dienst(tmp_path, monkeypatch):
