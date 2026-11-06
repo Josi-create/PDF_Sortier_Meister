@@ -120,3 +120,12 @@ def test_norm_pfad_laufwerkswurzel(monkeypatch):
     monkeypatch.setattr(konfig_modul.sys, "platform", "win32")
     assert norm_pfad("E:").endswith("\\") and len(norm_pfad("E:")) == 3
     assert not norm_pfad(str(Path("/a/b/"))).endswith(("/", "\\")) or len(norm_pfad("/")) == 1
+
+
+def test_textebene_stufen_und_sicherung():
+    c = SearchConfig(textebene="alle", textebene_sicherung_tage=7)
+    assert c.textebene == "alle" and c.textebene_sicherung_tage == 7
+    assert SearchConfig(textebene="unsinn").textebene == "aus"
+    assert SearchConfig(textebene_sicherung_tage=-3).textebene_sicherung_tage == 0
+    d = c.als_dict()
+    assert d["textebene"] == "alle" and SearchConfig.aus_dict(d).textebene == "alle"

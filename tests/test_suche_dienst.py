@@ -108,3 +108,24 @@ def test_mcp_werkzeuge(indiziert):
     dok_id = idx.suche("Frist")["treffer"][0]["id"]
     assert "Seite zwei Frist" in mcp_server.werkzeug_dokument_lesen(idx, dok_id, "2")
     assert "Dokumente: 2" in mcp_server.werkzeug_index_status(idx)
+
+
+def test_migration_befehl(indiziert, tmp_path, capsys, monkeypatch):
+    """pdfsm-dienst migration: Vorschau ohne --ja, Uebernahme mit --ja in die angegebene config.json."""
+    from src.search.konfig import norm_pfad
+    from src.utils.config import Config
+
+    cfg_pfad = tmp_path / "pdfsm" / "config.json"
+    # tmp_path ist hier der "Projektordner": config.toml liegt dort, die DB daneben
+    assert dienst.main(["--config", str(cfg_pfad), "migration", "--von", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "Dokumente: 2" in out and "--ja" in out
+    assert Config(config_path=cfg_pfad).get_search_config().aktiv is False
+    assert dienst.main(["--config", str(cfg_pfad), "migration", "--von", str(tmp_path), "--ja"]) == 0
+    assert "bernommen" in capsys.readouterr().out
+    s = Config(config_path=cfg_pfad).get_search_config()
+    assert s.aktiv is True and s.db_pfad == norm_pfad(str(tmp_path / "suche.db"))
+    # Ohne Fund und ohne --von: Hinweis, Rueckgabe 1
+    monkeypatch.setattr("src.search.migration.finde_pdfsuche", lambda: [])
+    assert dienst.main(["--config", str(cfg_pfad), "migration"]) == 1
+    assert "--von" in capsys.readouterr().out

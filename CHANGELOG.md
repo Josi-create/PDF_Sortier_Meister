@@ -77,6 +77,24 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Vorschlaege fuer Wurzeln (Laufwerke bzw. Benutzerordner und `/Volumes`);
   fehlen Tesseract oder die Sprachdaten `deu+eng`, bleibt die Texterkennung
   aus und der Status nennt den Grund.
+- **Dokumentensuche einrichten** (Phase 3): Neue Registerkarte **Suche** in
+  den Einstellungen mit allen Optionen - Ordner und Laufwerke (mit
+  Vorschlaegen), Vorrang-Ordner, Ausschluesse, Dateiendungen, Mails
+  (Thunderbird-Profil wird erkannt), Texterkennung (Sprachen, Seitengrenze,
+  Tesseract-Status), Cloud-Dateien, Hintergrundindexierung mit Uhrzeit,
+  Browser-Oberflaeche mit Port, Arbeitsprozesse, Speicherort der Datenbank
+  und die Stufen fuer die Textebene in gescannten PDFs (aus / nur neue Scans /
+  alle, mit Aufbewahrung der Sicherungskopien). Der Einrichtungs-Assistent
+  bekommt die Seite „Dokumentensuche“: Sie fragt, ob und welche Ordner
+  durchsucht werden (vorbelegt sind Scan- und Zielordner), ob Mails und
+  Texterkennung dazukommen und ob taeglich im Hintergrund indiziert wird -
+  ohne Zustimmung wird nichts indiziert, alles bleibt auf dem Rechner. Wer
+  das fruehere Programm PDFsuche benutzt hat, uebernimmt dessen Einstellungen
+  und Datenbank per Dialog oder `pdfsm-dienst migration`: PDFSM findet die
+  Installation ueber die Aufgabenplanung bzw. den MCP-Eintrag, prueft die
+  Datenbank am Ort (kein laufender Index, Integritaet, Zaehler) und laesst
+  sie dort liegen; auf Wunsch wird sie geprueft in das Datenverzeichnis
+  kopiert.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit

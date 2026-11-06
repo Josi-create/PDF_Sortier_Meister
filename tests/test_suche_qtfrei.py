@@ -11,7 +11,7 @@ import sys
 import src.search
 import src.search.dienst, src.search.web, src.search.mcp_server, src.search.suchindex, src.search.indexer
 import src.search.extract, src.search.office, src.search.mbox, src.search.ausgabe, src.search.konfig
-import src.search.plattform
+import src.search.plattform, src.search.migration
 import src.utils.tesseract, src.utils.config
 geladen = sorted(m for m in sys.modules if m.startswith(("PyQt6", "sklearn", "src.gui")))
 assert not geladen, geladen

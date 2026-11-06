@@ -311,3 +311,26 @@ def mbox(pfad: Path, mails: list[bytes]) -> Path:
             f.write(b"From - Wed Jan 10 10:00:00 2024\n" + roh + b"\n")
     Path(str(pfad) + ".msf").write_bytes(b"")
     return pfad
+
+
+# --------------------------------------------------------------------------- PDFsuche-Projektordner (Uebernahme)
+
+def pdfsuche_projekt(tmp_path: Path) -> Path:
+    """Synthetischer Projektordner des frueheren Programms PDFsuche: config.toml + data/pdfsuche.db mit zwei Dokumenten."""
+    ordner = tmp_path / "PDFsuche"
+    (ordner / "data").mkdir(parents=True)
+    ablage = tmp_path / "Ablage"
+    ablage.mkdir(exist_ok=True)
+    (ablage / "Rechnung.md").write_text("# Rechnung\nBetrag 49,99 Euro von Telekom", encoding="utf-8")
+    pdf_mit_text(ablage / "Brief.pdf", ["Sehr geehrte Frau Beispiel"])
+    (ordner / "config.toml").write_text(
+        '[datenbank]\npfad = "data/pdfsuche.db"\n\n[suche]\nprioritaet = ["' + ablage.as_posix() + '"]\n'
+        'wurzeln = ["' + ablage.as_posix() + '"]\n\n[ocr]\naktiv = false\n\n[web]\nport = 18425\n',
+        encoding="utf-8",
+    )
+    konfig = konfig_fuer(tmp_path, db_pfad=str(ordner / "data" / "pdfsuche.db"),
+                         wurzeln=[str(ablage)], prioritaet=[str(ablage)])
+    from src.search.indexer import Indexer
+
+    assert Indexer(konfig, synchron=True).lauf() == 0
+    return ordner
