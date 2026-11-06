@@ -69,6 +69,7 @@ from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
+from src.gui.search_view import SearchView
 
 
 class _ClickableLabel(QLabel):
@@ -256,14 +257,31 @@ class MainWindow(QMainWindow):
         self.center_tabs.addTab(self.chat_view, "Chat")
         self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
-        # LLM-Status aktualisieren, wenn der Chat-Tab gewaehlt wird
+        # Tab "Suche": Volltextsuche im Index der Dokumentensuche (PDFsuche-Integration, Phase 4)
+        self.search_view = SearchView(self.config)
+        self.search_view.open_pdf_requested.connect(self.open_pdf)
+        self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.center_tabs.addTab(self.search_view, "Suche")
+        self.center_tabs.setTabToolTip(
+            2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+        )
+
+        # LLM-Status bzw. Indexstand aktualisieren, wenn der Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status, wenn der Chat-Tab sichtbar wird."""
+        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird."""
         widget = self.center_tabs.widget(index)
         if widget is self.chat_view:
             self.chat_view.refresh_llm_status()
+        elif widget is self.search_view:
+            self.search_view.tab_gezeigt()
+
+    def show_search_tab(self) -> None:
+        """Wechselt auf den Reiter „Suche“ und setzt den Fokus ins Suchfeld (Strg+Umschalt+F)."""
+        self.center_tabs.setCurrentWidget(self.search_view)
+        self.search_view.fokus()
 
     def _open_pdf_external(self, file_path: str) -> None:
         """Oeffnet eine PDF aus dem Chat (Zitat-Link) - je nach Einstellung."""
@@ -1385,6 +1403,12 @@ class MainWindow(QMainWindow):
         search_action.triggered.connect(lambda: self.search_input.setFocus())
         view_menu.addAction(search_action)
 
+        volltext_action = QAction("Volltextsuche (Reiter „Suche“)", self)
+        volltext_action.setShortcut("Ctrl+Shift+F")
+        volltext_action.setToolTip("PDFs, Office-Dateien, Markdown und Mails im Suchindex durchsuchen")
+        volltext_action.triggered.connect(self.show_search_tab)
+        view_menu.addAction(volltext_action)
+
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
 
@@ -1624,6 +1648,8 @@ class MainWindow(QMainWindow):
         # des Detail-Panels und werden unten mit abgewartet.
         if self._preview_window is not None:
             self._preview_window.close()
+        # Reiter „Suche“: Abfrage-Threads und PDF-Leser der eigenen Vorschau
+        self.search_view.shutdown()
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -4482,6 +4508,8 @@ class MainWindow(QMainWindow):
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
         self.detail_panel.refresh_settings()
+        # Reiter „Suche“: Suche ein-/ausgeschaltet, anderer Speicherort
+        self.search_view.refresh_settings()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.

@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from src.search import db, plattform
@@ -127,6 +128,37 @@ class Suchindex:
     def laeuft_gerade(self) -> bool:
         from src.search.indexer import laeuft_gerade
         return laeuft_gerade(self.konfig)
+
+    # ------------------------------------------------------------------ Mails
+
+    @staticmethod
+    def eml_dateiname(name: str) -> str:
+        """Betreff als Dateiname (ohne verbotene Zeichen, hoechstens 80 Zeichen)."""
+        s = "".join(c if c not in '<>:"/\\|?*\r\n\t' else "_" for c in (name or "mail"))
+        return s.strip()[:80] or "mail"
+
+    def mail_als_eml(self, dok: dict) -> Path:
+        """Mail eines Treffers als Datei zum Oeffnen mit dem Mailprogramm.
+
+        Eine Mail aus einer Thunderbird-mbox wird als ``.eml`` in den
+        Temp-Ordner geschrieben (die mbox bleibt unberuehrt); eine ``.eml``-
+        oder ``.msg``-Datei ist schon eine Datei und wird selbst geliefert.
+        """
+        if dok.get("format") != "mbox":
+            return Path(dok["datei"])
+        if "mbox_offset" not in dok or "mbox_laenge" not in dok:
+            # Treffer aus ``suche()`` tragen nur die Kurzfassung; Lage in der mbox nachladen
+            voll = self.dokument(int(dok["id"]))
+            if not voll:
+                raise OSError(f"Mail {dok['id']} ist nicht mehr im Index")
+            dok = voll
+        from src.search import mbox
+
+        roh = mbox.mail_roh(dok["datei"], dok["mbox_offset"], dok["mbox_laenge"])
+        ziel = Path(tempfile.gettempdir()) / "pdfsm_suche" / f"{dok['id']}_{self.eml_dateiname(dok['name'])}.eml"
+        ziel.parent.mkdir(exist_ok=True)
+        ziel.write_bytes(roh)
+        return ziel
 
     # ------------------------------------------------------------------ Schreibmeldungen der Oberflaeche
 

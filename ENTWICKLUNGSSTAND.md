@@ -38,8 +38,16 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   (PDFsuche finden ueber Aufgabe/MCP-Eintrag, pruefen mit `quick_check`, uebernehmen mit
   `meta.migriert_von`, optional Kopie ueber die SQLite-Sicherungsschnittstelle),
   `pdfsm-dienst migration`, Dialog `search_migration_dialog.py`; 18 Tests
-- Offen: Phase 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
-  Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+- Phase 4 (2026-11-06): Reiter „Suche“ im Hauptfenster - `src/gui/search_view.py` und
+  `search_worker.py` (Abfragen, Dokumenttext und Indexstand im `QThread`, veraltete
+  Abfragen verworfen): Suchfeld mit Syntaxhilfe, Filter Typ/Ordner/Zeitraum/Sortierung,
+  Trefferkarten mit Hervorhebung und Seiten-/Blattlink, Nachladen; eigene PDF-Vorschau
+  springt auf die Trefferseite, Textvorschau fuer Office/Markdown/Mails; Oeffnen, im
+  Explorer/Finder zeigen, Pfad kopieren, Mail als `.eml` (`Suchindex.mail_als_eml`);
+  Statuszeile mit „Jetzt indizieren“/„Kompletten Lauf starten“; Hinweis ohne Einrichtung;
+  Strg+Umschalt+F; 12 GUI-Tests
+- Offen: Phase 5 (Zusammenfuehren mit document_search/pdf_cache, Schema v2, OCR-Cache,
+  Metadatenfilter im Reiter), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;

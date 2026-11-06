@@ -142,9 +142,22 @@ def test_main_window_has_chat_tab(main_window):
     assert "Chat" in tab_titles, f"Tab-Titel: {tab_titles}"
 
 
-def test_main_window_has_exactly_two_center_tabs(main_window):
-    """Das center_tabs-Widget hat genau 2 Tabs (Vorschau + Chat)."""
-    assert main_window.center_tabs.count() == 2
+def test_main_window_has_suche_tab(main_window):
+    """Tab 'Suche' (Dokumentensuche, Phase 4) ist vorhanden; ohne Einrichtung zeigt er den Hinweis."""
+    tab_titles = [
+        main_window.center_tabs.tabText(i)
+        for i in range(main_window.center_tabs.count())
+    ]
+    assert "Suche" in tab_titles, f"Tab-Titel: {tab_titles}"
+    view = main_window.search_view
+    assert view.hinweis.isVisibleTo(view) and not view.suchbereich.isEnabled()
+    main_window.show_search_tab()
+    assert main_window.center_tabs.currentWidget() is view
+
+
+def test_main_window_has_exactly_three_center_tabs(main_window):
+    """Das center_tabs-Widget hat genau 3 Tabs (Vorschau + Chat + Suche)."""
+    assert main_window.center_tabs.count() == 3
 
 
 # --------------------------------------------------------------------- #
