@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QDate, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QFileDialog
 
 from src.gui.search_view import SearchView, dokument_html, markiert_html, status_zeile
@@ -162,11 +162,18 @@ def test_filter_typ_zeitraum_ordner_und_sortierung(qtbot, view):
     view.sort_combo.setCurrentIndex(view.sort_combo.findData("alt"))
     assert _suchen(qtbot, view, "Mietvertrag")[0].dok["typ"] == "mail"
     # Zeitraum Januar 2024: nur die Mail
-    view.von_edit.setDate(QDate(2024, 1, 1))
-    view.bis_edit.setDate(QDate(2024, 1, 31))
+    view.zeitraum_edit.setText("Jan 2024")
+    assert view._filter_argumente()["von"] == "2024-01-01" and view._filter_argumente()["bis"] == "2024-01-31"
     assert [k.dok["typ"] for k in _suchen(qtbot, view, "Mietvertrag")] == ["mail"]
-    view.datum_reset.click()
-    assert view._datum(view.von_edit) is None and view._datum(view.bis_edit) is None
+    # Unlesbar: roter Rand, Hinweis, keine Datumsgrenze in der Abfrage
+    view.zeitraum_edit.setText("Jan 20x4")
+    assert "von" not in view._filter_argumente() and "#d32f2f" in view.zeitraum_edit.edit.styleSheet()
+    view.zeitraum_edit.setText("")
+    assert "von" not in view._filter_argumente() and "bis" not in view._filter_argumente()
+    # Offener Bereich ab 2025: nur die heute erzeugten Dateien, nicht die Mail von 2024
+    view.zeitraum_edit.setText("ab 2025")
+    assert "mail" not in [k.dok["typ"] for k in _suchen(qtbot, view, "Mietvertrag")]
+    view.zeitraum_edit.setText("")
     # Ordnerfilter: nur die Dateien unter „Ablage“, nicht das Postfach
     view.ordner_edit.setText("Ablage")
     assert sorted(k.dok["typ"] for k in _suchen(qtbot, view, "Mietvertrag")) == ["md", "office", "pdf"]

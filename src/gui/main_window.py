@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QDate, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -30,7 +30,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QComboBox,
-    QDateEdit,
     QDoubleSpinBox,
     QToolButton,
 )
@@ -89,6 +88,7 @@ from src.ml.provider_factory import erzeuge_provider, grund_text
 from src.gui.chat_view import ChatView
 from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
+from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.meldungen import melden as index_melden
 
 
@@ -4679,23 +4679,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(reset_btn, 0, 6, 2, 1)
 
         # Zeile 1: Datum, Betrag
-        self.filter_datum_von_cb = QCheckBox("Datum von:")
-        self.filter_datum_von_cb.setToolTip("Aktivieren, um nur Dokumente ab diesem Datum anzuzeigen")
-        layout.addWidget(self.filter_datum_von_cb, 1, 0)
-        self.filter_datum_von = QDateEdit()
-        self.filter_datum_von.setCalendarPopup(True)
-        self.filter_datum_von.setDate(QDate.currentDate().addYears(-1))
-        self.filter_datum_von.setEnabled(False)
-        layout.addWidget(self.filter_datum_von, 1, 1)
-
-        self.filter_datum_bis_cb = QCheckBox("Datum bis:")
-        self.filter_datum_bis_cb.setToolTip("Aktivieren, um nur Dokumente bis zu diesem Datum anzuzeigen")
-        layout.addWidget(self.filter_datum_bis_cb, 1, 2)
-        self.filter_datum_bis = QDateEdit()
-        self.filter_datum_bis.setCalendarPopup(True)
-        self.filter_datum_bis.setDate(QDate.currentDate())
-        self.filter_datum_bis.setEnabled(False)
-        layout.addWidget(self.filter_datum_bis, 1, 3)
+        datum_label = QLabel("Zeitraum:")
+        layout.addWidget(datum_label, 1, 0, Qt.AlignmentFlag.AlignTop)
+        self.filter_zeitraum = ZeitraumFeld()
+        self.filter_zeitraum.setToolTip("Nur Dokumente aus diesem Zeitraum anzeigen; leer = keine Grenze")
+        layout.addWidget(self.filter_zeitraum, 1, 1, 1, 3)
 
         betrag_label = QLabel("Betrag (€):")
         layout.addWidget(betrag_label, 1, 4)
@@ -4725,12 +4713,7 @@ class MainWindow(QMainWindow):
         self.filter_steuerjahr.currentTextChanged.connect(self._execute_search)
         self.filter_kategorie.currentTextChanged.connect(self._execute_search)
         self.filter_korrespondent.currentTextChanged.connect(self._execute_search)
-        self.filter_datum_von_cb.toggled.connect(self.filter_datum_von.setEnabled)
-        self.filter_datum_von_cb.toggled.connect(self._execute_search)
-        self.filter_datum_von.dateChanged.connect(self._execute_search)
-        self.filter_datum_bis_cb.toggled.connect(self.filter_datum_bis.setEnabled)
-        self.filter_datum_bis_cb.toggled.connect(self._execute_search)
-        self.filter_datum_bis.dateChanged.connect(self._execute_search)
+        self.filter_zeitraum.geaendert.connect(self._execute_search)
         self.filter_betrag_von.valueChanged.connect(self._execute_search)
         self.filter_betrag_bis.valueChanged.connect(self._execute_search)
 
@@ -4769,7 +4752,7 @@ class MainWindow(QMainWindow):
             return True
         if self.filter_korrespondent.currentText() not in ("", "Alle"):
             return True
-        if self.filter_datum_von_cb.isChecked() or self.filter_datum_bis_cb.isChecked():
+        if self.filter_zeitraum.hat_grenze():
             return True
         if self.filter_betrag_von.value() > 0 or self.filter_betrag_bis.value() > 0:
             return True
@@ -4779,7 +4762,7 @@ class MainWindow(QMainWindow):
         """Setzt alle Filterfelder zurück."""
         widgets = [
             self.filter_steuerjahr, self.filter_kategorie, self.filter_korrespondent,
-            self.filter_datum_von_cb, self.filter_datum_bis_cb,
+            self.filter_zeitraum,
             self.filter_betrag_von, self.filter_betrag_bis,
         ]
         for w in widgets:
@@ -4787,10 +4770,7 @@ class MainWindow(QMainWindow):
         self.filter_steuerjahr.setCurrentIndex(0)
         self.filter_kategorie.setCurrentIndex(0)
         self.filter_korrespondent.setCurrentIndex(0)
-        self.filter_datum_von_cb.setChecked(False)
-        self.filter_datum_von.setEnabled(False)
-        self.filter_datum_bis_cb.setChecked(False)
-        self.filter_datum_bis.setEnabled(False)
+        self.filter_zeitraum.zuruecksetzen()
         self.filter_betrag_von.setValue(0.0)
         self.filter_betrag_bis.setValue(0.0)
         for w in widgets:
@@ -4828,10 +4808,7 @@ class MainWindow(QMainWindow):
             kategorie = "" if val == "Alle" else val
             val = self.filter_korrespondent.currentText()
             korrespondent = "" if val == "Alle" else val
-            if self.filter_datum_von_cb.isChecked():
-                datum_von = self.filter_datum_von.date().toString("yyyy-MM-dd")
-            if self.filter_datum_bis_cb.isChecked():
-                datum_bis = self.filter_datum_bis.date().toString("yyyy-MM-dd")
+            datum_von, datum_bis = self.filter_zeitraum.grenzen()
             betrag_von = self.filter_betrag_von.value()
             betrag_bis = self.filter_betrag_bis.value()
 
