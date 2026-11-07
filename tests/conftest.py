@@ -102,6 +102,29 @@ def fenster_aus(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kein_echter_papierkorb(monkeypatch, tmp_path_factory):
+    """Kein Test legt Dateien in den echten System-Papierkorb (Issue #124).
+
+    ``QFile.moveToTrash`` verschiebt stattdessen in einen Test-Ordner. Tests,
+    die den Papierkorb gezielt ersetzen (z. B. Fehlschlag), patchen danach
+    selbst und gewinnen damit.
+    """
+    import os
+    import shutil
+
+    from PyQt6.QtCore import QFile
+
+    trash = tmp_path_factory.mktemp("papierkorb")
+
+    def move_to_trash(pfad):
+        ziel = trash / os.path.basename(str(pfad))
+        shutil.move(str(pfad), str(ziel))
+        return True, str(ziel)
+
+    monkeypatch.setattr(QFile, "moveToTrash", staticmethod(move_to_trash))
+
+
+@pytest.fixture(autouse=True)
 def zeitplan_speicher(monkeypatch):
     """Kein Test richtet echte Aufgaben ein (Windows-Aufgabenplanung, macOS-LaunchAgent).
 

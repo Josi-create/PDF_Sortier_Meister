@@ -108,7 +108,8 @@ def test_office_dateien_erscheinen_als_kacheln(main_window, fresh_singletons):
     main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
     assert len(main_window.pdf_widgets) == 3  # PDF + 2 Office in derselben Liste
     assert [w.pdf_path.name for w in main_window.pdf_widgets if w not in main_window.office_widgets] == ["a.pdf"]
-    assert [w.pdf_path.name for w in main_window.office_widgets] == ["Brief.docx", "Zahlen.XLSX"]
+    # Reihenfolge haengt von der Sortierung (#33, Aenderungsdatum) ab
+    assert sorted(w.pdf_path.name for w in main_window.office_widgets) == ["Brief.docx", "Zahlen.XLSX"]
     w = main_window.office_widgets[0]
     assert w.thumbnail_label.pixmap() is not None and not w.thumbnail_label.pixmap().isNull()
     assert not w.acceptDrops()
@@ -384,7 +385,8 @@ def test_loeschen_fragt_entfernt_kachel_und_cache(main_window, fresh_singletons,
     geloescht = []
     monkeypatch.setattr(office_vorschau, "vorschau_loeschen", lambda p: geloescht.append(p))
 
-    w = main_window.office_widgets[0]
+    # nach Namen waehlen: die Reihenfolge haengt von der Sortierung (#33) ab
+    w = next(x for x in main_window.office_widgets if x.pdf_path.name == "Brief.docx")
     assert "Löschen" in [a.text() for a in w._build_context_menu().actions()]
     w.delete_requested.emit(w.pdf_path)
 
