@@ -325,6 +325,14 @@ def test_regenbogen_nur_erster_vorschlag_ab_schwelle(qtbot, tmp_path):
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.84), _suggestion(tmp_path, "b", 0.99)])
     assert [w.regenbogen for w in fake.suggestion_widgets] == [False, False]
 
+    # Issue #116: ein neuer Ordner steht vorne, der Regenbogen geht an den
+    # ersten BESTEHENDEN Vorschlag
+    neu = _suggestion(tmp_path, "neu", 0.99)
+    neu.new_source = "jahr"
+    MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.9), neu])
+    assert [w.neu for w in fake.suggestion_widgets] == [True, False]
+    assert [w.regenbogen for w in fake.suggestion_widgets] == [False, True]
+
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.85)])
     first = fake.suggestion_widgets[0]
     assert first.regenbogen

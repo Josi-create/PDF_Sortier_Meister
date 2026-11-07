@@ -666,6 +666,13 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             '\n    "zielordner": "Ablageort wie in den Beispielen, Jahr an dieses Dokument angepasst, oder UNBEKANNT",'
             if similar_info else ""
         )
+        # Issue #116: mit Ordnerliste darf die KI auch einen neuen Pfad nennen
+        from src.core.neuer_ordner import ORDNERLISTE_KOPF
+        if ORDNERLISTE_KOPF in similar_info:
+            zielordner_field = (
+                '\n    "zielordner": "Ordner aus der Liste in genau dieser Schreibweise (Jahr an dieses '
+                'Dokument angepasst); passt keiner: neuer Pfad, der mit einem Zielordner beginnt; sonst UNBEKANNT",'
+            )
 
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}

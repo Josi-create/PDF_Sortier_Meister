@@ -33,6 +33,8 @@ class Suggestion:
     confidence: float  # 0.0 - 1.0
     reason: str  # Begründung für den Vorschlag
     relative_path: str = ""  # NEU: Relativer Pfad (z.B. "Steuer 2026/Banken")
+    # Issue #116: "" = bestehender Ordner; "jahr"/"ki" = neuer Ordner (noch nicht angelegt)
+    new_source: str = ""
 
 
 class PDFClassifier:
@@ -669,6 +671,7 @@ class PDFClassifier:
         folder_path: Path,
         relative_path: str,
         target_year: int,
+        must_exist: bool = True,
     ) -> Optional[tuple[Path, str]]:
         """
         Liefert die Jahres-Variante eines Ordners, falls sie existiert (Issue #30).
@@ -678,6 +681,10 @@ class PDFClassifier:
         der Aufrufer bietet die Variante zusaetzlich zum gelernten Ordner an,
         denn ein Dokument mit Datum 2026 kann trotzdem zu "Steuer 2025" gehoeren
         (z.B. Lohnsteuerbescheinigung 2025 im Januar 2026).
+
+        Args:
+            must_exist: False liefert die Variante auch, wenn es den Ordner noch
+                nicht gibt (Vorschlag "neuer Ordner", Issue #116).
 
         Returns:
             (variant_path, variant_relative_path) oder None, wenn der Pfad keine
@@ -695,7 +702,7 @@ class PDFClassifier:
             return None
 
         variant_path = Path(*parts)
-        if variant_path == folder_path or not variant_path.is_dir():
+        if variant_path == folder_path or (must_exist and not variant_path.is_dir()):
             return None
 
         variant_relative = (

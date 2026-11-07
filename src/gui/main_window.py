@@ -1314,7 +1314,38 @@ class MainWindow(QMainWindow):
 
         Die KI kennt die Ablageorte aehnlicher Dokumente (Sortierhistorie und
         Suchindex) und nennt den passenden Ordner mit dem Jahr DIESES Dokuments.
+        Dazu kommt hoechstens ein Vorschlag fuer einen NEUEN Ordner (Issue #116).
         """
+        merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
+        return self._with_new_folder(pdf_path, merged, detected_date)
+
+    def _with_new_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """Hoechstens ein Neuer-Ordner-Vorschlag, vorne (Issue #116).
+
+        Jahresregel (A) vor KI (B); ist der Schalter aus, bleibt alles wie bisher.
+        """
+        from src.core import neuer_ordner
+        if not neuer_ordner.aktiv(self.config):
+            return list(suggestions)
+        try:
+            roots = self.folder_manager.target_folders
+            metas = [m for s in (self.pdf_cache.get_llm_suggestions(pdf_path) or [])
+                     if isinstance(m := getattr(s, "metadata", None), dict)]
+            year = neuer_ordner.dokument_jahr(detected_date, metas[0] if metas else None)
+            neu = neuer_ordner.jahres_neuer_ordner(suggestions, year, roots)
+            for meta in metas:
+                if neu is not None:
+                    break
+                neu = neuer_ordner.ki_neuer_ordner(meta, roots)
+            if neu is None:
+                return list(suggestions)
+            return neuer_ordner.hoechstens_einer_vorne([neu, *suggestions])
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Neuer-Ordner-Vorschlag nicht verfuegbar: {e}")
+            return list(suggestions)
+
+    def _with_existing_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """KI-Ordner und verknuepfte Dokumente (nur bestehende Ordner)."""
         try:
             from src.core.similar_documents import (
                 document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
@@ -2572,39 +2603,58 @@ class MainWindow(QMainWindow):
 
         self.no_suggestions_label.hide()
 
+        # Issue #116: ein Vorschlag fuer einen neuen Ordner steht immer vorne
+        suggestions = sorted(suggestions, key=lambda s: not getattr(s, "new_source", ""))
+        first_existing = True
+
         # Vorschlag-Widgets erstellen
         for suggestion in suggestions:
+            is_new = bool(getattr(suggestion, "new_source", ""))
             widget = FolderWidget(suggestion.folder_path, 0)
             widget.is_suggestion = True
+            if is_new:
+                widget.set_neu(True)
 
             # NEU: Relativen Pfad anzeigen wenn vorhanden
             display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
             # Nur bei extrem langen Namen kürzen (WordWrap übernimmt den Rest)
             if len(display_name) > 50:
                 display_name = "..." + display_name[-47:]
+            if is_new:
+                display_name = f"➕ neu: {display_name}"
             widget.name_label.setText(display_name)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
             tooltip += f"{suggestion.reason}\n"
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
-            tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
+            if is_new:
+                tooltip += ("Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach "
+                            "einer Rückfrage an und verschiebt die ausgewählte Datei dorthin.")
+            else:
+                tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
             widget.setToolTip(tooltip)
 
             # Konfidenz im Namen anzeigen
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
-            widget.count_label.setStyleSheet("font-size: 10px; color: #28a745; font-weight: bold;")
+            farbe = "#1e6fd9" if is_new else "#28a745"
+            widget.count_label.setStyleSheet(f"font-size: 10px; color: {farbe}; font-weight: bold;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
-            widget.double_clicked.connect(self.on_folder_double_clicked)
-            # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
-            # auf den Baum (vorher stilles No-op, weil nie verbunden)
-            widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            if not is_new:
+                # Neuer Ordner: nur per Klick (kein Doppelklick-Navigieren, kein Drop)
+                widget.double_clicked.connect(self.on_folder_double_clicked)
+                # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
+                # auf den Baum (vorher stilles No-op, weil nie verbunden)
+                widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
 
-            # Issue #32: nur der erste (beste) Vorschlag, nur bei hoher Konfidenz
-            if not self.suggestion_widgets and suggestion.confidence >= REGENBOGEN_SCHWELLE:
-                widget.set_regenbogen(True)
+            # Issue #32: nur der erste bestehende (beste) Vorschlag, nur bei hoher
+            # Konfidenz - nie ein neuer Ordner (Issue #116)
+            if not is_new:
+                if first_existing and suggestion.confidence >= REGENBOGEN_SCHWELLE:
+                    widget.set_regenbogen(True)
+                first_existing = False
 
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
@@ -2623,14 +2673,45 @@ class MainWindow(QMainWindow):
 
     def on_suggestion_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Vorschlag angeklickt wird."""
+        neu = self._new_folder_suggestion_for(folder_path)
+        if neu is not None:
+            # Issue #116: neuer Ordner nur fuer die eine ausgewaehlte Datei
+            if len(self.selected_pdfs) > 1:
+                self.statusbar.showMessage(
+                    "Neuer Ordner: bitte nur eine Datei auswählen", 4000
+                )
+            elif self.selected_pdf:
+                self._move_rename_and_learn(self.selected_pdf, folder_path, create_folder=True)
+            return
         # Multi-Selektion: Mehrere PDFs verschieben
         if len(self.selected_pdfs) > 1:
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
             self._move_rename_and_learn(self.selected_pdf, folder_path)
 
-    def _move_rename_and_learn(self, pdf_path: Path, folder_path: Path):
-        """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow)."""
+    def _new_folder_suggestion_for(self, folder_path: Path):
+        """Der angezeigte Neuer-Ordner-Vorschlag fuer diesen Pfad (oder None, Issue #116)."""
+        if Path(folder_path).exists():
+            return None  # inzwischen angelegt: wie ein bestehender Vorschlag
+        for s in getattr(self, "_shown_suggestions", None) or []:
+            if getattr(s, "new_source", "") and Path(s.folder_path) == Path(folder_path):
+                return s
+        return None
+
+    def _invalidate_folder_caches(self):
+        """Neue bzw. weggeraeumte Ordner: Classifier-Cache und Prompt-Ordnerliste vergessen."""
+        if hasattr(self, 'classifier'):
+            self.classifier._folder_cache = {}
+            self.classifier._folder_cache_roots = []
+        from src.core import neuer_ordner
+        neuer_ordner.invalidieren()
+
+    def _move_rename_and_learn(self, pdf_path: Path, folder_path: Path, create_folder: bool = False):
+        """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow).
+
+        Mit ``create_folder`` (Issue #116) wird der noch fehlende Zielordner nach
+        der Rueckfrage angelegt; Rueckgaengig raeumt ihn wieder weg, wenn er leer ist.
+        """
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
         new_name = self.detail_panel.get_new_name()
@@ -2673,14 +2754,20 @@ class MainWindow(QMainWindow):
         name_changed = new_name and new_name != pdf_path.name
 
         # Bestätigungsdialog
-        if name_changed:
+        if create_folder:
+            msg = f"Ordner '{relative_path}' anlegen und Datei dorthin verschieben?"
+            if name_changed:
+                msg += f"\n\n'{pdf_path.name}'\n→ '{new_name}'"
+            else:
+                new_name = None
+        elif name_changed:
             msg = f"'{pdf_path.name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
         else:
             msg = f"'{pdf_path.name}' nach '{relative_path}' verschieben?"
             new_name = None  # Originalname beibehalten
 
         reply = QMessageBox.question(
-            self, "PDF verschieben",
+            self, "Neuen Ordner anlegen" if create_folder else "PDF verschieben",
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
@@ -2688,6 +2775,16 @@ class MainWindow(QMainWindow):
 
         if reply != QMessageBox.StandardButton.Yes:
             return
+
+        created_dirs: list[Path] = []
+        if create_folder:
+            from src.core import neuer_ordner
+            try:
+                created_dirs = neuer_ordner.anlegen(folder_path)
+            except OSError as e:
+                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{e}")
+                return
+            self._invalidate_folder_caches()
 
         timer = StepTimer("Verschieben")
         try:
@@ -2716,11 +2813,15 @@ class MainWindow(QMainWindow):
             desc = f"{pdf_path.name} → {relative_path}"
             if name_changed:
                 desc = f"{pdf_path.name} → {new_path.name} → {relative_path}"
-            self._push_undo({
+            undo_entry = {
                 "type": "move",
                 "moves": [(pdf_path, new_path)],
                 "description": desc,
-            })
+            }
+            if created_dirs:
+                # Issue #116: beim Rueckgaengigmachen wieder wegraeumen (wenn leer)
+                undo_entry["created_dirs"] = list(created_dirs)
+            self._push_undo(undo_entry)
 
             # Aus der Entscheidung lernen
             if self.selected_pdf_text:
@@ -2800,6 +2901,10 @@ class MainWindow(QMainWindow):
             timer.done()
 
         except Exception as e:
+            if created_dirs:
+                from src.core import neuer_ordner
+                neuer_ordner.leere_wegraeumen(created_dirs)
+                self._invalidate_folder_caches()
             QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
@@ -4056,6 +4161,13 @@ class MainWindow(QMainWindow):
         # Undo-Eintrag entfernen
         self._undo_stack.pop()
         self._update_undo_ui()
+
+        # Issue #116: beim Verschieben neu angelegte Ordner wieder wegraeumen -
+        # nur die aus diesem Schritt und nur, wenn sie jetzt leer sind
+        if entry.get("created_dirs") and not errors:
+            from src.core import neuer_ordner
+            neuer_ordner.leere_wegraeumen(entry["created_dirs"])
+            self._invalidate_folder_caches()
 
         if errors:
             QMessageBox.warning(

@@ -42,6 +42,7 @@ class FolderWidget(QFrame):
         self.pdf_count = pdf_count
         self._selected = False
         self._is_suggestion = False
+        self._neu = False  # Issue #116: Vorschlag fuer einen noch nicht vorhandenen Ordner
         self._regenbogen = False
         self._regenbogen_winkel = 0.0
         self._regenbogen_anim: Optional[QVariantAnimation] = None
@@ -111,6 +112,13 @@ class FolderWidget(QFrame):
             self.setStyleSheet(
                 "FolderWidget { background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; }"
             )
+        elif self._is_suggestion and self._neu:
+            # Neuer Ordner: blau gestrichelt, damit er sich von den gruenen
+            # (bestehenden) Vorschlaegen und dem Regenbogen abhebt
+            self.setStyleSheet(
+                "FolderWidget { background-color: #e7f1ff; border: 2px dashed #1e6fd9; border-radius: 8px; }"
+                "FolderWidget:hover { background-color: #d0e4ff; }"
+            )
         elif self._is_suggestion:
             self.setStyleSheet(
                 "FolderWidget { background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; }"
@@ -142,6 +150,19 @@ class FolderWidget(QFrame):
     def is_suggestion(self, value: bool):
         """Markiert diesen Ordner als Vorschlag."""
         self._is_suggestion = value
+        self._update_style()
+
+    @property
+    def neu(self) -> bool:
+        """True, wenn die Kachel einen Ordner vorschlaegt, den es noch nicht gibt."""
+        return self._neu
+
+    def set_neu(self, aktiv: bool):
+        """Markiert die Kachel als Neuer-Ordner-Vorschlag (Issue #116): kein Drop."""
+        self._neu = aktiv
+        self.setAcceptDrops(not aktiv)
+        if aktiv:
+            self.icon_label.setText("📂")
         self._update_style()
 
     @property
@@ -234,10 +255,11 @@ class FolderWidget(QFrame):
         """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
 
-        # Im Dateimanager öffnen
-        from src.utils.platform_paths import file_manager_name
-        open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
-        open_action.triggered.connect(lambda: self._open_in_explorer())
+        # Im Dateimanager öffnen (nicht bei einem Ordner, den es noch nicht gibt)
+        if not self._neu:
+            from src.utils.platform_paths import file_manager_name
+            open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
+            open_action.triggered.connect(lambda: self._open_in_explorer())
 
         # Issue #154: Pfad in die Zwischenablage
         from src.gui.pfad_aktionen import PFAD_KOPIEREN_TEXT

@@ -958,6 +958,16 @@ class SettingsDialog(QDialog):
         self.max_suggestions_spin.setValue(5)
         display_layout.addRow("Max. Vorschläge:", self.max_suggestions_spin)
 
+        # Issue #116: auch Ordner vorschlagen, die es noch nicht gibt
+        self.suggest_new_folders_check = QCheckBox("Neue Ordner vorschlagen")
+        self.suggest_new_folders_check.setChecked(True)
+        self.suggest_new_folders_check.setToolTip(
+            "Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\n"
+            "oder nennt die KI einen passenden neuen Unterordner, erscheint er als\n"
+            "Vorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage."
+        )
+        display_layout.addRow(self.suggest_new_folders_check)
+
         layout.addWidget(display_group)
 
         # Cache-Einstellungen
@@ -2451,6 +2461,7 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
+        self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -2547,6 +2558,7 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
+        self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
