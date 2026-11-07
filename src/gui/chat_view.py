@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
+    QMenu,
     QLabel,
     QTextEdit,
     QPushButton,
@@ -132,8 +133,13 @@ class ChatView(QWidget):
     open_pdf_requested = pyqtSignal(str)
     # Phase 5 (PDFsuche-Integration): PDF direkt auf der Seite der Fundstelle oeffnen
     open_pdf_page_requested = pyqtSignal(str, int)
+    # Phase 3 (Issue #166/#167): "Nach … verschieben" unter einer Antwort, deren
+    # Belege in einem Zielordner liegen (absoluter Ordnerpfad); und derselbe
+    # Ordner als Vorschlag fuer das Detail-Panel (Pfad, Begruendung)
+    verschieben_requested = pyqtSignal(str)
+    ordner_belegt = pyqtSignal(str, str)
 
-    def __init__(self, db, hybrid_classifier, chat_config, parent=None):
+    def __init__(self, db, hybrid_classifier, chat_config, parent=None, kompakt: bool = False):
         """
         Args:
             db: :class:`~src.utils.database.Database`-Instanz.
@@ -178,6 +184,10 @@ class ChatView(QWidget):
         # MainWindow (gebundene Methode). Ohne Quelle nur der Pfad.
         self.bezug_daten: Optional[Callable[[Path], Bezug]] = None
 
+        # Phase 3 (Issue #166/#167): kompakt = schmale linke Spalte des
+        # Vorschau-Reiters (Quellen unter dem Verlauf, Schnellfragen als Menue)
+        self.kompakt = bool(kompakt)
+
         self._build_ui()
         self.refresh_llm_status()
 
@@ -201,8 +211,9 @@ class ChatView(QWidget):
         self.banner.setVisible(False)
         layout.addWidget(self.banner)
 
-        # Horizontaler Split: links Verlauf, rechts Quellen
-        self.split = QSplitter(Qt.Orientation.Horizontal)
+        # Split: links Verlauf, rechts Quellen - in der schmalen linken Spalte
+        # des Vorschau-Reiters (kompakt, Phase 3) Verlauf oben, Quellen darunter
+        self.split = QSplitter(Qt.Orientation.Vertical if self.kompakt else Qt.Orientation.Horizontal)
         layout.addWidget(self.split, 1)
 
         # Linke Seite: Nachrichten-Historie in einer QScrollArea
@@ -224,13 +235,13 @@ class ChatView(QWidget):
         sources_layout.setSpacing(4)
 
         sources_header = QHBoxLayout()
-        sources_title = QLabel("Quellen")
-        sources_title.setStyleSheet("font-weight: bold;")
+        self.sources_title = QLabel("Quellen")
+        self.sources_title.setStyleSheet("font-weight: bold;")
         self.toggle_sources_btn = QPushButton("▸")
         self.toggle_sources_btn.setFixedWidth(28)
         self.toggle_sources_btn.setToolTip("Quellen-Panel ein-/ausblenden")
         self.toggle_sources_btn.clicked.connect(self._toggle_sources)
-        sources_header.addWidget(sources_title)
+        sources_header.addWidget(self.sources_title)
         sources_header.addStretch(1)
         sources_header.addWidget(self.toggle_sources_btn)
         sources_layout.addLayout(sources_header)
@@ -243,6 +254,10 @@ class ChatView(QWidget):
         self.split.setStretchFactor(0, 3)
         self.split.setStretchFactor(1, 1)
         self.split.setSizes([600, 250])
+        if self.kompakt:
+            # Quellen eingeklappt starten; der Knopf klappt sie unter dem Verlauf auf
+            self.split.setSizes([520, 140])
+            self.sources_list.setVisible(False)
 
         # Bezug-Chip und Schnellfragen (Issue #148), nur mit Bezugsdokument sichtbar
         self.bezug_box = QWidget()
@@ -271,20 +286,34 @@ class ChatView(QWidget):
         chip_row.addStretch(1)
         bezug_layout.addLayout(chip_row)
 
-        fragen_grid = QGridLayout()
-        fragen_grid.setContentsMargins(0, 0, 0, 0)
-        fragen_grid.setHorizontalSpacing(4)
-        fragen_grid.setVerticalSpacing(4)
         self.schnellfragen_btns: list[QPushButton] = []
-        for i, frage in enumerate(SCHNELLFRAGEN):
-            btn = QPushButton(frage)
-            btn.setProperty("frage", frage)
-            btn.setToolTip("Frage zum Bezugsdokument stellen")
-            btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-            btn.clicked.connect(self._on_schnellfrage)
-            fragen_grid.addWidget(btn, i // 2, i % 2)
-            self.schnellfragen_btns.append(btn)
-        bezug_layout.addLayout(fragen_grid)
+        self.schnellfragen_menu_btn: Optional[QToolButton] = None
+        if self.kompakt:
+            # Schmale Spalte (Phase 3): ein Aufklappmenue statt vier breiter Knoepfe
+            self.schnellfragen_menu_btn = QToolButton()
+            self.schnellfragen_menu_btn.setText("Schnellfragen ▾")
+            self.schnellfragen_menu_btn.setToolTip("Frage zum Bezugsdokument stellen")
+            self.schnellfragen_menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            menue = QMenu(self.schnellfragen_menu_btn)
+            for frage in SCHNELLFRAGEN:
+                aktion = menue.addAction(frage)
+                aktion.triggered.connect(lambda _checked=False, f=frage: self._on_schnellfrage_text(f))
+            self.schnellfragen_menu_btn.setMenu(menue)
+            chip_row.addWidget(self.schnellfragen_menu_btn)
+        else:
+            fragen_grid = QGridLayout()
+            fragen_grid.setContentsMargins(0, 0, 0, 0)
+            fragen_grid.setHorizontalSpacing(4)
+            fragen_grid.setVerticalSpacing(4)
+            for i, frage in enumerate(SCHNELLFRAGEN):
+                btn = QPushButton(frage)
+                btn.setProperty("frage", frage)
+                btn.setToolTip("Frage zum Bezugsdokument stellen")
+                btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+                btn.clicked.connect(self._on_schnellfrage)
+                fragen_grid.addWidget(btn, i // 2, i % 2)
+                self.schnellfragen_btns.append(btn)
+            bezug_layout.addLayout(fragen_grid)
         self.bezug_box.setVisible(False)
         layout.addWidget(self.bezug_box)
 
@@ -343,7 +372,7 @@ class ChatView(QWidget):
         bubble.setStyleSheet(
             _BUBBLE_STYLES.get(role, _BUBBLE_STYLES["system"])
         )
-        bubble.setMaximumWidth(720)
+        self._bubble_breite(bubble)
 
         if citations:
             bubble.setText(self._render_citations(text, citations))
@@ -448,8 +477,7 @@ class ChatView(QWidget):
         self._tick_status()
         self._status_timer.start()
 
-        for btn in self.schnellfragen_btns:
-            btn.setEnabled(False)
+        self._schnellfragen_freigeben(False)
 
         # Thread + Worker aufsetzen (moveToThread-Pattern)
         self._chat_thread = QThread()
@@ -519,6 +547,7 @@ class ChatView(QWidget):
                 "assistant",
                 citations=response.citations,
             )
+            self._zeige_ordner_vorschlag(response)
             if getattr(response, "has_hallucinated_citations", False):
                 self._add_bubble(
                     "⚠ Einige Quellenangaben konnten nicht verifiziert "
@@ -636,7 +665,7 @@ class ChatView(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
         bubble.setStyleSheet(_SCHRITT_STYLES["fehler" if fehler else "schritt"])
-        bubble.setMaximumWidth(720)
+        self._bubble_breite(bubble)
         bubble.setText(f"{symbol} {escape(text)}")
         bubble.setProperty("schritt", True)
         bubble.setProperty("fehler", bool(fehler))
@@ -670,7 +699,7 @@ class ChatView(QWidget):
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
         bubble.setStyleSheet(_BUBBLE_STYLES["assistant"])
-        bubble.setMaximumWidth(720)
+        self._bubble_breite(bubble)
         bubble.setText(html)
         bubble.linkActivated.connect(
             lambda href: self.open_pdf_requested.emit(href)
@@ -724,8 +753,7 @@ class ChatView(QWidget):
         self.input_edit.setFocus()
         self.send_btn.setText("Senden")
         self.reset_btn.setEnabled(True)
-        for btn in self.schnellfragen_btns:
-            btn.setEnabled(True)
+        self._schnellfragen_freigeben(True)
         self._teardown_thread()
         # Cooldown: nach 500ms den Button wieder aktivieren
         QTimer.singleShot(500, self._re_enable_send_btn)
@@ -778,8 +806,7 @@ class ChatView(QWidget):
         self.send_btn.setEnabled(True)
         self.send_btn.setText("Senden")
         self.reset_btn.setEnabled(True)
-        for btn in self.schnellfragen_btns:
-            btn.setEnabled(True)
+        self._schnellfragen_freigeben(True)
         self.status_label.setText("")
         self.input_edit.setFocus()
 
@@ -820,10 +847,60 @@ class ChatView(QWidget):
         """Schnellfrage-Knopf: Frage eintragen und sofort senden."""
         btn = self.sender()
         frage = btn.property("frage") if btn is not None else None
+        self._on_schnellfrage_text(frage)
+
+    def _on_schnellfrage_text(self, frage) -> None:
+        """Schnellfrage (Knopf oder Menueeintrag) eintragen und sofort senden."""
         if not frage or self._chat_thread is not None:
             return
         self.input_edit.setPlainText(str(frage))
         self._on_send()
+
+    def _schnellfragen_freigeben(self, aktiv: bool) -> None:
+        """Schnellfragen (Knoepfe bzw. Menue) waehrend eines Aufrufs sperren."""
+        for btn in self.schnellfragen_btns:
+            btn.setEnabled(aktiv)
+        if self.schnellfragen_menu_btn is not None:
+            self.schnellfragen_menu_btn.setEnabled(aktiv)
+
+    def _bubble_breite(self, bubble: QLabel) -> None:
+        """Bubbles im breiten Reiter begrenzen; in der schmalen Spalte (kompakt) volle Breite."""
+        if not self.kompakt:
+            bubble.setMaximumWidth(720)
+
+    # ------------------------------------------------------------------ #
+    # Zielordner der Belege (Phase 3)                                    #
+    # ------------------------------------------------------------------ #
+
+    def _zeige_ordner_vorschlag(self, response) -> None:
+        """Knopf "Nach … verschieben" unter einer Antwort, deren Belege in einem Zielordner liegen.
+
+        Gleichzeitig geht ``ordner_belegt`` ans Hauptfenster, damit der Ordner
+        im Detail-Panel als Vorschlag erscheint. Nur mit Bezugsdokument - der
+        Knopf verschiebt genau dieses.
+        """
+        pfad = str(getattr(response, "ordner_vorschlag", "") or "")
+        if not pfad or self._bezug is None:
+            return
+        anzeige = str(getattr(response, "ordner_anzeige", "") or "") or Path(pfad).name
+        begruendung = str(getattr(response, "ordner_begruendung", "") or "")
+        self.ordner_belegt.emit(pfad, begruendung)
+
+        knopf = QPushButton(f"📁 Nach {anzeige} verschieben")
+        knopf.setProperty("ordner_pfad", pfad)
+        knopf.setToolTip(f"{self._bezug.name} nach {pfad} verschieben"
+                         + (f"\n{begruendung}" if begruendung else ""))
+        knopf.setStyleSheet("QPushButton { padding: 4px 10px; }")
+        knopf.clicked.connect(lambda _checked=False, p=pfad: self.verschieben_requested.emit(p))
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(knopf)
+        row.addStretch(1)
+        wrapper = QWidget()
+        wrapper.setProperty("ordner_vorschlag", True)
+        wrapper.setLayout(row)
+        self.history_layout.insertWidget(self.history_layout.count() - 1, wrapper)
+        self._scroll_to_bottom()
 
     def _bezug_fuer_frage(self) -> Optional[Bezug]:
         """Bezug fuer den naechsten Aufruf, mit den Daten aus der GUI (falls bekannt)."""
@@ -850,6 +927,8 @@ class ChatView(QWidget):
         nicht-leere Gruppen, in dieser Reihenfolge); sonst wie bisher flach.
         """
         self.sources_list.clear()
+        anzahl = len(list(docs or []))
+        self.sources_title.setText(f"Quellen ({anzahl})" if anzahl else "Quellen")
         docs = list(docs or [])
         if not any(_doc_status(doc) for doc in docs):
             for doc in docs:

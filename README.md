@@ -115,13 +115,15 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   Word, Excel und OpenDocument (`doc`, `docx`, `xls`, `xlsx`, `odt`), Markdown und Mails (Thunderbird,
   `.eml`, `.msg`) — in den Ordnern und Laufwerken, die du auswählst. Einschalten im
   Einrichtungs-Assistenten oder unter *Einstellungen → Suche*; standardmäßig aus
-- Reiter **„Suche“** neben Vorschau und Chat (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
+- Reiter **„Suche“** neben der Vorschau (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
   Seite, Vorschau springt auf die Trefferseite; Filter nach Typ, Ordner, Zeitraum und den PDFSM-Metadaten
   (Steuerjahr, Kategorie, Korrespondent, Betrag). Suchsyntax: `Rechnung Telekom` (alle Wörter),
   `"genaue Wortfolge"`, `Rechnung*`, `Strom ODER Gas`, `Rechnung NICHT Mahnung`; Umlaute sind egal
-- Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe. Ist im
-  Vorschau-Reiter ein PDF gewählt, bezieht sich der Chat darauf: Vertrags-, Zähler- und Kundennummern
-  aus dem Dokument holen die verknüpften Unterlagen (Abrechnung, Vertrag, Mails) in den Kontext
+- Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe. Er sitzt
+  als Reiter neben „PDFs“ in der linken Spalte der Vorschau; die gewählte PDF ist sein Bezug: Vertrags-,
+  Zähler- und Kundennummern aus dem Dokument holen die verknüpften Unterlagen (Abrechnung, Vertrag,
+  Mails) in den Kontext. Belegt eine Antwort einen Zielordner, verschiebt „Nach … verschieben“ die PDF
+  mit einem Klick dorthin; dieselben Verknüpfungen stehen auch ohne Chat als Sortiervorschlag oben
 - **Einmal täglich im Hintergrund**, sobald der Rechner nicht benutzt wird. War er zur eingestellten Zeit
   aus, wird der Lauf nach dem Einschalten nachgeholt — erst im Leerlauf, nicht direkt nach dem Start. Bei
   Benutzung hält der Lauf an und setzt später fort. Neue Scans liest „Jetzt indizieren“ sofort ein

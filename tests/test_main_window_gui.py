@@ -134,12 +134,15 @@ def test_main_window_has_vorschau_tab(main_window):
 
 
 def test_main_window_has_chat_tab(main_window):
-    """Tab 'Chat' (Issue #20) ist vorhanden."""
+    """Tab 'Chat' (Issue #20) ist vorhanden - seit Phase 3 (#166) in der linken Spalte des Vorschau-Reiters."""
     tab_titles = [
-        main_window.center_tabs.tabText(i)
-        for i in range(main_window.center_tabs.count())
+        main_window.left_tabs.tabText(i)
+        for i in range(main_window.left_tabs.count())
     ]
-    assert "Chat" in tab_titles, f"Tab-Titel: {tab_titles}"
+    assert tab_titles == ["PDFs", "Chat"], f"Tab-Titel: {tab_titles}"
+    assert main_window.left_tabs.widget(1) is main_window.chat_view
+    mitte = [main_window.center_tabs.tabText(i) for i in range(main_window.center_tabs.count())]
+    assert "Chat" not in mitte
 
 
 def test_main_window_has_suche_tab(main_window):
@@ -155,9 +158,9 @@ def test_main_window_has_suche_tab(main_window):
     assert main_window.center_tabs.currentWidget() is view
 
 
-def test_main_window_has_exactly_three_center_tabs(main_window):
-    """Das center_tabs-Widget hat genau 3 Tabs (Vorschau + Chat + Suche)."""
-    assert main_window.center_tabs.count() == 3
+def test_main_window_has_exactly_two_center_tabs(main_window):
+    """Das center_tabs-Widget hat genau 2 Tabs (Vorschau + Suche); der Chat sitzt links im Vorschau-Reiter."""
+    assert main_window.center_tabs.count() == 2
 
 
 # --------------------------------------------------------------------- #
@@ -166,19 +169,19 @@ def test_main_window_has_exactly_three_center_tabs(main_window):
 
 
 def test_main_window_can_switch_to_chat_tab(qtbot, main_window):
-    """Tab-Wechsel auf 'Chat' setzt den aktuellen Index korrekt."""
-    # Finde Index des Chat-Tabs
+    """Tab-Wechsel auf 'Chat' (linke Spalte, Phase 3) setzt den aktuellen Index korrekt."""
     chat_idx = None
-    for i in range(main_window.center_tabs.count()):
-        if main_window.center_tabs.tabText(i) == "Chat":
+    for i in range(main_window.left_tabs.count()):
+        if main_window.left_tabs.tabText(i) == "Chat":
             chat_idx = i
             break
     assert chat_idx is not None
-    # Wechsle
-    main_window.center_tabs.setCurrentIndex(chat_idx)
-    qtbot.waitUntil(lambda: main_window.center_tabs.currentIndex() == chat_idx,
+    main_window.show_chat_tab()
+    qtbot.waitUntil(lambda: main_window.left_tabs.currentIndex() == chat_idx,
                     timeout=2000)
-    assert main_window.center_tabs.currentIndex() == chat_idx
+    assert main_window.left_tabs.currentWidget() is main_window.chat_view
+    # Der Vorschau-Reiter in der Mitte bleibt dabei aktiv
+    assert main_window.center_tabs.tabText(main_window.center_tabs.currentIndex()) == "Vorschau"
 
 
 def test_main_window_can_switch_back_to_vorschau_tab(qtbot, main_window):
@@ -443,25 +446,25 @@ def test_chat_tab_uebernimmt_ausgewaehltes_pdf_als_bezug(main_window, zwei_pdfs)
     win.selected_pdf = a
     win.selected_pdfs = []
 
-    win.center_tabs.setCurrentWidget(win.chat_view)
+    win.left_tabs.setCurrentWidget(win.chat_view)
     assert win.chat_view.bezug == a
     assert win.chat_view.bezug_label.text() == "Bezug: a.pdf"
 
     # Neue Auswahl gilt beim naechsten Wechsel in den Chat
-    win.center_tabs.setCurrentIndex(0)
+    win.left_tabs.setCurrentIndex(0)
     win.selected_pdf = b
-    win.center_tabs.setCurrentWidget(win.chat_view)
+    win.left_tabs.setCurrentWidget(win.chat_view)
     assert win.chat_view.bezug == b
 
     # Ohne Auswahl bzw. bei Mehrfachauswahl kein Bezug
-    win.center_tabs.setCurrentIndex(0)
+    win.left_tabs.setCurrentIndex(0)
     win.selected_pdf = None
-    win.center_tabs.setCurrentWidget(win.chat_view)
+    win.left_tabs.setCurrentWidget(win.chat_view)
     assert win.chat_view.bezug is None
-    win.center_tabs.setCurrentIndex(0)
+    win.left_tabs.setCurrentIndex(0)
     win.selected_pdf = a
     win.selected_pdfs = [a, b]
-    win.center_tabs.setCurrentWidget(win.chat_view)
+    win.left_tabs.setCurrentWidget(win.chat_view)
     assert win.chat_view.bezug is None
 
 

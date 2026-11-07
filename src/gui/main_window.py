@@ -280,9 +280,33 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         preview_layout.addWidget(splitter, 1)
 
-        # Linke Spalte: PDF-Thumbnails
+        # Linke Spalte: PDF-Thumbnails und daneben der Chat als zweiter Reiter
+        # (Phase 3, Issue #166/#167): Mitte und Zielordner bleiben sichtbar, die
+        # Antwort des Chats laesst sich direkt in ein Verschieben umsetzen
         pdf_panel = self.create_pdf_panel()
-        splitter.addWidget(pdf_panel)
+        self.chat_view = ChatView(
+            self.db,
+            self.hybrid_classifier,
+            self.config.get_chat_config(),
+            kompakt=True,
+        )
+        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
+        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
+        self.chat_view.bezug_daten = self._chat_bezug_daten
+        # Eigenes Chat-Modell (Issue #166/#167): Quelle fuer den Provider des
+        # Chats; None = Modell der Sortierung (hybrid_classifier.llm_provider)
+        self.chat_view.chat_provider_quelle = self._chat_provider
+        # Phase 3: "Nach … verschieben" und Ordner der Belege als Vorschlag
+        self.chat_view.verschieben_requested.connect(self._on_chat_verschieben)
+        self.chat_view.ordner_belegt.connect(self._on_chat_ordner_belegt)
+        self.left_tabs = QTabWidget()
+        self.left_tabs.addTab(pdf_panel, "PDFs")
+        self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
+        self.left_tabs.addTab(self.chat_view, "Chat")
+        self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
+        splitter.addWidget(self.left_tabs)
 
         # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
         self.detail_panel = DetailPanel()
@@ -315,21 +339,9 @@ class MainWindow(QMainWindow):
             0, "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
         )
 
-        # Tab "Chat": RAG-Chat (Phase 19 / M2)
-        self.chat_view = ChatView(
-            self.db,
-            self.hybrid_classifier,
-            self.config.get_chat_config(),
-        )
-        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
-        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
-        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
-        self.chat_view.bezug_daten = self._chat_bezug_daten
-        # Eigenes Chat-Modell (Issue #166/#167): Quelle fuer den Provider des
-        # Chats; None = Modell der Sortierung (hybrid_classifier.llm_provider)
-        self.chat_view.chat_provider_quelle = self._chat_provider
-        self.center_tabs.addTab(self.chat_view, "Chat")
-        self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
+        # Der Chat ist seit Phase 3 (Issue #166/#167) ein Reiter der linken
+        # Spalte des Vorschau-Reiters (siehe oben), nicht mehr ein eigener
+        # mittlerer Reiter.
 
         # Tab "Suche": Volltextsuche im Index der Dokumentensuche (PDFsuche-Integration, Phase 4)
         self.search_view = SearchView(self.config)
@@ -339,23 +351,70 @@ class MainWindow(QMainWindow):
         self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
         self.center_tabs.setTabToolTip(
-            2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+            1, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
         )
 
-        # LLM-Status bzw. Indexstand aktualisieren, wenn der Tab gewaehlt wird
+        # Indexstand aktualisieren, wenn der Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird.
-
-        Beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148).
-        """
+        """Aktualisiert den Indexstand (Suche), wenn der Tab sichtbar wird."""
         widget = self.center_tabs.widget(index)
-        if widget is self.chat_view:
+        if widget is self.search_view:
+            self.search_view.tab_gezeigt()
+
+    def _on_left_tab_changed(self, index: int) -> None:
+        """Linke Spalte: beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148)."""
+        if self.left_tabs.widget(index) is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
-        elif widget is self.search_view:
-            self.search_view.tab_gezeigt()
+
+    def show_chat_tab(self) -> None:
+        """Wechselt in der linken Spalte auf den Chat."""
+        self.left_tabs.setCurrentWidget(self.chat_view)
+
+    def _on_chat_verschieben(self, ordner_pfad: str) -> None:
+        """Knopf "Nach … verschieben" im Chat (Phase 3): das Bezugsdokument in den Ordner verschieben.
+
+        Laeuft ueber denselben Weg wie ein Klick auf den Zielordner (Rueckfrage,
+        Lernen, Rueckgaengig). Danach zeigt die linke Spalte wieder die PDFs;
+        der Chat bleibt mit seinem Verlauf im Hintergrund, nur der Bezug ist
+        weg (die Datei liegt nicht mehr im Scan-Ordner).
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or not ordner_pfad:
+            return
+        bezug = Path(bezug)
+        if not bezug.exists():
+            self.statusbar.showMessage(f"{bezug.name} liegt nicht mehr im Scan-Ordner", 4000)
+            return
+        self.move_pdf_to_folder_and_learn(bezug, Path(ordner_pfad))
+        if not bezug.exists():
+            self.chat_view.set_bezug(None)
+            self.left_tabs.setCurrentIndex(0)
+
+    def _on_chat_ordner_belegt(self, ordner_pfad: str, begruendung: str) -> None:
+        """Der Chat hat einen Zielordner belegt (Phase 3): als Vorschlag ins Detail-Panel.
+
+        Nur, wenn das Bezugsdokument die ausgewaehlte PDF ist; sonst gehoerte
+        der Vorschlag zu einem anderen Dokument.
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or self.selected_pdf is None or Path(bezug) != Path(self.selected_pdf):
+            return
+        try:
+            from src.core.similar_documents import merge_folder_suggestion
+            from src.rag.verknuepfung import ordner_vorschlag_aus_chat
+            vorschlag = ordner_vorschlag_aus_chat(ordner_pfad, begruendung, self.folder_manager.target_folders)
+            if vorschlag is None:
+                return
+            suggestions = merge_folder_suggestion(
+                list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
+            )
+            self.display_suggestions(suggestions)
+            self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Chat-Ordnervorschlag nicht uebernommen: {e}")
 
     def _chat_bezug_pfad(self) -> Optional[Path]:
         """Das ausgewaehlte PDF als Bezug fuer den Chat; bei Mehrfachauswahl keins."""
@@ -1081,17 +1140,35 @@ class MainWindow(QMainWindow):
                 document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
             )
             roots = self.folder_manager.target_folders
+            year = document_year(detected_date)
             ki = None
             for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
-                ki = folder_suggestion_from_metadata(
-                    getattr(s, "metadata", None), roots, document_year(detected_date),
-                )
+                ki = folder_suggestion_from_metadata(getattr(s, "metadata", None), roots, year)
                 if ki:
                     break
-            return merge_folder_suggestion(suggestions, ki)
+            merged = merge_folder_suggestion(suggestions, ki)
         except Exception as e:  # noqa: BLE001 - KI-Ordner ist optional
             logging.getLogger(__name__).debug(f"KI-Ordnervorschlag nicht verfuegbar: {e}")
             return list(suggestions)
+        # Phase 3 (Issue #166/#167): Dokumente mit derselben Vertrags-, Zaehler-
+        # oder Kundennummer liegen schon in einem Zielordner -> staerkster Beleg,
+        # darum ganz oben
+        try:
+            from src.core.similar_documents import document_year as _jahr
+            from src.rag.verknuepfung import ordner_vorschlag_aus_kennungen
+            text = ""
+            result = self.pdf_cache.get(pdf_path)
+            if result is not None:
+                text = result.extracted_text or ""
+            if not text and self.selected_pdf == pdf_path:
+                text = self.selected_pdf_text or ""
+            verknuepft = ordner_vorschlag_aus_kennungen(
+                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
+            )
+            return merge_folder_suggestion(merged, verknuepft, bestaetigung="verknüpfte Dokumente")
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Vorschlag aus verknuepften Dokumenten nicht verfuegbar: {e}")
+            return merged
 
     @staticmethod
     def _detected_date_from(dates) -> Optional[str]:

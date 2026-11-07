@@ -8,6 +8,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Chat in der linken Spalte, Verschieben mit einem Klick** (#166): Der Chat
+  ist jetzt ein zweiter Reiter neben „PDFs“ in der linken Spalte des
+  Vorschau-Reiters; Detailbereich, Vorschau und Zielordner bleiben dabei
+  sichtbar. Beim Wechsel in den Chat wird die ausgewählte PDF zum Bezug.
+  Belegt eine Antwort einen Zielordner (die zitierten Dokumente liegen dort),
+  erscheint darunter „Nach … verschieben“: ein Klick verschiebt die PDF wie
+  ein Klick auf den Zielordner, danach zeigt die linke Spalte wieder die PDFs,
+  der Chat bleibt mit Verlauf im Hintergrund. Quellen stehen eingeklappt unter
+  dem Verlauf, die Schnellfragen in einem Aufklappmenü.
+- **Verknüpfte Dokumente als Sortiervorschlag** (#166): Nennt ein Scan eine
+  Vertrags-, Zähler-, Kunden- oder Rechnungsnummer und liegen Dokumente mit
+  derselben Nummer schon in einem Zielordner, steht dieser Ordner mit 85 bis
+  95 % ganz oben („Verknüpft: gleiche Vertragsnummer, Zählernummer in 3
+  Dokumenten dieses Ordners“), auch ohne Chat. Ein vom Chat belegter Ordner
+  wird ebenfalls als Vorschlag übernommen („Chat bestätigt“).
 - **Der Chat sucht und liest selbst** (#167): Kann das Modell Werkzeuge
   aufrufen (Ollama mit gpt-oss, Qwen3, Gemma, alle OpenAI-kompatiblen Anbieter,
   Claude), bekommt es die Werkzeuge „suche“ (Volltextsuche mit Dateityp-,

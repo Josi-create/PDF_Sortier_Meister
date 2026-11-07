@@ -96,6 +96,13 @@ class RAGResponse:
     # getan?") und ob die Antwort auf dem Werkzeug-Weg entstand.
     schritte: list = field(default_factory=list)
     werkzeuge_benutzt: bool = False
+    # Phase 3 (Issue #166/#167): Zielordner, in dem die zitierten Belege liegen
+    # (absoluter Pfad, Anzeige relativ zum Zielordner, Begruendung wie
+    # "belegt durch [2], [3]"); leer, wenn die Zitate keinen gemeinsamen
+    # Zielordner haben. Die Oberflaeche bietet daraus "Nach … verschieben" an.
+    ordner_vorschlag: str = ""
+    ordner_anzeige: str = ""
+    ordner_begruendung: str = ""
 
 
 class RAGController:
@@ -254,6 +261,9 @@ class RAGController:
                 used_llm=False,
                 hinweis=hinweis,
             )
+
+        # 4b) Phase 3: Zielordner der zitierten Belege (fuer "Nach … verschieben")
+        self._ordner_vorschlag_setzen(response, bezug)
 
         # 5) Turn in ChatSession protokollieren - nicht nach einem Abbruch
         # (Issue #166/#167): eine Frage ohne Antwort stuende sonst als offener
@@ -583,6 +593,22 @@ class RAGController:
             schritte=list(kasten.protokoll),
             werkzeuge_benutzt=True,
         )
+
+    @staticmethod
+    def _ordner_vorschlag_setzen(response: RAGResponse, bezug: Optional[Bezug]) -> None:
+        """Traegt den Zielordner der zitierten Belege ein (Phase 3, nur mit Bezug und Zitaten)."""
+        if bezug is None or not response.used_llm or not response.citations:
+            return
+        try:
+            from src.rag.verknuepfung import belegter_ordner
+            pfad, anzeige, begruendung = belegter_ordner(
+                response.citations, response.retrieved_docs, bezug.wurzeln, ausser=bezug.pfad,
+            )
+        except Exception:  # noqa: BLE001 - der Vorschlag ist optional
+            return
+        response.ordner_vorschlag = pfad
+        response.ordner_anzeige = anzeige
+        response.ordner_begruendung = begruendung
 
     @staticmethod
     def _antwort_abgebrochen(kasten: Werkzeugkasten) -> RAGResponse:
