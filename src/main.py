@@ -53,6 +53,7 @@ def _schedule_startup_hints(window, delay_ms: int = 300) -> None:
         window.show_first_steps_hint()
         window.show_backup_hint()
         window.check_backup_reminder()
+        window.show_support_hint()
 
     QTimer.singleShot(delay_ms, show_startup_hints)
 

@@ -1737,6 +1737,11 @@ class MainWindow(QMainWindow):
         update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
         help_menu.addAction(update_action)
 
+        support_action = QAction("Unterstützen ...", self)
+        support_action.setToolTip("Freiwillige Unterstützung - keine Freischaltung von Funktionen")
+        support_action.triggered.connect(lambda: self.show_support_hint(force=True))
+        help_menu.addAction(support_action)
+
         about_action = QAction("Über PDF Sortier Meister", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -5119,6 +5124,31 @@ class MainWindow(QMainWindow):
         box.exec()
         self.config.set("backup_hint_dismissed", dismiss.isChecked())
 
+    def show_support_hint(self, force: bool = False) -> bool:
+        """Zeigt den Unterstuetzen-Dialog (Issue #115).
+
+        Automatisch nur, wenn ``support.should_show`` es erlaubt (ab 50
+        sortierten Dokumenten, danach alle 30 Tage). Gezaehlt wird die
+        Sortierhistorie (``Database.get_entry_count``). Ueber das Hilfe-Menue
+        jederzeit mit ``force=True``.
+        """
+        from datetime import date
+
+        from src.core import support
+        from src.gui.support_dialog import SupportDialog
+        from src.utils.database import get_database
+
+        if not force:
+            try:
+                sorted_count = get_database().get_entry_count()
+            except Exception:
+                return False
+            if not support.should_show(self.config, sorted_count, date.today()):
+                return False
+        SupportDialog(self.config, self).exec()
+        support.mark_shown(self.config, date.today())
+        return True
+
     # ------------------------------------------------------------------ #
     # Update-Pruefung (Issue #73)
     # ------------------------------------------------------------------ #
@@ -5449,7 +5479,7 @@ class MainWindow(QMainWindow):
         # Dialog erstellen
         dialog = QDialog(self)
         dialog.setWindowTitle("Über PDF Sortier Meister")
-        dialog.setFixedSize(450, 380)
+        dialog.setFixedSize(450, 410)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(15)
@@ -5479,6 +5509,13 @@ class MainWindow(QMainWindow):
         )
         status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status_label)
+
+        from src.core.support import supporter_label
+        supporter_text = supporter_label(self.config)
+        if supporter_text:
+            supporter = QLabel(f"<b>{supporter_text}</b> - danke!")
+            supporter.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(supporter)
 
         # GitHub-Link
         github_label = QLabel(

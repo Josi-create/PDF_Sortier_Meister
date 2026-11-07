@@ -943,6 +943,17 @@ class SettingsDialog(QDialog):
         backup_layout.addStretch()
         layout.addWidget(backup_group)
 
+        # Unterstuetzen-Hinweis (Issue #115)
+        support_group = QGroupBox("Unterstützen")
+        support_layout = QVBoxLayout(support_group)
+        self.support_hint_disabled_checkbox = QCheckBox("Nicht mehr an das Unterstützen erinnern")
+        self.support_hint_disabled_checkbox.setToolTip(
+            "Blendet den gelegentlichen Hinweis aus. Über Hilfe > Unterstützen ...\n"
+            "lässt sich der Dialog jederzeit öffnen."
+        )
+        support_layout.addWidget(self.support_hint_disabled_checkbox)
+        layout.addWidget(support_group)
+
         # Debug-Bereich
         debug_group = QGroupBox("Debug / Zurücksetzen")
         debug_layout = QVBoxLayout(debug_group)
@@ -2145,6 +2156,9 @@ class SettingsDialog(QDialog):
 
         # Backup-Erinnerung (Issue #14)
         self.backup_days_spin.setValue(int(self.config.get("backup_check_days", 7)))
+        self.support_hint_disabled_checkbox.setChecked(
+            bool(self.config.get("support_hint_disabled", False))
+        )
 
         # PDF oeffnen (Issues #74/#76)
         mode = normalize_open_mode(self.config.get("pdf_open_mode"))
@@ -2216,6 +2230,9 @@ class SettingsDialog(QDialog):
 
         # Backup-Erinnerung (Issue #14)
         self.config.set("backup_check_days", self.backup_days_spin.value())
+        self.config.set(
+            "support_hint_disabled", self.support_hint_disabled_checkbox.isChecked()
+        )
 
         # PDF oeffnen (Issues #74/#76)
         self.config.set("pdf_open_mode", self.pdf_open_mode_combo.currentData())
