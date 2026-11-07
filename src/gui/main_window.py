@@ -42,6 +42,7 @@ from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget
 from src.gui.folder_tree_widget import FolderTreeWidget
+from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
@@ -165,6 +166,7 @@ class MainWindow(QMainWindow):
         self.folder_tiles: list = []
         # Kachelgroesse im Scan-Bereich: Klein / Mittel / Gross (Issue #117)
         self._tile_view = tile_view(self.config.get("tile_view"))
+        self._sortierung = sortierung_id(self.config.get("kachel_sortierung"))  # Issue #33
 
         self.setup_ui()
         self.setup_menu()
@@ -479,6 +481,18 @@ class MainWindow(QMainWindow):
         view_label.setStyleSheet("color: #888; font-size: 12px;")
         header_layout.addWidget(view_label)
         header_layout.addWidget(self.tile_view_combo)
+
+        # Sortierung der Kacheln (Issue #33)
+        self.sort_combo = QComboBox()
+        for sid, text, _kriterium, _ab in SORT_OPTIONEN:
+            self.sort_combo.addItem(text, sid)
+        self.sort_combo.setCurrentIndex(self.sort_combo.findData(self._sortierung))
+        self.sort_combo.setToolTip("Reihenfolge der Dateien im Scan-Bereich.")
+        self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
+        sort_label = QLabel("Sortieren:")
+        sort_label.setStyleSheet("color: #888; font-size: 12px;")
+        header_layout.addWidget(sort_label)
+        header_layout.addWidget(self.sort_combo)
 
         layout.addLayout(header_layout)
 
@@ -867,6 +881,8 @@ class MainWindow(QMainWindow):
         if self._pending_thumbnails == 0:
             self.thumbnails_loaded.emit()
             self._thumbnails_signal_emitted = True
+
+        self._sortiere_kacheln()
 
         # Statusleiste aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(pdf_files)}")
@@ -1839,6 +1855,42 @@ class MainWindow(QMainWindow):
             combo.blockSignals(True)
             combo.setCurrentIndex(combo.findData(view.id))
             combo.blockSignals(False)
+
+    def _sortiere_kacheln(self):
+        """Ordnet die vorhandenen Kacheln nach ``self._sortierung`` um (Issue #33).
+
+        Es werden keine Widgets neu gebaut - Thumbnails, Analyse und Auswahl
+        bleiben unberuehrt, nur das Raster wird neu belegt. Weitere Kachellisten
+        (Office-Kacheln, Issue #9) werden je fuer sich sortiert und stehen
+        weiter hinter den PDFs.
+        """
+        geaendert = False
+        for liste in [self.pdf_widgets] + (
+            [self.office_widgets] if hasattr(self, "office_widgets") else []
+        ):
+            nach_pfad = {w.pdf_path: w for w in liste}
+            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung)]
+            if neu != liste:
+                liste[:] = neu
+                geaendert = True
+        if geaendert:
+            self._relayout_pdf_grid(force=True)
+
+    def set_sortierung(self, sortierung: str):
+        """Schaltet die Sortierung um, speichert sie und ordnet das Raster neu."""
+        sortierung = sortierung_id(sortierung)
+        if sortierung != self._sortierung:
+            self._sortierung = sortierung
+            self.config.set("kachel_sortierung", sortierung)
+            self._sortiere_kacheln()
+        combo = getattr(self, "sort_combo", None)
+        if combo is not None and combo.currentData() != sortierung:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(combo.findData(sortierung))
+            combo.blockSignals(False)
+
+    def _on_sort_combo_changed(self, index: int):
+        self.set_sortierung(self.sort_combo.itemData(index))
 
     def _on_tile_view_combo_changed(self, index: int):
         view_id = self.tile_view_combo.itemData(index)
