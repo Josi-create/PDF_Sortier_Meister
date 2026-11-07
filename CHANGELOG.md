@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-07
+
 ### Neu
 - **Rechtsklick: „Pfad kopieren“ und „Im Explorer anzeigen“** (#154): Die
   PDF-Kacheln haben unter „PDF öffnen“ zwei neue Einträge: „Im Explorer
@@ -114,6 +116,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Paket. Der Dienst-Rauchtest findet die Programme auch unter macOS.
 
 ## [0.24.0] - 2026-11-06
+
+> Nicht veröffentlicht: Der Release-Build scheiterte auf macOS (Intel). Alle
+> Änderungen dieser Version sind mit v0.25.0 erschienen.
 
 ### Neu
 - **Dokumentensuche, Grundstein** (Integration von PDFsuche, Phase 1): Neues,
@@ -1027,7 +1032,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.21.0...v0.22.0
