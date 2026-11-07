@@ -105,6 +105,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Jetzt bekommen sie den Pfeil, und die Unterordner werden beim ersten
   Aufklappen nachgeladen, samt PDF-Zaehler. Das gilt auch, wenn eine PDF beim
   Ziehen ueber dem Ordner verweilt.
+- **macOS (Intel): Release-Build gescheitert**: Für Intel-Macs gibt es von
+  `cryptography` ab Version 49 und von `pikepdf` ab 10.14 keine fertigen
+  Pakete mehr. Beim Bau aus dem Quellcode passten die mitgelieferte und die
+  benötigte OpenSSL-Bibliothek nicht zusammen, und `pdfsm-dienst` brach beim
+  Start der KI-Anbindung (MCP) ab. Deshalb ist v0.24.0 nicht erschienen. Auf
+  Intel-Macs bleiben beide Pakete jetzt bei der letzten Version mit fertigem
+  Paket. Der Dienst-Rauchtest findet die Programme auch unter macOS.
 
 ## [0.24.0] - 2026-11-06
 

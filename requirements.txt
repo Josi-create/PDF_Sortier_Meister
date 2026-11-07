@@ -12,7 +12,9 @@ PyQt6-Pdf>=6.140.0
 # PDF-Verarbeitung
 PyMuPDF>=1.23.0
 pytesseract>=0.3.10
-pikepdf>=8.0.0
+# Ab 10.14 gibt es keine macOS-Intel-Wheels mehr; der Quellbau scheitert ohne qpdf
+pikepdf>=8.0.0; sys_platform != "darwin" or platform_machine != "x86_64"
+pikepdf>=8.0.0,<10.14; sys_platform == "darwin" and platform_machine == "x86_64"
 
 # Machine Learning
 scikit-learn>=1.3.0
@@ -29,6 +31,10 @@ extract-msg>=0.50.0
 olefile>=0.46
 xlrd>=2.0.0
 mcp>=2.0.0
+# mcp zieht cryptography (ueber pyjwt[crypto]). Ab 49 gibt es keine macOS-Intel-Wheels mehr; der Quellbau linkt
+# gegen Homebrew-OpenSSL, PyInstaller packt aber eine aeltere libcrypto.3.dylib gleichen Namens ein, und
+# pdfsm-dienst bricht beim Start ab (Symbol not found: _EVP_DigestSqueeze). Die Wheels bis 48 bringen OpenSSL mit.
+cryptography<49; sys_platform == "darwin" and platform_machine == "x86_64"
 
 # Browser-Oberflaeche der Dokumentensuche (optional, standardmaessig aus)
 flask>=3.0.0
