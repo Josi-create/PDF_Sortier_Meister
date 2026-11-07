@@ -7,6 +7,84 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **LM Studio als lokaler KI-Anbieter** (#45): Wer LM Studio bereits nutzt,
+  kann es in den Einstellungen als Anbieter „LM Studio“ wählen. Ein API-Key ist
+  nicht nötig, die Server-URL ist einstellbar (Standard
+  `http://localhost:1234/v1`). Läuft LM Studio, erkennt die App das sofort und
+  zeigt die verfügbaren Modelle zur Auswahl (Embedding-Modelle ausgenommen);
+  sonst erscheint der Hinweis, LM Studio zu starten und den lokalen Server zu
+  aktivieren. Im Einrichtungsassistenten wird LM Studio nur angeboten, wenn es
+  gerade läuft; die Empfehlung bleibt Ollama. Die App bietet LM Studio nie zum
+  Download an.
+- **Chat in der linken Spalte, Verschieben mit einem Klick** (#166): Der Chat
+  ist jetzt ein zweiter Reiter neben „PDFs“ in der linken Spalte des
+  Vorschau-Reiters; Detailbereich, Vorschau und Zielordner bleiben dabei
+  sichtbar. Beim Wechsel in den Chat wird die ausgewählte PDF zum Bezug.
+  Belegt eine Antwort einen Zielordner (die zitierten Dokumente liegen dort),
+  erscheint darunter „Nach … verschieben“: ein Klick verschiebt die PDF wie
+  ein Klick auf den Zielordner, danach zeigt die linke Spalte wieder die PDFs,
+  der Chat bleibt mit Verlauf im Hintergrund. Quellen stehen eingeklappt unter
+  dem Verlauf, die Schnellfragen untereinander über dem Eingabefeld; bei wenig
+  Höhe (kleiner Monitor) klappen sie hinter ein Dreieck, das sie jederzeit
+  wieder aufklappt. Die Schnellfragen lassen sich unter Einstellungen >
+  KI-Assistent > Chat ändern und ergänzen (eine je Zeile, „Standard
+  wiederherstellen“); geänderte Chat-Einstellungen gelten ab der nächsten
+  Frage ohne Neustart.
+- **Verknüpfte Dokumente als Sortiervorschlag** (#166): Nennt ein Scan eine
+  Vertrags-, Zähler-, Kunden- oder Rechnungsnummer und liegen Dokumente mit
+  derselben Nummer schon in einem Zielordner, steht dieser Ordner mit 85 bis
+  95 % ganz oben („Verknüpft: gleiche Vertragsnummer, Zählernummer in 3
+  Dokumenten dieses Ordners“), auch ohne Chat. Ein vom Chat belegter Ordner
+  wird ebenfalls als Vorschlag übernommen („Chat bestätigt“).
+- **Der Chat sucht und liest selbst** (#167): Kann das Modell Werkzeuge
+  aufrufen (Ollama mit gpt-oss, Qwen3, Gemma, alle OpenAI-kompatiblen Anbieter,
+  Claude), bekommt es die Werkzeuge „suche“ (Volltextsuche mit Dateityp-,
+  Ordner-, Zeitraum- und Metadatenfiltern), „dokument_lesen“ (Volltext,
+  seitenweise, bei Excel das Tabellenblatt), „ordner_vorschlag“ (Sortierlogik
+  und ähnliche, bereits einsortierte Dokumente) und „korrespondent_info“
+  (Aliase, Notizen, MwSt, absetzbar). Es darf bis zu acht Schritte lang
+  suchen und lesen, bevor es antwortet; die Statuszeile zeigt jeden Schritt,
+  „Abbrechen“ greift zwischen den Schritten. Im letzten Schritt wird das
+  Modell ausdrücklich zur Antwort aufgefordert; bleibt sie aus, zeigt der Chat
+  den Zwischenstand der Werkzeuge statt einer Fehlermeldung. Im Chat erscheinen die
+  Arbeitsschritte („🔎 Suche „226541“: 3 Treffer“) ein- und ausklappbar vor
+  der Antwort, das Quellen-Panel unterscheidet zitierte, gelesene und
+  gefundene Dokumente. Modelle ohne Werkzeuge antworten wie bisher; in den
+  Einstellungen lässt sich das Verhalten abschalten und die Zahl der Schritte
+  wählen.
+- **SQL-Abfragen im Chat als Option** (#167): „SQL-Abfragen auf der
+  Suchdatenbank erlauben“ gibt dem Modell das Werkzeug „sql_abfrage“ für Summen,
+  Zählungen und Listen über viele Dokumente. Die Verbindung ist nur lesend
+  (`mode=ro`, `query_only`), es ist genau eine SELECT-/WITH-Anweisung erlaubt,
+  Zeitlimit 15 Sekunden, höchstens 200 Zeilen. Standard ist aus; empfohlen für
+  große Modelle, die SQLite-Fehlermeldungen selbst korrigieren.
+- **Eigenes Modell für den Chat** (#167): Unter Einstellungen > KI-Assistent
+  lässt sich für den Chat ein anderer Anbieter und ein anderes Modell wählen
+  als für die Sortierung, etwa ein kleines lokales Modell zum Sortieren und
+  ein großes Modell (Ollama Cloud, OpenRouter, Claude) zum Fragen. Die
+  Einwilligung für Cloud-Anbieter gilt auch hier. Die Statusleiste zeigt
+  „Chat: Anbieter/Modell“, wenn es abweicht.
+
+### Verbessert
+- **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
+  Bezugsdokument zieht der Chat Vertrags-, Kunden-, Zähler- und
+  Rechnungsnummern, IBANs und ähnliche Codes aus dem Text und sucht damit
+  exakt im Index. Die Verbrauchsabrechnung mit derselben Vertragsnummer steht
+  so als Erstes im Kontext, markiert mit der gemeinsamen Kennung, und die KI
+  darf die Kette („gleiche Vertragsnummer, Abnahmestelle X“) ausdrücklich
+  ziehen. Fragewörter („bitte“, „zeig mir“, „Dokument“, „Ordner“) verwässern
+  die Suche nicht mehr; nennt die Frage „Excel“, „Tabelle“ oder „Mail“, kommt
+  eine zweite Suche nur in diesem Dateityp dazu. Kopien derselben Datei
+  (OneDrive, Archiv) zählen einmal, bei nahezu gleicher Relevanz stehen
+  neuere Dokumente vorn. Der Auszug eines Treffers besteht jetzt aus den
+  Fundstellen und der Trefferseite statt aus Anfang und Ende des Dokuments.
+- **Chat fordert nicht mehr zum Selbst-Suchen auf** (#167): Der Systemprompt
+  verlangt statt „schlage vor, wonach der Nutzer suchen könnte“ jetzt, das
+  Nächstliegende aus den Auszügen zu nennen. Ein Bezugsdokument im
+  Scan-Eingang wird als „noch unsortiert“ gekennzeichnet, damit die KI den
+  Eingang nicht als Ablageort vorschlägt.
+
 ## [0.25.0] - 2026-11-07
 
 ### Neu

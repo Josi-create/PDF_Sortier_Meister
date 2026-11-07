@@ -47,11 +47,21 @@ def _schedule_startup_hints(window, delay_ms: int = 300) -> None:
     Workflow wichtiger ist als die Backup-Erinnerung. Beim Erststart wird die
     Funktion erst NACH dem Einrichtungsassistenten aufgerufen, damit die
     Dialoge nicht ueber dem offenen Assistenten erscheinen.
+
+    Pro Start erscheint hoechstens EIN Fenster: der erste faellige Hinweis in
+    der Reihenfolge Erste Schritte, Backup-Hinweis, Backup-Frage (#14),
+    Unterstuetzen (#115). Die uebrigen kommen bei einem spaeteren Start dran.
     """
 
     def show_startup_hints():
-        window.show_first_steps_hint()
-        window.show_backup_hint()
+        for hinweis in (
+            window.show_first_steps_hint,
+            window.show_backup_hint,
+            window.check_backup_reminder,
+            window.show_support_hint,
+        ):
+            if hinweis():
+                break
 
     QTimer.singleShot(delay_ms, show_startup_hints)
 

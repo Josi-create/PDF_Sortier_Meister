@@ -335,11 +335,15 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
     (``seite_erkennen``); Text und Text-PDF stammen dann aus der besten Lage,
     und ``'drehungen'`` nennt sie (``{seite: 90 | 180 | 270}``, im
     Uhrzeigersinn zur angezeigten Seite).
+
+    ``'lesbarkeit'`` (Issue #47, nur mit ``lage_pruefen``): ``{seite: (alle,
+    gut)}`` der gewaehlten Lage (``lesbarkeit``), Grundlage fuer
+    ``schlecht_erkannt``.
     """
     import pymupdf
 
     mit_ebene = bool(cfg.get("textebene"))
-    erg: dict = {"texte": {}, "ebenen": {}, "drehungen": {}, "fehler": None}
+    erg: dict = {"texte": {}, "ebenen": {}, "drehungen": {}, "lesbarkeit": {}, "fehler": None}
     try:
         doc = pymupdf.open(pfad)
         if doc.needs_pass:
@@ -353,8 +357,10 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
                 continue
             seite = doc[nr - 1]
             try:
-                text, ebene, drehung = seite_erkennen(seite, cfg, ebene=mit_ebene)
+                text, ebene, drehung, wert = _seite_erkennen(seite, cfg, ebene=mit_ebene)
                 erg["texte"][nr] = _saeubern(text)
+                if wert is not None:
+                    erg["lesbarkeit"][nr] = wert
                 if mit_ebene:
                     erg["ebenen"][nr] = ebene
                 if drehung:
@@ -517,7 +523,53 @@ def liegt_falsch(wert: tuple[int, int] | None, min_zeichen: int) -> bool:
     return alle >= max(1, min_zeichen) and gut < LAGE_ANTEIL * alle
 
 
+LESBAR_SCHWELLE = 0.6   # Issue #47: weniger sicher erkannte Zeichen als dieser Anteil: Text gilt als schlecht erkannt
+
+
+def schlecht_erkannt(alle: int, gut: int, min_zeichen: int = 25) -> bool:
+    """Ist der OCR-Text trotz bester Lage schlecht erkannt (Issue #47)?
+
+    Mass ist dasselbe wie bei der Lagewahl (``lesbarkeit``): Anteil der
+    Zeichen aus Woertern, die Tesseract mit Konfidenz ab ``LAGE_KONFIDENZ``
+    erkannt hat. Sauberer Druck liegt nahe 1, Handschrift, Fraktur oder eine
+    falsche Sprache deutlich darunter. Unter ``LESBAR_SCHWELLE`` gilt der Text
+    als schlecht; Seiten mit weniger als ``min_zeichen`` Zeichen (leer,
+    Stempel) sagen nichts.
+    """
+    return alle >= max(1, min_zeichen) and gut < LESBAR_SCHWELLE * alle
+
+
+def ocr_kandidaten(pfad: str, min_zeichen: int) -> list[int]:
+    """Seiten, die eine OCR neu lesen darf (Issue #47): Bildseiten ohne eigenen Text oder mit OCR-Textebene."""
+    import pymupdf
+
+    erg: list[int] = []
+    try:
+        doc = pymupdf.open(pfad)
+    except Exception:
+        return erg
+    try:
+        if doc.needs_pass and not doc.authenticate(""):
+            return erg
+        for i in range(doc.page_count):
+            try:
+                seite = doc[i]
+                if _hat_bild(seite) and (len(_saeubern(seite.get_text("text")).strip()) < min_zeichen
+                                         or hat_ocr_textebene(seite)):
+                    erg.append(i + 1)
+            except Exception:
+                continue
+    finally:
+        doc.close()
+    return erg
+
+
 def seite_erkennen(seite, cfg: dict, ebene: bool = False) -> tuple[str, bytes | None, int]:
+    """Wie ``_seite_erkennen``, ohne die Lesbarkeit: ``(text, text_pdf | None, drehung)``."""
+    return _seite_erkennen(seite, cfg, ebene)[:3]
+
+
+def _seite_erkennen(seite, cfg: dict, ebene: bool = False) -> tuple[str, bytes | None, int, tuple[int, int] | None]:
     """Eine Seite erkennen, bei falscher Lage auch gedreht: ``(text, text_pdf | None, drehung)``.
 
     Ohne ``cfg["lage_pruefen"]`` ein Aufruf wie bisher. Sonst liefert derselbe
@@ -530,14 +582,18 @@ def seite_erkennen(seite, cfg: dict, ebene: bool = False) -> tuple[str, bytes | 
     Text und Text-PDF stammen aus der gewaehlten Lage; die Text-PDF hat dann
     deren Seitengroesse (``textebene.ebene_auflegen`` mit ``drehung``).
     Kosten: drei weitere Tesseract-Aufrufe, nur fuer falsch liegende Seiten.
+
+    Als Viertes kommt die Lesbarkeit der gewaehlten Lage ``(alle, gut)``
+    (None ohne ``lage_pruefen``): Sie zeigt, ob die Seite auch aufrecht
+    schlecht erkannt wurde (Handschrift, Fraktur, falsche Sprache; Issue #47).
     """
     pruefen = bool(cfg.get("lage_pruefen"))
     text, pdf, tsv = _tesseract(seite, cfg, ebene=ebene, tsv=pruefen)
     min_zeichen = int(cfg.get("min_zeichen", 25))
     wert = lesbarkeit(tsv) if pruefen else None
     if not liegt_falsch(wert, min_zeichen):
-        return text, pdf, 0
-    beste = (wert[1], 0, text, pdf)
+        return text, pdf, 0, wert
+    beste = (wert[1], 0, text, pdf, wert)
     alt = seite.rotation
     try:
         for d in LAGEN:
@@ -550,13 +606,13 @@ def seite_erkennen(seite, cfg: dict, ebene: bool = False) -> tuple[str, bytes | 
             if w is None or liegt_falsch(w, min_zeichen):
                 continue
             if w[1] > beste[0]:
-                beste = (w[1], d, t, p)
+                beste = (w[1], d, t, p, w)
     except Exception:  # noqa: BLE001 - die Lage zu pruefen ist Zusatz: dann gilt die angezeigte
-        return text, pdf, 0
-    gut, d, t, p = beste
+        return text, pdf, 0, wert
+    gut, d, t, p, w_beste = beste
     if d and gut >= max(min_zeichen, LAGE_FAKTOR * wert[1]):
-        return t, p, d
-    return text, pdf, 0
+        return t, p, d, w_beste
+    return text, pdf, 0, wert
 
 
 # --------------------------------------------------------------------------- Markdown

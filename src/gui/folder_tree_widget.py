@@ -8,11 +8,14 @@ GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
+
+from src.core.office_convert import ist_sortierbar
 from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -25,6 +28,7 @@ from PyQt6.QtWidgets import (
     QInputDialog,
     QMessageBox,
     QAbstractItemView,
+    QApplication,
 )
 
 
@@ -98,10 +102,21 @@ class FolderTreeWidget(QWidget):
     pdf_dropped = pyqtSignal(Path, Path)  # PDF auf Ordner gezogen (pdf_path, folder_path)
     folder_removed = pyqtSignal(Path)  # Ordner aus Liste entfernt
     scan_finished = pyqtSignal()  # Baum wurde (neu) befuellt
+    move_here_requested = pyqtSignal(Path)  # Kontextmenue "Hierhin verschieben" (Issue #93)
+    folder_renamed = pyqtSignal(Path, Path)  # Ordner umbenannt (alt, neu)
+    status_message = pyqtSignal(str)  # Kurzinfo fuer die Statusleiste
+    favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
+
+    # Kontextmenue (Issue #93)
+    EXPAND_LEVELS = 3  # "Alle Unterordner aufklappen": so viele Ebenen tief
+    EXPAND_MAX_FOLDERS = 300  # Obergrenze, damit grosse Baeume bedienbar bleiben
+    SUBMENU_MAX_ENTRIES = 40  # "Unterordner oeffnen": mehr Eintraege -> Rest im Baum
+    _INVALID_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_folders: list[Path] = []
+        self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster (#114)
         self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
         # Ordner mit noch nicht geladenen Unterordnern (unterhalb der Scan-Tiefe)
         self._unloaded: set[Path] = set()
@@ -110,6 +125,12 @@ class FolderTreeWidget(QWidget):
         self._scan_thread: Optional[_TreeScanThread] = None
         self.async_scan = True  # Tests koennen synchron scannen
         self._selected_folder: Optional[Path] = None
+        # MainWindow setzt hier eine Funktion, die sagt, ob links PDFs ausgewaehlt
+        # sind ("Hierhin verschieben" ist sonst deaktiviert).
+        self.has_pdf_selection = lambda: False
+        self._view_root: Optional[Path] = None  # "Als Wurzel anzeigen" (nicht gespeichert)
+        self._pending_expand: dict[Path, int] = {}  # Ordner -> Restebenen nach dem Nachladen
+        self._expand_budget = 0
         self._suggestion_folders: list[Path] = []  # Vorgeschlagene Ordner
         self._drag_hover_item: Optional[QTreeWidgetItem] = None  # Aktuell gehoverte Item beim Drag
         # Klappt den Ordner unter der gezogenen PDF nach kurzem Verweilen auf.
@@ -152,6 +173,19 @@ class FolderTreeWidget(QWidget):
         header_layout.addWidget(self.refresh_btn)
 
         layout.addLayout(header_layout)
+
+        # Leiste "Teilbaum als Wurzel" (Issue #93); nur sichtbar, wenn aktiv
+        self.view_root_bar = QWidget()
+        bar_layout = QHBoxLayout(self.view_root_bar)
+        bar_layout.setContentsMargins(0, 0, 0, 0)
+        self.view_root_label = QLabel()
+        self.view_root_label.setStyleSheet("font-size: 11px;")
+        bar_layout.addWidget(self.view_root_label, stretch=1)
+        self.view_root_back_btn = QPushButton("↩ Zurück zur Gesamtansicht")
+        self.view_root_back_btn.clicked.connect(lambda: self.set_view_root(None))
+        bar_layout.addWidget(self.view_root_back_btn)
+        self.view_root_bar.setVisible(False)
+        layout.addWidget(self.view_root_bar)
 
         # Tree Widget
         self.tree = QTreeWidget()
@@ -251,7 +285,8 @@ class FolderTreeWidget(QWidget):
     def refresh_tree(self):
         """Baut den Baum neu auf - das Verzeichnis-Listing laeuft im Hintergrund."""
         self._scan_generation += 1
-        roots = [r for r in self._root_folders if r.exists()]
+        self._pending_expand.clear()
+        roots = self._effective_roots()
         if not self.async_scan:
             thread = _TreeScanThread(roots, self._scan_generation)
             thread.scanned.connect(self._on_scan_finished)
@@ -274,6 +309,28 @@ class FolderTreeWidget(QWidget):
         thread.finished.connect(thread.deleteLater)
         self._scan_thread = thread
         thread.start()
+
+    def _effective_roots(self) -> list[Path]:
+        """Wurzeln der Anzeige: der gewaehlte Teilbaum oder alle Zielordner."""
+        if self._view_root is not None:
+            if self._view_root.is_dir():
+                return [self._view_root]
+            self._view_root = None  # Teilbaum existiert nicht mehr
+            self.view_root_bar.setVisible(False)
+        return [r for r in self._root_folders if r.exists()]
+
+    def view_root(self) -> Optional[Path]:
+        """Aktueller Teilbaum-Ausschnitt oder None bei Gesamtansicht."""
+        return self._view_root
+
+    def set_view_root(self, folder: Optional[Path]):
+        """Zeigt nur den Teilbaum ab folder (None = Gesamtansicht)."""
+        self._view_root = Path(folder) if folder is not None else None
+        if self._view_root is not None:
+            self.view_root_label.setText(f"🔎 Ansicht: {self._view_root.name}")
+            self.view_root_label.setToolTip(str(self._view_root))
+        self.view_root_bar.setVisible(self._view_root is not None)
+        self.refresh_tree()
 
     def _on_scan_finished(self, generation: int, roots: list, entries: list):
         """Befuellt den Baum aus dem Scan-Ergebnis (UI-Thread)."""
@@ -341,6 +398,11 @@ class FolderTreeWidget(QWidget):
         item.setChildIndicatorPolicy(
             QTreeWidgetItem.ChildIndicatorPolicy.DontShowIndicatorWhenChildless
         )
+        # "Alle Unterordner aufklappen" ging hier weiter, sobald die Ebene geladen ist
+        levels = self._pending_expand.pop(roots[0], 0)
+        if levels > 1:
+            for i in range(item.childCount()):
+                self._expand_levels(item.child(i), levels - 1)
 
     @staticmethod
     def _item_text(folder_path: Path, pdf_count: int) -> str:
@@ -524,10 +586,74 @@ class FolderTreeWidget(QWidget):
         from src.utils.platform_paths import file_manager_name
 
         menu = QMenu(self)
+        item = self._items.get(folder_path)
+        is_root = folder_path in self._root_folders
 
-        # Links im Scan-Bereich oeffnen (wie Doppelklick)
+        # --- Navigation ---
         goto_action = menu.addAction("📁 Ordner links öffnen")
         goto_action.triggered.connect(lambda: self.folder_double_clicked.emit(folder_path))
+
+        sub_menu = menu.addMenu("📂 Unterordner öffnen")
+        sub_menu.setStyleSheet("QMenu { menu-scrollable: 1; }")
+        sub_menu.aboutToShow.connect(lambda: self._fill_subfolder_menu(sub_menu, folder_path))
+        sub_menu.setEnabled(self._has_subfolders(folder_path))
+
+        has_children = item is not None and (
+            item.childCount() > 0 or folder_path in self._unloaded
+        )
+        expand_action = menu.addAction("➕ Alle Unterordner aufklappen")
+        expand_action.setEnabled(has_children)
+        expand_action.triggered.connect(lambda: self._expand_subtree(folder_path))
+
+        collapse_action = menu.addAction("➖ Unterordner zuklappen")
+        collapse_action.setEnabled(item is not None and item.childCount() > 0)
+        collapse_action.triggered.connect(lambda: self._collapse_subtree(folder_path))
+
+        collapse_all_action = menu.addAction("➖ Alles zuklappen")
+        collapse_all_action.triggered.connect(self.tree.collapseAll)
+
+        if folder_path != self._view_root:
+            view_root_action = menu.addAction("🔎 Diesen Ordner als Wurzel anzeigen")
+            view_root_action.triggered.connect(lambda: self.set_view_root(folder_path))
+
+        menu.addSeparator()
+
+        # --- Aktionen mit PDFs ---
+        move_action = menu.addAction("📥 Hierhin verschieben")
+        has_pdfs = bool(self.has_pdf_selection())
+        move_action.setEnabled(has_pdfs)
+        if not has_pdfs:
+            move_action.setToolTip("Links ist keine PDF ausgewählt")
+        move_action.triggered.connect(lambda: self.move_here_requested.emit(folder_path))
+
+        menu.addSeparator()
+
+        # --- Ordner verwalten ---
+        new_folder_action = menu.addAction("➕ Neuen Unterordner erstellen")
+        new_folder_action.triggered.connect(lambda: self._create_subfolder(folder_path))
+
+        rename_action = menu.addAction("✏️ Ordner umbenennen")
+        rename_action.triggered.connect(lambda: self._rename_folder(folder_path))
+
+        delete_action = menu.addAction("🗑️ Ordner löschen (in den Papierkorb)")
+        if is_root:
+            delete_action.setEnabled(False)
+            delete_action.setToolTip("Zielordner zuerst aus der Zielliste entfernen")
+        elif not self._is_empty_dir(folder_path):
+            delete_action.setEnabled(False)
+            delete_action.setToolTip("Nur leere Ordner können gelöscht werden")
+        delete_action.triggered.connect(lambda: self._delete_folder(folder_path))
+
+        # Aus Liste entfernen (nur für Root-Ordner)
+        if is_root:
+            remove_action = menu.addAction("❌ Aus Zielliste entfernen")
+            remove_action.triggered.connect(lambda: self._remove_folder(folder_path))
+
+        menu.addSeparator()
+
+        # --- Info / Dateimanager ---
+        info_action = menu.addAction("ℹ️ Inhalt anzeigen")
+        info_action.triggered.connect(lambda: self._show_folder_info(folder_path))
 
         # Im Dateimanager öffnen
         open_action = menu.addAction(f"📂 Im {file_manager_name()} öffnen")
@@ -537,20 +663,235 @@ class FolderTreeWidget(QWidget):
         copy_action = menu.addAction(f"📋 {PFAD_KOPIEREN_TEXT}")
         copy_action.triggered.connect(lambda: pfad_kopieren(folder_path))
 
-        menu.addSeparator()
+        # Favorit (Issue #114) - am Ende der letzten Gruppe, ohne eigenen Trenner
+        # (die Gruppierung aus Issue #93 bleibt bei vier Bloecken)
+        from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
 
-        # Neuen Unterordner erstellen
-        new_folder_action = menu.addAction("➕ Neuen Unterordner erstellen")
-        new_folder_action.triggered.connect(lambda: self._create_subfolder(folder_path))
-
-        menu.addSeparator()
-
-        # Aus Liste entfernen (nur für Root-Ordner)
-        if folder_path in self._root_folders:
-            remove_action = menu.addAction("❌ Aus Zielliste entfernen")
-            remove_action.triggered.connect(lambda: self._remove_folder(folder_path))
+        ist_fav = bool(self.favorit_pruefer and self.favorit_pruefer(folder_path))
+        fav_action = menu.addAction(FAVORIT_ENTFERNEN_TEXT if ist_fav else FAVORIT_MERKEN_TEXT)
+        fav_action.triggered.connect(lambda: self.favorit_umschalten.emit(folder_path))
 
         return menu
+
+    # === Kontextmenue-Aktionen (Issue #93) ===
+
+    @staticmethod
+    def _list_subfolders(folder: Path) -> list[Path]:
+        """Direkte Unterordner (ohne versteckte), sortiert."""
+        try:
+            with os.scandir(folder) as it:
+                subs = [Path(e.path) for e in it
+                        if e.is_dir() and not e.name.startswith('.')]
+        except OSError:
+            return []
+        return sorted(subs, key=lambda p: p.name.lower())
+
+    @staticmethod
+    def _is_empty_dir(folder: Path) -> bool:
+        try:
+            with os.scandir(folder) as it:
+                return next(it, None) is None
+        except OSError:
+            return False
+
+    def _fill_subfolder_menu(self, sub_menu: QMenu, folder: Path):
+        """Fuellt das Untermenue erst beim Oeffnen (Listing nur auf Anforderung)."""
+        sub_menu.clear()
+        subs = self._list_subfolders(folder)
+        for sub in subs[:self.SUBMENU_MAX_ENTRIES]:
+            action = sub_menu.addAction(f"📁 {sub.name}")
+            action.triggered.connect(lambda checked=False, p=sub: self._open_subfolder(p))
+        rest = len(subs) - self.SUBMENU_MAX_ENTRIES
+        if rest > 0:
+            more = sub_menu.addAction(f"… {rest} weitere (im Baum aufklappen)")
+            more.triggered.connect(lambda: self._expand_one(folder))
+        if not subs:
+            sub_menu.addAction("(keine Unterordner)").setEnabled(False)
+
+    def _expand_one(self, folder: Path):
+        item = self._items.get(Path(folder))
+        if item is not None:
+            item.setExpanded(True)
+            self.tree.scrollToItem(item)
+
+    def _open_subfolder(self, folder: Path):
+        """Klappt den Ordner auf, markiert ihn und scrollt hin (ohne PDF-Verschiebung)."""
+        folder = Path(folder)
+        if not self._ensure_folder_item(folder):
+            return
+        self._mark_folder(folder)
+        item = self._items.get(folder)
+        if item is not None:
+            item.setExpanded(True)
+            self.tree.scrollToItem(item)
+
+    def _expand_levels(self, item: QTreeWidgetItem, levels: int):
+        """Klappt item und darunter bis zu `levels` Ebenen auf (begrenzt, mit Nachladen)."""
+        if levels <= 0 or self._expand_budget <= 0:
+            return
+        path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+        unloaded = path in self._unloaded
+        if item.childCount() == 0 and not unloaded:
+            return
+        self._expand_budget -= 1
+        if unloaded:
+            # Nachladen beim Aufklappen; _on_subtree_scanned setzt fort
+            self._pending_expand[path] = levels
+            item.setExpanded(True)
+            return
+        item.setExpanded(True)
+        for i in range(item.childCount()):
+            self._expand_levels(item.child(i), levels - 1)
+
+    def _expand_subtree(self, folder: Path):
+        item = self._items.get(Path(folder))
+        if item is None:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        self.tree.setUpdatesEnabled(False)
+        try:
+            self._expand_budget = self.EXPAND_MAX_FOLDERS
+            self._expand_levels(item, self.EXPAND_LEVELS)
+        finally:
+            self.tree.setUpdatesEnabled(True)
+            QApplication.restoreOverrideCursor()
+        self.tree.scrollToItem(item)
+
+    def _collapse_subtree(self, folder: Path):
+        item = self._items.get(Path(folder))
+        if item is None:
+            return
+
+        def collapse(it: QTreeWidgetItem):
+            for i in range(it.childCount()):
+                collapse(it.child(i))
+            it.setExpanded(False)
+
+        collapse(item)
+
+    def _show_folder_info(self, folder: Path):
+        """Kurzinfo (nicht rekursiv): Anzahl PDFs, weitere Dateien und Unterordner."""
+        pdfs = others = dirs = 0
+        try:
+            with os.scandir(folder) as it:
+                for e in it:
+                    try:
+                        if e.is_dir():
+                            dirs += 1
+                        elif e.name.lower().endswith('.pdf'):
+                            pdfs += 1
+                        else:
+                            others += 1
+                    except OSError:
+                        continue
+        except OSError as e:
+            self.status_message.emit(f"Inhalt von {folder.name} nicht lesbar: {e}")
+            return
+        self.status_message.emit(
+            f"ℹ️ {folder.name}: {pdfs} PDF{'s' if pdfs != 1 else ''}, "
+            f"{others} weitere Datei{'en' if others != 1 else ''}, "
+            f"{dirs} Unterordner"
+        )
+
+    def _validate_new_name(self, old: Path, name: str) -> Optional[str]:
+        """None wenn der Name passt, sonst die Fehlermeldung."""
+        if self._INVALID_NAME.search(name):
+            return 'Der Name darf keines dieser Zeichen enthalten: < > : " / \\ | ? *'
+        if name.endswith(('.', ' ')) or name in ('.', '..'):
+            return "Der Name darf nicht mit Punkt oder Leerzeichen enden."
+        new = old.parent / name
+        case_only = name.lower() == old.name.lower()
+        if new.exists() and not case_only:
+            return f"Es gibt hier bereits einen Eintrag namens „{name}“."
+        return None
+
+    def _rename_folder(self, folder: Path):
+        """Benennt den Ordner um und zieht Baum und Zielpfade nach."""
+        folder = Path(folder)
+        name, ok = QInputDialog.getText(
+            self, "Ordner umbenennen", "Neuer Name:", text=folder.name
+        )
+        name = (name or "").strip()
+        if not ok or not name or name == folder.name:
+            return
+        error = self._validate_new_name(folder, name)
+        if error:
+            QMessageBox.warning(self, "Umbenennen nicht möglich", error)
+            return
+        new = folder.parent / name
+        try:
+            folder.rename(new)
+        except OSError as e:
+            QMessageBox.critical(
+                self, "Fehler", f"Ordner konnte nicht umbenannt werden:\n{e}"
+            )
+            return
+        self._remap_paths(folder, new)
+        self.folder_renamed.emit(folder, new)
+
+    def _remap_paths(self, old: Path, new: Path):
+        """Schreibt die Pfade des umbenannten Teilbaums im Baum um (ohne Neuscan)."""
+        def conv(p: Path) -> Path:
+            return new / p.relative_to(old) if p == old or old in p.parents else p
+
+        old_items = self._items
+        self._items = {}
+        for path, item in old_items.items():
+            target = conv(path)
+            self._items[target] = item
+            if target != path:
+                item.setData(0, Qt.ItemDataRole.UserRole, str(target))
+                item.setToolTip(0, str(target) + self._CLICK_HINT)
+        self._unloaded = {conv(p) for p in self._unloaded}
+        self._root_folders = [conv(p) for p in self._root_folders]
+        self._suggestion_folders = [conv(p) for p in self._suggestion_folders]
+        self._pending_expand = {}
+        if self._selected_folder is not None:
+            self._selected_folder = conv(self._selected_folder)
+        if self._view_root is not None:
+            self._view_root = conv(self._view_root)
+            self.view_root_label.setText(f"🔎 Ansicht: {self._view_root.name}")
+            self.view_root_label.setToolTip(str(self._view_root))
+        item = self._items.get(new)
+        if item is not None:
+            item.setText(0, item.text(0).replace(f"📁 {old.name}", f"📁 {new.name}", 1))
+            parent = item.parent()
+            if parent is not None:
+                parent.sortChildren(0, Qt.SortOrder.AscendingOrder)
+
+    def _delete_folder(self, folder: Path):
+        """Legt einen leeren Ordner in den Papierkorb (nach Rueckfrage)."""
+        folder = Path(folder)
+        if not self._is_empty_dir(folder):
+            QMessageBox.information(
+                self, "Ordner nicht leer",
+                "Es können nur leere Ordner gelöscht werden.",
+            )
+            return
+        answer = QMessageBox.question(
+            self, "Ordner löschen",
+            f"Leeren Ordner „{folder.name}“ in den Papierkorb legen?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        result = QFile.moveToTrash(str(folder))
+        trashed = result[0] if isinstance(result, tuple) else bool(result)
+        if not trashed:
+            QMessageBox.critical(
+                self, "Fehler", f"Ordner konnte nicht in den Papierkorb gelegt werden:\n{folder}"
+            )
+            return
+        item = self._items.pop(folder, None)
+        self._unloaded.discard(folder)
+        if item is not None:
+            parent = item.parent()
+            if parent is not None:
+                parent.removeChild(item)
+            else:
+                self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(item))
+        if self._selected_folder == folder:
+            self._selected_folder = None
+        self.status_message.emit(f"🗑️ Ordner in den Papierkorb gelegt: {folder.name}")
 
     def _open_in_explorer(self, folder_path: Path):
         """Öffnet den Ordner im Dateimanager des Systems."""
@@ -640,7 +981,7 @@ class FolderTreeWidget(QWidget):
         """Behandelt das Eintreten eines Drag-Objekts."""
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                if url.toLocalFile().lower().endswith('.pdf'):
+                if ist_sortierbar(url.toLocalFile()):
                     event.acceptProposedAction()
                     return
         event.ignore()
@@ -718,7 +1059,7 @@ class FolderTreeWidget(QWidget):
 
         for url in event.mimeData().urls():
             file_path = Path(url.toLocalFile())
-            if file_path.suffix.lower() == '.pdf':
+            if ist_sortierbar(file_path):
                 self.pdf_dropped.emit(file_path, folder_path)
 
         event.acceptProposedAction()

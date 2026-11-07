@@ -13,13 +13,19 @@ import re
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from src.ml.openai_werkzeuge import OpenAIWerkzeugMixin
 
 
-class OpenAIProvider(LLMProvider):
+class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
     """
     LLM-Provider für OpenAI's GPT API.
 
     Unterstützt GPT-3.5 und GPT-4 Modelle.
+
+    Werkzeuge im Chat (Issue #166/#167): ``chat_mit_werkzeugen`` und
+    ``unterstuetzt_werkzeuge`` kommen aus :class:`OpenAIWerkzeugMixin`
+    (gemeinsam mit OpenRouter, Strata und Poe) und nutzen wie
+    ``answer_with_context`` den urllib-Pfad ueber ``_http_post_json``.
     """
 
     # Verfügbare OpenAI Modelle (Stand: März 2026)
@@ -283,6 +289,18 @@ class OpenAIProvider(LLMProvider):
             return {"reasoning_effort": "minimal"}
         return {}
 
+    def _werkzeug_body_anpassen(self, body: dict) -> dict:
+        """Reasoning-Modelle (o1/o3/o4-mini, gpt-5) im urllib-Pfad: ``max_completion_tokens``
+        statt ``max_tokens``, keine ``temperature`` (die API lehnt beides mit 400 ab;
+        Review-Befund, gilt fuer answer_with_context und chat_mit_werkzeugen)."""
+        if not self._REASONING_MODEL_RE.match(str(body.get("model") or "")):
+            return body
+        angepasst = dict(body)
+        if "max_tokens" in angepasst:
+            angepasst["max_completion_tokens"] = angepasst.pop("max_tokens")
+        angepasst.pop("temperature", None)
+        return angepasst
+
     # Nach einer Ablehnung (HTTP 400) werden Extras fuer diese Instanz nicht
     # mehr mitgeschickt - sonst kostet jeder Aufruf einen Fehlversuch extra.
     _extras_rejected = False
@@ -373,6 +391,39 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             return None, f"{self.API_NAME}-Fehler: {e}"
 
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Bilder (JPEG) mit Anweisung per ``chat/completions`` schicken (``image_url`` als data-URI; Issue #47).
+
+        Gilt auch fuer OpenRouter und Strata (gleiche API).
+        """
+        import base64
+
+        if not self.config.api_key:
+            raise RuntimeError(f"Für {self.API_NAME} fehlt der API-Schlüssel.")
+        content = [{"type": "text", "text": prompt}]
+        content += [
+            {"type": "image_url",
+             "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(img).decode("ascii")}}
+            for img in images
+        ]
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": max_tokens,
+            "temperature": self.config.temperature,
+            "messages": [{"role": "user", "content": content}],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.config.api_key}",
+        }
+        data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers, timeout=300)
+        if error or not data:
+            raise RuntimeError(error or f"Leere Antwort von {self.API_NAME}.")
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        return (choices[0].get("message") or {}).get("content", "") or ""
+
     def answer_with_context(
         self,
         system_prompt: str,
@@ -395,7 +446,7 @@ class OpenAIProvider(LLMProvider):
         context_block = build_context_block(context_docs)
         user_prompt = build_user_prompt(user_question, context_block=context_block)
 
-        body = {
+        body = self._werkzeug_body_anpassen({
             "model": self._get_model_id(),
             "max_tokens": max_tokens,
             "temperature": self.config.temperature,
@@ -403,7 +454,7 @@ class OpenAIProvider(LLMProvider):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-        }
+        })
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.config.api_key}",

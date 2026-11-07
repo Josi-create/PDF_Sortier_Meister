@@ -10,7 +10,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any
 from enum import Enum
 
@@ -53,6 +53,25 @@ def derive_initials(full_name: str, max_letters: int = 3) -> str:
 def is_cloud_provider(provider_type: str) -> bool:
     """True, wenn der Provider Daten an einen externen Dienst sendet."""
     return str(provider_type).lower() in CLOUD_PROVIDERS
+
+
+# Modellnamen (Teile, kleingeschrieben), die Bilder verstehen (Issue #47: Handschrift per Bilderkennung).
+# Ollama und OpenRouter haben keine Eigenschaftsabfrage, die ohne Netz funktioniert; deshalb der Namensabgleich.
+VISION_MODELL_TEILE = (
+    "claude", "gpt-4o", "gpt-4.1", "gpt-4-turbo", "gpt-4.5", "gpt-5", "o1", "o3", "o4", "gemini", "pixtral",
+    "llava", "bakllava", "vision", "-vl", "vl:", "vl-", "qwen2.5vl", "qwen3-vl", "minicpm-v", "moondream",
+    "gemma3", "gemma4", "llama4", "llama-4", "mistral-small3", "granite3.2-vision", "internvl", "kimi-k",
+)
+# Treffer aus der Liste oben, die Bilder trotzdem nicht verstehen (kleine Textmodelle)
+VISION_AUSNAHMEN = ("o1-mini", "o1-preview", "o3-mini", "gemma3:1b", "gemma3:270m")
+
+
+def modell_versteht_bilder(modell: str | None) -> bool:
+    """Versteht ein Modell mit diesem Namen vermutlich Bilder (Vision)? Grobe Namensregel, kein Beweis."""
+    name = (modell or "").strip().lower()
+    if not name or any(a in name for a in VISION_AUSNAHMEN):
+        return False
+    return any(t in name for t in VISION_MODELL_TEILE)
 
 
 # Kanonische Metadaten-Schluessel, wie sie Detail-Panel, Umbenennen-Dialog und
@@ -193,6 +212,7 @@ class LLMProviderType(Enum):
     OLLAMA = "ollama"  # Lokaler Ollama-Server (kein API-Key noetig)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama-Modelle in der Cloud (ollama.com, API-Key)
     STRATA = "strata"  # Lokaler Strata-Server (OpenAI-kompatibel, eigener Key)
+    LMSTUDIO = "lmstudio"  # Lokales LM Studio (OpenAI-kompatibel, kein Key)
     NONE = "none"  # Kein LLM verwenden
 
 
@@ -226,6 +246,84 @@ class LLMConfig:
     # verwendet (Phase 19 / RAG-Chat, M1). Default 8000 ist ein konservativer
     # Wert, der mit lokalen 8B-Modellen und kleinen Cloud-Modellen funktioniert.
     context_window: int = 8000
+
+
+# --------------------------------------------------------------------------- #
+# Werkzeuge im Chat (Issue #166/#167, Phase 2)
+#
+# Provider-neutrale Datentypen fuer die Werkzeug-Schleife des RAG-Controllers.
+# Jeder Provider uebersetzt sie in sein Drahtformat (Ollama/OpenAI: "tools" +
+# "tool_calls", Claude: "tools" + "tool_use"/"tool_result").
+#
+# Nachrichtenformat (``nachrichten`` in ``chat_mit_werkzeugen``), eine Liste von
+# Dicts in Gespraechsreihenfolge:
+#
+#   {"role": "system",    "content": str}
+#   {"role": "user",      "content": str}
+#   {"role": "assistant", "content": str, "aufrufe": list[WerkzeugAufruf],
+#                         "roh": Any}          # roh = WerkzeugAntwort.roh derselben Antwort
+#   {"role": "tool",      "content": str, "aufruf_id": str, "name": str}
+#
+# Eine Assistentennachricht mit ``aufrufe`` ist die Antwort des Modells, auf die
+# die ``tool``-Nachrichten (eine je Aufruf, gleiche ``aufruf_id``) folgen. Liegt
+# ``roh`` vor, schickt der Provider seine eigene Rohnachricht unveraendert
+# zurueck (Claude braucht die Inhaltsbloecke, OpenAI die tool_calls mit Ids);
+# fehlt ``roh``, baut er die Nachricht aus ``content`` und ``aufrufe`` nach.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Werkzeug:
+    """Beschreibung eines Werkzeugs fuer das Modell.
+
+    Attributes:
+        name: Funktionsname, nur ``[a-z_]``; so ruft das Modell das Werkzeug auf.
+        beschreibung: Wann und wie das Werkzeug zu benutzen ist (Deutsch).
+        parameter: JSON-Schema der Argumente (``{"type": "object",
+            "properties": {...}, "required": [...]}``).
+    """
+
+    name: str
+    beschreibung: str
+    parameter: dict
+
+
+@dataclass
+class WerkzeugAufruf:
+    """Ein vom Modell gewuenschter Werkzeugaufruf.
+
+    Attributes:
+        name: Werkzeugname.
+        argumente: Argumente als Dict (Provider parsen JSON-Strings vorher).
+        id: Kennung des Aufrufs vom Provider (OpenAI ``tool_call_id``, Claude
+            ``tool_use.id``). Ollama vergibt keine; der Provider setzt dann
+            eine fortlaufende Kennung wie ``"aufruf_1"``.
+    """
+
+    name: str
+    argumente: dict
+    id: str = ""
+
+
+@dataclass
+class WerkzeugAntwort:
+    """Antwort des Modells in der Werkzeug-Schleife.
+
+    Attributes:
+        text: Antworttext; ohne ``aufrufe`` die endgueltige Antwort.
+        aufrufe: Gewuenschte Werkzeugaufrufe (leer = fertig).
+        roh: Rohnachricht des Providers (Assistentennachricht), die der
+            Controller unter ``"roh"`` in die naechste Assistentennachricht
+            legt, damit der Provider sie unveraendert zurueckschicken kann.
+        fehler: Fehlertext; leer = ok. Enthaelt bei fehlender
+            Werkzeugunterstuetzung des Modells ``"Werkzeuge"`` im Text, damit
+            der Controller auf den Weg ohne Werkzeuge zurueckfaellt.
+    """
+
+    text: str = ""
+    aufrufe: list = field(default_factory=list)
+    roh: Any = None
+    fehler: str = ""
 
 
 class LLMProvider(ABC):
@@ -315,6 +413,28 @@ class LLMProvider(ABC):
         """
         pass
 
+    def supports_vision(self) -> bool:
+        """Kann dieser Provider mit dem eingestellten Modell Bilder lesen (Issue #47)?
+
+        Der Provider muss ``describe_images`` umsetzen, und der Modellname muss
+        zu einem Vision-Modell passen (``modell_versteht_bilder``).
+        """
+        if type(self).describe_images is LLMProvider.describe_images:
+            return False
+        getter = getattr(self, "_get_model_id", None)
+        modell = getter() if callable(getter) else getattr(self.config, "model", "")
+        return modell_versteht_bilder(modell)
+
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Schickt Bilder (JPEG-Bytes) mit einer Anweisung an das Modell und liefert dessen Text.
+
+        Wird fuer "Handschrift mit KI entziffern" gebraucht (Issue #47).
+        Provider ohne Bildeingabe lassen die Basis stehen. Bei Fehlern
+        (Netz, Schluessel, Modell ohne Bilder) wird ``RuntimeError`` mit
+        verstaendlichem Text geworfen.
+        """
+        raise NotImplementedError(f"{type(self).__name__} unterstützt keine Bildeingabe.")
+
     @abstractmethod
     def answer_with_context(
         self,
@@ -348,6 +468,47 @@ class LLMProvider(ABC):
             zurueckgegeben werden.
         """
         pass
+
+    # ------------------------------------------------------------------ #
+    # Werkzeuge im Chat (Issue #166/#167, Phase 2)                       #
+    # ------------------------------------------------------------------ #
+
+    def unterstuetzt_werkzeuge(self) -> bool:
+        """True, wenn :meth:`chat_mit_werkzeugen` fuer dieses Modell brauchbar ist.
+
+        Die Basisklasse sagt Nein. Provider, die Werkzeuge koennen, antworten
+        Ja und merken sich fuer die Instanz, wenn der Server bzw. das Modell
+        Werkzeuge ablehnt (z.B. HTTP 400 "does not support tools"); danach
+        antworten sie Nein, und der Chat laeuft ohne Werkzeuge weiter.
+        """
+        return False
+
+    def chat_mit_werkzeugen(
+        self,
+        nachrichten: list[dict],
+        werkzeuge: list[Werkzeug],
+        max_tokens: int = 1000,
+    ) -> WerkzeugAntwort:
+        """Ein Schritt der Werkzeug-Schleife: Nachrichten + Werkzeuge -> Antwort.
+
+        Der Controller ruft diese Methode wiederholt: Enthaelt die Antwort
+        ``aufrufe``, fuehrt er die Werkzeuge aus, haengt Assistenten- und
+        ``tool``-Nachrichten an ``nachrichten`` an und ruft erneut; ohne
+        ``aufrufe`` ist ``text`` die Antwort. Nachrichtenformat: siehe
+        Modul-Kommentar ueber :class:`Werkzeug`.
+
+        Args:
+            nachrichten: Gespraech in Provider-neutraler Form (system, user,
+                assistant mit ``aufrufe``/``roh``, tool mit ``aufruf_id``).
+            werkzeuge: Verfuegbare Werkzeuge; leere Liste = Antwort ohne
+                Werkzeuge erzwingen (letzter Schritt).
+            max_tokens: Max. Tokens fuer die Antwort.
+
+        Returns:
+            :class:`WerkzeugAntwort`. Verbindungs- und API-Fehler stehen in
+            ``fehler`` (keine Exception), damit der Controller zurueckfallen kann.
+        """
+        return WerkzeugAntwort(fehler="Werkzeuge werden von diesem Provider nicht unterstützt.")
 
     def _truncate_text(self, text: str, max_chars: int = None) -> str:
         """

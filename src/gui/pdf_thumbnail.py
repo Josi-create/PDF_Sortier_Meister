@@ -8,12 +8,15 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize, QMimeData, QUrl, QPoint, QTimer
-from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag, QFontMetrics
+from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag, QFontMetrics, QPainter, QColor, QPolygonF, QFont
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
     QLabel,
     QMenu,
+    QMessageBox,
+    QWidget,
     QApplication,
     QToolTip,
 )
@@ -49,6 +52,38 @@ class ThumbnailLoaderThread(QThread):
             self.error_occurred.emit(str(e))
 
 
+class OcrWarnSymbol(QWidget):
+    """Kleines orangefarbenes Warndreieck mit "!" (Issue #47: Text schlecht erkannt).
+
+    Selbst gezeichnet statt Unicode-Zeichen: Das Aussehen haengt dann nicht von
+    der Schrift des Systems ab. Mausereignisse gehen an die Kachel durch.
+    """
+
+    SIZE = (20, 18)
+    FARBE = "#f39c12"
+    RAND = "#b9770e"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(*self.SIZE)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def paintEvent(self, event):
+        w, h = self.width(), self.height()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(self.FARBE))
+        p.setPen(QColor(self.RAND))
+        p.drawPolygon(QPolygonF([QPointF(w / 2, 1), QPointF(w - 1, h - 1), QPointF(1, h - 1)]))
+        font = QFont(self.font())
+        font.setBold(True)
+        font.setPixelSize(max(8, h - 7))
+        p.setFont(font)
+        p.setPen(QColor("white"))
+        p.drawText(self.rect().adjusted(0, 4, 0, 0), Qt.AlignmentFlag.AlignCenter, "!")
+        p.end()
+
+
 class PDFThumbnailWidget(QFrame):
     """Widget zur Anzeige einer PDF-Miniatur mit Interaktionsmöglichkeiten."""
 
@@ -69,6 +104,8 @@ class PDFThumbnailWidget(QFrame):
     rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
     reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
     straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
+    reocr_sprache_requested = pyqtSignal(Path, str)  # "OCR wiederholen mit ..." (Tesseract-Sprachen, Issue #47)
+    handschrift_requested = pyqtSignal(Path)  # "Handschrift mit KI entziffern" (Issue #47)
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
@@ -78,6 +115,7 @@ class PDFThumbnailWidget(QFrame):
         "Doppelklick öffnet die PDF im Standardprogramm."
     )
     AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
+    OCR_TOOLTIP_SUFFIX = "\n\nText schlecht erkannt – Rechtsklick für andere Erkennung"
 
     # Wartezeit, bis der Mauszeiger ueber einer kompakten Kachel die grosse
     # Vorschau einblendet (Issue #117)
@@ -90,6 +128,7 @@ class PDFThumbnailWidget(QFrame):
         self._selected = False
         self._stack_target = False  # gerade wird eine PDF darueber gezogen
         self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
+        self._ocr_schlecht = False  # Issue #47: OCR-Text schlecht erkannt (Warndreieck)
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
@@ -134,6 +173,10 @@ class PDFThumbnailWidget(QFrame):
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._layout.addWidget(self.name_label)
 
+        # Warndreieck "Text schlecht erkannt" (Issue #47), oben rechts auf dem Bild
+        self._ocr_symbol = OcrWarnSymbol(self.thumbnail_label)
+        self._ocr_symbol.hide()
+
         self._apply_view()
 
     @property
@@ -157,6 +200,7 @@ class PDFThumbnailWidget(QFrame):
         self._layout.setContentsMargins(v.margin, v.margin, v.margin, v.margin)
         self._layout.setSpacing(v.spacing)
         self.thumbnail_label.setFixedSize(v.thumb_w, v.thumb_h)
+        self._ocr_symbol.move(max(0, v.thumb_w - self._ocr_symbol.width() - 3), 3)
         self.name_label.setMaximumHeight(v.name_max_height)
         self._apply_name_style()
         if self._original_pixmap is not None:
@@ -342,8 +386,29 @@ class PDFThumbnailWidget(QFrame):
         if value == self._has_ai_suggestion:
             return
         self._has_ai_suggestion = value
-        self.setToolTip(self._BASE_TOOLTIP + (self.AI_TOOLTIP_SUFFIX if value else ""))
+        self._update_tooltip()
         self._update_style()
+
+    def _update_tooltip(self):
+        self.setToolTip(
+            self._BASE_TOOLTIP
+            + (self.AI_TOOLTIP_SUFFIX if self._has_ai_suggestion else "")
+            + (self.OCR_TOOLTIP_SUFFIX if self._ocr_schlecht else "")
+        )
+
+    @property
+    def ocr_schlecht(self) -> bool:
+        """True, wenn der OCR-Text dieser PDF schlecht erkannt ist (Warndreieck, Issue #47)."""
+        return self._ocr_schlecht
+
+    @ocr_schlecht.setter
+    def ocr_schlecht(self, value: bool):
+        value = bool(value)
+        if value == self._ocr_schlecht:
+            return
+        self._ocr_schlecht = value
+        self._ocr_symbol.setVisible(value)
+        self._update_tooltip()
 
     ANALYZING_TEXT = "Analysiere…"
 
@@ -484,6 +549,15 @@ class PDFThumbnailWidget(QFrame):
         reocr_action = menu.addAction(f"OCR neu durchführen{suffix}")
         reocr_action.setToolTip("Gescannte Seiten neu erkennen, z. B. nach dem Drehen")
         reocr_action.triggered.connect(self._request_reocr)
+        # Issue #47: andere Erkennung - Sprachen/Fraktur per Tesseract, Handschrift per KI-Bilderkennung.
+        # Die Sprachen werden erst beim Aufklappen gelesen (``tesseract --list-langs`` dauert).
+        self.ocr_sprache_menu = menu.addMenu("OCR wiederholen mit …")
+        self.ocr_sprache_menu.setToolTip("Seiten mit anderen Tesseract-Sprachen neu erkennen, z. B. Fraktur")
+        self.ocr_sprache_menu.addAction("Sprachen werden gelesen …").setEnabled(False)
+        self.ocr_sprache_menu.aboutToShow.connect(self._fill_ocr_sprache_menu)
+        handschrift_action = menu.addAction("Handschrift mit KI entziffern (Bilderkennung)")
+        handschrift_action.setToolTip("Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht")
+        handschrift_action.triggered.connect(self._request_handschrift)
 
         menu.addSeparator()
 
@@ -504,6 +578,35 @@ class PDFThumbnailWidget(QFrame):
 
     def _request_reocr(self):
         self.reocr_requested.emit(self.pdf_path)
+
+    def _request_handschrift(self):
+        self.handschrift_requested.emit(self.pdf_path)
+
+    def _ocr_sprachangebot(self) -> dict:
+        """Installierte Tesseract-Sprachen fuer das Menue (getrennt, damit Tests sie ersetzen koennen)."""
+        from src.core.pdf_analyzer import ocr_sprachangebot
+        return ocr_sprachangebot()
+
+    def _fill_ocr_sprache_menu(self):
+        """Fuellt "OCR wiederholen mit ..." mit den installierten Sprachen; fehlt Fraktur, kommt ein Installationshinweis."""
+        menu = self.ocr_sprache_menu
+        menu.clear()
+        angebot = self._ocr_sprachangebot()
+        if not angebot["tesseract"]:
+            menu.addAction("Tesseract nicht gefunden").setEnabled(False)
+            return
+        for code, name in angebot["sprachen"]:
+            action = menu.addAction(name)
+            action.setToolTip(f"Tesseract-Sprache: {code}")
+            action.triggered.connect(lambda _checked=False, c=code: self.reocr_sprache_requested.emit(self.pdf_path, c))
+        if not angebot["fraktur"]:
+            menu.addSeparator()
+            hinweis = menu.addAction("Fraktur (nicht installiert) – so installieren …")
+            hinweis.triggered.connect(lambda _checked=False: self._show_fraktur_hint(angebot["tessdata"]))
+
+    def _show_fraktur_hint(self, tessdata):
+        from src.utils.tesseract import fraktur_hinweis
+        QMessageBox.information(self, "Fraktur installieren", fraktur_hinweis(tessdata))
 
     def _request_straighten(self):
         self.straighten_requested.emit(self.pdf_path)

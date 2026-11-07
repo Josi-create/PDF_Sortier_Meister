@@ -21,8 +21,13 @@ from typing import Optional, Generator
 from datetime import datetime
 
 import fitz  # PyMuPDF
+from PyQt6.QtCore import QFile
 
 from src.search.meldungen import melden as index_melden
+
+
+class PapierkorbNichtVerfuegbar(OSError):
+    """Die Datei konnte nicht in den System-Papierkorb verschoben werden."""
 
 
 class FileManager:
@@ -82,6 +87,32 @@ class FileManager:
 
         return pdf_files
 
+    @staticmethod
+    def _mit_endung(source: Path, new_name: str) -> str:
+        """Neuer Name mit der passenden Endung: ".pdf", bei .docx/.xlsx deren eigene (Issue #9)."""
+        from src.core.office_convert import endung_tauschen, ist_office_datei
+
+        if ist_office_datei(source):
+            return endung_tauschen(new_name, source.suffix.lower())
+        return new_name if new_name.lower().endswith('.pdf') else new_name + '.pdf'
+
+    def get_office_files(self) -> list[Path]:
+        """Findet .docx/.xlsx im Scan-Ordner (Issue #9), nach Name sortiert.
+
+        Word legt waehrend des Bearbeitens Sperrdateien ``~$name.docx`` an;
+        die werden ausgelassen.
+        """
+        if self._scan_folder is None:
+            return []
+        from src.core.office_convert import OFFICE_ENDUNGEN
+
+        dateien = [
+            f for f in self._scan_folder.iterdir()
+            if f.is_file() and f.suffix.lower() in OFFICE_ENDUNGEN and not f.name.startswith("~$")
+        ]
+        dateien.sort(key=lambda p: p.name.lower())
+        return dateien
+
     def get_pdf_count(self) -> int:
         """Gibt die Anzahl der PDFs im Scan-Ordner zurück."""
         return len(self.get_pdf_files())
@@ -118,10 +149,8 @@ class FileManager:
 
         # Zieldateiname bestimmen
         if new_name:
-            # Sicherstellen, dass .pdf Endung vorhanden ist
-            if not new_name.lower().endswith('.pdf'):
-                new_name += '.pdf'
-            target_name = new_name
+            # Sicherstellen, dass die Endung stimmt (.pdf; bei Office-Dateien deren eigene)
+            target_name = self._mit_endung(source, new_name)
         else:
             target_name = source.name
 
@@ -210,8 +239,7 @@ class FileManager:
         if not source.exists():
             raise FileNotFoundError(f"Datei nicht gefunden: {source}")
 
-        if not new_name.lower().endswith('.pdf'):
-            new_name += '.pdf'
+        new_name = self._mit_endung(source, new_name)
 
         target_path = source.parent / new_name
         target_path = self._get_unique_path(target_path)
@@ -221,20 +249,39 @@ class FileManager:
 
         return target_path
 
-    def delete_file(self, file_path: Path | str) -> None:
+    def delete_file(self, file_path: Path | str, endgueltig: bool = False) -> Optional[Path]:
         """
-        Löscht eine Datei.
+        Verschiebt eine Datei in den System-Papierkorb.
 
         Args:
             file_path: Zu löschende Datei
+            endgueltig: True löscht ohne Papierkorb (nur nach ausdrücklicher Rückfrage)
+
+        Returns:
+            Pfad der Datei im Papierkorb (None bei endgültigem Löschen oder
+            wenn das System keinen Pfad liefert)
+
+        Raises:
+            PapierkorbNichtVerfuegbar: Papierkorb geht nicht (z. B. Netzlaufwerk);
+                es wird dann NICHT still endgültig gelöscht.
         """
         file_path = Path(file_path)
 
         if not file_path.exists():
             raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
 
-        file_path.unlink()
+        papierkorb_pfad: Optional[Path] = None
+        if endgueltig:
+            file_path.unlink()
+        else:
+            ok, pfad = QFile.moveToTrash(str(file_path))
+            if not ok:
+                raise PapierkorbNichtVerfuegbar(
+                    f"Papierkorb nicht verfügbar: {file_path}"
+                )
+            papierkorb_pfad = Path(pfad) if pfad else None
         index_melden("datei_geloescht", str(file_path))
+        return papierkorb_pfad
 
     def merge_pdfs(
         self,

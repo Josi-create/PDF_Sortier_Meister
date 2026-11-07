@@ -18,6 +18,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QDragEnterEvent, QDropEvent, QFontMetrics
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
 
+from src.core.office_convert import ist_sortierbar
+from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
     im_dateimanager_zeigen,
@@ -37,6 +39,7 @@ class FolderTileWidget(QFrame):
     clicked = pyqtSignal(Path)  # Einfachklick (nur fuer ".." verbunden, Issue #50)
     double_clicked = pyqtSignal(Path)  # In den Ordner wechseln
     pdf_dropped = pyqtSignal(Path, Path)  # (pdf_path, folder_path)
+    favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
 
     ROW_HEIGHT = 26  # feste Zeilenhoehe in Pixeln
     NAME_PX = 12  # Schriftgroesse des Ordnernamens
@@ -68,6 +71,7 @@ class FolderTileWidget(QFrame):
         self.folder_path = Path(folder_path)
         self.is_parent = is_parent
         self._pdf_count = pdf_count
+        self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster
         self._setup_ui()
 
     def _setup_ui(self):
@@ -180,6 +184,10 @@ class FolderTileWidget(QFrame):
         open_action.triggered.connect(self._open_in_file_manager)
         copy_action = menu.addAction(PFAD_KOPIEREN_TEXT)
         copy_action.triggered.connect(self._copy_path)
+        if not self.is_parent:
+            ist = bool(self.favorit_pruefer and self.favorit_pruefer(self.folder_path))
+            fav = menu.addAction(FAVORIT_ENTFERNEN_TEXT if ist else FAVORIT_MERKEN_TEXT)
+            fav.triggered.connect(lambda: self.favorit_umschalten.emit(self.folder_path))
         return menu
 
     def _open_in_file_manager(self):
@@ -203,7 +211,7 @@ class FolderTileWidget(QFrame):
         if not mime.hasUrls():
             return []
         paths = [Path(url.toLocalFile()) for url in mime.urls()]
-        return [p for p in paths if p.suffix.lower() == ".pdf"]
+        return [p for p in paths if ist_sortierbar(p)]
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if self._pdf_paths(event.mimeData()):

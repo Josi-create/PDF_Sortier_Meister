@@ -47,6 +47,8 @@ class PDFAnalysisResult:
     # LLM-Vorschläge (optional, werden im Hintergrund nachgeladen)
     llm_suggestions: list[LLMSuggestion] = field(default_factory=list)
     llm_fetched: bool = False  # True wenn LLM-Vorschläge abgerufen wurden
+    # Lesbarkeit der OCR (alle, gut) fuer die Markierung "Text schlecht erkannt" (Issue #47); None = unbekannt
+    ocr_lesbarkeit: Optional[tuple[int, int]] = None
 
 
 class PDFAnalysisWorker(QThread):
@@ -126,6 +128,8 @@ class PDFAnalysisWorker(QThread):
 
     def run(self):
         """Worker-Loop."""
+        from src.core.office_analyse import analysiere as office_analysiere
+        from src.core.office_convert import ist_office_datei
         from src.core.pdf_analyzer import PDFAnalyzer
 
         while self._running:
@@ -148,16 +152,28 @@ class PDFAnalysisWorker(QThread):
                         continue
 
                     t0 = time.perf_counter()
-                    with PDFAnalyzer(pdf_path) as analyzer:
+                    if ist_office_datei(pdf_path):  # .docx/.xlsx (Issue #9): Text aus dem Suchmodul
+                        text, keywords, dates = office_analysiere(pdf_path)
                         result = PDFAnalysisResult(
                             pdf_path=pdf_path,
-                            extracted_text=analyzer.extract_text(),
-                            keywords=analyzer.extract_keywords(),
-                            dates=analyzer.extract_dates(),
+                            extracted_text=text,
+                            keywords=keywords,
+                            dates=dates,
                             file_modified=pdf_path.stat().st_mtime
                         )
-                        pages = analyzer.page_count
-                        ocr_used = analyzer.ocr_used
+                        pages, ocr_used = 1, False
+                    else:
+                        with PDFAnalyzer(pdf_path) as analyzer:
+                            result = PDFAnalysisResult(
+                                pdf_path=pdf_path,
+                                extracted_text=analyzer.extract_text(),
+                                keywords=analyzer.extract_keywords(),
+                                dates=analyzer.extract_dates(),
+                                file_modified=pdf_path.stat().st_mtime,
+                                ocr_lesbarkeit=analyzer.ocr_lesbarkeit,
+                            )
+                            pages = analyzer.page_count
+                            ocr_used = analyzer.ocr_used
                     ms = (time.perf_counter() - t0) * 1000.0
                     # Gegenstueck zur "Klick ..."-Zeile des StepTimers: der
                     # asynchrone Teil war im Log bisher unsichtbar (Issue #108)
@@ -391,7 +407,9 @@ class PDFCache(QObject):
                     analyzed_at TEXT,
                     file_modified REAL,
                     llm_suggestions TEXT,
-                    llm_fetched INTEGER DEFAULT 0
+                    llm_fetched INTEGER DEFAULT 0,
+                    ocr_alle INTEGER,
+                    ocr_gut INTEGER
                 )
             """)
 
@@ -404,6 +422,12 @@ class PDFCache(QObject):
                 cursor.execute("ALTER TABLE pdf_cache ADD COLUMN llm_fetched INTEGER DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # Spalte existiert bereits
+
+            for spalte in ("ocr_alle", "ocr_gut"):  # Issue #47: Lesbarkeit der OCR
+                try:
+                    cursor.execute(f"ALTER TABLE pdf_cache ADD COLUMN {spalte} INTEGER")
+                except sqlite3.OperationalError:
+                    pass  # Spalte existiert bereits
 
             conn.commit()
             conn.close()
@@ -487,7 +511,8 @@ class PDFCache(QObject):
                     analyzed_at=datetime.fromisoformat(row[4]) if row[4] else datetime.now(),
                     file_modified=cached_mtime,
                     llm_suggestions=llm_suggestions,
-                    llm_fetched=llm_fetched
+                    llm_fetched=llm_fetched,
+                    ocr_lesbarkeit=(row[8], row[9]) if len(row) > 9 and row[8] is not None and row[9] is not None else None,
                 )
 
                 with self._lock:
@@ -522,8 +547,9 @@ class PDFCache(QObject):
 
             cursor.execute("""
                 INSERT OR REPLACE INTO pdf_cache
-                (pdf_path, extracted_text, keywords, dates, analyzed_at, file_modified, llm_suggestions, llm_fetched)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (pdf_path, extracted_text, keywords, dates, analyzed_at, file_modified, llm_suggestions, llm_fetched,
+                 ocr_alle, ocr_gut)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 str(result.pdf_path),
                 result.extracted_text,
@@ -532,7 +558,9 @@ class PDFCache(QObject):
                 result.analyzed_at.isoformat(),
                 result.file_modified,
                 llm_json,
-                1 if result.llm_fetched else 0
+                1 if result.llm_fetched else 0,
+                result.ocr_lesbarkeit[0] if result.ocr_lesbarkeit else None,
+                result.ocr_lesbarkeit[1] if result.ocr_lesbarkeit else None,
             ))
 
             conn.commit()
@@ -852,10 +880,18 @@ class PDFCache(QObject):
             self._cache.clear()
 
     def clear_for_pdf(self, pdf_path: Path):
-        """Entfernt einen Eintrag aus dem Cache."""
+        """Entfernt einen Eintrag aus dem Cache (auch den gespeicherten, sonst kaeme er beim Neustart zurueck)."""
         pdf_path = Path(pdf_path)
         with self._lock:
             self._cache.pop(pdf_path, None)
+        if self._persist_cache and self._db_path and self._db_path.exists():
+            try:
+                conn = sqlite3.connect(str(self._db_path))
+                conn.execute("DELETE FROM pdf_cache WHERE pdf_path = ?", (str(pdf_path),))
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logger.error(f"Cache-Eintrag nicht geloescht: {e}")
 
     def migrate_cache_entry(self, old_path: Path, new_path: Path):
         """
@@ -951,6 +987,17 @@ class PDFCache(QObject):
         with self._lock:
             result = self._cache.get(pdf_path)
             return result is not None and result.llm_fetched and len(result.llm_suggestions) > 0
+
+    def ocr_schlecht(self, pdf_path: Path) -> bool:
+        """Ist der OCR-Text dieser PDF laut Analyse schlecht erkannt (Markierung der Kachel, Issue #47)?"""
+        pdf_path = Path(pdf_path)
+        with self._lock:
+            result = self._cache.get(pdf_path)
+            lesbarkeit = result.ocr_lesbarkeit if result is not None else None
+        if not lesbarkeit:
+            return False
+        from src.search.extract import schlecht_erkannt
+        return schlecht_erkannt(lesbarkeit[0], lesbarkeit[1])
 
     def set_llm_precache_enabled(self, enabled: bool):
         """Aktiviert/deaktiviert LLM-Pre-Caching."""

@@ -38,10 +38,12 @@ from PyQt6.QtWidgets import (
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
+from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
-from src.gui.folder_widget import FolderWidget
+from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
 from src.gui.folder_tree_widget import FolderTreeWidget
+from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
@@ -51,7 +53,8 @@ from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
-from src.core.file_manager import FileManager, FolderManager
+from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
+from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 
 
@@ -75,18 +78,71 @@ from src.core.pdf_rotate import (
     rotate_pdf,
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
+from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
+from src.core import office_vorschau
+from src.core.office_convert import endung_tauschen, ist_office_datei
+from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
+from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
+from src.ml.provider_factory import erzeuge_provider, grund_text
 from src.gui.chat_view import ChatView
 from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
 from src.search.meldungen import melden as index_melden
 
 
+# Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
+# HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
+_PROVIDER_ANZEIGENAMEN = {
+    "claude": "Claude",
+    "openai": "OpenAI",
+    "poe": "Poe",
+    "openrouter": "OpenRouter",
+    "ollama": "Ollama",
+    "ollama_cloud": "Ollama Cloud",
+    "strata": "Strata",
+    "lmstudio": "LM Studio",
+}
+
+
+def provider_anzeigename(provider_id: str) -> str:
+    """Anzeigename zu einer Provider-Kennung (unbekannte Kennung unveraendert)."""
+    kennung = str(provider_id or "").strip().lower()
+    return _PROVIDER_ANZEIGENAMEN.get(kennung, kennung or "Unbekannt")
+
+
+def modell_name(provider, fallback: str = "", short: bool = False) -> str:
+    """Modell-ID eines LLM-Providers (Issue #166/#167).
+
+    Gleiche Logik wie ``HybridClassifier.get_llm_model_name``: zuerst
+    ``_get_model_id()`` des Providers (loest Kurznamen wie "haiku" auf), sonst
+    ``config.model``, sonst ``fallback``. ``short`` laesst das Anbieter-Praefix
+    wie "z-ai/" (OpenRouter) weg - fuer die knappe Anzeige in der Statusleiste.
+    """
+    model = ""
+    getter = getattr(provider, "_get_model_id", None)
+    if callable(getter):
+        try:
+            model = getter() or ""
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            model = ""
+    if not model:
+        model = getattr(getattr(provider, "config", None), "model", "") or fallback or ""
+    if short and "/" in model:
+        model = model.rsplit("/", 1)[-1]
+    return model
+
+
 class _ClickableLabel(QLabel):
     """QLabel, das bei Doppelklick ein Signal sendet (Statusleiste)."""
 
     doubleClicked = pyqtSignal()
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         self.doubleClicked.emit()
@@ -134,6 +190,14 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier = get_hybrid_classifier()
         self.pdf_cache = get_pdf_cache()
 
+        # Eigenes Chat-Modell (Issue #166/#167): Provider-Instanz zum
+        # "chat"-Block, gecacht ueber das Konfigurations-Dict (Schluessel);
+        # _chat_llm_grund = Grund-Code der Provider-Fabrik, wenn keine gebaut
+        # werden konnte (fuer den Tooltip der Statusleiste).
+        self._chat_llm_provider = None
+        self._chat_llm_key: Optional[dict] = None
+        self._chat_llm_grund = ""
+
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
         self.folder_widgets: list[FolderWidget] = []
@@ -149,6 +213,7 @@ class MainWindow(QMainWindow):
         # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
         # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
         # Rename-Eintrag: {"type": "rename", "old_path": Path, "new_path": Path, "description": str}
+        # Loesch-Eintrag: {"type": "delete", "original": Path, "papierkorb": Path, "description": str}
         # Stapel-Eintrag: {"type": "stack", "backups": [(original, sicherung), ...], "description": str}
         self._undo_stack: list[dict] = []
 
@@ -165,6 +230,7 @@ class MainWindow(QMainWindow):
         self.folder_tiles: list = []
         # Kachelgroesse im Scan-Bereich: Klein / Mittel / Gross (Issue #117)
         self._tile_view = tile_view(self.config.get("tile_view"))
+        self._sortierung = sortierung_id(self.config.get("kachel_sortierung"))  # Issue #33
 
         self.setup_ui()
         self.setup_menu()
@@ -189,7 +255,12 @@ class MainWindow(QMainWindow):
         self._preview_window: Optional[PdfPreviewWindow] = None
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
+        self._office_worker: Optional[OfficeConvertWorker] = None
+        self._office_vorschau_worker: Optional[OfficeVorschauWorker] = None
+        self._office_preview_pfad: Optional[Path] = None  # .docx/.xlsx, deren Seitenvorschau gewuenscht ist
         self._ocr_neu_paths: list[Path] = []
+        # Schwer lesbare Scans: OCR mit anderen Sprachen, Handschrift per KI (Issue #47)
+        self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -230,9 +301,33 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         preview_layout.addWidget(splitter, 1)
 
-        # Linke Spalte: PDF-Thumbnails
+        # Linke Spalte: PDF-Thumbnails und daneben der Chat als zweiter Reiter
+        # (Phase 3, Issue #166/#167): Mitte und Zielordner bleiben sichtbar, die
+        # Antwort des Chats laesst sich direkt in ein Verschieben umsetzen
         pdf_panel = self.create_pdf_panel()
-        splitter.addWidget(pdf_panel)
+        self.chat_view = ChatView(
+            self.db,
+            self.hybrid_classifier,
+            self.config.get_chat_config(),
+            kompakt=True,
+        )
+        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
+        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
+        self.chat_view.bezug_daten = self._chat_bezug_daten
+        # Eigenes Chat-Modell (Issue #166/#167): Quelle fuer den Provider des
+        # Chats; None = Modell der Sortierung (hybrid_classifier.llm_provider)
+        self.chat_view.chat_provider_quelle = self._chat_provider
+        # Phase 3: "Nach … verschieben" und Ordner der Belege als Vorschlag
+        self.chat_view.verschieben_requested.connect(self._on_chat_verschieben)
+        self.chat_view.ordner_belegt.connect(self._on_chat_ordner_belegt)
+        self.left_tabs = QTabWidget()
+        self.left_tabs.addTab(pdf_panel, "PDFs")
+        self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
+        self.left_tabs.addTab(self.chat_view, "Chat")
+        self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
+        splitter.addWidget(self.left_tabs)
 
         # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
         self.detail_panel = DetailPanel()
@@ -240,6 +335,7 @@ class MainWindow(QMainWindow):
         self.detail_panel.rename_and_save_metadata_requested.connect(self._on_rename_and_save_metadata)
         self.detail_panel.open_pdf_requested.connect(self.open_pdf)
         self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.detail_panel.office_preview_requested.connect(self._on_office_preview_requested)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
@@ -265,18 +361,9 @@ class MainWindow(QMainWindow):
             0, "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
         )
 
-        # Tab "Chat": RAG-Chat (Phase 19 / M2)
-        self.chat_view = ChatView(
-            self.db,
-            self.hybrid_classifier,
-            self.config.get_chat_config(),
-        )
-        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
-        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
-        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
-        self.chat_view.bezug_daten = self._chat_bezug_daten
-        self.center_tabs.addTab(self.chat_view, "Chat")
-        self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
+        # Der Chat ist seit Phase 3 (Issue #166/#167) ein Reiter der linken
+        # Spalte des Vorschau-Reiters (siehe oben), nicht mehr ein eigener
+        # mittlerer Reiter.
 
         # Tab "Suche": Volltextsuche im Index der Dokumentensuche (PDFsuche-Integration, Phase 4)
         self.search_view = SearchView(self.config)
@@ -286,23 +373,70 @@ class MainWindow(QMainWindow):
         self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
         self.center_tabs.setTabToolTip(
-            2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+            1, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
         )
 
-        # LLM-Status bzw. Indexstand aktualisieren, wenn der Tab gewaehlt wird
+        # Indexstand aktualisieren, wenn der Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird.
-
-        Beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148).
-        """
+        """Aktualisiert den Indexstand (Suche), wenn der Tab sichtbar wird."""
         widget = self.center_tabs.widget(index)
-        if widget is self.chat_view:
+        if widget is self.search_view:
+            self.search_view.tab_gezeigt()
+
+    def _on_left_tab_changed(self, index: int) -> None:
+        """Linke Spalte: beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148)."""
+        if self.left_tabs.widget(index) is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
-        elif widget is self.search_view:
-            self.search_view.tab_gezeigt()
+
+    def show_chat_tab(self) -> None:
+        """Wechselt in der linken Spalte auf den Chat."""
+        self.left_tabs.setCurrentWidget(self.chat_view)
+
+    def _on_chat_verschieben(self, ordner_pfad: str) -> None:
+        """Knopf "Nach … verschieben" im Chat (Phase 3): das Bezugsdokument in den Ordner verschieben.
+
+        Laeuft ueber denselben Weg wie ein Klick auf den Zielordner (Rueckfrage,
+        Lernen, Rueckgaengig). Danach zeigt die linke Spalte wieder die PDFs;
+        der Chat bleibt mit seinem Verlauf im Hintergrund, nur der Bezug ist
+        weg (die Datei liegt nicht mehr im Scan-Ordner).
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or not ordner_pfad:
+            return
+        bezug = Path(bezug)
+        if not bezug.exists():
+            self.statusbar.showMessage(f"{bezug.name} liegt nicht mehr im Scan-Ordner", 4000)
+            return
+        self.move_pdf_to_folder_and_learn(bezug, Path(ordner_pfad))
+        if not bezug.exists():
+            self.chat_view.set_bezug(None)
+            self.left_tabs.setCurrentIndex(0)
+
+    def _on_chat_ordner_belegt(self, ordner_pfad: str, begruendung: str) -> None:
+        """Der Chat hat einen Zielordner belegt (Phase 3): als Vorschlag ins Detail-Panel.
+
+        Nur, wenn das Bezugsdokument die ausgewaehlte PDF ist; sonst gehoerte
+        der Vorschlag zu einem anderen Dokument.
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or self.selected_pdf is None or Path(bezug) != Path(self.selected_pdf):
+            return
+        try:
+            from src.core.similar_documents import merge_folder_suggestion
+            from src.rag.verknuepfung import ordner_vorschlag_aus_chat
+            vorschlag = ordner_vorschlag_aus_chat(ordner_pfad, begruendung, self.folder_manager.target_folders)
+            if vorschlag is None:
+                return
+            suggestions = merge_folder_suggestion(
+                list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
+            )
+            self.display_suggestions(suggestions)
+            self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Chat-Ordnervorschlag nicht uebernommen: {e}")
 
     def _chat_bezug_pfad(self) -> Optional[Path]:
         """Das ausgewaehlte PDF als Bezug fuer den Chat; bei Mehrfachauswahl keins."""
@@ -352,6 +486,7 @@ class MainWindow(QMainWindow):
             metadaten=metadaten,
             sortier_vorschlaege=vorschlaege,
             wurzeln=list(self.folder_manager.target_folders),
+            scan_ordner=self.file_manager.scan_folder,
         )
 
     def show_search_tab(self) -> None:
@@ -480,14 +615,41 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(view_label)
         header_layout.addWidget(self.tile_view_combo)
 
+        # Sortierung der Kacheln (Issue #33)
+        self.sort_combo = QComboBox()
+        for sid, text, _kriterium, _ab in SORT_OPTIONEN:
+            self.sort_combo.addItem(text, sid)
+        self.sort_combo.setCurrentIndex(self.sort_combo.findData(self._sortierung))
+        self.sort_combo.setToolTip("Reihenfolge der Dateien im Scan-Bereich.")
+        self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
+        sort_label = QLabel("Sortieren:")
+        sort_label.setStyleSheet("color: #888; font-size: 12px;")
+        header_layout.addWidget(sort_label)
+        header_layout.addWidget(self.sort_combo)
+
         layout.addLayout(header_layout)
 
+        # Favoriten-Leiste ueber der Pfadzeile (Issue #114)
+        self._favoriten_vorbelegen()
+        self.favoriten_leiste = FavoritenLeiste(self.config)
+        self.favoriten_leiste.ordner_geoeffnet.connect(self._on_favorit_geoeffnet)
+        # Favoriten und Pfadzeile eng beieinander, ohne den Panel-Abstand
+        navi_layout = QVBoxLayout()
+        navi_layout.setContentsMargins(0, 0, 0, 0)
+        navi_layout.setSpacing(0)
+        navi_layout.addWidget(self.favoriten_leiste)
+
         # Breadcrumb: klickbarer Pfad zum aktuellen Scan-Ordner (Explorer-Gefuehl)
-        self.breadcrumb_layout = QHBoxLayout()
-        self.breadcrumb_layout.setContentsMargins(6, 0, 6, 2)
+        self.breadcrumb_widget = QWidget()
+        self.breadcrumb_widget.setFixedHeight(20)
+        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_widget)
+        self.breadcrumb_layout.setContentsMargins(6, 0, 6, 0)
         self.breadcrumb_layout.setSpacing(2)
         self.breadcrumb_layout.addStretch()
-        layout.addLayout(self.breadcrumb_layout)
+        self.breadcrumb_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
+        navi_layout.addWidget(self.breadcrumb_widget)
+        layout.addLayout(navi_layout)
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
@@ -615,6 +777,12 @@ class MainWindow(QMainWindow):
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
+        self.folder_tree.move_here_requested.connect(self.on_tree_folder_selected)  # Issue #93
+        self.folder_tree.folder_renamed.connect(self.on_tree_folder_renamed)
+        self.folder_tree.status_message.connect(lambda t: self.statusbar.showMessage(t, 8000))
+        self.folder_tree.has_pdf_selection = lambda: bool(self.selected_pdf or self.selected_pdfs)
+        self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
+        self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
         ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
@@ -774,14 +942,16 @@ class MainWindow(QMainWindow):
 
         # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
         pdf_files = self.file_manager.get_pdf_files()
+        office_files = self.file_manager.get_office_files()
         scan_folder = self.file_manager.scan_folder
         subfolders = self.folder_manager.get_subfolders(scan_folder) if scan_folder else []
         parent_folder = None
         if scan_folder and scan_folder.parent != scan_folder and scan_folder.parent.exists():
             parent_folder = scan_folder.parent
         self._update_breadcrumb(scan_folder)
+        self.favoriten_leiste.set_aktueller_ordner(scan_folder)
 
-        if not pdf_files and not subfolders and parent_folder is None:
+        if not pdf_files and not office_files and not subfolders and parent_folder is None:
             self.empty_label.setText(
                 "Keine PDFs im Scan-Ordner gefunden.\n\n"
                 f"Ordner: {self.file_manager.scan_folder}"
@@ -798,7 +968,7 @@ class MainWindow(QMainWindow):
         # Header aktualisieren
         self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
-        count = len(pdf_files)
+        count = len(pdf_files) + len(office_files)
         count_text = f"{count} {'Datei' if count == 1 else 'Dateien'}"
         if subfolders:
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
@@ -821,10 +991,13 @@ class MainWindow(QMainWindow):
                 # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
+            tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
             self.folder_tiles.append(tile)
         self._place_folder_rows()
 
         if not pdf_files:
+            self._add_office_widgets(office_files, 0)
             self.pdf_count_label.setText("PDFs: 0")
             self._pending_thumbnails = 0
             self._thumbnails_signal_emitted = True
@@ -855,18 +1028,26 @@ class MainWindow(QMainWindow):
             widget.rotate_requested.connect(self.on_pdf_rotate)
             widget.reocr_requested.connect(self.on_pdf_reocr)
             widget.straighten_requested.connect(self.on_pdf_straighten)
+            widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
+            widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
             widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
+            # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
+            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
 
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
+
+        self._add_office_widgets(office_files, len(pdf_files))
 
         # Falls keine PDFs, Signal sofort senden
         if self._pending_thumbnails == 0:
             self.thumbnails_loaded.emit()
             self._thumbnails_signal_emitted = True
+
+        self._sortiere_kacheln()
 
         # Statusleiste aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(pdf_files)}")
@@ -875,6 +1056,118 @@ class MainWindow(QMainWindow):
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
+
+    @property
+    def office_widgets(self) -> list[OfficeThumbnailWidget]:
+        """Die Kacheln der .docx/.xlsx (sie stehen mit den PDFs in ``pdf_widgets``, Issue #9)."""
+        return [w for w in self.pdf_widgets if isinstance(w, OfficeThumbnailWidget)]
+
+    def _add_office_widgets(self, office_files: list[Path], start_index: int):
+        """Kacheln fuer .docx/.xlsx hinter den PDFs im Raster (Issue #9).
+
+        Sie nutzen dieselben Signale und Wege wie PDF-Kacheln (Auswahl,
+        Vorschlaege, Verschieben, Ziehen); Stapeln, Drehen, OCR usw. gibt es
+        nur bei PDFs.
+        """
+        for j, pfad in enumerate(office_files):
+            widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
+            widget.clicked.connect(self.on_pdf_clicked)
+            widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
+            widget.shift_clicked.connect(self.on_pdf_shift_clicked)
+            widget.double_clicked.connect(self.open_office_file)
+            widget.open_requested.connect(self.open_office_file)
+            widget.move_requested.connect(self.on_pdf_move)
+            widget.delete_requested.connect(self.on_office_delete)
+            widget.convert_requested.connect(self.on_office_convert)
+            widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
+            i = start_index + j
+            self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
+            self.pdf_widgets.append(widget)
+
+    def _on_office_preview_requested(self, pfad: Path):
+        """Das Detail-Panel zeigt eine .docx/.xlsx: Seitenvorschau im Hintergrund erzeugen."""
+        self._office_preview_pfad = pfad
+        self._start_office_vorschau()
+
+    def _start_office_vorschau(self):
+        """Erzeugt die gewuenschte Vorschau; es laeuft hoechstens eine Umwandlung zugleich."""
+        if self._office_vorschau_worker is not None or self._office_preview_pfad is None:
+            return
+        worker = OfficeVorschauWorker(self._office_preview_pfad, self)
+        worker.fertig.connect(self._on_office_vorschau)
+        self._office_vorschau_worker = worker
+        worker.start()
+
+    def _on_office_vorschau(self, pfad: Path, pdf, fehler):
+        self._office_vorschau_worker = None
+        if self._office_preview_pfad is None:
+            return
+        if self._office_preview_pfad != pfad:
+            self._start_office_vorschau()  # inzwischen eine andere Datei gewuenscht
+            return
+        if self.selected_pdf != pfad:
+            return  # inzwischen etwas anderes ausgewaehlt
+        if pdf is not None:
+            self.detail_panel.preview.load_pdf(pdf)
+        else:
+            self.detail_panel.preview.show_message(f"Vorschau nicht möglich:\n{fehler}")
+
+    def on_office_delete(self, pfad: Path):
+        """Kontextmenue "Loeschen" einer .docx/.xlsx (gleicher Weg und gleiche Rueckfrage wie bei PDFs)."""
+        self._datei_loeschen(pfad, "Datei löschen", "diese Datei", self._remove_office_widget)
+
+    def _remove_office_widget(self, pfad: Path):
+        was_selected = self.selected_pdf == pfad
+        self.remove_pdf_widget(pfad)
+        if was_selected:
+            self.detail_panel.clear()
+        office_vorschau.vorschau_loeschen(pfad)
+        self._relayout_pdf_grid(force=True)
+
+    def open_office_file(self, pfad: Path):
+        """Oeffnet eine .docx/.xlsx im Standardprogramm."""
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad))):
+            QMessageBox.warning(self, "Öffnen", f"Datei konnte nicht geöffnet werden:\n{pfad}")
+
+    def on_office_convert(self, pfad: Path, pdfa: bool):
+        """Kontextmenue "In PDF umwandeln": Hintergrund-Thread, PDF entsteht neben der Datei."""
+        if self._office_worker is not None:
+            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(f"Wandle in PDF um: {pfad.name}…")
+        worker = OfficeConvertWorker([pfad], pdfa, self)
+        worker.fertig.connect(self._on_office_converted)
+        self._office_worker = worker
+        worker.start()
+
+    def _on_office_converted(self, ergebnisse: list):
+        self._office_worker = None
+        QApplication.restoreOverrideCursor()
+        fehler = []
+        hinweise = []
+        erzeugt = []
+        for quelle, erg, fehlertext in ergebnisse:
+            if erg is None:
+                fehler.append(f"{quelle.name}: {fehlertext}")
+                continue
+            erzeugt.append(erg.pdf)
+            index_melden("datei_aufnehmen", str(erg.pdf))
+            hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
+            self.statusbar.showMessage(
+                f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
+            )
+        if erzeugt:
+            self.load_pdfs()
+            # Das neue PDF wie angeklickt auswaehlen (load_pdfs baut die Kacheln synchron)
+            widget = self._pdf_widget_for(erzeugt[0])
+            if widget is not None:
+                self.on_pdf_clicked(erzeugt[0])
+                self.pdf_scroll_area.ensureWidgetVisible(widget)
+        if fehler:
+            QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
+        elif hinweise:
+            QMessageBox.information(self, "In PDF umwandeln", "\n".join(hinweise))
 
     def _schedule_pre_caching(self, pdf_files: list[Path], delay_ms: int = 500):
         """Startet das Pre-Caching verzoegert ueber einen fenstergebundenen Timer.
@@ -1027,17 +1320,35 @@ class MainWindow(QMainWindow):
                 document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
             )
             roots = self.folder_manager.target_folders
+            year = document_year(detected_date)
             ki = None
             for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
-                ki = folder_suggestion_from_metadata(
-                    getattr(s, "metadata", None), roots, document_year(detected_date),
-                )
+                ki = folder_suggestion_from_metadata(getattr(s, "metadata", None), roots, year)
                 if ki:
                     break
-            return merge_folder_suggestion(suggestions, ki)
+            merged = merge_folder_suggestion(suggestions, ki)
         except Exception as e:  # noqa: BLE001 - KI-Ordner ist optional
             logging.getLogger(__name__).debug(f"KI-Ordnervorschlag nicht verfuegbar: {e}")
             return list(suggestions)
+        # Phase 3 (Issue #166/#167): Dokumente mit derselben Vertrags-, Zaehler-
+        # oder Kundennummer liegen schon in einem Zielordner -> staerkster Beleg,
+        # darum ganz oben
+        try:
+            from src.core.similar_documents import document_year as _jahr
+            from src.rag.verknuepfung import ordner_vorschlag_aus_kennungen
+            text = ""
+            result = self.pdf_cache.get(pdf_path)
+            if result is not None:
+                text = result.extracted_text or ""
+            if not text and self.selected_pdf == pdf_path:
+                text = self.selected_pdf_text or ""
+            verknuepft = ordner_vorschlag_aus_kennungen(
+                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
+            )
+            return merge_folder_suggestion(merged, verknuepft, bestaetigung="verknüpfte Dokumente")
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Vorschlag aus verknuepften Dokumenten nicht verfuegbar: {e}")
+            return merged
 
     @staticmethod
     def _detected_date_from(dates) -> Optional[str]:
@@ -1145,6 +1456,16 @@ class MainWindow(QMainWindow):
         # Aus Mehrfachauswahl entfernen
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
+
+        # War die PDF der Bezug des Chats (Phase 3, Issue #166): Bezug loeschen
+        # und die linke Spalte wieder auf "PDFs" stellen - gleich, ob aus dem
+        # Chat, per Klick auf Zielordner oder Vorschlag verschoben wurde
+        chat_view = getattr(self, "chat_view", None)
+        left_tabs = getattr(self, "left_tabs", None)
+        if chat_view is not None and chat_view.bezug and Path(chat_view.bezug) == Path(pdf_path):
+            chat_view.set_bezug(None)
+            if left_tabs is not None and left_tabs.currentWidget() is chat_view:
+                left_tabs.setCurrentIndex(0)
 
         return index
 
@@ -1564,6 +1885,11 @@ class MainWindow(QMainWindow):
         update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
         help_menu.addAction(update_action)
 
+        support_action = QAction("Unterstützen ...", self)
+        support_action.setToolTip("Freiwillige Unterstützung - keine Freischaltung von Funktionen")
+        support_action.triggered.connect(lambda: self.show_support_hint(force=True))
+        help_menu.addAction(support_action)
+
         about_action = QAction("Über PDF Sortier Meister", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1676,7 +2002,12 @@ class MainWindow(QMainWindow):
         self._check_llm_connection()
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
-        self.backup_status_label = QLabel("Backup: Nicht geprüft")
+        # Backup-Erinnerung (Issue #14): nur sichtbar, solange "Nein" gilt
+        self.backup_status_label = _ClickableLabel("Kein aktuelles Backup gemacht")
+        self.backup_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        self.backup_status_label.setToolTip("Klicken, um ein gemachtes Backup zu bestätigen.")
+        self.backup_status_label.clicked.connect(self.confirm_backup_done)
+        self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
         self.statusbar.addPermanentWidget(self.backup_status_label)
 
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
@@ -1750,6 +2081,10 @@ class MainWindow(QMainWindow):
         # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
         if self._ocr_neu_worker is not None:
             self._ocr_neu_worker.requestInterruption()
+        self._ocr_schwer_lesbar.abbrechen()
+        if self._office_worker is not None:
+            self._office_worker.requestInterruption()
+        self._office_preview_pfad = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -1839,6 +2174,42 @@ class MainWindow(QMainWindow):
             combo.blockSignals(True)
             combo.setCurrentIndex(combo.findData(view.id))
             combo.blockSignals(False)
+
+    def _sortiere_kacheln(self):
+        """Ordnet die vorhandenen Kacheln nach ``self._sortierung`` um (Issue #33).
+
+        Es werden keine Widgets neu gebaut - Thumbnails, Analyse und Auswahl
+        bleiben unberuehrt, nur das Raster wird neu belegt. Weitere Kachellisten
+        (Office-Kacheln, Issue #9) werden je fuer sich sortiert und stehen
+        weiter hinter den PDFs.
+        """
+        geaendert = False
+        for liste in [self.pdf_widgets] + (
+            [self.office_widgets] if hasattr(self, "office_widgets") else []
+        ):
+            nach_pfad = {w.pdf_path: w for w in liste}
+            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung)]
+            if neu != liste:
+                liste[:] = neu
+                geaendert = True
+        if geaendert:
+            self._relayout_pdf_grid(force=True)
+
+    def set_sortierung(self, sortierung: str):
+        """Schaltet die Sortierung um, speichert sie und ordnet das Raster neu."""
+        sortierung = sortierung_id(sortierung)
+        if sortierung != self._sortierung:
+            self._sortierung = sortierung
+            self.config.set("kachel_sortierung", sortierung)
+            self._sortiere_kacheln()
+        combo = getattr(self, "sort_combo", None)
+        if combo is not None and combo.currentData() != sortierung:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(combo.findData(sortierung))
+            combo.blockSignals(False)
+
+    def _on_sort_combo_changed(self, index: int):
+        self.set_sortierung(self.sort_combo.itemData(index))
 
     def _on_tile_view_combo_changed(self, index: int):
         view_id = self.tile_view_combo.itemData(index)
@@ -2072,6 +2443,10 @@ class MainWindow(QMainWindow):
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
         self._update_cache_status()
+        widget = self._pdf_widget_for(pdf_path)
+        # Warndreieck nur an PDF-Kacheln, nicht an .docx/.xlsx (Issue #47 / #9)
+        if widget is not None and not isinstance(widget, OfficeThumbnailWidget):
+            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)  # Issue #47
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""
@@ -2227,12 +2602,17 @@ class MainWindow(QMainWindow):
             # auf den Baum (vorher stilles No-op, weil nie verbunden)
             widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
 
+            # Issue #32: nur der erste (beste) Vorschlag, nur bei hoher Konfidenz
+            if not self.suggestion_widgets and suggestion.confidence >= REGENBOGEN_SCHWELLE:
+                widget.set_regenbogen(True)
+
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
 
     def clear_suggestions(self):
         """Entfernt alle Vorschlag-Widgets."""
         for widget in self.suggestion_widgets:
+            widget.set_regenbogen(False)  # Animation sauber stoppen (Issue #32)
             widget.deleteLater()
         self.suggestion_widgets.clear()
         self._shown_suggestions = []
@@ -2255,6 +2635,10 @@ class MainWindow(QMainWindow):
 
         new_name = self.detail_panel.get_new_name()
         metadata = self.detail_panel.get_metadata()
+        # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
+        office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
+        if office_ext and new_name:
+            new_name = endung_tauschen(new_name, office_ext)
 
         # Der vom Nutzer gewaehlte/korrigierte Name ist das, was die KI
         # kuenftig liefern soll - nur er geht als Beispiel in die Historie.
@@ -2271,14 +2655,19 @@ class MainWindow(QMainWindow):
             fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
             if fallback_date is None and self.selected_pdf_dates:
                 fallback_date = coerce_date(self.selected_pdf_dates[0])
+            basis_name = new_name or pdf_path.name
+            if office_ext:
+                basis_name = basis_name[: -len(office_ext)] if basis_name.lower().endswith(office_ext) else basis_name
             new_name = build_folder_based_name(
-                new_name or pdf_path.name,
+                basis_name,
                 folder_path,
                 relative_path,
                 template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
                 initials=self.config.get("owner_initials", ""),
                 fallback_date=fallback_date,
             )
+            if office_ext:
+                new_name = endung_tauschen(new_name, office_ext)
 
         # Prüfen ob umbenannt wird
         name_changed = new_name and new_name != pdf_path.name
@@ -2313,8 +2702,9 @@ class MainWindow(QMainWindow):
             # Metadaten in PDF schreiben (pikepdf schreibt die Datei komplett neu
             # -> auf OneDrive/Netzlaufwerken langsam, daher im Hintergrund)
             if metadata:
-                self._write_pdf_metadata_async(new_path, new_path.name,
-                                               self.selected_pdf_keywords, metadata)
+                if not office_ext:  # in .docx/.xlsx schreiben wir keine PDF-Metadaten
+                    self._write_pdf_metadata_async(new_path, new_path.name,
+                                                   self.selected_pdf_keywords, metadata)
                 # Korrespondent-Zuordnung lernen
                 if metadata.get("korrespondent"):
                     self.db.learn_korrespondent_metadata(
@@ -2675,6 +3065,9 @@ class MainWindow(QMainWindow):
         if not pdf_path or not pdf_path.exists():
             self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
             return
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            return
 
         metadata = self.detail_panel.get_metadata()
         if not metadata:
@@ -2702,6 +3095,9 @@ class MainWindow(QMainWindow):
         pdf_path = self.detail_panel.get_current_pdf()
         if not pdf_path or not pdf_path.exists():
             self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            return
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
             return
 
         new_name = self.detail_panel.get_new_name()
@@ -2771,6 +3167,10 @@ class MainWindow(QMainWindow):
 
     def on_pdf_rename(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage(
+                "Word-/Excel-Dateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
+            return
         from src.core.pdf_cache import get_pdf_cache
 
         # Prüfe ob gecachte LLM-Vorschläge vorhanden sind
@@ -2969,20 +3369,47 @@ class MainWindow(QMainWindow):
 
     def on_pdf_delete(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF gelöscht werden soll."""
+        self._datei_loeschen(pdf_path, "PDF löschen", "diese PDF", self.remove_pdf_widget)
+
+    def _datei_loeschen(self, pdf_path: Path, titel: str, objekt: str, widget_entfernen):
+        """Rueckfrage, Loeschen und Kachel entfernen - gemeinsam fuer PDFs und Office-Dateien.
+
+        Verschiebt in den Papierkorb (Issue #124), mit Undo-Eintrag; ohne
+        Papierkorb nur nach ausdruecklicher Rueckfrage endgueltig.
+        """
         reply = QMessageBox.question(
             self,
-            "PDF löschen",
-            f"Möchten Sie diese PDF wirklich löschen?\n\n{pdf_path.name}",
+            titel,
+            f"Möchten Sie {objekt} in den Papierkorb verschieben?\n\n{pdf_path.name}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                self.file_manager.delete_file(pdf_path)
+                try:
+                    papierkorb = self.file_manager.delete_file(pdf_path)
+                except PapierkorbNichtVerfuegbar:
+                    antwort = QMessageBox.question(
+                        self,
+                        "Papierkorb nicht verfügbar",
+                        f"Papierkorb nicht verfügbar – endgültig löschen?\n\n{pdf_path.name}",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No,
+                    )
+                    if antwort != QMessageBox.StandardButton.Yes:
+                        return
+                    papierkorb = self.file_manager.delete_file(pdf_path, endgueltig=True)
                 self.statusbar.showMessage(f"Gelöscht: {pdf_path.name}", 3000)
-                # Nur das gelöschte PDF-Widget entfernen
-                self.remove_pdf_widget(pdf_path)
+                if papierkorb is not None:
+                    self._push_undo({
+                        "type": "delete",
+                        "original": pdf_path,
+                        "papierkorb": papierkorb,
+                        "description": f"Löschen: {pdf_path.name}",
+                    })
+                # Nur das gelöschte Widget entfernen
+                widget_entfernen(pdf_path)
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Löschen fehlgeschlagen:\n{e}")
 
@@ -3080,7 +3507,7 @@ class MainWindow(QMainWindow):
 
     def on_pdf_merge(self):
         """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
-        pdfs_to_merge = list(self.selected_pdfs)
+        pdfs_to_merge = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]
         if len(pdfs_to_merge) < 2:
             QMessageBox.information(
                 self, "PDFs zusammenfügen",
@@ -3208,8 +3635,10 @@ class MainWindow(QMainWindow):
     def _aktion_ziele(self, pdf_path: Path) -> list[Path]:
         """Gehoert die Kachel zur Mehrfachauswahl, gilt die Aktion fuer alle markierten PDFs."""
         if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
-            return list(self.selected_pdfs)
-        return [pdf_path]
+            ziele = list(self.selected_pdfs)
+        else:
+            ziele = [pdf_path]
+        return [p for p in ziele if p.suffix.lower() == ".pdf"]  # Office-Dateien in der Auswahl auslassen
 
     def on_pdf_rotate(self, pdf_path: Path, grad: int):
         """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
@@ -3473,8 +3902,40 @@ class MainWindow(QMainWindow):
             self._undo_rotate(entry)
         elif entry_type == "gerade":
             self._undo_gerade(entry)
+        elif entry_type == "delete":
+            self._undo_delete(entry)
         else:
             self._undo_move(entry)
+
+    def _undo_delete(self, entry: dict):
+        """Holt eine gelöschte Datei aus dem Papierkorb zurück."""
+        import shutil
+        original = Path(entry["original"])
+        papierkorb = Path(entry["papierkorb"])
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        if not papierkorb.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"'{original.name}' ist nicht mehr im Papierkorb.\n\n"
+                "Möglicherweise wurde der Papierkorb geleert oder die Datei wiederhergestellt."
+            )
+            return
+        if original.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"Am ursprünglichen Ort existiert bereits eine Datei '{original.name}'."
+            )
+            return
+        try:
+            original.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(papierkorb), str(original))
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Rückgängig fehlgeschlagen", f"{original.name}:\n{e}")
+            return
+        index_melden("datei_aufnehmen", str(original))
+        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.refresh_view()
 
     def _undo_rename(self, entry: dict):
         """Macht eine Umbenennung rückgängig."""
@@ -3660,7 +4121,7 @@ class MainWindow(QMainWindow):
         renamed_count = 0
         skipped_count = 0
         error_count = 0
-        pdfs_to_process = list(self.selected_pdfs)  # Kopie der Liste
+        pdfs_to_process = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]  # Office-Dateien auslassen
 
         for i, pdf_path in enumerate(pdfs_to_process):
             if progress.wasCanceled():
@@ -3874,6 +4335,36 @@ class MainWindow(QMainWindow):
         self.load_pdfs()
         self._update_navigation_buttons()
 
+    def _favoriten_vorbelegen(self):
+        """Beim ersten Start den Scan-Ordner als ersten Favoriten eintragen (#114).
+
+        Nur einmal (Merker ``favoriten_vorbelegt``), damit eine bewusst geleerte
+        Liste leer bleibt.
+        """
+        if self.config.get("favoriten_vorbelegt", False):
+            return
+        self.config.set("favoriten_vorbelegt", True, auto_save=False)
+        scan = self.config.get_scan_folder()
+        if scan and Path(scan).is_dir() and not self.config.get("favoriten"):
+            self.config.set("favoriten", [{"pfad": str(scan), "name": ""}])
+        else:
+            self.config.save()
+
+    def _on_favorit_geoeffnet(self, folder_path: Path):
+        """Klick auf einen Favoriten: Ordner ueber die zentrale Navigation oeffnen."""
+        if Path(self.config.get_scan_folder()) == folder_path:
+            return
+        self._navigate_to_folder(folder_path)
+        self.statusbar.showMessage(f"Ordner geöffnet: {folder_path.name}", 3000)
+
+    def _breadcrumb_menue(self, pos):
+        """Rechtsklick auf die Pfadzeile: aktuellen Ordner als Favorit merken."""
+        scan = self.config.get_scan_folder()
+        if not scan:
+            return
+        menu = aktuellen_ordner_menue(self, self.favoriten_leiste, Path(scan))
+        menu.exec(self.breadcrumb_widget.mapToGlobal(pos))
+
     def _update_navigation_buttons(self):
         """Aktualisiert den Zustand des Zurück-Buttons."""
         has_history = len(self._folder_history) > 0
@@ -3954,7 +4445,7 @@ class MainWindow(QMainWindow):
             btn.setToolTip(str(target))
             btn.setEnabled(not is_last)
             btn.setStyleSheet(
-                "QToolButton { padding: 1px 4px; font-size: 11px; }"
+                "QToolButton { padding: 0px 4px; margin: 0px; font-size: 11px; }"
                 + (" QToolButton:disabled { color: #222; font-weight: bold; }" if is_last else "")
             )
             btn.clicked.connect(lambda _=False, p=target: self.on_folder_tile_double_clicked(p))
@@ -3978,6 +4469,17 @@ class MainWindow(QMainWindow):
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
             self._move_rename_and_learn(self.selected_pdf, folder_path)
+
+    def on_tree_folder_renamed(self, old: Path, new: Path):
+        """Zieht gespeicherte Zielordner nach, wenn ein Ordner im Baum umbenannt wurde."""
+        for folder in self.config.get_target_folders():
+            if folder == old or old in folder.parents:
+                moved = new / folder.relative_to(old)
+                self.config.remove_target_folder(folder)
+                self.config.add_target_folder(moved)
+                self.folder_manager.remove_folder(folder)
+                self.folder_manager.add_folder(moved)
+        self.statusbar.showMessage(f"Ordner umbenannt: {old.name} -> {new.name}", 3000)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
@@ -4688,14 +5190,15 @@ class MainWindow(QMainWindow):
         )
         self.close()
 
-    def show_first_steps_hint(self, force: bool = False):
+    def show_first_steps_hint(self, force: bool = False) -> bool:
         """
         Erklaert den 3-Spalten-Workflow beim ersten Start (Issue #51).
         Erscheint vor dem Backup-Hinweis, bis der Nutzer "nicht mehr
         anzeigen" abhakt; ueber das Hilfe-Menue jederzeit erneut.
+        Liefert True, wenn der Hinweis angezeigt wurde.
         """
         if not force and self.config.get("first_steps_hint_dismissed", False):
-            return
+            return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Erste Schritte")
@@ -4715,15 +5218,48 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("first_steps_hint_dismissed", dismiss.isChecked())
+        return True
 
-    def show_backup_hint(self, force: bool = False):
+    def check_backup_reminder(self) -> bool:
+        """Fragt alle X Tage, ob ein Backup gemacht wurde (Issue #14).
+
+        Liefert True, wenn die Frage gestellt wurde."""
+        days = self.config.get("backup_check_days", 7)
+        if not is_question_due(
+            days,
+            parse_date(self.config.get("backup_last_confirmed", "")),
+            bool(self.config.get("backup_pending", False)),
+            macrium_last_backup(),
+        ):
+            return False
+        antwort = QMessageBox.question(
+            self, "Backup-Erinnerung",
+            f"Haben Sie in den letzten {int(days)} Tagen ein Backup gemacht?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if antwort == QMessageBox.StandardButton.Yes:
+            self.confirm_backup_done()
+        else:
+            self.config.set("backup_pending", True)
+            self.backup_status_label.setVisible(True)
+        return True
+
+    def confirm_backup_done(self):
+        """Backup bestaetigt: Datum speichern, Statusleisten-Hinweis ausblenden."""
+        from datetime import datetime
+        self.config.set("backup_last_confirmed", datetime.now().isoformat(timespec="seconds"))
+        self.config.set("backup_pending", False)
+        self.backup_status_label.setVisible(False)
+
+    def show_backup_hint(self, force: bool = False) -> bool:
         """
         Erinnert daran, dass die App Dateien veraendert und ein Backup
         ratsam ist (Issue #7). Erscheint beim Start, bis der Nutzer
         "nicht mehr anzeigen" abhakt; ueber das Menue jederzeit erneut.
+        Liefert True, wenn der Hinweis angezeigt wurde.
         """
         if not force and self.config.get("backup_hint_dismissed", False):
-            return
+            return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Backup empfohlen")
@@ -4741,6 +5277,32 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("backup_hint_dismissed", dismiss.isChecked())
+        return True
+
+    def show_support_hint(self, force: bool = False) -> bool:
+        """Zeigt den Unterstuetzen-Dialog (Issue #115).
+
+        Automatisch nur, wenn ``support.should_show`` es erlaubt (ab 50
+        sortierten Dokumenten, danach alle 30 Tage). Gezaehlt wird die
+        Sortierhistorie (``Database.get_entry_count``). Ueber das Hilfe-Menue
+        jederzeit mit ``force=True``.
+        """
+        from datetime import date
+
+        from src.core import support
+        from src.gui.support_dialog import SupportDialog
+        from src.utils.database import get_database
+
+        if not force:
+            try:
+                sorted_count = get_database().get_entry_count()
+            except Exception:
+                return False
+            if not support.should_show(self.config, sorted_count, date.today()):
+                return False
+        SupportDialog(self.config, self).exec()
+        support.mark_shown(self.config, date.today())
+        return True
 
     # ------------------------------------------------------------------ #
     # Update-Pruefung (Issue #73)
@@ -4911,6 +5473,20 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier._init_llm_provider()
         self._llm_connection = None  # anderer Provider/Server: neu pruefen
         self._llm_request_error = None
+        # Eigenes Chat-Modell (Issue #166/#167): Cache verwerfen, Chat informieren.
+        # provider_geaendert() entsteht parallel in der ChatView - getattr-defensiv.
+        self._chat_llm_provider = None
+        self._chat_llm_key = None
+        self._chat_llm_grund = ""
+        # Neue ChatConfig (Schnellfragen, Werkzeuge, Chat-Modell) in den Chat
+        konfig_geaendert = getattr(self.chat_view, "konfig_geaendert", None)
+        if callable(konfig_geaendert):
+            konfig_geaendert(self.config.get_chat_config())
+        else:  # aeltere ChatView ohne die Methode
+            provider_geaendert = getattr(self.chat_view, "provider_geaendert", None)
+            if callable(provider_geaendert):
+                provider_geaendert()
+        self.chat_view.refresh_llm_status()
         self._update_llm_status()
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
@@ -4955,9 +5531,70 @@ class MainWindow(QMainWindow):
             return "bereit", None
         return "fehler", ki_hinweis(provider, connection[1], model)
 
+    def _chat_provider(self):
+        """Provider des eigenen Chat-Modells (Issue #166/#167); None = Modell der Sortierung.
+
+        Quelle fuer ``ChatView.chat_provider_quelle``. Die Instanz wird ueber das
+        Dict aus ``Config.get_chat_llm_config()`` gecacht und erst nach einer
+        Aenderung neu gebaut (``_on_settings_changed`` verwirft den Cache).
+        Konnte keine gebaut werden (Einwilligung, Key, Konstruktorfehler), steht
+        der Grund-Code in ``self._chat_llm_grund``; ``grund_text()`` uebersetzt
+        ihn fuer die Oberflaeche. Wirft nie.
+        """
+        cfg = self.config.get_chat_llm_config()
+        if cfg is None:
+            self._chat_llm_provider = None
+            self._chat_llm_key = None
+            self._chat_llm_grund = ""
+            return None
+        if cfg != self._chat_llm_key:
+            provider, grund = erzeuge_provider(cfg)
+            self._chat_llm_provider = provider
+            self._chat_llm_grund = grund
+            self._chat_llm_key = dict(cfg)
+        return self._chat_llm_provider
+
+    def _chat_status_zusatz(self) -> tuple[str, str]:
+        """Zusatz der LLM-Statusanzeige, wenn der Chat ein eigenes Modell hat (Issue #166/#167).
+
+        Returns:
+            (Anhang fuer den Text der Statusleiste, Zeile fuer den Tooltip);
+            beides leer, wenn der Chat das Modell der Sortierung nutzt.
+        """
+        try:
+            cfg = self.config.get_chat_llm_config()
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            cfg = None
+        if not cfg:
+            return "", ""
+        name = provider_anzeigename(cfg.get("provider", ""))
+        provider = self._chat_provider()
+        if provider is None:
+            grund = grund_text(self._chat_llm_grund) or "Kein KI-Anbieter eingestellt."
+            return f" · Chat: {name} (aus)", f"Chat: {name} – nicht aktiv. {grund}"
+        try:
+            verfuegbar = bool(provider.is_available())
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            verfuegbar = False
+        if not verfuegbar:
+            # Der Chat nimmt dann das Modell der Sortierung (ChatView._llm_provider_fuer_chat)
+            return (f" · Chat: {name} (aus)",
+                    f"Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); "
+                    "der Chat nutzt das Modell der Sortierung.")
+        model_full = modell_name(provider, cfg.get("model", ""))
+        model_short = modell_name(provider, cfg.get("model", ""), short=True)
+        text = f" · Chat: {name}/{model_short}" if model_short else f" · Chat: {name}"
+        tip = f"Chat: {name}, Modell: {model_full}" if model_full else f"Chat: {name}"
+        return text, tip
+
     def _update_llm_status(self):
         """Aktualisiert die LLM-Statusanzeige (Farbe, Text, Tooltip)."""
         health, hinweis = self._llm_health()
+        # Eigenes Chat-Modell (Issue #166/#167) - getattr-defensiv, weil Tests
+        # Fenster-Attrappen nur mit einzelnen MainWindow-Methoden bauen
+        zusatz = getattr(self, "_chat_status_zusatz", None)
+        chat_text, chat_tip = zusatz() if callable(zusatz) else ("", "")
+        chat_zeile = f"\n{chat_tip}" if chat_tip else ""
         if health != "aus":
             provider = self.hybrid_classifier.get_llm_provider_name()
             model_short = self.hybrid_classifier.get_llm_model_name(short=True)
@@ -4978,10 +5615,10 @@ class MainWindow(QMainWindow):
                 state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
                          f"Problem: {hinweis.problem}\n"
                          f"Abhilfe: {hinweis.abhilfe}")
-            self.llm_status_label.setText(text)
+            self.llm_status_label.setText(text + chat_text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}\n\nDoppelklick öffnet die Einstellungen."
+                f"{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -4991,10 +5628,11 @@ class MainWindow(QMainWindow):
                 reason = "Keine Einwilligung zur Datenübertragung erteilt."
             else:
                 reason = "Nicht konfiguriert."
-            self.llm_status_label.setText("LLM: Aus")
+            self.llm_status_label.setText("LLM: Aus" + chat_text)
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
+                f"KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
+                f"Doppelklick öffnet die Einstellungen."
             )
 
     def _on_llm_check_tick(self):
@@ -5072,7 +5710,7 @@ class MainWindow(QMainWindow):
         # Dialog erstellen
         dialog = QDialog(self)
         dialog.setWindowTitle("Über PDF Sortier Meister")
-        dialog.setFixedSize(450, 380)
+        dialog.setFixedSize(450, 410)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(15)
@@ -5102,6 +5740,13 @@ class MainWindow(QMainWindow):
         )
         status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status_label)
+
+        from src.core.support import supporter_label
+        supporter_text = supporter_label(self.config)
+        if supporter_text:
+            supporter = QLabel(f"<b>{supporter_text}</b> - danke!")
+            supporter.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(supporter)
 
         # GitHub-Link
         github_label = QLabel(

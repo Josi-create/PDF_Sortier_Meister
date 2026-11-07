@@ -26,7 +26,14 @@ import urllib.error
 import urllib.request
 from typing import Optional, Any
 
-from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from src.ml.llm_provider import (
+    LLMProvider,
+    LLMConfig,
+    LLMResponse,
+    Werkzeug,
+    WerkzeugAufruf,
+    WerkzeugAntwort,
+)
 from src.ml.ollama_launcher import http_error_text
 
 
@@ -55,6 +62,12 @@ class OllamaProvider(LLMProvider):
         super().__init__(config)
         # Einmaliger Auto-Start-Versuch pro Provider-Instanz.
         self._autostart_attempted = False
+        # Werkzeuge im Chat (Issue #166/#167): Hat der Server Werkzeuge
+        # abgelehnt (HTTP 400 "does not support tools"), bleibt das fuer diese
+        # Instanz gemerkt. Das /api/show-Ergebnis wird einmal je Instanz
+        # gecacht (None = noch nicht abgefragt); kein Netzaufruf hier.
+        self._werkzeuge_abgelehnt = False
+        self._werkzeuge_laut_server: Optional[bool] = None
         # gpt-oss kennt nur die Denkstufen low/medium/high; think=false liefert
         # dort leeren oder mit Denktext vermischten Inhalt. Direkt "low" senden
         # spart den vergeblichen ersten Versuch.
@@ -351,6 +364,31 @@ class OllamaProvider(LLMProvider):
     # RAG-Chat (Phase 19, M1)                                            #
     # ------------------------------------------------------------------ #
 
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Bilder (JPEG) mit Anweisung an ``/api/chat`` schicken (``images`` als Base64; Issue #47).
+
+        Braucht ein Vision-Modell (llava, qwen2.5vl, llama3.2-vision, ...).
+        Gilt auch fuer Ollama Cloud.
+        """
+        import base64
+
+        if not self.is_available():
+            raise RuntimeError("Ollama ist nicht eingerichtet oder nicht erreichbar.")
+        payload = {
+            "model": self._get_model_id(),
+            "stream": False,
+            "messages": [{
+                "role": "user",
+                "content": prompt,
+                "images": [base64.b64encode(img).decode("ascii") for img in images],
+            }],
+            "options": {"temperature": self.config.temperature, "num_predict": max_tokens},
+        }
+        data, error = self._post_chat(f"{self._get_base_url()}/api/chat", payload)
+        if error or not data:
+            raise RuntimeError(error or "Leere Antwort von Ollama.")
+        return (data.get("message") or {}).get("content", "") or ""
+
     def answer_with_context(
         self,
         system_prompt: str,
@@ -409,6 +447,238 @@ class OllamaProvider(LLMProvider):
 
         message = data.get("message") or {}
         return message.get("content", "") or ""
+
+    # ------------------------------------------------------------------ #
+    # Werkzeuge im Chat (Issue #166/#167, Phase 2)                       #
+    # ------------------------------------------------------------------ #
+
+    # Timeout fuer die Faehigkeitsabfrage (/api/show) in Sekunden.
+    SHOW_TIMEOUT = 5
+    # Denkstufe von gpt-oss in der Werkzeug-Schleife: "low" reicht fuer die kurze
+    # Sortieraufgabe, beim Chat entscheidet das Nachdenken darueber, ob das Modell
+    # die Kennungs-Treffer richtig verknuepft statt einer Wortuebereinstimmung
+    # zu folgen (Probelauf 2026-11-07). Andere Modelle behalten _think_mode.
+    WERKZEUG_THINK = "medium"
+
+    # Mindestbudget (num_predict) fuer Denkmodelle in der Werkzeug-Schleife: das
+    # Nachdenken zaehlt bei Ollama zu den erzeugten Token; mit 1000 blieb bei
+    # gpt-oss (medium) fuer Antwort und Werkzeugaufruf nichts uebrig (leere
+    # Antwort, Probelauf 2026-11-07).
+    WERKZEUG_NUM_PREDICT_MIN = 4096
+
+    def _werkzeug_think(self) -> Any:
+        """Wert des ``think``-Felds fuer ``chat_mit_werkzeugen``; None = nicht senden."""
+        if self._think_mode is None:
+            return None
+        if self._is_gpt_oss():
+            return self.WERKZEUG_THINK
+        return self._think_mode
+
+    def _werkzeug_num_predict(self, max_tokens: int) -> int:
+        """Token-Budget eines Schritts: fuer Denkmodelle (think = Stufe) mindestens ``WERKZEUG_NUM_PREDICT_MIN``."""
+        try:
+            budget = int(max_tokens)
+        except (TypeError, ValueError):
+            budget = self.WERKZEUG_NUM_PREDICT_MIN
+        if isinstance(self._werkzeug_think(), str):
+            return max(budget, self.WERKZEUG_NUM_PREDICT_MIN)
+        return budget
+
+    def unterstuetzt_werkzeuge(self) -> bool:
+        """True, ausser der Server hat Werkzeuge abgelehnt oder ``/api/show``
+        nennt fuer das Modell ``capabilities`` ohne ``"tools"``.
+
+        Die Abfrage laeuft beim ersten Aufruf (nicht im Konstruktor) und wird
+        je Instanz gecacht; Netzfehler gelten als "ja" - den Beweis liefert
+        dann der erste Chat-Schritt selbst (HTTP 400 -> Ablehnung gemerkt).
+        """
+        if self._werkzeuge_abgelehnt:
+            return False
+        if self._werkzeuge_laut_server is None:
+            self._werkzeuge_laut_server = self._modell_nennt_werkzeuge()
+        return self._werkzeuge_laut_server
+
+    def _modell_nennt_werkzeuge(self) -> bool:
+        """Fragt ``POST /api/show`` nach den Faehigkeiten des Modells.
+
+        False nur, wenn der Server eine Liste ``capabilities`` ohne ``"tools"``
+        liefert. Netzfehler, HTTP-Fehler, fehlendes Feld (aeltere Server) oder
+        unlesbare Antwort -> True.
+        """
+        url = f"{self._get_base_url()}/api/show"
+        body = json.dumps({"model": self._get_model_id()}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers=self._headers(), method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=self.SHOW_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return True
+        faehigkeiten = data.get("capabilities") if isinstance(data, dict) else None
+        if not isinstance(faehigkeiten, list):
+            return True
+        return "tools" in faehigkeiten
+
+    def chat_mit_werkzeugen(
+        self,
+        nachrichten: list[dict],
+        werkzeuge: list[Werkzeug],
+        max_tokens: int = 1000,
+    ) -> WerkzeugAntwort:
+        """Ein Schritt der Werkzeug-Schleife ueber ``/api/chat`` (stream=false).
+
+        Die provider-neutralen Nachrichten (siehe Modul-Kommentar in
+        :mod:`src.ml.llm_provider`) werden ins Ollama-Format uebersetzt,
+        ``werkzeuge`` als ``tools`` mitgeschickt (nur wenn nicht leer).
+        Denkmodus wie in :meth:`_do_chat` (``think`` samt HTTP-400-Rueckfall
+        und Wiederholung mit ``"low"`` bei leerer Antwort). Fehler kommen als
+        ``fehler``-Text zurueck, nie als Exception; wie
+        :meth:`answer_with_context` ohne Auto-Start des Servers.
+        """
+        if not self.is_available():
+            return WerkzeugAntwort(fehler="Ollama-Provider nicht konfiguriert.")
+        if werkzeuge and self._werkzeuge_abgelehnt:
+            return WerkzeugAntwort(fehler=self._werkzeuge_fehlertext("bereits abgelehnt"))
+
+        url = f"{self._get_base_url()}/api/chat"
+        payload = {
+            "model": self._get_model_id(),
+            "stream": False,
+            "messages": [self._nachricht_fuer_ollama(n) for n in nachrichten],
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self._werkzeug_num_predict(max_tokens),
+            },
+        }
+        if werkzeuge:
+            payload["tools"] = [self._werkzeug_fuer_ollama(w) for w in werkzeuge]
+        think = self._werkzeug_think()
+        if think is not None:
+            payload["think"] = think
+
+        data, error = self._post_chat(url, payload)
+        # HTTP 400 wegen "think" (Server/Modell kennt das Feld nicht): ohne
+        # wiederholen und merken - aber nicht, wenn es um die Werkzeuge geht.
+        ablehnung = bool(werkzeuge) and bool(error) and self._ist_werkzeug_ablehnung(error)
+        if error and "HTTP 400" in error and "think" in payload and not ablehnung:
+            self._think_mode = None
+            payload.pop("think", None)
+            data, error = self._post_chat(url, payload)
+            ablehnung = bool(werkzeuge) and bool(error) and self._ist_werkzeug_ablehnung(error)
+        if error:
+            # Nur gemerkt, wenn wirklich Werkzeuge gesendet wurden (ohne "tools"
+            # kann ein 400 nichts ueber die Werkzeugunterstuetzung sagen)
+            if ablehnung:
+                self._werkzeuge_abgelehnt = True
+                return WerkzeugAntwort(fehler=self._werkzeuge_fehlertext(error))
+            return WerkzeugAntwort(fehler=error)
+
+        antwort = self._werkzeug_antwort_aus(data)
+        # Wie in _do_chat: think=false liefert bei gpt-oss & Co. nichts ->
+        # einmal mit "low" wiederholen und das fuer die Instanz merken.
+        if not antwort.text and not antwort.aufrufe and payload.get("think") is False:
+            self._think_mode = self.THINK_FALLBACK
+            payload["think"] = self.THINK_FALLBACK
+            data, error = self._post_chat(url, payload)
+            if error:
+                return WerkzeugAntwort(fehler=error)
+            antwort = self._werkzeug_antwort_aus(data)
+        if not antwort.text and not antwort.aufrufe:
+            antwort.fehler = "Ollama hat eine leere Antwort geliefert."
+        return antwort
+
+    @staticmethod
+    def _ist_werkzeug_ablehnung(error: str) -> bool:
+        """HTTP 400 ``... does not support tools`` (nicht jedes 400, in dem "tool" vorkommt:
+        Ollama nennt im Fehlertext auch Modellnamen wie ``llama3-groq-tool-use``)."""
+        text = (error or "").lower()
+        return "http 400" in text and "tool" in text and ("not support" in text or "unsupported" in text)
+
+    def _werkzeuge_fehlertext(self, grund: str) -> str:
+        """Fehlertext mit dem Wort "Werkzeuge" (Signal fuer den Controller)."""
+        return f"Das Modell '{self._get_model_id()}' unterstützt keine Werkzeuge ({grund})."
+
+    @staticmethod
+    def _werkzeug_fuer_ollama(werkzeug: Werkzeug) -> dict:
+        """Werkzeugbeschreibung im Ollama-/OpenAI-Format ("tools"-Eintrag)."""
+        return {
+            "type": "function",
+            "function": {
+                "name": werkzeug.name,
+                "description": werkzeug.beschreibung,
+                "parameters": werkzeug.parameter,
+            },
+        }
+
+    @staticmethod
+    def _nachricht_fuer_ollama(nachricht: dict) -> dict:
+        """Provider-neutrale Nachricht -> Ollama-Nachricht.
+
+        system/user 1:1; assistant mit ``roh`` -> die fruehere Ollama-Nachricht
+        unveraendert, sonst aus ``content`` + ``aufrufe`` nachgebaut; tool ->
+        ``{"role": "tool", "content", "tool_name"}`` (``tool_name`` ab Ollama
+        0.4, aeltere Server ignorieren das Feld).
+        """
+        rolle = nachricht.get("role") or "user"
+        inhalt = nachricht.get("content") or ""
+        if rolle == "assistant":
+            roh = nachricht.get("roh")
+            if isinstance(roh, dict):
+                return roh
+            nachgebaut: dict = {"role": "assistant", "content": inhalt}
+            tool_calls = [
+                {"function": {"name": aufruf.name, "arguments": aufruf.argumente or {}}}
+                for aufruf in (nachricht.get("aufrufe") or [])
+            ]
+            if tool_calls:
+                nachgebaut["tool_calls"] = tool_calls
+            return nachgebaut
+        if rolle == "tool":
+            return {"role": "tool", "content": inhalt, "tool_name": nachricht.get("name") or ""}
+        return {"role": rolle, "content": inhalt}
+
+    @staticmethod
+    def _werkzeug_antwort_aus(data: Optional[dict]) -> WerkzeugAntwort:
+        """Baut die :class:`WerkzeugAntwort` aus einer /api/chat-Antwort.
+
+        ``roh`` ist die Ollama-Nachricht (mit ``role: assistant``), damit sie
+        in der naechsten Runde unveraendert zurueckgeht (inkl. ``thinking``,
+        das gpt-oss bei Werkzeugaufrufen wieder sehen will).
+        """
+        message = (data or {}).get("message") if isinstance(data, dict) else None
+        if not isinstance(message, dict):
+            message = {}
+        aufrufe: list[WerkzeugAufruf] = []
+        for n, tc in enumerate(message.get("tool_calls") or [], start=1):
+            if not isinstance(tc, dict):
+                continue
+            funktion = tc.get("function")
+            if not isinstance(funktion, dict):
+                funktion = {}
+            name = str(funktion.get("name") or "").strip()
+            if not name:
+                continue  # Eintrag ohne Funktionsnamen: kein Aufruf (verschenkter Schritt)
+            aufrufe.append(WerkzeugAufruf(
+                name=name,
+                argumente=OllamaProvider._argumente_als_dict(funktion.get("arguments")),
+                id=str(tc.get("id") or f"aufruf_{n}"),
+            ))
+        roh = dict(message)
+        roh["role"] = "assistant"
+        return WerkzeugAntwort(text=message.get("content") or "", aufrufe=aufrufe, roh=roh)
+
+    @staticmethod
+    def _argumente_als_dict(argumente: Any) -> dict:
+        """Argumente eines Aufrufs als Dict; JSON-String wird geparst, Unparsbares -> {}."""
+        if isinstance(argumente, dict):
+            return argumente
+        if isinstance(argumente, str) and argumente.strip():
+            try:
+                geparst = json.loads(argumente)
+            except ValueError:
+                return {}
+            return geparst if isinstance(geparst, dict) else {}
+        return {}
+
 
 class OllamaCloudProvider(OllamaProvider):
     """

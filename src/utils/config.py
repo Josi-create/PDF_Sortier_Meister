@@ -5,7 +5,7 @@ Konfigurationsverwaltung für PDF Sortier Meister
 import copy
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +38,28 @@ class ChatConfig:
     snippet_max_chars: int = 2000
     cache_size: int = 100
     max_text_length: int = 5000
+    # Issue #166/#167, Phase 2: Werkzeug-Schleife (Suche, Lesen, Ordnervorschlag,
+    # Korrespondent, optional SQL) und eigenes Chat-Modell.
+    #
+    # werkzeuge_aktiv: Das Modell darf selbst suchen und lesen (nur bei
+    #     Providern/Modellen mit Werkzeugunterstuetzung, sonst wie bisher).
+    # max_werkzeug_schritte: Hoechstzahl der Modellaufrufe mit Werkzeugen je Frage.
+    # sql_erlaubt: Werkzeug ``sql_abfrage`` (nur lesend auf der Suchdatenbank);
+    #     Standard aus, empfohlen fuer grosse Modelle.
+    # provider/model/api_key/base_url: eigenes Modell fuer den Chat; ``provider``
+    #     leer = das Modell der Sortierung. Werte wie im ``"llm"``-Block
+    #     (provider-Kennungen "ollama", "ollama_cloud", "claude", "openai",
+    #     "openrouter", "poe", "strata", "lmstudio"); die Cloud-Einwilligung gilt global.
+    werkzeuge_aktiv: bool = True
+    max_werkzeug_schritte: int = 8
+    sql_erlaubt: bool = False
+    provider: str = ""
+    model: str = ""
+    api_key: str = ""
+    base_url: str = ""
+    # Phase 3 (Issue #166): eigene Schnellfragen fuer den Chat (Knoepfe ueber dem
+    # Eingabefeld). Leer = die Standardfragen aus src.rag.bezug.SCHNELLFRAGEN.
+    schnellfragen: list = field(default_factory=list)
 
 
 class Config:
@@ -47,12 +69,21 @@ class Config:
     DEFAULTS = {
         "scan_folder": "",  # Wird beim ersten Start gesetzt
         "target_folders": [],  # Liste der Zielordner
+        # Favoriten-Leiste ueber der PDF-Ansicht (Issue #114): [{"pfad", "name"}]
+        "favoriten": [],
+        # Wurde die Favoritenliste einmal mit dem Scan-Ordner vorbelegt?
+        "favoriten_vorbelegt": False,
         "window_width": 1200,
         "window_height": 800,
         "window_maximized": True,
         # Kachelgroesse im Scan-Bereich: "klein" / "mittel" / "gross" (Issue #117)
         "tile_view": "klein",
+        # Backup-Erinnerung (Issue #14): Abstand in Tagen, 0 = aus
         "backup_check_days": 7,
+        # ISO-Datum des zuletzt bestaetigten Backups ("" = nie)
+        "backup_last_confirmed": "",
+        # Frage mit "Nein" beantwortet: Statusleisten-Hinweis bleibt
+        "backup_pending": False,
         "language": "de",
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
@@ -80,7 +111,7 @@ class Config:
         # LLM-Konfiguration
         "llm": {
             # Gueltige Werte: "none", "claude", "openai", "poe",
-            # "openrouter", "ollama", "ollama_cloud", "strata".
+            # "openrouter", "ollama", "ollama_cloud", "strata", "lmstudio".
             # "poe" war in 0.19.0 kurzzeitig entfernt (Issue #66) und wird
             # wieder unterstuetzt - poe.com vergibt wieder API-Keys.
             "provider": "none",
@@ -91,7 +122,7 @@ class Config:
             "temperature": 0.3,
             "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
             "base_url": "",  # Server-URL des aktiven lokalen Providers (Spiegel von base_urls)
-            "base_urls": {},  # Server-URL pro lokalem Provider: {"ollama": ..., "strata": ...}
+            "base_urls": {},  # Server-URL pro lokalem Provider: {"ollama": ..., "strata": ..., "lmstudio": ...}
             # Gecachte Modell-Liste pro Provider (gefuellt durch "Modelle aktualisieren")
             "cached_models": {},
             "cloud_consent": False,  # Opt-in fuer Cloud-Uebertragung von PDF-Inhalten
@@ -390,6 +421,64 @@ class Config:
         known = {f for f in ChatConfig.__dataclass_fields__}
         cleaned = {k: raw[k] for k in raw if k in known}
         return ChatConfig(**cleaned)
+
+    def get_chat_llm_config(self) -> dict | None:
+        """Konfiguration des eigenen Chat-Modells im Format des ``"llm"``-Blocks (Issue #166/#167).
+
+        Der Chat darf ein anderes Modell nutzen als die Sortierung - etwa ein
+        grosses Modell mit Werkzeugunterstuetzung fuer Fragen an die Sammlung,
+        waehrend Dateinamen weiter ein kleines lokales Modell vorschlaegt.
+
+        Returns:
+            ``None``, wenn ``ChatConfig.provider`` leer oder ``"none"`` ist: Der
+            Chat nimmt dann das Modell der Sortierung (``get_llm_config()``).
+            Sonst ein Dict fuer :func:`src.ml.provider_factory.erzeuge_provider`
+            mit ``provider``, ``model``, ``api_key`` und ``base_url`` aus dem
+            ``"chat"``-Block sowie ``cloud_consent`` (die Einwilligung gilt
+            global), ``max_tokens``, ``temperature`` und ``text_limit`` aus dem
+            ``"llm"``-Block. Ist im Chat-Block kein API-Key bzw. keine Server-URL
+            hinterlegt, gilt der fuer diesen Anbieter in ``llm.api_keys`` bzw.
+            ``llm.base_urls`` gespeicherte Wert, damit niemand einen Key zweimal
+            eintragen muss.
+        """
+        chat = self.get_chat_config()
+        provider = str(chat.provider or "").strip()
+        if not provider or provider.lower() == "none":
+            return None
+
+        llm = self.get_llm_config() or {}
+        defaults = self.DEFAULTS["llm"]
+        api_keys = llm.get("api_keys", {}) or {}
+        base_urls = llm.get("base_urls", {}) or {}
+        return {
+            "provider": provider,
+            "model": str(chat.model or ""),
+            "api_key": str(chat.api_key or api_keys.get(provider.lower(), "") or ""),
+            "base_url": str(chat.base_url or base_urls.get(provider.lower(), "") or ""),
+            "cloud_consent": bool(llm.get("cloud_consent", False)),
+            "max_tokens": llm.get("max_tokens", defaults["max_tokens"]),
+            "temperature": llm.get("temperature", defaults["temperature"]),
+            # text_limit hat keinen Default im "llm"-Block; 1500 wie LLMConfig
+            "text_limit": llm.get("text_limit", 1500),
+        }
+
+    def update_chat_config(self, **felder) -> None:
+        """Aendert einzelne Felder des ``"chat"``-Blocks und speichert (Issue #166/#167).
+
+        Beispiel: ``config.update_chat_config(provider="ollama", model="qwen3:8b")``.
+        Nur Felder von :class:`ChatConfig` werden uebernommen - unbekannte Namen
+        werden mit Warnung ignoriert, damit ein Tippfehler keinen stillen
+        Muell im Block hinterlaesst. Andere Werte im Block bleiben erhalten.
+        """
+        known = set(ChatConfig.__dataclass_fields__)
+        raw = self.get("chat", {}) or {}
+        block = dict(raw) if isinstance(raw, dict) else {}
+        for name, value in felder.items():
+            if name in known:
+                block[name] = value
+            else:
+                logger.warning(f"update_chat_config: unbekanntes Feld '{name}' ignoriert")
+        self.set("chat", block)
 
     # Dokumentensuche (src/search)
     def get_search_config(self):

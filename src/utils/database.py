@@ -830,6 +830,11 @@ class Database:
         betrag_von: float = 0.0,
         betrag_bis: float = 0.0,
         pdf_id: str = "",
+        typ: str = "",
+        ordner: str = "",
+        von: str = "",
+        bis: str = "",
+        sortierung: str = "",
     ) -> list[dict]:
         """
         Durchsucht den Suchindex (Volltext in PDFs, Office-Dateien, Markdown und Mails).
@@ -837,20 +842,29 @@ class Database:
         query ist optional – wenn leer aber Filter gesetzt, werden alle
         passenden Dokumente zurückgegeben. datum_von/datum_bis (YYYY-MM-DD)
         werden gegen das Steuerjahr verglichen (Jahresanteil).
-        betrag_von/betrag_bis = 0 bedeutet inaktiv.
+        betrag_von/betrag_bis = 0 bedeutet inaktiv. ``typ`` schraenkt auf 'pdf',
+        'office', 'md' oder 'mail' ein (auch Kombination 'pdf,office'; Issue #166).
+
+        Werkzeuge des Chats (Issue #166/#167, Phase 2) filtern zusaetzlich wie
+        das MCP-Werkzeug ``suche``: ``ordner`` (Teil des Dateipfads bzw.
+        Postfachnamens), ``von``/``bis`` (JJJJ-MM-TT, Datei- bzw. Mail-Datum)
+        und ``sortierung`` ('relevanz' | 'neu' | 'alt'; leer = Relevanz).
+        Alle vier werden nur durchgereicht, wenn sie gesetzt sind.
 
         Ergebnisschluessel wie bisher (``pdf_id``, ``file_path``, ``filename``,
         ``text_snippet``, ``keywords``, ``korrespondent``, ``kategorie``,
         ``steuerjahr``, ``betrag``, ``zusammenfassung``, ``target_folder``),
-        dazu ``dok_id``, ``seite`` (erste Fundstelle), ``typ`` und
-        ``extracted_text`` (Volltext, gekappt).
+        dazu ``dok_id``, ``seite`` (erste Fundstelle), ``typ``, ``format``,
+        ``groesse``, ``datum`` (Unix-Zeit), ``rang`` (bm25, kleiner = besser)
+        und ``extracted_text`` (Volltext, gekappt).
         """
         has_text = bool(query and query.strip())
         has_filter = any([
             steuerjahr, kategorie, korrespondent,
             datum_von, datum_bis,
             betrag_von > 0, betrag_bis > 0,
-            pdf_id,
+            pdf_id, typ,
+            ordner, von, bis,
         ])
         if not has_text and not has_filter:
             return []
@@ -861,6 +875,17 @@ class Database:
             # Ohne FTS5-Operatoren: Woerter als Wortanfaenge, alle muessen vorkommen (bisheriges Verhalten)
             if not any(op in q for op in (" OR ", " AND ", " NEAR ", " NOT ", '"', "*")):
                 q = " AND ".join(f'"{t}"*' for t in q.split() if t)
+
+        # Issue #166/#167: Filter der Chat-Werkzeuge nur mitgeben, wenn gesetzt
+        zusatz: dict = {}
+        if ordner:
+            zusatz["ordner"] = ordner
+        if von:
+            zusatz["von"] = von
+        if bis:
+            zusatz["bis"] = bis
+        if sortierung:
+            zusatz["sortierung"] = sortierung
 
         try:
             erg = self.suchindex.suche(
@@ -873,7 +898,9 @@ class Database:
                 betrag_von=betrag_von if betrag_von and betrag_von > 0 else None,
                 betrag_bis=betrag_bis if betrag_bis and betrag_bis > 0 else None,
                 pdf_id=pdf_id or None,
+                typ=typ or None,
                 anzahl=int(limit),
+                **zusatz,
             )
         except Exception as e:
             print(f"Suchindex-Suche Fehler: {e}")
@@ -901,6 +928,10 @@ class Database:
                 "dok_id": d.get("id"),
                 "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
                 "typ": d.get("typ") or "",
+                "format": d.get("format") or "",
+                "groesse": d.get("groesse"),
+                "datum": d.get("datum"),
+                "rang": d.get("rang"),
                 "extracted_text": self.suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
             })
         return results

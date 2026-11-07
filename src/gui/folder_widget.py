@@ -7,14 +7,24 @@ Zeigt einen Zielordner als Kachel an.
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QMouseEvent, QCursor, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QVariantAnimation, QRectF
+from PyQt6.QtGui import (
+    QMouseEvent, QCursor, QDragEnterEvent, QDropEvent,
+    QPainter, QPen, QConicalGradient, QColor,
+)
+
+from src.core.office_convert import ist_sortierbar
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
     QLabel,
     QMenu,
 )
+
+# Ab dieser Konfidenz bekommt der beste Vorschlag den Regenbogenrahmen (Issue #32)
+REGENBOGEN_SCHWELLE = 0.85
+_REGENBOGEN_PERIODE_MS = 4000  # eine volle Umdrehung, ruhig
+_REGENBOGEN_FRAME_MS = 33  # ca. 30 fps
 
 
 class FolderWidget(QFrame):
@@ -32,6 +42,9 @@ class FolderWidget(QFrame):
         self.pdf_count = pdf_count
         self._selected = False
         self._is_suggestion = False
+        self._regenbogen = False
+        self._regenbogen_winkel = 0.0
+        self._regenbogen_anim: Optional[QVariantAnimation] = None
 
         self.setup_ui()
         self.setAcceptDrops(True)
@@ -131,6 +144,71 @@ class FolderWidget(QFrame):
         self._is_suggestion = value
         self._update_style()
 
+    @property
+    def regenbogen(self) -> bool:
+        """Gibt zurueck, ob der animierte Regenbogenrahmen aktiv ist."""
+        return self._regenbogen
+
+    def set_regenbogen(self, aktiv: bool):
+        """Schaltet den animierten Regenbogenrahmen (bester Vorschlag) ein/aus."""
+        if aktiv == self._regenbogen:
+            return
+        self._regenbogen = aktiv
+        if aktiv:
+            anim = QVariantAnimation(self)
+            anim.setStartValue(0.0)
+            anim.setEndValue(360.0)
+            anim.setDuration(_REGENBOGEN_PERIODE_MS)
+            anim.setLoopCount(-1)
+            anim.valueChanged.connect(self._on_regenbogen_tick)
+            self._regenbogen_anim = anim
+            if self.isVisible():
+                anim.start()
+        else:
+            self._stop_regenbogen_anim()
+        self.update()
+
+    def _on_regenbogen_tick(self, wert):
+        # Auf ca. 30 fps drosseln: nur neu zeichnen, wenn sich der Winkel
+        # um mindestens einen Frame-Schritt geaendert hat
+        winkel = float(wert)
+        schritt = 360.0 * _REGENBOGEN_FRAME_MS / _REGENBOGEN_PERIODE_MS
+        if abs(winkel - self._regenbogen_winkel) >= schritt or winkel < self._regenbogen_winkel:
+            self._regenbogen_winkel = winkel
+            self.update()
+
+    def _stop_regenbogen_anim(self):
+        if self._regenbogen_anim is not None:
+            self._regenbogen_anim.stop()
+            self._regenbogen_anim.deleteLater()
+            self._regenbogen_anim = None
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._regenbogen_anim is not None:
+            self._regenbogen_anim.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if self._regenbogen_anim is not None:
+            self._regenbogen_anim.pause()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._regenbogen:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
+        grad = QConicalGradient(rect.center(), -self._regenbogen_winkel)
+        for i in range(7):
+            grad.setColorAt(i / 6, QColor.fromHsv(int(i % 6 * 60), 200, 255))
+        pen = QPen(grad, 3)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect, 8, 8)
+        painter.end()
+
     def set_pdf_count(self, count: int):
         """Aktualisiert die PDF-Anzahl."""
         self.pdf_count = count
@@ -195,7 +273,7 @@ class FolderWidget(QFrame):
         if event.mimeData().hasUrls():
             # Prüfen ob es PDF-Dateien sind
             for url in event.mimeData().urls():
-                if url.toLocalFile().lower().endswith('.pdf'):
+                if ist_sortierbar(url.toLocalFile()):
                     event.acceptProposedAction()
                     self.setStyleSheet(
                         "FolderWidget { background-color: #b8daff; border: 3px solid #007bff; border-radius: 8px; }"
@@ -214,7 +292,7 @@ class FolderWidget(QFrame):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 file_path = Path(url.toLocalFile())
-                if file_path.suffix.lower() == '.pdf':
+                if ist_sortierbar(file_path):
                     self.pdf_dropped.emit(file_path, self.folder_path)
 
             event.acceptProposedAction()

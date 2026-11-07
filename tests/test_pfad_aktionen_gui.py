@@ -97,7 +97,10 @@ def test_ordnerkachel_menue(qtbot, tmp_path, gezeigt, is_parent):
     tile = FolderTileWidget(ordner, pdf_count=2, is_parent=is_parent)
     qtbot.addWidget(tile)
     menu = tile._build_context_menu()
-    assert _texte(menu) == [pfad_aktionen.oeffnen_text(), "Pfad kopieren"]
+    erwartet = [pfad_aktionen.oeffnen_text(), "Pfad kopieren"]
+    if not is_parent:
+        erwartet.append("★ Als Favorit merken")  # Issue #114
+    assert _texte(menu) == erwartet
 
     QApplication.clipboard().clear()
     _aktion(menu, "Pfad kopieren").trigger()
@@ -120,7 +123,7 @@ def test_baum_hat_pfad_kopieren_unter_explorer(qtbot, tmp_path):
 
     menu = w._build_context_menu(root / "Bank")
     texte = _texte(menu)
-    i = next(n for n, t in enumerate(texte) if "öffnen" in t and "links" not in t)
+    i = next(n for n, t in enumerate(texte) if "öffnen" in t and "links" not in t and "Unterordner" not in t)
     assert "Pfad kopieren" in texte[i + 1]
 
     QApplication.clipboard().clear()

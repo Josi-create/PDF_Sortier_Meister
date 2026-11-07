@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-LOKALE_SERVER = {"Ollama": "Ollama", "Strata": "den Strata-Server"}
+LOKALE_SERVER = {"Ollama": "Ollama", "Strata": "den Strata-Server",
+                 "LM Studio": "LM Studio (mit lokalem Server)"}
 
 
 @dataclass(frozen=True)

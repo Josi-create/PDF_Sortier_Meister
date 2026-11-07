@@ -47,7 +47,8 @@ class StrataProvider(OpenAIProvider):
 
     def __init__(self, config: LLMConfig):
         self.base_url = normalize_base_url(config.base_url)
-        # Instanz-Attribut: answer_with_context (RAG-Chat) nutzt diese URL.
+        # Instanz-Attribut: answer_with_context (RAG-Chat) und die
+        # Werkzeug-Schleife (OpenAIWerkzeugMixin, Issue #166/#167) nutzen diese URL.
         self.CHAT_COMPLETIONS_URL = f"{self.base_url}/chat/completions"
         self._auto_model: Optional[str] = None
         super().__init__(config)

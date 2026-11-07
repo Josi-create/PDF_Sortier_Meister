@@ -113,3 +113,57 @@ def test_move_file_gives_up_after_retries(tmp_path, monkeypatch):
     with pytest.raises(PermissionError):
         FileManager._move_with_retry(src, tmp_path / "b.pdf")
     assert len(calls) == len(FileManager.MOVE_RETRY_DELAYS) + 1
+
+
+# --------------------------------------------------------------------- #
+# Issue #124: Papierkorb statt endgueltigem Loeschen
+# --------------------------------------------------------------------- #
+
+
+def _fake_papierkorb(monkeypatch, trash: Path, ok: bool = True):
+    """Ersetzt QFile.moveToTrash durch Verschieben in einen Test-Ordner."""
+    import shutil
+    from src.core import file_manager as fm
+
+    trash.mkdir(exist_ok=True)
+
+    def move_to_trash(pfad):
+        if not ok:
+            return False, ""
+        ziel = trash / Path(pfad).name
+        shutil.move(pfad, str(ziel))
+        return True, str(ziel)
+
+    monkeypatch.setattr(fm.QFile, "moveToTrash", staticmethod(move_to_trash))
+    monkeypatch.setattr(fm, "index_melden", lambda *a, **k: None)
+
+
+def test_delete_file_verschiebt_in_papierkorb(tmp_path: Path, monkeypatch) -> None:
+    pdf = tmp_path / "a.pdf"
+    _create_pdf(pdf)
+    _fake_papierkorb(monkeypatch, tmp_path / "trash")
+
+    ergebnis = FileManager().delete_file(pdf)
+
+    assert not pdf.exists()
+    assert ergebnis == tmp_path / "trash" / "a.pdf" and ergebnis.exists()
+
+
+def test_delete_file_ohne_papierkorb_loescht_nicht_still(tmp_path: Path, monkeypatch) -> None:
+    from src.core.file_manager import PapierkorbNichtVerfuegbar
+
+    pdf = tmp_path / "a.pdf"
+    _create_pdf(pdf)
+    _fake_papierkorb(monkeypatch, tmp_path / "trash", ok=False)
+
+    with pytest.raises(PapierkorbNichtVerfuegbar):
+        FileManager().delete_file(pdf)
+    assert pdf.exists()
+
+    assert FileManager().delete_file(pdf, endgueltig=True) is None
+    assert not pdf.exists()
+
+
+def test_delete_file_fehlende_datei_raises(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        FileManager().delete_file(tmp_path / "gibt_es_nicht.pdf")

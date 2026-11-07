@@ -116,6 +116,7 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
     texte: dict = {}
     ebenen: dict = {}
     drehungen: dict = {}
+    lesbarkeit: dict = {}
     for nr in offen:
         if abbrechen is not None and abbrechen():
             break
@@ -129,12 +130,142 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
                 ebenen[nr] = res["ebenen"][nr]
             if res.get("drehungen", {}).get(nr):
                 drehungen[nr] = res["drehungen"][nr]
+            if res.get("lesbarkeit", {}).get(nr):
+                lesbarkeit[nr] = res["lesbarkeit"][nr]
     if texte:
         erg["seiten"] = index.ocr_eintragen(pfad, texte, ebenen=ebenen or None, ersetzen=True,
                                             drehungen=drehungen or None,
-                                            drehen=index.konfig.auto_drehen != "aus")
+                                            drehen=index.konfig.auto_drehen != "aus",
+                                            lesbarkeit=lesbarkeit or None)
     if drehungen:
         erg["gedreht"] = len(drehungen)
+    return erg
+
+
+def ocr_sprachangebot() -> dict:
+    """Angebot fuer "OCR wiederholen mit ..." (Issue #47): installierte Tesseract-Sprachen mit deutschen Namen.
+
+    ``{"tesseract": bool, "sprachen": [(code, name), ...], "fraktur": bool, "tessdata": str | None}``
+    """
+    from src.search.konfig import SearchConfig
+    from src.utils.tesseract import hat_fraktur, installierte_sprachen, sprachwahl
+
+    cfg = (_search_konfig() or SearchConfig()).ocr_einstellungen()
+    if not cfg.get("tesseract"):
+        return {"tesseract": False, "sprachen": [], "fraktur": False, "tessdata": cfg.get("tessdata")}
+    installiert = installierte_sprachen(cfg["tesseract"], cfg.get("tessdata"))
+    return {"tesseract": True, "sprachen": sprachwahl(installiert), "fraktur": hat_fraktur(installiert),
+            "tessdata": cfg.get("tessdata")}
+
+
+def lesbarkeit_summe(werte) -> Optional[tuple[int, int]]:
+    """Werte ``(alle, gut)`` zu einer Summe ``(alle, gut)``; None ohne Werte (Issue #47)."""
+    werte = list(werte or [])
+    if not werte:
+        return None
+    return sum(int(w[0]) for w in werte), sum(int(w[1]) for w in werte)
+
+
+def ocr_schlecht(lesbarkeit: Optional[tuple[int, int]], min_zeichen: int = 25) -> bool:
+    """Ist der Text laut Lesbarkeit ``(alle, gut)`` schlecht erkannt (Markierung der Kachel, Issue #47)?"""
+    if not lesbarkeit:
+        return False
+    from src.search.extract import schlecht_erkannt
+    return schlecht_erkannt(lesbarkeit[0], lesbarkeit[1], min_zeichen)
+
+
+def _verhaeltnis(wert: Optional[tuple[int, int]]) -> float:
+    return wert[1] / wert[0] if wert and wert[0] else 0.0
+
+
+def ocr_wiederholen(pdf_path: Path | str, sprachen: str, abbrechen=None) -> dict:
+    """Gescannte Seiten mit anderen Tesseract-Sprachen neu lesen und nur Besseres uebernehmen (Issue #47).
+
+    ``sprachen``: Tesseract-Angabe wie ``deu_frak`` oder ``deu+eng``. Gelesen
+    werden alle Bildseiten (auch solche mit OCR-Textebene) am OCR-Cache
+    vorbei. Ob das Ergebnis besser ist, entscheidet die Lesbarkeit
+    (``extract.lesbarkeit``, Anteil sicher erkannter Zeichen): Sie muss
+    hoeher sein als die der bisherigen Erkennung, und es muessen mindestens so
+    viele Zeichen sicher erkannt sein. Die bisherige Lesbarkeit kommt aus dem
+    Index; fehlt sie (Erkennung vor Issue #47), liest die Funktion die Seiten
+    zum Vergleich einmal mit den Standardsprachen. Nur bei besserem Ergebnis
+    wird gespeichert, wie bei ``ocr_neu_durchfuehren`` (Seiten, Cache und
+    Lesbarkeit im Suchindex ersetzt, ``ersetzen=True``); sonst bleibt alles.
+    Eine schon in die Datei geschriebene OCR-Textebene bleibt unveraendert,
+    Suche und Analyse nutzen den neuen Text.
+
+    Liefert ``{"index", "seiten" (ersetzt), "besser", "vorher", "nachher"
+    (je ``(alle, gut)`` oder None), "fehler"}``, dazu ``"gedreht"``.
+    """
+    from src.search import extract as suche_extract
+    from src.utils.tesseract import fehlende_sprachen
+
+    erg: dict = {"index": False, "seiten": 0, "besser": False, "vorher": None, "nachher": None, "fehler": None}
+    index = suchindex_fuer_analyse()
+    if index is None:
+        return erg
+    erg["index"] = True
+    cfg = ocr_einstellungen_fuer_analyse()
+    if cfg is None:
+        erg["fehler"] = "Tesseract nicht gefunden - keine Texterkennung möglich."
+        return erg
+    fehlend = fehlende_sprachen(cfg.get("tessdata"), sprachen)
+    if fehlend:
+        erg["fehler"] = "Sprachdaten fehlen: " + ", ".join(fehlend)
+        return erg
+    pfad = str(pdf_path)
+    min_zeichen = index.konfig.ocr_min_zeichen
+    gelesen = suche_extract.pdf_text(pfad, min_zeichen)
+    if gelesen["status"] in ("fehler", "verschluesselt"):
+        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        return erg
+    seiten = suche_extract.ocr_kandidaten(pfad, min_zeichen)
+    if not seiten:
+        erg["fehler"] = "Die PDF enthält keine gescannten Seiten."
+        return erg
+    if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
+        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        return erg
+
+    def abgebrochen() -> bool:
+        return abbrechen is not None and bool(abbrechen())
+
+    def lesen(c: dict) -> dict:
+        ergebnis: dict = {"texte": {}, "ebenen": {}, "drehungen": {}, "lesbarkeit": {}}
+        for nr in seiten:
+            if abgebrochen():
+                break
+            res = suche_extract.pdf_ocr(pfad, [nr], c)
+            if res.get("fehler"):
+                erg["fehler"] = res["fehler"]
+            text = res["texte"].get(nr)
+            if text and text.strip():
+                ergebnis["texte"][nr] = text
+                for schluessel in ("ebenen", "drehungen", "lesbarkeit"):
+                    if res.get(schluessel, {}).get(nr):
+                        ergebnis[schluessel][nr] = res[schluessel][nr]
+        return ergebnis
+
+    neu_cfg = dict(cfg, sprachen=sprachen)
+    if index.konfig.textebene_erzeugen(pfad):
+        neu_cfg["textebene"] = True
+    neu = lesen(neu_cfg)
+    erg["nachher"] = lesbarkeit_summe(neu["lesbarkeit"].values())
+    vorher = index.ocr_lesbarkeit(pfad)
+    if vorher is None and neu["texte"] and not abgebrochen():
+        vorher = lesbarkeit_summe(lesen(cfg)["lesbarkeit"].values())
+    erg["vorher"] = vorher
+    if abgebrochen():
+        return erg
+    nachher = erg["nachher"]
+    erg["besser"] = bool(neu["texte"]) and nachher is not None and (
+        vorher is None or (_verhaeltnis(nachher) > _verhaeltnis(vorher) and nachher[1] >= vorher[1]))
+    if erg["besser"]:
+        erg["seiten"] = index.ocr_eintragen(
+            pfad, neu["texte"], ebenen=neu["ebenen"] or None, ersetzen=True, drehungen=neu["drehungen"] or None,
+            drehen=index.konfig.auto_drehen != "aus", lesbarkeit=neu["lesbarkeit"] or None, sprachen=sprachen)
+        if neu["drehungen"]:
+            erg["gedreht"] = len(neu["drehungen"])
     return erg
 
 
@@ -157,6 +288,9 @@ class PDFAnalyzer:
         self._thumbnail: Optional[QPixmap] = None
         # True, sobald extract_text() auf OCR zurueckgreifen musste (Log, #108)
         self.ocr_used = False
+        # Lesbarkeit der OCR dieser PDF (alle, gut) nach extract_text(); None = unbekannt (Issue #47)
+        self.ocr_lesbarkeit: Optional[tuple[int, int]] = None
+        self._ocr_lesbarkeit_seiten: dict = {}
 
     def __enter__(self):
         """Context Manager Eintritt."""
@@ -258,6 +392,7 @@ class PDFAnalyzer:
         stand = self._textstand(index, pfad)
         if stand is not None and stand["aktuell"] and stand["textstatus"] in TEXT_AUS_INDEX:
             self._text = self._text_aus_seiten(stand["seiten"])
+            self.ocr_lesbarkeit = self._lesbarkeit_bestimmen(index, pfad)
             return self._text
 
         if stand is not None and stand["aktuell"] and stand["textstatus"] == "ocr_ausstehend":
@@ -294,12 +429,25 @@ class PDFAnalyzer:
                 if index is not None:
                     try:
                         index.ocr_eintragen(pfad, erkannt, ebenen=ebenen or None,
-                                            drehungen=self._ocr_drehungen or None)
+                                            drehungen=self._ocr_drehungen or None,
+                                            lesbarkeit=self._ocr_lesbarkeit_seiten or None)
                     except Exception as e:  # noqa: BLE001
                         print(f"Suchindex: OCR nicht eingetragen: {e}")
 
         self._text = self._text_aus_seiten(seiten)
+        self.ocr_lesbarkeit = self._lesbarkeit_bestimmen(index, pfad)
         return self._text
+
+    def _lesbarkeit_bestimmen(self, index, pfad: str) -> Optional[tuple[int, int]]:
+        """Lesbarkeit der OCR (Issue #47): aus dem Index, sonst die der eigenen OCR dieses Laufs."""
+        if index is not None:
+            try:
+                wert = index.ocr_lesbarkeit(pfad)
+                if wert:
+                    return tuple(wert)
+            except Exception:  # noqa: BLE001 - Zusatz, nie Blocker
+                pass
+        return lesbarkeit_summe(self._ocr_lesbarkeit_seiten.values())
 
     @staticmethod
     def _textstand(index, pfad: str):
@@ -332,6 +480,7 @@ class PDFAnalyzer:
         ``self._ocr_drehungen`` (``{seite: grad}``) fuer den Index.
         """
         self._ocr_drehungen = {}
+        self._ocr_lesbarkeit_seiten = {}
         cfg = ocr_einstellungen_fuer_analyse()
         if cfg is None:
             print("Warnung: Tesseract nicht gefunden. OCR nicht verfügbar.")
@@ -349,6 +498,7 @@ class PDFAnalyzer:
         texte = {nr: txt for nr, txt in res["texte"].items() if txt and txt.strip()}
         ebenen = {nr: e for nr, e in (res.get("ebenen") or {}).items() if nr in texte and e}
         self._ocr_drehungen = {nr: g for nr, g in (res.get("drehungen") or {}).items() if nr in texte and g}
+        self._ocr_lesbarkeit_seiten = {nr: w for nr, w in (res.get("lesbarkeit") or {}).items() if nr in texte}
         return texte, ebenen
 
     def get_metadata(self) -> dict:
@@ -373,6 +523,13 @@ class PDFAnalyzer:
             "file_size": self.pdf_path.stat().st_size,
             "filename": self.filename,
         }
+
+    @classmethod
+    def from_text(cls, pdf_path: Path | str, text: str) -> "PDFAnalyzer":
+        """Analyzer ohne geoeffnete PDF, nur fuer Schluesselwoerter/Daten aus bekanntem Text (Office-Dateien, Issue #9)."""
+        analyzer = cls(pdf_path)
+        analyzer._text = text
+        return analyzer
 
     def extract_dates(self) -> list[datetime]:
         """
