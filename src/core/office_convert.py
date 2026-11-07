@@ -518,8 +518,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
         if _com_klasse_registriert(prog_id) and not pywin32_verfuegbar():
             raise KeinUmwandlerGefunden(
                 f"{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister "
-                "läuft, fehlt das Paket \"pywin32\".
-"
+                "läuft, fehlt das Paket \"pywin32\".\n"
                 "Bitte im Programmordner ausführen: python -m pip install -r requirements.txt"
             )
         raise KeinUmwandlerGefunden(
