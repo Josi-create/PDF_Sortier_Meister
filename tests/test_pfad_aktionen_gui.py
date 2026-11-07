@@ -120,7 +120,7 @@ def test_baum_hat_pfad_kopieren_unter_explorer(qtbot, tmp_path):
 
     menu = w._build_context_menu(root / "Bank")
     texte = _texte(menu)
-    i = next(n for n, t in enumerate(texte) if "öffnen" in t and "links" not in t)
+    i = next(n for n, t in enumerate(texte) if "öffnen" in t and "links" not in t and "Unterordner" not in t)
     assert "Pfad kopieren" in texte[i + 1]
 
     QApplication.clipboard().clear()
