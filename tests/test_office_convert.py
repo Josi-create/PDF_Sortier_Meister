@@ -339,3 +339,26 @@ def test_xlsx_pdfa_bevorzugt_libreoffice_vor_excel(tmp_path, monkeypatch):
     monkeypatch.setattr(oc, "_mit_libreoffice", lambda s, q, pdf, a: pdf.write_bytes(b"%PDF"))
     erg = oc.umwandeln(x, pdfa=True)
     assert erg.werkzeug == "LibreOffice" and erg.pdfa
+
+
+# --- Endungen beim Verschieben/Umbenennen (Issue #9) ---------------------------------
+
+def test_endung_tauschen():
+    assert oc.endung_tauschen("Brief.pdf", ".docx") == "Brief.docx"
+    assert oc.endung_tauschen("Brief.docx", ".docx") == "Brief.docx"
+    assert oc.endung_tauschen("Brief 2.5", ".xlsx") == "Brief 2.5.xlsx"
+
+
+def test_filemanager_behaelt_office_endung_beim_verschieben_und_umbenennen(tmp_path):
+    from src.core.file_manager import FileManager
+
+    scan = tmp_path / "scan"
+    ziel = tmp_path / "ziel"
+    scan.mkdir()
+    ziel.mkdir()
+    (scan / "a.docx").write_bytes(b"PK")
+    (scan / "b.pdf").write_bytes(b"%PDF")
+    fm = FileManager(scan)
+    assert fm.move_file(scan / "a.docx", ziel, new_name="Neu.pdf").name == "Neu.docx"
+    assert fm.move_file(scan / "b.pdf", ziel, new_name="Neu").name == "Neu.pdf"  # PDFs wie bisher
+    assert fm.rename_file(ziel / "Neu.docx", "Anders").name == "Anders.docx"

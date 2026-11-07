@@ -87,6 +87,15 @@ class FileManager:
 
         return pdf_files
 
+    @staticmethod
+    def _mit_endung(source: Path, new_name: str) -> str:
+        """Neuer Name mit der passenden Endung: ".pdf", bei .docx/.xlsx deren eigene (Issue #9)."""
+        from src.core.office_convert import endung_tauschen, ist_office_datei
+
+        if ist_office_datei(source):
+            return endung_tauschen(new_name, source.suffix.lower())
+        return new_name if new_name.lower().endswith('.pdf') else new_name + '.pdf'
+
     def get_office_files(self) -> list[Path]:
         """Findet .docx/.xlsx im Scan-Ordner (Issue #9), nach Name sortiert.
 
@@ -140,10 +149,8 @@ class FileManager:
 
         # Zieldateiname bestimmen
         if new_name:
-            # Sicherstellen, dass .pdf Endung vorhanden ist
-            if not new_name.lower().endswith('.pdf'):
-                new_name += '.pdf'
-            target_name = new_name
+            # Sicherstellen, dass die Endung stimmt (.pdf; bei Office-Dateien deren eigene)
+            target_name = self._mit_endung(source, new_name)
         else:
             target_name = source.name
 
@@ -232,8 +239,7 @@ class FileManager:
         if not source.exists():
             raise FileNotFoundError(f"Datei nicht gefunden: {source}")
 
-        if not new_name.lower().endswith('.pdf'):
-            new_name += '.pdf'
+        new_name = self._mit_endung(source, new_name)
 
         target_path = source.parent / new_name
         target_path = self._get_unique_path(target_path)

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QMenu
 
 from src.core import office_vorschau
@@ -127,14 +127,15 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
     convert_requested = pyqtSignal(Path, bool)  # (Datei, als PDF/A)
 
     _BASE_TOOLTIP = (
-        "Word-/Excel-Datei. Anklicken zeigt die Seitenvorschau, Doppelklick öffnet sie\n"
-        "im Standardprogramm.\n"
+        "Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
+        "Doppelklick öffnet sie im Standardprogramm.\n"
         "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
     )
 
     def __init__(self, pfad: Path, parent=None, view: Optional[TileView] = None):
         super().__init__(pfad, parent, view)
-        self.setAcceptDrops(False)  # kein Stapeln auf Office-Dateien
+        self.setAcceptDrops(False)  # Stapeln (PDF auf PDF) gibt es nur bei PDFs
 
     def load_thumbnail(self):
         """Sofort der Platzhalter, danach (im Hintergrund) das beste echte Bild."""
@@ -150,20 +151,13 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
             self._original_pixmap = pixmap
             self._apply_thumbnail_pixmap()
 
-    def mousePressEvent(self, event: QMouseEvent):
-        """Einzelauswahl (nur Vorschau, keine Analyse); Strg/Umschalt gibt es nicht."""
-        self._hide_hover_preview()
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self.pdf_path)
-
-    def mouseMoveEvent(self, event: QMouseEvent):
-        """Kein Drag & Drop in Zielordner (dort gehoeren PDFs hin)."""
-
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)
         menu.addAction("Öffnen").triggered.connect(lambda: self.open_requested.emit(self.pdf_path))
         menu.addAction(zeigen_text()).triggered.connect(lambda: im_dateimanager_zeigen(self.pdf_path))
         menu.addAction(PFAD_KOPIEREN_TEXT).triggered.connect(lambda: pfad_kopieren(self.pdf_path))
+        menu.addSeparator()
+        menu.addAction("Verschieben nach...").triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
         menu.addSeparator()
         convert = menu.addAction("In PDF umwandeln")
         convert.setToolTip("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten")

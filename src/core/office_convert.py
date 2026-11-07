@@ -62,6 +62,7 @@ WOCHENTAGE = (  # datetime.weekday(): Montag = 0
 STANDARD_BILD = "dd.MM.yyyy"
 
 LIBREOFFICE_TIMEOUT_S = 180
+MAX_TEIL = 50_000_000  # groesster zu pruefender XML-Teil (Schutz gegen ZIP-Bomben)
 
 
 class UmwandlungFehler(Exception):
@@ -85,6 +86,20 @@ class UmwandlungsErgebnis:
 
 def ist_office_datei(pfad: Path | str) -> bool:
     return Path(pfad).suffix.lower() in OFFICE_ENDUNGEN
+
+
+def ist_sortierbar(pfad: Path | str) -> bool:
+    """PDF oder Office-Datei: darf in Zielordner verschoben/abgelegt werden."""
+    return Path(pfad).suffix.lower() == ".pdf" or ist_office_datei(pfad)
+
+
+def endung_tauschen(name: str, endung: str) -> str:
+    """Setzt ``endung`` (z. B. ".docx") an den Namen; ein ".pdf" oder dieselbe Endung davor entfaellt."""
+    for alt in (".pdf", endung):
+        if name.lower().endswith(alt.lower()):
+            name = name[: -len(alt)]
+            break
+    return name + endung
 
 
 # --- Datum aus den Dokumenteigenschaften ------------------------------------
@@ -287,6 +302,19 @@ def datumsfelder_ersetzen(xml: str, dt: datetime) -> tuple[str, int]:
 
     xml = _FLD_SIMPLE.sub(simple, xml)
     return xml, anzahl
+
+
+def hat_datumsfelder(docx: Path | str) -> bool:
+    """True, wenn die .docx PRINTDATE-/DATE-/TIME-Felder enthaelt (Datum aendert sich beim Drucken)."""
+    try:
+        with zipfile.ZipFile(docx) as z:
+            for info in z.infolist():
+                if _WORD_TEILE.match(info.filename) and info.file_size < MAX_TEIL:
+                    if datumsfelder_ersetzen(z.read(info).decode("utf-8", "replace"), datetime.now())[1]:
+                        return True
+    except (OSError, zipfile.BadZipFile):
+        pass
+    return False
 
 
 _WORD_TEILE = re.compile(r"^word/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$")

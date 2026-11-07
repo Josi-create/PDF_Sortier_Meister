@@ -374,6 +374,13 @@ class PDFAnalyzer:
             "filename": self.filename,
         }
 
+    @classmethod
+    def from_text(cls, pdf_path: Path | str, text: str) -> "PDFAnalyzer":
+        """Analyzer ohne geoeffnete PDF, nur fuer Schluesselwoerter/Daten aus bekanntem Text (Office-Dateien, Issue #9)."""
+        analyzer = cls(pdf_path)
+        analyzer._text = text
+        return analyzer
+
     def extract_dates(self) -> list[datetime]:
         """
         Datumsangaben aus dem PDF-Text - Dokumentdatum zuerst (Issue #132).

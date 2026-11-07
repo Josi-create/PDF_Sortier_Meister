@@ -13,6 +13,8 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
+
+from src.core.office_convert import ist_sortierbar
 from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -640,7 +642,7 @@ class FolderTreeWidget(QWidget):
         """Behandelt das Eintreten eines Drag-Objekts."""
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                if url.toLocalFile().lower().endswith('.pdf'):
+                if ist_sortierbar(url.toLocalFile()):
                     event.acceptProposedAction()
                     return
         event.ignore()
@@ -718,7 +720,7 @@ class FolderTreeWidget(QWidget):
 
         for url in event.mimeData().urls():
             file_path = Path(url.toLocalFile())
-            if file_path.suffix.lower() == '.pdf':
+            if ist_sortierbar(file_path):
                 self.pdf_dropped.emit(file_path, folder_path)
 
         event.acceptProposedAction()

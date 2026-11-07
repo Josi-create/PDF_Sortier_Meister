@@ -44,6 +44,7 @@ from src.core.llm_activity import (
     format_estimate,
     get_llm_activity,
 )
+from src.core.office_convert import ist_office_datei
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.rename_dialog import RenameSuggestion
 
@@ -171,6 +172,7 @@ class DetailPanel(QWidget):
     open_pdf_requested = pyqtSignal(Path)            # Suchergebnis doppelgeklickt
     open_pdf_external_requested = pyqtSignal(Path)   # "Extern öffnen" in der Vorschau
     enlarge_preview_requested = pyqtSignal(Path)     # große Vorschau gewünscht
+    office_preview_requested = pyqtSignal(Path)      # .docx/.xlsx: Seitenvorschau erzeugen lassen (Issue #9)
     # "Muster bearbeiten" in der Vorschlags-Kopfzeile: Einstellungen > Dateinamen
     edit_pattern_requested = pyqtSignal()
 
@@ -587,7 +589,11 @@ class DetailPanel(QWidget):
         self.header_label.setText(f"Original: {pdf_path.name}")
 
         # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
-        self.preview.load_pdf(pdf_path)
+        if ist_office_datei(pdf_path):
+            self.preview.show_message("Vorschau wird erstellt …")
+            self.office_preview_requested.emit(pdf_path)
+        else:
+            self.preview.load_pdf(pdf_path)
 
         # Metadaten vorbefüllen
         self._metadata = {}
