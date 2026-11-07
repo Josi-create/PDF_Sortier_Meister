@@ -10,7 +10,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any
 from enum import Enum
 
@@ -248,6 +248,84 @@ class LLMConfig:
     context_window: int = 8000
 
 
+# --------------------------------------------------------------------------- #
+# Werkzeuge im Chat (Issue #166/#167, Phase 2)
+#
+# Provider-neutrale Datentypen fuer die Werkzeug-Schleife des RAG-Controllers.
+# Jeder Provider uebersetzt sie in sein Drahtformat (Ollama/OpenAI: "tools" +
+# "tool_calls", Claude: "tools" + "tool_use"/"tool_result").
+#
+# Nachrichtenformat (``nachrichten`` in ``chat_mit_werkzeugen``), eine Liste von
+# Dicts in Gespraechsreihenfolge:
+#
+#   {"role": "system",    "content": str}
+#   {"role": "user",      "content": str}
+#   {"role": "assistant", "content": str, "aufrufe": list[WerkzeugAufruf],
+#                         "roh": Any}          # roh = WerkzeugAntwort.roh derselben Antwort
+#   {"role": "tool",      "content": str, "aufruf_id": str, "name": str}
+#
+# Eine Assistentennachricht mit ``aufrufe`` ist die Antwort des Modells, auf die
+# die ``tool``-Nachrichten (eine je Aufruf, gleiche ``aufruf_id``) folgen. Liegt
+# ``roh`` vor, schickt der Provider seine eigene Rohnachricht unveraendert
+# zurueck (Claude braucht die Inhaltsbloecke, OpenAI die tool_calls mit Ids);
+# fehlt ``roh``, baut er die Nachricht aus ``content`` und ``aufrufe`` nach.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Werkzeug:
+    """Beschreibung eines Werkzeugs fuer das Modell.
+
+    Attributes:
+        name: Funktionsname, nur ``[a-z_]``; so ruft das Modell das Werkzeug auf.
+        beschreibung: Wann und wie das Werkzeug zu benutzen ist (Deutsch).
+        parameter: JSON-Schema der Argumente (``{"type": "object",
+            "properties": {...}, "required": [...]}``).
+    """
+
+    name: str
+    beschreibung: str
+    parameter: dict
+
+
+@dataclass
+class WerkzeugAufruf:
+    """Ein vom Modell gewuenschter Werkzeugaufruf.
+
+    Attributes:
+        name: Werkzeugname.
+        argumente: Argumente als Dict (Provider parsen JSON-Strings vorher).
+        id: Kennung des Aufrufs vom Provider (OpenAI ``tool_call_id``, Claude
+            ``tool_use.id``). Ollama vergibt keine; der Provider setzt dann
+            eine fortlaufende Kennung wie ``"aufruf_1"``.
+    """
+
+    name: str
+    argumente: dict
+    id: str = ""
+
+
+@dataclass
+class WerkzeugAntwort:
+    """Antwort des Modells in der Werkzeug-Schleife.
+
+    Attributes:
+        text: Antworttext; ohne ``aufrufe`` die endgueltige Antwort.
+        aufrufe: Gewuenschte Werkzeugaufrufe (leer = fertig).
+        roh: Rohnachricht des Providers (Assistentennachricht), die der
+            Controller unter ``"roh"`` in die naechste Assistentennachricht
+            legt, damit der Provider sie unveraendert zurueckschicken kann.
+        fehler: Fehlertext; leer = ok. Enthaelt bei fehlender
+            Werkzeugunterstuetzung des Modells ``"Werkzeuge"`` im Text, damit
+            der Controller auf den Weg ohne Werkzeuge zurueckfaellt.
+    """
+
+    text: str = ""
+    aufrufe: list = field(default_factory=list)
+    roh: Any = None
+    fehler: str = ""
+
+
 class LLMProvider(ABC):
     """
     Abstrakte Basisklasse für LLM-Provider.
@@ -390,6 +468,47 @@ class LLMProvider(ABC):
             zurueckgegeben werden.
         """
         pass
+
+    # ------------------------------------------------------------------ #
+    # Werkzeuge im Chat (Issue #166/#167, Phase 2)                       #
+    # ------------------------------------------------------------------ #
+
+    def unterstuetzt_werkzeuge(self) -> bool:
+        """True, wenn :meth:`chat_mit_werkzeugen` fuer dieses Modell brauchbar ist.
+
+        Die Basisklasse sagt Nein. Provider, die Werkzeuge koennen, antworten
+        Ja und merken sich fuer die Instanz, wenn der Server bzw. das Modell
+        Werkzeuge ablehnt (z.B. HTTP 400 "does not support tools"); danach
+        antworten sie Nein, und der Chat laeuft ohne Werkzeuge weiter.
+        """
+        return False
+
+    def chat_mit_werkzeugen(
+        self,
+        nachrichten: list[dict],
+        werkzeuge: list[Werkzeug],
+        max_tokens: int = 1000,
+    ) -> WerkzeugAntwort:
+        """Ein Schritt der Werkzeug-Schleife: Nachrichten + Werkzeuge -> Antwort.
+
+        Der Controller ruft diese Methode wiederholt: Enthaelt die Antwort
+        ``aufrufe``, fuehrt er die Werkzeuge aus, haengt Assistenten- und
+        ``tool``-Nachrichten an ``nachrichten`` an und ruft erneut; ohne
+        ``aufrufe`` ist ``text`` die Antwort. Nachrichtenformat: siehe
+        Modul-Kommentar ueber :class:`Werkzeug`.
+
+        Args:
+            nachrichten: Gespraech in Provider-neutraler Form (system, user,
+                assistant mit ``aufrufe``/``roh``, tool mit ``aufruf_id``).
+            werkzeuge: Verfuegbare Werkzeuge; leere Liste = Antwort ohne
+                Werkzeuge erzwingen (letzter Schritt).
+            max_tokens: Max. Tokens fuer die Antwort.
+
+        Returns:
+            :class:`WerkzeugAntwort`. Verbindungs- und API-Fehler stehen in
+            ``fehler`` (keine Exception), damit der Controller zurueckfallen kann.
+        """
+        return WerkzeugAntwort(fehler="Werkzeuge werden von diesem Provider nicht unterstützt.")
 
     def _truncate_text(self, text: str, max_chars: int = None) -> str:
         """

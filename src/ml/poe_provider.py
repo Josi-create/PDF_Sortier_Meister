@@ -14,15 +14,23 @@ import urllib.request
 from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from src.ml.openai_werkzeuge import OpenAIWerkzeugMixin
 
 
-class PoeProvider(LLMProvider):
+class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
     """
     LLM-Provider für Poe.com API.
 
     Poe bietet Zugang zu vielen verschiedenen Modellen über eine
     OpenAI-kompatible API. Unterstützt GPT, Claude, Gemini und mehr.
+
+    Werkzeuge im Chat (Issue #166/#167): ``chat_mit_werkzeugen`` kommt aus
+    :class:`OpenAIWerkzeugMixin` (chat/completions mit "tools"/"tool_calls"
+    ueber ``_http_post_json``).
     """
+
+    # Anzeigename in Fehlermeldungen (wie bei OpenAIProvider; der Mixin nutzt ihn)
+    API_NAME = "Poe"
 
     # Verfügbare Poe Modelle (Stand: März 2026)
     # Hinweis: Poe-Bot-Namen können sich ändern. Bei Fehler auf poe.com prüfen.
@@ -54,6 +62,7 @@ class PoeProvider(LLMProvider):
 
     # Poe API Base URL
     BASE_URL = "https://api.poe.com/v1"
+    CHAT_COMPLETIONS_URL = f"{BASE_URL}/chat/completions"
 
     def __init__(self, config: LLMConfig):
         """
@@ -114,6 +123,11 @@ class PoeProvider(LLMProvider):
         model_id = self._get_model_id().lower()
         min_tokens = 2048 if "claude" in model_id else 0
         return max(self.config.max_tokens, min_tokens)
+
+    def _werkzeug_max_tokens(self, max_tokens: int) -> int:
+        """Werkzeug-Schleife: dieselbe Thinking-Reserve fuer Claude-Modelle."""
+        min_tokens = 2048 if "claude" in self._get_model_id().lower() else 0
+        return max(max_tokens, min_tokens)
 
     def classify_document(
         self,
@@ -418,8 +432,7 @@ class PoeProvider(LLMProvider):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.config.api_key}",
         }
-        url = f"{self.BASE_URL}/chat/completions"
-        data, error = self._http_post_json(url, body, headers)
+        data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers)
         if error or not data:
             return f"[Poe-Fehler: {error}]"
 

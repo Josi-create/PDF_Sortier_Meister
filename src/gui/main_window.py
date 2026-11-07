@@ -85,10 +85,52 @@ from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWor
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
+from src.ml.provider_factory import erzeuge_provider, grund_text
 from src.gui.chat_view import ChatView
 from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
 from src.search.meldungen import melden as index_melden
+
+
+# Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
+# HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
+_PROVIDER_ANZEIGENAMEN = {
+    "claude": "Claude",
+    "openai": "OpenAI",
+    "poe": "Poe",
+    "openrouter": "OpenRouter",
+    "ollama": "Ollama",
+    "ollama_cloud": "Ollama Cloud",
+    "strata": "Strata",
+}
+
+
+def provider_anzeigename(provider_id: str) -> str:
+    """Anzeigename zu einer Provider-Kennung (unbekannte Kennung unveraendert)."""
+    kennung = str(provider_id or "").strip().lower()
+    return _PROVIDER_ANZEIGENAMEN.get(kennung, kennung or "Unbekannt")
+
+
+def modell_name(provider, fallback: str = "", short: bool = False) -> str:
+    """Modell-ID eines LLM-Providers (Issue #166/#167).
+
+    Gleiche Logik wie ``HybridClassifier.get_llm_model_name``: zuerst
+    ``_get_model_id()`` des Providers (loest Kurznamen wie "haiku" auf), sonst
+    ``config.model``, sonst ``fallback``. ``short`` laesst das Anbieter-Praefix
+    wie "z-ai/" (OpenRouter) weg - fuer die knappe Anzeige in der Statusleiste.
+    """
+    model = ""
+    getter = getattr(provider, "_get_model_id", None)
+    if callable(getter):
+        try:
+            model = getter() or ""
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            model = ""
+    if not model:
+        model = getattr(getattr(provider, "config", None), "model", "") or fallback or ""
+    if short and "/" in model:
+        model = model.rsplit("/", 1)[-1]
+    return model
 
 
 class _ClickableLabel(QLabel):
@@ -146,6 +188,14 @@ class MainWindow(QMainWindow):
         self.classifier = get_classifier()
         self.hybrid_classifier = get_hybrid_classifier()
         self.pdf_cache = get_pdf_cache()
+
+        # Eigenes Chat-Modell (Issue #166/#167): Provider-Instanz zum
+        # "chat"-Block, gecacht ueber das Konfigurations-Dict (Schluessel);
+        # _chat_llm_grund = Grund-Code der Provider-Fabrik, wenn keine gebaut
+        # werden konnte (fuer den Tooltip der Statusleiste).
+        self._chat_llm_provider = None
+        self._chat_llm_key: Optional[dict] = None
+        self._chat_llm_grund = ""
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
@@ -250,9 +300,33 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         preview_layout.addWidget(splitter, 1)
 
-        # Linke Spalte: PDF-Thumbnails
+        # Linke Spalte: PDF-Thumbnails und daneben der Chat als zweiter Reiter
+        # (Phase 3, Issue #166/#167): Mitte und Zielordner bleiben sichtbar, die
+        # Antwort des Chats laesst sich direkt in ein Verschieben umsetzen
         pdf_panel = self.create_pdf_panel()
-        splitter.addWidget(pdf_panel)
+        self.chat_view = ChatView(
+            self.db,
+            self.hybrid_classifier,
+            self.config.get_chat_config(),
+            kompakt=True,
+        )
+        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
+        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
+        self.chat_view.bezug_daten = self._chat_bezug_daten
+        # Eigenes Chat-Modell (Issue #166/#167): Quelle fuer den Provider des
+        # Chats; None = Modell der Sortierung (hybrid_classifier.llm_provider)
+        self.chat_view.chat_provider_quelle = self._chat_provider
+        # Phase 3: "Nach … verschieben" und Ordner der Belege als Vorschlag
+        self.chat_view.verschieben_requested.connect(self._on_chat_verschieben)
+        self.chat_view.ordner_belegt.connect(self._on_chat_ordner_belegt)
+        self.left_tabs = QTabWidget()
+        self.left_tabs.addTab(pdf_panel, "PDFs")
+        self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
+        self.left_tabs.addTab(self.chat_view, "Chat")
+        self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
+        splitter.addWidget(self.left_tabs)
 
         # Mittlere Spalte: Detail-Panel (Umbenennung + Metadaten)
         self.detail_panel = DetailPanel()
@@ -286,18 +360,9 @@ class MainWindow(QMainWindow):
             0, "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
         )
 
-        # Tab "Chat": RAG-Chat (Phase 19 / M2)
-        self.chat_view = ChatView(
-            self.db,
-            self.hybrid_classifier,
-            self.config.get_chat_config(),
-        )
-        self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
-        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
-        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
-        self.chat_view.bezug_daten = self._chat_bezug_daten
-        self.center_tabs.addTab(self.chat_view, "Chat")
-        self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
+        # Der Chat ist seit Phase 3 (Issue #166/#167) ein Reiter der linken
+        # Spalte des Vorschau-Reiters (siehe oben), nicht mehr ein eigener
+        # mittlerer Reiter.
 
         # Tab "Suche": Volltextsuche im Index der Dokumentensuche (PDFsuche-Integration, Phase 4)
         self.search_view = SearchView(self.config)
@@ -307,23 +372,70 @@ class MainWindow(QMainWindow):
         self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
         self.center_tabs.setTabToolTip(
-            2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+            1, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
         )
 
-        # LLM-Status bzw. Indexstand aktualisieren, wenn der Tab gewaehlt wird
+        # Indexstand aktualisieren, wenn der Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird.
-
-        Beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148).
-        """
+        """Aktualisiert den Indexstand (Suche), wenn der Tab sichtbar wird."""
         widget = self.center_tabs.widget(index)
-        if widget is self.chat_view:
+        if widget is self.search_view:
+            self.search_view.tab_gezeigt()
+
+    def _on_left_tab_changed(self, index: int) -> None:
+        """Linke Spalte: beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148)."""
+        if self.left_tabs.widget(index) is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
-        elif widget is self.search_view:
-            self.search_view.tab_gezeigt()
+
+    def show_chat_tab(self) -> None:
+        """Wechselt in der linken Spalte auf den Chat."""
+        self.left_tabs.setCurrentWidget(self.chat_view)
+
+    def _on_chat_verschieben(self, ordner_pfad: str) -> None:
+        """Knopf "Nach … verschieben" im Chat (Phase 3): das Bezugsdokument in den Ordner verschieben.
+
+        Laeuft ueber denselben Weg wie ein Klick auf den Zielordner (Rueckfrage,
+        Lernen, Rueckgaengig). Danach zeigt die linke Spalte wieder die PDFs;
+        der Chat bleibt mit seinem Verlauf im Hintergrund, nur der Bezug ist
+        weg (die Datei liegt nicht mehr im Scan-Ordner).
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or not ordner_pfad:
+            return
+        bezug = Path(bezug)
+        if not bezug.exists():
+            self.statusbar.showMessage(f"{bezug.name} liegt nicht mehr im Scan-Ordner", 4000)
+            return
+        self.move_pdf_to_folder_and_learn(bezug, Path(ordner_pfad))
+        if not bezug.exists():
+            self.chat_view.set_bezug(None)
+            self.left_tabs.setCurrentIndex(0)
+
+    def _on_chat_ordner_belegt(self, ordner_pfad: str, begruendung: str) -> None:
+        """Der Chat hat einen Zielordner belegt (Phase 3): als Vorschlag ins Detail-Panel.
+
+        Nur, wenn das Bezugsdokument die ausgewaehlte PDF ist; sonst gehoerte
+        der Vorschlag zu einem anderen Dokument.
+        """
+        bezug = self.chat_view.bezug
+        if not bezug or self.selected_pdf is None or Path(bezug) != Path(self.selected_pdf):
+            return
+        try:
+            from src.core.similar_documents import merge_folder_suggestion
+            from src.rag.verknuepfung import ordner_vorschlag_aus_chat
+            vorschlag = ordner_vorschlag_aus_chat(ordner_pfad, begruendung, self.folder_manager.target_folders)
+            if vorschlag is None:
+                return
+            suggestions = merge_folder_suggestion(
+                list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
+            )
+            self.display_suggestions(suggestions)
+            self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Chat-Ordnervorschlag nicht uebernommen: {e}")
 
     def _chat_bezug_pfad(self) -> Optional[Path]:
         """Das ausgewaehlte PDF als Bezug fuer den Chat; bei Mehrfachauswahl keins."""
@@ -373,6 +485,7 @@ class MainWindow(QMainWindow):
             metadaten=metadaten,
             sortier_vorschlaege=vorschlaege,
             wurzeln=list(self.folder_manager.target_folders),
+            scan_ordner=self.file_manager.scan_folder,
         )
 
     def show_search_tab(self) -> None:
@@ -1206,17 +1319,35 @@ class MainWindow(QMainWindow):
                 document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
             )
             roots = self.folder_manager.target_folders
+            year = document_year(detected_date)
             ki = None
             for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
-                ki = folder_suggestion_from_metadata(
-                    getattr(s, "metadata", None), roots, document_year(detected_date),
-                )
+                ki = folder_suggestion_from_metadata(getattr(s, "metadata", None), roots, year)
                 if ki:
                     break
-            return merge_folder_suggestion(suggestions, ki)
+            merged = merge_folder_suggestion(suggestions, ki)
         except Exception as e:  # noqa: BLE001 - KI-Ordner ist optional
             logging.getLogger(__name__).debug(f"KI-Ordnervorschlag nicht verfuegbar: {e}")
             return list(suggestions)
+        # Phase 3 (Issue #166/#167): Dokumente mit derselben Vertrags-, Zaehler-
+        # oder Kundennummer liegen schon in einem Zielordner -> staerkster Beleg,
+        # darum ganz oben
+        try:
+            from src.core.similar_documents import document_year as _jahr
+            from src.rag.verknuepfung import ordner_vorschlag_aus_kennungen
+            text = ""
+            result = self.pdf_cache.get(pdf_path)
+            if result is not None:
+                text = result.extracted_text or ""
+            if not text and self.selected_pdf == pdf_path:
+                text = self.selected_pdf_text or ""
+            verknuepft = ordner_vorschlag_aus_kennungen(
+                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
+            )
+            return merge_folder_suggestion(merged, verknuepft, bestaetigung="verknüpfte Dokumente")
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Vorschlag aus verknuepften Dokumenten nicht verfuegbar: {e}")
+            return merged
 
     @staticmethod
     def _detected_date_from(dates) -> Optional[str]:
@@ -1324,6 +1455,16 @@ class MainWindow(QMainWindow):
         # Aus Mehrfachauswahl entfernen
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
+
+        # War die PDF der Bezug des Chats (Phase 3, Issue #166): Bezug loeschen
+        # und die linke Spalte wieder auf "PDFs" stellen - gleich, ob aus dem
+        # Chat, per Klick auf Zielordner oder Vorschlag verschoben wurde
+        chat_view = getattr(self, "chat_view", None)
+        left_tabs = getattr(self, "left_tabs", None)
+        if chat_view is not None and chat_view.bezug and Path(chat_view.bezug) == Path(pdf_path):
+            chat_view.set_bezug(None)
+            if left_tabs is not None and left_tabs.currentWidget() is chat_view:
+                left_tabs.setCurrentIndex(0)
 
         return index
 
@@ -5331,6 +5472,20 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier._init_llm_provider()
         self._llm_connection = None  # anderer Provider/Server: neu pruefen
         self._llm_request_error = None
+        # Eigenes Chat-Modell (Issue #166/#167): Cache verwerfen, Chat informieren.
+        # provider_geaendert() entsteht parallel in der ChatView - getattr-defensiv.
+        self._chat_llm_provider = None
+        self._chat_llm_key = None
+        self._chat_llm_grund = ""
+        # Neue ChatConfig (Schnellfragen, Werkzeuge, Chat-Modell) in den Chat
+        konfig_geaendert = getattr(self.chat_view, "konfig_geaendert", None)
+        if callable(konfig_geaendert):
+            konfig_geaendert(self.config.get_chat_config())
+        else:  # aeltere ChatView ohne die Methode
+            provider_geaendert = getattr(self.chat_view, "provider_geaendert", None)
+            if callable(provider_geaendert):
+                provider_geaendert()
+        self.chat_view.refresh_llm_status()
         self._update_llm_status()
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
@@ -5375,9 +5530,70 @@ class MainWindow(QMainWindow):
             return "bereit", None
         return "fehler", ki_hinweis(provider, connection[1], model)
 
+    def _chat_provider(self):
+        """Provider des eigenen Chat-Modells (Issue #166/#167); None = Modell der Sortierung.
+
+        Quelle fuer ``ChatView.chat_provider_quelle``. Die Instanz wird ueber das
+        Dict aus ``Config.get_chat_llm_config()`` gecacht und erst nach einer
+        Aenderung neu gebaut (``_on_settings_changed`` verwirft den Cache).
+        Konnte keine gebaut werden (Einwilligung, Key, Konstruktorfehler), steht
+        der Grund-Code in ``self._chat_llm_grund``; ``grund_text()`` uebersetzt
+        ihn fuer die Oberflaeche. Wirft nie.
+        """
+        cfg = self.config.get_chat_llm_config()
+        if cfg is None:
+            self._chat_llm_provider = None
+            self._chat_llm_key = None
+            self._chat_llm_grund = ""
+            return None
+        if cfg != self._chat_llm_key:
+            provider, grund = erzeuge_provider(cfg)
+            self._chat_llm_provider = provider
+            self._chat_llm_grund = grund
+            self._chat_llm_key = dict(cfg)
+        return self._chat_llm_provider
+
+    def _chat_status_zusatz(self) -> tuple[str, str]:
+        """Zusatz der LLM-Statusanzeige, wenn der Chat ein eigenes Modell hat (Issue #166/#167).
+
+        Returns:
+            (Anhang fuer den Text der Statusleiste, Zeile fuer den Tooltip);
+            beides leer, wenn der Chat das Modell der Sortierung nutzt.
+        """
+        try:
+            cfg = self.config.get_chat_llm_config()
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            cfg = None
+        if not cfg:
+            return "", ""
+        name = provider_anzeigename(cfg.get("provider", ""))
+        provider = self._chat_provider()
+        if provider is None:
+            grund = grund_text(self._chat_llm_grund) or "Kein KI-Anbieter eingestellt."
+            return f" · Chat: {name} (aus)", f"Chat: {name} – nicht aktiv. {grund}"
+        try:
+            verfuegbar = bool(provider.is_available())
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            verfuegbar = False
+        if not verfuegbar:
+            # Der Chat nimmt dann das Modell der Sortierung (ChatView._llm_provider_fuer_chat)
+            return (f" · Chat: {name} (aus)",
+                    f"Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); "
+                    "der Chat nutzt das Modell der Sortierung.")
+        model_full = modell_name(provider, cfg.get("model", ""))
+        model_short = modell_name(provider, cfg.get("model", ""), short=True)
+        text = f" · Chat: {name}/{model_short}" if model_short else f" · Chat: {name}"
+        tip = f"Chat: {name}, Modell: {model_full}" if model_full else f"Chat: {name}"
+        return text, tip
+
     def _update_llm_status(self):
         """Aktualisiert die LLM-Statusanzeige (Farbe, Text, Tooltip)."""
         health, hinweis = self._llm_health()
+        # Eigenes Chat-Modell (Issue #166/#167) - getattr-defensiv, weil Tests
+        # Fenster-Attrappen nur mit einzelnen MainWindow-Methoden bauen
+        zusatz = getattr(self, "_chat_status_zusatz", None)
+        chat_text, chat_tip = zusatz() if callable(zusatz) else ("", "")
+        chat_zeile = f"\n{chat_tip}" if chat_tip else ""
         if health != "aus":
             provider = self.hybrid_classifier.get_llm_provider_name()
             model_short = self.hybrid_classifier.get_llm_model_name(short=True)
@@ -5398,10 +5614,10 @@ class MainWindow(QMainWindow):
                 state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
                          f"Problem: {hinweis.problem}\n"
                          f"Abhilfe: {hinweis.abhilfe}")
-            self.llm_status_label.setText(text)
+            self.llm_status_label.setText(text + chat_text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}\n\nDoppelklick öffnet die Einstellungen."
+                f"{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -5411,10 +5627,11 @@ class MainWindow(QMainWindow):
                 reason = "Keine Einwilligung zur Datenübertragung erteilt."
             else:
                 reason = "Nicht konfiguriert."
-            self.llm_status_label.setText("LLM: Aus")
+            self.llm_status_label.setText("LLM: Aus" + chat_text)
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
+                f"KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
+                f"Doppelklick öffnet die Einstellungen."
             )
 
     def _on_llm_check_tick(self):

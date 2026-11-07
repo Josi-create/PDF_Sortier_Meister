@@ -56,10 +56,19 @@ class CitationParser:
     ``parse()`` liefert ein 3-Tupel ``(cleaned_answer, valid, dropped)``.
     """
 
-    INLINE_PATTERN = re.compile(r"\[(\d+)\]")
+    # ``[7]`` oder ``[D7]``: Modelle uebernehmen gern die Dokumentnummern aus dem
+    # Kontext und den Werkzeugausgaben (Issue #166/#167) - beides zaehlt.
+    INLINE_PATTERN = re.compile(r"\[[Dd]?(\d+)\]")
     # Footer: '[1] datei.pdf' am Zeilenanfang (ggf. mit Whitespace).
     FOOTER_PATTERN = re.compile(
-        r"(?:^|\n)\s*\[(\d+)\]\s+(\S+\.pdf)",
+        r"(?:^|\n)\s*\[[Dd]?(\d+)\]\s+(\S+\.pdf)",
+        re.MULTILINE,
+    )
+    # Quellenliste neu durchnummeriert: '[2] D7 – datei.xlsx' meint Dokument 7,
+    # nicht 2 (Issue #166/#167). Die Listennummer wird vor dem Parsen durch die
+    # Dokumentnummer ersetzt.
+    FOOTER_DN_PATTERN = re.compile(
+        r"^(?P<vor>[ \t]*\[)(?P<liste>\d+)(?P<mitte>\][ \t]*[-–:]?[ \t]*[Dd])(?P<dok>\d+)(?![\w])",
         re.MULTILINE,
     )
 
@@ -86,6 +95,9 @@ class CitationParser:
         # nicht aus Versehen einen TypeError ausloesen.
         if retrieved_docs is None:
             retrieved_docs = []
+        raw_answer = self.FOOTER_DN_PATTERN.sub(
+            lambda m: f"{m.group('vor')}{m.group('dok')}{m.group('mitte')}{m.group('dok')}", raw_answer,
+        )
 
         # Whitelist der gueltigen Indizes + filename/file_path.
         whitelist: dict[int, dict] = {}

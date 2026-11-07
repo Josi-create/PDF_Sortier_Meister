@@ -318,16 +318,23 @@ def folder_suggestion_from_metadata(
     )
 
 
-def merge_folder_suggestion(suggestions: list, ki_suggestion) -> list:
-    """Setzt den KI-Ordner an die Spitze; kennt die Liste ihn schon, wird er bestaetigt."""
+def merge_folder_suggestion(suggestions: list, ki_suggestion, bestaetigung: str = "KI bestätigt") -> list:
+    """Setzt den Vorschlag an die Spitze; kennt die Liste den Ordner schon, wird er bestaetigt.
+
+    ``bestaetigung`` ist der Zusatz zur Begruendung ("KI bestätigt", oder
+    Phase 3: "verknüpfte Dokumente", "Chat bestätigt"); sein erstes Wort
+    verhindert eine doppelte Bestaetigung. Das Vertrauen steigt auf
+    mindestens das des Vorschlags (und 0.9).
+    """
     if ki_suggestion is None:
         return list(suggestions)
     merged = list(suggestions)
+    marker = bestaetigung.split()[0] if bestaetigung else ""
     for i, s in enumerate(merged):
         if Path(s.folder_path) == Path(ki_suggestion.folder_path):
-            s.confidence = max(s.confidence, 0.9)
-            if "KI" not in s.reason:
-                s.reason = f"{s.reason} + KI bestätigt"
+            s.confidence = max(s.confidence, 0.9, float(getattr(ki_suggestion, "confidence", 0) or 0))
+            if marker and marker not in s.reason:
+                s.reason = f"{s.reason} + {bestaetigung}"
             merged.insert(0, merged.pop(i))
             return merged
     merged.insert(0, ki_suggestion)
