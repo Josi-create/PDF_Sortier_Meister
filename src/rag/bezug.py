@@ -159,7 +159,10 @@ def gleicher_pfad(a, b) -> bool:
     """Vergleicht zwei Pfade ohne Gross-/Kleinschreibung und Trennzeichen-Unterschiede."""
     if not a or not b:
         return False
-    return Path(str(a)).as_posix().casefold() == Path(str(b)).as_posix().casefold()
+    # Backslashes selbst ersetzen: unter macOS/Linux laesst Path.as_posix()
+    # Windows-Trenner stehen (CI-Fehler auf macOS)
+    return (str(a).replace("\\", "/").casefold()
+            == str(b).replace("\\", "/").casefold())
 
 
 def ablageort(datei_pfad, wurzeln: Sequence[Path]) -> str:

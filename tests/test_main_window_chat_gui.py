@@ -112,7 +112,12 @@ def test_modell_kurz_ohne_anbieter_praefix(fenster):
         chat={"provider": "openrouter", "model": "z-ai/glm-5.3-flash", "api_key": "sk-or-x"},
         llm={"cloud_consent": True},
     )
-    assert win._chat_provider() is not None
+    provider = win._chat_provider()
+    assert provider is not None
+    # Die CI installiert das openai-Paket nicht -> dort waere der Anbieter
+    # "nicht verfuegbar"; getestet wird hier nur die Anzeige des Modells.
+    provider.is_available = lambda: True
+    win._update_llm_status()
     assert "Chat: OpenRouter/glm-5.3-flash" in win.llm_status_label.text()
     assert "Chat: OpenRouter, Modell: z-ai/glm-5.3-flash" in win.llm_status_label.toolTip()
 
