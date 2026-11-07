@@ -65,6 +65,37 @@ def test_verschieben_aus_dem_chat(main_window, fresh_singletons):
     assert len(main_window.pdf_widgets) == 1
 
 
+def test_verschieben_per_zielordner_bei_offenem_chat_springt_zurueck(main_window, fresh_singletons):
+    """Auch ohne den Chat-Knopf (Klick auf Zielordner oder Vorschlag) kommt die linke Spalte zu den PDFs zurueck."""
+    tmp_path = fresh_singletons["tmp_path"]
+    scan = _make_scan_folder(tmp_path, ["a.pdf", "b.pdf"])
+    ziel = _ziel(main_window, tmp_path)
+    main_window._navigate_to_folder(scan)
+    _prime_cache(main_window, [scan / "a.pdf", scan / "b.pdf"])
+    main_window.on_pdf_clicked(scan / "a.pdf")
+    main_window.show_chat_tab()
+    assert main_window.left_tabs.currentWidget() is main_window.chat_view
+
+    main_window.move_pdf_to_folder_and_learn(scan / "a.pdf", ziel)  # wie ein Klick auf den Zielordner
+
+    assert (ziel / "a.pdf").exists()
+    assert main_window.left_tabs.currentIndex() == 0
+    assert main_window.chat_view.bezug is None
+
+    # Eine andere PDF als Bezug bleibt unberuehrt, wenn nicht sie verschoben wird
+    main_window.on_pdf_clicked(scan / "b.pdf")
+    main_window.show_chat_tab()
+    main_window.chat_view.set_bezug(scan / "b.pdf")
+    (scan / "c.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+    main_window._navigate_to_folder(scan)
+    _prime_cache(main_window, [scan / "b.pdf", scan / "c.pdf"])
+    main_window.show_chat_tab()
+    main_window.chat_view.set_bezug(scan / "b.pdf")
+    main_window.move_pdf_to_folder_and_learn(scan / "c.pdf", ziel)
+    assert main_window.left_tabs.currentWidget() is main_window.chat_view
+    assert main_window.chat_view.bezug == scan / "b.pdf"
+
+
 def test_verschieben_ohne_bezug_oder_mit_verschwundener_datei_tut_nichts(main_window, fresh_singletons):
     tmp_path = fresh_singletons["tmp_path"]
     scan = _make_scan_folder(tmp_path, ["a.pdf"])

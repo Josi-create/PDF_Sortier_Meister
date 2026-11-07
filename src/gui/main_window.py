@@ -1277,6 +1277,16 @@ class MainWindow(QMainWindow):
         if pdf_path in self.selected_pdfs:
             self.selected_pdfs.remove(pdf_path)
 
+        # War die PDF der Bezug des Chats (Phase 3, Issue #166): Bezug loeschen
+        # und die linke Spalte wieder auf "PDFs" stellen - gleich, ob aus dem
+        # Chat, per Klick auf Zielordner oder Vorschlag verschoben wurde
+        chat_view = getattr(self, "chat_view", None)
+        left_tabs = getattr(self, "left_tabs", None)
+        if chat_view is not None and chat_view.bezug and Path(chat_view.bezug) == Path(pdf_path):
+            chat_view.set_bezug(None)
+            if left_tabs is not None and left_tabs.currentWidget() is chat_view:
+                left_tabs.setCurrentIndex(0)
+
         return index
 
     def _remove_pdf_widget_and_select_next(self, pdf_path: Path) -> bool:
