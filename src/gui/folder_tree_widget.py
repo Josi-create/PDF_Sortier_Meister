@@ -105,6 +105,7 @@ class FolderTreeWidget(QWidget):
     move_here_requested = pyqtSignal(Path)  # Kontextmenue "Hierhin verschieben" (Issue #93)
     folder_renamed = pyqtSignal(Path, Path)  # Ordner umbenannt (alt, neu)
     status_message = pyqtSignal(str)  # Kurzinfo fuer die Statusleiste
+    favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
 
     # Kontextmenue (Issue #93)
     EXPAND_LEVELS = 3  # "Alle Unterordner aufklappen": so viele Ebenen tief
@@ -115,6 +116,7 @@ class FolderTreeWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_folders: list[Path] = []
+        self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster (#114)
         self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
         # Ordner mit noch nicht geladenen Unterordnern (unterhalb der Scan-Tiefe)
         self._unloaded: set[Path] = set()
@@ -660,6 +662,14 @@ class FolderTreeWidget(QWidget):
         # Issue #154: Pfad in die Zwischenablage
         copy_action = menu.addAction(f"📋 {PFAD_KOPIEREN_TEXT}")
         copy_action.triggered.connect(lambda: pfad_kopieren(folder_path))
+
+        # Favorit (Issue #114) - am Ende der letzten Gruppe, ohne eigenen Trenner
+        # (die Gruppierung aus Issue #93 bleibt bei vier Bloecken)
+        from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
+
+        ist_fav = bool(self.favorit_pruefer and self.favorit_pruefer(folder_path))
+        fav_action = menu.addAction(FAVORIT_ENTFERNEN_TEXT if ist_fav else FAVORIT_MERKEN_TEXT)
+        fav_action.triggered.connect(lambda: self.favorit_umschalten.emit(folder_path))
 
         return menu
 
