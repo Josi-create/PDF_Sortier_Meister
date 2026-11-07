@@ -14,6 +14,7 @@ from src.ml.openai_provider import OpenAIProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.poe_provider import PoeProvider
 from src.ml.strata_provider import StrataProvider
+from src.ml.lmstudio_provider import LMStudioProvider
 from src.utils.config import ChatConfig, Config
 
 
@@ -45,6 +46,7 @@ def _llm(provider, api_key="k", consent=True, **extra):
     ("ollama", OllamaProvider),
     ("ollama_cloud", OllamaCloudProvider),
     ("strata", StrataProvider),
+    ("lmstudio", LMStudioProvider),
 ])
 def test_jeder_provider_typ_wird_ohne_netz_instanziert(provider, klasse):
     p, grund = pf.erzeuge_provider(_llm(provider))
@@ -63,6 +65,22 @@ def test_ollama_ohne_key_ok():
     assert grund == ""
     assert isinstance(p, OllamaProvider)
     assert p.is_available()
+
+
+def test_lmstudio_ohne_key_und_ohne_einwilligung_ok():
+    """LM Studio (#45) laeuft lokal: kein Key, keine Cloud-Einwilligung noetig."""
+    p, grund = pf.erzeuge_provider(_llm("lmstudio", api_key="", consent=False))
+    assert grund == ""
+    assert type(p) is LMStudioProvider
+    assert p.base_url == "http://localhost:1234/v1"
+    # OpenAI-kompatibel: Werkzeug-Schleife wie bei Strata
+    assert p.unterstuetzt_werkzeuge()
+
+
+def test_lmstudio_base_url_wird_durchgereicht():
+    p, _ = pf.erzeuge_provider(_llm("lmstudio", api_key="", base_url="http://pc:4321"))
+    assert p.base_url == "http://pc:4321/v1"
+    assert p.CHAT_COMPLETIONS_URL == "http://pc:4321/v1/chat/completions"
 
 
 def test_claude_ohne_key():

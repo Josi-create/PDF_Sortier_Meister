@@ -102,6 +102,7 @@ _PROVIDER_ANZEIGENAMEN = {
     "ollama": "Ollama",
     "ollama_cloud": "Ollama Cloud",
     "strata": "Strata",
+    "lmstudio": "LM Studio",
 }
 
 

@@ -12,7 +12,8 @@ Chat dieselbe Fabrik mit denselben Regeln:
 * ``"none"``, leer oder unbekannt -> kein Provider;
 * Cloud-Anbieter (:func:`~src.ml.llm_provider.is_cloud_provider`) nur mit
   Einwilligung zur Datenuebertragung;
-* alle Anbieter ausser dem lokalen Ollama brauchen einen API-Key.
+* alle Anbieter ausser den lokalen Servern Ollama und LM Studio brauchen
+  einen API-Key.
 
 Die Fabrik wirft keine Exceptions nach aussen: Das Ergebnis ist ein Tupel
 ``(provider, grund)``; ``grund`` ist leer, wenn alles gut ging, sonst einer der
@@ -34,6 +35,7 @@ from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.ml.strata_provider import StrataProvider
+from src.ml.lmstudio_provider import LMStudioProvider
 
 
 # Grund-Codes von erzeuge_provider()
@@ -44,7 +46,7 @@ GRUND_KEIN_API_KEY = "kein_api_key"              # Anbieter braucht einen Key, k
 GRUND_FEHLER = "fehler: "                        # Praefix; dahinter der Exception-Text
 
 # Anbieter, die ohne API-Key laufen (lokaler Server)
-PROVIDER_OHNE_API_KEY = frozenset({"ollama"})
+PROVIDER_OHNE_API_KEY = frozenset({"ollama", "lmstudio"})
 
 # Defaults der LLMConfig-Felder, wenn sie im Dict fehlen (wie bisher im
 # HybridClassifier; identisch mit den Dataclass-Defaults von LLMConfig)
@@ -68,6 +70,7 @@ def provider_klassen() -> dict[str, type]:
         "ollama": OllamaProvider,
         "ollama_cloud": OllamaCloudProvider,
         "strata": StrataProvider,
+        "lmstudio": LMStudioProvider,
     }
 
 
@@ -135,7 +138,7 @@ def erzeuge_provider(
 
     config = llm_config_aus_dict(llm_config)
 
-    # Ollama laeuft lokal und braucht keinen API-Key; alle anderen schon.
+    # Ollama und LM Studio laufen lokal und brauchen keinen API-Key; alle anderen schon.
     if provider_typ not in PROVIDER_OHNE_API_KEY and not config.api_key:
         return None, GRUND_KEIN_API_KEY
 

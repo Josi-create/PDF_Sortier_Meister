@@ -49,7 +49,7 @@ class ChatConfig:
     # provider/model/api_key/base_url: eigenes Modell fuer den Chat; ``provider``
     #     leer = das Modell der Sortierung. Werte wie im ``"llm"``-Block
     #     (provider-Kennungen "ollama", "ollama_cloud", "claude", "openai",
-    #     "openrouter", "poe", "strata"); die Cloud-Einwilligung gilt global.
+    #     "openrouter", "poe", "strata", "lmstudio"); die Cloud-Einwilligung gilt global.
     werkzeuge_aktiv: bool = True
     max_werkzeug_schritte: int = 8
     sql_erlaubt: bool = False

@@ -46,6 +46,7 @@ def _provider_klassen() -> dict[str, type]:
         "ollama": OllamaProvider,
         "ollama_cloud": OllamaCloudProvider,
         "strata": StrataProvider,
+        "lmstudio": LMStudioProvider,
     }
 
 
@@ -158,10 +159,11 @@ class HybridClassifier:
         Setzt den LLM-Provider zur Laufzeit.
 
         Args:
-            provider_type: Art des Providers (claude, openai, poe, openrouter, ollama, none)
-            api_key: API-Key (bei Ollama ignoriert)
+            provider_type: Art des Providers (claude, openai, poe, openrouter, ollama,
+                ollama_cloud, strata, lmstudio, none)
+            api_key: API-Key (bei Ollama und LM Studio ignoriert)
             model: Modellname (optional)
-            base_url: Server-URL (nur fuer Ollama relevant)
+            base_url: Server-URL (lokale Server: Ollama, Strata, LM Studio)
 
         Returns:
             True wenn der Provider erfolgreich aktiviert wurde.
@@ -180,6 +182,7 @@ class HybridClassifier:
             "openrouter": getattr(OpenRouterProvider, "DEFAULT_MODEL", ""),
             "ollama": getattr(OllamaProvider, "DEFAULT_MODEL", ""),
             "ollama_cloud": getattr(OllamaCloudProvider, "DEFAULT_MODEL", ""),
+            "lmstudio": getattr(LMStudioProvider, "DEFAULT_MODEL", ""),
         }
         llm_config = {
             "provider": pt,
