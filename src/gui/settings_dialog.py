@@ -920,6 +920,17 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(update_group)
 
+        # Unterstuetzen-Hinweis (Issue #115)
+        support_group = QGroupBox("Unterstützen")
+        support_layout = QVBoxLayout(support_group)
+        self.support_hint_disabled_checkbox = QCheckBox("Nicht mehr an das Unterstützen erinnern")
+        self.support_hint_disabled_checkbox.setToolTip(
+            "Blendet den gelegentlichen Hinweis aus. Über Hilfe > Unterstützen ...\n"
+            "lässt sich der Dialog jederzeit öffnen."
+        )
+        support_layout.addWidget(self.support_hint_disabled_checkbox)
+        layout.addWidget(support_group)
+
         # Debug-Bereich
         debug_group = QGroupBox("Debug / Zurücksetzen")
         debug_layout = QVBoxLayout(debug_group)
@@ -2081,6 +2092,10 @@ class SettingsDialog(QDialog):
         # Update-Pruefung (Issue #73)
         self.update_check_checkbox.setChecked(self.config.get("update_check_enabled", True))
 
+        self.support_hint_disabled_checkbox.setChecked(
+            bool(self.config.get("support_hint_disabled", False))
+        )
+
         # PDF oeffnen (Issues #74/#76)
         mode = normalize_open_mode(self.config.get("pdf_open_mode"))
         self.pdf_open_mode_combo.setCurrentIndex(max(self.pdf_open_mode_combo.findData(mode), 0))
@@ -2148,6 +2163,10 @@ class SettingsDialog(QDialog):
 
         # Update-Pruefung (Issue #73)
         self.config.set("update_check_enabled", self.update_check_checkbox.isChecked())
+
+        self.config.set(
+            "support_hint_disabled", self.support_hint_disabled_checkbox.isChecked()
+        )
 
         # PDF oeffnen (Issues #74/#76)
         self.config.set("pdf_open_mode", self.pdf_open_mode_combo.currentData())
