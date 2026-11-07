@@ -257,6 +257,17 @@ def test_umwandeln_ohne_umwandler_meldet_klar(tmp_path, monkeypatch):
     assert not (tmp_path / "a.pdf").exists()
 
 
+def test_umwandeln_word_da_aber_pywin32_fehlt(tmp_path, monkeypatch):
+    """Live-Befund: Word installiert, aber dem Python fehlt pywin32 -> klarer Hinweis."""
+    d = docx_bauen(tmp_path / "a.docx", body(""), None)
+    monkeypatch.setattr(oc, "word_com_verfuegbar", lambda: False)
+    monkeypatch.setattr(oc, "finde_libreoffice", lambda: None)
+    monkeypatch.setattr(oc, "_com_klasse_registriert", lambda prog_id: True)
+    monkeypatch.setattr(oc, "pywin32_verfuegbar", lambda: False)
+    with pytest.raises(oc.KeinUmwandlerGefunden, match="pywin32"):
+        oc.umwandeln(d)
+
+
 def test_umwandeln_lehnt_falschen_dateityp_ab(tmp_path):
     p = tmp_path / "a.txt"
     p.write_text("x")

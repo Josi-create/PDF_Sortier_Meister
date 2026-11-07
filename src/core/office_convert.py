@@ -321,14 +321,28 @@ def excel_com_verfuegbar() -> bool:
     return sys.platform == "win32" and _com_klasse_da("Excel.Application")
 
 
-def _com_klasse_da(prog_id: str) -> bool:
+def _com_klasse_registriert(prog_id: str) -> bool:
+    """True, wenn das Office-Programm in der Registry steht (unabhaengig von pywin32)."""
+    if sys.platform != "win32":
+        return False
     try:
         import winreg
-        import win32com.client  # noqa: F401
         with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, prog_id):
             return True
-    except Exception:  # noqa: BLE001 - nicht installiert / pywin32 fehlt
+    except OSError:
         return False
+
+
+def pywin32_verfuegbar() -> bool:
+    try:
+        import win32com.client  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001 - pywin32 fehlt oder ist kaputt
+        return False
+
+
+def _com_klasse_da(prog_id: str) -> bool:
+    return _com_klasse_registriert(prog_id) and pywin32_verfuegbar()
 
 
 def finde_libreoffice() -> Optional[str]:
@@ -500,6 +514,14 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
     soffice = finde_libreoffice()
     if not com and not soffice:
         programm = "Microsoft Word" if ist_word else "Microsoft Excel"
+        prog_id = "Word.Application" if ist_word else "Excel.Application"
+        if _com_klasse_registriert(prog_id) and not pywin32_verfuegbar():
+            raise KeinUmwandlerGefunden(
+                f"{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister "
+                "läuft, fehlt das Paket \"pywin32\".
+"
+                "Bitte im Programmordner ausführen: python -m pip install -r requirements.txt"
+            )
         raise KeinUmwandlerGefunden(
             f"Zum Umwandeln wird {programm} (nur Windows) oder LibreOffice benötigt. "
             "Beides wurde nicht gefunden."
