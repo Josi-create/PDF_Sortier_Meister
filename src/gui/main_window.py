@@ -75,6 +75,7 @@ from src.core.pdf_rotate import (
     rotate_pdf,
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
+from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
@@ -190,6 +191,8 @@ class MainWindow(QMainWindow):
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
         self._ocr_neu_paths: list[Path] = []
+        # Schwer lesbare Scans: OCR mit anderen Sprachen, Handschrift per KI (Issue #47)
+        self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -855,10 +858,14 @@ class MainWindow(QMainWindow):
             widget.rotate_requested.connect(self.on_pdf_rotate)
             widget.reocr_requested.connect(self.on_pdf_reocr)
             widget.straighten_requested.connect(self.on_pdf_straighten)
+            widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
+            widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
             widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
+            # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
+            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
 
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
@@ -1750,6 +1757,7 @@ class MainWindow(QMainWindow):
         # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
         if self._ocr_neu_worker is not None:
             self._ocr_neu_worker.requestInterruption()
+        self._ocr_schwer_lesbar.abbrechen()
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -2072,6 +2080,9 @@ class MainWindow(QMainWindow):
     def _on_pdf_analyzed(self, pdf_path: Path):
         """Wird aufgerufen wenn irgendeine PDF analysiert wurde (Cache-Signal)."""
         self._update_cache_status()
+        widget = self._pdf_widget_for(pdf_path)
+        if widget is not None:
+            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)  # Issue #47
 
     def _apply_analysis_result(self, pdf_path: Path, result: PDFAnalysisResult):
         """Wendet ein Analyse-Ergebnis an und zeigt Vorschläge."""

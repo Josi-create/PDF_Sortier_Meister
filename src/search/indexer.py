@@ -489,7 +489,8 @@ class Indexer:
             drehungen = res.get("drehungen") or {}
             erkannt = db.ocr_text_eintragen(self.con, dok_id, texte, self.ocr.get("sprachen"), self.ocr.get("dpi"),
                                             nur_offene=True, ebenen=res.get("ebenen"), drehungen=drehungen,
-                                            drehen=bool(drehungen) and self.konfig.drehen_vormerken(i["pfad"]))
+                                            drehen=bool(drehungen) and self.konfig.drehen_vormerken(i["pfad"]),
+                                            lesbarkeit=res.get("lesbarkeit"))
             self.stat["ocr_seiten"] += erkannt
             if drehungen:
                 self.stat["ocr_gedreht_erkannt"] += len(drehungen)

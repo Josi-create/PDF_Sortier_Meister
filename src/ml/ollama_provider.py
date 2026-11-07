@@ -351,6 +351,31 @@ class OllamaProvider(LLMProvider):
     # RAG-Chat (Phase 19, M1)                                            #
     # ------------------------------------------------------------------ #
 
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Bilder (JPEG) mit Anweisung an ``/api/chat`` schicken (``images`` als Base64; Issue #47).
+
+        Braucht ein Vision-Modell (llava, qwen2.5vl, llama3.2-vision, ...).
+        Gilt auch fuer Ollama Cloud.
+        """
+        import base64
+
+        if not self.is_available():
+            raise RuntimeError("Ollama ist nicht eingerichtet oder nicht erreichbar.")
+        payload = {
+            "model": self._get_model_id(),
+            "stream": False,
+            "messages": [{
+                "role": "user",
+                "content": prompt,
+                "images": [base64.b64encode(img).decode("ascii") for img in images],
+            }],
+            "options": {"temperature": self.config.temperature, "num_predict": max_tokens},
+        }
+        data, error = self._post_chat(f"{self._get_base_url()}/api/chat", payload)
+        if error or not data:
+            raise RuntimeError(error or "Leere Antwort von Ollama.")
+        return (data.get("message") or {}).get("content", "") or ""
+
     def answer_with_context(
         self,
         system_prompt: str,
