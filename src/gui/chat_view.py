@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.gui.chat_worker import ChatWorker
-from src.rag.bezug import SCHNELLFRAGEN, Bezug
+from src.rag.bezug import Bezug, schnellfragen_liste
 from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController
 
 
@@ -301,33 +301,19 @@ class ChatView(QWidget):
             self.schnellfragen_toggle.toggled.connect(self._on_schnellfragen_toggle)
             bezug_layout.addWidget(self.schnellfragen_toggle, 0, Qt.AlignmentFlag.AlignLeft)
             self.schnellfragen_box = QWidget()
-            box_layout = QVBoxLayout(self.schnellfragen_box)
-            box_layout.setContentsMargins(0, 0, 0, 0)
-            box_layout.setSpacing(2)
-            for frage in SCHNELLFRAGEN:
-                btn = QPushButton(frage)
-                btn.setProperty("frage", frage)
-                btn.setToolTip("Frage zum Bezugsdokument stellen")
-                btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-                btn.clicked.connect(self._on_schnellfrage)
-                box_layout.addWidget(btn)
-                self.schnellfragen_btns.append(btn)
+            self._schnellfragen_layout = QVBoxLayout(self.schnellfragen_box)
+            self._schnellfragen_layout.setContentsMargins(0, 0, 0, 0)
+            self._schnellfragen_layout.setSpacing(2)
             bezug_layout.addWidget(self.schnellfragen_box)
+            self._schnellfragen_bauen()
             self._schnellfragen_zeigen(True)
         else:
-            fragen_grid = QGridLayout()
-            fragen_grid.setContentsMargins(0, 0, 0, 0)
-            fragen_grid.setHorizontalSpacing(4)
-            fragen_grid.setVerticalSpacing(4)
-            for i, frage in enumerate(SCHNELLFRAGEN):
-                btn = QPushButton(frage)
-                btn.setProperty("frage", frage)
-                btn.setToolTip("Frage zum Bezugsdokument stellen")
-                btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-                btn.clicked.connect(self._on_schnellfrage)
-                fragen_grid.addWidget(btn, i // 2, i % 2)
-                self.schnellfragen_btns.append(btn)
-            bezug_layout.addLayout(fragen_grid)
+            self._schnellfragen_layout = QGridLayout()
+            self._schnellfragen_layout.setContentsMargins(0, 0, 0, 0)
+            self._schnellfragen_layout.setHorizontalSpacing(4)
+            self._schnellfragen_layout.setVerticalSpacing(4)
+            self._schnellfragen_bauen()
+            bezug_layout.addLayout(self._schnellfragen_layout)
         self.bezug_box.setVisible(False)
         layout.addWidget(self.bezug_box)
 
@@ -874,6 +860,41 @@ class ChatView(QWidget):
         """Schnellfragen waehrend eines Aufrufs sperren."""
         for btn in self.schnellfragen_btns:
             btn.setEnabled(aktiv)
+
+    def _schnellfragen_bauen(self) -> None:
+        """Knoepfe aus den Schnellfragen der Konfiguration (Phase 3, Issue #166) neu aufbauen.
+
+        Kompakt untereinander, im breiten Reiter als Raster mit zwei Spalten.
+        Eigene Fragen kommen aus ``ChatConfig.schnellfragen``, sonst gelten die
+        Standardfragen (:func:`~src.rag.bezug.schnellfragen_liste`).
+        """
+        for btn in self.schnellfragen_btns:
+            self._schnellfragen_layout.removeWidget(btn)
+            btn.deleteLater()
+        self.schnellfragen_btns = []
+        for i, frage in enumerate(schnellfragen_liste(self.chat_config)):
+            btn = QPushButton(frage)
+            btn.setProperty("frage", frage)
+            btn.setToolTip("Frage zum Bezugsdokument stellen")
+            btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            btn.clicked.connect(self._on_schnellfrage)
+            if isinstance(self._schnellfragen_layout, QGridLayout):
+                self._schnellfragen_layout.addWidget(btn, i // 2, i % 2)
+            else:
+                self._schnellfragen_layout.addWidget(btn)
+            self.schnellfragen_btns.append(btn)
+
+    def konfig_geaendert(self, chat_config) -> None:
+        """Einstellungen gespeichert: neue ChatConfig uebernehmen (Schnellfragen, Werkzeuge, Modell).
+
+        Baut die Schnellfragen neu und verwirft den Controller wie
+        :meth:`provider_geaendert`, damit auch Werkzeug-Einstellungen und das
+        Chat-Modell ab der naechsten Frage gelten.
+        """
+        if chat_config is not None:
+            self.chat_config = chat_config
+        self._schnellfragen_bauen()
+        self.provider_geaendert()
 
     # Ab dieser Hoehe der Chat-Spalte bleiben die Schnellfragen von selbst
     # ausgeklappt (kompakt); darunter, etwa auf einem kleinen Monitor, klappen

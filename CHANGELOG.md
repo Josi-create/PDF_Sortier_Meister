@@ -18,7 +18,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   der Chat bleibt mit Verlauf im Hintergrund. Quellen stehen eingeklappt unter
   dem Verlauf, die Schnellfragen untereinander über dem Eingabefeld; bei wenig
   Höhe (kleiner Monitor) klappen sie hinter ein Dreieck, das sie jederzeit
-  wieder aufklappt.
+  wieder aufklappt. Die Schnellfragen lassen sich unter Einstellungen >
+  KI-Assistent > Chat ändern und ergänzen (eine je Zeile, „Standard
+  wiederherstellen“); geänderte Chat-Einstellungen gelten ab der nächsten
+  Frage ohne Neustart.
 - **Verknüpfte Dokumente als Sortiervorschlag** (#166): Nennt ein Scan eine
   Vertrags-, Zähler-, Kunden- oder Rechnungsnummer und liegen Dokumente mit
   derselben Nummer schon in einem Zielordner, steht dieser Ordner mit 85 bis

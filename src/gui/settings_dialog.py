@@ -20,6 +20,7 @@ import sys
 from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
+from src.rag.bezug import SCHNELLFRAGEN, schnellfragen_aus_text
 
 
 class SettingsDialog(QDialog):
@@ -387,6 +388,25 @@ class SettingsDialog(QDialog):
         # Schrittzahl und SQL betreffen nur die Werkzeug-Schleife
         self.chat_tools_check.toggled.connect(self.chat_steps_spin.setEnabled)
         self.chat_tools_check.toggled.connect(self.chat_sql_check.setEnabled)
+
+        # Eigene Schnellfragen (Phase 3, Issue #166): eine je Zeile
+        fragen_kopf = QHBoxLayout()
+        fragen_kopf.addWidget(QLabel("Schnellfragen im Chat (eine je Zeile):"))
+        fragen_kopf.addStretch(1)
+        self.chat_schnellfragen_standard_btn = QPushButton("Standard wiederherstellen")
+        self.chat_schnellfragen_standard_btn.clicked.connect(
+            lambda: self.chat_schnellfragen_edit.setPlainText("\n".join(SCHNELLFRAGEN))
+        )
+        fragen_kopf.addWidget(self.chat_schnellfragen_standard_btn)
+        layout.addLayout(fragen_kopf)
+        self.chat_schnellfragen_edit = QPlainTextEdit()
+        self.chat_schnellfragen_edit.setPlaceholderText("\n".join(SCHNELLFRAGEN))
+        self.chat_schnellfragen_edit.setToolTip(
+            "Knöpfe über dem Eingabefeld des Chats, wenn eine PDF der Bezug ist.\n"
+            "Leer = Standardfragen. Höchstens 12 Fragen."
+        )
+        self.chat_schnellfragen_edit.setFixedHeight(96)
+        layout.addWidget(self.chat_schnellfragen_edit)
 
         self._on_chat_provider_changed(self.chat_provider_combo.currentIndex())
         self._update_chat_fields_enabled()
@@ -2348,6 +2368,10 @@ class SettingsDialog(QDialog):
         self.chat_sql_check.setChecked(bool(chat.sql_erlaubt))
         self.chat_steps_spin.setEnabled(werkzeuge)
         self.chat_sql_check.setEnabled(werkzeuge)
+        # Eigene Schnellfragen; leer = Standard (steht als Platzhalter im Feld)
+        self.chat_schnellfragen_edit.setPlainText(
+            "\n".join(schnellfragen_aus_text("\n".join(str(f) for f in (chat.schnellfragen or []))))
+        )
 
         # Allgemeine Einstellungen
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
@@ -2498,10 +2522,13 @@ class SettingsDialog(QDialog):
         # Provider, zu dem er den Key puffern koennte).
         self._stash_chat_api_key()
         self._stash_chat_base_url()
+        fragen = schnellfragen_aus_text(self.chat_schnellfragen_edit.toPlainText())
         chat_felder = dict(
             werkzeuge_aktiv=self.chat_tools_check.isChecked(),
             max_werkzeug_schritte=self.chat_steps_spin.value(),
             sql_erlaubt=self.chat_sql_check.isChecked(),
+            # Standardfragen nicht festschreiben: leer, wenn sie dem Standard entsprechen
+            schnellfragen=[] if fragen == list(SCHNELLFRAGEN) else fragen,
         )
         if self.chat_own_model_check.isChecked():
             chat_provider = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())

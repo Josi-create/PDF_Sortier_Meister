@@ -5057,9 +5057,14 @@ class MainWindow(QMainWindow):
         self._chat_llm_provider = None
         self._chat_llm_key = None
         self._chat_llm_grund = ""
-        provider_geaendert = getattr(self.chat_view, "provider_geaendert", None)
-        if callable(provider_geaendert):
-            provider_geaendert()
+        # Neue ChatConfig (Schnellfragen, Werkzeuge, Chat-Modell) in den Chat
+        konfig_geaendert = getattr(self.chat_view, "konfig_geaendert", None)
+        if callable(konfig_geaendert):
+            konfig_geaendert(self.config.get_chat_config())
+        else:  # aeltere ChatView ohne die Methode
+            provider_geaendert = getattr(self.chat_view, "provider_geaendert", None)
+            if callable(provider_geaendert):
+                provider_geaendert()
         self.chat_view.refresh_llm_status()
         self._update_llm_status()
         self._check_llm_connection()

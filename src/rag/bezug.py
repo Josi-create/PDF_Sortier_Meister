@@ -46,6 +46,27 @@ SCHNELLFRAGEN = (
     "In welchen Ordner gehört dieses PDF?",
 )
 
+# Hoechstzahl eigener Schnellfragen (Phase 3, Issue #166)
+MAX_SCHNELLFRAGEN = 12
+
+
+def schnellfragen_aus_text(text: str) -> list[str]:
+    """Eine Frage je Zeile (Einstellungen): leere Zeilen und Doppelte weg, hoechstens MAX_SCHNELLFRAGEN."""
+    fragen: list[str] = []
+    for zeile in (text or "").splitlines():
+        frage = " ".join(zeile.split())
+        if frage and frage not in fragen:
+            fragen.append(frage)
+    return fragen[:MAX_SCHNELLFRAGEN]
+
+
+def schnellfragen_liste(chat_config=None) -> list[str]:
+    """Die Schnellfragen des Chats: eigene aus der Konfiguration, sonst die Standardfragen."""
+    eigene = getattr(chat_config, "schnellfragen", None) or []
+    fragen = schnellfragen_aus_text("\n".join(str(f) for f in eigene))
+    return fragen or list(SCHNELLFRAGEN)
+
+
 # Fragen nach dem Ablageort bekommen den Vorschlag der Sortierlogik in den Kontext
 _ORDNER_FRAGE_RE = re.compile(r"ordner|verzeichnis|ablegen|ablage|einsortier|einordn", re.IGNORECASE)
 

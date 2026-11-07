@@ -5,7 +5,7 @@ Konfigurationsverwaltung für PDF Sortier Meister
 import copy
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +57,9 @@ class ChatConfig:
     model: str = ""
     api_key: str = ""
     base_url: str = ""
+    # Phase 3 (Issue #166): eigene Schnellfragen fuer den Chat (Knoepfe ueber dem
+    # Eingabefeld). Leer = die Standardfragen aus src.rag.bezug.SCHNELLFRAGEN.
+    schnellfragen: list = field(default_factory=list)
 
 
 class Config:
