@@ -42,9 +42,12 @@ PAGE_DONE = 6
 # Provider-Konstanten (Index -> interner Name). Reihenfolge = Empfehlungsrang:
 # Ollama (lokal, kein Key) zuerst, dann Cloud-Anbieter, "Ohne KI" ganz unten
 # (Issue #67 - KI ist ein Hauptfeature, nicht "optional").
-_PROVIDER_IDS = ["ollama", "ollama_cloud", "openrouter", "poe", "claude", "openai", "none"]
+# LM Studio (Issue #45) erscheint nur, wenn es bereits laeuft - die App
+# bietet es nie zum Download an.
+_PROVIDER_IDS = ["ollama", "lmstudio", "ollama_cloud", "openrouter", "poe", "claude", "openai", "none"]
 _PROVIDER_LABELS = [
     "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)",
+    "LM Studio (laeuft bereits auf diesem Rechner — kein API-Key noetig)",
     "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
     "OpenRouter (viele KI-Modelle, ein API-Key)",
     "Poe.com (viele KI-Modelle, ein API-Key)",
@@ -96,11 +99,14 @@ def default_target_folder() -> Path:
 
 def detect_ollama_environment() -> dict:
     """
-    Ermittelt Ollama-Installation, Serverstatus und Hardware-Empfehlung.
+    Ermittelt Ollama-Installation, Serverstatus und Hardware-Empfehlung,
+    ausserdem ein laufendes LM Studio ("lmstudio_models": Modellliste oder
+    None, wenn es nicht antwortet).
 
     Laeuft in einem Hintergrund-Thread der Provider-Seite; in Tests wird
     die Funktion durch eine Attrappe ersetzt.
     """
+    from src.ml.lmstudio_provider import detect_lm_studio
     from src.ml.ollama_launcher import find_ollama_executable, quick_ping
     from src.utils.hardware import detect_and_recommend
 
@@ -111,6 +117,7 @@ def detect_ollama_environment() -> dict:
         "installed": bool(exe) or running,
         "running": running,
         "recommendation": detect_and_recommend(),
+        "lmstudio_models": detect_lm_studio(timeout=0.5),
     }
 
 
@@ -132,7 +139,7 @@ class _DetectThread(QThread):
             result = detect_ollama_environment()
         except Exception as e:  # Erkennung darf den Wizard nie blockieren
             result = {"exe": None, "installed": False, "running": False,
-                      "recommendation": None, "error": str(e)}
+                      "recommendation": None, "lmstudio_models": None, "error": str(e)}
         self.done.emit(result)
 
 
@@ -394,6 +401,12 @@ class ProviderPage(QWizardPage):
                 self.ollama_status_label = QLabel("    Pruefe Ollama-Installation ...")
                 self.ollama_status_label.setStyleSheet("color: gray;")
                 layout.addWidget(self.ollama_status_label)
+            elif _PROVIDER_IDS[i] == "lmstudio":
+                # Nur sichtbar, wenn LM Studio laeuft (siehe _on_detected)
+                rb.setVisible(False)
+                self.lmstudio_status_label = QLabel()
+                self.lmstudio_status_label.setVisible(False)
+                layout.addWidget(self.lmstudio_status_label)
 
         self.hardware_label = QLabel("Hardware wird geprueft ...")
         self.hardware_label.setWordWrap(True)
@@ -418,6 +431,7 @@ class ProviderPage(QWizardPage):
             btn = self._button_group.button(idx)
             if btn:
                 btn.setChecked(True)
+                btn.setVisible(True)  # auch LM Studio, falls schon gewaehlt
 
         layout.addStretch()
 
@@ -444,6 +458,18 @@ class ProviderPage(QWizardPage):
             status, color = "Ollama ist nicht installiert (Download im naechsten Schritt)", "#b35c00"
         self.ollama_status_label.setText("    " + status)
         self.ollama_status_label.setStyleSheet(f"color: {color};")
+
+        # LM Studio nur anbieten, wenn es laeuft (Empfehlung bleibt Ollama)
+        lms_models = result.get("lmstudio_models")
+        if lms_models is not None:
+            self._radios[_PROVIDER_IDS.index("lmstudio")].setVisible(True)
+            if lms_models:
+                status, color = f"✓ LM Studio laeuft ({len(lms_models)} Modell(e))", "green"
+            else:
+                status, color = "LM Studio laeuft, aber es ist kein Modell vorhanden", "#b35c00"
+            self.lmstudio_status_label.setText("    " + status)
+            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            self.lmstudio_status_label.setVisible(True)
 
         # Hardware-Empfehlung
         recommended_id = None
@@ -613,6 +639,8 @@ class ApiKeyPage(QWizardPage):
         if llm_cfg.get("provider") == self._provider_id:
             if self._provider_id == "ollama":
                 existing_value = llm_cfg.get("base_url", "")
+            elif self._provider_id == "lmstudio":
+                existing_value = ""
             else:
                 existing_value = llm_cfg.get("api_key", "")
         self.key_edit.setText(existing_value)
@@ -621,6 +649,7 @@ class ApiKeyPage(QWizardPage):
             "claude": "Anthropic Claude",
             "openai": "OpenAI GPT",
             "ollama": "Ollama",
+            "lmstudio": "LM Studio",
             "ollama_cloud": "Ollama Cloud",
             "openrouter": "OpenRouter",
             "poe": "Poe.com",
@@ -628,9 +657,21 @@ class ApiKeyPage(QWizardPage):
         name = provider_labels.get(self._provider_id, self._provider_id)
 
         is_ollama = (self._provider_id == "ollama")
-        self._ollama_box.setVisible(is_ollama)
+        is_lmstudio = (self._provider_id == "lmstudio")
+        self._ollama_box.setVisible(is_ollama or is_lmstudio)
+        # LM Studio: weder Key/URL-Feld noch Download - nur Modellwahl
+        for widget in (self.key_edit, self._hint_label, self.refresh_btn, self.pull_btn):
+            widget.setVisible(not is_lmstudio)
 
-        if is_ollama:
+        if is_lmstudio:
+            self.setTitle("Schritt 4: LM Studio")
+            self.setSubTitle(
+                "LM Studio laeuft auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
+                "nur ein Modell - waehlen Sie es unten aus."
+            )
+            self._show_btn.setVisible(False)
+            self._setup_lmstudio_section(detection)
+        elif is_ollama:
             self.setTitle("Schritt 4: Ollama einrichten")
             self.setSubTitle(
                 "Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
@@ -681,6 +722,11 @@ class ApiKeyPage(QWizardPage):
                 "4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
             ),
             "ollama": self._ollama_info_text(detection),
+            "lmstudio": (
+                "Der lokale Server von LM Studio muss beim Sortieren laufen\n"
+                "(LM Studio starten, Developer > Start Server). Das Modell koennen Sie\n"
+                "spaeter unter Extras -> Einstellungen aendern."
+            ),
             "ollama_cloud": (
                 "Ollama Cloud fuehrt die Ollama-Modelle auf Servern von ollama.com aus -\n"
                 "ideal fuer PCs ohne Grafikkarte. Dokumentinhalte werden dabei uebertragen.\n"
@@ -764,6 +810,24 @@ class ApiKeyPage(QWizardPage):
                 "Ollama nicht gefunden - nach der Installation 'Erneut pruefen' klicken."
             )
             self.pull_btn.setEnabled(False)
+
+    def _setup_lmstudio_section(self, detection: dict) -> None:
+        self.ollama_warning_label.setVisible(False)
+        self.pull_progress.setVisible(False)
+        self.cancel_pull_btn.setVisible(False)
+        models = detection.get("lmstudio_models") or []
+        configured_model = get_config().get_llm_config().get("model", "")
+        self.model_combo.clear()
+        self.model_combo.addItems(models)
+        if configured_model in models:
+            self.model_combo.setCurrentText(configured_model)
+        if models:
+            self.models_status_label.setText(f"{len(models)} Modell(e) in LM Studio verfuegbar.")
+        else:
+            self.models_status_label.setText(
+                "LM Studio bietet noch kein Modell an - bitte in LM Studio ein Modell "
+                "herunterladen und laden."
+            )
 
     def _start_probe(self):
         if self._models_thread is not None and self._models_thread.isRunning():
@@ -1276,6 +1340,13 @@ class SetupWizard(QWizard):
             model = self._api_key_page.get_selected_model()
             if model:
                 llm_cfg["model"] = model
+            config.set("llm", llm_cfg)
+        elif provider_id == "lmstudio":
+            # Kein Key, Standard-URL (dort wurde LM Studio erkannt)
+            llm_cfg = config.get_llm_config()
+            llm_cfg["api_key"] = ""
+            llm_cfg["base_url"] = ""
+            llm_cfg["model"] = self._api_key_page.get_selected_model()
             config.set("llm", llm_cfg)
         elif provider_id != "none":
             api_key = self._api_key_page.get_api_key()

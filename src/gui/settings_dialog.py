@@ -36,6 +36,7 @@ class SettingsDialog(QDialog):
         ("ollama", "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
         ("ollama_cloud", "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
         ("strata", "Strata (lokaler Modell-Server, OpenAI-kompatibel, eigener Key)"),
+        ("lmstudio", "LM Studio (lokal auf diesem Rechner, kein API-Key noetig)"),
         ("openrouter", "OpenRouter (viele Modelle, ein API-Key)"),
         ("poe", "Poe.com (viele KI-Modelle, ein API-Key)"),
         ("claude", "Anthropic Claude"),
@@ -180,7 +181,7 @@ class SettingsDialog(QDialog):
         self.base_url_input = QLineEdit()
         self.base_url_input.setPlaceholderText("http://localhost:11434")
         self.base_url_input.setToolTip(
-            "Nur fuer lokale Server (Ollama, Strata): URL des Servers.\n"
+            "Nur fuer lokale Server (Ollama, Strata, LM Studio): URL des Servers.\n"
             "Leer = Standard-URL (siehe Platzhalter)."
         )
         api_layout.addRow("Server-URL:", self.base_url_input)
@@ -200,6 +201,12 @@ class SettingsDialog(QDialog):
         model_row_layout.addWidget(self.refresh_models_button)
 
         api_layout.addRow("Modell:", model_row_layout)
+
+        # Erkennungsstatus (nur bei LM Studio sichtbar)
+        self.lmstudio_status_label = QLabel("")
+        self.lmstudio_status_label.setWordWrap(True)
+        self.lmstudio_status_label.setVisible(False)
+        api_layout.addRow("", self.lmstudio_status_label)
 
         layout.addWidget(api_group)
 
@@ -1909,6 +1916,7 @@ class SettingsDialog(QDialog):
     _URL_PROVIDER_DEFAULTS = {
         "ollama": "http://localhost:11434",
         "strata": "http://127.0.0.1:8080/v1",
+        "lmstudio": "http://localhost:1234/v1",
     }
     _API_KEY_PLACEHOLDERS = {
         "strata": "sk-strata-... (in Strata unter Connect, Taste k)",
@@ -1916,6 +1924,7 @@ class SettingsDialog(QDialog):
         "openai": "sk-...",
         "poe": "Poe API-Key von poe.com/api_key",
         "ollama": "Nicht noetig fuer Ollama",
+        "lmstudio": "Nicht noetig fuer LM Studio",
         "openrouter": "sk-or-... von openrouter.ai/keys",
         "ollama_cloud": "API-Key von ollama.com/settings/keys",
     }
@@ -1976,7 +1985,8 @@ class SettingsDialog(QDialog):
         self.base_url_input.setText(self._base_urls.get(self._url_provider, ""))
         self.base_url_input.setPlaceholderText(default_url)
         self.base_url_input.setEnabled(bool(default_url))
-        is_ollama = (new_provider == "ollama")
+        no_key = new_provider in ("ollama", "lmstudio")
+        self.lmstudio_status_label.setVisible(new_provider == "lmstudio")
 
         if new_provider == "none":
             self.api_key_input.setEnabled(False)
@@ -1985,15 +1995,51 @@ class SettingsDialog(QDialog):
             return
 
         # Alle anderen Provider: API-/Modell-Felder freischalten
-        # (nur Ollama lokal kommt ohne Key aus).
-        self.api_key_input.setEnabled(not is_ollama)
+        # (nur Ollama und LM Studio kommen ohne Key aus).
+        self.api_key_input.setEnabled(not no_key)
         self.model_combo.setEnabled(True)
         self.test_button.setEnabled(True)
 
-        self.model_combo.addItems(self._models_for_provider(new_provider))
+        if new_provider == "lmstudio":
+            self._detect_lmstudio()
+        else:
+            self.model_combo.addItems(self._models_for_provider(new_provider))
         self.api_key_input.setPlaceholderText(
             self._API_KEY_PLACEHOLDERS.get(new_provider, "")
         )
+
+    _LMSTUDIO_START_HINT = (
+        "LM Studio wurde nicht gefunden. LM Studio starten und den lokalen "
+        "Server aktivieren (Developer > Start Server), dann "
+        "„Modelle aktualisieren“ klicken."
+    )
+
+    def _detect_lmstudio(self) -> list[str] | None:
+        """Kurzer Ping auf /v1/models: Modelle eintragen oder Start-Hinweis zeigen.
+
+        Returns:
+            Modellliste bei laufendem LM Studio, sonst None.
+        """
+        from src.ml.lmstudio_provider import detect_lm_studio
+
+        models = detect_lm_studio(self._current_base_url("lmstudio"))
+        current = self.model_combo.currentText().strip()
+        self.model_combo.clear()
+        if models is None:
+            self.lmstudio_status_label.setText(self._LMSTUDIO_START_HINT)
+            self.lmstudio_status_label.setStyleSheet("color: #c0392b;")
+        else:
+            self.model_combo.addItems(models)
+            if models:
+                text, color = f"LM Studio erkannt: {len(models)} Modell(e) verfuegbar.", "green"
+            else:
+                text, color = ("LM Studio laeuft, bietet aber kein Modell an. In LM Studio "
+                               "ein Modell herunterladen bzw. laden."), "#b35c00"
+            self.lmstudio_status_label.setText(text)
+            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+        if current:
+            self.model_combo.setCurrentText(current)
+        return models
 
     def _update_consent_hint(self):
         """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
@@ -2264,9 +2310,9 @@ class SettingsDialog(QDialog):
         provider_id = self._provider_id_at(self.provider_combo.currentIndex())
         api_key = self.api_key_input.text().strip()
 
-        # Ollama braucht keinen API-Key, aber eine URL.
+        # Ollama und LM Studio brauchen keinen API-Key, aber eine URL.
         base_url = self._current_base_url(provider_id)
-        if provider_id == "ollama":
+        if provider_id in ("ollama", "lmstudio"):
             pass
         elif not api_key:
             QMessageBox.warning(
@@ -2297,6 +2343,8 @@ class SettingsDialog(QDialog):
                 self._test_ollama_cloud(api_key, model)
             elif provider_id == "strata":
                 self._test_strata(api_key, model, base_url)
+            elif provider_id == "lmstudio":
+                self._test_lmstudio(model, base_url)
         finally:
             self.test_button.setEnabled(True)
             self.test_button.setText("Verbindung testen")
@@ -2598,6 +2646,41 @@ class SettingsDialog(QDialog):
                 text = f"Verbindungsfehler: {str(e)}"
             QMessageBox.critical(self, "Fehler", text)
 
+    def _test_lmstudio(self, model: str, base_url: str):
+        """Testet ein lokales LM Studio (OpenAI-kompatibel, ohne Key)."""
+        if self._detect_lmstudio() is None:
+            QMessageBox.warning(self, "LM Studio", self._LMSTUDIO_START_HINT)
+            return
+        try:
+            from src.ml.llm_provider import LLMConfig
+            from src.ml.lmstudio_provider import LMStudioProvider
+
+            provider = LMStudioProvider(LLMConfig(
+                api_key="", model=model, base_url=base_url,
+            ))
+            if provider._client is None:
+                raise RuntimeError("OpenAI-kompatibler Client nicht verfuegbar.")
+            model_id = provider._get_model_id()
+            if not model_id:
+                raise RuntimeError(
+                    "LM Studio bietet kein Modell an. Bitte in LM Studio "
+                    "ein Modell herunterladen bzw. laden."
+                )
+            response = provider._create_chat_completion(
+                model=model_id,
+                max_tokens=200,
+                messages=[{"role": "user", "content": "Sage 'OK'"}],
+            )
+            QMessageBox.information(
+                self, "Erfolg",
+                f"Verbindung zu LM Studio erfolgreich!\n"
+                f"Server: {provider.base_url}\n"
+                f"Modell: {model_id}\n"
+                f"Antwort: {response.choices[0].message.content}"
+            )
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.critical(self, "Fehler", f"Verbindungsfehler: {str(e)}")
+
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab."""
         provider_id = self._provider_id_at(self.provider_combo.currentIndex())
@@ -2610,8 +2693,8 @@ class SettingsDialog(QDialog):
             )
             return
 
-        # Ollama braucht keinen API-Key, alle anderen schon.
-        if provider_id != "ollama" and not api_key:
+        # Ollama und LM Studio brauchen keinen API-Key, alle anderen schon.
+        if provider_id not in ("ollama", "lmstudio") and not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
@@ -2646,6 +2729,10 @@ class SettingsDialog(QDialog):
                         f"Keine Modelle gefunden. Laeuft Strata unter "
                         f"{strata.base_url} und stimmt der API-Key?"
                     )
+            elif provider_id == "lmstudio":
+                models = self._detect_lmstudio()
+                if not models:
+                    raise RuntimeError(self.lmstudio_status_label.text())
             elif provider_id == "openrouter":
                 models = self._fetch_openrouter_models(api_key)
             elif provider_id == "ollama_cloud":

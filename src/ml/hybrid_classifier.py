@@ -21,6 +21,7 @@ from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.ml.strata_provider import StrataProvider
+from src.ml.lmstudio_provider import LMStudioProvider
 from src.utils.config import get_config
 from src.utils.database import get_database
 
@@ -119,9 +120,9 @@ class HybridClassifier:
             self.llm_enabled = False
             return
 
-        # Ollama laeuft lokal und braucht keinen API-Key.
+        # Ollama und LM Studio laufen lokal und brauchen keinen API-Key.
         # Alle anderen Provider brauchen einen.
-        if provider_type != "ollama" and not api_key:
+        if provider_type not in ("ollama", "lmstudio") and not api_key:
             self.llm_enabled = False
             return
 
@@ -149,6 +150,8 @@ class HybridClassifier:
                 self.llm_provider = OllamaCloudProvider(config)
             elif provider_type == "strata":
                 self.llm_provider = StrataProvider(config)
+            elif provider_type == "lmstudio":
+                self.llm_provider = LMStudioProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -192,8 +195,8 @@ class HybridClassifier:
                 self.llm_enabled = False
                 return False
 
-        # Ollama laeuft lokal und braucht keinen API-Key.
-        if provider_type != LLMProviderType.OLLAMA and not api_key:
+        # Ollama und LM Studio laufen lokal und brauchen keinen API-Key.
+        if provider_type not in (LLMProviderType.OLLAMA, LLMProviderType.LMSTUDIO) and not api_key:
             self.llm_provider = None
             self.llm_enabled = False
             return False
@@ -228,6 +231,8 @@ class HybridClassifier:
                 self.llm_provider = OllamaCloudProvider(config)
             elif provider_type == LLMProviderType.STRATA:
                 self.llm_provider = StrataProvider(config)
+            elif provider_type == LLMProviderType.LMSTUDIO:
+                self.llm_provider = LMStudioProvider(config)
 
             self.llm_enabled = (
                 self.llm_provider is not None
@@ -627,7 +632,7 @@ class HybridClassifier:
         return model
 
     def check_llm_connection(self) -> Optional[tuple[bool, str]]:
-        """Prueft, ob ein lokaler LLM-Server (Ollama, Strata) gerade antwortet.
+        """Prueft, ob ein lokaler LLM-Server (Ollama, Strata, LM Studio) gerade antwortet.
 
         Blockiert bis zu einigen Sekunden - nur im Hintergrund aufrufen.
 
@@ -667,6 +672,8 @@ class HybridClassifier:
             return "Claude"
         if isinstance(self.llm_provider, OpenRouterProvider):
             return "OpenRouter"
+        if isinstance(self.llm_provider, LMStudioProvider):
+            return "LM Studio"
         if isinstance(self.llm_provider, StrataProvider):
             return "Strata"
         if isinstance(self.llm_provider, OpenAIProvider):

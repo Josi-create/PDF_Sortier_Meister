@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **LM Studio als lokaler KI-Anbieter** (#45): Wer LM Studio bereits nutzt,
+  kann es in den Einstellungen als Anbieter „LM Studio“ wählen. Ein API-Key ist
+  nicht nötig, die Server-URL ist einstellbar (Standard
+  `http://localhost:1234/v1`). Läuft LM Studio, erkennt die App das sofort und
+  zeigt die verfügbaren Modelle zur Auswahl (Embedding-Modelle ausgenommen);
+  sonst erscheint der Hinweis, LM Studio zu starten und den lokalen Server zu
+  aktivieren. Im Einrichtungsassistenten wird LM Studio nur angeboten, wenn es
+  gerade läuft; die Empfehlung bleibt Ollama. Die App bietet LM Studio nie zum
+  Download an.
+
 ## [0.25.0] - 2026-11-07
 
 ### Neu

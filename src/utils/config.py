@@ -85,7 +85,7 @@ class Config:
         # LLM-Konfiguration
         "llm": {
             # Gueltige Werte: "none", "claude", "openai", "poe",
-            # "openrouter", "ollama", "ollama_cloud", "strata".
+            # "openrouter", "ollama", "ollama_cloud", "strata", "lmstudio".
             # "poe" war in 0.19.0 kurzzeitig entfernt (Issue #66) und wird
             # wieder unterstuetzt - poe.com vergibt wieder API-Keys.
             "provider": "none",
@@ -96,7 +96,7 @@ class Config:
             "temperature": 0.3,
             "auto_use": False,  # LLM automatisch bei niedriger Konfidenz
             "base_url": "",  # Server-URL des aktiven lokalen Providers (Spiegel von base_urls)
-            "base_urls": {},  # Server-URL pro lokalem Provider: {"ollama": ..., "strata": ...}
+            "base_urls": {},  # Server-URL pro lokalem Provider: {"ollama": ..., "strata": ..., "lmstudio": ...}
             # Gecachte Modell-Liste pro Provider (gefuellt durch "Modelle aktualisieren")
             "cached_models": {},
             "cloud_consent": False,  # Opt-in fuer Cloud-Uebertragung von PDF-Inhalten
