@@ -238,7 +238,7 @@ class Rauchtest:
                 p.wait(10)
             except subprocess.TimeoutExpired:
                 p.kill()
-        if status.get("dokumente") != 5 or treffer != 2 or "<html" not in seite.lower():
+        if status.get("dokumente") != 6 or treffer != 2 or "<html" not in seite.lower():
             raise Fehlschlag(f"Browser-Oberfläche: dokumente={status.get('dokumente')}, treffer={treffer}")
         return "Browser-Oberfläche (Startseite, /api/status, /api/suche)"
 
