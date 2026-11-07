@@ -394,6 +394,10 @@ class PdfPreviewWidget(QWidget):
         self.external_btn.setEnabled(True)
         self.load_failed.emit(path, message)
 
+    def show_message(self, text: str) -> None:
+        """Zeigt einen Hinweistext statt einer PDF (z. B. "Vorschau wird erstellt ...")."""
+        self._show_message(text)
+
     def _show_message(self, text: str):
         self.message_label.setText(text)
         self._stack.setCurrentWidget(self.message_label)

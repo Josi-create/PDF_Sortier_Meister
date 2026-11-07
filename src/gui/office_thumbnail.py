@@ -11,10 +11,11 @@ GPL-3.0-or-later - Copyright (c) 2026
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPixmap
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPixmap
 from PyQt6.QtWidgets import QMenu
 
+from src.core import office_vorschau
 from src.core.office_convert import WORD_ENDUNGEN
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
@@ -53,13 +54,81 @@ def platzhalter_bild(pfad: Path, breite: int = 140, hoehe: int = 160) -> QPixmap
     return pixmap
 
 
+def text_seite(zeilen: list[str], pfad: Path, breite: int = 140, hoehe: int = 160) -> QImage:
+    """Kleine weisse Seite mit den ersten Textzeilen (selbst gezeichnet)."""
+    bild = QImage(breite, hoehe, QImage.Format.Format_ARGB32_Premultiplied)
+    bild.fill(QColor("white"))
+    p = QPainter(bild)
+    try:
+        farbe = QColor(WORD_FARBE if pfad.suffix.lower() in WORD_ENDUNGEN else EXCEL_FARBE)
+        p.fillRect(0, 0, breite, 4, farbe)
+        font = QFont()
+        font.setPixelSize(9)
+        p.setFont(font)
+        p.setPen(QColor("#333333"))
+        fm = p.fontMetrics()
+        y = 8
+        for zeile in zeilen:
+            if y + fm.height() > hoehe - 4:
+                break
+            p.drawText(6, y, breite - 12, fm.height(), int(Qt.AlignmentFlag.AlignLeft),
+                       fm.elidedText(zeile, Qt.TextElideMode.ElideRight, breite - 12))
+            y += fm.height() + 1
+    finally:
+        p.end()
+    return bild
+
+
+def kachelbild(pfad: Path) -> Optional[QImage]:
+    """Bestes schnell verfuegbares Bild: eingebettet, Windows-Shell, erste Textzeilen.
+
+    Startet weder Word noch Excel. Laeuft im Hintergrund-Thread (nur QImage).
+    """
+    roh = office_vorschau.eingebettetes_bild(pfad)
+    if roh:
+        bild = QImage.fromData(roh)
+        if not bild.isNull():
+            return bild
+    shell = office_vorschau.shell_bild(pfad)
+    if shell:
+        b, h, daten = shell
+        bild = QImage(daten, b, h, b * 4, QImage.Format.Format_ARGB32_Premultiplied).copy()
+        weiss = QImage(b, h, QImage.Format.Format_ARGB32_Premultiplied)
+        weiss.fill(QColor("white"))
+        q = QPainter(weiss)
+        q.drawImage(0, 0, bild)
+        q.end()
+        return weiss
+    zeilen = office_vorschau.erste_zeilen(pfad)
+    return text_seite(zeilen, pfad) if zeilen else None
+
+
+class KachelbildThread(QThread):
+    """Laedt das Kachelbild im Hintergrund; ohne Ergebnis bleibt der Platzhalter."""
+
+    bild_fertig = pyqtSignal(QImage)
+
+    def __init__(self, pfad: Path, parent=None):
+        super().__init__(parent)
+        self.pfad = pfad
+
+    def run(self):
+        try:
+            bild = kachelbild(self.pfad)
+        except Exception:  # noqa: BLE001 - Platzhalter genuegt
+            bild = None
+        if bild is not None and not bild.isNull():
+            self.bild_fertig.emit(bild)
+
+
 class OfficeThumbnailWidget(PDFThumbnailWidget):
     """Kachel einer Word-/Excel-Datei. ``pdf_path`` ist hier der Pfad der Office-Datei."""
 
     convert_requested = pyqtSignal(Path, bool)  # (Datei, als PDF/A)
 
     _BASE_TOOLTIP = (
-        "Word-/Excel-Datei. Doppelklick öffnet sie im Standardprogramm.\n"
+        "Word-/Excel-Datei. Anklicken zeigt die Seitenvorschau, Doppelklick öffnet sie\n"
+        "im Standardprogramm.\n"
         "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
     )
 
@@ -68,12 +137,24 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self.setAcceptDrops(False)  # kein Stapeln auf Office-Dateien
 
     def load_thumbnail(self):
-        """Statt PDF-Render: Platzhalter (kein Hintergrund-Thread)."""
+        """Sofort der Platzhalter, danach (im Hintergrund) das beste echte Bild."""
         self._on_thumbnail_loaded(platzhalter_bild(self.pdf_path))
+        thread = KachelbildThread(self.pdf_path, self)
+        thread.bild_fertig.connect(self._on_kachelbild)
+        self._loader_thread = thread  # cleanup() wartet darauf
+        thread.start()
+
+    def _on_kachelbild(self, bild: QImage):
+        pixmap = QPixmap.fromImage(bild)
+        if not pixmap.isNull():
+            self._original_pixmap = pixmap
+            self._apply_thumbnail_pixmap()
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Kein Auswahl-/Analyse-Ablauf: nur die Hover-Vorschau ausblenden."""
+        """Einzelauswahl (nur Vorschau, keine Analyse); Strg/Umschalt gibt es nicht."""
         self._hide_hover_preview()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.pdf_path)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         """Kein Drag & Drop in Zielordner (dort gehoeren PDFs hin)."""
@@ -90,4 +171,6 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         convert_a = menu.addAction("In PDF/A umwandeln (Langzeitarchiv)")
         convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
         convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
+        menu.addSeparator()
+        menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
         return menu

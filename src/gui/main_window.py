@@ -75,7 +75,8 @@ from src.core.pdf_rotate import (
     rotate_pdf,
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
-from src.gui.office_convert_worker import OfficeConvertWorker
+from src.core import office_vorschau
+from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
@@ -193,6 +194,8 @@ class MainWindow(QMainWindow):
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
         self._office_worker: Optional[OfficeConvertWorker] = None
+        self._office_vorschau_worker: Optional[OfficeVorschauWorker] = None
+        self._office_selected: Optional[Path] = None  # ausgewaehlte .docx/.xlsx (nur Vorschau)
         self._ocr_neu_paths: list[Path] = []
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
@@ -887,14 +890,74 @@ class MainWindow(QMainWindow):
 
     def _add_office_widgets(self, office_files: list[Path], start_index: int):
         """Kacheln fuer .docx/.xlsx hinter den PDFs im Raster (Issue #9)."""
+        if self._office_selected not in office_files:
+            self._office_selected = None
         for j, pfad in enumerate(office_files):
             widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
+            widget.selected = pfad == self._office_selected
+            widget.clicked.connect(self.on_office_clicked)
+            widget.delete_requested.connect(self.on_office_delete)
             widget.double_clicked.connect(self.open_office_file)
             widget.open_requested.connect(self.open_office_file)
             widget.convert_requested.connect(self.on_office_convert)
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.office_widgets.append(widget)
+
+    def _office_abwaehlen(self):
+        """Hebt die Auswahl einer .docx/.xlsx auf (die Vorschau-Anzeige bleibt Sache des Aufrufers)."""
+        self._office_selected = None
+        for widget in self.office_widgets:
+            widget.selected = False
+
+    def on_office_clicked(self, pfad: Path):
+        """Einzelauswahl einer .docx/.xlsx: nur Seitenvorschau, keine Analyse/Vorschlaege."""
+        self._clear_selection()
+        self._office_selected = pfad
+        for widget in self.office_widgets:
+            widget.selected = widget.pdf_path == pfad
+        self.statusbar.showMessage(f"Ausgewählt: {pfad.name}")
+        self.detail_panel.preview.show_message("Vorschau wird erstellt …")
+        self._start_office_vorschau()
+
+    def _start_office_vorschau(self):
+        """Erzeugt die Vorschau der ausgewaehlten Datei; es laeuft hoechstens eine Umwandlung zugleich."""
+        if self._office_vorschau_worker is not None or self._office_selected is None:
+            return
+        worker = OfficeVorschauWorker(self._office_selected, self)
+        worker.fertig.connect(self._on_office_vorschau)
+        self._office_vorschau_worker = worker
+        worker.start()
+
+    def _on_office_vorschau(self, pfad: Path, pdf, fehler):
+        self._office_vorschau_worker = None
+        if self._office_selected is None:
+            return  # inzwischen etwas anderes ausgewaehlt
+        if self._office_selected != pfad:
+            self._start_office_vorschau()  # inzwischen eine andere Datei angeklickt
+            return
+        if pdf is not None:
+            self.detail_panel.preview.load_pdf(pdf)
+        else:
+            self.detail_panel.preview.show_message(f"Vorschau nicht möglich:\n{fehler}")
+
+    def on_office_delete(self, pfad: Path):
+        """Kontextmenue "Loeschen" einer .docx/.xlsx (gleicher Weg und gleiche Rueckfrage wie bei PDFs)."""
+        self._datei_loeschen(pfad, "Datei löschen", "diese Datei", self._remove_office_widget)
+
+    def _remove_office_widget(self, pfad: Path):
+        for widget in self.office_widgets:
+            if widget.pdf_path == pfad:
+                self.pdf_layout.removeWidget(widget)
+                widget.cleanup()
+                widget.deleteLater()
+                self.office_widgets.remove(widget)
+                break
+        if self._office_selected == pfad:
+            self._office_selected = None
+            self.detail_panel.clear()
+        office_vorschau.vorschau_loeschen(pfad)
+        self._relayout_pdf_grid(force=True)
 
     def open_office_file(self, pfad: Path):
         """Oeffnet eine .docx/.xlsx im Standardprogramm."""
@@ -931,6 +994,11 @@ class MainWindow(QMainWindow):
             )
         if erzeugt:
             self.load_pdfs()
+            # Das neue PDF wie angeklickt auswaehlen (load_pdfs baut die Kacheln synchron)
+            widget = self._pdf_widget_for(erzeugt[0])
+            if widget is not None:
+                self.on_pdf_clicked(erzeugt[0])
+                self.pdf_scroll_area.ensureWidgetVisible(widget)
         if fehler:
             QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
         elif hinweise:
@@ -1812,6 +1880,7 @@ class MainWindow(QMainWindow):
             self._ocr_neu_worker.requestInterruption()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
+        self._office_selected = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -1917,6 +1986,7 @@ class MainWindow(QMainWindow):
             self._clear_selection()
             return
 
+        self._office_abwaehlen()
         # Alte Auswahl aufheben (Einzelauswahl)
         for widget in self.pdf_widgets:
             widget.selected = False
@@ -2033,6 +2103,7 @@ class MainWindow(QMainWindow):
             # Alle Widgets deselektieren
             for widget in self.pdf_widgets:
                 widget.selected = False
+            self._office_abwaehlen()
 
             # Auswahl-Listen zurücksetzen
             self.selected_pdf = None
@@ -3031,10 +3102,18 @@ class MainWindow(QMainWindow):
 
     def on_pdf_delete(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF gelöscht werden soll."""
+        self._datei_loeschen(pdf_path, "PDF löschen", "diese PDF", self.remove_pdf_widget)
+
+    def _datei_loeschen(self, pdf_path: Path, titel: str, objekt: str, widget_entfernen):
+        """Rueckfrage, Loeschen und Kachel entfernen - gemeinsam fuer PDFs und Office-Dateien.
+
+        Das Loeschen ist endgueltig (Papierkorb: Issue #124) und ist nur hier
+        umgesetzt, damit #124 spaeter beide Faelle abdeckt.
+        """
         reply = QMessageBox.question(
             self,
-            "PDF löschen",
-            f"Möchten Sie diese PDF wirklich löschen?\n\n{pdf_path.name}",
+            titel,
+            f"Möchten Sie {objekt} wirklich löschen?\n\n{pdf_path.name}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -3043,8 +3122,8 @@ class MainWindow(QMainWindow):
             try:
                 self.file_manager.delete_file(pdf_path)
                 self.statusbar.showMessage(f"Gelöscht: {pdf_path.name}", 3000)
-                # Nur das gelöschte PDF-Widget entfernen
-                self.remove_pdf_widget(pdf_path)
+                # Nur das gelöschte Widget entfernen
+                widget_entfernen(pdf_path)
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Löschen fehlgeschlagen:\n{e}")
 
