@@ -17,6 +17,18 @@ def test_system_prompt_erlaubt_ketten_und_verbietet_such_aufforderung():
     assert "7. Antworte in der Sprache der Frage." in SYSTEM_PROMPT
 
 
+def test_prompts_warnen_vor_wortuebereinstimmungen_und_verlangen_suche_bei_summen():
+    from src.rag.prompts import SYSTEM_PROMPT_WERKZEUGE, build_system_prompt_werkzeuge
+
+    for prompt in (SYSTEM_PROMPT, SYSTEM_PROMPT_WERKZEUGE):
+        assert "gemeinsame Kennungen mit dem Bezugsdokument" in prompt
+        assert "bloße Wortübereinstimmungen" in prompt
+    assert "Beträgen, Summen oder einem Zeitraum" in SYSTEM_PROMPT_WERKZEUGE
+    assert "aus einem Dateinamen allein" in SYSTEM_PROMPT_WERKZEUGE
+    assert "höchstens 4 Schritte" in build_system_prompt_werkzeuge(4)
+    assert "{max_schritte}" not in build_system_prompt_werkzeuge("x")
+
+
 def test_kontextblock_mit_kennungen():
     docs = [
         {"index": 1, "filename": "Scan.pdf", "text_snippet": "Vertrag", "bezug": True, "ordner": "Scan",

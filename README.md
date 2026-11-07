@@ -97,7 +97,10 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 ### KI — optional, lokal oder Cloud
 - Ohne KI: alles oben funktioniert mit dem lokalen Klassifikator
 - Mit KI: bessere Ordner- und Namensvorschläge, automatische Metadaten-Extraktion und ein
-  **Chat über die eigenen Dokumente** (*„Was habe ich 2025 für Strom gezahlt?“* — mit klickbaren Quellen)
+  **Chat über die eigenen Dokumente** (*„Was habe ich 2025 für Strom gezahlt?“* — mit klickbaren Quellen).
+  Modelle mit Werkzeugaufrufen (gpt-oss, Qwen3, Gemma, Claude, OpenAI, OpenRouter) **suchen und lesen
+  selbst** in der Sammlung, zeigen ihre Arbeitsschritte und können auf Wunsch lesend SQL auf der
+  Suchdatenbank ausführen; für den Chat lässt sich ein anderes Modell wählen als für die Sortierung
 - Anbieter: **Ollama** (lokal, kein API-Key, startet bei Bedarf automatisch), **Ollama Cloud**
   (dieselben Modelle auf ollama.com — für PCs ohne Grafikkarte), **OpenRouter**, **Anthropic Claude**,
   **OpenAI**, **Poe**
@@ -116,7 +119,9 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   Seite, Vorschau springt auf die Trefferseite; Filter nach Typ, Ordner, Zeitraum und den PDFSM-Metadaten
   (Steuerjahr, Kategorie, Korrespondent, Betrag). Suchsyntax: `Rechnung Telekom` (alle Wörter),
   `"genaue Wortfolge"`, `Rechnung*`, `Strom ODER Gas`, `Rechnung NICHT Mahnung`; Umlaute sind egal
-- Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe
+- Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe. Ist im
+  Vorschau-Reiter ein PDF gewählt, bezieht sich der Chat darauf: Vertrags-, Zähler- und Kundennummern
+  aus dem Dokument holen die verknüpften Unterlagen (Abrechnung, Vertrag, Mails) in den Kontext
 - **Einmal täglich im Hintergrund**, sobald der Rechner nicht benutzt wird. War er zur eingestellten Zeit
   aus, wird der Lauf nach dem Einschalten nachgeholt — erst im Leerlauf, nicht direkt nach dem Start. Bei
   Benutzung hält der Lauf an und setzt später fort. Neue Scans liest „Jetzt indizieren“ sofort ein
@@ -269,7 +274,8 @@ nicht: [Vergleich paperless-ngx.md](Vergleich%20paperless-ngx.md) (Stand 09/2026
 
 Bekannte Grenzen: Löschen fragt nach, ist danach aber endgültig (kein Papierkorb); die sofortige OCR
 beim Anklicken eines Scans liest die ersten fünf Seiten (die übrigen erkennt der Hintergrundlauf der
-Dokumentensuche); der Chat gibt der KI je Dokument höchstens 5.000 Zeichen mit.
+Dokumentensuche); der Chat gibt der KI zum Start je Dokument höchstens 5.000 Zeichen mit — mehr liest
+das Modell bei Bedarf selbst mit „dokument_lesen“ nach.
 
 ---
 

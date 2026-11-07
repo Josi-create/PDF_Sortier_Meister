@@ -77,10 +77,52 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
+from src.ml.provider_factory import erzeuge_provider, grund_text
 from src.gui.chat_view import ChatView
 from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
 from src.search.meldungen import melden as index_melden
+
+
+# Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
+# HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
+_PROVIDER_ANZEIGENAMEN = {
+    "claude": "Claude",
+    "openai": "OpenAI",
+    "poe": "Poe",
+    "openrouter": "OpenRouter",
+    "ollama": "Ollama",
+    "ollama_cloud": "Ollama Cloud",
+    "strata": "Strata",
+}
+
+
+def provider_anzeigename(provider_id: str) -> str:
+    """Anzeigename zu einer Provider-Kennung (unbekannte Kennung unveraendert)."""
+    kennung = str(provider_id or "").strip().lower()
+    return _PROVIDER_ANZEIGENAMEN.get(kennung, kennung or "Unbekannt")
+
+
+def modell_name(provider, fallback: str = "", short: bool = False) -> str:
+    """Modell-ID eines LLM-Providers (Issue #166/#167).
+
+    Gleiche Logik wie ``HybridClassifier.get_llm_model_name``: zuerst
+    ``_get_model_id()`` des Providers (loest Kurznamen wie "haiku" auf), sonst
+    ``config.model``, sonst ``fallback``. ``short`` laesst das Anbieter-Praefix
+    wie "z-ai/" (OpenRouter) weg - fuer die knappe Anzeige in der Statusleiste.
+    """
+    model = ""
+    getter = getattr(provider, "_get_model_id", None)
+    if callable(getter):
+        try:
+            model = getter() or ""
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            model = ""
+    if not model:
+        model = getattr(getattr(provider, "config", None), "model", "") or fallback or ""
+    if short and "/" in model:
+        model = model.rsplit("/", 1)[-1]
+    return model
 
 
 class _ClickableLabel(QLabel):
@@ -133,6 +175,14 @@ class MainWindow(QMainWindow):
         self.classifier = get_classifier()
         self.hybrid_classifier = get_hybrid_classifier()
         self.pdf_cache = get_pdf_cache()
+
+        # Eigenes Chat-Modell (Issue #166/#167): Provider-Instanz zum
+        # "chat"-Block, gecacht ueber das Konfigurations-Dict (Schluessel);
+        # _chat_llm_grund = Grund-Code der Provider-Fabrik, wenn keine gebaut
+        # werden konnte (fuer den Tooltip der Statusleiste).
+        self._chat_llm_provider = None
+        self._chat_llm_key: Optional[dict] = None
+        self._chat_llm_grund = ""
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
@@ -275,6 +325,9 @@ class MainWindow(QMainWindow):
         self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
         # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
         self.chat_view.bezug_daten = self._chat_bezug_daten
+        # Eigenes Chat-Modell (Issue #166/#167): Quelle fuer den Provider des
+        # Chats; None = Modell der Sortierung (hybrid_classifier.llm_provider)
+        self.chat_view.chat_provider_quelle = self._chat_provider
         self.center_tabs.addTab(self.chat_view, "Chat")
         self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
@@ -4912,6 +4965,15 @@ class MainWindow(QMainWindow):
         self.hybrid_classifier._init_llm_provider()
         self._llm_connection = None  # anderer Provider/Server: neu pruefen
         self._llm_request_error = None
+        # Eigenes Chat-Modell (Issue #166/#167): Cache verwerfen, Chat informieren.
+        # provider_geaendert() entsteht parallel in der ChatView - getattr-defensiv.
+        self._chat_llm_provider = None
+        self._chat_llm_key = None
+        self._chat_llm_grund = ""
+        provider_geaendert = getattr(self.chat_view, "provider_geaendert", None)
+        if callable(provider_geaendert):
+            provider_geaendert()
+        self.chat_view.refresh_llm_status()
         self._update_llm_status()
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
@@ -4956,9 +5018,70 @@ class MainWindow(QMainWindow):
             return "bereit", None
         return "fehler", ki_hinweis(provider, connection[1], model)
 
+    def _chat_provider(self):
+        """Provider des eigenen Chat-Modells (Issue #166/#167); None = Modell der Sortierung.
+
+        Quelle fuer ``ChatView.chat_provider_quelle``. Die Instanz wird ueber das
+        Dict aus ``Config.get_chat_llm_config()`` gecacht und erst nach einer
+        Aenderung neu gebaut (``_on_settings_changed`` verwirft den Cache).
+        Konnte keine gebaut werden (Einwilligung, Key, Konstruktorfehler), steht
+        der Grund-Code in ``self._chat_llm_grund``; ``grund_text()`` uebersetzt
+        ihn fuer die Oberflaeche. Wirft nie.
+        """
+        cfg = self.config.get_chat_llm_config()
+        if cfg is None:
+            self._chat_llm_provider = None
+            self._chat_llm_key = None
+            self._chat_llm_grund = ""
+            return None
+        if cfg != self._chat_llm_key:
+            provider, grund = erzeuge_provider(cfg)
+            self._chat_llm_provider = provider
+            self._chat_llm_grund = grund
+            self._chat_llm_key = dict(cfg)
+        return self._chat_llm_provider
+
+    def _chat_status_zusatz(self) -> tuple[str, str]:
+        """Zusatz der LLM-Statusanzeige, wenn der Chat ein eigenes Modell hat (Issue #166/#167).
+
+        Returns:
+            (Anhang fuer den Text der Statusleiste, Zeile fuer den Tooltip);
+            beides leer, wenn der Chat das Modell der Sortierung nutzt.
+        """
+        try:
+            cfg = self.config.get_chat_llm_config()
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            cfg = None
+        if not cfg:
+            return "", ""
+        name = provider_anzeigename(cfg.get("provider", ""))
+        provider = self._chat_provider()
+        if provider is None:
+            grund = grund_text(self._chat_llm_grund) or "Kein KI-Anbieter eingestellt."
+            return f" · Chat: {name} (aus)", f"Chat: {name} – nicht aktiv. {grund}"
+        try:
+            verfuegbar = bool(provider.is_available())
+        except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
+            verfuegbar = False
+        if not verfuegbar:
+            # Der Chat nimmt dann das Modell der Sortierung (ChatView._llm_provider_fuer_chat)
+            return (f" · Chat: {name} (aus)",
+                    f"Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); "
+                    "der Chat nutzt das Modell der Sortierung.")
+        model_full = modell_name(provider, cfg.get("model", ""))
+        model_short = modell_name(provider, cfg.get("model", ""), short=True)
+        text = f" · Chat: {name}/{model_short}" if model_short else f" · Chat: {name}"
+        tip = f"Chat: {name}, Modell: {model_full}" if model_full else f"Chat: {name}"
+        return text, tip
+
     def _update_llm_status(self):
         """Aktualisiert die LLM-Statusanzeige (Farbe, Text, Tooltip)."""
         health, hinweis = self._llm_health()
+        # Eigenes Chat-Modell (Issue #166/#167) - getattr-defensiv, weil Tests
+        # Fenster-Attrappen nur mit einzelnen MainWindow-Methoden bauen
+        zusatz = getattr(self, "_chat_status_zusatz", None)
+        chat_text, chat_tip = zusatz() if callable(zusatz) else ("", "")
+        chat_zeile = f"\n{chat_tip}" if chat_tip else ""
         if health != "aus":
             provider = self.hybrid_classifier.get_llm_provider_name()
             model_short = self.hybrid_classifier.get_llm_model_name(short=True)
@@ -4979,10 +5102,10 @@ class MainWindow(QMainWindow):
                 state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
                          f"Problem: {hinweis.problem}\n"
                          f"Abhilfe: {hinweis.abhilfe}")
-            self.llm_status_label.setText(text)
+            self.llm_status_label.setText(text + chat_text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}\n\nDoppelklick öffnet die Einstellungen."
+                f"{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -4992,10 +5115,11 @@ class MainWindow(QMainWindow):
                 reason = "Keine Einwilligung zur Datenübertragung erteilt."
             else:
                 reason = "Nicht konfiguriert."
-            self.llm_status_label.setText("LLM: Aus")
+            self.llm_status_label.setText("LLM: Aus" + chat_text)
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
+                f"KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
+                f"Doppelklick öffnet die Einstellungen."
             )
 
     def _on_llm_check_tick(self):

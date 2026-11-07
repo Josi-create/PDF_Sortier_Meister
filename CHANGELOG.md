@@ -7,6 +7,34 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Der Chat sucht und liest selbst** (#167): Kann das Modell Werkzeuge
+  aufrufen (Ollama mit gpt-oss, Qwen3, Gemma, alle OpenAI-kompatiblen Anbieter,
+  Claude), bekommt es die Werkzeuge „suche“ (Volltextsuche mit Dateityp-,
+  Ordner-, Zeitraum- und Metadatenfiltern), „dokument_lesen“ (Volltext,
+  seitenweise, bei Excel das Tabellenblatt), „ordner_vorschlag“ (Sortierlogik
+  und ähnliche, bereits einsortierte Dokumente) und „korrespondent_info“
+  (Aliase, Notizen, MwSt, absetzbar). Es darf bis zu sechs Schritte lang
+  suchen und lesen, bevor es antwortet; die Statuszeile zeigt jeden Schritt,
+  „Abbrechen“ greift zwischen den Schritten. Im Chat erscheinen die
+  Arbeitsschritte („🔎 Suche „226541“: 3 Treffer“) ein- und ausklappbar vor
+  der Antwort, das Quellen-Panel unterscheidet zitierte, gelesene und
+  gefundene Dokumente. Modelle ohne Werkzeuge antworten wie bisher; in den
+  Einstellungen lässt sich das Verhalten abschalten und die Zahl der Schritte
+  wählen.
+- **SQL-Abfragen im Chat als Option** (#167): „SQL-Abfragen auf der
+  Suchdatenbank erlauben“ gibt dem Modell das Werkzeug „sql_abfrage“ für Summen,
+  Zählungen und Listen über viele Dokumente. Die Verbindung ist nur lesend
+  (`mode=ro`, `query_only`), es ist genau eine SELECT-/WITH-Anweisung erlaubt,
+  Zeitlimit 15 Sekunden, höchstens 200 Zeilen. Standard ist aus; empfohlen für
+  große Modelle, die SQLite-Fehlermeldungen selbst korrigieren.
+- **Eigenes Modell für den Chat** (#167): Unter Einstellungen > KI-Assistent
+  lässt sich für den Chat ein anderer Anbieter und ein anderes Modell wählen
+  als für die Sortierung, etwa ein kleines lokales Modell zum Sortieren und
+  ein großes Modell (Ollama Cloud, OpenRouter, Claude) zum Fragen. Die
+  Einwilligung für Cloud-Anbieter gilt auch hier. Die Statusleiste zeigt
+  „Chat: Anbieter/Modell“, wenn es abweicht.
+
 ### Verbessert
 - **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
   Bezugsdokument zieht der Chat Vertrags-, Kunden-, Zähler- und

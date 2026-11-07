@@ -10,6 +10,7 @@ R3: striktes QObject-move-to-thread-Pattern, kein QThread-Subclassing).
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
+import inspect
 import threading
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
@@ -65,10 +66,12 @@ class ChatWorker(QObject):
     def run(self) -> None:
         """Fuehrt den blockierenden ``ask()``-Aufruf aus.
 
-        Da ``ask()`` ein einziger blockierender Aufruf ist, kann er
-        nicht mitten drin abgebrochen werden. ``cancel()`` verhindert
-        daher nur, dass ``finished`` nach Rueckkehr noch ausgewertet
-        wird (das ``_cancelled``-Flag wird geprueft).
+        Ein einzelner LLM-Aufruf laesst sich nicht mitten drin abbrechen;
+        ``cancel()`` verhindert dann nur, dass ``finished`` nach Rueckkehr
+        noch ausgewertet wird (das ``_cancelled``-Flag wird geprueft). Die
+        Werkzeug-Schleife des Controllers (Issue #166/#167) bekommt das
+        ``threading.Event`` als ``abbruch`` und haelt zwischen zwei
+        Schritten an; ``fortschritt`` speist die Statuszeile.
         """
         # Doppel-Start verhindern (z.B. wenn ``started`` zweimal emittiert wird)
         if self._finished_emitted or self._failed_emitted:
@@ -81,10 +84,11 @@ class ChatWorker(QObject):
             token = activity.begin(KIND_CHAT, self.question[:40])
             ok = False
             try:
+                extra = self._ask_argumente()
                 if self.bezug is None:
-                    response = self.controller.ask(self.question)
+                    response = self.controller.ask(self.question, **extra)
                 else:
-                    response = self.controller.ask(self.question, bezug=self.bezug)
+                    response = self.controller.ask(self.question, bezug=self.bezug, **extra)
                 ok = True
             finally:
                 activity.end(token, success=ok)
@@ -102,6 +106,25 @@ class ChatWorker(QObject):
             return
         self._finished_emitted = True
         self.finished.emit(response)
+
+    def _ask_argumente(self) -> dict:
+        """``abbruch``/``fortschritt`` fuer ``ask()`` - nur, wenn die Methode sie annimmt.
+
+        Issue #166/#167: Der echte :class:`RAGController` nimmt beide; Stubs
+        in den GUI-Tests haben ``ask(question)`` bzw. ``ask(question, bezug=...)``
+        und bekommen nichts Zusaetzliches.
+        """
+        try:
+            parameter = inspect.signature(self.controller.ask).parameters
+        except (TypeError, ValueError):
+            return {}
+        nimmt_alles = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameter.values())
+        extra: dict = {}
+        if nimmt_alles or "abbruch" in parameter:
+            extra["abbruch"] = self._cancel_event
+        if nimmt_alles or "fortschritt" in parameter:
+            extra["fortschritt"] = self.progress.emit
+        return extra
 
     def cancel(self) -> None:
         """Markiert den Worker als abgebrochen.

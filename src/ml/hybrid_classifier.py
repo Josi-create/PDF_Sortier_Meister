@@ -14,17 +14,38 @@ from dataclasses import dataclass
 import logging
 
 from src.ml.classifier import PDFClassifier, Suggestion, get_classifier
-from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse, LLMProviderType
+from src.ml.llm_provider import LLMProvider, LLMResponse, LLMProviderType
 from src.ml.claude_provider import ClaudeProvider
 from src.ml.openai_provider import OpenAIProvider
 from src.ml.poe_provider import PoeProvider
 from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.ml.strata_provider import StrataProvider
+from src.ml.provider_factory import (
+    GRUND_FEHLER, GRUND_KEINE_EINWILLIGUNG, erzeuge_provider,
+)
 from src.utils.config import get_config
 from src.utils.database import get_database
 
 logger = logging.getLogger(__name__)
+
+
+def _provider_klassen() -> dict[str, type]:
+    """Provider-Klassen aus *diesem* Modul fuer die Fabrik (Issue #166/#167).
+
+    Die Fabrik (src.ml.provider_factory) kennt die Klassen selbst; hier werden
+    die Modul-Namen durchgereicht, damit Tests, die z.B.
+    ``hybrid_classifier.ClaudeProvider`` per monkeypatch ersetzen, weiter greifen.
+    """
+    return {
+        "claude": ClaudeProvider,
+        "openai": OpenAIProvider,
+        "poe": PoeProvider,
+        "openrouter": OpenRouterProvider,
+        "ollama": OllamaProvider,
+        "ollama_cloud": OllamaCloudProvider,
+        "strata": StrataProvider,
+    }
 
 
 def source_folder_hint(pdf_path) -> Optional[str]:
@@ -96,64 +117,31 @@ class HybridClassifier:
         self._init_llm_provider()
 
     def _init_llm_provider(self):
-        """Initialisiert den LLM-Provider basierend auf Konfiguration."""
-        llm_config = self.config.get("llm", {})
-        provider_type = llm_config.get("provider", "none")
-        api_key = llm_config.get("api_key", "")
-        model = llm_config.get("model", "")
-        base_url = llm_config.get("base_url", "")
+        """Initialisiert den LLM-Provider basierend auf Konfiguration.
 
-        if provider_type == "none":
-            self.llm_enabled = False
-            return
+        Die Regeln (kein Provider, Cloud-Einwilligung, API-Key, Provider-
+        Zuordnung) liegen in :func:`src.ml.provider_factory.erzeuge_provider`,
+        die auch der Chat fuer sein eigenes Modell nutzt (Issue #166/#167).
+        """
+        llm_config = self.config.get("llm", {}) or {}
+        provider, grund = erzeuge_provider(llm_config, klassen=_provider_klassen())
 
-        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
-        from src.ml.llm_provider import is_cloud_provider
-        if is_cloud_provider(provider_type) and not llm_config.get("cloud_consent", False):
-            import logging
-            logging.getLogger(__name__).warning(
+        if grund == GRUND_KEINE_EINWILLIGUNG:
+            logger.warning(
                 "Cloud-Provider '%s' konfiguriert, aber keine Einwilligung "
                 "zur Datenuebertragung erteilt. LLM bleibt deaktiviert.",
-                provider_type,
+                llm_config.get("provider", "none"),
             )
+        elif grund.startswith(GRUND_FEHLER):
+            print(f"Fehler bei LLM-Initialisierung: {grund[len(GRUND_FEHLER):]}")
+
+        if provider is None:
             self.llm_enabled = False
             return
 
-        # Ollama laeuft lokal und braucht keinen API-Key.
-        # Alle anderen Provider brauchen einen.
-        if provider_type != "ollama" and not api_key:
-            self.llm_enabled = False
-            return
-
-        config = LLMConfig(
-            api_key=api_key,
-            model=model,
-            max_tokens=llm_config.get("max_tokens", 2000),
-            temperature=llm_config.get("temperature", 0.3),
-            text_limit=llm_config.get("text_limit", 1500),
-            base_url=base_url,
-        )
-
+        self.llm_provider = provider
         try:
-            if provider_type == "claude":
-                self.llm_provider = ClaudeProvider(config)
-            elif provider_type == "openai":
-                self.llm_provider = OpenAIProvider(config)
-            elif provider_type == "poe":
-                self.llm_provider = PoeProvider(config)
-            elif provider_type == "openrouter":
-                self.llm_provider = OpenRouterProvider(config)
-            elif provider_type == "ollama":
-                self.llm_provider = OllamaProvider(config)
-            elif provider_type == "ollama_cloud":
-                self.llm_provider = OllamaCloudProvider(config)
-            elif provider_type == "strata":
-                self.llm_provider = StrataProvider(config)
-
-            self.llm_enabled = (
-                self.llm_provider is not None
-                and self.llm_provider.is_available()
-            )
+            self.llm_enabled = provider.is_available()
         except Exception as e:
             print(f"Fehler bei LLM-Initialisierung: {e}")
             self.llm_enabled = False
@@ -177,62 +165,45 @@ class HybridClassifier:
         Returns:
             True wenn der Provider erfolgreich aktiviert wurde.
         """
-        if provider_type == LLMProviderType.NONE:
-            self.llm_provider = None
-            self.llm_enabled = False
-            return False
-
-        # Cloud-Provider nur bei vorliegendem Consent aktivieren.
-        from src.ml.llm_provider import is_cloud_provider
         pt = provider_type.value if hasattr(provider_type, "value") else str(provider_type)
-        if is_cloud_provider(pt):
-            consent = self.config.get("llm", {}).get("cloud_consent", False)
-            if not consent:
-                self.llm_provider = None
-                self.llm_enabled = False
-                return False
-
-        # Ollama laeuft lokal und braucht keinen API-Key.
-        if provider_type != LLMProviderType.OLLAMA and not api_key:
+        if pt == LLMProviderType.NONE.value:
             self.llm_provider = None
             self.llm_enabled = False
             return False
 
-        # Standard-Modell je nach Provider
+        # Standard-Modell je nach Provider (getattr: Tests ersetzen Klassen durch Stubs)
         default_models = {
-            LLMProviderType.CLAUDE: "haiku",
-            LLMProviderType.OPENAI: "gpt-4o-mini",
-            LLMProviderType.POE: "GPT-4o-Mini",
-            LLMProviderType.OPENROUTER: OpenRouterProvider.DEFAULT_MODEL,
-            LLMProviderType.OLLAMA: OllamaProvider.DEFAULT_MODEL,
-            LLMProviderType.OLLAMA_CLOUD: OllamaCloudProvider.DEFAULT_MODEL,
+            "claude": "haiku",
+            "openai": "gpt-4o-mini",
+            "poe": "GPT-4o-Mini",
+            "openrouter": getattr(OpenRouterProvider, "DEFAULT_MODEL", ""),
+            "ollama": getattr(OllamaProvider, "DEFAULT_MODEL", ""),
+            "ollama_cloud": getattr(OllamaCloudProvider, "DEFAULT_MODEL", ""),
         }
-        config = LLMConfig(
-            api_key=api_key,
-            model=model or default_models.get(provider_type, ""),
-            base_url=base_url,
+        llm_config = {
+            "provider": pt,
+            "api_key": api_key,
+            "model": model or default_models.get(pt, ""),
+            "base_url": base_url,
+        }
+        # Cloud-Einwilligung gilt global und kommt aus der gespeicherten Konfiguration.
+        consent = (self.config.get("llm", {}) or {}).get("cloud_consent", False)
+        provider, grund = erzeuge_provider(
+            llm_config, cloud_consent=consent, klassen=_provider_klassen(),
         )
 
-        try:
-            if provider_type == LLMProviderType.CLAUDE:
-                self.llm_provider = ClaudeProvider(config)
-            elif provider_type == LLMProviderType.OPENAI:
-                self.llm_provider = OpenAIProvider(config)
-            elif provider_type == LLMProviderType.POE:
-                self.llm_provider = PoeProvider(config)
-            elif provider_type == LLMProviderType.OPENROUTER:
-                self.llm_provider = OpenRouterProvider(config)
-            elif provider_type == LLMProviderType.OLLAMA:
-                self.llm_provider = OllamaProvider(config)
-            elif provider_type == LLMProviderType.OLLAMA_CLOUD:
-                self.llm_provider = OllamaCloudProvider(config)
-            elif provider_type == LLMProviderType.STRATA:
-                self.llm_provider = StrataProvider(config)
+        if provider is None:
+            if grund.startswith(GRUND_FEHLER):
+                print(f"Fehler bei LLM-Konfiguration: {grund[len(GRUND_FEHLER):]}")
+            else:
+                # keine Einwilligung / kein Key / unbekannt: Provider verwerfen
+                self.llm_provider = None
+            self.llm_enabled = False
+            return False
 
-            self.llm_enabled = (
-                self.llm_provider is not None
-                and self.llm_provider.is_available()
-            )
+        self.llm_provider = provider
+        try:
+            self.llm_enabled = provider.is_available()
         except Exception as e:
             print(f"Fehler bei LLM-Konfiguration: {e}")
             self.llm_enabled = False

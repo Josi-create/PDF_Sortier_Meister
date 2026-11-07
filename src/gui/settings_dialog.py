@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit
+    QButtonGroup, QPlainTextEdit, QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -43,6 +43,13 @@ class SettingsDialog(QDialog):
         ("none", "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"),
     ]
     _LLM_PROVIDER_INDEX = {pid: i for i, (pid, _) in enumerate(_LLM_PROVIDERS)}
+    # Provider-Combo des eigenen Chat-Modells (Issue #166/#167): dieselben
+    # Anbieter ohne "Ohne KI" - abgeschaltet wird das eigene Modell ueber die
+    # Checkbox davor, dann nimmt der Chat das Modell der Sortierung.
+    _CHAT_PROVIDERS: list[tuple[str, str]] = [
+        (pid, label) for pid, label in _LLM_PROVIDERS if pid != "none"
+    ]
+    _CHAT_PROVIDER_INDEX = {pid: i for i, (pid, _) in enumerate(_CHAT_PROVIDERS)}
 
     def __init__(self, parent=None, example_values_provider=None):
         """Initialisiert den Einstellungsdialog.
@@ -252,9 +259,138 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(advanced_group)
 
+        # Chat (Reiter „Chat“): eigenes Modell und Werkzeuge (Issue #166/#167)
+        layout.addWidget(self._create_chat_group())
+
         layout.addStretch()
 
-        return tab
+        # Mit der Chat-Gruppe wird der Reiter hoch; auf kleinen Bildschirmen
+        # scrollt er, statt den Dialog zu sprengen (wie der Reiter „Suche“).
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(tab)
+        # Der Dialog soll sich weiter nach dem Inhalt richten (sonst liefert der
+        # Scrollbereich einen festen, kleinen sizeHint und der Reiter bekommt
+        # auf grossen Bildschirmen unnoetig Scrollbalken, Review-Befund)
+        from PyQt6.QtWidgets import QAbstractScrollArea
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        return scroll
+
+    def _create_chat_group(self) -> QGroupBox:
+        """Gruppe „Chat“ im KI-Reiter: eigenes Modell und Werkzeuge (Issue #166/#167).
+
+        Das eigene Chat-Modell wird wie das Sortier-Modell eingestellt
+        (Provider, Modell, API-Key, Server-URL, Verbindungstest), landet aber im
+        ``"chat"``-Block (``Config.update_chat_config``). Leerer Key bzw. leere
+        URL heisst: Wert des gleichen Anbieters aus der API-Konfiguration oben
+        (``Config.get_chat_llm_config``). Die Cloud-Einwilligung gilt global.
+        """
+        group = QGroupBox("Chat (Reiter „Chat“)")
+        layout = QVBoxLayout(group)
+
+        # API-Key/Server-URL je Chat-Provider (Puffer bis "Speichern", wie oben)
+        self._chat_api_keys: dict[str, str] = {}
+        self._chat_key_provider = ""
+        self._chat_base_urls: dict[str, str] = {}
+        self._chat_url_provider = ""
+
+        self.chat_own_model_check = QCheckBox("Eigenes Modell für den Chat verwenden")
+        self.chat_own_model_check.setToolTip(
+            "Aus: Der Chat nutzt das Modell der Sortierung (oben).\n"
+            "An: Der Chat nutzt den hier gewählten Anbieter und das Modell - z.B. ein\n"
+            "großes Modell mit Werkzeugunterstützung, während die Sortierung ein\n"
+            "kleines lokales Modell behält."
+        )
+        self.chat_own_model_check.toggled.connect(self._on_chat_own_model_toggled)
+        layout.addWidget(self.chat_own_model_check)
+
+        form = QFormLayout()
+
+        self.chat_provider_combo = QComboBox()
+        self.chat_provider_combo.addItems([label for _, label in self._CHAT_PROVIDERS])
+        self.chat_provider_combo.currentIndexChanged.connect(self._on_chat_provider_changed)
+        form.addRow("Provider:", self.chat_provider_combo)
+
+        model_row = QHBoxLayout()
+        self.chat_model_combo = QComboBox()
+        self.chat_model_combo.setEditable(True)
+        model_row.addWidget(self.chat_model_combo, 1)
+        self.chat_refresh_models_button = QPushButton("Modelle aktualisieren")
+        self.chat_refresh_models_button.setToolTip(
+            "Ruft die aktuell verfügbaren Modelle vom gewählten Anbieter ab."
+        )
+        self.chat_refresh_models_button.clicked.connect(self._refresh_chat_models)
+        model_row.addWidget(self.chat_refresh_models_button)
+        form.addRow("Modell:", model_row)
+
+        self.chat_api_key_input = QLineEdit()
+        self.chat_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.chat_api_key_label = QLabel("API-Key:")
+        form.addRow(self.chat_api_key_label, self.chat_api_key_input)
+
+        self.chat_base_url_input = QLineEdit()
+        self.chat_base_url_input.setToolTip(
+            "Nur für lokale Server (Ollama, Strata): URL des Servers.\n"
+            "Leer = URL des gleichen Anbieters von oben bzw. Standard-URL."
+        )
+        form.addRow("Server-URL:", self.chat_base_url_input)
+
+        test_row = QHBoxLayout()
+        self.chat_test_button = QPushButton("Verbindung testen")
+        self.chat_test_button.clicked.connect(self._test_chat_connection)
+        test_row.addWidget(self.chat_test_button)
+        test_row.addStretch()
+        form.addRow("", test_row)
+
+        layout.addLayout(form)
+
+        self.chat_consent_hint_label = QLabel("")
+        self.chat_consent_hint_label.setWordWrap(True)
+        layout.addWidget(self.chat_consent_hint_label)
+        # Einwilligung oben geaendert -> Hinweis hier nachziehen
+        self.cloud_consent_check.toggled.connect(self._update_chat_consent_hint)
+
+        self.chat_tools_check = QCheckBox(
+            "Werkzeuge im Chat verwenden (Suche, Lesen, Ordnervorschlag, Korrespondent)"
+        )
+        self.chat_tools_check.setToolTip(
+            "Das Modell darf selbst in der Dokumentensuche suchen, Dokumente lesen,\n"
+            "Ordner vorschlagen und Korrespondenten nachschlagen - nur bei Anbietern\n"
+            "und Modellen mit Werkzeugunterstützung, sonst antwortet es wie bisher."
+        )
+        layout.addWidget(self.chat_tools_check)
+
+        steps_row = QHBoxLayout()
+        steps_row.addWidget(QLabel("Höchstens"))
+        self.chat_steps_spin = QSpinBox()
+        self.chat_steps_spin.setRange(1, 12)
+        self.chat_steps_spin.setValue(6)
+        self.chat_steps_spin.setToolTip(
+            "Obergrenze für die Modellaufrufe mit Werkzeugen je Frage.\n"
+            "Mehr Schritte = gründlicher, aber langsamer (und bei Cloud-Anbietern teurer)."
+        )
+        steps_row.addWidget(self.chat_steps_spin)
+        steps_row.addWidget(QLabel("Werkzeugschritte je Frage"))
+        steps_row.addStretch()
+        layout.addLayout(steps_row)
+
+        self.chat_sql_check = QCheckBox(
+            "SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)"
+        )
+        self.chat_sql_check.setToolTip(
+            "Das Modell darf lesende SQL-Abfragen auf der Suchdatenbank stellen\n"
+            "(z.B. Zählungen, Zeiträume). Kleine Modelle formulieren oft falsches SQL."
+        )
+        layout.addWidget(self.chat_sql_check)
+
+        # Schrittzahl und SQL betreffen nur die Werkzeug-Schleife
+        self.chat_tools_check.toggled.connect(self.chat_steps_spin.setEnabled)
+        self.chat_tools_check.toggled.connect(self.chat_sql_check.setEnabled)
+
+        self._on_chat_provider_changed(self.chat_provider_combo.currentIndex())
+        self._update_chat_fields_enabled()
+        return group
 
     # Beispiel-Zielordner fuer die Vorschau "Beim Verschieben"
     _PREVIEW_FOLDER = "069-03-05 Arbeitsamt"
@@ -1997,6 +2133,148 @@ class SettingsDialog(QDialog):
             )
             self.consent_hint_label.setStyleSheet("color: #c0392b;")
 
+    # Chat-Gruppe (Issue #166/#167): eigenes Modell fuer den Chat
+
+    def _chat_provider_id_at(self, index: int) -> str:
+        """Provider-ID zum Index der Chat-Provider-Combo (leer wenn ungueltig)."""
+        if 0 <= index < len(self._CHAT_PROVIDERS):
+            return self._CHAT_PROVIDERS[index][0]
+        return ""
+
+    def _chat_index_for_provider(self, provider_id: str) -> int:
+        """Combo-Index zur Provider-ID (Fallback: erster Eintrag, Ollama)."""
+        return self._CHAT_PROVIDER_INDEX.get(provider_id, 0)
+
+    def _stash_chat_api_key(self):
+        """Merkt sich den Chat-Key fuer den Provider, dem er gehoert."""
+        if self._chat_key_provider:
+            self._chat_api_keys[self._chat_key_provider] = self.chat_api_key_input.text().strip()
+
+    def _stash_chat_base_url(self):
+        """Merkt sich die Chat-Server-URL fuer den Provider, dem sie gehoert."""
+        if self._chat_url_provider:
+            self._chat_base_urls[self._chat_url_provider] = self.chat_base_url_input.text().strip()
+
+    def _main_api_key_for(self, provider_id: str) -> str:
+        """API-Key des Anbieters aus der API-Konfiguration oben (Puffer inkl. Feld).
+
+        Rueckfall fuer den Chat, wenn dort kein eigener Key steht - wie
+        ``Config.get_chat_llm_config`` nach dem Speichern.
+        """
+        self._stash_api_key()
+        return self._api_keys.get(provider_id, "")
+
+    def _main_base_url_for(self, provider_id: str) -> str:
+        """Server-URL des Anbieters von oben, leer -> Standard-URL des Providers."""
+        self._stash_base_url()
+        return (self._base_urls.get(provider_id, "")
+                or self._URL_PROVIDER_DEFAULTS.get(provider_id, ""))
+
+    def _on_chat_own_model_toggled(self, _checked: bool):
+        """Checkbox „Eigenes Modell“: Felder frei-/abschalten, Hinweis nachziehen."""
+        self._update_chat_fields_enabled()
+        self._update_chat_consent_hint()
+
+    def _on_chat_provider_changed(self, index: int):
+        """Chat-Provider gewechselt: Key/URL je Provider, Modell-Liste, Hinweis."""
+        self._stash_chat_api_key()
+        self._stash_chat_base_url()
+        provider = self._chat_provider_id_at(index)
+
+        key_label = self._KEY_PROVIDER_LABELS.get(provider, "")
+        self._chat_key_provider = provider if key_label else ""
+        self.chat_api_key_input.setText(self._chat_api_keys.get(self._chat_key_provider, ""))
+        self.chat_api_key_label.setText(
+            f"API-Key ({key_label}):" if key_label else "API-Key:"
+        )
+        if key_label:
+            self.chat_api_key_input.setPlaceholderText(
+                "Leer = Key des gleichen Anbieters von oben"
+            )
+        else:
+            self.chat_api_key_input.setPlaceholderText(
+                self._API_KEY_PLACEHOLDERS.get(provider, "")
+            )
+
+        default_url = self._URL_PROVIDER_DEFAULTS.get(provider, "")
+        self._chat_url_provider = provider if default_url else ""
+        self.chat_base_url_input.setText(self._chat_base_urls.get(self._chat_url_provider, ""))
+        self.chat_base_url_input.setPlaceholderText(
+            f"Leer = wie oben bzw. {default_url}" if default_url else ""
+        )
+
+        self.chat_model_combo.clear()
+        self.chat_model_combo.addItems(self._models_for_provider(provider))
+
+        self._update_chat_fields_enabled()
+        self._update_chat_consent_hint()
+
+    def _update_chat_fields_enabled(self):
+        """Felder des eigenen Chat-Modells nur bei gesetzter Checkbox bedienbar."""
+        aktiv = self.chat_own_model_check.isChecked()
+        provider = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
+        self.chat_provider_combo.setEnabled(aktiv)
+        self.chat_model_combo.setEnabled(aktiv)
+        self.chat_refresh_models_button.setEnabled(aktiv)
+        # Nur Ollama lokal kommt ohne Key aus; URL nur fuer lokale Server
+        self.chat_api_key_input.setEnabled(aktiv and provider != "ollama")
+        self.chat_base_url_input.setEnabled(aktiv and provider in self._URL_PROVIDER_DEFAULTS)
+        self.chat_test_button.setEnabled(aktiv)
+
+    def _update_chat_consent_hint(self):
+        """Hinweis: Die Cloud-Einwilligung von oben gilt auch fuer das Chat-Modell."""
+        base = "Die Einwilligung für Cloud-Anbieter gilt auch hier."
+        provider = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
+        if (self.chat_own_model_check.isChecked()
+                and is_cloud_provider(provider)
+                and not self.cloud_consent_check.isChecked()):
+            self.chat_consent_hint_label.setText(
+                f"{base} Ohne Einwilligung (oben unter „Datenschutz“) bleibt das "
+                f"Chat-Modell aus."
+            )
+            self.chat_consent_hint_label.setStyleSheet("color: #c0392b;")
+        else:
+            self.chat_consent_hint_label.setText(base)
+            self.chat_consent_hint_label.setStyleSheet("color: gray;")
+
+    def _test_chat_connection(self):
+        """„Verbindung testen“ der Chat-Gruppe: dieselbe Testlogik mit den Chat-Werten.
+
+        Leerer Key bzw. leere URL fallen wie beim Speichern auf die Werte des
+        gleichen Anbieters aus der API-Konfiguration oben zurueck.
+        """
+        provider_id = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
+        api_key = (self.chat_api_key_input.text().strip()
+                   or self._main_api_key_for(provider_id))
+        base_url = (self.chat_base_url_input.text().strip()
+                    or self._main_base_url_for(provider_id))
+        model_text = self.chat_model_combo.currentText()
+        model = model_text.split(" ")[0] if model_text else ""
+        self._run_connection_test(provider_id, api_key, model, base_url, self.chat_test_button)
+
+    def _refresh_chat_models(self):
+        """„Modelle aktualisieren“ der Chat-Gruppe (Liste wird je Anbieter gecacht)."""
+        provider_id = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
+        api_key = (self.chat_api_key_input.text().strip()
+                   or self._main_api_key_for(provider_id))
+        base_url = (self.chat_base_url_input.text().strip()
+                    or self._main_base_url_for(provider_id))
+        self._refresh_models_into(
+            provider_id, api_key, base_url,
+            self.chat_model_combo, self.chat_refresh_models_button,
+        )
+
+    @staticmethod
+    def _select_model_in_combo(combo: QComboBox, model: str) -> None:
+        """Waehlt das gespeicherte Modell in einer Modell-Combo (sonst als Freitext)."""
+        if not model:
+            return
+        for i in range(combo.count()):
+            if model in combo.itemText(i).lower():
+                combo.setCurrentIndex(i)
+                return
+        combo.setCurrentText(model)
+
     def _toggle_key_visibility(self, checked: bool):
         """Zeigt/versteckt den API-Key."""
         if checked:
@@ -2031,20 +2309,45 @@ class SettingsDialog(QDialog):
         # Explizit aufrufen, falls sich der Index nicht geaendert hat (kein Signal)
         self._on_provider_changed(self.provider_combo.currentIndex())
 
-        model = llm_config.get("model", "")
-        if model:
-            # Versuche Modell in Combo zu finden
-            for i in range(self.model_combo.count()):
-                if model in self.model_combo.itemText(i).lower():
-                    self.model_combo.setCurrentIndex(i)
-                    break
-            else:
-                self.model_combo.setCurrentText(model)
+        self._select_model_in_combo(self.model_combo, llm_config.get("model", ""))
 
         self.max_tokens_spin.setValue(llm_config.get("max_tokens", 2000))
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
         self.text_limit_spin.setValue(llm_config.get("text_limit", 1500))
         self.cloud_consent_check.setChecked(llm_config.get("cloud_consent", False))
+
+        # Chat (Issue #166/#167): eigenes Modell und Werkzeuge
+        chat = self.config.get_chat_config()
+        chat_provider = str(chat.provider or "").strip().lower()
+        eigenes_modell = chat_provider in self._CHAT_PROVIDER_INDEX
+        self._chat_key_provider = ""  # verhindert Stash eines leeren Felds
+        self._chat_url_provider = ""
+        self._chat_api_keys = (
+            {chat_provider: str(chat.api_key)} if eigenes_modell and chat.api_key else {}
+        )
+        self._chat_base_urls = (
+            {chat_provider: str(chat.base_url)} if eigenes_modell and chat.base_url else {}
+        )
+        self.chat_provider_combo.setCurrentIndex(
+            self._chat_index_for_provider(chat_provider) if eigenes_modell else 0
+        )
+        # Explizit, falls sich der Index nicht geaendert hat (kein Signal)
+        self._on_chat_provider_changed(self.chat_provider_combo.currentIndex())
+        self._select_model_in_combo(self.chat_model_combo, str(chat.model or ""))
+        self.chat_own_model_check.setChecked(eigenes_modell)
+        self._update_chat_fields_enabled()
+        self._update_chat_consent_hint()
+
+        werkzeuge = bool(chat.werkzeuge_aktiv)
+        self.chat_tools_check.setChecked(werkzeuge)
+        try:
+            schritte = int(chat.max_werkzeug_schritte)
+        except (TypeError, ValueError):
+            schritte = self.chat_steps_spin.value()
+        self.chat_steps_spin.setValue(schritte)  # QSpinBox begrenzt auf 1-12
+        self.chat_sql_check.setChecked(bool(chat.sql_erlaubt))
+        self.chat_steps_spin.setEnabled(werkzeuge)
+        self.chat_sql_check.setEnabled(werkzeuge)
 
         # Allgemeine Einstellungen
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
@@ -2188,6 +2491,31 @@ class SettingsDialog(QDialog):
         # Dokumentensuche (Registerkarte „Suche“)
         self._save_search_settings()
 
+        # Chat (Issue #166/#167): Checkbox aus -> nur provider "" (Modell der
+        # Sortierung); Modell/Key/URL werden dann NICHT angefasst, damit ein
+        # frueher gespeicherter Key nicht bei jedem Speichern verloren geht
+        # (Review-Befund: der Dialog kennt bei abgeschalteter Checkbox keinen
+        # Provider, zu dem er den Key puffern koennte).
+        self._stash_chat_api_key()
+        self._stash_chat_base_url()
+        chat_felder = dict(
+            werkzeuge_aktiv=self.chat_tools_check.isChecked(),
+            max_werkzeug_schritte=self.chat_steps_spin.value(),
+            sql_erlaubt=self.chat_sql_check.isChecked(),
+        )
+        if self.chat_own_model_check.isChecked():
+            chat_provider = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
+            chat_model_text = self.chat_model_combo.currentText()
+            chat_felder.update(
+                provider=chat_provider,
+                model=chat_model_text.split(" ")[0] if chat_model_text else "",
+                api_key=self._chat_api_keys.get(chat_provider, ""),
+                base_url=self._chat_base_urls.get(chat_provider, ""),
+            )
+        else:
+            chat_felder["provider"] = ""
+        self.config.update_chat_config(**chat_felder)
+
         self.settings_changed.emit()
         self.accept()
 
@@ -2238,27 +2566,33 @@ class SettingsDialog(QDialog):
             )
 
     def _test_connection(self):
-        """Testet die Verbindung zum LLM-Provider."""
+        """Testet die Verbindung zum LLM-Provider (Sortier-Modell)."""
         provider_id = self._provider_id_at(self.provider_combo.currentIndex())
         api_key = self.api_key_input.text().strip()
-
-        # Ollama braucht keinen API-Key, aber eine URL.
         base_url = self._current_base_url(provider_id)
-        if provider_id == "ollama":
-            pass
-        elif not api_key:
+
+        # Modellname extrahieren
+        model_text = self.model_combo.currentText()
+        model = model_text.split(" ")[0] if model_text else ""
+
+        self._run_connection_test(provider_id, api_key, model, base_url, self.test_button)
+
+    def _run_connection_test(self, provider_id: str, api_key: str, model: str,
+                             base_url: str, button: QPushButton):
+        """Verbindungstest fuer Sortier- und Chat-Modell (Issue #166/#167).
+
+        ``button`` ist der ausloesende Knopf; er ist waehrend des Tests gesperrt.
+        """
+        # Ollama braucht keinen API-Key, aber eine URL.
+        if provider_id != "ollama" and not api_key:
             QMessageBox.warning(
                 self, "Fehler",
                 "Bitte geben Sie einen API-Key ein."
             )
             return
 
-        # Modellname extrahieren
-        model_text = self.model_combo.currentText()
-        model = model_text.split(" ")[0] if model_text else ""
-
-        self.test_button.setEnabled(False)
-        self.test_button.setText("Teste...")
+        button.setEnabled(False)
+        button.setText("Teste...")
 
         try:
             if provider_id == "claude":
@@ -2276,8 +2610,8 @@ class SettingsDialog(QDialog):
             elif provider_id == "strata":
                 self._test_strata(api_key, model, base_url)
         finally:
-            self.test_button.setEnabled(True)
-            self.test_button.setText("Verbindung testen")
+            button.setEnabled(True)
+            button.setText("Verbindung testen")
 
     def _test_claude(self, api_key: str, model: str):
         """Testet die Claude API."""
@@ -2577,11 +2911,53 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(self, "Fehler", text)
 
     def _refresh_models(self):
-        """Ruft die verfügbaren Modelle vom API-Provider ab."""
+        """Ruft die verfügbaren Modelle vom API-Provider ab (Sortier-Modell)."""
         provider_id = self._provider_id_at(self.provider_combo.currentIndex())
         api_key = self.api_key_input.text().strip()
+        self._refresh_models_into(
+            provider_id, api_key, self._current_base_url(provider_id),
+            self.model_combo, self.refresh_models_button,
+        )
 
-        if provider_id == "none":
+    def _fetch_models_for(self, provider_id: str, api_key: str, base_url: str) -> list[str]:
+        """Modell-Liste eines Anbieters abrufen (wirft bei Fehlern; leer = unbekannter Anbieter)."""
+        if provider_id == "claude":
+            return self._fetch_claude_models(api_key)
+        if provider_id == "openai":
+            return self._fetch_openai_models(api_key)
+        if provider_id == "poe":
+            return self._fetch_poe_models(api_key)
+        if provider_id == "ollama":
+            return self._fetch_ollama_models(base_url)
+        if provider_id == "strata":
+            from src.ml.strata_provider import StrataProvider
+            from src.ml.llm_provider import LLMConfig
+            strata = StrataProvider(LLMConfig(
+                api_key=api_key, model="", base_url=base_url,
+            ))
+            models = strata.list_models()
+            if not models:
+                raise RuntimeError(
+                    f"Keine Modelle gefunden. Laeuft Strata unter "
+                    f"{strata.base_url} und stimmt der API-Key?"
+                )
+            return models
+        if provider_id == "openrouter":
+            return self._fetch_openrouter_models(api_key)
+        if provider_id == "ollama_cloud":
+            from src.ml.ollama_provider import OllamaCloudProvider
+            from src.ml.llm_provider import LLMConfig
+            return OllamaCloudProvider(LLMConfig(api_key=api_key, model="")).list_models()
+        return []
+
+    def _refresh_models_into(self, provider_id: str, api_key: str, base_url: str,
+                             combo: QComboBox, button: QPushButton):
+        """„Modelle aktualisieren“ fuer Sortier- und Chat-Modell (Issue #166/#167).
+
+        Fuellt ``combo`` mit der abgerufenen Liste, waehlt das bisherige Modell
+        wieder aus und cacht die Liste je Anbieter in der Konfiguration.
+        """
+        if provider_id == "none" or not provider_id:
             QMessageBox.information(
                 self, "Hinweis",
                 "Bitte wählen Sie zuerst einen LLM-Provider aus."
@@ -2597,50 +2973,22 @@ class SettingsDialog(QDialog):
             return
 
         # Aktuell gewähltes Modell merken
-        current_model = self.model_combo.currentText().split(" ")[0]
+        current_model = combo.currentText().split(" ")[0]
 
-        self.refresh_models_button.setEnabled(False)
-        self.refresh_models_button.setText("Lade...")
+        button.setEnabled(False)
+        button.setText("Lade...")
 
         try:
-            if provider_id == "claude":
-                models = self._fetch_claude_models(api_key)
-            elif provider_id == "openai":
-                models = self._fetch_openai_models(api_key)
-            elif provider_id == "poe":
-                models = self._fetch_poe_models(api_key)
-            elif provider_id == "ollama":
-                models = self._fetch_ollama_models(self._current_base_url(provider_id))
-            elif provider_id == "strata":
-                from src.ml.strata_provider import StrataProvider
-                from src.ml.llm_provider import LLMConfig
-                strata = StrataProvider(LLMConfig(
-                    api_key=api_key, model="",
-                    base_url=self._current_base_url(provider_id),
-                ))
-                models = strata.list_models()
-                if not models:
-                    raise RuntimeError(
-                        f"Keine Modelle gefunden. Laeuft Strata unter "
-                        f"{strata.base_url} und stimmt der API-Key?"
-                    )
-            elif provider_id == "openrouter":
-                models = self._fetch_openrouter_models(api_key)
-            elif provider_id == "ollama_cloud":
-                from src.ml.ollama_provider import OllamaCloudProvider
-                from src.ml.llm_provider import LLMConfig
-                models = OllamaCloudProvider(LLMConfig(api_key=api_key, model="")).list_models()
-            else:
-                models = []
+            models = self._fetch_models_for(provider_id, api_key, base_url)
 
             if models:
-                self.model_combo.clear()
-                self.model_combo.addItems(models)
+                combo.clear()
+                combo.addItems(models)
 
                 # Vorheriges Modell wieder auswählen wenn möglich
-                for i in range(self.model_combo.count()):
-                    if self.model_combo.itemText(i).startswith(current_model):
-                        self.model_combo.setCurrentIndex(i)
+                for i in range(combo.count()):
+                    if combo.itemText(i).startswith(current_model):
+                        combo.setCurrentIndex(i)
                         break
 
                 # Liste persistieren, damit sie nach Neustart erhalten bleibt
@@ -2656,8 +3004,8 @@ class SettingsDialog(QDialog):
                 f"Modelle konnten nicht abgerufen werden:\n{str(e)}"
             )
         finally:
-            self.refresh_models_button.setEnabled(True)
-            self.refresh_models_button.setText("Modelle aktualisieren")
+            button.setEnabled(True)
+            button.setText("Modelle aktualisieren")
 
     def _fetch_claude_models(self, api_key: str) -> list[str]:
         """Ruft verfügbare Claude-Modelle von der Anthropic API ab."""

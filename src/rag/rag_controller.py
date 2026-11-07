@@ -15,18 +15,30 @@ damit verknuepften Dokumente, die Frage selbst die uebrigen Treffer. Die
 Kennungs-Treffer stehen vorn und tragen die gemeinsamen Kennungen im Prompt,
 damit die KI die Kette "gleiche Vertragsnummer -> Abnahmestelle" sieht.
 
+Werkzeuge (Issue #166/#167, Phase 2): Kann das Modell Werkzeuge
+(``llm_provider.unterstuetzt_werkzeuge()``) und ist ``chat_config.werkzeuge_aktiv``,
+laeuft statt des einen LLM-Aufrufs eine Schleife: Das Modell sucht und liest
+selbst ueber den :class:`~src.rag.werkzeuge.Werkzeugkasten`, hoechstens
+``chat_config.max_werkzeug_schritte`` Modellaufrufe lang. Das Bezugsdokument
+und die Phase-1-Treffer sind vorab als D1, D2, ... registriert; die Zitate
+``[N]`` der Antwort meinen diese Nummern. Schlaegt schon der erste Schritt
+fehl (Modell ohne Werkzeuge), geht es auf dem alten Weg weiter.
+
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from __future__ import annotations
 
 import hashlib
+import threading
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from src.ml.llm_provider import WerkzeugAntwort
 from src.rag.bezug import (
     BEZUG_FELDER,
     BEZUG_MAX_ZEICHEN,
@@ -46,9 +58,11 @@ from src.rag.prompts import (
     SORTIERLOGIK_PRAEFIX,
     SYSTEM_PROMPT,
     build_context_block,
+    build_system_prompt_werkzeuge,
     build_user_prompt,
 )
 from src.rag.retrieval import RetrievedDoc, RetrievalService
+from src.rag.werkzeuge import Werkzeugkasten
 
 # Volltext des Bezugsdokuments hoechstens so weit lesen (der Auszug nimmt
 # davon Anfang und Ende, siehe RetrievalService._build_snippet; die
@@ -57,6 +71,10 @@ BEZUG_LESE_ZEICHEN = 50000
 # Mindestens so viele Plaetze im Kontext bleiben den Treffern zur Frage,
 # wenn Kennungs-Treffer dazukommen
 FRAGE_TREFFER_MINDESTENS = 2
+# Werkzeug-Schleife (Issue #166/#167, Phase 2): Rueckfall, falls die Konfiguration
+# keinen Wert hat
+WERKZEUG_SCHRITTE_STANDARD = 6
+ABGEBROCHEN_TEXT = "Abgebrochen."
 
 
 @dataclass
@@ -73,6 +91,11 @@ class RAGResponse:
     # Issue #148: Zusatzinfo fuer den Offline-Rueckfall, z.B. der Vorschlag
     # der Sortierlogik bei "In welchen Ordner gehoert dieses PDF?"
     hinweis: str = ""
+    # Issue #166/#167 (Phase 2): die Werkzeugaufrufe des Modells als
+    # :class:`~src.rag.werkzeuge.Schritt` (fuer die Anzeige "Was hat die KI
+    # getan?") und ob die Antwort auf dem Werkzeug-Weg entstand.
+    schritte: list = field(default_factory=list)
+    werkzeuge_benutzt: bool = False
 
 
 class RAGController:
@@ -114,7 +137,13 @@ class RAGController:
     # Public API
     # ------------------------------------------------------------------ #
 
-    def ask(self, question: str, bezug=None) -> RAGResponse:
+    def ask(
+        self,
+        question: str,
+        bezug=None,
+        abbruch: threading.Event | None = None,
+        fortschritt: Callable[[str], None] | None = None,
+    ) -> RAGResponse:
         """Beantwortet eine Nutzerfrage via Retrieval + optional LLM.
 
         Args:
@@ -125,6 +154,11 @@ class RAGController:
                 Dokumente mit gemeinsamen Kennungen (Issue #166/#167) folgen
                 zuerst, dann die Treffer zur Frage, angereichert um
                 Korrespondent, Kategorie und Steuerjahr des Bezugs.
+            abbruch: Optionales ``threading.Event`` (Issue #166/#167): ist es
+                gesetzt, bricht die Werkzeug-Schleife vor dem naechsten
+                Modell- oder Werkzeugaufruf ab (Antwort ``"Abgebrochen."``).
+            fortschritt: Optionaler Callback fuer die Statuszeile, z.B.
+                ``"KI denkt (Schritt 2/6) …"`` oder ``"Suche „226541“ …"``.
 
         Returns:
             :class:`RAGResponse` mit Antwort, Citations und Retrieval-Docs.
@@ -185,14 +219,21 @@ class RAGController:
         # 4) LLM-Aufruf wenn verfuegbar
         if self.llm_provider is not None and self._is_llm_available():
             if bezug_doc is None:
-                response = self._ask_llm(question, retrieved)
+                kontext_docs = list(retrieved)
             else:
                 # Bezug ist [D1], die Suchtreffer folgen ab [D2] mit Ablageort
                 weitere = [_mit_index(d, i) for i, d in enumerate(retrieved, start=2)]
                 for d in weitere:
                     if not isinstance(d, dict):
                         d.extra = {**(d.extra or {}), "ordner": ablageort(d.file_path, bezug.wurzeln)}
-                response = self._ask_llm(question, [bezug_doc, *weitere])
+                kontext_docs = [bezug_doc, *weitere]
+            if self._werkzeuge_moeglich():
+                # Issue #166/#167 (Phase 2): das Modell sucht und liest selbst
+                response = self._ask_mit_werkzeugen(
+                    question, bezug, kontext_docs, abbruch=abbruch, fortschritt=fortschritt,
+                )
+            else:
+                response = self._ask_llm(question, kontext_docs)
         elif not retrieved:
             # Offline-Modus UND keine Quellen gefunden: ehrliche
             # Standard-Antwort statt leerer Text (M3-Hardening).
@@ -214,7 +255,12 @@ class RAGController:
                 hinweis=hinweis,
             )
 
-        # 5) Turn in ChatSession protokollieren
+        # 5) Turn in ChatSession protokollieren - nicht nach einem Abbruch
+        # (Issue #166/#167): eine Frage ohne Antwort stuende sonst als offener
+        # Nutzer-Turn im Prompt der naechsten Frage (Review-Befund)
+        abgebrochen = (not response.used_llm) and response.answer_text == ABGEBROCHEN_TEXT
+        if abgebrochen:
+            return response
         self.chat_session.add_turn(ChatTurn(
             role="user",
             content=question,
@@ -241,8 +287,10 @@ class RAGController:
                 timestamp=datetime.now(),
             ))
 
-        # 6) LRU-Cache schreiben
-        self._cache_put(cache_key, response)
+        # 6) LRU-Cache schreiben - nicht bei Abbruch oder Werkzeugfehler
+        # (Issue #166/#167): die naechste gleiche Frage soll es neu versuchen
+        if response.used_llm or not response.werkzeuge_benutzt:
+            self._cache_put(cache_key, response)
         return response
 
     def reset(self) -> None:
@@ -365,6 +413,188 @@ class RAGController:
             has_hallucinated_citations=bool(dropped),
         )
 
+    # ------------------------------------------------------------------ #
+    # Werkzeug-Schleife (Issue #166/#167, Phase 2)                       #
+    # ------------------------------------------------------------------ #
+
+    def _werkzeuge_moeglich(self) -> bool:
+        """True, wenn der Chat mit Werkzeugen laufen soll: Einstellung an und Provider kann es.
+
+        Defensiv: Provider ohne ``unterstuetzt_werkzeuge``/``chat_mit_werkzeugen``
+        (Stubs, alte Fassungen) gehen den bisherigen Weg.
+        """
+        if not getattr(self.chat_config, "werkzeuge_aktiv", False):
+            return False
+        provider = self.llm_provider
+        if provider is None or not callable(getattr(provider, "chat_mit_werkzeugen", None)):
+            return False
+        kann = getattr(provider, "unterstuetzt_werkzeuge", None)
+        if not callable(kann):
+            return False
+        try:
+            return bool(kann())
+        except Exception:  # noqa: BLE001 - defensiv
+            return False
+
+    def _ask_mit_werkzeugen(
+        self,
+        question: str,
+        bezug: Bezug | None,
+        kontext_docs: list,
+        abbruch: threading.Event | None = None,
+        fortschritt: Callable[[str], None] | None = None,
+    ) -> RAGResponse:
+        """Werkzeug-Schleife: Modell ruft Werkzeuge, bis es antwortet (Issue #166/#167).
+
+        ``kontext_docs`` (Bezug als [D1] und die Phase-1-Treffer) werden vorab
+        im :class:`Werkzeugkasten` registriert und stehen wie bisher im
+        ``=== DOKUMENTE ===``-Block der ersten Nutzernachricht. Dann wird
+        ``chat_mit_werkzeugen`` hoechstens ``max_werkzeug_schritte``-mal
+        gerufen; im letzten Schritt ohne Werkzeuge, damit das Modell antwortet.
+
+        * Fehler (``WerkzeugAntwort.fehler``) oder leerer Text im ERSTEN
+          Schritt: Rueckfall auf :meth:`_ask_llm` (Phase-1-Weg).
+        * Fehler spaeter: ``"Werkzeugaufruf fehlgeschlagen: …"`` mit den bis
+          dahin gesammelten Dokumenten und Schritten.
+        * ``abbruch`` gesetzt (vor jedem Modell- und Werkzeugaufruf geprueft):
+          ``"Abgebrochen."``.
+        """
+        kasten = Werkzeugkasten(
+            self.db,
+            self.chat_config,
+            bezug=bezug,
+            wurzeln=bezug.wurzeln if bezug is not None else (),
+            scan_ordner=bezug.scan_ordner if bezug is not None else None,
+            sortier_vorschlaege=bezug.sortier_vorschlaege if bezug is not None else (),
+            sql_erlaubt=bool(getattr(self.chat_config, "sql_erlaubt", False)),
+            retrieval=self.retrieval,
+        )
+        for d in kontext_docs:
+            kasten.registriere(_als_retrieved_doc(d))
+
+        max_schritte = getattr(self.chat_config, "max_werkzeug_schritte", WERKZEUG_SCHRITTE_STANDARD)
+        try:
+            max_schritte = max(1, int(max_schritte or WERKZEUG_SCHRITTE_STANDARD))
+        except (TypeError, ValueError):
+            max_schritte = WERKZEUG_SCHRITTE_STANDARD
+        max_tokens = getattr(self.chat_config, "max_tokens_answer", 1000) or 1000
+
+        docs_for_prompt = [self._doc_to_prompt_dict(d) for d in kasten.dokumente()]
+        nachrichten: list[dict] = [
+            {"role": "system", "content": build_system_prompt_werkzeuge(max_schritte)},
+            {"role": "user", "content": build_user_prompt(
+                question=question,
+                history=self._history_for_llm(),
+                context_block=build_context_block(docs_for_prompt),
+            )},
+        ]
+        werkzeuge = kasten.definitionen()
+        aufruf_nr = 0
+
+        for schritt in range(1, max_schritte + 1):
+            if _abgebrochen(abbruch):
+                return self._antwort_abgebrochen(kasten)
+            _melde(fortschritt, f"KI denkt (Schritt {schritt}/{max_schritte}) …")
+            letzter = schritt == max_schritte
+            try:
+                antwort = self.llm_provider.chat_mit_werkzeugen(
+                    nachrichten=nachrichten,
+                    werkzeuge=[] if letzter else werkzeuge,
+                    max_tokens=max_tokens,
+                )
+            except Exception as e:  # noqa: BLE001 - Provider sollen nicht werfen, zur Sicherheit
+                antwort = WerkzeugAntwort(fehler=str(e) or type(e).__name__)
+            if antwort is None:
+                antwort = WerkzeugAntwort(fehler="Keine Antwort vom Provider.")
+
+            fehler = str(getattr(antwort, "fehler", "") or "")
+            aufrufe = list(getattr(antwort, "aufrufe", None) or [])
+            text = str(getattr(antwort, "text", "") or "")
+            if letzter and aufrufe:
+                # Das Modell wollte trotz leerer Werkzeugliste weiter rufen:
+                # der Text, falls vorhanden, ist die Antwort
+                aufrufe = []
+                if not text.strip():
+                    fehler = f"Das Modell hat nach {max_schritte} Schritten keine Antwort geliefert."
+            if not fehler and not aufrufe and not text.strip():
+                fehler = "Leere Antwort des Modells."
+            if fehler:
+                if schritt == 1:
+                    grund = " ".join(fehler.split())[:90]
+                    _melde(fortschritt, f"Werkzeuge nicht verfügbar ({grund}) - Antwort ohne Werkzeuge …")
+                    return self._ask_llm(question, kontext_docs)
+                return RAGResponse(
+                    answer_text=f"Werkzeugaufruf fehlgeschlagen: {fehler}",
+                    citations=[],
+                    retrieved_docs=kasten.dokumente(),
+                    used_llm=False,
+                    schritte=list(kasten.protokoll),
+                    werkzeuge_benutzt=True,
+                )
+            if not aufrufe:
+                return self._antwort_mit_werkzeugen(text, kasten)
+
+            # Werkzeuge ausfuehren; Assistenten- und tool-Nachrichten anhaengen
+            for aufruf in aufrufe:
+                aufruf_nr += 1
+                if not getattr(aufruf, "id", ""):
+                    aufruf.id = f"aufruf_{aufruf_nr}"
+            nachrichten.append({
+                "role": "assistant",
+                "content": text,
+                "aufrufe": aufrufe,
+                "roh": getattr(antwort, "roh", None),
+            })
+            for aufruf in aufrufe:
+                if _abgebrochen(abbruch):
+                    return self._antwort_abgebrochen(kasten)
+                _melde(fortschritt, _aufruf_beschreibung(aufruf))
+                ergebnis = kasten.ausfuehren(aufruf)
+                if kasten.protokoll:
+                    _melde(fortschritt, kasten.protokoll[-1].zusammenfassung)
+                nachrichten.append({
+                    "role": "tool",
+                    "content": ergebnis,
+                    "aufruf_id": aufruf.id,
+                    "name": str(getattr(aufruf, "name", "") or ""),
+                })
+
+        # Unerreichbar (der letzte Schritt antwortet immer), zur Sicherheit
+        return RAGResponse(
+            answer_text=f"Werkzeugaufruf fehlgeschlagen: keine Antwort nach {max_schritte} Schritten.",
+            citations=[],
+            retrieved_docs=kasten.dokumente(),
+            used_llm=False,
+            schritte=list(kasten.protokoll),
+            werkzeuge_benutzt=True,
+        )
+
+    def _antwort_mit_werkzeugen(self, text: str, kasten: Werkzeugkasten) -> RAGResponse:
+        """Endtext der Schleife: Zitate gegen die D-Nummern pruefen, zitierte Dokumente markieren."""
+        cleaned, valid, dropped = self.citation_parser.parse(text, kasten.dokumente())
+        for c in valid:
+            kasten.markiere(c.index, "zitiert")
+        return RAGResponse(
+            answer_text=cleaned,
+            citations=valid,
+            retrieved_docs=kasten.dokumente(),
+            used_llm=True,
+            has_hallucinated_citations=bool(dropped),
+            schritte=list(kasten.protokoll),
+            werkzeuge_benutzt=True,
+        )
+
+    @staticmethod
+    def _antwort_abgebrochen(kasten: Werkzeugkasten) -> RAGResponse:
+        return RAGResponse(
+            answer_text=ABGEBROCHEN_TEXT,
+            citations=[],
+            retrieved_docs=kasten.dokumente(),
+            used_llm=False,
+            schritte=list(kasten.protokoll),
+            werkzeuge_benutzt=True,
+        )
+
     def _history_for_llm(self) -> list[dict]:
         """Letzte N Turns als kompakte History fuer den LLM-Prompt."""
         n = getattr(self.chat_config, "max_history_turns", 4) or 4
@@ -410,7 +640,9 @@ class RAGController:
         ``extra["kennungen"]`` (Text fuer den Prompt) und
         ``extra["kennung_objekte"]`` (fuer die Suche). Liegt das Dokument im
         Scan-Eingang, gibt es keinen Ablageort, sondern den Hinweis
-        ``SCAN_EINGANG_HINWEIS``.
+        ``SCAN_EINGANG_HINWEIS``. Der ganze gelesene Text steht in
+        ``extra["volltext"]``, damit ``dokument_lesen`` (Phase 2) das
+        Bezugsdokument auch ohne Suchindex liefern kann.
         """
         meta: dict = {}
         text = ""
@@ -446,6 +678,8 @@ class RAGController:
         if kennungen:
             extra["kennungen"] = [str(kn) for kn in kennungen]
             extra["kennung_objekte"] = kennungen
+        if text:
+            extra["volltext"] = text
         return RetrievedDoc(
             index=1,
             file_path=str(bezug.pfad),
@@ -502,6 +736,78 @@ def _feld(doc, name: str):
     if isinstance(doc, dict):
         return doc.get(name)
     return getattr(doc, name, None)
+
+
+def _als_retrieved_doc(doc) -> RetrievedDoc:
+    """Ein Dict (fremde Retrieval-Fassungen) als RetrievedDoc; RetrievedDocs unveraendert."""
+    if not isinstance(doc, dict):
+        return doc
+    extra = doc.get("extra")
+    if not isinstance(extra, dict):
+        extra = {k: doc[k] for k in ("bezug", "ordner", "hinweise", "kennungen", "gemeinsame_kennungen")
+                 if doc.get(k)}
+    return RetrievedDoc(
+        index=int(doc.get("index") or 0),
+        file_path=str(doc.get("file_path") or ""),
+        filename=str(doc.get("filename") or ""),
+        text_snippet=str(doc.get("text_snippet") or ""),
+        rank=int(doc.get("rank") or 0),
+        kategorie=str(doc.get("kategorie") or ""),
+        steuerjahr=str(doc.get("steuerjahr") or ""),
+        betrag=str(doc.get("betrag") or ""),
+        korrespondent=str(doc.get("korrespondent") or ""),
+        pdf_id=str(doc.get("pdf_id") or ""),
+        dok_id=int(doc.get("dok_id") or 0),
+        seite=int(doc.get("seite") or 0),
+        extra=dict(extra),
+    )
+
+
+def _abgebrochen(abbruch) -> bool:
+    """True, wenn das Abbruch-Event gesetzt ist (None = nie)."""
+    if abbruch is None:
+        return False
+    try:
+        return bool(abbruch.is_set())
+    except Exception:  # noqa: BLE001 - fremde Objekte ohne is_set
+        return False
+
+
+def _melde(fortschritt, text: str) -> None:
+    """Statuszeile fuettern; Fehler im Callback (GUI weg) stoeren die Antwort nicht."""
+    if fortschritt is None:
+        return
+    try:
+        fortschritt(text)
+    except Exception:  # noqa: BLE001 - defensiv
+        pass
+
+
+def _aufruf_beschreibung(aufruf) -> str:
+    """Kurze Zeile fuer die Statuszeile, bevor ein Werkzeug laeuft: ``Suche „226541“ …``."""
+    name = str(getattr(aufruf, "name", "") or "")
+    argumente = getattr(aufruf, "argumente", None)
+    if not isinstance(argumente, dict):
+        argumente = {}
+
+    def wert(schluessel: str) -> str:
+        return " ".join(str(argumente.get(schluessel) or "").split())
+
+    if name == "suche":
+        return f"Suche „{wert('abfrage')}“ …"
+    if name == "dokument_lesen":
+        dok = wert("dokument")
+        if dok.isdigit():
+            dok = f"D{dok}"
+        return f"Lese {dok or 'Dokument'} …"
+    if name == "ordner_vorschlag":
+        dok = wert("dokument")
+        return f"Ordnervorschlag für {dok} …" if dok else "Ordnervorschlag …"
+    if name == "korrespondent_info":
+        return f"Korrespondent „{wert('name')}“ …"
+    if name == "sql_abfrage":
+        return "SQL-Abfrage …"
+    return f"{name or 'Werkzeug'} …"
 
 
 def _mit_index(doc, index: int):

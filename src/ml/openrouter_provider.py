@@ -67,3 +67,8 @@ class OpenRouterProvider(OpenAIProvider):
         """OpenRouter-IDs werden unverändert durchgereicht ("anbieter/modell")."""
         model = (self.config.model or "").strip()
         return model if model else self.DEFAULT_MODEL
+
+    # Werkzeuge im Chat (Issue #166/#167): geerbt von OpenAIProvider bzw.
+    # OpenAIWerkzeugMixin. OpenRouter meldet fehlende Werkzeugunterstuetzung
+    # als HTTP 404 "No endpoints found that support tool use" - der Mixin
+    # merkt sich das und unterstuetzt_werkzeuge() sagt danach Nein.
