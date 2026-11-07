@@ -9,6 +9,8 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QMouseEvent, QCursor, QDragEnterEvent, QDropEvent
+
+from src.core.office_convert import ist_sortierbar
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -195,7 +197,7 @@ class FolderWidget(QFrame):
         if event.mimeData().hasUrls():
             # Prüfen ob es PDF-Dateien sind
             for url in event.mimeData().urls():
-                if url.toLocalFile().lower().endswith('.pdf'):
+                if ist_sortierbar(url.toLocalFile()):
                     event.acceptProposedAction()
                     self.setStyleSheet(
                         "FolderWidget { background-color: #b8daff; border: 3px solid #007bff; border-radius: 8px; }"
@@ -214,7 +216,7 @@ class FolderWidget(QFrame):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 file_path = Path(url.toLocalFile())
-                if file_path.suffix.lower() == '.pdf':
+                if ist_sortierbar(file_path):
                     self.pdf_dropped.emit(file_path, self.folder_path)
 
             event.acceptProposedAction()

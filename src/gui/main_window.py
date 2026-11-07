@@ -76,6 +76,7 @@ from src.core.pdf_rotate import (
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.core import office_vorschau
+from src.core.office_convert import endung_tauschen, ist_office_datei
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -139,7 +140,6 @@ class MainWindow(QMainWindow):
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
-        self.office_widgets: list[OfficeThumbnailWidget] = []  # .docx/.xlsx (Issue #9)
         self.folder_widgets: list[FolderWidget] = []
         self.suggestion_widgets: list[FolderWidget] = []
         self.selected_pdf: Optional[Path] = None
@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
         self._office_worker: Optional[OfficeConvertWorker] = None
         self._office_vorschau_worker: Optional[OfficeVorschauWorker] = None
-        self._office_selected: Optional[Path] = None  # ausgewaehlte .docx/.xlsx (nur Vorschau)
+        self._office_preview_pfad: Optional[Path] = None  # .docx/.xlsx, deren Seitenvorschau gewuenscht ist
         self._ocr_neu_paths: list[Path] = []
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
@@ -247,6 +247,7 @@ class MainWindow(QMainWindow):
         self.detail_panel.rename_and_save_metadata_requested.connect(self._on_rename_and_save_metadata)
         self.detail_panel.open_pdf_requested.connect(self.open_pdf)
         self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.detail_panel.office_preview_requested.connect(self._on_office_preview_requested)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
@@ -777,7 +778,6 @@ class MainWindow(QMainWindow):
                     item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
                     item.widget().deleteLater()
         self.pdf_widgets.clear()
-        self.office_widgets.clear()
         self.folder_tiles = []
 
         # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
@@ -888,54 +888,56 @@ class MainWindow(QMainWindow):
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
 
+    @property
+    def office_widgets(self) -> list[OfficeThumbnailWidget]:
+        """Die Kacheln der .docx/.xlsx (sie stehen mit den PDFs in ``pdf_widgets``, Issue #9)."""
+        return [w for w in self.pdf_widgets if isinstance(w, OfficeThumbnailWidget)]
+
     def _add_office_widgets(self, office_files: list[Path], start_index: int):
-        """Kacheln fuer .docx/.xlsx hinter den PDFs im Raster (Issue #9)."""
-        if self._office_selected not in office_files:
-            self._office_selected = None
+        """Kacheln fuer .docx/.xlsx hinter den PDFs im Raster (Issue #9).
+
+        Sie nutzen dieselben Signale und Wege wie PDF-Kacheln (Auswahl,
+        Vorschlaege, Verschieben, Ziehen); Stapeln, Drehen, OCR usw. gibt es
+        nur bei PDFs.
+        """
         for j, pfad in enumerate(office_files):
             widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
-            widget.selected = pfad == self._office_selected
-            widget.clicked.connect(self.on_office_clicked)
-            widget.delete_requested.connect(self.on_office_delete)
+            widget.clicked.connect(self.on_pdf_clicked)
+            widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
+            widget.shift_clicked.connect(self.on_pdf_shift_clicked)
             widget.double_clicked.connect(self.open_office_file)
             widget.open_requested.connect(self.open_office_file)
+            widget.move_requested.connect(self.on_pdf_move)
+            widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
+            widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
-            self.office_widgets.append(widget)
+            self.pdf_widgets.append(widget)
 
-    def _office_abwaehlen(self):
-        """Hebt die Auswahl einer .docx/.xlsx auf (die Vorschau-Anzeige bleibt Sache des Aufrufers)."""
-        self._office_selected = None
-        for widget in self.office_widgets:
-            widget.selected = False
-
-    def on_office_clicked(self, pfad: Path):
-        """Einzelauswahl einer .docx/.xlsx: nur Seitenvorschau, keine Analyse/Vorschlaege."""
-        self._clear_selection()
-        self._office_selected = pfad
-        for widget in self.office_widgets:
-            widget.selected = widget.pdf_path == pfad
-        self.statusbar.showMessage(f"Ausgewählt: {pfad.name}")
-        self.detail_panel.preview.show_message("Vorschau wird erstellt …")
+    def _on_office_preview_requested(self, pfad: Path):
+        """Das Detail-Panel zeigt eine .docx/.xlsx: Seitenvorschau im Hintergrund erzeugen."""
+        self._office_preview_pfad = pfad
         self._start_office_vorschau()
 
     def _start_office_vorschau(self):
-        """Erzeugt die Vorschau der ausgewaehlten Datei; es laeuft hoechstens eine Umwandlung zugleich."""
-        if self._office_vorschau_worker is not None or self._office_selected is None:
+        """Erzeugt die gewuenschte Vorschau; es laeuft hoechstens eine Umwandlung zugleich."""
+        if self._office_vorschau_worker is not None or self._office_preview_pfad is None:
             return
-        worker = OfficeVorschauWorker(self._office_selected, self)
+        worker = OfficeVorschauWorker(self._office_preview_pfad, self)
         worker.fertig.connect(self._on_office_vorschau)
         self._office_vorschau_worker = worker
         worker.start()
 
     def _on_office_vorschau(self, pfad: Path, pdf, fehler):
         self._office_vorschau_worker = None
-        if self._office_selected is None:
-            return  # inzwischen etwas anderes ausgewaehlt
-        if self._office_selected != pfad:
-            self._start_office_vorschau()  # inzwischen eine andere Datei angeklickt
+        if self._office_preview_pfad is None:
             return
+        if self._office_preview_pfad != pfad:
+            self._start_office_vorschau()  # inzwischen eine andere Datei gewuenscht
+            return
+        if self.selected_pdf != pfad:
+            return  # inzwischen etwas anderes ausgewaehlt
         if pdf is not None:
             self.detail_panel.preview.load_pdf(pdf)
         else:
@@ -946,15 +948,9 @@ class MainWindow(QMainWindow):
         self._datei_loeschen(pfad, "Datei löschen", "diese Datei", self._remove_office_widget)
 
     def _remove_office_widget(self, pfad: Path):
-        for widget in self.office_widgets:
-            if widget.pdf_path == pfad:
-                self.pdf_layout.removeWidget(widget)
-                widget.cleanup()
-                widget.deleteLater()
-                self.office_widgets.remove(widget)
-                break
-        if self._office_selected == pfad:
-            self._office_selected = None
+        was_selected = self.selected_pdf == pfad
+        self.remove_pdf_widget(pfad)
+        if was_selected:
             self.detail_panel.clear()
         office_vorschau.vorschau_loeschen(pfad)
         self._relayout_pdf_grid(force=True)
@@ -1862,7 +1858,7 @@ class MainWindow(QMainWindow):
                 timer.stop()
 
         # Thumbnail-Threads beenden
-        for widget in self.pdf_widgets + self.office_widgets:
+        for widget in self.pdf_widgets:
             widget.cleanup()
 
         # Kind-Threads (Ordner-Scan, Metadaten-Leser) zu Ende laufen lassen.
@@ -1880,7 +1876,7 @@ class MainWindow(QMainWindow):
             self._ocr_neu_worker.requestInterruption()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
-        self._office_selected = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
+        self._office_preview_pfad = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -1947,7 +1943,7 @@ class MainWindow(QMainWindow):
             self._place_folder_rows()
         if cols != self._grid_cols or force:
             self._grid_cols = cols
-            for i, widget in enumerate(self.pdf_widgets + self.office_widgets):
+            for i, widget in enumerate(self.pdf_widgets):
                 self.pdf_layout.addWidget(widget, i // cols, i % cols)
 
     def set_tile_view(self, view_id: str):
@@ -1962,7 +1958,7 @@ class MainWindow(QMainWindow):
             self._tile_view = view
             self.config.set("tile_view", view.id)
             # Ordnerzeilen haben eine feste Groesse (Issue #147)
-            for widget in self.pdf_widgets + self.office_widgets:
+            for widget in self.pdf_widgets:
                 widget.set_view(view)
             self._relayout_pdf_grid(force=True)
         combo = getattr(self, "tile_view_combo", None)
@@ -1986,7 +1982,6 @@ class MainWindow(QMainWindow):
             self._clear_selection()
             return
 
-        self._office_abwaehlen()
         # Alte Auswahl aufheben (Einzelauswahl)
         for widget in self.pdf_widgets:
             widget.selected = False
@@ -2103,7 +2098,6 @@ class MainWindow(QMainWindow):
             # Alle Widgets deselektieren
             for widget in self.pdf_widgets:
                 widget.selected = False
-            self._office_abwaehlen()
 
             # Auswahl-Listen zurücksetzen
             self.selected_pdf = None
@@ -2388,6 +2382,10 @@ class MainWindow(QMainWindow):
 
         new_name = self.detail_panel.get_new_name()
         metadata = self.detail_panel.get_metadata()
+        # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
+        office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
+        if office_ext and new_name:
+            new_name = endung_tauschen(new_name, office_ext)
 
         # Der vom Nutzer gewaehlte/korrigierte Name ist das, was die KI
         # kuenftig liefern soll - nur er geht als Beispiel in die Historie.
@@ -2404,14 +2402,19 @@ class MainWindow(QMainWindow):
             fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
             if fallback_date is None and self.selected_pdf_dates:
                 fallback_date = coerce_date(self.selected_pdf_dates[0])
+            basis_name = new_name or pdf_path.name
+            if office_ext:
+                basis_name = basis_name[: -len(office_ext)] if basis_name.lower().endswith(office_ext) else basis_name
             new_name = build_folder_based_name(
-                new_name or pdf_path.name,
+                basis_name,
                 folder_path,
                 relative_path,
                 template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
                 initials=self.config.get("owner_initials", ""),
                 fallback_date=fallback_date,
             )
+            if office_ext:
+                new_name = endung_tauschen(new_name, office_ext)
 
         # Prüfen ob umbenannt wird
         name_changed = new_name and new_name != pdf_path.name
@@ -2446,8 +2449,9 @@ class MainWindow(QMainWindow):
             # Metadaten in PDF schreiben (pikepdf schreibt die Datei komplett neu
             # -> auf OneDrive/Netzlaufwerken langsam, daher im Hintergrund)
             if metadata:
-                self._write_pdf_metadata_async(new_path, new_path.name,
-                                               self.selected_pdf_keywords, metadata)
+                if not office_ext:  # in .docx/.xlsx schreiben wir keine PDF-Metadaten
+                    self._write_pdf_metadata_async(new_path, new_path.name,
+                                                   self.selected_pdf_keywords, metadata)
                 # Korrespondent-Zuordnung lernen
                 if metadata.get("korrespondent"):
                     self.db.learn_korrespondent_metadata(
@@ -2808,6 +2812,9 @@ class MainWindow(QMainWindow):
         if not pdf_path or not pdf_path.exists():
             self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
             return
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            return
 
         metadata = self.detail_panel.get_metadata()
         if not metadata:
@@ -2835,6 +2842,9 @@ class MainWindow(QMainWindow):
         pdf_path = self.detail_panel.get_current_pdf()
         if not pdf_path or not pdf_path.exists():
             self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            return
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
             return
 
         new_name = self.detail_panel.get_new_name()
@@ -2904,6 +2914,10 @@ class MainWindow(QMainWindow):
 
     def on_pdf_rename(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
+        if ist_office_datei(pdf_path):
+            self.statusbar.showMessage(
+                "Word-/Excel-Dateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
+            return
         from src.core.pdf_cache import get_pdf_cache
 
         # Prüfe ob gecachte LLM-Vorschläge vorhanden sind
@@ -3221,7 +3235,7 @@ class MainWindow(QMainWindow):
 
     def on_pdf_merge(self):
         """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
-        pdfs_to_merge = list(self.selected_pdfs)
+        pdfs_to_merge = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]
         if len(pdfs_to_merge) < 2:
             QMessageBox.information(
                 self, "PDFs zusammenfügen",
@@ -3349,8 +3363,10 @@ class MainWindow(QMainWindow):
     def _aktion_ziele(self, pdf_path: Path) -> list[Path]:
         """Gehoert die Kachel zur Mehrfachauswahl, gilt die Aktion fuer alle markierten PDFs."""
         if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
-            return list(self.selected_pdfs)
-        return [pdf_path]
+            ziele = list(self.selected_pdfs)
+        else:
+            ziele = [pdf_path]
+        return [p for p in ziele if p.suffix.lower() == ".pdf"]  # Office-Dateien in der Auswahl auslassen
 
     def on_pdf_rotate(self, pdf_path: Path, grad: int):
         """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
@@ -3801,7 +3817,7 @@ class MainWindow(QMainWindow):
         renamed_count = 0
         skipped_count = 0
         error_count = 0
-        pdfs_to_process = list(self.selected_pdfs)  # Kopie der Liste
+        pdfs_to_process = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]  # Office-Dateien auslassen
 
         for i, pdf_path in enumerate(pdfs_to_process):
             if progress.wasCanceled():

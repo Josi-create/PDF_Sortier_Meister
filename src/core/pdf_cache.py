@@ -126,6 +126,8 @@ class PDFAnalysisWorker(QThread):
 
     def run(self):
         """Worker-Loop."""
+        from src.core.office_analyse import analysiere as office_analysiere
+        from src.core.office_convert import ist_office_datei
         from src.core.pdf_analyzer import PDFAnalyzer
 
         while self._running:
@@ -148,16 +150,27 @@ class PDFAnalysisWorker(QThread):
                         continue
 
                     t0 = time.perf_counter()
-                    with PDFAnalyzer(pdf_path) as analyzer:
+                    if ist_office_datei(pdf_path):  # .docx/.xlsx (Issue #9): Text aus dem Suchmodul
+                        text, keywords, dates = office_analysiere(pdf_path)
                         result = PDFAnalysisResult(
                             pdf_path=pdf_path,
-                            extracted_text=analyzer.extract_text(),
-                            keywords=analyzer.extract_keywords(),
-                            dates=analyzer.extract_dates(),
+                            extracted_text=text,
+                            keywords=keywords,
+                            dates=dates,
                             file_modified=pdf_path.stat().st_mtime
                         )
-                        pages = analyzer.page_count
-                        ocr_used = analyzer.ocr_used
+                        pages, ocr_used = 1, False
+                    else:
+                        with PDFAnalyzer(pdf_path) as analyzer:
+                            result = PDFAnalysisResult(
+                                pdf_path=pdf_path,
+                                extracted_text=analyzer.extract_text(),
+                                keywords=analyzer.extract_keywords(),
+                                dates=analyzer.extract_dates(),
+                                file_modified=pdf_path.stat().st_mtime
+                            )
+                            pages = analyzer.page_count
+                            ocr_used = analyzer.ocr_used
                     ms = (time.perf_counter() - t0) * 1000.0
                     # Gegenstueck zur "Klick ..."-Zeile des StepTimers: der
                     # asynchrone Teil war im Log bisher unsichtbar (Issue #108)

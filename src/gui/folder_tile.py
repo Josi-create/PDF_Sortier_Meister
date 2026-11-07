@@ -18,6 +18,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor, QDragEnterEvent, QDropEvent, QFontMetrics
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
 
+from src.core.office_convert import ist_sortierbar
+
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
     im_dateimanager_zeigen,
@@ -203,7 +205,7 @@ class FolderTileWidget(QFrame):
         if not mime.hasUrls():
             return []
         paths = [Path(url.toLocalFile()) for url in mime.urls()]
-        return [p for p in paths if p.suffix.lower() == ".pdf"]
+        return [p for p in paths if ist_sortierbar(p)]
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if self._pdf_paths(event.mimeData()):
