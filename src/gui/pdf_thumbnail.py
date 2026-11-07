@@ -68,6 +68,7 @@ class PDFThumbnailWidget(QFrame):
     stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
     rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
     reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
+    straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
@@ -475,6 +476,11 @@ class PDFThumbnailWidget(QFrame):
         rotate_right.triggered.connect(self._rotate_right)
         rotate_half = rotate_menu.addAction("180°")
         rotate_half.triggered.connect(self._rotate_180)
+        # Issue #165: schief gescannte Seiten um den kleinen Winkel gerade drehen
+        rotate_menu.addSeparator()
+        straighten_action = rotate_menu.addAction("Gerade ausrichten (schief gescannt)")
+        straighten_action.setToolTip("Schief eingezogene Seiten messen und gerade drehen")
+        straighten_action.triggered.connect(self._request_straighten)
         reocr_action = menu.addAction(f"OCR neu durchführen{suffix}")
         reocr_action.setToolTip("Gescannte Seiten neu erkennen, z. B. nach dem Drehen")
         reocr_action.triggered.connect(self._request_reocr)
@@ -498,6 +504,9 @@ class PDFThumbnailWidget(QFrame):
 
     def _request_reocr(self):
         self.reocr_requested.emit(self.pdf_path)
+
+    def _request_straighten(self):
+        self.straighten_requested.emit(self.pdf_path)
 
     def _show_in_file_manager(self):
         """Markiert die PDF im Explorer/Finder (Issue #154)."""

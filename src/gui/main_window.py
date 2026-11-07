@@ -67,7 +67,13 @@ def _iso_to_date(value):
         return None
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
 from src.core.pdf_analyzer import thumbnail_vergessen
-from src.core.pdf_rotate import DrehenNichtMoeglich, gegenrichtung, rotate_pdf
+from src.core.pdf_rotate import (
+    DrehenNichtMoeglich,
+    ausrichtung_zuruecknehmen,
+    gegenrichtung,
+    gerade_ausrichten,
+    rotate_pdf,
+)
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
@@ -848,6 +854,7 @@ class MainWindow(QMainWindow):
             widget.stack_requested.connect(self.on_pdf_stacked)
             widget.rotate_requested.connect(self.on_pdf_rotate)
             widget.reocr_requested.connect(self.on_pdf_reocr)
+            widget.straighten_requested.connect(self.on_pdf_straighten)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
@@ -3262,6 +3269,92 @@ class MainWindow(QMainWindow):
             text += f" ({fehlen} PDF(s) nicht mehr am alten Ort)"
         self.statusbar.showMessage(text, 5000)
 
+    # --- Gerade ausrichten (Issue #165) ---
+
+    def on_pdf_straighten(self, pdf_path: Path):
+        """Kontextmenue "Drehen > Gerade ausrichten": schief gescannte Seiten gerade drehen."""
+        self._straighten_pdfs(self._aktion_ziele(pdf_path))
+
+    def _straighten_pdfs(self, paths: list[Path]) -> dict[Path, dict[int, float]]:
+        """Misst die Seiten, richtet schiefe gerade aus und frischt Kachel, Vorschau und Index auf.
+
+        Messen und Schreiben dauern je Seite nur Bruchteile einer Sekunde (wie
+        beim Drehen ohne eigenen Thread). Ausgerichtete PDFs kommen mit ihren
+        Seiten auf den Rueckgaengig-Stapel. Liefert ``{pfad: {seite: winkel}}``.
+        """
+        ausgerichtet: dict[Path, dict[int, float]] = {}
+        schon_gerade = 0
+        fehler: list[str] = []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path in paths:
+                try:
+                    winkel = gerade_ausrichten(path)
+                except DrehenNichtMoeglich as e:
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                except PermissionError:
+                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    continue
+                except Exception as e:  # noqa: BLE001 - je Datei melden
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                if not winkel:
+                    schon_gerade += 1
+                    continue
+                ausgerichtet[path] = winkel
+                self._pdf_inhalt_geaendert(path)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if ausgerichtet:
+            erste = next(iter(ausgerichtet))
+            if len(ausgerichtet) == 1:
+                wer = erste.name
+                was = ", ".join(f"S. {s}: {f'{abs(w):.1f}'.replace('.', ',')}°"
+                                for s, w in sorted(ausgerichtet[erste].items()))
+            else:
+                wer = f"{len(ausgerichtet)} PDFs"
+                was = f"{sum(len(w) for w in ausgerichtet.values())} Seiten"
+            self._push_undo({
+                "type": "gerade",
+                "seiten": {p: sorted(w) for p, w in ausgerichtet.items()},
+                "description": f"{wer} gerade ausgerichtet",
+            })
+            text = f"{wer} gerade ausgerichtet ({was})"
+            if schon_gerade:
+                text += f", {schon_gerade} PDF(s) waren schon gerade"
+            self.statusbar.showMessage(text + " – Ctrl+Z macht es rückgängig", 6000)
+        elif not fehler:
+            self.statusbar.showMessage("Keine schief gescannte Seite gefunden – nichts geändert.", 5000)
+        if fehler:
+            QMessageBox.warning(self, "Gerade ausrichten", "Nicht ausgerichtet:\n\n" + "\n".join(fehler))
+        return ausgerichtet
+
+    def _undo_gerade(self, entry: dict):
+        """Nimmt die Ausrichtung wieder heraus (die Seiten stehen danach wie vorher)."""
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        nicht = 0
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path, seiten in entry["seiten"].items():
+                path = Path(path)
+                try:
+                    ok = path.exists() and bool(ausrichtung_zuruecknehmen(path, seiten))
+                except Exception:  # noqa: BLE001 - je Datei zaehlen
+                    ok = False
+                if ok:
+                    self._pdf_inhalt_geaendert(path)
+                else:
+                    nicht += 1
+        finally:
+            QApplication.restoreOverrideCursor()
+        text = f"Rückgängig: {entry['description']}"
+        if nicht:
+            text += f" ({nicht} PDF(s) nicht mehr möglich)"
+        self.statusbar.showMessage(text, 5000)
+
     def _pdf_inhalt_geaendert(self, path: Path):
         """Nach einer Aenderung am Inhalt (Drehen): Thumbnail, Analyse, Vorschau und Index auffrischen."""
         thumbnail_vergessen(path)
@@ -3378,6 +3471,8 @@ class MainWindow(QMainWindow):
             self._undo_stack_pdfs(entry)
         elif entry_type == "rotate":
             self._undo_rotate(entry)
+        elif entry_type == "gerade":
+            self._undo_gerade(entry)
         else:
             self._undo_move(entry)
 

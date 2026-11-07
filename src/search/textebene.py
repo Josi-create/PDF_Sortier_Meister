@@ -42,6 +42,16 @@ unveraendert), auch ohne Textebene; mit Textebene entsteht beides in einer
 Aenderung mit einer Sicherungskopie. Bleibt die Datei ungedreht, liegt die
 Textebene trotzdem deckungsgleich auf dem Scan (``ebene_auflegen`` mit der
 Lage, in der Tesseract gelesen hat).
+
+Gerade ausrichten (Issue #165): Beim Einlesen eines neuen Scans misst
+``extract.pdf_text`` die Schraeglage seiner Seiten (``gerade.seite_messen``);
+lohnt das Ausrichten, ist der Winkel am Bild-Hash vorgemerkt (Tabelle
+``schraeglage``). Derselbe Schreibschritt dreht dann den ganzen Seiteninhalt
+um diesen kleinen Winkel (``gerade.ausrichten``, nach Drehung und Textebene,
+damit beide mitdrehen), mit demselben Schutz, einer Sicherungskopie und
+einem Protokolleintrag. Das gilt auch fuer Scans, deren Textebene schon das
+Scanprogramm geschrieben hat. Danach ist die Vormerkung erledigt, auch nach
+Rueckgaengig; eine von Hand ausgerichtete Seite bleibt, wie sie ist.
 """
 
 from __future__ import annotations
@@ -56,6 +66,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.search import db, extract, plattform
+from src.search import gerade as geraderichten
 
 log = logging.getLogger("pdf_sortier_meister.suche")
 
@@ -209,13 +220,15 @@ def _weg(pfad: str | None) -> None:
             pass
 
 
-def _vorbereiten(pfad: str, a: dict, erg: dict) -> tuple[dict[int, tuple[bytes, int]], dict[int, int]]:
+def _vorbereiten(pfad: str, a: dict, erg: dict) -> tuple[dict[int, tuple[bytes, int]], dict[int, int],
+                                                         dict[int, float]]:
     """Original lesen: Dokument pruefen, Seiten auswaehlen, fehlende Text-PDFs mit Tesseract erzeugen.
 
-    Liefert ``({seite: (text_pdf, lage)}, {seite: drehung})``: ``lage`` ist
-    die angezeigte Drehung, in der die Text-PDF entstand, ``drehung`` die
-    vorgemerkte Drehung der Seite (Issue #151). Bei einem Grund steht er in
-    ``erg["grund"]``.
+    Liefert ``({seite: (text_pdf, lage)}, {seite: drehung}, {seite: winkel})``:
+    ``lage`` ist die angezeigte Drehung, in der die Text-PDF entstand,
+    ``drehung`` die vorgemerkte Drehung der Seite (Issue #151), ``winkel``
+    die vorgemerkte Schraeglage (Issue #165; Seiten, die schon ausgerichtet
+    sind, fallen weg). Bei einem Grund steht er in ``erg["grund"]``.
     """
     import pymupdf
 
@@ -224,22 +237,35 @@ def _vorbereiten(pfad: str, a: dict, erg: dict) -> tuple[dict[int, tuple[bytes, 
         grund = dokument_grund(doc)
         if grund:
             erg["grund"] = grund
-            return {}, {}
+            return {}, {}, {}
         drehen: dict[int, int] = {}
         for nr, info in sorted((a.get("drehen") or {}).items()):
             if nr < 1 or nr > doc.page_count:
                 erg["grund"] = "geaendert"
-                return {}, {}
+                return {}, {}, {}
             if info.get("hash") and extract._bild_hash(doc, doc[nr - 1]) != info["hash"]:
                 erg["grund"] = "geaendert"  # anderes Bild: die erkannte Lage gilt nicht mehr
-                return {}, {}
+                return {}, {}, {}
             if int(info["grad"]) % 360:
                 drehen[nr] = int(info["grad"]) % 360
+        gerade: dict[int, float] = {}
+        for nr, info in sorted((a.get("gerade") or {}).items()):
+            if nr < 1 or nr > doc.page_count:
+                erg["grund"] = "geaendert"
+                return {}, {}, {}
+            seite = doc[nr - 1]
+            if info.get("hash") and extract._bild_hash(doc, seite) != info["hash"]:
+                erg["grund"] = "geaendert"  # anderes Bild: der gemessene Winkel gilt nicht mehr
+                return {}, {}, {}
+            if geraderichten.ist_ausgerichtet(doc, seite):
+                continue                    # schon ausgerichtet (z. B. von Hand ueber das Kontextmenue)
+            if geraderichten.lohnt(info.get("winkel")):
+                gerade[nr] = round(float(info["winkel"]), 2)
         ebenen: dict[int, tuple[bytes, int]] = {}
         for nr, info in sorted((a.get("seiten") or {}).items()):
             if nr < 1 or nr > doc.page_count:
                 erg["grund"] = "geaendert"
-                return {}, {}
+                return {}, {}, {}
             seite = doc[nr - 1]
             if extract.hat_ocr_textebene(seite):
                 continue                    # schon erkannt (von uns oder einem anderen Programm)
@@ -247,9 +273,13 @@ def _vorbereiten(pfad: str, a: dict, erg: dict) -> tuple[dict[int, tuple[bytes, 
                 continue                    # die Seite hat inzwischen eigenen Text
             if info.get("hash") and extract._bild_hash(doc, seite) != info["hash"]:
                 erg["grund"] = "geaendert"  # anderes Bild: die Text-PDF passt nicht mehr
-                return {}, {}
+                return {}, {}, {}
             lage = (seite.rotation + int(info.get("drehung") or 0)) % 360
             daten = info.get("ebene")
+            if daten is not None and geraderichten.ist_ausgerichtet(doc, seite):
+                # Schon ausgerichtet (Issue #165, z. B. von Hand): die Text-PDF im Cache stammt womoeglich aus der
+                # Seite davor und laege um den Winkel schief; aus der angezeigten Seite neu erkennen
+                daten = None
             if daten is None:
                 if not a.get("ocr"):
                     continue
@@ -262,21 +292,24 @@ def _vorbereiten(pfad: str, a: dict, erg: dict) -> tuple[dict[int, tuple[bytes, 
                 erg["texte"][nr] = extract._saeubern(text)
             if ebene_hat_text(daten):
                 ebenen[nr] = (daten, lage)
-        return ebenen, drehen
+        return ebenen, drehen, gerade
     finally:
         doc.close()
 
 
 def _schreiben_tmp(pfad: str, tmp: str, ebenen: dict[int, tuple[bytes, int]],
-                   drehen: dict[int, int] | None = None) -> dict[int, str]:
-    """Kopie anlegen, Seiten drehen, Textebenen auflegen, inkrementell speichern (Original bleibt bytegleich vorn).
+                   drehen: dict[int, int] | None = None, gerade: dict[int, float] | None = None) -> dict[int, str]:
+    """Kopie anlegen, Seiten drehen, Textebenen auflegen, gerade ausrichten, inkrementell speichern.
 
-    Liefert die neuen Bild-Hashes der gedrehten Seiten (die Drehung gehoert
-    zum Hash, ``extract._bild_hash``).
+    Das Original bleibt bytegleich der Anfang der neuen Datei. Ausgerichtet
+    wird zuletzt, damit die Textebene mitdreht (Issue #165). Liefert die neuen
+    Bild-Hashes der gedrehten Seiten (die Drehung gehoert zum Hash,
+    ``extract._bild_hash``; das Ausrichten nicht).
     """
     import pymupdf
 
     drehen = drehen or {}
+    gerade = gerade or {}
     shutil.copyfile(pfad, tmp)
     doc = pymupdf.open(tmp)
     hashes: dict[int, str] = {}
@@ -286,6 +319,8 @@ def _schreiben_tmp(pfad: str, tmp: str, ebenen: dict[int, tuple[bytes, int]],
             seite.set_rotation((seite.rotation + grad) % 360)
         for nr, (daten, lage) in sorted(ebenen.items()):
             ebene_auflegen(doc[nr - 1], daten, lage)
+        for nr, winkel in sorted(gerade.items()):
+            geraderichten.ausrichten(doc, doc[nr - 1], winkel)
         for nr in sorted(drehen):
             h = extract._bild_hash(doc, doc[nr - 1])
             if h:
@@ -320,13 +355,17 @@ def _rechteck(r) -> tuple:
     return tuple(round(v, 2) for v in (r.x0, r.y0, r.x1, r.y1))
 
 
-def pruefen(original: str, neu: str, ebenen, drehen: dict[int, int] | None = None) -> None:
+def pruefen(original: str, neu: str, ebenen, drehen: dict[int, int] | None = None,
+            gerade: dict[int, float] | None = None) -> None:
     """Die neue Datei gegen das Original pruefen; ``PruefungFehlgeschlagen`` bei jeder Abweichung.
 
     ``drehen`` (Issue #151): Diese Seiten muessen um so viel gedreht sein,
-    alle anderen ungedreht wie im Original.
+    alle anderen ungedreht wie im Original. ``gerade`` (Issue #165): Diese
+    Seiten muessen um genau diesen Winkel ausgerichtet sein, alle anderen wie
+    im Original.
     """
     drehen = drehen or {}
+    gerade = gerade or {}
     import pymupdf
 
     a = pymupdf.open(original)
@@ -346,6 +385,9 @@ def pruefen(original: str, neu: str, ebenen, drehen: dict[int, int] | None = Non
             if (pb.rotation != erwartet or _rechteck(pa.mediabox) != _rechteck(pb.mediabox)
                     or _rechteck(pa.cropbox) != _rechteck(pb.cropbox)):
                 raise PruefungFehlgeschlagen(f"Seite {i + 1}: Größe oder Drehung verändert")
+            soll = gerade[i + 1] if i + 1 in gerade else geraderichten.ausrichtung(a, pa)
+            if abs(geraderichten.ausrichtung(b, pb) - soll) > 0.005:
+                raise PruefungFehlgeschlagen(f"Seite {i + 1}: Ausrichtung verändert")
         for x in _bild_und_inhalt_xrefs(a):
             try:
                 gleich = a.xref_stream_raw(x) == b.xref_stream_raw(x)
@@ -369,19 +411,24 @@ def datei_schreiben(a: dict) -> dict:
     ab, wird nichts geschrieben), ``seiten`` (``{seite: {"hash": str|None,
     "ebene": bytes|None, "drehung": int}}``; fehlende Text-PDFs erzeugt
     Tesseract mit ``ocr``, sonst bleibt die Seite aus), ``drehen`` (Issue #151:
-    ``{seite: {"hash": str|None, "grad": int}}``), ``sicherung_ordner``,
+    ``{seite: {"hash": str|None, "grad": int}}``), ``gerade`` (Issue #165:
+    ``{seite: {"hash": str|None, "winkel": float}}``), ``sicherung_ordner``,
     ``min_zeichen``.
 
     Ergebnis: ``status`` ``'geschrieben'`` | ``'vorhanden'`` (nichts zu tun, die
     Seiten tragen schon Text) | ``'uebersprungen'`` (``grund``, siehe
     ``GRUENDE``) | ``'fehler'`` (``fehler``); dazu ``seiten`` (mit Textebene),
-    ``gedreht`` (``{seite: grad}``) mit den neuen Bild-Hashes ``hashes``, neu
-    erkannte ``texte``, Groesse und Aenderungszeit vorher/nachher und ``sicherung``.
+    ``gedreht`` (``{seite: grad}``) mit den neuen Bild-Hashes ``hashes``,
+    ``gerade`` (``{seite: winkel}``), neu erkannte ``texte``, Groesse und
+    Aenderungszeit vorher/nachher und ``sicherung``. ``gerade_hashes`` und
+    ``mit_ebene`` geben den Auftrag an ``ergebnis_eintragen`` weiter.
     """
     pfad = a["pfad"]
     erg: dict = {"pfad": pfad, "status": "uebersprungen", "grund": None, "fehler": None, "seiten": [],
-                 "gedreht": {}, "hashes": {}, "texte": {}, "groesse_vorher": None, "mtime_ns_vorher": None,
-                 "groesse": None, "mtime_ns": None, "sicherung": None}
+                 "gedreht": {}, "hashes": {}, "gerade": {}, "texte": {}, "groesse_vorher": None,
+                 "mtime_ns_vorher": None, "groesse": None, "mtime_ns": None, "sicherung": None,
+                 "gerade_hashes": [v.get("hash") for v in (a.get("gerade") or {}).values() if v.get("hash")],
+                 "mit_ebene": bool(a.get("seiten"))}
     try:
         st = os.stat(pfad)
     except OSError:
@@ -395,14 +442,14 @@ def datei_schreiben(a: dict) -> dict:
     tmp = tmp_pfad(pfad)
     sicherung = None
     try:
-        ebenen, drehen = _vorbereiten(pfad, a, erg)
+        ebenen, drehen, gerade = _vorbereiten(pfad, a, erg)
         if erg["grund"]:
             return erg
-        if not ebenen and not drehen:
+        if not ebenen and not drehen and not gerade:
             erg["status"] = "vorhanden"
             return erg
-        hashes = _schreiben_tmp(pfad, tmp, ebenen, drehen)
-        pruefen(pfad, tmp, ebenen, drehen)
+        hashes = _schreiben_tmp(pfad, tmp, ebenen, drehen, gerade)
+        pruefen(pfad, tmp, ebenen, drehen, gerade)
         sicherung = sichern(pfad, a["sicherung_ordner"])
         jetzt = os.stat(pfad)
         if (jetzt.st_size, jetzt.st_mtime_ns) != (st.st_size, st.st_mtime_ns):
@@ -411,7 +458,8 @@ def datei_schreiben(a: dict) -> dict:
         plattform.datei_ersetzen(pfad, tmp)
         neu = os.stat(pfad)
         erg.update(status="geschrieben", seiten=sorted(ebenen), gedreht=dict(sorted(drehen.items())),
-                   hashes=hashes, groesse=neu.st_size, mtime_ns=neu.st_mtime_ns, sicherung=sicherung)
+                   gerade=dict(sorted(gerade.items())), hashes=hashes, groesse=neu.st_size,
+                   mtime_ns=neu.st_mtime_ns, sicherung=sicherung)
         return erg
     except FileNotFoundError:
         erg["grund"] = "fehlt"              # inzwischen verschoben oder geloescht: am alten Ort entsteht nichts
@@ -433,26 +481,35 @@ _SCHREIBBAR = f"""d.typ = 'pdf'
     AND (d.textebene_grund IS NULL OR d.textebene_grund NOT IN ({_DAUERHAFT_SQL}))
     AND d.textstatus IN ('ocr', 'ocr_teilweise')"""
 _KANDIDAT = f"d.textebene_am IS NULL AND {_SCHREIBBAR}"
+# Ausrichten (Issue #165) auch fuer PDFs, deren Text schon in der Datei steht (Textebene des Scanprogramms)
+_AUSRICHTBAR = f"""d.typ = 'pdf'
+    AND (d.textebene_grund IS NULL OR d.textebene_grund NOT IN ({_DAUERHAFT_SQL}))"""
+_KANDIDAT_SPALTEN = "d.id, d.datei, d.groesse, d.mtime_ns, d.prioritaet, d.datum, d.textebene_am"
 
 
-def offene(con, ebene: bool = True, drehen: bool = False) -> list[sqlite3.Row]:
+def offene(con, ebene: bool = True, drehen: bool = False, gerade: bool = False) -> list[sqlite3.Row]:
     """Dokumente, deren OCR die Textebene mitgeliefert hat (Cache) und die sie noch nicht tragen.
 
     Mit ``drehen`` (Issue #151) auch Dokumente mit einer vorgemerkten Drehung
-    (``ocr_cache.drehen``), ob mit Textebene oder ohne.
+    (``ocr_cache.drehen``), ob mit Textebene oder ohne; mit ``gerade`` (Issue
+    #165) Dokumente mit einer vorgemerkten Schraeglage (``schraeglage.gerade``).
     """
-    # Je Bedingung eine Abfrage mit eigenem Teilindex (ix_ocr_cache_ebene/_drehen), per UNION ohne Doppelte;
-    # ein OR in einer Abfrage liesse SQLite den ganzen OCR-Cache lesen
+    # Je Bedingung eine Abfrage mit eigenem Teilindex (ix_ocr_cache_ebene/_drehen, ix_schraeglage_gerade),
+    # per UNION ohne Doppelte; ein OR in einer Abfrage liesse SQLite den ganzen OCR-Cache lesen
     teile = []
     if ebene:
         teile.append("c.ebene IS NOT NULL AND d.textebene_am IS NULL")
     if drehen:
         teile.append("c.drehen = 1 AND c.drehung % 360 != 0")
-    if not teile:
-        return []
-    abfragen = [f"""SELECT DISTINCT d.id, d.datei, d.groesse, d.mtime_ns, d.prioritaet, d.datum, d.textebene_am
+    abfragen = [f"""SELECT DISTINCT {_KANDIDAT_SPALTEN}
             FROM ocr_cache c JOIN seiten s ON s.bild_hash = c.bild_hash JOIN dokumente d ON d.id = s.dok_id
             WHERE {bedingung} AND s.quelle = 'ocr' AND {_SCHREIBBAR}""" for bedingung in teile]
+    if gerade:
+        abfragen.append(f"""SELECT DISTINCT {_KANDIDAT_SPALTEN}
+            FROM schraeglage g JOIN seiten s ON s.bild_hash = g.bild_hash JOIN dokumente d ON d.id = s.dok_id
+            WHERE g.gerade = 1 AND {_AUSRICHTBAR}""")
+    if not abfragen:
+        return []
     return con.execute(" UNION ".join(abfragen) + " ORDER BY prioritaet, datum DESC").fetchall()
 
 
@@ -476,17 +533,25 @@ def auftrag(con, d, konfig, ocr: dict | None, altbestand: bool = False) -> dict 
 
     Die Textebene gehoert dazu, wenn die Stufe sie erlaubt, die Datei noch
     keine traegt und die OCR sie mitgeliefert hat (bzw. ``altbestand``);
-    vorgemerkte Drehungen (Issue #151), wenn ``auto_drehen`` nicht aus ist.
-    None, wenn es nichts zu schreiben gibt (ohne erkannte Seiten dann
-    ``textebene_grund = 'leer'``) oder wenn Text-PDFs fehlen, keine
-    Texterkennung verfuegbar ist und nichts zu drehen ist (dann spaeter erneut).
+    vorgemerkte Drehungen (Issue #151), wenn ``auto_drehen`` nicht aus ist;
+    vorgemerkte Schraeglagen (Issue #165), wenn ``auto_gerade`` nicht aus ist.
+    None, wenn es nichts zu schreiben gibt (ohne erkannte Seiten und ohne
+    Schraeglage dann ``textebene_grund = 'leer'``) oder wenn Text-PDFs fehlen,
+    keine Texterkennung verfuegbar ist und nichts zu drehen oder auszurichten
+    ist (dann spaeter erneut).
     """
     zeilen = con.execute(
         """SELECT s.seite, s.bild_hash, c.ebene, c.drehung, c.drehen FROM seiten s
            LEFT JOIN ocr_cache c ON c.bild_hash = s.bild_hash
            WHERE s.dok_id = ? AND s.quelle = 'ocr' AND length(trim(s.text)) > 0 ORDER BY s.seite""",
         (d["id"],)).fetchall()
-    if not zeilen:
+    gerade: dict = {}
+    if konfig.auto_gerade != "aus":
+        for r in con.execute(
+                """SELECT s.seite, s.bild_hash, g.winkel FROM seiten s JOIN schraeglage g ON g.bild_hash = s.bild_hash
+                   WHERE s.dok_id = ? AND g.gerade = 1 ORDER BY s.seite""", (d["id"],)):
+            gerade[r["seite"]] = {"hash": r["bild_hash"], "winkel": float(r["winkel"])}
+    if not zeilen and not gerade:
         con.execute("UPDATE dokumente SET textebene_grund = 'leer' WHERE id = ?", (d["id"],))
         return None
     textebene_am = d["textebene_am"] if "textebene_am" in d.keys() else None
@@ -503,16 +568,28 @@ def auftrag(con, d, konfig, ocr: dict | None, altbestand: bool = False) -> dict 
             drehen[r["seite"]] = {"hash": r["bild_hash"], "grad": grad}
     if ocr is None and any(v["ebene"] is None for v in seiten.values()):
         seiten = {}                 # Textebene spaeter mit Texterkennung; drehen geht schon jetzt
-    if not seiten and not drehen:
+    if not seiten and not drehen and not gerade:
         return None
     return {"pfad": d["datei"], "groesse": d["groesse"], "mtime_ns": d["mtime_ns"], "seiten": seiten,
-            "drehen": drehen, "ocr": ocr, "sicherung_ordner": str(konfig.sicherung_ordner),
+            "drehen": drehen, "gerade": gerade, "ocr": ocr, "sicherung_ordner": str(konfig.sicherung_ordner),
             "min_zeichen": konfig.ocr_min_zeichen}
 
 
 def drehungen_text(gedreht: dict | None) -> str:
     """``{1: 180, 3: 90}`` -> ``"1:180,3:90"`` (Protokoll)."""
     return ",".join(f"{s}:{g}" for s, g in sorted((gedreht or {}).items()))
+
+
+def gerade_text(gerade: dict | None) -> str:
+    """``{1: -1.75, 2: 0.8}`` -> ``"1:-1.75,2:0.80"`` (Protokoll)."""
+    return ",".join(f"{s}:{float(w):.2f}" for s, w in sorted((gerade or {}).items()))
+
+
+def _gerade_erledigt(con, hashes) -> None:
+    """Vormerkungen erledigt (Issue #165): auch nach Rueckgaengig und fuer Kopien des Scans nicht erneut."""
+    hashes = [h for h in hashes or () if h]
+    if hashes:
+        con.execute(f"UPDATE schraeglage SET gerade = 0 WHERE bild_hash IN ({','.join('?' * len(hashes))})", hashes)
 
 
 def _drehung_nachziehen(con, dok_id: int, gedreht: dict, hashes: dict) -> None:
@@ -552,26 +629,33 @@ def ergebnis_eintragen(con, dok_id: int, res: dict) -> str:
     if status == "geschrieben":
         zeit = db.jetzt()
         gedreht = {int(k): int(v) for k, v in (res.get("gedreht") or {}).items()}
+        gerade = {int(k): float(v) for k, v in (res.get("gerade") or {}).items()}
         if res["seiten"]:
             con.execute("UPDATE dokumente SET groesse = ?, mtime_ns = ?, textebene_am = ?, textebene_grund = NULL "
                         "WHERE id = ?", (res["groesse"], res["mtime_ns"], zeit, dok_id))
-        else:                       # nur gedreht (Issue #151): die Textebene kann spaeter noch kommen
+        else:                       # nur gedreht/ausgerichtet (#151, #165): die Textebene kann spaeter noch kommen
             con.execute("UPDATE dokumente SET groesse = ?, mtime_ns = ?, textebene_grund = NULL WHERE id = ?",
                         (res["groesse"], res["mtime_ns"], dok_id))
         con.execute(
             """INSERT INTO textebene_protokoll (dok_id, pfad, am, seiten, sicherung, groesse_vorher, mtime_ns_vorher,
-                   groesse_nachher, mtime_ns_nachher, status, gedreht)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'geschrieben', ?)""",
+                   groesse_nachher, mtime_ns_nachher, status, gedreht, gerade)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'geschrieben', ?, ?)""",
             (dok_id, res["pfad"], zeit, ",".join(str(s) for s in res["seiten"]), res.get("sicherung"),
              res.get("groesse_vorher"), res.get("mtime_ns_vorher"), res["groesse"], res["mtime_ns"],
-             drehungen_text(gedreht) or None))
+             drehungen_text(gedreht) or None, gerade_text(gerade) or None))
+        _gerade_erledigt(con, res.get("gerade_hashes"))
+        if gerade:
+            log.info("PDF gerade ausgerichtet: %s (Seiten %s)", res["pfad"], gerade_text(gerade))
         if gedreht:
             _drehung_nachziehen(con, dok_id, gedreht, {int(k): v for k, v in (res.get("hashes") or {}).items()})
             log.info("PDF gedreht: %s (Seiten %s)", res["pfad"], drehungen_text(gedreht))
         if res["seiten"]:
             log.info("Textebene geschrieben: %s (Seiten %s)", res["pfad"], ",".join(str(s) for s in res["seiten"]))
     elif status == "vorhanden":
-        con.execute("UPDATE dokumente SET textebene_am = ?, textebene_grund = NULL WHERE id = ?", (db.jetzt(), dok_id))
+        if res.get("mit_ebene", True):
+            con.execute("UPDATE dokumente SET textebene_am = ?, textebene_grund = NULL WHERE id = ?",
+                        (db.jetzt(), dok_id))
+        _gerade_erledigt(con, res.get("gerade_hashes"))    # z. B. inzwischen von Hand ausgerichtet
     else:
         grund = res.get("grund") or "fehler"
         con.execute("UPDATE dokumente SET textebene_grund = ? WHERE id = ?", (grund, dok_id))

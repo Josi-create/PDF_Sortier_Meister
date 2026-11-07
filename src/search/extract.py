@@ -75,7 +75,7 @@ def _saeubern(t: str) -> str:
 
 # --------------------------------------------------------------------------- PDF
 
-def pdf_text(pfad: str, min_zeichen: int) -> dict:
+def pdf_text(pfad: str, min_zeichen: int, gerade: bool = False) -> dict:
     """Textebene lesen. Seiten ohne Text, aber mit Bild, werden fuer OCR markiert.
 
     Dazu kommen ``bild_hashes`` (Seite -> Hash der Bild-Streams, fuer den
@@ -84,11 +84,17 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
     OCR-Textebene (unsichtbare Schrift ``GlyphLessFont`` von Tesseract, auch
     OCRmyPDF; Phase 5b) gilt als Text, auch wenn sie wenig Text hat: Sie ist
     schon erkannt und bekommt weder OCR noch eine zweite Textebene.
+
+    Mit ``gerade`` (Issue #165, ``SearchConfig.gerade_vormerken``) wird die
+    Schraeglage jeder gescannten Seite gemessen, auch wenn sie schon Text
+    traegt (``gerade.seite_messen``). Lohnt das Ausrichten, steht der Winkel
+    in ``schraeglagen`` (``{seite: grad}``) und der Bild-Hash der Seite in
+    ``bild_hashes``; daran haengt die Vormerkung im Index.
     """
     import pymupdf
 
     erg = {"seiten": [], "anzahl": 0, "ohne_text": [], "titel": None, "autor": None, "status": "text", "fehler": None,
-           "bild_hashes": {}, "metadaten": {}}
+           "bild_hashes": {}, "metadaten": {}, "schraeglagen": {}}
     try:
         doc = pymupdf.open(pfad)
     except Exception as e:
@@ -122,6 +128,8 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
                     erg["bild_hashes"][i + 1] = h
             else:
                 erg["seiten"].append((i + 1, "text", t))
+            if gerade and seite is not None:
+                _schraeglage_messen(doc, seite, i + 1, erg)
         if erg["ohne_text"]:
             erg["status"] = "ocr_ausstehend"
         elif not any(t.strip() for _, _, t in erg["seiten"]):
@@ -131,6 +139,24 @@ def pdf_text(pfad: str, min_zeichen: int) -> dict:
     finally:
         doc.close()
     return erg
+
+
+def _schraeglage_messen(doc, seite, nr: int, erg: dict) -> None:
+    """Schraeglage einer gescannten Seite messen (Issue #165); Fehler lassen die Seite einfach aus."""
+    from src.search import gerade
+
+    try:
+        if not gerade.ist_scan(seite) or gerade.ist_ausgerichtet(doc, seite):
+            return
+        winkel = gerade.seite_messen(seite)
+        if not gerade.lohnt(winkel):
+            return
+        h = erg["bild_hashes"].get(nr) or _bild_hash(doc, seite)
+        if h:
+            erg["schraeglagen"][nr] = winkel
+            erg["bild_hashes"][nr] = h
+    except Exception:
+        return
 
 
 OCR_SCHRIFT = "GlyphLessFont"   # unsichtbare Schrift der Tesseract-Textebene (auch OCRmyPDF)
@@ -168,6 +194,10 @@ def _bild_hash(doc, seite) -> str | None:
     die Bild-Streams nicht, wohl aber das Seitenbild, das Tesseract sieht. Ohne
     sie kaeme nach dem Drehen der alte, falsch orientierte OCR-Text aus dem
     Cache. Seiten ohne Drehung behalten ihren bisherigen Hash.
+
+    Die Inhalts-Streams, mit denen PDFSM eine Seite gerade ausrichtet (Issue
+    #165), zaehlen nicht: Das Ausrichten aendert weder Bild noch Hash, die
+    Vormerkung am Hash bleibt so auch nach Rueckgaengig erledigt.
     """
     h = hashlib.blake2b(digest_size=16)
     gefunden = False
@@ -186,7 +216,13 @@ def _bild_hash(doc, seite) -> str | None:
                 except Exception:
                     continue
         if not gefunden:
-            h.update(seite.read_contents())
+            from src.search import gerade
+
+            eigene = gerade.eigene_streams(doc, seite)
+            if eigene:              # wie read_contents (Streams mit Leerzeichen verbunden), ohne die eigenen
+                h.update(b" ".join(doc.xref_stream(x) for x in seite.get_contents() if x not in eigene))
+            else:
+                h.update(seite.read_contents())
             gefunden = True
     except Exception:
         return None

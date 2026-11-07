@@ -46,6 +46,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Wechsel in den Chat ein anderes PDF ausgewählt ist. Ohne KI zeigt der Chat
   wie bisher die gefundenen Dokumente, bei der Ordnerfrage zusätzlich den
   Vorschlag der Sortierlogik.
+- **Schief gescannte Seiten gerade ausrichten** (#165): Zieht der Scanner ein
+  Blatt schief ein, misst PDFSM den Winkel und dreht den Seiteninhalt gerade.
+  Neue Scans im ersten Vorrang-Ordner werden beim nächsten Indexlauf von selbst
+  ausgerichtet, auch wenn das Scanprogramm schon eine Textebene geschrieben hat
+  (Einstellungen › Suche › „Schief gescannte Seiten gerade ausrichten“: nur
+  neue Scans, aus oder alle neu eingelesenen). Einzelne PDFs per Rechtsklick ›
+  Drehen › „Gerade ausrichten“, auch für mehrere markierte PDFs, rückgängig mit
+  Strg+Z. Das Scanbild wird nicht neu berechnet oder komprimiert, eine
+  vorhandene Textebene dreht mit. Wie bei der Textebene entsteht beim
+  automatischen Ausrichten vorher eine Sicherungskopie, und die Änderung steht
+  im Protokoll. Drehen, Textebene und Ausrichten entstehen in einem Schritt.
+  Ersetzt den Umweg über `ocrmypdf --deskew` in WSL. Das Ergebnis ist ein
+  normales PDF, kein PDF/A.
 - **Gedrehte Scans richtig herum** (#151): Liest die Texterkennung eine
   Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die
   drei anderen Lagen und nimmt die beste. Die Suche findet den Text dann auch

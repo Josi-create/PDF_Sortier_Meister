@@ -37,7 +37,9 @@ def test_menue_hat_drehen_und_ocr_neu(thumbnail):
     texte = _texte(menu)
     assert "Drehen" in texte and "OCR neu durchführen" in texte
     assert texte.index("OCR neu durchführen") == texte.index("Drehen") + 1
-    assert _texte(_untermenue(menu, "Drehen")) == ["90° nach links", "90° nach rechts", "180°"]
+    # Issue #165: dazu "Gerade ausrichten" (nach einem Trenner)
+    assert _texte(_untermenue(menu, "Drehen")) == ["90° nach links", "90° nach rechts", "180°",
+                                                   "Gerade ausrichten (schief gescannt)"]
 
 
 @pytest.mark.parametrize("eintrag,grad", [("90° nach links", -90), ("90° nach rechts", 90), ("180°", 180)])

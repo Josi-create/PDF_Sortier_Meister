@@ -127,6 +127,9 @@ dienst_hiddenimports = [
     # MCP-Server (stdio): anyio laedt sein Backend dynamisch
     "anyio._backends._asyncio",
     "mcp.server.mcpserver",
+    # Schraeglage messen (Issue #165): erst im Arbeitsprozess importiert, ohne numpy richtet nichts aus
+    "src.search.gerade",
+    "numpy",
     # Browser-Oberflaeche (optionales Extra suche-web), nur wenn installiert
 ]
 for _mod in ("flask", "waitress"):

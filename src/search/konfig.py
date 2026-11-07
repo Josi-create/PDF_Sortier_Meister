@@ -23,6 +23,8 @@ from src.utils.platform_paths import get_app_data_dir
 TEXTEBENE_STUFEN = ("aus", "neue_scans", "alle")
 # Gedrehte Scans richtig herum speichern (Issue #151): gleiche Stufen wie die Textebene
 DREH_STUFEN = TEXTEBENE_STUFEN
+# Schief gescannte Seiten gerade ausrichten (Issue #165): ebenso
+GERADE_STUFEN = TEXTEBENE_STUFEN
 
 STANDARD_ENDUNGEN = (
     ".pdf", ".md", ".eml", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
@@ -92,6 +94,9 @@ class SearchConfig:
             einer anderen Lage besser liest, gedreht in der PDF speichern
             (Issue #151; ``DREH_STUFEN`` wie ``textebene``; die Lage erkennt
             die OCR immer, die Stufe entscheidet nur ueber das Schreiben).
+        auto_gerade: schief gescannte Seiten gerade ausrichten (Issue #165;
+            ``GERADE_STUFEN`` wie ``textebene``). Gemessen wird nur, wo die
+            Stufe gilt, beim Einlesen der Datei (``gerade_vormerken``).
     """
 
     aktiv: bool = False
@@ -125,12 +130,15 @@ class SearchConfig:
     textebene_sicherung_tage: int = 30
     textebene_sicherung_ordner: str = ""
     auto_drehen: str = "neue_scans"        # Issue #151: wie die Textebene nur neue Scans (Opt-out)
+    auto_gerade: str = "neue_scans"        # Issue #165: schiefe neue Scans gerade ausrichten (Opt-out)
 
     def __post_init__(self) -> None:
         if self.textebene not in TEXTEBENE_STUFEN:
             self.textebene = "aus"
         if self.auto_drehen not in DREH_STUFEN:
             self.auto_drehen = "aus"
+        if self.auto_gerade not in GERADE_STUFEN:
+            self.auto_gerade = "aus"
         self.textebene_sicherung_tage = max(0, int(self.textebene_sicherung_tage))
         self.wurzeln = [norm_pfad(p) for p in self.wurzeln if str(p).strip()]
         self.prioritaet = [norm_pfad(p) for p in self.prioritaet if str(p).strip()]
@@ -182,6 +190,16 @@ class SearchConfig:
         OCR-Cache). ``alle``: jede PDF. ``aus``: nie.
         """
         return self._stufe_gilt(self.auto_drehen, pfad)
+
+    def gerade_vormerken(self, pfad: str) -> bool:
+        """Soll beim Einlesen dieser Datei die Schraeglage ihrer Scanseiten gemessen werden (Issue #165)?
+
+        Gemessen wird beim Einlesen (Indexlauf, PDF-Analyzer), vorgemerkt am
+        Bild-Hash; der naechste Lauf richtet die Seiten aus, auch wenn der Scan
+        inzwischen wegsortiert ist. ``alle``: jede neu eingelesene PDF.
+        ``aus``: nie.
+        """
+        return self._stufe_gilt(self.auto_gerade, pfad)
 
     def _stufe_gilt(self, stufe: str, pfad: str) -> bool:
         if stufe == "alle":

@@ -14,8 +14,10 @@ Geprueft wird: ``--version``; ``status`` ohne Datenbank; ein vollstaendiger
 Indexlauf mit zwei Arbeitsprozessen (spawn im eingefrorenen Programm) und, wenn
 Tesseract mitgeliefert ist, OCR einer Bildseite; ``suche`` und ``lesen``;
 MCP-Handshake mit den Werkzeugen ``suche``, ``dokument_lesen``,
-``index_status``; die Browser-Oberflaeche; ``zeitplan --status`` (nur lesend);
-unter Windows der Lauf ueber ``pdfsm-dienstw.exe`` ohne Konsole.
+``index_status``; dass ein schief gescannter neuer Scan gerade ausgerichtet
+wird (Issue #165, braucht numpy im Arbeitsprozess); die Browser-Oberflaeche;
+``zeitplan --status`` (nur lesend); unter Windows der Lauf ueber
+``pdfsm-dienstw.exe`` ohne Konsole.
 """
 
 from __future__ import annotations
@@ -76,6 +78,20 @@ def dokumente_anlegen(ordner: Path) -> None:
     scan.new_page().insert_image(pymupdf.Rect(0, 0, 595, 842), stream=png)
     scan.save(ordner / "scan.pdf")
     scan.close()
+    # Schief eingezogener Scan (2 Grad) mit Textebene des Scanprogramms (Issue #165)
+    quelle = pymupdf.open()
+    seite = quelle.new_page()
+    for i in range(18):
+        seite.insert_text((72, 120 + 24 * i), f"Abschlagsrechnung Stadtwerke Zeile {i + 1} Betrag {i * 37},50 EUR",
+                          fontsize=12)
+    pix = seite.get_pixmap(matrix=pymupdf.Matrix(100 / 72, 100 / 72).prerotate(2), colorspace=pymupdf.csGRAY)
+    quelle.close()
+    schief = pymupdf.open()
+    s = schief.new_page(width=pix.width * 72 / 100, height=pix.height * 72 / 100)
+    s.insert_image(s.rect, pixmap=pix)
+    s.insert_text((72, 100), "Abschlagsrechnung Stadtwerke", fontsize=12, render_mode=3)
+    schief.save(ordner / "schief.pdf")
+    schief.close()
 
 
 def konfig_schreiben(tmp: Path, dokumente: Path, port: int) -> Path:
@@ -144,7 +160,7 @@ class Rauchtest:
         t = time.monotonic()
         self.mit_konfig("index", timeout=600)
         aus = self.mit_konfig("status")
-        if "Dokumente: 5" not in aus:
+        if "Dokumente: 6" not in aus:
             raise Fehlschlag(f"nach dem Indexlauf:\n{aus}")
         self.ocr = "Texterkennung (OCR): aus" not in aus
         return f"Indexlauf mit Arbeitsprozessen ({time.monotonic() - t:.0f} s), OCR {'an' if self.ocr else 'aus'}"
@@ -161,6 +177,17 @@ class Rauchtest:
             if ocr["gesamt"] != 1:
                 raise Fehlschlag(f"OCR: {BILD_WORT} {ocr['gesamt']} statt 1 Treffer")
         return "suche und lesen" + (", OCR-Treffer auf der Bildseite" if self.ocr else "")
+
+    def ausrichten(self) -> str:
+        import pymupdf
+
+        from src.search import gerade
+
+        with pymupdf.open(self.dokumente / "schief.pdf") as doc:
+            winkel = gerade.ausrichtung(doc, doc[0])
+        if not 1.5 < winkel < 2.5:
+            raise Fehlschlag(f"schiefer Scan nicht gerade ausgerichtet (Winkel {winkel})")
+        return f"schiefer Scan gerade ausgerichtet ({winkel:.1f}°)".replace(".", ",")
 
     def mcp(self) -> str:
         from mcp import ClientSession
@@ -211,7 +238,7 @@ class Rauchtest:
                 p.wait(10)
             except subprocess.TimeoutExpired:
                 p.kill()
-        if status.get("dokumente") != 5 or treffer != 2 or "<html" not in seite.lower():
+        if status.get("dokumente") != 6 or treffer != 2 or "<html" not in seite.lower():
             raise Fehlschlag(f"Browser-Oberfläche: dokumente={status.get('dokumente')}, treffer={treffer}")
         return "Browser-Oberfläche (Startseite, /api/status, /api/suche)"
 
@@ -230,7 +257,7 @@ class Rauchtest:
 
     def ausfuehren(self) -> int:
         schritte = [self.programme_da, self.version_pruefen, self.status_leer, self.indexlauf, self.suchen,
-                    self.mcp, self.web, self.zeitplan, self.fensterlos]
+                    self.ausrichten, self.mcp, self.web, self.zeitplan, self.fensterlos]
         try:
             for schritt in schritte:
                 print(f"OK  {schritt()}", flush=True)
