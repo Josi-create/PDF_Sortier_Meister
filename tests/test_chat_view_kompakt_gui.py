@@ -38,31 +38,59 @@ def _antwort(tmp_path, ordner: str = "") -> RAGResponse:
     )
 
 
-def test_kompakt_quellen_unter_dem_verlauf_und_schnellfragen_menue(qtbot):
+def test_kompakt_quellen_unter_dem_verlauf_und_schnellfragen_untereinander(qtbot):
     view = _view(qtbot, kompakt=True)
     assert view.split.orientation() == Qt.Orientation.Vertical
     assert view.sources_list.isHidden()  # eingeklappt
-    assert view.schnellfragen_btns == []
-    assert isinstance(view.schnellfragen_menu_btn, QToolButton)
-    assert [a.text() for a in view.schnellfragen_menu_btn.menu().actions()] == list(SCHNELLFRAGEN)
-    # Breiter Reiter wie bisher
+    assert [b.text() for b in view.schnellfragen_btns] == list(SCHNELLFRAGEN)
+    assert isinstance(view.schnellfragen_toggle, QToolButton)
+    assert view.schnellfragen_toggle.text() == "▾ Schnellfragen"  # ausgeklappt
+    view.set_bezug(Path("C:/Scan/a.pdf"))  # Schnellfragen gehoeren zum Bezug-Block
+    assert view.schnellfragen_box.isVisibleTo(view)
+    # Breiter Reiter wie bisher: Raster, kein Dreieck
     breit = _view(qtbot, kompakt=False)
     assert breit.split.orientation() == Qt.Orientation.Horizontal
-    assert breit.schnellfragen_menu_btn is None and len(breit.schnellfragen_btns) == 4
+    assert breit.schnellfragen_toggle is None and len(breit.schnellfragen_btns) == 4
 
 
-def test_schnellfrage_aus_dem_menue_sendet(qtbot, monkeypatch):
+def test_schnellfrage_knopf_sendet_und_ist_waehrend_des_aufrufs_gesperrt(qtbot, monkeypatch):
     view = _view(qtbot, kompakt=True)
     gesendet = []
     monkeypatch.setattr(view, "_on_send", lambda: gesendet.append(view.input_edit.toPlainText()))
     view.set_bezug(Path("C:/Scan/a.pdf"))
-    view.schnellfragen_menu_btn.menu().actions()[3].trigger()
+    view.schnellfragen_btns[3].click()
     assert gesendet == [SCHNELLFRAGEN[3]]
-    # Waehrend eines Aufrufs gesperrt
     view._schnellfragen_freigeben(False)
-    assert not view.schnellfragen_menu_btn.isEnabled()
+    assert all(not b.isEnabled() for b in view.schnellfragen_btns)
     view._schnellfragen_freigeben(True)
-    assert view.schnellfragen_menu_btn.isEnabled()
+    assert all(b.isEnabled() for b in view.schnellfragen_btns)
+
+
+def test_schnellfragen_klappen_bei_wenig_hoehe_ein_bis_der_nutzer_entscheidet(qtbot):
+    view = _view(qtbot, kompakt=True)
+    view.set_bezug(Path("C:/Scan/a.pdf"))
+    view.resize(400, 900)
+    view.show()
+    qtbot.waitExposed(view)
+    assert view.schnellfragen_box.isVisibleTo(view)
+
+    view.resize(400, 400)  # kleiner Monitor: automatisch eingeklappt
+    qtbot.waitUntil(lambda: not view.schnellfragen_box.isVisibleTo(view), timeout=2000)
+    assert view.schnellfragen_toggle.text() == "▸ Schnellfragen"
+    view.resize(400, 900)  # wieder Platz: automatisch ausgeklappt
+    qtbot.waitUntil(lambda: view.schnellfragen_box.isVisibleTo(view), timeout=2000)
+
+    # Dreieck geklickt: die Wahl des Nutzers bleibt, egal wie gross das Fenster wird
+    view.schnellfragen_toggle.click()
+    assert not view.schnellfragen_box.isVisibleTo(view) and view._schnellfragen_manuell is False
+    view.resize(400, 1000)
+    qtbot.wait(50)
+    assert not view.schnellfragen_box.isVisibleTo(view)
+    view.schnellfragen_toggle.click()
+    assert view.schnellfragen_box.isVisibleTo(view) and view._schnellfragen_manuell is True
+    view.resize(400, 300)
+    qtbot.wait(50)
+    assert view.schnellfragen_box.isVisibleTo(view)
 
 
 def test_quellen_titel_zaehlt(qtbot, tmp_path):

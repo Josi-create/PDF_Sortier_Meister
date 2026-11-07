@@ -30,7 +30,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
-    QMenu,
     QLabel,
     QTextEdit,
     QPushButton,
@@ -287,19 +286,34 @@ class ChatView(QWidget):
         bezug_layout.addLayout(chip_row)
 
         self.schnellfragen_btns: list[QPushButton] = []
-        self.schnellfragen_menu_btn: Optional[QToolButton] = None
+        # Schmale Spalte (Phase 3): Dreieck zum Ein-/Ausklappen der Schnellfragen;
+        # None = breiter Reiter. _schnellfragen_manuell: None = automatisch nach
+        # der Hoehe (kleiner Monitor -> eingeklappt), sonst die Wahl des Nutzers.
+        self.schnellfragen_toggle: Optional[QToolButton] = None
+        self.schnellfragen_box: Optional[QWidget] = None
+        self._schnellfragen_manuell: Optional[bool] = None
         if self.kompakt:
-            # Schmale Spalte (Phase 3): ein Aufklappmenue statt vier breiter Knoepfe
-            self.schnellfragen_menu_btn = QToolButton()
-            self.schnellfragen_menu_btn.setText("Schnellfragen ▾")
-            self.schnellfragen_menu_btn.setToolTip("Frage zum Bezugsdokument stellen")
-            self.schnellfragen_menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            menue = QMenu(self.schnellfragen_menu_btn)
+            self.schnellfragen_toggle = QToolButton()
+            self.schnellfragen_toggle.setCheckable(True)
+            self.schnellfragen_toggle.setAutoRaise(True)
+            self.schnellfragen_toggle.setToolTip("Schnellfragen ein-/ausklappen")
+            self.schnellfragen_toggle.setStyleSheet("QToolButton { color: #555555; padding: 2px 4px; }")
+            self.schnellfragen_toggle.toggled.connect(self._on_schnellfragen_toggle)
+            bezug_layout.addWidget(self.schnellfragen_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+            self.schnellfragen_box = QWidget()
+            box_layout = QVBoxLayout(self.schnellfragen_box)
+            box_layout.setContentsMargins(0, 0, 0, 0)
+            box_layout.setSpacing(2)
             for frage in SCHNELLFRAGEN:
-                aktion = menue.addAction(frage)
-                aktion.triggered.connect(lambda _checked=False, f=frage: self._on_schnellfrage_text(f))
-            self.schnellfragen_menu_btn.setMenu(menue)
-            chip_row.addWidget(self.schnellfragen_menu_btn)
+                btn = QPushButton(frage)
+                btn.setProperty("frage", frage)
+                btn.setToolTip("Frage zum Bezugsdokument stellen")
+                btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+                btn.clicked.connect(self._on_schnellfrage)
+                box_layout.addWidget(btn)
+                self.schnellfragen_btns.append(btn)
+            bezug_layout.addWidget(self.schnellfragen_box)
+            self._schnellfragen_zeigen(True)
         else:
             fragen_grid = QGridLayout()
             fragen_grid.setContentsMargins(0, 0, 0, 0)
@@ -857,11 +871,35 @@ class ChatView(QWidget):
         self._on_send()
 
     def _schnellfragen_freigeben(self, aktiv: bool) -> None:
-        """Schnellfragen (Knoepfe bzw. Menue) waehrend eines Aufrufs sperren."""
+        """Schnellfragen waehrend eines Aufrufs sperren."""
         for btn in self.schnellfragen_btns:
             btn.setEnabled(aktiv)
-        if self.schnellfragen_menu_btn is not None:
-            self.schnellfragen_menu_btn.setEnabled(aktiv)
+
+    # Ab dieser Hoehe der Chat-Spalte bleiben die Schnellfragen von selbst
+    # ausgeklappt (kompakt); darunter, etwa auf einem kleinen Monitor, klappen
+    # sie ein, bis der Nutzer das Dreieck anklickt
+    SCHNELLFRAGEN_MIN_HOEHE = 560
+
+    def _on_schnellfragen_toggle(self, sichtbar: bool) -> None:
+        """Dreieck geklickt: die Wahl des Nutzers gilt ab jetzt vor der Automatik."""
+        self._schnellfragen_manuell = sichtbar
+        self._schnellfragen_zeigen(sichtbar)
+
+    def _schnellfragen_zeigen(self, sichtbar: bool) -> None:
+        """Schnellfragen ein- oder ausklappen (nur kompakt); Dreieck und Haekchen nachziehen."""
+        if self.schnellfragen_box is None or self.schnellfragen_toggle is None:
+            return
+        self.schnellfragen_box.setVisible(sichtbar)
+        self.schnellfragen_toggle.setText(("▾ " if sichtbar else "▸ ") + "Schnellfragen")
+        if self.schnellfragen_toggle.isChecked() != sichtbar:
+            self.schnellfragen_toggle.blockSignals(True)
+            self.schnellfragen_toggle.setChecked(sichtbar)
+            self.schnellfragen_toggle.blockSignals(False)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt-API)
+        super().resizeEvent(event)
+        if self.kompakt and self.schnellfragen_box is not None and self._schnellfragen_manuell is None:
+            self._schnellfragen_zeigen(event.size().height() >= self.SCHNELLFRAGEN_MIN_HOEHE)
 
     def _bubble_breite(self, bubble: QLabel) -> None:
         """Bubbles im breiten Reiter begrenzen; in der schmalen Spalte (kompakt) volle Breite."""

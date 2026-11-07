@@ -16,7 +16,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   erscheint darunter „Nach … verschieben“: ein Klick verschiebt die PDF wie
   ein Klick auf den Zielordner, danach zeigt die linke Spalte wieder die PDFs,
   der Chat bleibt mit Verlauf im Hintergrund. Quellen stehen eingeklappt unter
-  dem Verlauf, die Schnellfragen in einem Aufklappmenü.
+  dem Verlauf, die Schnellfragen untereinander über dem Eingabefeld; bei wenig
+  Höhe (kleiner Monitor) klappen sie hinter ein Dreieck, das sie jederzeit
+  wieder aufklappt.
 - **Verknüpfte Dokumente als Sortiervorschlag** (#166): Nennt ein Scan eine
   Vertrags-, Zähler-, Kunden- oder Rechnungsnummer und liegen Dokumente mit
   derselben Nummer schon in einem Zielordner, steht dieser Ordner mit 85 bis
