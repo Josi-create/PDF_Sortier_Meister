@@ -5042,14 +5042,15 @@ class MainWindow(QMainWindow):
         )
         self.close()
 
-    def show_first_steps_hint(self, force: bool = False):
+    def show_first_steps_hint(self, force: bool = False) -> bool:
         """
         Erklaert den 3-Spalten-Workflow beim ersten Start (Issue #51).
         Erscheint vor dem Backup-Hinweis, bis der Nutzer "nicht mehr
         anzeigen" abhakt; ueber das Hilfe-Menue jederzeit erneut.
+        Liefert True, wenn der Hinweis angezeigt wurde.
         """
         if not force and self.config.get("first_steps_hint_dismissed", False):
-            return
+            return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Erste Schritte")
@@ -5069,9 +5070,12 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("first_steps_hint_dismissed", dismiss.isChecked())
+        return True
 
-    def check_backup_reminder(self):
-        """Fragt alle X Tage, ob ein Backup gemacht wurde (Issue #14)."""
+    def check_backup_reminder(self) -> bool:
+        """Fragt alle X Tage, ob ein Backup gemacht wurde (Issue #14).
+
+        Liefert True, wenn die Frage gestellt wurde."""
         days = self.config.get("backup_check_days", 7)
         if not is_question_due(
             days,
@@ -5079,7 +5083,7 @@ class MainWindow(QMainWindow):
             bool(self.config.get("backup_pending", False)),
             macrium_last_backup(),
         ):
-            return
+            return False
         antwort = QMessageBox.question(
             self, "Backup-Erinnerung",
             f"Haben Sie in den letzten {int(days)} Tagen ein Backup gemacht?",
@@ -5090,6 +5094,7 @@ class MainWindow(QMainWindow):
         else:
             self.config.set("backup_pending", True)
             self.backup_status_label.setVisible(True)
+        return True
 
     def confirm_backup_done(self):
         """Backup bestaetigt: Datum speichern, Statusleisten-Hinweis ausblenden."""
@@ -5098,14 +5103,15 @@ class MainWindow(QMainWindow):
         self.config.set("backup_pending", False)
         self.backup_status_label.setVisible(False)
 
-    def show_backup_hint(self, force: bool = False):
+    def show_backup_hint(self, force: bool = False) -> bool:
         """
         Erinnert daran, dass die App Dateien veraendert und ein Backup
         ratsam ist (Issue #7). Erscheint beim Start, bis der Nutzer
         "nicht mehr anzeigen" abhakt; ueber das Menue jederzeit erneut.
+        Liefert True, wenn der Hinweis angezeigt wurde.
         """
         if not force and self.config.get("backup_hint_dismissed", False):
-            return
+            return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Backup empfohlen")
@@ -5123,6 +5129,7 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("backup_hint_dismissed", dismiss.isChecked())
+        return True
 
     def show_support_hint(self, force: bool = False) -> bool:
         """Zeigt den Unterstuetzen-Dialog (Issue #115).

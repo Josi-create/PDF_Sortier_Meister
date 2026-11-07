@@ -74,3 +74,20 @@ def test_schedule_startup_hints_shows_first_steps_before_backup(qtbot):
 
     qtbot.waitUntil(lambda: len(calls) == 2, timeout=2000)
     assert calls == ["first_steps", "backup"]
+
+
+def test_schedule_startup_hints_zeigt_hoechstens_ein_fenster(qtbot):
+    """Live-Test-Wunsch: pro Start nur EIN Hinweisfenster - der erste faellige."""
+    from src.main import _schedule_startup_hints
+
+    calls = []
+    window = MagicMock()
+    window.show_first_steps_hint.side_effect = lambda: calls.append("first_steps") or False
+    window.show_backup_hint.side_effect = lambda: calls.append("backup") or True
+    window.check_backup_reminder.side_effect = lambda: calls.append("frage") or True
+    window.show_support_hint.side_effect = lambda: calls.append("support") or True
+
+    _schedule_startup_hints(window, delay_ms=0)
+    qtbot.waitUntil(lambda: len(calls) >= 2, timeout=2000)
+    qtbot.wait(50)
+    assert calls == ["first_steps", "backup"]
