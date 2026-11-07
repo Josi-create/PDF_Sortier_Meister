@@ -50,6 +50,9 @@ def main_window(qtbot, fresh_singletons, monkeypatch):
     monkeypatch.setattr(dp_mod.PdfPreviewWidget, "load_pdf", lambda self, path: None)
     monkeypatch.setattr(dp_mod._PdfMetadataReader, "start", lambda self: None)
     monkeypatch.setattr(mw_mod, "index_melden", lambda *a, **k: None)
+    # Vorschau-Cache nie im echten APPDATA
+    from src.core import office_vorschau
+    monkeypatch.setattr(office_vorschau, "vorschau_cache_ordner", lambda: fresh_singletons["tmp_path"] / "cache")
     monkeypatch.setattr(mw_mod.QMessageBox, "warning", lambda *a, **k: QMessageBox.StandardButton.Ok)
     monkeypatch.setattr(mw_mod.QMessageBox, "information", lambda *a, **k: QMessageBox.StandardButton.Ok)
 
@@ -69,6 +72,22 @@ def _scan(tmp_path: Path) -> Path:
     (scan / "~$Brief.docx").write_bytes(b"lock")  # Word-Sperrdatei
     (scan / "alt.doc").write_bytes(b"x")  # nicht unterstuetzt
     return scan
+
+
+def _prime_cache_on_load(main_window, monkeypatch):
+    """Analyse-Ergebnisse synchron in den Cache legen, sobald Kacheln entstehen
+    (sonst startet der Klick-Pfad Hintergrund-Analysen)."""
+    from src.core.pdf_cache import PDFAnalysisResult
+
+    original = main_window.load_pdfs
+
+    def laden():
+        original()
+        for w in main_window.pdf_widgets:
+            main_window.pdf_cache._cache[w.pdf_path] = PDFAnalysisResult(
+                pdf_path=w.pdf_path, file_modified=w.pdf_path.stat().st_mtime)
+
+    monkeypatch.setattr(main_window, "load_pdfs", laden)
 
 
 def test_file_manager_listet_nur_docx_und_xlsx(tmp_path):
@@ -119,12 +138,16 @@ def test_umwandeln_legt_pdf_daneben_an_und_laedt_neu(qtbot, main_window, fresh_s
         return UmwandlungsErgebnis(pdf=ziel, werkzeug="Word", pdfa=pdfa)
 
     monkeypatch.setattr(worker_mod, "umwandeln", falsch)
+    _prime_cache_on_load(main_window, monkeypatch)
     main_window.on_office_convert(scan / "Brief.docx", True)
     qtbot.waitUntil(lambda: main_window._office_worker is None, timeout=5000)
 
     assert aufrufe == [("Brief.docx", True)]
     assert (scan / "Brief.pdf").exists() and (scan / "Brief.docx").exists()
     assert sorted(w.pdf_path.name for w in main_window.pdf_widgets) == ["Brief.pdf", "a.pdf"]
+    # Das neue PDF ist ausgewaehlt, als haette der Nutzer es angeklickt
+    assert main_window.selected_pdf == scan / "Brief.pdf"
+    assert [w.pdf_path.name for w in main_window.pdf_widgets if w.selected] == ["Brief.pdf"]
 
 
 def test_umwandeln_fehler_wird_gemeldet_ohne_neu_laden(qtbot, main_window, fresh_singletons, monkeypatch):
@@ -146,3 +169,90 @@ def test_umwandeln_fehler_wird_gemeldet_ohne_neu_laden(qtbot, main_window, fresh
 
     assert meldungen and "Weder Word noch LibreOffice" in meldungen[0]
     assert not (scan / "Brief.pdf").exists()
+
+
+def test_klick_auf_office_kachel_zeigt_vorschau_ohne_analyse(qtbot, main_window, fresh_singletons, monkeypatch):
+    from src.gui import office_convert_worker as worker_mod
+
+    scan = _scan(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+    vorschau = fresh_singletons["tmp_path"] / "v.pdf"
+    vorschau.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    monkeypatch.setattr(worker_mod, "vorschau_pdf", lambda pfad: vorschau)
+    geladen, hinweise = [], []
+    monkeypatch.setattr(main_window.detail_panel.preview, "load_pdf", lambda p: geladen.append(p))
+    monkeypatch.setattr(main_window.detail_panel.preview, "show_message", lambda t: hinweise.append(t))
+
+    w = main_window.office_widgets[0]
+    w.clicked.emit(w.pdf_path)
+    assert hinweise == ["Vorschau wird erstellt …"]
+    assert w.selected and main_window.selected_pdf is None
+    qtbot.waitUntil(lambda: main_window._office_vorschau_worker is None, timeout=5000)
+
+    assert geladen == [vorschau]
+    # Klick auf eine PDF hebt die Office-Auswahl auf
+    main_window.pdf_cache._cache  # (Analyse wird unten uebersprungen)
+    monkeypatch.setattr(main_window, "update_suggestions_for_pdf", lambda p: None)
+    main_window.on_pdf_clicked(main_window.pdf_widgets[0].pdf_path)
+    assert not w.selected and main_window._office_selected is None
+
+
+def test_vorschau_fehler_wird_im_panel_gezeigt(qtbot, main_window, fresh_singletons, monkeypatch):
+    from src.gui import office_convert_worker as worker_mod
+
+    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
+
+    def kaputt(pfad):
+        raise RuntimeError("kein Word")
+
+    monkeypatch.setattr(worker_mod, "vorschau_pdf", kaputt)
+    hinweise = []
+    monkeypatch.setattr(main_window.detail_panel.preview, "show_message", lambda t: hinweise.append(t))
+    w = main_window.office_widgets[0]
+    w.clicked.emit(w.pdf_path)
+    qtbot.waitUntil(lambda: main_window._office_vorschau_worker is None, timeout=5000)
+    assert any("kein Word" in h for h in hinweise)
+
+
+def test_loeschen_fragt_entfernt_kachel_und_cache(main_window, fresh_singletons, monkeypatch):
+    from src.core import office_vorschau
+    from src.gui import main_window as mw_mod
+
+    scan = _scan(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+    fragen = []
+    monkeypatch.setattr(
+        mw_mod.QMessageBox, "question",
+        lambda *a, **k: fragen.append(a[1:3]) or QMessageBox.StandardButton.Yes,
+    )
+    geloescht = []
+    monkeypatch.setattr(office_vorschau, "vorschau_loeschen", lambda p: geloescht.append(p))
+
+    w = main_window.office_widgets[0]
+    assert "Löschen" in [a.text() for a in w._build_context_menu().actions()]
+    w.delete_requested.emit(w.pdf_path)
+
+    assert fragen and "Brief.docx" in fragen[0][1]
+    assert not (scan / "Brief.docx").exists()
+    assert [x.pdf_path.name for x in main_window.office_widgets] == ["Zahlen.XLSX"]
+    assert geloescht == [scan / "Brief.docx"]
+
+
+def test_loeschen_abgelehnt_laesst_alles(main_window, fresh_singletons, monkeypatch):
+    from src.gui import main_window as mw_mod
+
+    scan = _scan(fresh_singletons["tmp_path"])
+    main_window._navigate_to_folder(scan)
+    monkeypatch.setattr(mw_mod.QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    main_window.on_office_delete(scan / "Brief.docx")
+    assert (scan / "Brief.docx").exists() and len(main_window.office_widgets) == 2
+
+
+def test_text_seite_und_kachelbild_fallback(qtbot, tmp_path):
+    from src.gui.office_thumbnail import kachelbild, text_seite
+
+    bild = text_seite(["Erste Zeile", "Zweite Zeile"], Path("x.docx"))
+    assert not bild.isNull() and bild.width() == 140
+    kaputt = tmp_path / "k.docx"
+    kaputt.write_bytes(b"PK")
+    assert kachelbild(kaputt) is None  # kein Bild, kein Text -> Platzhalter bleibt

@@ -12,6 +12,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 # Modulweit importieren (siehe ocr_neu_worker: keine Lazy-Imports im Thread)
 from src.core.office_convert import umwandeln
+from src.core.office_vorschau import vorschau_pdf
 
 
 class OfficeConvertWorker(QThread):
@@ -38,3 +39,20 @@ class OfficeConvertWorker(QThread):
             except Exception as e:  # noqa: BLE001 - je Datei melden, nie den Thread verlieren
                 ergebnisse.append((path, None, str(e)))
         self.fertig.emit(ergebnisse)
+
+
+class OfficeVorschauWorker(QThread):
+    """Erzeugt im Hintergrund das temporaere Vorschau-PDF einer .docx/.xlsx (Cache, siehe office_vorschau)."""
+
+    # (Quelle, Vorschau-PDF oder None, Fehlertext oder None)
+    fertig = pyqtSignal(Path, object, object)
+
+    def __init__(self, path: Path, parent=None):
+        super().__init__(parent)
+        self.path = Path(path)
+
+    def run(self):
+        try:
+            self.fertig.emit(self.path, vorschau_pdf(self.path), None)
+        except Exception as e:  # noqa: BLE001 - als Hinweis in der Vorschau anzeigen
+            self.fertig.emit(self.path, None, str(e))
