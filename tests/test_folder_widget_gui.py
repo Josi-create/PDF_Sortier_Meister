@@ -270,3 +270,63 @@ def test_name_label_truncates_extremely_long_names(qtbot, tmp_path):
     # Genau 47 'a' + "..." = 50 Zeichen
     assert widget.name_label.text().endswith("...")
     assert len(widget.name_label.text()) <= 50
+
+
+# --------------------------------------------------------------------- #
+# Regenbogenrahmen (Issue #32)
+# --------------------------------------------------------------------- #
+
+
+def test_regenbogen_an_aus_und_timer(qtbot, tmp_path):
+    from PyQt6.QtCore import QAbstractAnimation
+
+    w = _make_widget(qtbot, tmp_path / "A")
+    w.show()
+    assert not w.regenbogen
+    w.set_regenbogen(True)
+    assert w.regenbogen
+    assert w._regenbogen_anim.state() == QAbstractAnimation.State.Running
+    w.hide()
+    assert w._regenbogen_anim.state() == QAbstractAnimation.State.Paused
+    w.show()
+    assert w._regenbogen_anim.state() == QAbstractAnimation.State.Running
+    w.set_regenbogen(False)
+    assert not w.regenbogen
+    assert w._regenbogen_anim is None
+
+
+def _suggestion(tmp_path, name, conf):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        folder_path=tmp_path / name, folder_name=name, relative_path=name,
+        reason="x", confidence=conf,
+    )
+
+
+def test_regenbogen_nur_erster_vorschlag_ab_schwelle(qtbot, tmp_path):
+    from src.gui.main_window import MainWindow
+
+    class Fake:
+        pass
+
+    fake = Fake()
+    from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel
+    host = QWidget()
+    qtbot.addWidget(host)
+    fake.suggestions_layout = QVBoxLayout(host)
+    fake.suggestion_widgets = []
+    fake.no_suggestions_label = QLabel()
+    fake.clear_suggestions = lambda: MainWindow.clear_suggestions(fake)
+    fake.on_suggestion_clicked = fake.on_folder_double_clicked = fake.on_pdf_dropped_on_folder = lambda *a: None
+
+    MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.9), _suggestion(tmp_path, "b", 0.95)])
+    assert [w.regenbogen for w in fake.suggestion_widgets] == [True, False]
+
+    MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.84), _suggestion(tmp_path, "b", 0.99)])
+    assert [w.regenbogen for w in fake.suggestion_widgets] == [False, False]
+
+    MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.85)])
+    first = fake.suggestion_widgets[0]
+    assert first.regenbogen
+    MainWindow.clear_suggestions(fake)
+    assert not first.regenbogen and first._regenbogen_anim is None
