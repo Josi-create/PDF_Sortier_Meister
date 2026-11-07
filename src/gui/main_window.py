@@ -644,6 +644,10 @@ class MainWindow(QMainWindow):
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
+        self.folder_tree.move_here_requested.connect(self.on_tree_folder_selected)  # Issue #93
+        self.folder_tree.folder_renamed.connect(self.on_tree_folder_renamed)
+        self.folder_tree.status_message.connect(lambda t: self.statusbar.showMessage(t, 8000))
+        self.folder_tree.has_pdf_selection = lambda: bool(self.selected_pdf or self.selected_pdfs)
         ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
@@ -4255,6 +4259,17 @@ class MainWindow(QMainWindow):
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
             self._move_rename_and_learn(self.selected_pdf, folder_path)
+
+    def on_tree_folder_renamed(self, old: Path, new: Path):
+        """Zieht gespeicherte Zielordner nach, wenn ein Ordner im Baum umbenannt wurde."""
+        for folder in self.config.get_target_folders():
+            if folder == old or old in folder.parents:
+                moved = new / folder.relative_to(old)
+                self.config.remove_target_folder(folder)
+                self.config.add_target_folder(moved)
+                self.folder_manager.remove_folder(folder)
+                self.folder_manager.add_folder(moved)
+        self.statusbar.showMessage(f"Ordner umbenannt: {old.name} -> {new.name}", 3000)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
