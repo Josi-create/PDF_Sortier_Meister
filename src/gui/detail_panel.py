@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QSizePolicy,
     QSplitter,
+    QToolButton,
 )
 
 logger = logging.getLogger(__name__)
@@ -264,18 +265,45 @@ class DetailPanel(QWidget):
         self.header_label.setWordWrap(True)
         detail_layout.addWidget(self.header_label)
 
-        # Vorschläge - Kopfzeile mit Titel links, Schalter + Button rechts
-        suggestions_group = QGroupBox()
-        suggestions_layout = QVBoxLayout(suggestions_group)
-        suggestions_layout.setSpacing(2)
-        suggestions_layout.setContentsMargins(6, 4, 6, 6)
+        # Neuer Dateiname mit einklappbaren Vorschlaegen (Issue #146).
+        # Kopfzeile: Titel links, Pfeil "Vorschläge (n)" rechts. Eingeklappt
+        # (Standard) stehen nur Namensfeld, Vorschau und Warnung da; der
+        # oberste Vorschlag wird trotzdem automatisch als Name gesetzt.
+        name_group = QGroupBox()
+        name_layout = QVBoxLayout(name_group)
+        name_layout.setSpacing(3)
+        name_layout.setContentsMargins(6, 4, 6, 6)
 
         head_row = QHBoxLayout()
         head_row.setSpacing(6)
-        title = QLabel("<b>Vorschläge</b>")
-        title.setToolTip("Zum Auswählen anklicken - der Name wandert ins Feld „Neuer Dateiname“.")
-        head_row.addWidget(title)
+        name_title = QLabel("<b>Neuer Dateiname</b>")
+        name_title.setToolTip(
+            "Wird beim Klick auf einen Zielordner übernommen. Der oberste Vorschlag\n"
+            "steht automatisch im Feld; weitere Vorschläge über den Pfeil rechts."
+        )
+        head_row.addWidget(name_title)
         head_row.addStretch(1)
+        self.suggestions_toggle = QToolButton()
+        self.suggestions_toggle.setCheckable(True)
+        self.suggestions_toggle.setAutoRaise(True)
+        self.suggestions_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.suggestions_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.suggestions_toggle.setStyleSheet("QToolButton { font-size: 10px; padding: 0 2px; }")
+        self.suggestions_toggle.setToolTip(
+            "Alle Vorschläge für den Dateinamen ein- oder ausklappen.\n"
+            "Der Zustand bleibt für die nächsten Dokumente erhalten."
+        )
+        head_row.addWidget(self.suggestions_toggle)
+        name_layout.addLayout(head_row)
+
+        # Aufgeklappter Teil: Schalter-Zeile + Liste (unter Name/Vorschau/Warnung)
+        self.suggestions_box = QWidget()
+        suggestions_layout = QVBoxLayout(self.suggestions_box)
+        suggestions_layout.setSpacing(2)
+        suggestions_layout.setContentsMargins(0, 2, 0, 0)
+
+        options_row = QHBoxLayout()
+        options_row.setSpacing(6)
         # Schalter fuer "Dateiname aus Ordnerstruktur" (Issue #42) direkt am
         # Ort des Geschehens - gleiche Einstellung wie im Einstellungsdialog
         self.folder_naming_checkbox = QCheckBox("Ordnerstruktur im Namen")
@@ -286,7 +314,8 @@ class DetailPanel(QWidget):
             "Wirkt sofort, auch fuer den naechsten Verschiebe-Vorgang."
         )
         self.folder_naming_checkbox.toggled.connect(self._on_folder_naming_toggled)
-        head_row.addWidget(self.folder_naming_checkbox)
+        options_row.addWidget(self.folder_naming_checkbox)
+        options_row.addStretch(1)
         self.edit_pattern_btn = QPushButton("Muster bearbeiten…")
         self.edit_pattern_btn.setFlat(True)
         self.edit_pattern_btn.setStyleSheet(
@@ -296,8 +325,8 @@ class DetailPanel(QWidget):
         self.edit_pattern_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.edit_pattern_btn.setToolTip("Öffnet Einstellungen > Dateinamen (Muster und Vorlagen)")
         self.edit_pattern_btn.clicked.connect(self.edit_pattern_requested)
-        head_row.addWidget(self.edit_pattern_btn)
-        suggestions_layout.addLayout(head_row)
+        options_row.addWidget(self.edit_pattern_btn)
+        suggestions_layout.addLayout(options_row)
 
         self.suggestions_list = QListWidget()
         self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
@@ -309,14 +338,6 @@ class DetailPanel(QWidget):
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
         self.suggestions_list.installEventFilter(self)
         suggestions_layout.addWidget(self.suggestions_list)
-
-        detail_layout.addWidget(suggestions_group)
-
-        # Neuer Name
-        name_group = QGroupBox("Neuer Dateiname")
-        name_layout = QVBoxLayout(name_group)
-        name_layout.setSpacing(3)
-        name_layout.setContentsMargins(6, 4, 6, 6)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
@@ -345,7 +366,13 @@ class DetailPanel(QWidget):
         self.warning_label.hide()
         name_layout.addWidget(self.warning_label)
 
+        name_layout.addWidget(self.suggestions_box)
         detail_layout.addWidget(name_group)
+
+        # Zustand aus der Config (Standard: eingeklappt), erst danach verbinden
+        self._set_suggestion_count(0)
+        self._apply_suggestions_expanded(self._config_suggestions_expanded())
+        self.suggestions_toggle.toggled.connect(self._on_suggestions_toggled)
 
         # Metadaten
         self.metadata_group = QGroupBox("Metadaten (werden in PDF gespeichert)")
@@ -739,6 +766,7 @@ class DetailPanel(QWidget):
 
         self.name_input.clear()
         self.suggestions_list.clear()
+        self._set_suggestion_count(0)
         self.preview_label.clear()
         self.warning_label.hide()
         self.metadata_status_label.hide()
@@ -1133,6 +1161,7 @@ class DetailPanel(QWidget):
             item = QListWidgetItem("Keine Vorschläge verfügbar")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.suggestions_list.addItem(item)
+            self._set_suggestion_count(0)
             self._fit_suggestions_height()
             return
 
@@ -1162,6 +1191,7 @@ class DetailPanel(QWidget):
                     item.setBackground(Qt.GlobalColor.yellow)
 
             self.suggestions_list.addItem(item)
+        self._set_suggestion_count(len(displayed))
         self._fit_suggestions_height()
 
     def _apply_top_suggestion(self):
@@ -1396,13 +1426,58 @@ class DetailPanel(QWidget):
             ))
         return result
 
+    # -- Vorschlaege einklappen (Issue #146) ------------------------------ #
+
+    SUGGESTIONS_EXPANDED_KEY = "suggestions_expanded"
+
+    def _config_suggestions_expanded(self) -> bool:
+        try:
+            from src.utils.config import get_config
+            return bool(get_config().get(self.SUGGESTIONS_EXPANDED_KEY, False))
+        except Exception:  # noqa: BLE001
+            return False
+
+    @property
+    def suggestions_expanded(self) -> bool:
+        """True, wenn die Vorschlagsliste unter dem Namensfeld aufgeklappt ist."""
+        return self.suggestions_toggle.isChecked()
+
+    def _apply_suggestions_expanded(self, expanded: bool):
+        """Setzt Pfeil, Knopf und Sichtbarkeit, ohne die Config zu schreiben."""
+        self.suggestions_toggle.blockSignals(True)
+        self.suggestions_toggle.setChecked(expanded)
+        self.suggestions_toggle.blockSignals(False)
+        self.suggestions_toggle.setArrowType(
+            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
+        )
+        self.suggestions_box.setVisible(expanded)
+        if expanded:
+            self._fit_suggestions_height()
+
+    def _on_suggestions_toggled(self, checked: bool):
+        """Pfeil angeklickt: auf-/zuklappen und den Zustand merken."""
+        self._apply_suggestions_expanded(checked)
+        try:
+            from src.utils.config import get_config
+            get_config().set(self.SUGGESTIONS_EXPANDED_KEY, bool(checked))
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Zustand der Vorschlagsliste nicht gespeichert: {e}")
+
+    def _set_suggestion_count(self, count: int):
+        """Zaehler im Pfeil-Knopf (aendert sich auch, wenn KI-Vorschlaege eintreffen)."""
+        self._suggestion_count = count
+        self.suggestions_toggle.setText(f"Vorschläge ({count})")
+
     def _fit_suggestions_height(self):
         """Liste nur so hoch wie noetig (max. ~8 Zeilen) - spart Platz fuer die Vorschau.
 
         Ragen Zeilen ueber die Breite hinaus (lange Muster-Namen), blendet Qt
         einen horizontalen Scrollbalken ein - der wird mitgerechnet, sonst
-        verdeckt er die letzte Zeile.
+        verdeckt er die letzte Zeile. Eingeklappt (Issue #146) wird nichts
+        gemessen; das Aufklappen holt es nach.
         """
+        if not self.suggestions_toggle.isChecked():
+            return
         lst = self.suggestions_list
         count = max(1, lst.count())
         row_h = lst.sizeHintForRow(0)

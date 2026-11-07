@@ -169,3 +169,40 @@ def test_popen_kwargs_nur_unter_windows(monkeypatch):
     assert extract._popen_kwargs() == {}
     monkeypatch.setattr(sys, "platform", "win32")
     assert extract._popen_kwargs() == {"creationflags": 0x08000000}
+
+
+# --- Issue #150: Seitendrehung im Bild-Hash -----------------------------------
+
+
+def _hash_ohne_drehung(pfad, seite_nr: int) -> str:
+    """Bisherige Formel (ohne Drehung): BLAKE2b ueber die entpackten Bild-Streams."""
+    import hashlib
+
+    import pymupdf
+
+    with pymupdf.open(str(pfad)) as doc:
+        seite = doc[seite_nr - 1]
+        hsh = hashlib.blake2b(digest_size=16)
+        for bild in seite.get_images(full=False):
+            hsh.update(doc.xref_stream(bild[0]))
+        return hsh.hexdigest()
+
+
+def test_bild_hash_ohne_drehung_unveraendert(tmp_path):
+    p = h.pdf_mit_bild(tmp_path / "scan.pdf", seiten=1)
+    erg = extract.pdf_text(str(p), min_zeichen=5)
+    assert erg["bild_hashes"][1] == _hash_ohne_drehung(p, 1)
+
+
+def test_bild_hash_aendert_sich_mit_der_drehung(tmp_path):
+    from src.core.pdf_rotate import rotate_pdf
+
+    p = h.pdf_mit_bild(tmp_path / "scan.pdf", seiten=1)
+    hashes = {}
+    for grad in (0, 90, 180, 270):
+        hashes[grad] = extract.pdf_text(str(p), min_zeichen=5)["bild_hashes"][1]
+        rotate_pdf(p, 90)
+    assert len(set(hashes.values())) == 4
+    # Nach viermal 90 Grad wieder der Ausgangs-Hash (OCR-Cache trifft wieder)
+    assert extract.pdf_text(str(p), min_zeichen=5)["bild_hashes"][1] == hashes[0]
+    assert extract.pdf_bild_hashes(str(p), [1])[1] == hashes[0]

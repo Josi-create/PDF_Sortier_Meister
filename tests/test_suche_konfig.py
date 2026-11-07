@@ -44,7 +44,7 @@ def test_ocr_einstellungen(monkeypatch):
     c2 = SearchConfig(ocr_aktiv=True, ocr_tesseract="/opt/tesseract", ocr_tessdata="/opt/tessdata", ocr_sprachen="deu")
     e2 = c2.ocr_einstellungen()
     assert e2 == {"aktiv": True, "grund": None, "tesseract": "/opt/tesseract", "tessdata": "/opt/tessdata",
-                  "sprachen": "deu", "dpi": 300, "min_zeichen": 25, "max_seiten": 1000}
+                  "sprachen": "deu", "dpi": 300, "min_zeichen": 25, "max_seiten": 1000, "lage_pruefen": True}
     e3 = SearchConfig(ocr_aktiv=False, ocr_tesseract="/opt/tesseract").ocr_einstellungen()
     assert e3["aktiv"] is False and "ausgeschaltet" in e3["grund"]
     assert "Tesseract nicht gefunden" == e["grund"]

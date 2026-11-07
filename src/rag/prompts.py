@@ -27,12 +27,28 @@ REGELN:
 6. Antworte in der Sprache der Frage."""
 
 
+# Issue #148: Kopfzeilen fuer das Bezugsdokument und die weiteren Suchtreffer
+BEZUG_UEBERSCHRIFT = (
+    "BEZUGSDOKUMENT (die Frage bezieht sich auf dieses Dokument, "
+    "z.B. \"dieses Dokument\" oder \"dieses PDF\"):"
+)
+WEITERE_UEBERSCHRIFT = "WEITERE DOKUMENTE AUS DER SAMMLUNG (Suchtreffer):"
+SORTIERLOGIK_PRAEFIX = "VORSCHLAG DER SORTIERLOGIK:"
+
+
 def _format_doc(doc: dict) -> str:
     """Formatiert ein einzelnes Doc-Dict als ``[Dn]``-Block.
 
     Erwartet die in ARCHITECTURE.md Section 4 spezifizierten Felder
     (index, filename, kategorie, steuerjahr, betrag, korrespondent,
     text_snippet). Fehlende Felder werden leer gelassen.
+
+    Optional (Issue #148, Chat mit Bezugsdokument):
+
+    * ``bezug`` (bool): Kopfzeile ``BEZUGSDOKUMENT`` vor dem Block.
+    * ``ordner`` (str): Ablageort, eigene Zeile ``ordner=...``.
+    * ``hinweise`` (list[str]): Zeilen vor dem Text, z.B.
+      ``VORSCHLAG DER SORTIERLOGIK: ...``.
     """
     if not isinstance(doc, dict):
         return ""
@@ -46,6 +62,8 @@ def _format_doc(doc: dict) -> str:
     text = doc.get("text_snippet", "") or ""
 
     parts: list[str] = []
+    if doc.get("bezug"):
+        parts.append(BEZUG_UEBERSCHRIFT)
     parts.append(f"[D{idx}] dateiname={filename}")
     # Metadaten-Zeile: nur Felder mit Wert
     meta_bits: list[str] = []
@@ -60,6 +78,12 @@ def _format_doc(doc: dict) -> str:
         if korrespondent:
             line += f"\n     korrespondent={korrespondent}"
         parts.append(line)
+    ordner = doc.get("ordner", "") or ""
+    if ordner:
+        parts.append(f"     ordner={ordner}")
+    for hinweis in doc.get("hinweise") or ():
+        if hinweis:
+            parts.append(str(hinweis))
     parts.append("--- text ---")
     parts.append(text)
     return "\n".join(parts)
@@ -83,7 +107,11 @@ def build_context_block(docs: list[dict]) -> str:
             "=== ENDE DOKUMENTE ==="
         )
 
-    body = "\n\n".join(_format_doc(d) for d in docs)
+    bloecke = [_format_doc(d) for d in docs]
+    # Nach dem Bezugsdokument (Issue #148) die Suchtreffer abgrenzen
+    if len(docs) > 1 and isinstance(docs[0], dict) and docs[0].get("bezug"):
+        bloecke.insert(1, WEITERE_UEBERSCHRIFT)
+    body = "\n\n".join(bloecke)
     return f"=== DOKUMENTE ===\n\n{body}\n\n=== ENDE DOKUMENTE ==="
 
 
