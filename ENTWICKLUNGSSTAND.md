@@ -1,7 +1,7 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 06.11.2026
-**Aktuelle Version:** 0.24.0 (Release in Vorbereitung)
+**Datum:** 07.11.2026
+**Aktuelle Version:** 0.25.0
 
 > **Was ist neu?** Siehe [CHANGELOG.md](CHANGELOG.md). Dieses Dokument fuehrt seit v0.15.0 nur noch
 > die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
@@ -99,7 +99,8 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   bekannte Grenzen und Technologien korrigiert), `docs/SUCHE_SCHEMA.md` (aus `SCHEMA.md`
   von PDFsuche, Version 2: OCR-Cache, Metadaten, Textebene-Protokoll, `meta`-Schluessel),
   `docs/ARCHITECTURE.md` (RAG-Chat liest ueber die Fassade `search_documents` aus `suche.db`, Quellen mit
-  Seite), Release v0.24.0 nach `docs/RELEASE_CHECKLISTE.md` vorbereitet (Veroeffentlichung erst nach OK)
+  Seite), Release v0.24.0 nach `docs/RELEASE_CHECKLISTE.md` vorbereitet; erschienen ist es nicht, weil der
+  Build fuer macOS (Intel) scheiterte (PR #169), die Dokumentensuche kam deshalb mit v0.25.0
 - Folgeschritte (nicht Teil der Integration): `pytesseract` als Abhaengigkeit entfernen (Abschnitt 3.2),
   Spalte `extracted_text` in `pdf_cache.db` abbauen, Mail-Anhaenge mit Inhalt indizieren (Abschnitt 9)
 
