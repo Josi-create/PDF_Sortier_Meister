@@ -42,6 +42,9 @@ class PdfPreviewWindow(QMainWindow):
         self.preview = PdfPreviewWidget(self, compact=False)
         self.preview.open_external_requested.connect(self.open_external_requested)
         self.preview.apply_text_requested.connect(self.apply_text_requested)
+        # Seite, die nach dem Laden angesprungen wird (Zitate aus Chat und Suche, Phase 5)
+        self._pending_seite: tuple[Path, int] | None = None
+        self.preview.document_loaded.connect(self._on_document_loaded)
         self.setCentralWidget(self.preview)
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.close)
@@ -57,10 +60,11 @@ class PdfPreviewWindow(QMainWindow):
                 return
         self.resize(*_DEFAULT_SIZE)
 
-    def show_pdf(self, path: Path | str) -> None:
-        """Zeigt die PDF und bringt das Fenster nach vorn."""
+    def show_pdf(self, path: Path | str, seite: int | None = None) -> None:
+        """Zeigt die PDF (optional direkt auf ``seite``, 1-basiert) und bringt das Fenster nach vorn."""
         path = Path(path)
         self.setWindowTitle(f"PDF-Vorschau – {path.name}")
+        self._pending_seite = (path, int(seite)) if seite and int(seite) > 0 else None
         self.preview.load_pdf(path)
         if self.isMinimized():
             self.showNormal()
@@ -71,6 +75,13 @@ class PdfPreviewWindow(QMainWindow):
 
     def current_path(self) -> Path | None:
         return self.preview.current_path
+
+    def _on_document_loaded(self, path: Path) -> None:
+        """Vorgemerkte Seite (``show_pdf(..., seite)``) anspringen, sobald das Dokument steht."""
+        pending = getattr(self, "_pending_seite", None)
+        if pending and Path(path) == pending[0]:
+            self.preview.go_to_page(pending[1] - 1)
+            self._pending_seite = None
 
     def closeEvent(self, event):
         g = self.geometry()

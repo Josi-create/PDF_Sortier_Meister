@@ -64,3 +64,58 @@ def fresh_config(monkeypatch, tmp_path):
     cfg = cfg_mod.Config(config_path=tmp_path / "config.json")
     patch_singletons(monkeypatch, {"get_config": lambda: cfg})
     return cfg
+
+
+@pytest.fixture(autouse=True)
+def _index_meldungen_aus():
+    """Schreibmeldungen an den Suchindex (FileManager, Hauptfenster) sind in Tests abgeschaltet:
+    Die Standardquelle liest die Konfiguration des Nutzers. Tests, die die Meldungen brauchen,
+    rufen ``meldungen.konfigurieren(lambda: Suchindex(konfig))`` selbst auf."""
+    from src.search.meldungen import meldungen
+
+    alt = meldungen._quelle
+    meldungen.konfigurieren(None)
+    yield
+    meldungen.warten(5.0)
+    meldungen.konfigurieren(alt)
+
+
+@pytest.fixture(autouse=True)
+def suchprotokoll_im_temp(monkeypatch, tmp_path_factory):
+    """Protokoll (``suche.log``) und Standardorte der Dokumentensuche nie im echten Datenverzeichnis.
+
+    ``indexer.logging_einrichten`` haengt den Datei-Handler einmal je Prozess an;
+    ohne diese Umleitung schrieben danach alle Indextests in das Protokoll des Nutzers.
+    """
+    from src.search import konfig as konfig_modul
+
+    ordner = tmp_path_factory.getbasetemp() / "appdata-suche"
+    monkeypatch.setattr(konfig_modul, "get_app_data_dir", lambda create=True: ordner)
+
+
+@pytest.fixture(autouse=True)
+def fenster_aus(monkeypatch):
+    """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
+    from src.search import fenster
+
+    monkeypatch.setattr(fenster, "AKTIV", False)
+
+
+@pytest.fixture(autouse=True)
+def zeitplan_speicher(monkeypatch):
+    """Kein Test richtet echte Aufgaben ein (Windows-Aufgabenplanung, macOS-LaunchAgent).
+
+    ``zeitplan.backend()`` liefert in Tests einen ``Speicher``, der die
+    Eintraege nur merkt; ein Aufruf von ``schtasks``/``launchctl`` ueber
+    ``zeitplan._ausfuehren`` schlaegt fehl. Tests der echten Backends geben
+    ihren Ersatz fuer ``ausfuehren`` ausdruecklich mit.
+    """
+    from src.search import zeitplan
+
+    def gesperrt(args):
+        raise AssertionError(f"Test wollte das Betriebssystem aufrufen: {args}")
+
+    speicher = zeitplan.Speicher()
+    monkeypatch.setattr(zeitplan, "_backend_fuer_tests", speicher)
+    monkeypatch.setattr(zeitplan, "_ausfuehren", gesperrt)
+    return speicher

@@ -11,7 +11,8 @@ GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from html import escape
-from typing import Optional
+from pathlib import Path
+from typing import Callable, Optional
 
 import time
 
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QTextEdit,
     QPushButton,
@@ -30,9 +32,11 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QFrame,
     QSizePolicy,
+    QToolButton,
 )
 
 from src.gui.chat_worker import ChatWorker
+from src.rag.bezug import SCHNELLFRAGEN, Bezug
 from src.rag.rag_controller import RAGController
 
 
@@ -43,6 +47,12 @@ _BUBBLE_STYLES = {
     "error": "background-color: #ffd6d6; border-radius: 8px; padding: 8px; color: #8a1f1f;",
     "system": "background-color: #f0f0f0; border-radius: 8px; padding: 6px; color: #555555;",
 }
+
+# Chip "Bezug: <Datei>  ✕" ueber dem Eingabefeld (Issue #148)
+_BEZUG_CHIP_STYLE = (
+    "QFrame#bezugChip { background-color: #e7f0fb; border: 1px solid #b6cdea; "
+    "border-radius: 10px; }"
+)
 
 _BANNER_TEXT = (
     "Kein LLM verfügbar. Du bekommst nur Dokument-Treffer, "
@@ -85,6 +95,8 @@ class ChatView(QWidget):
     """
 
     open_pdf_requested = pyqtSignal(str)
+    # Phase 5 (PDFsuche-Integration): PDF direkt auf der Seite der Fundstelle oeffnen
+    open_pdf_page_requested = pyqtSignal(str, int)
 
     def __init__(self, db, hybrid_classifier, chat_config, parent=None):
         """
@@ -115,6 +127,12 @@ class ChatView(QWidget):
         self._status_base = ""
         self._request_started = None
         self._chat_worker: Optional[ChatWorker] = None
+
+        # Bezugsdokument (Issue #148): ausgewaehltes PDF beim Wechsel in den Chat
+        self._bezug: Optional[Path] = None
+        # Liefert Text, KI-Metadaten und Ordnervorschlaege zum Bezug; setzt das
+        # MainWindow (gebundene Methode). Ohne Quelle nur der Pfad.
+        self.bezug_daten: Optional[Callable[[Path], Bezug]] = None
 
         self._build_ui()
         self.refresh_llm_status()
@@ -181,6 +199,50 @@ class ChatView(QWidget):
         self.split.setStretchFactor(0, 3)
         self.split.setStretchFactor(1, 1)
         self.split.setSizes([600, 250])
+
+        # Bezug-Chip und Schnellfragen (Issue #148), nur mit Bezugsdokument sichtbar
+        self.bezug_box = QWidget()
+        bezug_layout = QVBoxLayout(self.bezug_box)
+        bezug_layout.setContentsMargins(0, 0, 0, 0)
+        bezug_layout.setSpacing(4)
+
+        chip_row = QHBoxLayout()
+        chip_row.setContentsMargins(0, 0, 0, 0)
+        self.bezug_chip = QFrame()
+        self.bezug_chip.setObjectName("bezugChip")
+        self.bezug_chip.setStyleSheet(_BEZUG_CHIP_STYLE)
+        chip_layout = QHBoxLayout(self.bezug_chip)
+        chip_layout.setContentsMargins(8, 2, 2, 2)
+        chip_layout.setSpacing(4)
+        self.bezug_label = QLabel()
+        self.bezug_label.setTextFormat(Qt.TextFormat.PlainText)
+        chip_layout.addWidget(self.bezug_label)
+        self.bezug_entfernen_btn = QToolButton()
+        self.bezug_entfernen_btn.setText("✕")
+        self.bezug_entfernen_btn.setAutoRaise(True)
+        self.bezug_entfernen_btn.setToolTip("Bezug entfernen: Fragen gelten wieder der ganzen Sammlung")
+        self.bezug_entfernen_btn.clicked.connect(self._on_bezug_entfernen)
+        chip_layout.addWidget(self.bezug_entfernen_btn)
+        chip_row.addWidget(self.bezug_chip)
+        chip_row.addStretch(1)
+        bezug_layout.addLayout(chip_row)
+
+        fragen_grid = QGridLayout()
+        fragen_grid.setContentsMargins(0, 0, 0, 0)
+        fragen_grid.setHorizontalSpacing(4)
+        fragen_grid.setVerticalSpacing(4)
+        self.schnellfragen_btns: list[QPushButton] = []
+        for i, frage in enumerate(SCHNELLFRAGEN):
+            btn = QPushButton(frage)
+            btn.setProperty("frage", frage)
+            btn.setToolTip("Frage zum Bezugsdokument stellen")
+            btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            btn.clicked.connect(self._on_schnellfrage)
+            fragen_grid.addWidget(btn, i // 2, i % 2)
+            self.schnellfragen_btns.append(btn)
+        bezug_layout.addLayout(fragen_grid)
+        self.bezug_box.setVisible(False)
+        layout.addWidget(self.bezug_box)
 
         # Untere Zeile: Eingabe + Buttons
         input_row = QHBoxLayout()
@@ -344,9 +406,12 @@ class ChatView(QWidget):
         self._tick_status()
         self._status_timer.start()
 
+        for btn in self.schnellfragen_btns:
+            btn.setEnabled(False)
+
         # Thread + Worker aufsetzen (moveToThread-Pattern)
         self._chat_thread = QThread()
-        self._chat_worker = ChatWorker(self._controller, question)
+        self._chat_worker = ChatWorker(self._controller, question, bezug=self._bezug_fuer_frage())
         self._chat_worker.moveToThread(self._chat_thread)
 
         self._chat_thread.started.connect(self._chat_worker.run)
@@ -401,6 +466,10 @@ class ChatView(QWidget):
         else:
             # Offline-Modus: Treffer-Liste als klickbare Bubbles rendern
             docs = response.retrieved_docs or []
+            hinweis = getattr(response, "hinweis", "") or ""
+            if hinweis:
+                # z.B. Vorschlag der Sortierlogik zum Bezugsdokument (Issue #148)
+                self._add_bubble(hinweis, "system")
             if not docs:
                 self._add_bubble(
                     "Keine passenden Dokumente gefunden.", "system"
@@ -497,6 +566,8 @@ class ChatView(QWidget):
         self.input_edit.setFocus()
         self.send_btn.setText("Senden")
         self.reset_btn.setEnabled(True)
+        for btn in self.schnellfragen_btns:
+            btn.setEnabled(True)
         self._teardown_thread()
         # Cooldown: nach 500ms den Button wieder aktivieren
         QTimer.singleShot(500, self._re_enable_send_btn)
@@ -532,8 +603,65 @@ class ChatView(QWidget):
         self.send_btn.setEnabled(True)
         self.send_btn.setText("Senden")
         self.reset_btn.setEnabled(True)
+        for btn in self.schnellfragen_btns:
+            btn.setEnabled(True)
         self.status_label.setText("")
         self.input_edit.setFocus()
+
+    # ------------------------------------------------------------------ #
+    # Bezugsdokument (Issue #148)                                        #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def bezug(self) -> Optional[Path]:
+        """Das aktuelle Bezugsdokument (oder None)."""
+        return self._bezug
+
+    def set_bezug(self, path) -> None:
+        """Setzt das Bezugsdokument; ``None`` entfernt Chip und Schnellfragen.
+
+        Der Bezug gilt fuer alle folgenden Fragen, bis ✕ geklickt oder beim
+        naechsten Wechsel in den Chat ein anderes PDF uebergeben wird.
+        """
+        self._bezug = Path(path) if path else None
+        if self._bezug is None:
+            self.bezug_label.clear()
+            self.bezug_chip.setToolTip("")
+            self.bezug_box.setVisible(False)
+            return
+        self.bezug_label.setText(f"Bezug: {self._bezug.name}")
+        self.bezug_chip.setToolTip(
+            f"{self._bezug}\nFragen beziehen sich auf dieses PDF; "
+            "ähnliche Dokumente kommen aus der Sammlung dazu."
+        )
+        self.bezug_box.setVisible(True)
+
+    def _on_bezug_entfernen(self) -> None:
+        """✕ am Chip: Fragen gelten wieder der ganzen Sammlung."""
+        self.set_bezug(None)
+        self.input_edit.setFocus()
+
+    def _on_schnellfrage(self) -> None:
+        """Schnellfrage-Knopf: Frage eintragen und sofort senden."""
+        btn = self.sender()
+        frage = btn.property("frage") if btn is not None else None
+        if not frage or self._chat_thread is not None:
+            return
+        self.input_edit.setPlainText(str(frage))
+        self._on_send()
+
+    def _bezug_fuer_frage(self) -> Optional[Bezug]:
+        """Bezug fuer den naechsten Aufruf, mit den Daten aus der GUI (falls bekannt)."""
+        if self._bezug is None:
+            return None
+        if self.bezug_daten is not None:
+            try:
+                daten = self.bezug_daten(self._bezug)
+                if daten is not None:
+                    return daten
+            except Exception:  # noqa: BLE001 - Zusatzdaten sind optional
+                pass
+        return Bezug(pfad=self._bezug)
 
     # ------------------------------------------------------------------ #
     # Quellen-Panel                                                      #
@@ -547,6 +675,9 @@ class ChatView(QWidget):
                 p for p in (doc.kategorie, doc.steuerjahr, doc.betrag) if p
             ]
             label = f"D{doc.index}: {doc.filename}"
+            seite = int(getattr(doc, "seite", 0) or 0)
+            if seite > 0:
+                label += f"  (S. {seite})"
             if meta_parts:
                 label += f"  ({' | '.join(meta_parts)})"
             # Phase 3 (Issue #25): gekuerzte pdf_id im Label, sofern vorhanden.
@@ -561,6 +692,7 @@ class ChatView(QWidget):
             # auswerten kann.
             if pdf_id:
                 item.setData(Qt.ItemDataRole.UserRole + 1, pdf_id)
+            item.setData(Qt.ItemDataRole.UserRole + 2, seite)
             # toolTip enthaelt Pfad + pdf_id (falls vorhanden)
             tooltip = doc.file_path
             if pdf_id:
@@ -581,9 +713,17 @@ class ChatView(QWidget):
         """
         file_path = item.data(Qt.ItemDataRole.UserRole)
         pdf_id = item.data(Qt.ItemDataRole.UserRole + 1)
+        seite = item.data(Qt.ItemDataRole.UserRole + 2) or 0
         resolved = self._resolve_file_path(file_path, pdf_id)
         if resolved:
-            self.open_pdf_requested.emit(resolved)
+            self._oeffnen(resolved, int(seite))
+
+    def _oeffnen(self, pfad: str, seite: int = 0) -> None:
+        """PDF oeffnen; mit bekannter Seite direkt auf der Fundstelle (Phase 5)."""
+        if seite and seite > 0:
+            self.open_pdf_page_requested.emit(pfad, int(seite))
+        else:
+            self.open_pdf_requested.emit(pfad)
 
     def _on_citation_link(self, href: str, cite_map: dict) -> None:
         """Mappt einen geklickten Citation-Link auf eine PDF.
@@ -604,12 +744,14 @@ class ChatView(QWidget):
         if isinstance(entry, dict):
             file_path = entry.get("file_path", "")
             pdf_id = entry.get("pdf_id", "")
+            seite = int(entry.get("seite", 0) or 0)
         else:
             file_path = entry
             pdf_id = ""
+            seite = 0
         resolved = self._resolve_file_path(file_path, pdf_id)
         if resolved:
-            self.open_pdf_requested.emit(resolved)
+            self._oeffnen(resolved, seite)
 
     def _resolve_file_path(
         self, file_path: str = "", pdf_id: str = ""

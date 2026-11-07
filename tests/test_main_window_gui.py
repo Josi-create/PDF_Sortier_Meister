@@ -142,9 +142,22 @@ def test_main_window_has_chat_tab(main_window):
     assert "Chat" in tab_titles, f"Tab-Titel: {tab_titles}"
 
 
-def test_main_window_has_exactly_two_center_tabs(main_window):
-    """Das center_tabs-Widget hat genau 2 Tabs (Vorschau + Chat)."""
-    assert main_window.center_tabs.count() == 2
+def test_main_window_has_suche_tab(main_window):
+    """Tab 'Suche' (Dokumentensuche, Phase 4) ist vorhanden; ohne Einrichtung zeigt er den Hinweis."""
+    tab_titles = [
+        main_window.center_tabs.tabText(i)
+        for i in range(main_window.center_tabs.count())
+    ]
+    assert "Suche" in tab_titles, f"Tab-Titel: {tab_titles}"
+    view = main_window.search_view
+    assert view.hinweis.isVisibleTo(view) and not view.suchbereich.isEnabled()
+    main_window.show_search_tab()
+    assert main_window.center_tabs.currentWidget() is view
+
+
+def test_main_window_has_exactly_three_center_tabs(main_window):
+    """Das center_tabs-Widget hat genau 3 Tabs (Vorschau + Chat + Suche)."""
+    assert main_window.center_tabs.count() == 3
 
 
 # --------------------------------------------------------------------- #
@@ -408,3 +421,77 @@ def test_first_steps_hint_force_ignores_dismissed_flag(main_window, monkeypatch)
     main_window.show_first_steps_hint(force=True)
 
     assert calls == [True]
+
+
+# --------------------------------------------------------------------- #
+# Issue #148: Wechsel in den Chat uebergibt die Auswahl als Bezug
+# --------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def zwei_pdfs(fresh_singletons):
+    from tests import helfer_suche as h
+
+    scan = fresh_singletons["tmp_path"] / "Scan148"
+    scan.mkdir()
+    return [h.pdf_mit_text(scan / f"{n}.pdf", [f"Dokument {n}"]) for n in ("a", "b")]
+
+
+def test_chat_tab_uebernimmt_ausgewaehltes_pdf_als_bezug(main_window, zwei_pdfs):
+    a, b = zwei_pdfs
+    win = main_window
+    win.selected_pdf = a
+    win.selected_pdfs = []
+
+    win.center_tabs.setCurrentWidget(win.chat_view)
+    assert win.chat_view.bezug == a
+    assert win.chat_view.bezug_label.text() == "Bezug: a.pdf"
+
+    # Neue Auswahl gilt beim naechsten Wechsel in den Chat
+    win.center_tabs.setCurrentIndex(0)
+    win.selected_pdf = b
+    win.center_tabs.setCurrentWidget(win.chat_view)
+    assert win.chat_view.bezug == b
+
+    # Ohne Auswahl bzw. bei Mehrfachauswahl kein Bezug
+    win.center_tabs.setCurrentIndex(0)
+    win.selected_pdf = None
+    win.center_tabs.setCurrentWidget(win.chat_view)
+    assert win.chat_view.bezug is None
+    win.center_tabs.setCurrentIndex(0)
+    win.selected_pdf = a
+    win.selected_pdfs = [a, b]
+    win.center_tabs.setCurrentWidget(win.chat_view)
+    assert win.chat_view.bezug is None
+
+
+def test_chat_bezug_daten_aus_cache_und_vorschlaegen(main_window, zwei_pdfs, monkeypatch):
+    from src.core.pdf_cache import LLMSuggestion
+    from src.ml.classifier import Suggestion
+
+    a, _b = zwei_pdfs
+    win = main_window
+    win.selected_pdf = a
+    win.selected_pdfs = []
+    assert win.chat_view.bezug_daten == win._chat_bezug_daten
+
+    ziel = a.parent.parent / "Ablage" / "Energie"
+    win.display_suggestions([
+        Suggestion(folder_path=ziel, folder_name="Energie", confidence=0.9,
+                   reason="KI: ähnliche Dokumente liegen dort", relative_path="Ablage/Energie"),
+    ])
+    monkeypatch.setattr(win.pdf_cache, "get_llm_suggestions", lambda p: [LLMSuggestion(
+        filename="x.pdf",
+        metadata={"subject": "Rechnung", "korrespondent": "Stadtwerke", "steuerjahr": "UNBEKANNT",
+                  "betrag_brutto": "61.00"},
+    )])
+
+    bezug = win._chat_bezug_daten(a)
+    assert bezug.pfad == a
+    assert bezug.sortier_vorschlaege == ["Ablage/Energie (90 %, KI: ähnliche Dokumente liegen dort)"]
+    assert bezug.metadaten == {"korrespondent": "Stadtwerke", "kategorie": "Rechnung", "betrag": "61.00"}
+    assert bezug.wurzeln == list(win.folder_manager.target_folders)
+
+    # Vorschlaege gehoeren nur zur Auswahl; nach dem Leeren sind sie weg
+    win.clear_suggestions()
+    assert win._chat_bezug_daten(a).sortier_vorschlaege == []

@@ -171,3 +171,31 @@ def test_success_without_prior_failure_requeues_nothing(cache, tmp_path):
     cache.pre_cache([a])
     cache._on_llm_suggestions_complete(a, _ok())
     assert cache._llm_worker.tasks == [a]
+
+
+def test_probe_fragt_genau_eine_gescheiterte_pdf_erneut_an(cache, tmp_path):
+    a, b = tmp_path / "a.pdf", tmp_path / "b.pdf"
+    _cached(cache, a)
+    _cached(cache, b)
+    cache._on_llm_suggestions_error(a, "Ollama HTTP 500")
+    cache._on_llm_suggestions_error(b, "Ollama HTTP 500")
+
+    assert cache.retry_one_failed_llm() == a
+    assert cache._llm_worker.tasks == [a]
+    # laeuft noch -> keine zweite Probe im naechsten Takt
+    assert cache.retry_one_failed_llm() is None
+    assert cache._llm_worker.tasks == [a]
+
+    # Probe gelingt -> die uebrige gescheiterte PDF kommt von selbst dran
+    cache._on_llm_suggestions_complete(a, ["vorschlag"])
+    assert cache._llm_worker.tasks == [a, b]
+
+
+def test_probe_ohne_fehler_oder_bei_verschobener_pdf(cache, tmp_path):
+    assert cache.retry_one_failed_llm() is None
+    weg = tmp_path / "weg.pdf"
+    _cached(cache, weg)
+    cache._on_llm_suggestions_error(weg, "Ollama HTTP 500")
+    weg.unlink()  # inzwischen einsortiert
+    assert cache.retry_one_failed_llm() is None
+    assert cache._llm_worker.tasks == []

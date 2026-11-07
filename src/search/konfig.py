@@ -18,6 +18,14 @@ from pathlib import Path
 
 from src.utils.platform_paths import get_app_data_dir
 
+# Stufen fuer „OCR-Text als Textebene in die PDF schreiben“ (Phase 5b):
+# aus | nur neue Scans im ersten Vorrang-Ordner | alle (Altbestand, nur auf Wunsch)
+TEXTEBENE_STUFEN = ("aus", "neue_scans", "alle")
+# Gedrehte Scans richtig herum speichern (Issue #151): gleiche Stufen wie die Textebene
+DREH_STUFEN = TEXTEBENE_STUFEN
+# Schief gescannte Seiten gerade ausrichten (Issue #165): ebenso
+GERADE_STUFEN = TEXTEBENE_STUFEN
+
 STANDARD_ENDUNGEN = (
     ".pdf", ".md", ".eml", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
 )
@@ -75,6 +83,20 @@ class SearchConfig:
         prozesse: Arbeitsprozesse (0 = halbe Kernzahl, hoechstens 8).
         hintergrund_*: taegliche Hintergrundindexierung (Aufgabenplanung / LaunchAgent).
         web_*: Browser-Oberflaeche (nur 127.0.0.1).
+        textebene: OCR-Text als unsichtbare Textebene in die PDF schreiben
+            (``TEXTEBENE_STUFEN``: ``aus``, ``neue_scans`` = nur Scans, die im
+            ersten Vorrang-Ordner erkannt werden, ``alle`` = auch der
+            Altbestand); ``textebene_sicherung_tage``: Aufbewahrung der
+            Sicherungskopien (0 = unbegrenzt); ``textebene_sicherung_ordner``:
+            leer = ``get_app_data_dir()/suche/textebene_sicherung``.
+            Umsetzung in ``textebene.py`` (Phase 5b).
+        auto_drehen: falsch herum oder quer gescannte Seiten, die die OCR in
+            einer anderen Lage besser liest, gedreht in der PDF speichern
+            (Issue #151; ``DREH_STUFEN`` wie ``textebene``; die Lage erkennt
+            die OCR immer, die Stufe entscheidet nur ueber das Schreiben).
+        auto_gerade: schief gescannte Seiten gerade ausrichten (Issue #165;
+            ``GERADE_STUFEN`` wie ``textebene``). Gemessen wird nur, wo die
+            Stufe gilt, beim Einlesen der Datei (``gerade_vormerken``).
     """
 
     aktiv: bool = False
@@ -99,13 +121,25 @@ class SearchConfig:
     ocr_max_seiten: int = 1000
     prozesse: int = 0
     hintergrund_aktiv: bool = False
-    hintergrund_uhrzeit: str = "03:00"
+    hintergrund_uhrzeit: str = "00:00"      # frueheste Startzeit; gestartet wird erst im Leerlauf
     web_aktiv: bool = False
     web_bei_anmeldung: bool = False
     web_host: str = "127.0.0.1"
     web_port: int = 18425
+    textebene: str = "neue_scans"          # Opt-out (06.11.2026): neue Scans bekommen die Textebene
+    textebene_sicherung_tage: int = 30
+    textebene_sicherung_ordner: str = ""
+    auto_drehen: str = "neue_scans"        # Issue #151: wie die Textebene nur neue Scans (Opt-out)
+    auto_gerade: str = "neue_scans"        # Issue #165: schiefe neue Scans gerade ausrichten (Opt-out)
 
     def __post_init__(self) -> None:
+        if self.textebene not in TEXTEBENE_STUFEN:
+            self.textebene = "aus"
+        if self.auto_drehen not in DREH_STUFEN:
+            self.auto_drehen = "aus"
+        if self.auto_gerade not in GERADE_STUFEN:
+            self.auto_gerade = "aus"
+        self.textebene_sicherung_tage = max(0, int(self.textebene_sicherung_tage))
         self.wurzeln = [norm_pfad(p) for p in self.wurzeln if str(p).strip()]
         self.prioritaet = [norm_pfad(p) for p in self.prioritaet if str(p).strip()]
         self.mail_ordner = [norm_pfad(p) for p in self.mail_ordner if str(p).strip()]
@@ -115,6 +149,8 @@ class SearchConfig:
             norm_pfad(p).lower() for p in self.pfade_ausschliessen if str(p).strip()
         }
         self.db_pfad = norm_pfad(self.db_pfad) if str(self.db_pfad).strip() else ""
+        self.textebene_sicherung_ordner = (norm_pfad(self.textebene_sicherung_ordner)
+                                           if str(self.textebene_sicherung_ordner).strip() else "")
 
     # ------------------------------------------------------------------ Ableitungen
 
@@ -129,6 +165,50 @@ class SearchConfig:
     def daten_ordner(self) -> Path:
         """Ordner der Datenbank; dort liegt auch die Sperrdatei ``indexer.lock``."""
         return self.db_datei.parent
+
+    @property
+    def sicherung_ordner(self) -> Path:
+        """Ordner der Sicherungskopien, bevor die Textebene eine PDF aendert (Phase 5b)."""
+        if self.textebene_sicherung_ordner:
+            return Path(self.textebene_sicherung_ordner)
+        return get_app_data_dir() / "suche" / "textebene_sicherung"
+
+    def textebene_erzeugen(self, pfad: str) -> bool:
+        """Soll die OCR dieser Datei die Textebene gleich mitliefern (``extract.pdf_ocr``, ``cfg["textebene"]``)?
+
+        ``alle``: jede PDF. ``neue_scans``: nur Dateien im ersten Vorrang-Ordner
+        (dort landen frische Scans). ``aus``: nie.
+        """
+        return self._stufe_gilt(self.textebene, pfad)
+
+    def drehen_vormerken(self, pfad: str) -> bool:
+        """Soll eine bei der OCR erkannte Drehung dieser Datei in die PDF geschrieben werden (Issue #151)?
+
+        Entschieden wird bei der OCR, wie bei der Textebene: Wird ein neuer
+        Scan erst danach aus dem ersten Vorrang-Ordner wegsortiert, dreht der
+        naechste Lauf ihn trotzdem (die Vormerkung haengt am Bild-Hash im
+        OCR-Cache). ``alle``: jede PDF. ``aus``: nie.
+        """
+        return self._stufe_gilt(self.auto_drehen, pfad)
+
+    def gerade_vormerken(self, pfad: str) -> bool:
+        """Soll beim Einlesen dieser Datei die Schraeglage ihrer Scanseiten gemessen werden (Issue #165)?
+
+        Gemessen wird beim Einlesen (Indexlauf, PDF-Analyzer), vorgemerkt am
+        Bild-Hash; der naechste Lauf richtet die Seiten aus, auch wenn der Scan
+        inzwischen wegsortiert ist. ``alle``: jede neu eingelesene PDF.
+        ``aus``: nie.
+        """
+        return self._stufe_gilt(self.auto_gerade, pfad)
+
+    def _stufe_gilt(self, stufe: str, pfad: str) -> bool:
+        if stufe == "alle":
+            return True
+        if stufe != "neue_scans" or not self.prioritaet:
+            return False
+        ordner = os.path.normcase(self.prioritaet[0]).rstrip("\\/")
+        datei = os.path.normcase(norm_pfad(pfad))
+        return datei.startswith(ordner + os.sep) or datei.startswith(ordner + "/")
 
     @property
     def log_ordner(self) -> Path:
@@ -185,6 +265,7 @@ class SearchConfig:
             "dpi": int(self.ocr_dpi),
             "min_zeichen": int(self.ocr_min_zeichen),
             "max_seiten": int(self.ocr_max_seiten),
+            "lage_pruefen": True,      # Issue #151: falsch liegende Seiten auch gedreht lesen
         }
 
     # ------------------------------------------------------------------ JSON

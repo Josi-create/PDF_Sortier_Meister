@@ -1,9 +1,16 @@
-import sqlite3
+"""Fassade ``Database.search_documents``/``index_document``/``update_pdf_path``/``bulk_index_directory``.
+
+Seit Phase 5 der PDFsuche-Integration liegen Volltext und Metadaten im
+Suchindex (``suche.db`` neben der Test-Datenbank); Pfade kommen in
+Betriebssystemschreibweise zurueck (``norm_pfad``). Nicht vorhandene Dateien
+werden mit Namen, Metadaten und dem uebergebenen Text als Notnagel angelegt.
+"""
 from pathlib import Path
 
 import fitz
 import pytest
 
+from src.search.konfig import norm_pfad
 from src.utils.database import Database
 
 
@@ -165,8 +172,8 @@ def test_index_document_replaces_existing(tmp_path: Path) -> None:
     )
     rechnung_results = db.search_documents(query="", kategorie="Rechnung")
     steuer_results = db.search_documents(query="", kategorie="Steuer")
-    assert all(r["file_path"] != "/docs/unique.pdf" for r in rechnung_results)
-    assert any(r["file_path"] == "/docs/unique.pdf" for r in steuer_results)
+    assert all(r["file_path"] != norm_pfad("/docs/unique.pdf") for r in rechnung_results)
+    assert any(r["file_path"] == norm_pfad("/docs/unique.pdf") for r in steuer_results)
     assert len(steuer_results) == 1
 
 
@@ -194,7 +201,7 @@ def test_update_pdf_path_noop_same_path(tmp_path: Path) -> None:
     assert result is False
     rows = db.search_documents(query="", korrespondent="NoopFirma")
     assert len(rows) == 1
-    assert rows[0]["file_path"] == "/docs/a.pdf"
+    assert rows[0]["file_path"] == norm_pfad("/docs/a.pdf")
 
 
 def test_update_pdf_path_preserves_metadata(tmp_path: Path) -> None:
@@ -215,7 +222,7 @@ def test_update_pdf_path_preserves_metadata(tmp_path: Path) -> None:
     assert result is True
     rows = db.search_documents(query="", korrespondent="MetaFirma")
     assert len(rows) == 1
-    assert rows[0]["file_path"] == "/new/b.pdf"
+    assert rows[0]["file_path"] == norm_pfad("/new/b.pdf")
     assert rows[0]["korrespondent"] == "MetaFirma"
     assert rows[0]["kategorie"] == "Rechnung"
     assert rows[0]["steuerjahr"] == "2024"
@@ -226,7 +233,7 @@ def test_update_pdf_path_preserves_metadata(tmp_path: Path) -> None:
 def test_update_pdf_path_with_new_filename(tmp_path: Path) -> None:
     db = _make_db(tmp_path)
     db.index_document(file_path="/old/a.pdf", filename="old.pdf", korrespondent="RenameFirma")
-    db.update_pdf_path("/old/a.pdf", "/new/b.pdf", "new.pdf")
+    db.update_pdf_path("/old/a.pdf", "/new/new.pdf", "new.pdf")
     rows = db.search_documents(query="", korrespondent="RenameFirma")
     assert len(rows) == 1
     assert rows[0]["filename"] == "new.pdf"
@@ -237,12 +244,9 @@ def test_update_pdf_path_no_old_row(tmp_path: Path) -> None:
     result = db.update_pdf_path("/nonexistent.pdf", "/new/b.pdf", "b.pdf")
     assert result is True
     assert db.get_search_index_count() == 1
-    conn = sqlite3.connect(str(tmp_path / "test.db"))
-    cursor = conn.cursor()
-    cursor.execute("SELECT file_path FROM document_search WHERE file_path = ?", ("/new/b.pdf",))
-    row = cursor.fetchone()
-    conn.close()
-    assert row is not None
+    eintrag = db.suchindex.dokument_nach_pfad("/new/b.pdf")
+    assert eintrag is not None and eintrag["name"] == "b.pdf"
+    assert eintrag["pdf_id"] == db.get_pdf_by_path("/new/b.pdf")["pdf_id"]
 
 
 # === bulk_index_directory tests ===
@@ -254,12 +258,10 @@ def test_bulk_index_directory_analyze_false(tmp_path: Path) -> None:
     summary = db.bulk_index_directory(str(tmp_path), analyze=False, recursive=True)
     assert summary == {"scanned": 3, "indexed": 3, "skipped": 0, "errors": []}
     assert db.get_search_index_count() == 3
-    conn = sqlite3.connect(str(tmp_path / "test.db"))
-    cursor = conn.cursor()
-    cursor.execute("SELECT extracted_text FROM document_search")
-    rows = cursor.fetchall()
-    conn.close()
-    assert all(row[0] == "" for row in rows)
+    # Die Dateien wurden gelesen (leere Seiten -> Status "leer"), nicht nur mit Namen angelegt
+    for name in ("one.pdf", "two.pdf", "three.pdf"):
+        eintrag = db.suchindex.dokument_nach_pfad(str(tmp_path / name))
+        assert eintrag is not None and eintrag["textstatus"] == "leer" and eintrag["groesse"] > 0
 
 
 def test_bulk_index_directory_skips_existing(tmp_path: Path) -> None:

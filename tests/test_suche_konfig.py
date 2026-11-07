@@ -44,7 +44,7 @@ def test_ocr_einstellungen(monkeypatch):
     c2 = SearchConfig(ocr_aktiv=True, ocr_tesseract="/opt/tesseract", ocr_tessdata="/opt/tessdata", ocr_sprachen="deu")
     e2 = c2.ocr_einstellungen()
     assert e2 == {"aktiv": True, "grund": None, "tesseract": "/opt/tesseract", "tessdata": "/opt/tessdata",
-                  "sprachen": "deu", "dpi": 300, "min_zeichen": 25, "max_seiten": 1000}
+                  "sprachen": "deu", "dpi": 300, "min_zeichen": 25, "max_seiten": 1000, "lage_pruefen": True}
     e3 = SearchConfig(ocr_aktiv=False, ocr_tesseract="/opt/tesseract").ocr_einstellungen()
     assert e3["aktiv"] is False and "ausgeschaltet" in e3["grund"]
     assert "Tesseract nicht gefunden" == e["grund"]
@@ -120,3 +120,16 @@ def test_norm_pfad_laufwerkswurzel(monkeypatch):
     monkeypatch.setattr(konfig_modul.sys, "platform", "win32")
     assert norm_pfad("E:").endswith("\\") and len(norm_pfad("E:")) == 3
     assert not norm_pfad(str(Path("/a/b/"))).endswith(("/", "\\")) or len(norm_pfad("/")) == 1
+
+
+def test_textebene_stufen_und_sicherung():
+    c = SearchConfig(textebene="alle", textebene_sicherung_tage=7)
+    assert c.textebene == "alle" and c.textebene_sicherung_tage == 7
+    assert SearchConfig(textebene="unsinn").textebene == "aus"
+    # Standard (Opt-out): neue Scans bekommen die Textebene; der Lauf beginnt frühestens um 00:00 im Leerlauf
+    assert SearchConfig().textebene == "neue_scans" and SearchConfig().hintergrund_uhrzeit == "00:00"
+    # Keine Anmeldeaufgabe fuer die Browser-Oberflaeche ohne ausdruecklichen Wunsch (Defender, #163)
+    assert SearchConfig().web_aktiv is False and SearchConfig().web_bei_anmeldung is False
+    assert SearchConfig(textebene_sicherung_tage=-3).textebene_sicherung_tage == 0
+    d = c.als_dict()
+    assert d["textebene"] == "alle" and SearchConfig.aus_dict(d).textebene == "alle"

@@ -16,18 +16,34 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from src.rag.bezug import (
+    BEZUG_FELDER,
+    BEZUG_MAX_ZEICHEN,
+    SUCH_FELDER,
+    Bezug,
+    ablageort,
+    als_bezug,
+    frage_betrifft_ordner,
+    gleicher_pfad,
+)
 from src.rag.chat_session import ChatSession, ChatTurn
 from src.rag.citation import Citation, CitationParser
 from src.rag.prompts import (
+    SORTIERLOGIK_PRAEFIX,
     SYSTEM_PROMPT,
     build_context_block,
     build_user_prompt,
 )
 from src.rag.retrieval import RetrievedDoc, RetrievalService
+
+# Volltext des Bezugsdokuments hoechstens so weit lesen (der Auszug nimmt
+# davon Anfang und Ende, siehe RetrievalService._build_snippet)
+BEZUG_LESE_ZEICHEN = 50000
 
 
 @dataclass
@@ -41,6 +57,9 @@ class RAGResponse:
     # Falls True hat das LLM mindestens eine Quelle erfunden, die im
     # Retrieval nicht vorkam. Die GUI kann darauf hinweisen.
     has_hallucinated_citations: bool = False
+    # Issue #148: Zusatzinfo fuer den Offline-Rueckfall, z.B. der Vorschlag
+    # der Sortierlogik bei "In welchen Ordner gehoert dieses PDF?"
+    hinweis: str = ""
 
 
 class RAGController:
@@ -82,11 +101,16 @@ class RAGController:
     # Public API
     # ------------------------------------------------------------------ #
 
-    def ask(self, question: str) -> RAGResponse:
+    def ask(self, question: str, bezug=None) -> RAGResponse:
         """Beantwortet eine Nutzerfrage via Retrieval + optional LLM.
 
         Args:
             question: Freitext-Frage des Nutzers.
+            bezug: Optionales Bezugsdokument (Issue #148): ein
+                :class:`~src.rag.bezug.Bezug`, ein Pfad oder ``None``. Es
+                steht als Dokument 1 unter ``BEZUGSDOKUMENT`` im Kontext,
+                die Suche nach weiteren Dokumenten wird um Korrespondent,
+                Kategorie und Steuerjahr des Bezugs ergaenzt.
 
         Returns:
             :class:`RAGResponse` mit Antwort, Citations und Retrieval-Docs.
@@ -100,8 +124,10 @@ class RAGController:
                 used_llm=False,
             )
 
+        bezug = als_bezug(bezug)
+
         # 1) Cache-Check
-        cache_key = self._cache_key(question)
+        cache_key = self._cache_key(question, bezug)
         if cache_key in self._cache:
             # LRU: ans Ende schieben
             self._cache.move_to_end(cache_key)
@@ -109,8 +135,9 @@ class RAGController:
 
         # 2) Datenbank-Leerlauf pruefen (M3-Hardening).
         # Wenn ueberhaupt nichts indexiert ist, brauchen wir weder Retrieval
-        # noch LLM und liefern eine ehrliche Antwort.
-        if not self._has_indexed_documents():
+        # noch LLM und liefern eine ehrliche Antwort. Mit Bezugsdokument
+        # laesst sich trotzdem etwas zu diesem Dokument sagen (Issue #148).
+        if bezug is None and not self._has_indexed_documents():
             return RAGResponse(
                 answer_text="Keine Dokumente indiziert.",
                 citations=[],
@@ -120,8 +147,17 @@ class RAGController:
 
         # 3) Retrieval (immer, auch ohne LLM fuer Offline-Fallback)
         k = getattr(self.chat_config, "max_context_docs", 8) or 8
+        bezug_doc = self._bezug_dokument(bezug) if bezug is not None else None
         try:
-            retrieved = self.retrieval.retrieve(question, k=k) or []
+            if bezug_doc is None:
+                retrieved = self.retrieval.retrieve(question, k=k) or []
+            else:
+                # Einer mehr: das Bezugsdokument selbst kann unter den Treffern sein
+                treffer = self.retrieval.retrieve(
+                    question, k=k + 1, zusatz=self._bezug_suchbegriffe(bezug_doc),
+                ) or []
+                treffer = [d for d in treffer if not gleicher_pfad(_feld(d, "file_path"), bezug.pfad)]
+                retrieved = [_mit_index(d, i) for i, d in enumerate(treffer[:k], start=1)]
         except Exception as e:
             return RAGResponse(
                 answer_text=f"Suche fehlgeschlagen: {e}",
@@ -130,9 +166,24 @@ class RAGController:
                 used_llm=False,
             )
 
+        hinweis = ""
+        if bezug_doc is not None and frage_betrifft_ordner(question):
+            vorschlaege = "; ".join(bezug.sortier_vorschlaege) or "keiner"
+            bezug_doc.extra["hinweise"] = [f"{SORTIERLOGIK_PRAEFIX} {vorschlaege}"]
+            if bezug.sortier_vorschlaege:
+                hinweis = f"Vorschlag der Sortierlogik: {vorschlaege}"
+
         # 4) LLM-Aufruf wenn verfuegbar
         if self.llm_provider is not None and self._is_llm_available():
-            response = self._ask_llm(question, retrieved)
+            if bezug_doc is None:
+                response = self._ask_llm(question, retrieved)
+            else:
+                # Bezug ist [D1], die Suchtreffer folgen ab [D2] mit Ablageort
+                weitere = [_mit_index(d, i) for i, d in enumerate(retrieved, start=2)]
+                for d in weitere:
+                    if not isinstance(d, dict):
+                        d.extra = {**(d.extra or {}), "ordner": ablageort(d.file_path, bezug.wurzeln)}
+                response = self._ask_llm(question, [bezug_doc, *weitere])
         elif not retrieved:
             # Offline-Modus UND keine Quellen gefunden: ehrliche
             # Standard-Antwort statt leerer Text (M3-Hardening).
@@ -141,6 +192,7 @@ class RAGController:
                 citations=[],
                 retrieved_docs=[],
                 used_llm=False,
+                hinweis=hinweis,
             )
         else:
             # Offline-Modus MIT Quellen: bisheriges Verhalten (leerer
@@ -150,6 +202,7 @@ class RAGController:
                 citations=[],
                 retrieved_docs=retrieved,
                 used_llm=False,
+                hinweis=hinweis,
             )
 
         # 5) Turn in ChatSession protokollieren
@@ -172,6 +225,7 @@ class RAGController:
                         # mitschreiben, damit spaetere Folgefragen den
                         # stabilen Identitaetsanker haben.
                         "pdf_id": c.pdf_id,
+                        "seite": getattr(c, "seite", 0),
                     }
                     for c in response.citations
                 ],
@@ -284,7 +338,7 @@ class RAGController:
         LLM-Provider und die Prompt-Builder erwarten."""
         if isinstance(doc, dict):
             return doc
-        return {
+        prompt_dict = {
             "index": getattr(doc, "index", 0),
             "filename": getattr(doc, "filename", ""),
             "file_path": getattr(doc, "file_path", ""),
@@ -296,19 +350,87 @@ class RAGController:
             # Phase 3 (Issue #25): pdf_id in den Prompt-Dict
             # durchreichen, damit LLM-Provider sie ebenfalls sehen.
             "pdf_id": getattr(doc, "pdf_id", ""),
+            # Phase 5: Seite der Fundstelle (fuer Zitate auf Dokument und Seite)
+            "seite": getattr(doc, "seite", 0),
         }
+        # Issue #148: Bezugsdokument, Ablageort und Hinweise (nur wenn gesetzt)
+        extra = getattr(doc, "extra", None) or {}
+        for key in ("bezug", "ordner", "hinweise"):
+            if extra.get(key):
+                prompt_dict[key] = extra[key]
+        return prompt_dict
 
-    def _cache_key(self, question: str) -> str:
+    def _bezug_dokument(self, bezug: Bezug) -> RetrievedDoc:
+        """Das Bezugsdokument als ``[D1]`` (Issue #148).
+
+        Text und Metadaten kommen aus dem Suchindex; was dort fehlt (Datei
+        noch nicht indexiert, keine Metadaten gespeichert), aus dem
+        :class:`Bezug` (``pdf_cache`` bzw. KI-Vorschlag der GUI).
+        """
+        meta: dict = {}
+        text = ""
+        pdf_id = ""
+        dok_id = 0
+        suchindex = getattr(self.db, "suchindex", None)
+        if suchindex is not None:
+            try:
+                dok = suchindex.dokument_nach_pfad(str(bezug.pfad))
+                if dok:
+                    dok_id = int(dok.get("id") or 0)
+                    pdf_id = dok.get("pdf_id") or ""
+                    meta = {f: dok.get(f) for f in BEZUG_FELDER if dok.get(f) not in (None, "")}
+                    if dok_id:
+                        text = suchindex.volltext(dok_id, BEZUG_LESE_ZEICHEN) or ""
+            except Exception:  # noqa: BLE001 - Index ist optional, Rueckfall unten
+                pass
+        for f in BEZUG_FELDER:
+            wert = (bezug.metadaten or {}).get(f)
+            if not meta.get(f) and wert not in (None, ""):
+                meta[f] = wert
+        if not text.strip():
+            text = bezug.text or ""
+        text = text.replace("\f", "\n").strip()
+        snippet = RetrievalService._build_snippet(text, BEZUG_MAX_ZEICHEN) or "(Kein Text erkannt.)"
+        return RetrievedDoc(
+            index=1,
+            file_path=str(bezug.pfad),
+            filename=bezug.pfad.name,
+            text_snippet=snippet,
+            rank=0,
+            kategorie=str(meta.get("kategorie") or ""),
+            steuerjahr=str(meta.get("steuerjahr") or ""),
+            betrag=_betrag(meta.get("betrag")),
+            korrespondent=str(meta.get("korrespondent") or ""),
+            pdf_id=pdf_id,
+            dok_id=dok_id,
+            seite=0,
+            extra={"bezug": True, "ordner": ablageort(bezug.pfad, bezug.wurzeln)},
+        )
+
+    @staticmethod
+    def _bezug_suchbegriffe(bezug_doc: RetrievedDoc) -> str:
+        """Korrespondent, Kategorie und Steuerjahr des Bezugs als zusaetzliche Suchbegriffe."""
+        return " ".join(str(getattr(bezug_doc, f, "") or "") for f in SUCH_FELDER).strip()
+
+    def _cache_key(self, question: str, bezug: Optional[Bezug] = None) -> str:
         """Stabiler Cache-Key basierend auf Frage + Retrieval-Ergebnis-Set.
 
         Da die Retrieval-Ergebnisse vom DB-Zustand abhaengen, koennte der
         Cache stale werden. Wir mischen daher auch den Inhalt der
         aktuellen Session-ID (Klassenname + Objekt-ID) bei, damit
         verschiedene Sessions sich nicht gegenseitig die Antworten geben.
+
+        Issue #148: "dieses Dokument" meint je Bezug ein anderes PDF, darum
+        gehoeren Bezugspfad und Ordnervorschlaege mit in den Schluessel.
         """
         session_marker = id(self.chat_session)
+        bezug_teil = ""
+        if bezug is not None:
+            bezug_teil = Path(bezug.pfad).as_posix().casefold()
+            if bezug.sortier_vorschlaege:
+                bezug_teil += "|" + "|".join(bezug.sortier_vorschlaege)
         h = hashlib.sha256(
-            f"{question.strip().lower()}|{session_marker}".encode("utf-8")
+            f"{question.strip().lower()}|{session_marker}|{bezug_teil}".encode("utf-8")
         ).hexdigest()
         return h
 
@@ -318,3 +440,26 @@ class RAGController:
         self._cache.move_to_end(key)
         while len(self._cache) > self._cache_max:
             self._cache.popitem(last=False)
+
+
+def _feld(doc, name: str):
+    """Feld aus einem RetrievedDoc oder einem Dict."""
+    if isinstance(doc, dict):
+        return doc.get(name)
+    return getattr(doc, name, None)
+
+
+def _mit_index(doc, index: int):
+    """Kopie mit neuer Nummer (``[Dn]``), Original bleibt unveraendert."""
+    if isinstance(doc, dict):
+        return {**doc, "index": index}
+    return replace(doc, index=index, rank=index, extra=dict(doc.extra or {}))
+
+
+def _betrag(wert) -> str:
+    """Betrag als Text wie bei den Suchtreffern ("59.99")."""
+    if wert in (None, ""):
+        return ""
+    if isinstance(wert, (int, float)):
+        return f"{float(wert):.2f}"
+    return str(wert)

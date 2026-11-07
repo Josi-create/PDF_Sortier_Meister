@@ -18,6 +18,12 @@ from PyQt6.QtWidgets import (
     QToolTip,
 )
 
+from src.gui.pfad_aktionen import (
+    PFAD_KOPIEREN_TEXT,
+    im_dateimanager_zeigen,
+    pfad_kopieren,
+    zeigen_text,
+)
 from src.gui.tile_view import TileView, fit_text_lines, tile_view
 
 
@@ -60,6 +66,9 @@ class PDFThumbnailWidget(QFrame):
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
+    rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
+    reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
+    straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
@@ -233,7 +242,7 @@ class PDFThumbnailWidget(QFrame):
         """Blendet das Original-Thumbnail neben der Kachel ein.
 
         Nur bei kompakten Ansichten und nur, wenn das Bild schon geladen ist;
-        Ordner-Kacheln haben keine solche Vorschau.
+        Ordnerzeilen haben keine solche Vorschau.
         """
         pixmap = self._original_pixmap
         if not self._view.hover_preview or pixmap is None or pixmap.isNull():
@@ -405,6 +414,10 @@ class PDFThumbnailWidget(QFrame):
 
     def contextMenuEvent(self, event):
         """Zeigt das Kontextmenü an."""
+        self._build_context_menu().exec(event.globalPos())
+
+    def _build_context_menu(self) -> QMenu:
+        """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
 
         # Prüfen ob Mehrfachauswahl aktiv ist
@@ -413,6 +426,12 @@ class PDFThumbnailWidget(QFrame):
         # Öffnen
         open_action = menu.addAction("PDF öffnen")
         open_action.triggered.connect(lambda: self._open_pdf())
+
+        # Issue #154: Ablageort zeigen und Pfad kopieren
+        show_action = menu.addAction(zeigen_text())
+        show_action.triggered.connect(self._show_in_file_manager)
+        copy_path_action = menu.addAction(PFAD_KOPIEREN_TEXT)
+        copy_path_action.triggered.connect(self._copy_path)
 
         menu.addSeparator()
 
@@ -446,11 +465,56 @@ class PDFThumbnailWidget(QFrame):
 
         menu.addSeparator()
 
+        # Issue #150: ganze PDF verlustfrei drehen, Texterkennung neu. Bei
+        # Mehrfachauswahl (diese Kachel gehoert dazu) gilt es fuer alle.
+        count = selection_count if selection_count > 1 and self.selected else 1
+        suffix = f" ({count} PDFs)" if count > 1 else ""
+        rotate_menu = menu.addMenu(f"Drehen{suffix}")
+        rotate_left = rotate_menu.addAction("90° nach links")
+        rotate_left.triggered.connect(self._rotate_left)
+        rotate_right = rotate_menu.addAction("90° nach rechts")
+        rotate_right.triggered.connect(self._rotate_right)
+        rotate_half = rotate_menu.addAction("180°")
+        rotate_half.triggered.connect(self._rotate_180)
+        # Issue #165: schief gescannte Seiten um den kleinen Winkel gerade drehen
+        rotate_menu.addSeparator()
+        straighten_action = rotate_menu.addAction("Gerade ausrichten (schief gescannt)")
+        straighten_action.setToolTip("Schief eingezogene Seiten messen und gerade drehen")
+        straighten_action.triggered.connect(self._request_straighten)
+        reocr_action = menu.addAction(f"OCR neu durchführen{suffix}")
+        reocr_action.setToolTip("Gescannte Seiten neu erkennen, z. B. nach dem Drehen")
+        reocr_action.triggered.connect(self._request_reocr)
+
+        menu.addSeparator()
+
         # Löschen
         delete_action = menu.addAction("Löschen")
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
-        menu.exec(event.globalPos())
+        return menu
+
+    def _rotate_left(self):
+        self.rotate_requested.emit(self.pdf_path, -90)
+
+    def _rotate_right(self):
+        self.rotate_requested.emit(self.pdf_path, 90)
+
+    def _rotate_180(self):
+        self.rotate_requested.emit(self.pdf_path, 180)
+
+    def _request_reocr(self):
+        self.reocr_requested.emit(self.pdf_path)
+
+    def _request_straighten(self):
+        self.straighten_requested.emit(self.pdf_path)
+
+    def _show_in_file_manager(self):
+        """Markiert die PDF im Explorer/Finder (Issue #154)."""
+        im_dateimanager_zeigen(self.pdf_path)
+
+    def _copy_path(self):
+        """Legt den vollstaendigen Pfad in die Zwischenablage (Issue #154)."""
+        pfad_kopieren(self.pdf_path)
 
     def _get_selection_count(self) -> int:
         """Gibt die Anzahl der ausgewählten PDFs zurück."""

@@ -26,6 +26,14 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("prozesse", 1)
     kw.setdefault("ocr_aktiv", False)
     kw.setdefault("mails_aktiv", False)
+    # Sicherungskopien der Textebene nie ins echte Datenverzeichnis
+    kw.setdefault("textebene_sicherung_ordner", str(tmp_path / "textebene_sicherung"))
+    # Indextests schreiben keine Textebene, solange sie es nicht ausdruecklich wollen (Standard ist "neue_scans")
+    kw.setdefault("textebene", "aus")
+    # ... und drehen keine PDF (Issue #151, Standard ebenfalls "neue_scans")
+    kw.setdefault("auto_drehen", "aus")
+    # ... und richten keine aus (Issue #165, Standard ebenfalls "neue_scans")
+    kw.setdefault("auto_gerade", "aus")
     return SearchConfig(**kw)
 
 
@@ -83,6 +91,258 @@ def pdf_mit_bild(pfad: Path, seiten: int = 1, text_seiten: list[str] | None = No
     doc.save(str(pfad))
     doc.close()
     return pfad
+
+
+def scan_pdf(pfad: Path, zeilen: list[str], seiten: int = 1, drehung: int = 0, dpi: int = 150,
+             cropbox: tuple | None = None) -> Path:
+    """Gescannte Seiten wie aus dem Scanner: Text gerendert, nur das Bild in einer neuen PDF.
+
+    ``drehung``: Seitendrehung (``/Rotate``); das Bild ist so eingesetzt, dass
+    die Seite aufrecht angezeigt wird (wie ein quer eingelegter Scan).
+    ``cropbox`` (ungedrehte Koordinaten) verschiebt den sichtbaren Ausschnitt.
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    for i, zeile in enumerate(zeilen):
+        q.insert_text((72, 100 + 36 * i), zeile, fontsize=20)
+    png = q.get_pixmap(dpi=dpi, colorspace=pymupdf.csGRAY).tobytes("png")
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=842, height=595) if drehung in (90, 270) else doc.new_page(width=595, height=842)
+        seite.insert_image(seite.rect, stream=png, rotate=drehung)
+        if cropbox:
+            seite.set_cropbox(pymupdf.Rect(*cropbox))
+        if drehung:
+            seite.set_rotation(drehung)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+def text_pdf(breite: float, hoehe: float, text: str, sichtbar: bool = False) -> bytes:
+    """Reine Text-PDF wie von Tesseract (``textonly_pdf=1``): unsichtbarer Text in der Schrift ``GlyphLessFont``.
+
+    ``sichtbar``: schwarzer Text und ein Quadrat oben links (Geometrie-Tests).
+    """
+    import pymupdf
+
+    doc = pymupdf.open()
+    seite = doc.new_page(width=breite, height=hoehe)
+    if sichtbar:
+        seite.draw_rect(pymupdf.Rect(10, 10, 60, 60), color=(0, 0, 0), fill=(0, 0, 0))
+    seite.insert_text((80, 40), text, fontsize=12, render_mode=0 if sichtbar else 3, fontname="helv")
+    for f in seite.get_fonts():
+        doc.xref_set_key(f[0], "BaseFont", "/GlyphLessFont")
+    daten = doc.tobytes()
+    doc.close()
+    return daten
+
+
+def fake_tesseract(monkeypatch, text: str = "Erkannter Scantext") -> list:
+    """``subprocess.run`` in ``extract`` ersetzen: Text nach stdout bzw. Text und Text-PDF in Dateien.
+
+    Liefert die Liste der Aufrufe (zum Zaehlen). Die Text-PDF hat die Groesse
+    des gelieferten Seitenbilds bei der angegebenen Aufloesung, wie bei Tesseract.
+    """
+    import subprocess
+
+    import pymupdf
+
+    from src.search import extract
+
+    aufrufe: list = []
+
+    def run(args, **kw):
+        aufrufe.append(list(args))
+        if args[2] == "stdout":
+            return subprocess.CompletedProcess(args, 0, stdout=text.encode("utf-8"), stderr=b"")
+        basis = args[2]
+        dpi = int(args[args.index("--dpi") + 1])
+        pix = pymupdf.Pixmap(kw["input"])
+        Path(basis + ".txt").write_text(text, encoding="utf-8")
+        Path(basis + ".pdf").write_bytes(text_pdf(pix.width * 72 / dpi, pix.height * 72 / dpi, text))
+        return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(extract.subprocess, "run", run)
+    return aufrufe
+
+
+# --------------------------------------------------------------------------- Lage der Seite (Issue #151)
+
+LAGE_TEXT = "Rechnung Nummer 4711 Gesamtbetrag 1181,20 Euro Stadtwerke"
+LAGE_SALAT = "USNBIUSA JU] JON} MUEQ U9jalA Jpejsiajsn esseyseds"   # so liest Tesseract Kopfstehendes
+
+
+def scan_mit_lage(pfad: Path, inhalt_drehung: int = 0, seiten: int = 1, dpi: int = 72,
+                  zeilen: list[str] | None = None) -> Path:
+    """Scan, dessen Bild um ``inhalt_drehung`` Grad im Uhrzeigersinn verdreht ist (``/Rotate`` bleibt 0).
+
+    Aufrecht steht oben links ein schwarzes Quadrat (daran erkennt
+    ``fake_tesseract_lage`` die Lage) und darunter Text (``zeilen``, fuer
+    echtes Tesseract). Aufrecht wird die Seite also mit
+    ``(360 - inhalt_drehung) % 360`` Grad Drehung.
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    q.draw_rect(pymupdf.Rect(30, 30, 160, 160), color=(0, 0, 0), fill=(0, 0, 0))
+    for i, zeile in enumerate(zeilen or ["Rechnung Nummer 4711"]):
+        q.insert_text((72, 220 + 30 * i), zeile, fontsize=18)
+    z = dpi / 72
+    pix = q.get_pixmap(matrix=pymupdf.Matrix(z, z).prerotate(inhalt_drehung), colorspace=pymupdf.csGRAY)
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=pix.width * 72 / dpi, height=pix.height * 72 / dpi)
+        seite.insert_image(seite.rect, pixmap=pix)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+BRIEF_ZEILEN = [
+    "Stadtwerke Musterstadt GmbH", "Postfach 12 34, 12345 Musterstadt", "",
+    "Rechnung Nummer 4711 vom 12.03.2025", "Kundennummer 0815-4711", "",
+    "Sehr geehrte Damen und Herren,", "für den Abrechnungszeitraum stellen wir Ihnen",
+    "folgende Leistungen in Rechnung:", "Strom Grundpreis 12 Monate      120,00 EUR",
+    "Arbeitspreis 3.200 kWh            896,00 EUR", "Zwischensumme                     1016,00 EUR",
+    "Mehrwertsteuer 19 %               193,04 EUR", "Gesamtbetrag                      1209,04 EUR",
+    "Bitte überweisen Sie den Betrag bis zum 30.03.2025", "auf das unten genannte Konto.",
+    "Mit freundlichen Grüßen", "Ihre Stadtwerke",
+]
+
+
+def scan_schief(pfad: Path, winkel: float, inhalt_drehung: int = 0, seiten: int = 1, dpi: int = 100,
+                textebene: bool = False, quadrat: bool = False) -> Path:
+    """Scan eines Briefs, schief eingezogen (Issue #165): das Bild ist um ``winkel`` Grad im
+    Uhrzeigersinn verdreht, dazu um ``inhalt_drehung`` (90/180/270, wie ``scan_mit_lage``).
+
+    Gerade steht die Seite also, wenn man sie um ``winkel`` Grad gegen den
+    Uhrzeigersinn dreht. ``textebene``: unsichtbarer Text ueber dem Bild, wie
+    ihn die Texterkennung eines Scanprogramms (VueScan) schreibt; die Seite
+    gilt damit als Text. ``quadrat``: schwarzes Quadrat oben links wie bei
+    ``scan_mit_lage`` (fuer ``fake_tesseract_lage``).
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    if quadrat:
+        q.draw_rect(pymupdf.Rect(30, 30, 160, 160), color=(0, 0, 0), fill=(0, 0, 0))
+    for i, zeile in enumerate(BRIEF_ZEILEN):
+        q.insert_text((72, 200 + 22 * i), zeile, fontsize=11)
+    z = dpi / 72
+    pix = q.get_pixmap(matrix=pymupdf.Matrix(z, z).prerotate(inhalt_drehung + winkel), colorspace=pymupdf.csGRAY)
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=pix.width * 72 / dpi, height=pix.height * 72 / dpi)
+        seite.insert_image(seite.rect, pixmap=pix)
+        if textebene:
+            for i, zeile in enumerate(BRIEF_ZEILEN[:6]):
+                if zeile:
+                    seite.insert_text((72, 120 + 22 * i), zeile, fontsize=11, render_mode=3)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+def schraeglage_der_datei(pfad: Path, seite: int = 1) -> float | None:
+    """Gemessene Schraeglage einer Seite, wie sie jetzt angezeigt wird (Issue #165)."""
+    import pymupdf
+
+    from src.search import gerade
+
+    with pymupdf.open(str(pfad)) as doc:
+        return gerade.seite_messen(doc[seite - 1])
+
+
+def ausrichtung_der_datei(pfad: Path, seite: int = 1) -> float:
+    """Winkel, um den PDFSM die Seite ausgerichtet hat (0 = nicht ausgerichtet)."""
+    import pymupdf
+
+    from src.search import gerade
+
+    with pymupdf.open(str(pfad)) as doc:
+        return gerade.ausrichtung(doc, doc[seite - 1])
+
+
+def _lage_tsv(woerter: list[str], konfidenz: int, senkrecht: bool) -> str:
+    zeilen = ["level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext",
+              "1\t1\t0\t0\t0\t0\t0\t0\t1000\t1400\t-1\t"]
+    breite, hoehe = (30, 120) if senkrecht else (120, 30)
+    for i, wort in enumerate(woerter, start=1):
+        zeilen.append(f"5\t1\t1\t1\t1\t{i}\t{40 * i}\t100\t{breite}\t{hoehe}\t{konfidenz}\t{wort}")
+    return "\n".join(zeilen) + "\n"
+
+
+def bild_lage(png: bytes) -> str:
+    """``'aufrecht'`` | ``'quer'`` | ``'kopf'`` | ``'leer'`` – wo das Quadrat von ``scan_mit_lage`` steht."""
+    import pymupdf
+
+    pix = pymupdf.Pixmap(png)
+
+    def dunkel(fx: float, fy: float) -> bool:
+        return pix.pixel(int(pix.width * fx), int(pix.height * fy))[0] < 100
+
+    if dunkel(0.12, 0.12):
+        return "aufrecht"
+    if dunkel(0.88, 0.12) or dunkel(0.12, 0.88):
+        return "quer"
+    if dunkel(0.88, 0.88):
+        return "kopf"
+    return "leer"
+
+
+def fake_tesseract_lage(monkeypatch, text: str = LAGE_TEXT) -> list:
+    """Tesseract-Attrappe, die sieht, wie das Seitenbild liegt (Issue #151; Scans aus ``scan_mit_lage``).
+
+    Wie echtes Tesseract ohne ``osd``: aufrecht der Text mit sicheren,
+    waagerechten Woertern; quer derselbe Text, aber als senkrechte Woerter;
+    kopfstehend Buchstabensalat mit niedriger Konfidenz; leere Seite nichts.
+    Beherrscht stdout (Text, mit ``tessedit_create_tsv`` erst die TSV) und die
+    Ausgabe in Dateien (``.txt``, ``.pdf`` mit ``tessedit_create_pdf``, ``.tsv``).
+    Liefert die Liste der gesehenen Lagen, ein Eintrag je Aufruf.
+    """
+    import subprocess
+
+    import pymupdf
+
+    from src.search import extract
+
+    lagen: list = []
+
+    def run(args, **kw):
+        lage = bild_lage(kw["input"])
+        lagen.append(lage)
+        if lage == "aufrecht":
+            ausgabe, tsv = text, _lage_tsv(text.split(), 95, senkrecht=False)
+        elif lage == "quer":
+            ausgabe, tsv = text, _lage_tsv(text.split(), 95, senkrecht=True)
+        elif lage == "kopf":
+            ausgabe, tsv = LAGE_SALAT, _lage_tsv(LAGE_SALAT.split(), 30, senkrecht=False)
+        else:
+            ausgabe, tsv = "", _lage_tsv([], 0, senkrecht=False)
+        mit_tsv = "tessedit_create_tsv=1" in args
+        if args[2] == "stdout":
+            out = (tsv if mit_tsv else "") + ausgabe
+            return subprocess.CompletedProcess(args, 0, stdout=out.encode("utf-8"), stderr=b"")
+        basis = args[2]
+        Path(basis + ".txt").write_text(ausgabe, encoding="utf-8")
+        if mit_tsv:
+            Path(basis + ".tsv").write_text(tsv, encoding="utf-8")
+        if "tessedit_create_pdf=1" in args:
+            dpi = int(args[args.index("--dpi") + 1])
+            pix = pymupdf.Pixmap(kw["input"])
+            Path(basis + ".pdf").write_bytes(text_pdf(pix.width * 72 / dpi, pix.height * 72 / dpi, ausgabe or " "))
+        return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(extract.subprocess, "run", run)
+    return lagen
 
 
 def pdf_verschluesselt(pfad: Path, text: str = "Geheim") -> Path:
@@ -311,3 +571,45 @@ def mbox(pfad: Path, mails: list[bytes]) -> Path:
             f.write(b"From - Wed Jan 10 10:00:00 2024\n" + roh + b"\n")
     Path(str(pfad) + ".msf").write_bytes(b"")
     return pfad
+
+
+# --------------------------------------------------------------------------- PDFsuche-Projektordner (Uebernahme)
+
+def v1_datenbank(pfad) -> int:
+    """Datenbank im Stand von PDFsuche (Version 1) mit einem OCR-Dokument anlegen; liefert dessen id."""
+    from src.search import db
+
+    con = db.verbinde(pfad)
+    con.executescript(db.SCHEMA)
+    con.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', '1')")
+    cur = con.execute(
+        "INSERT INTO dokumente (pfad, datei, name, ordner, typ, format, groesse, mtime_ns, datum, seiten, "
+        "textstatus, ocr_seiten, prioritaet, indiziert_am) VALUES (?, ?, ?, ?, 'pdf', 'pdf', 10, 1, 1.0, 1, "
+        "'ocr', 1, 9, '2026-01-01T00:00:00')",
+        (os.path.join("alt", "a.pdf"), os.path.join("alt", "a.pdf"), "a.pdf", "alt"))
+    dok_id = cur.lastrowid
+    con.execute("INSERT INTO seiten (dok_id, seite, quelle, text) VALUES (?, 1, 'ocr', 'Alter OCR-Text')", (dok_id,))
+    con.commit()
+    con.close()
+    return dok_id
+
+
+def pdfsuche_projekt(tmp_path: Path) -> Path:
+    """Synthetischer Projektordner des frueheren Programms PDFsuche: config.toml + data/pdfsuche.db mit zwei Dokumenten."""
+    ordner = tmp_path / "PDFsuche"
+    (ordner / "data").mkdir(parents=True)
+    ablage = tmp_path / "Ablage"
+    ablage.mkdir(exist_ok=True)
+    (ablage / "Rechnung.md").write_text("# Rechnung\nBetrag 49,99 Euro von Telekom", encoding="utf-8")
+    pdf_mit_text(ablage / "Brief.pdf", ["Sehr geehrte Frau Beispiel"])
+    (ordner / "config.toml").write_text(
+        '[datenbank]\npfad = "data/pdfsuche.db"\n\n[suche]\nprioritaet = ["' + ablage.as_posix() + '"]\n'
+        'wurzeln = ["' + ablage.as_posix() + '"]\n\n[ocr]\naktiv = false\n\n[web]\nport = 18425\n',
+        encoding="utf-8",
+    )
+    konfig = konfig_fuer(tmp_path, db_pfad=str(ordner / "data" / "pdfsuche.db"),
+                         wurzeln=[str(ablage)], prioritaet=[str(ablage)])
+    from src.search.indexer import Indexer
+
+    assert Indexer(konfig, synchron=True).lauf() == 0
+    return ordner

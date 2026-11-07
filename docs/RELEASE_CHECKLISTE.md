@@ -43,6 +43,13 @@ Ablauf fuer einen neuen Release von PDF Sortier Meister (`vX.Y.Z`).
 - [ ] Draft-Release pruefen, deutsche Release-Notes schreiben (Abschnitte
       **Neu**, **Behoben**, **Fuer Beta-Tester**), Download-Links im Format
       `releases/latest/download/...` verwenden.
+- [ ] **Fehlalarm-Meldung bei Microsoft** (solange die Programme nicht signiert
+      sind, #163): `PDF_Sortier_Meister_Setup.exe` und `pdfsm-dienstw.exe` aus dem
+      Draft-Release unter <https://www.microsoft.com/en-us/wdsi/filesubmission>
+      einreichen (Rolle „Software developer“, „Incorrectly detected as
+      malware/malicious“, Hinweis auf das GitHub-Repository). Hintergrund:
+      Defender hat am 06.11.2026 `pdfsm-dienstw.exe` als
+      *Behavior:Win32/Persistence.A!ml* entfernt.
 - [ ] Draft veroeffentlichen.
 
 ## 5. Smoke-Test

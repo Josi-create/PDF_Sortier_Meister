@@ -5,6 +5,13 @@ Funktionen:
 - Thumbnail-Generierung aus PDFs
 - Textextraktion (direkt und via OCR)
 - Metadaten-Extraktion
+
+Seit Phase 5 der PDFsuche-Integration kommt der Text aus dem Suchindex, wenn
+die Datei dort aktuell ist (Groesse und mtime stimmen). Sonst liest der
+Analyzer mit denselben Funktionen wie der Index (``src.search.extract``:
+Textebene, OCR ueber Tesseract mit ``deu+eng`` und 300 dpi, hoechstens fuenf
+Bildseiten interaktiv) und schreibt das Ergebnis zurueck (``datei_aufnehmen``,
+``ocr_eintragen``), damit der naechste Lauf nichts doppelt erkennt.
 """
 
 import os
@@ -20,8 +27,122 @@ from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
 
 
+def _search_konfig():
+    """SearchConfig des Nutzers; None, wenn keine Konfiguration erreichbar ist."""
+    try:
+        from src.utils.config import get_config
+        return get_config().get_search_config()
+    except Exception:  # noqa: BLE001 - ohne Konfiguration laeuft die Analyse wie frueher
+        return None
+
+
+def suchindex_fuer_analyse():
+    """Suchindex fuer Text aus dem Index und das Zurueckschreiben; None, wenn die Suche nicht eingerichtet ist.
+
+    Tests ersetzen diese Funktion, damit kein Zugriff auf den Index des Nutzers stattfindet.
+    """
+    konfig = _search_konfig()
+    if konfig is None or not konfig.aktiv:
+        return None
+    from src.search.suchindex import Suchindex
+    return Suchindex(konfig)
+
+
+def ocr_einstellungen_fuer_analyse() -> Optional[dict]:
+    """Tesseract-Einstellungen fuer die interaktive OCR (wie der Index: ``deu+eng``, 300 dpi, psm 1).
+
+    Fehlen einzelne Sprachdaten, wird mit den vorhandenen erkannt; ohne
+    Tesseract oder ganz ohne Sprachdaten None.
+    """
+    from src.search.konfig import SearchConfig
+    from src.utils.tesseract import fehlende_sprachen
+
+    konfig = _search_konfig() or SearchConfig()
+    cfg = konfig.ocr_einstellungen()
+    if not cfg.get("tesseract"):
+        return None
+    fehlend = set(fehlende_sprachen(cfg.get("tessdata"), cfg["sprachen"]))
+    rest = [s for s in cfg["sprachen"].split("+") if s and s not in fehlend]
+    if not rest:
+        return None
+    cfg["sprachen"] = "+".join(rest)
+    return cfg
+
+
+def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
+    """Bildseiten einer PDF neu erkennen, am OCR-Cache vorbei (Issue #150).
+
+    Fuer "OCR neu durchführen" im Kontextmenue: Der OCR-Cache (Bild-Hash ->
+    Text) wuerde sonst den alten Text liefern. Erkannt werden alle Seiten ohne
+    Textebene, das Ergebnis ersetzt Seiten und Cache-Eintraege im Suchindex
+    (``ocr_eintragen(..., ersetzen=True)``); Dateien ausserhalb der Wurzeln
+    nimmt der Index dafuer auf. Ohne eingerichtete Suche gibt es keinen Cache:
+    Dann passiert hier nichts, und die naechste Analyse erkennt die Datei neu
+    (``"index": False``). ``abbrechen`` (Funktion ohne Argumente) wird vor
+    jeder Seite gefragt.
+
+    Liegt eine Seite falsch herum, liest Tesseract sie auch gedreht
+    (Issue #151); die Lage merkt sich der Index. Weil der Nutzer die neue
+    Erkennung ausdruecklich verlangt hat, dreht der naechste Indexlauf die
+    Datei, wo sie auch liegt - ausser ``auto_drehen`` ist aus.
+
+    Liefert ``{"index": bool, "seiten": int, "fehler": str | None}``, dazu
+    ``"gedreht": int``, wenn Seiten erst gedreht lesbar waren.
+    """
+    from src.search import extract as suche_extract
+
+    erg: dict = {"index": False, "seiten": 0, "fehler": None}
+    index = suchindex_fuer_analyse()
+    if index is None:
+        return erg
+    erg["index"] = True
+    pfad = str(pdf_path)
+    gelesen = suche_extract.pdf_text(pfad, index.konfig.ocr_min_zeichen)
+    if gelesen["status"] in ("fehler", "verschluesselt"):
+        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        return erg
+    if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
+        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        return erg
+    offen = list(gelesen["ohne_text"])
+    if not offen:
+        return erg
+    cfg = ocr_einstellungen_fuer_analyse()
+    if cfg is None:
+        erg["fehler"] = "Tesseract nicht gefunden - keine Texterkennung möglich."
+        return erg
+    if index.konfig.textebene_erzeugen(pfad):
+        cfg["textebene"] = True
+    texte: dict = {}
+    ebenen: dict = {}
+    drehungen: dict = {}
+    for nr in offen:
+        if abbrechen is not None and abbrechen():
+            break
+        res = suche_extract.pdf_ocr(pfad, [nr], cfg)
+        if res.get("fehler"):
+            erg["fehler"] = res["fehler"]
+        text = res["texte"].get(nr)
+        if text and text.strip():
+            texte[nr] = text
+            if res.get("ebenen", {}).get(nr):
+                ebenen[nr] = res["ebenen"][nr]
+            if res.get("drehungen", {}).get(nr):
+                drehungen[nr] = res["drehungen"][nr]
+    if texte:
+        erg["seiten"] = index.ocr_eintragen(pfad, texte, ebenen=ebenen or None, ersetzen=True,
+                                            drehungen=drehungen or None,
+                                            drehen=index.konfig.auto_drehen != "aus")
+    if drehungen:
+        erg["gedreht"] = len(drehungen)
+    return erg
+
+
 class PDFAnalyzer:
     """Analysiert PDF-Dateien und extrahiert Informationen."""
+
+    # Interaktive OCR: hoechstens so viele Bildseiten, damit die Oberflaeche schnell antwortet
+    OCR_MAX_SEITEN = 5
 
     def __init__(self, pdf_path: Path | str):
         """
@@ -118,8 +239,13 @@ class PDFAnalyzer:
         """
         Extrahiert den Text aus dem PDF.
 
+        Reihenfolge: aktueller Eintrag im Suchindex -> Textebene mit
+        ``src.search.extract.pdf_text`` (Bildseiten bekommen OCR-Text aus dem
+        Cache) -> interaktive OCR der ersten Bildseiten. Was der Analyzer selbst
+        liest oder erkennt, geht an den Index zurueck.
+
         Args:
-            use_ocr: Falls True, wird OCR verwendet wenn kein Text gefunden wird
+            use_ocr: Falls True, wird OCR verwendet wenn Bildseiten ohne Text da sind
 
         Returns:
             Der extrahierte Text
@@ -127,73 +253,103 @@ class PDFAnalyzer:
         if self._text is not None:
             return self._text
 
-        self.open()
+        pfad = str(self.pdf_path)
+        index = suchindex_fuer_analyse()
+        stand = self._textstand(index, pfad)
+        if stand is not None and stand["aktuell"] and stand["textstatus"] in TEXT_AUS_INDEX:
+            self._text = self._text_aus_seiten(stand["seiten"])
+            return self._text
 
-        # Zuerst versuchen, eingebetteten Text zu extrahieren
-        text_parts = []
-        for page in self._doc:
-            page_text = page.get_text()
-            if page_text.strip():
-                text_parts.append(page_text)
+        if stand is not None and stand["aktuell"] and stand["textstatus"] == "ocr_ausstehend":
+            seiten, offen = list(stand["seiten"]), list(stand["ocr_offen"])
+        else:
+            from src.search import extract as suche_extract
 
-        self._text = "\n".join(text_parts)
+            konfig = _search_konfig()
+            # Neuer Scan im ersten Vorrang-Ordner: Schraeglage gleich mitmessen (Issue #165); der Index merkt
+            # sie vor, auch wenn der Scan danach wegsortiert wird, bevor ein Indexlauf ihn liest
+            gerade = index is not None and index.konfig.gerade_vormerken(pfad)
+            gelesen = suche_extract.pdf_text(pfad, konfig.ocr_min_zeichen if konfig else 25, gerade)
+            if gelesen["status"] in ("fehler", "verschluesselt"):
+                self._text = self._text_direkt()
+                return self._text
+            seiten, offen = list(gelesen["seiten"]), list(gelesen["ohne_text"])
+            if index is not None:
+                try:
+                    if index.datei_aufnehmen(pfad, vorab=gelesen) is not None:
+                        neu = self._textstand(index, pfad)
+                        if neu is not None and neu["aktuell"]:
+                            # OCR-Cache kann Bildseiten schon gefuellt haben
+                            seiten, offen = list(neu["seiten"]), list(neu["ocr_offen"])
+                except Exception as e:  # noqa: BLE001 - Index ist Zusatz, nie Blocker
+                    print(f"Suchindex: Datei nicht aufgenommen: {e}")
 
-        # Falls kein Text gefunden und OCR aktiviert
-        if not self._text.strip() and use_ocr:
+        if offen and use_ocr:
             self.ocr_used = True
-            self._text = self._extract_text_ocr()
+            # Neuer Scan im ersten Vorrang-Ordner (bzw. Stufe „alle“): Textebene im selben Tesseract-Aufruf
+            mit_ebene = index is not None and index.konfig.textebene_erzeugen(pfad)
+            erkannt, ebenen = self._ocr_seiten(offen[:self.OCR_MAX_SEITEN], textebene=mit_ebene)
+            if erkannt:
+                seiten = [(nr, "ocr", erkannt[nr]) if nr in erkannt else (nr, q, txt) for nr, q, txt in seiten]
+                if index is not None:
+                    try:
+                        index.ocr_eintragen(pfad, erkannt, ebenen=ebenen or None,
+                                            drehungen=self._ocr_drehungen or None)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"Suchindex: OCR nicht eingetragen: {e}")
 
+        self._text = self._text_aus_seiten(seiten)
         return self._text
 
-    def _extract_text_ocr(self) -> str:
-        """
-        Extrahiert Text mittels OCR (Tesseract).
-
-        Returns:
-            Der per OCR extrahierte Text
-        """
+    @staticmethod
+    def _textstand(index, pfad: str):
+        if index is None:
+            return None
         try:
-            import pytesseract
-            from PIL import Image
-            import io
+            return index.text_fuer_datei(pfad)
+        except Exception:  # noqa: BLE001
+            return None
 
-            tesseract_cmd = find_tesseract()
-            if tesseract_cmd is None:
-                print("Warnung: Tesseract nicht gefunden. OCR nicht verfügbar.")
-                return ""
-            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
-            # Sprachdaten neben der .exe (gebuendelt oder Standardinstallation)
-            tessdata = Path(tesseract_cmd).parent / "tessdata"
-            if tessdata.is_dir():
-                os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+    @staticmethod
+    def _text_aus_seiten(seiten) -> str:
+        return "\n".join(txt for _, _, txt in seiten if txt and txt.strip())
 
+    def _text_direkt(self) -> str:
+        """Bisheriger Weg (Textebene ueber das offene Dokument), wenn ``extract.pdf_text`` nicht lesen konnte."""
+        try:
             self.open()
-            text_parts = []
-
-            for page_num in range(min(len(self._doc), 5)):  # Max 5 Seiten für OCR
-                page = self._doc[page_num]
-
-                # Höhere Auflösung für OCR
-                matrix = fitz.Matrix(2.0, 2.0)
-                pix = page.get_pixmap(matrix=matrix, alpha=False)
-
-                # In PIL Image konvertieren
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
-
-                # OCR durchführen (Deutsch)
-                page_text = pytesseract.image_to_string(img, lang='deu')
-                if page_text.strip():
-                    text_parts.append(page_text)
-
-            return "\n".join(text_parts)
-
-        except ImportError:
-            print("Warnung: pytesseract nicht installiert. OCR nicht verfügbar.")
+            return "\n".join(p.get_text() for p in self._doc if p.get_text().strip())
+        except Exception:  # noqa: BLE001
             return ""
-        except Exception as e:
+
+    def _ocr_seiten(self, seiten: list[int], textebene: bool = False) -> tuple[dict[int, str], dict[int, bytes]]:
+        """Bildseiten mit Tesseract erkennen (gemeinsame Funktion mit dem Index).
+
+        Liefert ``({seite: text}, {seite: text_pdf})``; die Text-PDFs fuer die
+        unsichtbare Textebene (Phase 5b) nur mit ``textebene``, aus demselben
+        Tesseract-Aufruf. Geschrieben werden sie vom naechsten Indexlauf.
+        Seiten, die Tesseract gedreht besser las (Issue #151), stehen danach in
+        ``self._ocr_drehungen`` (``{seite: grad}``) fuer den Index.
+        """
+        self._ocr_drehungen = {}
+        cfg = ocr_einstellungen_fuer_analyse()
+        if cfg is None:
+            print("Warnung: Tesseract nicht gefunden. OCR nicht verfügbar.")
+            return {}, {}
+        if textebene:
+            cfg["textebene"] = True
+        try:
+            from src.search import extract as suche_extract
+            res = suche_extract.pdf_ocr(str(self.pdf_path), list(seiten), cfg)
+        except Exception as e:  # noqa: BLE001
             print(f"OCR-Fehler: {e}")
-            return ""
+            return {}, {}
+        if res.get("fehler"):
+            print(f"OCR-Fehler: {res['fehler']}")
+        texte = {nr: txt for nr, txt in res["texte"].items() if txt and txt.strip()}
+        ebenen = {nr: e for nr, e in (res.get("ebenen") or {}).items() if nr in texte and e}
+        self._ocr_drehungen = {nr: g for nr, g in (res.get("drehungen") or {}).items() if nr in texte and g}
+        return texte, ebenen
 
     def get_metadata(self) -> dict:
         """
@@ -399,6 +555,7 @@ def coerce_dates(values) -> list[datetime]:
 # Dokumentensuche (Hintergrunddienst, Arbeitsprozesse) sie ohne PyQt6 laden
 # kann. Hier nur re-exportiert, damit bestehende Importe und Tests weiter
 # funktionieren (``import shutil`` oben bleibt dafuer ebenfalls erhalten).
+from src.search.suchindex import TEXT_AUS_INDEX  # noqa: E402
 from src.utils.tesseract import _tesseract_candidates, find_tesseract  # noqa: E402,F401
 
 
@@ -503,6 +660,34 @@ def get_thumbnail(pdf_path: Path | str, width: int = 150, height: int = 200) -> 
             except Exception:
                 pass  # Cache ist optional
         return thumbnail
+
+
+# Masse, in denen die Kacheln ihr Thumbnail laden (ThumbnailLoaderThread)
+THUMBNAIL_GROESSEN = ((140, 160),)
+
+
+def thumbnail_vergessen(pdf_path: Path | str) -> None:
+    """Thumbnail einer geaenderten PDF verwerfen (Speicher und PNG, Issue #150).
+
+    Nach dem Drehen hat die Datei eine neue mtime und damit ohnehin einen neuen
+    PNG-Schluessel - aber nur auf die Sekunde genau. Wird zweimal in derselben
+    Sekunde gedreht (Drehen + Rueckgaengig), passte sonst ein veraltetes Bild.
+    """
+    pdf_path = Path(pdf_path)
+    key = str(pdf_path)
+    if key in _thumbnail_cache._cache:
+        del _thumbnail_cache._cache[key]
+        try:
+            _thumbnail_cache._access_order.remove(key)
+        except ValueError:
+            pass
+    for breite, hoehe in THUMBNAIL_GROESSEN:
+        datei = _thumbnail_disk_path(pdf_path, breite, hoehe)
+        if datei is not None:
+            try:
+                datei.unlink()
+            except OSError:
+                pass
 
 
 def _thumbnail_disk_path(pdf_path: Path, width: int, height: int) -> Optional[Path]:

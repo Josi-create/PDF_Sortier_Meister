@@ -9,6 +9,8 @@ importiert.
 
 from __future__ import annotations
 
+import inspect
+
 from src.search import ausgabe
 from src.search.konfig import SearchConfig
 from src.search.suchindex import Suchindex
@@ -30,9 +32,11 @@ def beschreibung(konfig: SearchConfig) -> str:
 
 def werkzeug_suche(idx: Suchindex, abfrage: str, typ: str | None = None, ordner: str | None = None,
                    von: str | None = None, bis: str | None = None, sortierung: str = "relevanz",
-                   anzahl: int = 20) -> str:
+                   anzahl: int = 20, steuerjahr: str | None = None, kategorie: str | None = None,
+                   korrespondent: str | None = None) -> str:
     erg = idx.suche(abfrage, typ=typ, ordner=ordner, von=von, bis=bis, sortierung=sortierung,
-                    anzahl=max(1, min(int(anzahl), 200)))
+                    anzahl=max(1, min(int(anzahl), 200)), steuerjahr=steuerjahr or None,
+                    kategorie=kategorie or None, korrespondent=korrespondent or None)
     return ausgabe.ergebnisse(erg, abfrage)
 
 
@@ -44,15 +48,30 @@ def werkzeug_index_status(idx: Suchindex) -> str:
     return ausgabe.status_text(idx)
 
 
+def _werkzeug(server):
+    """Wie ``server.tool()``, aber mit bereinigter Beschreibung.
+
+    Bis Python 3.12 behaelt ein Docstring die Einrueckung des Quelltexts (erst ab
+    3.13 entfernt der Compiler sie). Die Werkzeugbeschreibungen sollen fuer den
+    KI-Assistenten genau so aussehen wie bei PDFsuche.
+    """
+    def dekorator(funktion):
+        return server.tool(description=inspect.cleandoc(funktion.__doc__ or ""))(funktion)
+
+    return dekorator
+
+
 def erstelle_server(konfig: SearchConfig):
     from mcp.server.mcpserver import MCPServer
 
     idx = Suchindex(konfig)
     server = MCPServer("pdfsuche", instructions=beschreibung(konfig))
 
-    @server.tool()
+    @_werkzeug(server)
     def suche(abfrage: str, typ: str | None = None, ordner: str | None = None, von: str | None = None,
-              bis: str | None = None, sortierung: str = "relevanz", anzahl: int = 20) -> str:
+              bis: str | None = None, sortierung: str = "relevanz", anzahl: int = 20,
+              steuerjahr: str | None = None, kategorie: str | None = None,
+              korrespondent: str | None = None) -> str:
         """Volltextsuche im lokalen Dokumentenindex.
 
         abfrage: Suchbegriffe. Mehrere Wörter = alle müssen vorkommen. Syntax: "genaue Phrase",
@@ -63,11 +82,14 @@ def erstelle_server(konfig: SearchConfig):
         von / bis: Datum JJJJ-MM-TT (Mail-Datum bzw. Datei-Änderungsdatum)
         sortierung: 'relevanz' | 'neu' | 'alt'
         anzahl: maximale Zahl an Dokumenten (Standard 20)
+        steuerjahr / kategorie / korrespondent: PDFSM-Metadaten sortierter PDFs (genauer Wert),
+                 z. B. steuerjahr='2024', kategorie='Rechnung', korrespondent='Telekom'
         Ergebnis: je Dokument [ID], Pfad und Textausschnitte mit «Fundstelle» und Seitenzahl.
         """
-        return werkzeug_suche(idx, abfrage, typ, ordner, von, bis, sortierung, anzahl)
+        return werkzeug_suche(idx, abfrage, typ, ordner, von, bis, sortierung, anzahl, steuerjahr, kategorie,
+                              korrespondent)
 
-    @server.tool()
+    @_werkzeug(server)
     def dokument_lesen(dok_id: int, seiten: str | None = None, max_zeichen: int = 40000) -> str:
         """Volltext eines Dokuments aus dem Index (ID aus 'suche').
 
@@ -75,7 +97,7 @@ def erstelle_server(konfig: SearchConfig):
         """
         return werkzeug_dokument_lesen(idx, dok_id, seiten, max_zeichen)
 
-    @server.tool()
+    @_werkzeug(server)
     def index_status() -> str:
         """Stand des Index: Anzahl Dokumente, OCR-Fortschritt, letzter Lauf."""
         return werkzeug_index_status(idx)

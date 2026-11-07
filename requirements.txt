@@ -3,6 +3,9 @@
 # GUI Framework
 # Seit PyQt6 6.12 (Oktober 2026) liegen QtPdf/QtPdfWidgets (integrierte
 # PDF-Vorschau) im eigenen Paket PyQt6-Pdf; beide Versionen muessen zusammenpassen.
+# Upgrade eines venv von PyQt6 < 6.12: danach einmal
+#   pip install --force-reinstall --no-deps PyQt6-Pdf PyQt6-Pdf-Qt6
+# (pip loescht mit der alten PyQt6-Version die gerade installierten QtPdf-Dateien).
 PyQt6>=6.12.0
 PyQt6-Pdf>=6.140.0
 

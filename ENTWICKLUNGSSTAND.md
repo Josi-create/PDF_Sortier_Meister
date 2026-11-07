@@ -1,12 +1,13 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 25.08.2026
-**Aktuelle Version:** 0.15.0
+**Datum:** 06.11.2026
+**Aktuelle Version:** 0.24.0 (Release in Vorbereitung)
 
-> **Was ist neu in v0.13.0?** Siehe [Changelog v0.13.0](#changelog-v0130) am Ende des Dokuments.
+> **Was ist neu?** Siehe [CHANGELOG.md](CHANGELOG.md). Dieses Dokument fuehrt seit v0.15.0 nur noch
+> die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
-### Dokumentensuche - Integration von PDFsuche (in Arbeit, Phasen 0 bis 8)
+### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)
 Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
 - Phase 0 (2026-11-05): Analyse beider Codebasen und Architekturentwurf (PR #136)
 - Phase 1 (2026-11-06): Modul `src/search/` (Qt-frei) aus PDFsuche uebernommen
@@ -31,8 +32,76 @@ Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
   Thunderbird-Profil aus `profiles.ini` als Standard fuer `mail_ordner`,
   Wurzel-Vorschlaege je Plattform, Sprachdaten-Pruefung (`ocr_grund` im Status);
   28 Tests mit simuliertem `sys.platform`
-- Offen: Phase 3 (Einrichtung, Migration), 4 (Reiter „Suche“), 5 (Zusammenfuehren mit document_search/pdf_cache,
-  Schema v2, OCR-Cache), 6 (pdfsm-dienst, MCP, Build), 7 (Umstellung), 8 (Doku, Release)
+- Phase 3 (2026-11-06): Einrichtung und Uebernahme - Registerkarte „Suche“ in den
+  Einstellungen (alle `SearchConfig`-Felder, Thunderbird-/Tesseract-Hinweise,
+  Vorschlaege-Menue, Textebene-Stufen), Assistentenseite „Dokumentensuche“ (Standard aus,
+  Scan-/Zielordner vorbelegt, Mails/OCR nur wenn moeglich), `src/search/migration.py`
+  (PDFsuche finden ueber Aufgabe/MCP-Eintrag, pruefen mit `quick_check`, uebernehmen mit
+  `meta.migriert_von`, optional Kopie ueber die SQLite-Sicherungsschnittstelle),
+  `pdfsm-dienst migration`, Dialog `search_migration_dialog.py`; 18 Tests
+- Phase 4 (2026-11-06): Reiter „Suche“ im Hauptfenster - `src/gui/search_view.py` und
+  `search_worker.py` (Abfragen, Dokumenttext und Indexstand im `QThread`, veraltete
+  Abfragen verworfen): Suchfeld mit Syntaxhilfe, Filter Typ/Ordner/Zeitraum/Sortierung,
+  Trefferkarten mit Hervorhebung und Seiten-/Blattlink, Nachladen; eigene PDF-Vorschau
+  springt auf die Trefferseite, Textvorschau fuer Office/Markdown/Mails; Oeffnen, im
+  Explorer/Finder zeigen, Pfad kopieren, Mail als `.eml` (`Suchindex.mail_als_eml`);
+  Statuszeile mit „Jetzt indizieren“/„Kompletten Lauf starten“; Hinweis ohne Einrichtung;
+  Strg+Umschalt+F; 12 GUI-Tests
+- Phase 5 (2026-11-06): Zusammenfuehren - eine Such-Datenbank: Schema-Version 2 additiv
+  in-place (`ergaenze_schema`, Erkennung an der Struktur; OCR-Cache nach Bildinhalt
+  `ocr_cache`/`seiten.bild_hash`, Metadatenspalten `pdf_id`/`korrespondent`/`kategorie`/
+  `steuerjahr`/`betrag`/`buchungsdatum`/`zusammenfassung`/`schlagwoerter`/`metadaten_quelle`,
+  `metadaten_fts`); Indexer liest PDFSM-Metadaten aus Info-Dict/XMP (Quelle `pdf`, Vorrang
+  fuer `pdfsm`), fuellt Bildseiten aus dem Cache, ergaenzt den Cache fuer den Altbestand,
+  erkennt Umbenennungen ueber (Groesse, mtime), behaelt PDFSM-verwaltete Dokumente beim
+  Aufraeumen; `Suchindex.datei_aufnehmen/datei_geaendert/ocr_eintragen/metadaten_setzen/
+  metadaten_ersetzen/werte`; `src/search/meldungen.py` (Warteschlange, eigener Thread) mit
+  Meldungen aus `FileManager` und Hauptfenster; `document_search` abgeschafft (einmalige
+  Uebernahme beim Start), `Database.search_documents` & Co. als Fassade auf den Index;
+  `PDFAnalyzer.extract_text` aus dem Index mit gemeinsamer OCR (keine doppelte OCR,
+  `pytesseract` nicht mehr genutzt); Reiter „Suche“ mit Metadatenfiltern, Werkzeugleisten-
+  Suche (Strg+F) in den Reiter umgeleitet; Chat-Zitate mit Seite; MCP/CLI mit
+  Metadatenfiltern; 31 neue Tests, bestehende angepasst
+- Phase 5b (2026-11-06): Textebene in gescannten PDFs - `src/search/textebene.py`: ein
+  Tesseract-Aufruf liefert Indextext und Text-PDF (`textonly_pdf=1`, Ablage in
+  `ocr_cache.ebene`), Auflegen mit `show_pdf_page(overlay=True)` deckungsgleich bei Drehung
+  und CropBox, inkrementelles Speichern auf einer Kopie (Original-Bytes bleiben vorn),
+  Pruefung (Seiten, Boxen, Bild- und Inhalts-Streams byte-gleich, Text vorhanden),
+  Sicherungskopie, Ersetzen mit `ReplaceFileW` (Windows) bzw. `os.replace`; nie bei
+  signierten, verschluesselten, PDF/A-, schreibgeschuetzten, geoeffneten, Cloud-only- oder
+  seit der OCR geaenderten Dateien; Stufen `neue_scans`/`alle` (Altbestand mit Schaetzung),
+  Reihenfolge „erst sortieren, dann Textebene“ (nur der Indexlauf schreibt), verlorene Ebene
+  wird neu geschrieben; `textebene_protokoll` mit Rueckgaengig (Dialog
+  `textebene_dialog.py`, `pdfsm-dienst textebene`), Aufbewahrung, Anhalten
+  (`indexer.anhalten`); 47 neue Tests (2 davon mit echtem Tesseract)
+- Phase 6 (2026-11-06): Hintergrunddienst, MCP, Build - `pdf_sortier_meister.spec` baut
+  zusaetzlich `pdfsm-dienst` (Konsole: MCP, Kommandozeile) und unter Windows `pdfsm-dienstw`
+  (ohne Konsole) aus `packaging/pdfsm_dienst.py`, eigene Analyse ohne Qt/sklearn, gemeinsames
+  `_internal`; `src/search/zeitplan.py` (Aufgabenplanung ohne Adminrechte mit Leerlaufbedingung
+  wie bei PDFsuche, macOS-LaunchAgents mit `--nur-leerlauf`, Abgleich nur bei Abweichung),
+  `pdfsm-dienst zeitplan --einrichten|--entfernen|--status`; Einstellungen und Assistent richten
+  den Zeitplan beim Speichern ein; „Im Browser öffnen“ im Reiter Suche; Installer richtet nach
+  der Installation ein und entfernt beim Deinstallieren; `scripts/rauchtest_dienst.py` (Index mit
+  Arbeitsprozessen und OCR, MCP-Handshake, Web, `pdfsm-dienstw`) in `build.bat`, `build.sh` und
+  `release.yml`; lokaler Build und Rauchtest bestanden; 20 neue Tests
+- Phase 7 (2026-11-06): Umstellung beim Entwickler - Dienst und MCP aus der lokalen Installation,
+  Datenbank am bisherigen Ort uebernommen (vorher gesichert), alte Aufgaben deaktiviert, neue
+  Aufgaben eingerichtet, MCP umgestellt, Suche ueber MCP, Reiter und Web geprueft; dabei behoben:
+  `migration.uebernehmen` ergaenzt gleich auf Version 2 und nimmt die PDFSM-Metadaten aus dem
+  bisherigen Index mit (`metadaten_mitnehmen`), MCP-Beschreibungen ohne Docstring-Einrueckung
+  (`mcp_server._werkzeug`), Programme aus der Browser-Oberflaeche kommen nach vorn (`src/search/fenster.py`,
+  aus dem Arbeitsstand von PDFsuche); Textebene standardmaessig „nur neue Scans“ (Opt-out, Haekchen im
+  Assistenten); Hintergrundindexierung „einmal taeglich beim ersten Leerlauf, fruehestens ab“ (Standard 00:00),
+  macOS-LaunchAgent zusaetzlich bei der Anmeldung mit `--einmal-taeglich`; alte Aufgaben geloescht,
+  Repository PDFsuche archiviert; 14 neue Tests
+- Phase 8 (2026-11-06): Dokumentation und Release - README (Abschnitt „Dokumentensuche ueber den ganzen
+  PC“, MCP-Einrichtung fuer Claude Code und Claude Desktop, Datenschutz-Tabelle um Suche und MCP ergaenzt,
+  bekannte Grenzen und Technologien korrigiert), `docs/SUCHE_SCHEMA.md` (aus `SCHEMA.md`
+  von PDFsuche, Version 2: OCR-Cache, Metadaten, Textebene-Protokoll, `meta`-Schluessel),
+  `docs/ARCHITECTURE.md` (RAG-Chat liest ueber die Fassade `search_documents` aus `suche.db`, Quellen mit
+  Seite), Release v0.24.0 nach `docs/RELEASE_CHECKLISTE.md` vorbereitet (Veroeffentlichung erst nach OK)
+- Folgeschritte (nicht Teil der Integration): `pytesseract` als Abhaengigkeit entfernen (Abschnitt 3.2),
+  Spalte `extracted_text` in `pdf_cache.db` abbauen, Mail-Anhaenge mit Inhalt indizieren (Abschnitt 9)
 
 ### v0.15.0 (2026-08-25) - Explorer-Gefuehl, Jahres-Vorschlaege, Tempo
 - Sprint 1 (#29 #26 #23): Ordner-Kacheln (".." + Unterordner) und Breadcrumb links, Alt+Up;
@@ -340,6 +409,10 @@ Kernidee: Metadaten werden **dual** gespeichert — direkt als XMP-Standard in d
 
 ### Phase 17: Volltext-Suche mit SQLite FTS5 (100% fertig)
 
+> Abgeloest durch die Dokumentensuche (v0.24.0): `document_search` gibt es nicht mehr; Suchleiste,
+> Filter und Chat lesen ueber `Database.search_documents()` aus `suche.db` (Volltext aller Seiten,
+> Metadaten als Spalten). Die Beschreibung unten ist der Stand von v0.11.0.
+
 - [x] **SQLite FTS5-Index** für extrahierten Dokumententext *(v0.9.0)*
   - Virtuelle Tabelle `document_search` mit unicode61-Tokenizer
   - Speichert: Volltext, Dateiname, Keywords, Korrespondent, Kategorie, Betrag, Steuerjahr, Zusammenfassung
@@ -531,6 +604,15 @@ PDF_Sortier_Meister/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Haupteinstiegspunkt
+│   ├── search/                 # Dokumentensuche (Qt-frei, v0.24.0): Index, OCR, Dienst, MCP, Web
+│   │   ├── konfig.py           # SearchConfig (Block "suche" in config.json)
+│   │   ├── db.py               # Schema (docs/SUCHE_SCHEMA.md), FTS5-Abfragen
+│   │   ├── indexer.py          # Indexlauf mit Arbeitsprozessen, OCR, Textebene
+│   │   ├── suchindex.py        # Fassade fuer PDFSM (Suche, Metadaten, Status)
+│   │   ├── dienst.py           # Kommandozeile pdfsm-dienst
+│   │   ├── zeitplan.py         # Aufgabenplanung / LaunchAgents
+│   │   └── mcp_server.py, web.py, plattform.py, textebene.py, migration.py, ...
+│   ├── rag/                    # RAG-Chat (Retrieval, Prompts, Zitate)
 │   ├── gui/
 │   │   ├── __init__.py
 │   │   ├── main_window.py      # Hauptfenster (Version 0.7.1)
@@ -575,9 +657,12 @@ Alle Pakete aus `requirements.txt` wurden installiert:
 - watchdog 6.0.0
 - pikepdf 10.5.1 *(NEU in v0.9.0 — Phase 16)*
 
+**Dokumentensuche** *(v0.24.0)*: extract-msg, olefile, xlrd (Outlook-Mails, Word/Excel 97–2003),
+mcp (MCP-Server); optional flask und waitress fuer die Browser-Oberflaeche (Extra `suche-web`).
+
 **Optional für LLM-Integration:**
 - anthropic (für Claude API direkt)
-- openai (für OpenAI API direkt oder Poe.com)
+- openai (für OpenAI API direkt, OpenRouter oder Poe.com)
 
 ```bash
 pip install anthropic openai

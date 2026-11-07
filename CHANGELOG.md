@@ -7,6 +7,97 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Rechtsklick: „Pfad kopieren“ und „Im Explorer anzeigen“** (#154): Die
+  PDF-Kacheln haben unter „PDF öffnen“ zwei neue Einträge: „Im Explorer
+  anzeigen“ öffnet den Ordner und markiert die Datei, „Pfad kopieren“ legt den
+  vollständigen Pfad in die Zwischenablage. Die Ordner im linken Fenster
+  (auch „..“) bekommen dafür erstmals ein Kontextmenü mit „Im Explorer
+  öffnen“ und „Pfad kopieren“; der Zielordner-Baum und die grünen
+  Vorschlagskacheln haben „Pfad kopieren“ zusätzlich. Unter macOS heißen die
+  Einträge „Im Finder zeigen“ bzw. „Im Finder öffnen“.
+- **PDF drehen und Texterkennung neu** (#150): Im Rechtsklickmenü einer
+  PDF-Kachel gibt es „Drehen“ mit „90° nach links“, „90° nach rechts“ und
+  „180°“ sowie „OCR neu durchführen“. Bei Mehrfachauswahl gilt beides für alle
+  markierten PDFs. Gedreht wird die ganze PDF verlustfrei über die
+  Seitendrehung: Scanbild, Textebene und gespeicherte Metadaten bleiben
+  unverändert, „Rückgängig“ (Strg+Z) dreht zurück. Kachel, Vorschau und
+  Suchindex zeigen sofort den neuen Stand. Digital signierte und
+  verschlüsselte PDFs werden nicht gedreht (die Signatur würde ungültig bzw.
+  der Schutz ginge verloren); kurz gesperrte Dateien (OneDrive, Vorschau)
+  werden mehrmals versucht. „OCR neu durchführen“ erkennt die gescannten
+  Seiten im Hintergrund noch einmal – am Zwischenspeicher der Texterkennung
+  vorbei, dessen Einträge dabei ersetzt werden. Nach dem Drehen ist das in der
+  Regel nicht nötig: Die Drehung gehört jetzt zum Erkennungsmerkmal einer
+  Seite, die nächste Analyse liest gedrehte Seiten deshalb von selbst neu,
+  statt den alten, falsch ausgerichteten Text wiederzuverwenden.
+- **Chat mit Bezugsdokument** (#148, #27): Wer im Reiter „Vorschau“ ein PDF
+  auswählt und in den „Chat“ wechselt, kann direkt Fragen zu diesem PDF
+  stellen. Über dem Eingabefeld steht dann „Bezug: <Dateiname>  ✕“, darunter
+  vier Schnellfragen, die mit einem Klick gestellt werden: „Zu welcher
+  Wohnung / welchem Objekt gehört dieses Dokument?“, „Zeig mir ähnliche
+  Rechnungen“, „Gibt es schon einen Ordner mit ähnlichen Dokumenten?“ und „In
+  welchen Ordner gehört dieses PDF?“. Die KI bekommt das PDF als erstes
+  Dokument (Text und Metadaten aus dem Suchindex, sonst aus der laufenden
+  Analyse) und dazu Dokumente aus der Sammlung, die zu Korrespondent,
+  Kategorie und Steuerjahr passen, jeweils mit ihrem Ablageort. Bei Fragen
+  nach dem Ordner steht der Vorschlag der Sortierlogik mit im Kontext. Der
+  Bezug gilt für alle weiteren Fragen, bis ✕ ihn entfernt oder beim nächsten
+  Wechsel in den Chat ein anderes PDF ausgewählt ist. Ohne KI zeigt der Chat
+  wie bisher die gefundenen Dokumente, bei der Ordnerfrage zusätzlich den
+  Vorschlag der Sortierlogik.
+- **Schief gescannte Seiten gerade ausrichten** (#165): Zieht der Scanner ein
+  Blatt schief ein, misst PDFSM den Winkel und dreht den Seiteninhalt gerade.
+  Neue Scans im ersten Vorrang-Ordner werden beim nächsten Indexlauf von selbst
+  ausgerichtet, auch wenn das Scanprogramm schon eine Textebene geschrieben hat
+  (Einstellungen › Suche › „Schief gescannte Seiten gerade ausrichten“: nur
+  neue Scans, aus oder alle neu eingelesenen). Einzelne PDFs per Rechtsklick ›
+  Drehen › „Gerade ausrichten“, auch für mehrere markierte PDFs, rückgängig mit
+  Strg+Z. Das Scanbild wird nicht neu berechnet oder komprimiert, eine
+  vorhandene Textebene dreht mit. Wie bei der Textebene entsteht beim
+  automatischen Ausrichten vorher eine Sicherungskopie, und die Änderung steht
+  im Protokoll. Drehen, Textebene und Ausrichten entstehen in einem Schritt.
+  Ersetzt den Umweg über `ocrmypdf --deskew` in WSL. Das Ergebnis ist ein
+  normales PDF, kein PDF/A.
+- **Gedrehte Scans richtig herum** (#151): Liest die Texterkennung eine
+  Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die
+  drei anderen Lagen und nimmt die beste. Die Suche findet den Text dann auch
+  in falsch herum eingelegten Scans. So herum wird die PDF beim nächsten
+  Indexlauf gespeichert, standardmäßig nur für neue Scans im ersten
+  Vorrang-Ordner (Einstellungen › Suche › „Gedrehte Seiten richtig herum
+  speichern“: nur neue Scans, aus oder alle). Das gilt auch, wenn der Scan bis
+  dahin schon einsortiert ist. Geändert wird nur die Drehangabe der Seite, das
+  Scanbild bleibt unverändert. Wie bei der Textebene entsteht vorher eine
+  Sicherungskopie, die Änderung steht im Protokoll („Geänderte PDFs anzeigen /
+  rückgängig machen…“, Spalte „Gedreht“) und lässt sich zurücknehmen. Mit
+  Textebene entstehen Drehung und Textebene in einem Schritt. Bleibt eine Datei
+  ungedreht, liegt die Textebene trotzdem passend auf dem Scan. Signierte,
+  verschlüsselte, PDF/A- und geöffnete Dateien bleiben unberührt. Eine
+  aufrechte Seite kostet keinen zusätzlichen Erkennungslauf, eine falsch
+  liegende drei.
+
+### Geaendert
+- **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die
+  Vorschlagsliste steht nicht mehr als eigener Block über dem Namen, sondern
+  eingeklappt in der Gruppe „Neuer Dateiname“. Rechts in deren Kopfzeile
+  zeigt ein Pfeil „Vorschläge (n)“, wie viele Vorschläge es gibt; ein Klick
+  klappt darunter den Schalter „Ordnerstruktur im Namen“, „Muster
+  bearbeiten…“ und die Liste auf. Eingeklappt (Standard) bleiben nur
+  Namensfeld, Vorschau und Warnung stehen, und die Vorschau der PDF bekommt
+  den Platz. Der oberste Vorschlag wird wie bisher automatisch als Dateiname
+  eingetragen. Der gewählte Zustand gilt für alle folgenden Dokumente und
+  bleibt nach einem Neustart erhalten; treffen KI-Vorschläge im Hintergrund
+  ein, zählt der Pfeil mit, ohne aufzuklappen.
+- **Ordner im linken Fenster als Zeilen** (#147): Unterordner und „..“
+  stehen nicht mehr als große Kacheln zwischen den PDFs, sondern als schmale
+  Zeilen darüber – Symbol, Name und rechts in Grau die Anzahl PDFs, z. B.
+  „📁 Archiv … 365 PDFs“. Ab knapp 500 Pixel Breite stehen sie in zwei
+  Spalten, sonst in einer. Lange Namen werden gekürzt, der volle Pfad steht im
+  Tooltip. Höhe und Schrift der Zeilen sind fest; die Kachelgröße
+  (Klein/Mittel/Groß) gilt nur noch für die PDFs. Klick auf „..“, Doppelklick
+  auf einen Ordner, Ablegen von PDFs per Drag & Drop und das Kontextmenü
+  funktionieren wie bisher.
+
 ### Behoben
 - **Tiefe Zielordner liessen sich nicht aufklappen**: Der Zielordner-Baum
   liest nur drei Ebenen unter jedem Zielordner ein. Ordner auf der dritten
@@ -14,38 +105,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Jetzt bekommen sie den Pfeil, und die Unterordner werden beim ersten
   Aufklappen nachgeladen, samt PDF-Zaehler. Das gilt auch, wenn eine PDF beim
   Ziehen ueber dem Ordner verweilt.
-- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
-  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
-  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
-  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
-  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
-  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
-  geladenen Baumtiefe erscheinen jetzt.
-- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
-  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
-  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
-  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
-  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
-  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
-  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
-  bleiben wie bisher gruen.
-- **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
-  galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
-  oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
-  ein Dokument von 2006, und das Steuerjahr folgte. Fand die Texterkennung
-  gar kein Datum, nahm die KI stillschweigend das Scandatum der Datei. Jetzt
-  zaehlt ein beschriftetes Datum („Datum:“, „Rechnungsdatum“, „Ort, den“)
-  zuerst, danach das erste Datum in Lesereihenfolge (Briefkopf); Daten hinter
-  „geboren“, „gueltig bis“, „faellig“, „Frist“ oder „Eingang“ nur als
-  Notnagel. Der KI-Prompt erklaert Fristen und Scandatum ausdruecklich als
-  Nicht-Dokumentdatum, verlangt das Datum als eigenes Metadatum und bekommt
-  den Namen des Quellordners („Briefe 2004“) als Hinweis mit.
-- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
-  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
-  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
-  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
-  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
-  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
+
+## [0.24.0] - 2026-11-06
 
 ### Neu
 - **Dokumentensuche, Grundstein** (Integration von PDFsuche, Phase 1): Neues,
@@ -83,6 +144,94 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Vorschlaege fuer Wurzeln (Laufwerke bzw. Benutzerordner und `/Volumes`);
   fehlen Tesseract oder die Sprachdaten `deu+eng`, bleibt die Texterkennung
   aus und der Status nennt den Grund.
+- **Dokumentensuche einrichten** (Phase 3): Neue Registerkarte **Suche** in
+  den Einstellungen mit allen Optionen - Ordner und Laufwerke (mit
+  Vorschlaegen), Vorrang-Ordner, Ausschluesse, Dateiendungen, Mails
+  (Thunderbird-Profil wird erkannt), Texterkennung (Sprachen, Seitengrenze,
+  Tesseract-Status), Cloud-Dateien, Hintergrundindexierung mit Uhrzeit,
+  Browser-Oberflaeche mit Port, Arbeitsprozesse, Speicherort der Datenbank
+  und die Stufen fuer die Textebene in gescannten PDFs (aus / nur neue Scans /
+  alle, mit Aufbewahrung der Sicherungskopien). Der Einrichtungs-Assistent
+  bekommt die Seite „Dokumentensuche“: Sie fragt, ob und welche Ordner
+  durchsucht werden (vorbelegt sind Scan- und Zielordner), ob Mails und
+  Texterkennung dazukommen und ob taeglich im Hintergrund indiziert wird -
+  ohne Zustimmung wird nichts indiziert, alles bleibt auf dem Rechner. Wer
+  das fruehere Programm PDFsuche benutzt hat, uebernimmt dessen Einstellungen
+  und Datenbank per Dialog oder `pdfsm-dienst migration`: PDFSM findet die
+  Installation ueber die Aufgabenplanung bzw. den MCP-Eintrag, prueft die
+  Datenbank am Ort (kein laufender Index, Integritaet, Zaehler) und laesst
+  sie dort liegen; auf Wunsch wird sie geprueft in das Datenverzeichnis
+  kopiert.
+- **Reiter „Suche“ im Hauptfenster** (Phase 4): Neben „Vorschau“ und „Chat“
+  gibt es den Reiter **Suche** (auch Ansicht > Volltextsuche, Strg+Umschalt+F)
+  fuer die Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown
+  und Mails. Suchfeld mit Hilfe zur Syntax (Wortfolgen, ODER/NICHT, Wortanfang,
+  Naehe), Filter fuer Typ, Ordner, Zeitraum und Sortierung, Trefferliste mit
+  hervorgehobenen Fundstellen und Seiten- bzw. Blattangabe, weitere Treffer auf
+  Knopfdruck. Ein Klick zeigt die PDF rechts in der Vorschau direkt auf der
+  Trefferseite (der Link „S. 3“ springt weiter), Office-Dateien, Markdown und
+  Mails erscheinen als Text mit Hervorhebung. Aktionen je Treffer: Oeffnen (PDFs
+  wie in den Einstellungen gewaehlt), im Explorer bzw. Finder zeigen, Pfad
+  kopieren, Mails mit dem Mailprogramm oeffnen oder als `.eml` speichern.
+  Unten steht der Indexstand (Dokumente je Typ, OCR-Rueckstand, laufender
+  Lauf) mit „Jetzt indizieren“ fuer die Vorrang-Ordner und „Kompletten Lauf
+  starten“. Alle Abfragen laufen im Hintergrund, die Oberflaeche bleibt
+  bedienbar; solange die Suche nicht eingerichtet ist, fuehrt ein Hinweis zu
+  Einstellungen > Suche.
+- **Eine Such-Datenbank** (Phase 5): Volltext und die PDFSM-Metadaten
+  (Korrespondent, Kategorie, Steuerjahr, Betrag, Buchungsdatum,
+  Zusammenfassung, Schlagwoerter) liegen jetzt gemeinsam im Suchindex. Beim
+  ersten Start wird die bisherige Suchtabelle einmalig uebernommen; die
+  Metadaten jeder sortierten PDF liest der Index ausserdem aus der Datei
+  selbst (Info-Dict und XMP), so dass auch auf anderen Rechnern sortierte
+  PDFs ihre Werte mitbringen. Werte, die PDF Sortier Meister gesetzt hat,
+  haben Vorrang. Der Reiter **Suche** bekommt dafuer Filter fuer Steuerjahr,
+  Kategorie, Korrespondent und Betrag (auch ohne Suchbegriff), die
+  Werkzeugleisten-Suche (Strg+F) samt Filterleiste zeigt ihre Treffer dort,
+  und Chat-Zitate oeffnen die PDF direkt auf der Seite der Fundstelle.
+  Umbenennen, Verschieben, Loeschen, Kopieren, Stapeln, Teilen und
+  Zusammenfuegen melden sich sofort beim Index (im Hintergrund), der
+  Dokumenten-Chat sucht im neuen Index (auch Mails und Office-Dateien).
+- **Nie doppelt OCR**: Die PDF-Analyse holt ihren Text aus dem Suchindex,
+  wenn er aktuell ist, und nutzt sonst dieselbe Texterkennung wie der Index
+  (Tesseract, deu+eng, 300 dpi, hoechstens fuenf Bildseiten interaktiv);
+  was sie erkennt, geht an den Index zurueck. Ein OCR-Cache nach Bildinhalt
+  sorgt dafuer, dass erkannter Text Umbenennen, Verschieben, das Schreiben
+  von Metadaten in die PDF, Stapeln, Teilen und Kopieren ueberlebt; fuer den
+  Altbestand wird der Cache beim naechsten vollstaendigen Lauf nachgefuellt.
+  Die Datenbank wird beim ersten Zugriff in-place auf Schema-Version 2
+  erweitert (keine OCR geht verloren). `pdfsm-dienst suche` und das
+  MCP-Werkzeug `suche` kennen die Filter `steuerjahr`, `kategorie` und
+  `korrespondent`.
+- **Textebene in gescannten PDFs** (Phase 5b, standardmaessig aus): Auf
+  Wunsch legt PDF Sortier Meister den erkannten Text als unsichtbare Ebene in
+  die PDF. Dann finden ihn auch die Explorer-Suche, Acrobat und PaperPort, und
+  man kann ihn markieren. Das Scanbild bleibt byte-genau erhalten, die Datei
+  waechst um rund 3 KB je Seite. Einstellbar unter Einstellungen > Suche:
+  nur neue Scans aus dem Scan-Eingang oder auch der Altbestand. Fuer den
+  Altbestand zeigt PDF Sortier Meister vorher eine Schaetzung von Dauer,
+  OneDrive-Upload und Platz der Sicherungskopien. Geschrieben wird beim
+  naechsten Indexlauf, auch wenn die Datei inzwischen einsortiert ist. Vor
+  jeder Aenderung entsteht eine Sicherungskopie (Standard 30 Tage), die neue
+  Fassung wird vor dem Ersetzen geprueft. Signierte, verschluesselte und
+  PDF/A-Dateien, schreibgeschuetzte, geoeffnete und nur in der Cloud liegende
+  Dateien bleiben unberuehrt. Ein Protokoll zeigt alle geaenderten PDFs und
+  nimmt einzelne Aenderungen zurueck. Ein laufender Indexlauf laesst sich im
+  Reiter **Suche** anhalten. Auf der Kommandozeile gibt es
+  `pdfsm-dienst textebene` (schaetzen, protokoll, rueckgaengig, schreiben).
+- **Dokumentensuche im Hintergrund** (Phase 6): PDF Sortier Meister bringt
+  den Hintergrunddienst `pdfsm-dienst` mit, unter Windows zusaetzlich
+  `pdfsm-dienstw` ohne Konsolenfenster. Ist unter Einstellungen > Suche die
+  taegliche Indexierung eingeschaltet, richtet PDF Sortier Meister beim
+  Speichern eine Aufgabe in der Windows-Aufgabenplanung ein, ohne
+  Administratorrechte. Sie startet erst, wenn der Rechner zehn Minuten nicht
+  benutzt wurde, und haelt an, sobald jemand weiterarbeitet. Unter macOS
+  uebernimmt das ein LaunchAgent. Die Browser-Oberflaeche der Suche laesst
+  sich bei der Anmeldung starten oder im Reiter **Suche** mit „Im Browser
+  öffnen“. KI-Assistenten wie Claude erreichen den Index ueber
+  `pdfsm-dienst mcp`, mit denselben Werkzeugnamen wie bisher. Beim
+  Deinstallieren werden die Aufgaben entfernt; Einstellungen und Index
+  bleiben erhalten.
 - **KI kennt die Ablageorte aehnlicher Dokumente**: Beim Beurteilen eines
   neuen Scans bekommt die KI aus der Datenbank (Sortierhistorie und
   Suchindex) bis zu fuenf aehnliche, bereits einsortierte Dokumente mit
@@ -153,13 +302,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die KI konkret benennen, worum es geht.
 
 ### Geaendert
+- **Textebene für neue Scans ist Standard**: Gescannte PDFs ohne Text im
+  Scan-Eingang bekommen den erkannten Text als unsichtbare Ebene, mit
+  Sicherungskopie und Protokoll. Abschalten lässt sich das im Assistenten
+  (Häkchen) und unter Einstellungen > Suche > Textebene („Aus“).
 - **Neue Abhaengigkeit PyQt6-Pdf:** Seit PyQt6 6.12 (Oktober 2026) liegen
   die Module `QtPdf` und `QtPdfWidgets` der integrierten PDF-Vorschau im
   eigenen Paket `PyQt6-Pdf`. `requirements.txt` und `pyproject.toml`
   verlangen jetzt `PyQt6>=6.12` und `PyQt6-Pdf>=6.140`; bei einer
   bestehenden Installation einmal `pip install -r requirements.txt`
-  ausfuehren. Ohne das Paket startet die Vorschau nicht, und die Tests auf
-  GitHub Actions schlugen seit dem 5. November 2026 beim Einsammeln fehl.
+  ausfuehren. War vorher PyQt6 < 6.12 installiert, danach zusaetzlich
+  `pip install --force-reinstall --no-deps PyQt6-Pdf PyQt6-Pdf-Qt6`: pip
+  loescht beim Entfernen der alten Version die Dateien, die `PyQt6-Pdf`
+  gerade installiert hat, und die App startet dann mit `ModuleNotFoundError:
+  No module named 'PyQt6.QtPdf'`. Der Programmstart nennt in diesem Fall
+  jetzt genau diese Befehle. Ohne das Paket startet die Vorschau nicht, und
+  die Tests auf GitHub Actions schlugen seit dem 5. November 2026 beim
+  Einsammeln fehl.
 - **Ollama-Fehler nennen den Grund:** Antwortet Ollama mit einem
   HTTP-Fehler, steht im Log und in Fehlermeldungen jetzt der Text aus der
   Antwort, z. B. `Ollama HTTP 500: llama runner process has terminated:
@@ -183,8 +342,89 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   die Regeln ehrlich als Hinweis und 850+ Tests; Docstrings und
   ENTWICKLUNGSSTAND entsprechend angeglichen, Release-Checkliste um den
   Vergleich ergaenzt.
+- **Browser-Oberfläche: Hinweis zum automatischen Start**: Die Einstellung
+  „Bei der Anmeldung automatisch starten“ (standardmäßig aus) erklärt jetzt,
+  dass sie nicht nötig ist – „Im Browser öffnen“ startet die Oberfläche bei
+  Bedarf – und dass Virenscanner wie Microsoft Defender die Anmeldeaufgabe
+  eines unsignierten Programms als verdächtig melden können (#163).
+- **Neue Modell-Empfehlungen für Ollama**: Der Assistent empfiehlt bei
+  16 GB Grafikspeicher und mehr `gpt-oss:20b` (14 GB), ab 10 GB das neue
+  `gemma4:12b` (8 GB, mehrsprachig deutlich stärker als Gemma 3; braucht ein
+  aktuelles Ollama), ab 4 GB weiter `gemma3:4b`. Die Vorschlagslisten in den
+  Einstellungen sind entsprechend aktualisiert; die Liste der Ollama-Cloud-
+  Modelle enthält nur noch Modelle, die es auf ollama.com noch gibt.
+- **Dokumentation**: Die README beschreibt die Dokumentensuche (Suche über
+  den ganzen PC, Hintergrundlauf, Textebene, Browser-Oberfläche) und wie man
+  sie in Claude Code oder Claude Desktop als MCP-Server einträgt; die
+  Datenschutz-Tabelle nennt Suche und MCP. Neu: `docs/SUCHE_SCHEMA.md` mit dem
+  Aufbau der Such-Datenbank (Version 2) für eigene Auswertungen.
+  `docs/ARCHITECTURE.md` beschreibt, dass der Chat aus diesem Index liest.
 
 ### Behoben
+- **Hintergrundindexierung, wenn der Rechner nachts aus ist**: Die
+  Einstellung heißt jetzt „Einmal täglich im Hintergrund indizieren, sobald
+  der Rechner nicht benutzt wird“ mit „Frühestens ab“ (Standard 00:00) statt
+  einer festen Uhrzeit. War der Rechner zu dieser Zeit aus, wird der Lauf
+  nach dem Einschalten nachgeholt, aber erst, wenn der Rechner zehn Minuten
+  nicht benutzt wurde. Unter macOS startet die Indexierung dafür zusätzlich
+  bei der Anmeldung und wartet auf Leerlauf, höchstens einmal am Tag.
+- **Übernahme einer vorhandenen PDFsuche** (Dokumentensuche): Korrespondent,
+  Steuerjahr, Betrag und die anderen Angaben, die PDF Sortier Meister vor der
+  Übernahme im Suchindex gespeichert hatte, kommen in die übernommene
+  Datenbank mit. Die Datenbank wird bei der Übernahme gleich auf den neuen
+  Stand gebracht.
+- **Browser-Oberfläche der Suche**: Öffnet man dort ein Dokument oder seinen
+  Ordner, erscheint das Programm (Excel, Word, Mailprogramm, Explorer) jetzt
+  im Vordergrund statt hinter dem Browser (Windows).
+- **KI-Assistenten (MCP)**: Die Beschreibungen der Werkzeuge `suche`,
+  `dokument_lesen` und `index_status` erscheinen ohne überflüssige Einrückung.
+- **Neuer Unterordner ist sofort markiert**: Nach „Neuen Unterordner
+  erstellen“ im Kontextmenue des Zielordner-Baums wurde der ganze Baum neu
+  aufgebaut und der neue Ordner musste gesucht werden. Jetzt wird er direkt
+  unter seinem Elternordner eingehaengt, der Pfad aufgeklappt und der Ordner
+  markiert und ins Bild gescrollt. Er wird nur markiert, nicht angeklickt:
+  die ausgewaehlte PDF wird also nicht verschoben. Auch Ordner unterhalb der
+  geladenen Baumtiefe erscheinen jetzt.
+- **KI-Statusanzeige war gruen, obwohl die lokale KI nicht arbeiten
+  konnte**: „LLM: Ollama/…“ zeigte nur, dass ein Anbieter eingestellt ist.
+  Fuer lokale Server (Ollama, Strata) prueft PDFSM jetzt im Hintergrund beim
+  Start, nach dem Speichern der Einstellungen, jede Minute und nach einem
+  KI-Fehler, ob der Server antwortet. Bei Ollama muss auch das eingestellte
+  Modell installiert sein. Die Anzeige ist grau, solange die Pruefung laeuft,
+  und rot, wenn etwas fehlt. Der Tooltip nennt den Grund. Cloud-Anbieter
+  bleiben wie bisher gruen.
+- **KI-Statusanzeige sagt jetzt, was zu tun ist**: Antwortet Ollama zwar,
+  kann aber kein Modell laden (z.B. fehlender `llama-server` nach einem
+  abgebrochenen Update), wurde die Anzeige nach jeder Minutenpruefung wieder
+  gruen. Jetzt zaehlt der echte Fehler einer KI-Anfrage: die Anzeige bleibt
+  rot (mit ⚠), bis wieder eine Anfrage gelingt oder die Einstellungen
+  geaendert werden - das gilt auch fuer Cloud-Anbieter (z.B. ungueltiger
+  API-Key, Guthaben aufgebraucht). Der Tooltip nennt in einfachen Worten
+  Problem und Abhilfe („Ollama neu installieren bzw. aktualisieren“,
+  „ein vorhandenes Modell auswaehlen“ ...), ein Doppelklick oeffnet die
+  Einstellungen. Fehler, die nur ein einzelnes Dokument betreffen („KI hat
+  keinen Vorschlag geliefert“), faerben die Anzeige nicht rot. Nach einem
+  Fehler fragt PDFSM jede Minute eine gescheiterte PDF erneut an; klappt das
+  wieder, holt die Vorabfrage die uebrigen von selbst nach. Der Dialog
+  „Hintergrund-Analyse“ zeigt denselben Hinweis und hat einen Knopf
+  „Einstellungen oeffnen“.
+- **Falsches Jahr im Dateinamen und Steuerjahr** (#132): Als Dokumentdatum
+  galt bisher das *juengste* Datum im Text - eine Frist, ein Eingangsstempel
+  oder ein OCR-Lesefehler mit spaeterem Jahr machte aus einem Brief von 2004
+  ein Dokument von 2006, und das Steuerjahr folgte. Fand die Texterkennung
+  gar kein Datum, nahm die KI stillschweigend das Scandatum der Datei. Jetzt
+  zaehlt ein beschriftetes Datum („Datum:“, „Rechnungsdatum“, „Ort, den“)
+  zuerst, danach das erste Datum in Lesereihenfolge (Briefkopf); Daten hinter
+  „geboren“, „gueltig bis“, „faellig“, „Frist“ oder „Eingang“ nur als
+  Notnagel. Der KI-Prompt erklaert Fristen und Scandatum ausdruecklich als
+  Nicht-Dokumentdatum, verlangt das Datum als eigenes Metadatum und bekommt
+  den Namen des Quellordners („Briefe 2004“) als Hinweis mit.
+- **MwSt-Satz 7 % wurde staendig vorgeschlagen**, auch bei Dokumenten ohne
+  jede Steuerangabe: Im KI-Prompt stand „7“ als Beispielwert, den viele
+  Modelle einfach uebernahmen. Die Beispiele heissen jetzt „19 oder 7 oder
+  UNBEKANNT“ bzw. „JJJJ oder UNBEKANNT“, eine Prompt-Regel verlangt
+  Betraege/MwSt/IBAN nur bei Rechnungen und Belegen, und ein Steuersatz, der
+  im Dokumenttext nicht vorkommt, wird verworfen. Das Feld bleibt dann leer.
 - **Fehlerdialog nach „Verschieben nach…“:** Das Verschieben ueber den
   Ordnerauswahl-Dialog lief durch, meldete danach aber „Verschieben
   fehlgeschlagen“ (undefinierte Variable beim Aktualisieren der
@@ -780,7 +1020,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.15.1...v0.16.0

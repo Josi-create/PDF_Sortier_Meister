@@ -66,9 +66,21 @@ def _iso_to_date(value):
     except ValueError:
         return None
 from src.core.pdf_cache import get_pdf_cache, PDFAnalysisResult
+from src.core.pdf_analyzer import thumbnail_vergessen
+from src.core.pdf_rotate import (
+    DrehenNichtMoeglich,
+    ausrichtung_zuruecknehmen,
+    gegenrichtung,
+    gerade_ausrichten,
+    rotate_pdf,
+)
+from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
+from src.rag.bezug import Bezug
+from src.gui.search_view import SearchView
+from src.search.meldungen import melden as index_melden
 
 
 class _ClickableLabel(QLabel):
@@ -131,6 +143,8 @@ class MainWindow(QMainWindow):
         self.selected_pdf_keywords: Optional[list[str]] = None
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
+        # Angezeigte Ordnervorschlaege der Auswahl (fuer den Chat, Issue #148)
+        self._shown_suggestions: list = []
 
         # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
         # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
@@ -147,6 +161,8 @@ class MainWindow(QMainWindow):
         self._grid_relayout_timer.setInterval(150)
         self._grid_relayout_timer.timeout.connect(self._relayout_pdf_grid)
         self._grid_cols = 3
+        self._folder_cols = 1  # Ordnerzeilen-Spalten (Issue #147)
+        self.folder_tiles: list = []
         # Kachelgroesse im Scan-Bereich: Klein / Mittel / Gross (Issue #117)
         self._tile_view = tile_view(self.config.get("tile_view"))
 
@@ -171,6 +187,9 @@ class MainWindow(QMainWindow):
         self._llm_success_since_error = False  # seit dem letzten Fehler kam ein Erfolg
         # Wiederverwendetes Vorschau-Fenster (Issue #76), erst bei Bedarf erzeugt
         self._preview_window: Optional[PdfPreviewWindow] = None
+        # "OCR neu durchführen" im Hintergrund (Issue #150)
+        self._ocr_neu_worker: Optional[OcrNeuWorker] = None
+        self._ocr_neu_paths: list[Path] = []
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -253,17 +272,92 @@ class MainWindow(QMainWindow):
             self.config.get_chat_config(),
         )
         self.chat_view.open_pdf_requested.connect(self._open_pdf_external)
+        self.chat_view.open_pdf_page_requested.connect(self._open_pdf_page)
+        # Bezugsdokument (Issue #148): Text, KI-Metadaten, Ordnervorschlaege
+        self.chat_view.bezug_daten = self._chat_bezug_daten
         self.center_tabs.addTab(self.chat_view, "Chat")
         self.center_tabs.setTabToolTip(1, "Fragen zu Ihren sortierten Dokumenten per KI beantworten lassen")
 
-        # LLM-Status aktualisieren, wenn der Chat-Tab gewaehlt wird
+        # Tab "Suche": Volltextsuche im Index der Dokumentensuche (PDFsuche-Integration, Phase 4)
+        self.search_view = SearchView(self.config)
+        self.search_view.open_pdf_requested.connect(self.open_pdf)
+        self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.search_view.suche_fertig.connect(self._on_search_view_result)
+        self.center_tabs.addTab(self.search_view, "Suche")
+        self.center_tabs.setTabToolTip(
+            2, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+        )
+
+        # LLM-Status bzw. Indexstand aktualisieren, wenn der Tab gewaehlt wird
         self.center_tabs.currentChanged.connect(self._on_center_tab_changed)
 
     def _on_center_tab_changed(self, index: int) -> None:
-        """Aktualisiert den LLM-Status, wenn der Chat-Tab sichtbar wird."""
+        """Aktualisiert den LLM-Status (Chat) bzw. den Indexstand (Suche), wenn der Tab sichtbar wird.
+
+        Beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148).
+        """
         widget = self.center_tabs.widget(index)
         if widget is self.chat_view:
+            self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
+        elif widget is self.search_view:
+            self.search_view.tab_gezeigt()
+
+    def _chat_bezug_pfad(self) -> Optional[Path]:
+        """Das ausgewaehlte PDF als Bezug fuer den Chat; bei Mehrfachauswahl keins."""
+        if len(self.selected_pdfs) > 1:
+            return None
+        path = self.selected_pdf
+        if path is None or not Path(path).exists():
+            return None
+        return Path(path)
+
+    def _chat_bezug_daten(self, path: Path) -> Bezug:
+        """Was die Oberflaeche zum Bezugsdokument schon weiss (Issue #148).
+
+        Text und KI-Metadaten aus dem Analyse-Cache, die angezeigten
+        Ordnervorschlaege (Sortierlogik inkl. KI-Zielordner) und die
+        Zielordner. Der Chat liest zuerst den Suchindex und nimmt diese
+        Werte nur, wo dort etwas fehlt.
+        """
+        path = Path(path)
+        ist_auswahl = self.selected_pdf is not None and Path(self.selected_pdf) == path
+        text = ""
+        metadaten: dict = {}
+        try:
+            result = self.pdf_cache.get(path)
+            if result is not None:
+                text = result.extracted_text or ""
+            for s in self.pdf_cache.get_llm_suggestions(path) or []:
+                meta = getattr(s, "metadata", None)
+                if isinstance(meta, dict) and meta:
+                    metadaten = _bezug_metadaten(meta)
+                    break
+        except Exception as e:  # noqa: BLE001 - Zusatzdaten sind optional
+            logging.getLogger(__name__).debug(f"Chat-Bezug ohne Cache-Daten: {e}")
+        if not text and ist_auswahl:
+            text = self.selected_pdf_text or ""
+        vorschlaege: list[str] = []
+        if ist_auswahl:
+            for s in self._shown_suggestions:
+                name = s.relative_path or s.folder_name
+                angabe = f"{int(round(s.confidence * 100))} %"
+                if s.reason:
+                    angabe += f", {s.reason}"
+                vorschlaege.append(f"{name} ({angabe})")
+        return Bezug(
+            pfad=path,
+            text=text,
+            metadaten=metadaten,
+            sortier_vorschlaege=vorschlaege,
+            wurzeln=list(self.folder_manager.target_folders),
+        )
+
+    def show_search_tab(self) -> None:
+        """Wechselt auf den Reiter „Suche“ und setzt den Fokus ins Suchfeld (Strg+Umschalt+F)."""
+        self.center_tabs.setCurrentWidget(self.search_view)
+        self.search_view.fokus()
 
     def _open_pdf_external(self, file_path: str) -> None:
         """Oeffnet eine PDF aus dem Chat (Zitat-Link) - je nach Einstellung."""
@@ -271,20 +365,27 @@ class MainWindow(QMainWindow):
             return
         self.open_pdf(Path(file_path))
 
+    def _open_pdf_page(self, file_path: str, seite: int) -> None:
+        """Zitat mit Seite (Phase 5): die integrierte Vorschau springt auf die Fundstelle."""
+        if not file_path:
+            return
+        self.open_pdf(Path(file_path), seite=seite)
+
     # ------------------------------------------------------------------ #
     # PDF oeffnen / Vorschau (Issues #74, #76)
     # ------------------------------------------------------------------ #
 
-    def open_pdf(self, pdf_path: Path) -> None:
+    def open_pdf(self, pdf_path: Path, seite: int | None = None) -> None:
         """Oeffnet eine PDF so, wie es in den Einstellungen gewaehlt ist.
 
         Default ist die integrierte Vorschau (QtPdf, schnell); alternativ das
         Standardprogramm des Systems oder ein eigenes Programm (PDF-XChange, ...).
+        ``seite`` (1-basiert) springt in der integrierten Vorschau auf die Fundstelle.
         """
         pdf_path = Path(pdf_path)
         mode = normalize_open_mode(self.config.get("pdf_open_mode"))
         if mode == OPEN_MODE_INTEGRATED:
-            self.show_preview_window(pdf_path)
+            self.show_preview_window(pdf_path, seite)
         else:
             self.open_pdf_external(pdf_path)
 
@@ -298,8 +399,8 @@ class MainWindow(QMainWindow):
         if not ok:
             QMessageBox.warning(self, "PDF öffnen", note)
 
-    def show_preview_window(self, pdf_path: Path) -> None:
-        """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster."""
+    def show_preview_window(self, pdf_path: Path, seite: int | None = None) -> None:
+        """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster, optional direkt auf ``seite``."""
         if self._preview_window is None:
             self._preview_window = PdfPreviewWindow(
                 self, geometry=self.config.get("preview_window_geometry") or None
@@ -307,7 +408,7 @@ class MainWindow(QMainWindow):
             self._preview_window.open_external_requested.connect(self.open_pdf_external)
             self._preview_window.geometry_changed.connect(self._on_preview_geometry_changed)
             self._preview_window.apply_text_requested.connect(self._on_preview_window_text_applied)
-        self._preview_window.show_pdf(Path(pdf_path))
+        self._preview_window.show_pdf(Path(pdf_path), seite)
 
     def _on_preview_window_text_applied(self, field_key: str, text: str) -> None:
         """Markierter Text aus dem grossen Vorschau-Fenster -> Metadaten-Feld (Issue #109).
@@ -405,12 +506,25 @@ class MainWindow(QMainWindow):
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
-        # Container für Thumbnails
+        # Container für Ordnerzeilen und Thumbnails
         self.pdf_container = QWidget()
         self.pdf_container.mousePressEvent = self._on_pdf_container_clicked
-        self.pdf_layout = QGridLayout(self.pdf_container)
+        container_layout = QVBoxLayout(self.pdf_container)
+        container_layout.setSpacing(10)
+        # Ordner als Zeilen (Issue #147): eigenes Raster mit 1 oder 2 Spalten
+        # ueber den PDF-Kacheln; Hoehe und Schrift unabhaengig von der
+        # Kachelgroesse (#117)
+        self.folder_rows_layout = QGridLayout()
+        self.folder_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.folder_rows_layout.setHorizontalSpacing(8)
+        self.folder_rows_layout.setVerticalSpacing(3)
+        container_layout.addLayout(self.folder_rows_layout)
+        self.pdf_layout = QGridLayout()
+        self.pdf_layout.setContentsMargins(0, 0, 0, 0)
         self.pdf_layout.setSpacing(10)
         self.pdf_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        container_layout.addLayout(self.pdf_layout)
+        container_layout.addStretch(1)
 
         self.pdf_scroll_area.setWidget(self.pdf_container)
         self.pdf_scroll_area.hide()  # Anfangs versteckt
@@ -648,13 +762,15 @@ class MainWindow(QMainWindow):
 
     def load_pdfs(self):
         """Lädt die PDFs aus dem Scan-Ordner."""
-        # Alte Widgets aus Layout entfernen
-        while self.pdf_layout.count():
-            item = self.pdf_layout.takeAt(0)
-            if item.widget():
-                item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
-                item.widget().deleteLater()
+        # Alte Widgets aus beiden Rastern entfernen (Ordnerzeilen, PDFs)
+        for grid in (self.folder_rows_layout, self.pdf_layout):
+            while grid.count():
+                item = grid.takeAt(0)
+                if item.widget():
+                    item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
+                    item.widget().deleteLater()
         self.pdf_widgets.clear()
+        self.folder_tiles = []
 
         # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
         pdf_files = self.file_manager.get_pdf_files()
@@ -688,9 +804,9 @@ class MainWindow(QMainWindow):
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
         self.pdf_folder_count_label.setText(count_text)
 
-        # Ordner-Kacheln zuerst (".." und Unterordner), dann die PDFs
+        # Ordnerzeilen zuerst (".." und Unterordner, Issue #147), darunter die PDFs
         self._grid_cols = self._pdf_grid_columns()
-        self.folder_tiles = []
+        self._folder_cols = self._folder_grid_columns()
         tile_folders = ([(parent_folder, True)] if parent_folder else []) + [
             (f, False) for f in subfolders
         ]
@@ -699,17 +815,14 @@ class MainWindow(QMainWindow):
                 folder,
                 pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
                 is_parent=is_parent,
-                view=self._tile_view,
             )
             tile.double_clicked.connect(self.on_folder_tile_double_clicked)
             if is_parent:
-                # Die ".."-Kachel wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
+                # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
-            idx = len(self.folder_tiles)
-            self.pdf_layout.addWidget(tile, idx // self._grid_cols, idx % self._grid_cols)
             self.folder_tiles.append(tile)
-        tile_offset = len(self.folder_tiles)
+        self._place_folder_rows()
 
         if not pdf_files:
             self.pdf_count_label.setText("PDFs: 0")
@@ -739,14 +852,15 @@ class MainWindow(QMainWindow):
             widget.split_requested.connect(self.on_pdf_split)
             widget.merge_requested.connect(self.on_pdf_merge)
             widget.stack_requested.connect(self.on_pdf_stacked)
+            widget.rotate_requested.connect(self.on_pdf_rotate)
+            widget.reocr_requested.connect(self.on_pdf_reocr)
+            widget.straighten_requested.connect(self.on_pdf_straighten)
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
             widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
 
-            row = (i + tile_offset) // self._grid_cols
-            col = (i + tile_offset) % self._grid_cols
-            self.pdf_layout.addWidget(widget, row, col)
+            self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
 
         # Falls keine PDFs, Signal sofort senden
@@ -939,15 +1053,28 @@ class MainWindow(QMainWindow):
         """KI-Abruf für eine PDF ist fehlgeschlagen (Cache-Signal)."""
         self._last_llm_error = (pdf_path.name, error)
         self._llm_success_since_error = False
-        self._set_llm_reachable(False)
+        from src.ml.llm_hinweis import betrifft_nur_dokument
+        if not betrifft_nur_dokument(error):
+            # Anbieter-Problem: Anzeige bleibt rot, bis wieder eine Anfrage
+            # gelingt - die Minutenpruefung allein macht sie nicht gruen.
+            self._llm_request_error = error
+            self._set_llm_reachable(False)
         self._update_cache_status()
 
     def _show_precache_details(self):
         """Zeigt Details zur Hintergrund-Analyse (Doppelklick auf Statuslabel)."""
         from src.utils.logging_config import get_log_directory
         analyzed, llm_done, total = self._precache_progress()
-        if self.hybrid_classifier.is_llm_available():
-            llm_state = f"aktiv ({self.hybrid_classifier.get_llm_provider_name()})"
+        health, hinweis = self._llm_health()
+        provider = self.hybrid_classifier.get_llm_provider_name()
+        if health == "fehler":
+            llm_state = (f"{provider} funktioniert gerade nicht.\n"
+                         f"  Problem: {hinweis.problem}\n"
+                         f"  Abhilfe: {hinweis.abhilfe}")
+        elif health == "pruefen":
+            llm_state = f"{provider} (Verbindung wird geprüft …)"
+        elif health == "bereit":
+            llm_state = f"bereit ({provider})"
         else:
             llm_state = "aus"
         precache = "an" if self.config.get("llm_precache_enabled", True) else "aus"
@@ -966,12 +1093,16 @@ class MainWindow(QMainWindow):
 
         box = QMessageBox(self)
         box.setWindowTitle("Hintergrund-Analyse")
-        box.setIcon(QMessageBox.Icon.Warning if self._last_llm_error else QMessageBox.Icon.Information)
+        warn = bool(self._last_llm_error) or health == "fehler"
+        box.setIcon(QMessageBox.Icon.Warning if warn else QMessageBox.Icon.Information)
         box.setText("\n".join(lines))
+        settings_btn = box.addButton("Einstellungen öffnen", QMessageBox.ButtonRole.ActionRole)
         open_log_btn = box.addButton("Log-Datei öffnen", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
-        if box.clickedButton() is open_log_btn:
+        if box.clickedButton() is settings_btn:
+            self.open_settings()
+        elif box.clickedButton() is open_log_btn:
             from src.utils.platform_paths import open_with_default_app
             try:
                 open_with_default_app(log_file)
@@ -1368,6 +1499,12 @@ class MainWindow(QMainWindow):
         search_action.triggered.connect(lambda: self.search_input.setFocus())
         view_menu.addAction(search_action)
 
+        volltext_action = QAction("Volltextsuche (Reiter „Suche“)", self)
+        volltext_action.setShortcut("Ctrl+Shift+F")
+        volltext_action.setToolTip("PDFs, Office-Dateien, Markdown und Mails im Suchindex durchsuchen")
+        volltext_action.triggered.connect(self.show_search_tab)
+        view_menu.addAction(volltext_action)
+
         # Extras-Menü
         extras_menu = menubar.addMenu("Extras")
 
@@ -1526,11 +1663,14 @@ class MainWindow(QMainWindow):
         # Erreichbarkeit lokaler Server (Ollama, Strata): Ergebnis der letzten
         # Hintergrund-Pruefung, None = noch offen / nicht pruefbar
         self._llm_connection: Optional[tuple[bool, str]] = None
+        # Letzter echter KI-Fehler (Anbieter-Problem), bis wieder eine Anfrage
+        # gelingt oder die Einstellungen geaendert werden. None = kein Fehler.
+        self._llm_request_error: Optional[str] = None
         self._llm_check_generation = 0
         self._llm_connection_checked.connect(self._on_llm_connection_checked)
         self._llm_check_timer = QTimer(self)
         self._llm_check_timer.setInterval(self.LLM_CHECK_INTERVAL_MS)
-        self._llm_check_timer.timeout.connect(self._check_llm_connection)
+        self._llm_check_timer.timeout.connect(self._on_llm_check_tick)
         self._llm_check_timer.start()
         self._update_llm_status()
         self._check_llm_connection()
@@ -1604,6 +1744,12 @@ class MainWindow(QMainWindow):
         # des Detail-Panels und werden unten mit abgewartet.
         if self._preview_window is not None:
             self._preview_window.close()
+        # Reiter „Suche“: Abfrage-Threads und PDF-Leser der eigenen Vorschau
+        self.search_view.shutdown()
+
+        # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
+        if self._ocr_neu_worker is not None:
+            self._ocr_neu_worker.requestInterruption()
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -1626,37 +1772,66 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_grid_relayout_timer"):
             self._grid_relayout_timer.start()
 
+    # Ordnerzeilen in zwei Spalten erst ab dieser Breite je Spalte (Issue #147)
+    FOLDER_ROW_COLUMN_MIN_WIDTH = 240
+
+    def _scan_viewport_width(self) -> int:
+        """Sichtbare Breite des Scan-Bereichs (eigene Methode, damit Tests sie setzen koennen)."""
+        return self.pdf_scroll_area.viewport().width()
+
     def _pdf_grid_columns(self) -> int:
         """Spaltenzahl fürs PDF-Raster aus der sichtbaren Panelbreite.
 
         Die Rasterbreite pro Kachel (max. Kachelbreite plus 10 px Abstand)
         haengt von der gewaehlten Kachelgroesse ab (Issue #117).
         """
-        width = self.pdf_scroll_area.viewport().width()
-        return max(1, width // self._tile_view.slot_width)
+        return max(1, self._scan_viewport_width() // self._tile_view.slot_width)
+
+    def _folder_grid_columns(self) -> int:
+        """Ordnerzeilen: 2 Spalten ab 2 x 240 px sichtbarer Breite, sonst 1 (Issue #147)."""
+        if self._scan_viewport_width() >= 2 * self.FOLDER_ROW_COLUMN_MIN_WIDTH:
+            return 2
+        return 1
+
+    def _place_folder_rows(self):
+        """Verteilt die Ordnerzeilen zeilenweise auf self._folder_cols Spalten."""
+        cols = self._folder_cols
+        grid = self.folder_rows_layout
+        for tile in self.folder_tiles:
+            grid.removeWidget(tile)
+        for c in range(2):
+            grid.setColumnStretch(c, 1 if c < cols else 0)
+        for i, tile in enumerate(self.folder_tiles):
+            grid.addWidget(tile, i // cols, i % cols)
 
     def _relayout_pdf_grid(self, force: bool = False):
-        """Ordnet Ordner-Kacheln und Thumbnails neu an, wenn sich die
-        nutzbare Spaltenzahl geändert hat (Issue #50)."""
+        """Ordnet Ordnerzeilen und Thumbnails neu an, wenn sich die
+        nutzbare Spaltenzahl geändert hat (Issues #50, #147)."""
         cols = self._pdf_grid_columns()
-        if cols == self._grid_cols and not force:
+        folder_cols = self._folder_grid_columns()
+        if cols == self._grid_cols and folder_cols == self._folder_cols and not force:
             return
-        self._grid_cols = cols
-        widgets = getattr(self, "folder_tiles", []) + self.pdf_widgets
-        for i, widget in enumerate(widgets):
-            self.pdf_layout.addWidget(widget, i // cols, i % cols)
+        if folder_cols != self._folder_cols or force:
+            self._folder_cols = folder_cols
+            self._place_folder_rows()
+        if cols != self._grid_cols or force:
+            self._grid_cols = cols
+            for i, widget in enumerate(self.pdf_widgets):
+                self.pdf_layout.addWidget(widget, i // cols, i % cols)
 
     def set_tile_view(self, view_id: str):
         """Schaltet die Kachelgroesse im Scan-Bereich um (Issue #117).
 
-        Wirkt sofort auf alle Ordner-Kacheln und PDF-Thumbnails, ordnet das
+        Wirkt sofort auf alle PDF-Thumbnails (die Ordnerzeilen haben eine
+        feste Groesse, Issue #147), ordnet das
         Raster neu und merkt sich die Wahl in der Konfiguration.
         """
         view = tile_view(view_id)
         if view.id != self._tile_view.id:
             self._tile_view = view
             self.config.set("tile_view", view.id)
-            for widget in getattr(self, "folder_tiles", []) + self.pdf_widgets:
+            # Ordnerzeilen haben eine feste Groesse (Issue #147)
+            for widget in self.pdf_widgets:
                 widget.set_view(view)
             self._relayout_pdf_grid(force=True)
         combo = getattr(self, "tile_view_combo", None)
@@ -2013,6 +2188,8 @@ class MainWindow(QMainWindow):
         """Zeigt die Sortiervorschläge an."""
         # Alte Vorschläge entfernen
         self.clear_suggestions()
+        # Fuer den Chat mit Bezugsdokument (Issue #148)
+        self._shown_suggestions = list(suggestions or [])
 
         if not suggestions:
             self.no_suggestions_label.show()
@@ -2058,6 +2235,7 @@ class MainWindow(QMainWindow):
         for widget in self.suggestion_widgets:
             widget.deleteLater()
         self.suggestion_widgets.clear()
+        self._shown_suggestions = []
         self.no_suggestions_label.show()
         # Auch Hervorhebungen in der Baumansicht entfernen
         if hasattr(self, 'folder_tree'):
@@ -2464,6 +2642,7 @@ class MainWindow(QMainWindow):
                 success = write_metadata(pdf_path, metadata)
                 if success:
                     print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
+                    self._metadaten_an_index(pdf_path, metadata)
                 else:
                     print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
 
@@ -2471,6 +2650,24 @@ class MainWindow(QMainWindow):
             pass  # pikepdf nicht installiert - kein Fehler
         except Exception as e:
             print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
+    def _metadaten_an_index(self, pdf_path: Path, metadata) -> None:
+        """Nach dem Schreiben in die PDF: Inhalt neu lesen lassen und die PDFSM-Metadaten (Vorrang)
+        in den Suchindex melden - beides ueber die Warteschlange, nie im GUI-Thread (Phase 5)."""
+        try:
+            index_melden("datei_geaendert", str(pdf_path))
+            felder = {
+                "korrespondent": metadata.korrespondent,
+                "kategorie": metadata.subject,
+                "steuerjahr": metadata.steuerjahr,
+                "betrag": metadata.betrag_brutto or metadata.betrag,
+                "buchungsdatum": metadata.buchungsdatum,
+                "zusammenfassung": metadata.description,
+                "schlagwoerter": metadata.keywords,
+            }
+            self.db.set_document_metadata(str(pdf_path), {k: v for k, v in felder.items() if v}, sofort=False)
+        except Exception as e:  # noqa: BLE001 - der Index ist Zusatz, nie Blocker
+            print(f"Suchindex: Metadaten nicht gemeldet: {e}")
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
@@ -2836,6 +3033,7 @@ class MainWindow(QMainWindow):
 
             # Datei kopieren
             shutil.copy2(pdf_path, new_path)
+            index_melden("datei_aufnehmen", str(new_path))
 
             self.statusbar.showMessage(f"Kopie erstellt: {new_name}", 3000)
 
@@ -3005,6 +3203,232 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
         self.load_pdfs()
 
+    # --- Drehen und OCR neu (Issue #150) ---
+
+    def _aktion_ziele(self, pdf_path: Path) -> list[Path]:
+        """Gehoert die Kachel zur Mehrfachauswahl, gilt die Aktion fuer alle markierten PDFs."""
+        if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
+            return list(self.selected_pdfs)
+        return [pdf_path]
+
+    def on_pdf_rotate(self, pdf_path: Path, grad: int):
+        """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
+        self._rotate_pdfs(self._aktion_ziele(pdf_path), grad)
+
+    def _rotate_pdfs(self, paths: list[Path], grad: int, undo: bool = True) -> list[Path]:
+        """Dreht die PDFs um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
+
+        Mit ``undo`` kommt ein Eintrag mit der Gegenrotation auf den
+        Rueckgaengig-Stapel. Liefert die gedrehten Pfade.
+        """
+        gedreht: list[Path] = []
+        fehler: list[str] = []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path in paths:
+                try:
+                    rotate_pdf(path, grad)
+                except DrehenNichtMoeglich as e:
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                except PermissionError:
+                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    continue
+                except Exception as e:  # noqa: BLE001 - je Datei melden
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                gedreht.append(path)
+                self._pdf_inhalt_geaendert(path)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        richtung = {90: "90° nach rechts", -90: "90° nach links", 270: "90° nach links", 180: "180°"}[grad]
+        wer = gedreht[0].name if len(gedreht) == 1 else f"{len(gedreht)} PDFs"
+        if gedreht and undo:
+            self._push_undo({
+                "type": "rotate",
+                "paths": list(gedreht),
+                "grad": grad,
+                "description": f"{wer} {richtung} gedreht",
+            })
+            self.statusbar.showMessage(f"{wer} {richtung} gedreht (Ctrl+Z macht es rückgängig)", 5000)
+        if fehler:
+            QMessageBox.warning(self, "Drehen", "Nicht gedreht:\n\n" + "\n".join(fehler))
+        return gedreht
+
+    def _undo_rotate(self, entry: dict):
+        """Dreht die PDFs zurueck (Gegenrotation)."""
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        vorhanden = [p for p in entry["paths"] if Path(p).exists()]
+        fehlen = len(entry["paths"]) - len(vorhanden)
+        if vorhanden:
+            self._rotate_pdfs(vorhanden, gegenrichtung(entry["grad"]), undo=False)
+        text = f"Rückgängig: {entry['description']}"
+        if fehlen:
+            text += f" ({fehlen} PDF(s) nicht mehr am alten Ort)"
+        self.statusbar.showMessage(text, 5000)
+
+    # --- Gerade ausrichten (Issue #165) ---
+
+    def on_pdf_straighten(self, pdf_path: Path):
+        """Kontextmenue "Drehen > Gerade ausrichten": schief gescannte Seiten gerade drehen."""
+        self._straighten_pdfs(self._aktion_ziele(pdf_path))
+
+    def _straighten_pdfs(self, paths: list[Path]) -> dict[Path, dict[int, float]]:
+        """Misst die Seiten, richtet schiefe gerade aus und frischt Kachel, Vorschau und Index auf.
+
+        Messen und Schreiben dauern je Seite nur Bruchteile einer Sekunde (wie
+        beim Drehen ohne eigenen Thread). Ausgerichtete PDFs kommen mit ihren
+        Seiten auf den Rueckgaengig-Stapel. Liefert ``{pfad: {seite: winkel}}``.
+        """
+        ausgerichtet: dict[Path, dict[int, float]] = {}
+        schon_gerade = 0
+        fehler: list[str] = []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path in paths:
+                try:
+                    winkel = gerade_ausrichten(path)
+                except DrehenNichtMoeglich as e:
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                except PermissionError:
+                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    continue
+                except Exception as e:  # noqa: BLE001 - je Datei melden
+                    fehler.append(f"{path.name}: {e}")
+                    continue
+                if not winkel:
+                    schon_gerade += 1
+                    continue
+                ausgerichtet[path] = winkel
+                self._pdf_inhalt_geaendert(path)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if ausgerichtet:
+            erste = next(iter(ausgerichtet))
+            if len(ausgerichtet) == 1:
+                wer = erste.name
+                was = ", ".join(f"S. {s}: {f'{abs(w):.1f}'.replace('.', ',')}°"
+                                for s, w in sorted(ausgerichtet[erste].items()))
+            else:
+                wer = f"{len(ausgerichtet)} PDFs"
+                was = f"{sum(len(w) for w in ausgerichtet.values())} Seiten"
+            self._push_undo({
+                "type": "gerade",
+                "seiten": {p: sorted(w) for p, w in ausgerichtet.items()},
+                "description": f"{wer} gerade ausgerichtet",
+            })
+            text = f"{wer} gerade ausgerichtet ({was})"
+            if schon_gerade:
+                text += f", {schon_gerade} PDF(s) waren schon gerade"
+            self.statusbar.showMessage(text + " – Ctrl+Z macht es rückgängig", 6000)
+        elif not fehler:
+            self.statusbar.showMessage("Keine schief gescannte Seite gefunden – nichts geändert.", 5000)
+        if fehler:
+            QMessageBox.warning(self, "Gerade ausrichten", "Nicht ausgerichtet:\n\n" + "\n".join(fehler))
+        return ausgerichtet
+
+    def _undo_gerade(self, entry: dict):
+        """Nimmt die Ausrichtung wieder heraus (die Seiten stehen danach wie vorher)."""
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        nicht = 0
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for path, seiten in entry["seiten"].items():
+                path = Path(path)
+                try:
+                    ok = path.exists() and bool(ausrichtung_zuruecknehmen(path, seiten))
+                except Exception:  # noqa: BLE001 - je Datei zaehlen
+                    ok = False
+                if ok:
+                    self._pdf_inhalt_geaendert(path)
+                else:
+                    nicht += 1
+        finally:
+            QApplication.restoreOverrideCursor()
+        text = f"Rückgängig: {entry['description']}"
+        if nicht:
+            text += f" ({nicht} PDF(s) nicht mehr möglich)"
+        self.statusbar.showMessage(text, 5000)
+
+    def _pdf_inhalt_geaendert(self, path: Path):
+        """Nach einer Aenderung am Inhalt (Drehen): Thumbnail, Analyse, Vorschau und Index auffrischen."""
+        thumbnail_vergessen(path)
+        widget = self._pdf_widget_for(path)
+        if widget is not None:
+            widget.load_thumbnail()
+        self.pdf_cache.clear_for_pdf(path)
+        index_melden("datei_geaendert", str(path))
+        if self._preview_window is not None and self._preview_window.current_path() == path:
+            self._preview_window.show_pdf(path)
+        if self.selected_pdf == path and not self.selected_pdfs:
+            if self.detail_panel.has_user_edits():
+                # Eingaben des Nutzers nicht verwerfen: nur die Vorschau neu laden
+                self.detail_panel.preview.load_pdf(path)
+            else:
+                self.update_suggestions_for_pdf(path)
+
+    def on_pdf_reocr(self, pdf_path: Path):
+        """Kontextmenue "OCR neu durchführen"."""
+        self._reocr_pdfs(self._aktion_ziele(pdf_path))
+
+    def _reocr_pdfs(self, paths: list[Path]):
+        """Startet die neue Texterkennung im Hintergrund (Wartezeiger, Kacheln "Analysiere…")."""
+        if self._ocr_neu_worker is not None:
+            self.statusbar.showMessage("Die Texterkennung läuft noch - bitte warten.", 4000)
+            return
+        self._ocr_neu_paths = list(paths)
+        for path in paths:
+            widget = self._pdf_widget_for(path)
+            if widget is not None:
+                widget.analyzing = True
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(f"Texterkennung neu: {len(paths)} PDF(s)…")
+        worker = OcrNeuWorker(paths, self)
+        worker.fortschritt.connect(self._on_reocr_progress)
+        worker.fertig.connect(self._on_reocr_done)
+        self._ocr_neu_worker = worker
+        worker.start()
+
+    def _on_reocr_progress(self, nummer: int, anzahl: int, path: Path):
+        self.statusbar.showMessage(f"Texterkennung neu ({nummer}/{anzahl}): {path.name}…")
+
+    def _on_reocr_done(self, ergebnisse: list):
+        """Ergebnis der neuen Texterkennung: Analysen verwerfen, ausgewaehlte PDF neu laden."""
+        self._ocr_neu_worker = None
+        QApplication.restoreOverrideCursor()
+        for path in self._ocr_neu_paths:
+            widget = self._pdf_widget_for(path)
+            if widget is not None:
+                widget.analyzing = False
+        self._ocr_neu_paths = []
+        fehler = []
+        seiten = 0
+        gedreht = 0
+        for path, erg in ergebnisse:
+            self.pdf_cache.clear_for_pdf(path)
+            seiten += int(erg.get("seiten") or 0)
+            gedreht += int(erg.get("gedreht") or 0)
+            if erg.get("fehler"):
+                fehler.append(f"{path.name}: {erg['fehler']}")
+        if self.selected_pdf is not None and not self.selected_pdfs and any(
+            path == self.selected_pdf for path, _ in ergebnisse
+        ):
+            self.update_suggestions_for_pdf(self.selected_pdf)
+        text = f"Texterkennung neu: {len(ergebnisse)} PDF(s)"
+        if seiten:
+            text += f", {seiten} Seite(n) erkannt"
+        if gedreht:
+            # Issue #151: die Datei dreht der naechste Indexlauf (je nach Einstellung)
+            text += f", {gedreht} davon erst gedreht lesbar"
+        self.statusbar.showMessage(text, 6000)
+        if fehler:
+            QMessageBox.warning(self, "OCR neu durchführen", "\n".join(fehler))
+
     # --- Undo-Funktionalität ---
 
     def _push_undo(self, entry: dict):
@@ -3045,6 +3469,10 @@ class MainWindow(QMainWindow):
             self._undo_rename(entry)
         elif entry_type == "stack":
             self._undo_stack_pdfs(entry)
+        elif entry_type == "rotate":
+            self._undo_rotate(entry)
+        elif entry_type == "gerade":
+            self._undo_gerade(entry)
         else:
             self._undo_move(entry)
 
@@ -3159,6 +3587,7 @@ class MainWindow(QMainWindow):
                     target_dir.mkdir(parents=True, exist_ok=True)
                 restored_path = target_dir / dest_path.name
                 shutil.move(str(dest_path), str(restored_path))
+                index_melden("datei_verschoben", str(dest_path), str(restored_path))
                 restored += 1
             except Exception as e:
                 errors.append(f"{dest_path.name}: {e}")
@@ -3911,34 +4340,36 @@ class MainWindow(QMainWindow):
             self._clear_search()
             return
 
-        results = self.db.search_documents(
+        # Phase 5 der PDFsuche-Integration: Die Treffer erscheinen im Reiter „Suche“
+        # (Volltext in PDFs, Office-Dateien, Markdown und Mails), die Metadatenfilter
+        # der Filterleiste gelten dort mit.
+        self.search_view.suchen(
             query,
-            limit=50,
             steuerjahr=steuerjahr,
             kategorie=kategorie,
             korrespondent=korrespondent,
-            datum_von=datum_von,
-            datum_bis=datum_bis,
+            von=datum_von,
+            bis=datum_bis,
             betrag_von=betrag_von,
             betrag_bis=betrag_bis,
         )
+        if self.center_tabs.currentWidget() is not self.search_view:
+            self.center_tabs.setCurrentWidget(self.search_view)
 
-        if results:
-            self.search_count_label.setText(f"{len(results)} Treffer")
-            self._show_search_results(results)
-        else:
-            self.search_count_label.setText("Keine Treffer")
-            self.detail_panel.clear()
-            self.statusbar.showMessage("Keine Dokumente gefunden", 3000)
+    def _on_search_view_result(self, ergebnis: dict) -> None:
+        """Trefferzahl des Reiters „Suche“ in der Werkzeugleiste anzeigen."""
+        gesamt = int(ergebnis.get("gesamt") or 0)
+        self.search_count_label.setText(f"{gesamt} Treffer" if gesamt else "Keine Treffer")
 
     def _show_search_results(self, results: list[dict]):
-        """Zeigt Suchergebnisse im Detail-Panel an."""
+        """Zeigt Suchergebnisse der alten Fassade im Detail-Panel an (nur noch fuer Aufrufer von aussen)."""
         self.detail_panel.show_search_results(results)
 
     def _clear_search(self):
         """Setzt den Suchfilter zurück."""
         self.search_input.clear()
         self.search_count_label.setText("")
+        self.search_view.leeren()
         # Zurück zur normalen Ansicht wenn ein PDF ausgewählt war
         if self.selected_pdf:
             cached = self.pdf_cache.get(self.selected_pdf)
@@ -4013,8 +4444,30 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Keine PDFs", f"Keine PDF-Dateien in '{folder_path.name}' gefunden.")
             return
 
+        if not use_llm.isChecked():
+            # Ohne KI-Metadaten liest der Hintergrunddienst den Ordner (Phase 5): Textebene, OCR,
+            # Metadaten aus den PDFs - die Oberflaeche bleibt frei
+            self._index_folder_im_dienst(folder_path, len(pdf_files))
+            return
+
         # Batch-Indexierung starten
-        self._index_pdfs_batch(pdf_files, use_llm=use_llm.isChecked())
+        self._index_pdfs_batch(pdf_files, use_llm=True)
+
+    def _index_folder_im_dienst(self, folder_path: Path, anzahl: int) -> None:
+        """Startet ``pdfsm-dienst index --pfad`` fuer den Ordner als eigenen Prozess."""
+        try:
+            prozess = self.db.suchindex.lauf_starten(pfad=str(folder_path))
+        except OSError as e:
+            QMessageBox.warning(self, "Suchindex", f"Der Indexlauf konnte nicht gestartet werden:\n{e}")
+            return
+        if prozess is None:
+            self.statusbar.showMessage("Ein Indexlauf läuft bereits – der Ordner kommt beim nächsten Lauf dazu.",
+                                       6000)
+            return
+        self.statusbar.showMessage(
+            f"Suchindex: {anzahl} PDFs in '{folder_path.name}' werden im Hintergrund gelesen", 6000
+        )
+        self.search_view.refresh_status()
 
     def _index_pdfs_batch(self, pdf_files: list[Path], use_llm: bool = False):
         """Indexiert eine Liste von PDFs in den Suchindex (mit Fortschrittsanzeige)."""
@@ -4457,10 +4910,13 @@ class MainWindow(QMainWindow):
         # Hybrid-Klassifikator neu initialisieren
         self.hybrid_classifier._init_llm_provider()
         self._llm_connection = None  # anderer Provider/Server: neu pruefen
+        self._llm_request_error = None
         self._update_llm_status()
         self._check_llm_connection()
         # Kopfzeile der Vorschlaege (Ordnerstruktur-Schalter) nachziehen
         self.detail_panel.refresh_settings()
+        # Reiter „Suche“: Suche ein-/ausgeschaltet, anderer Speicherort
+        self.search_view.refresh_settings()
         self.statusbar.showMessage("Einstellungen gespeichert", 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.
@@ -4470,32 +4926,62 @@ class MainWindow(QMainWindow):
         else:
             self._update_cache_status()
 
+    LLM_STATUS_RED = "#c0392b"
+
+    def _llm_health(self):
+        """Zustand des KI-Assistenten fuer Statusleiste und Details-Dialog.
+
+        Liefert (zustand, hinweis): zustand ist "aus", "pruefen", "bereit" oder
+        "fehler"; hinweis (nur bei "fehler") sagt verstaendlich, was los ist
+        und was der Nutzer tun kann. Ein echter Fehler einer KI-Anfrage zaehlt
+        mehr als die Minutenpruefung: Ollama kann z.B. antworten und Modelle
+        auflisten, sie aber nicht laden (fehlender llama-server).
+        """
+        hc = self.hybrid_classifier
+        if not hc.is_llm_available():
+            return "aus", None
+        from src.ml.llm_hinweis import ki_hinweis
+        provider = hc.get_llm_provider_name()
+        model = hc.get_llm_model_name()
+        request_error = getattr(self, "_llm_request_error", None)
+        if request_error:
+            return "fehler", ki_hinweis(provider, request_error, model)
+        if not hc.llm_connection_checkable():
+            return "bereit", None
+        connection = self._llm_connection
+        if connection is None:
+            return "pruefen", None
+        if connection[0]:
+            return "bereit", None
+        return "fehler", ki_hinweis(provider, connection[1], model)
+
     def _update_llm_status(self):
-        """Aktualisiert die LLM-Statusanzeige."""
-        if self.hybrid_classifier.is_llm_available():
+        """Aktualisiert die LLM-Statusanzeige (Farbe, Text, Tooltip)."""
+        health, hinweis = self._llm_health()
+        if health != "aus":
             provider = self.hybrid_classifier.get_llm_provider_name()
             model_short = self.hybrid_classifier.get_llm_model_name(short=True)
             model_full = self.hybrid_classifier.get_llm_model_name()
             # z.B. "LLM: OpenRouter/glm-5.3-flash" - das Modell entscheidet
             # ueber Tempo und Qualitaet, deshalb gehoert es in die Anzeige
             text = f"LLM: {provider}/{model_short}" if model_short else f"LLM: {provider}"
-            self.llm_status_label.setText(text)
             detail = f"{provider}, Modell: {model_full}" if model_full else provider
-            connection = (self._llm_connection
-                          if self.hybrid_classifier.llm_connection_checkable() else (True, ""))
-            if connection is None:
+            if health == "pruefen":
                 color = "gray"
                 state = f"KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …"
-            elif connection[0]:
+            elif health == "bereit":
                 color = "green"
-                state = f"KI-Assistent aktiv ({detail})."
+                state = f"KI-Assistent bereit ({detail})."
             else:
-                color = "#c0392b"
-                state = (f"{provider} ist nicht einsatzbereit ({detail}).\n"
-                         f"{connection[1]}")
+                color = self.LLM_STATUS_RED
+                text = f"⚠ {text}"
+                state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
+                         f"Problem: {hinweis.problem}\n"
+                         f"Abhilfe: {hinweis.abhilfe}")
+            self.llm_status_label.setText(text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}\nDoppelklick öffnet die Einstellungen."
+                f"{state}\n\nDoppelklick öffnet die Einstellungen."
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -4510,6 +4996,15 @@ class MainWindow(QMainWindow):
             self.llm_status_label.setToolTip(
                 f"KI-Assistent deaktiviert. {reason}\nDoppelklick öffnet die Einstellungen."
             )
+
+    def _on_llm_check_tick(self):
+        """Minuten-Takt: Erreichbarkeit pruefen; nach einem KI-Fehler zusaetzlich
+        eine gescheiterte PDF erneut anfragen, damit sich die Anzeige nach der
+        Behebung (z.B. Ollama neu installiert) von selbst wieder erholt."""
+        if self._llm_request_error and self.hybrid_classifier.is_llm_available():
+            if self.config.get("llm_precache_enabled", True):
+                self.pdf_cache.retry_one_failed_llm()
+        self._check_llm_connection()
 
     def _check_llm_connection(self):
         """Prueft im Hintergrund, ob der lokale LLM-Server (Ollama, Strata) antwortet."""
@@ -4542,13 +5037,17 @@ class MainWindow(QMainWindow):
 
     def _set_llm_reachable(self, reachable: bool):
         """Echte KI-Antwort bzw. -Fehler: Anzeige sofort anpassen."""
-        if not self.hybrid_classifier.llm_connection_checkable():
-            return
         if reachable:
-            if self._llm_connection is None or not self._llm_connection[0]:
+            changed = self._llm_request_error is not None
+            self._llm_request_error = None
+            if (self.hybrid_classifier.llm_connection_checkable()
+                    and (self._llm_connection is None or not self._llm_connection[0])):
                 self._llm_connection = (True, "")
+                changed = True
+            if changed:
                 self._update_llm_status()
         else:
+            self._update_llm_status()
             self._check_llm_connection()
 
     def show_about(self):
@@ -4650,3 +5149,23 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_layout)
 
         dialog.exec()
+
+
+def _bezug_metadaten(meta: dict) -> dict:
+    """KI-Metadaten (kanonische Schluessel) auf die Felder des Chat-Bezugs abbilden (Issue #148)."""
+    unbekannt = {"", "unbekannt", "unknown", "null", "none", "n/a", "-"}
+
+    def wert(*schluessel):
+        for s in schluessel:
+            v = meta.get(s)
+            if v is not None and str(v).strip().lower() not in unbekannt:
+                return str(v).strip()
+        return ""
+
+    felder = {
+        "korrespondent": wert("korrespondent"),
+        "kategorie": wert("kategorie", "subject"),
+        "steuerjahr": wert("steuerjahr"),
+        "betrag": wert("betrag", "betrag_brutto"),
+    }
+    return {k: v for k, v in felder.items() if v}

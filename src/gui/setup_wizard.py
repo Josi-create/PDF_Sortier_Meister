@@ -7,7 +7,9 @@ Fuehrt den Benutzer beim ersten Start durch:
   3. Zielordner waehlen (mit Default-Vorschlag)
   4. LLM-Provider waehlen (mit Hardware-Erkennung und Ollama-Status)
   5. API-Key eingeben bzw. Ollama einrichten (Modelle anzeigen/herunterladen)
-  6. Abschluss
+  6. Dokumentensuche (optional: Ordner, Mails, Texterkennung, Hintergrund;
+     Uebernahme einer vorhandenen PDFsuche)
+  7. Abschluss
 
 Der Wizard kann auch ueber das Extras-Menue erneut geoeffnet werden.
 """
@@ -20,7 +22,7 @@ from PyQt6.QtWidgets import (
     QWizard, QWizardPage, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog,
     QRadioButton, QButtonGroup, QWidget, QCheckBox,
-    QDialog, QComboBox, QProgressBar,
+    QDialog, QComboBox, QProgressBar, QListWidget, QListWidgetItem,
 )
 from PyQt6.QtCore import Qt, QUrl, QThread, QStandardPaths, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont
@@ -34,7 +36,8 @@ PAGE_SCAN_FOLDER = 1
 PAGE_TARGET_FOLDER = 2
 PAGE_PROVIDER = 3
 PAGE_API_KEY = 4
-PAGE_DONE = 5
+PAGE_SUCHE = 5
+PAGE_DONE = 6
 
 # Provider-Konstanten (Index -> interner Name). Reihenfolge = Empfehlungsrang:
 # Ollama (lokal, kein Key) zuerst, dann Cloud-Anbieter, "Ohne KI" ganz unten
@@ -486,9 +489,9 @@ class ProviderPage(QWizardPage):
         return _PROVIDER_IDS[idx] if 0 <= idx < len(_PROVIDER_IDS) else "none"
 
     def nextId(self):
-        # Kein LLM: direkt zur Fertig-Seite springen
+        # Kein LLM: API-Key-Seite ueberspringen, weiter zur Dokumentensuche
         if self.get_provider_id() == "none":
-            return PAGE_DONE
+            return PAGE_SUCHE
         return PAGE_API_KEY
 
 
@@ -876,8 +879,252 @@ class ApiKeyPage(QWizardPage):
         return self.key_edit.text().strip()
 
 
+class SearchPage(QWizardPage):
+    """Seite 6: Dokumentensuche - Ordner, Mails, Texterkennung, Hintergrund (Suche-Integration, Phase 3).
+
+    Nichts wird ungefragt indiziert (Entscheidung 3): Die Suche ist nur an,
+    wenn der Nutzer sie hier oder in den Einstellungen einschaltet. Vorbelegt
+    sind Scan- und Zielordner; Laufwerke bzw. Benutzerordner und Volumes stehen
+    abwaehlbar darunter. Eine vorhandene PDFsuche laesst sich uebernehmen
+    (``SearchMigrationDialog``); danach gelten deren Einstellungen.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setTitle("Schritt 5: Dokumentensuche (optional)")
+        self.setSubTitle(
+            "Volltextsuche ueber Ihre Dokumente - auch in gescannten PDFs,\n"
+            "Office-Dateien und Mails. Alles bleibt auf diesem Rechner."
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        self.enable_check = QCheckBox("Dokumentensuche einschalten")
+        self.enable_check.toggled.connect(self._update_enabled)
+        layout.addWidget(self.enable_check)
+
+        self.folders_label = QLabel("Diese Ordner und Laufwerke durchsuchen (Haken setzen):")
+        layout.addWidget(self.folders_label)
+        self.folders_list = QListWidget()
+        self.folders_list.setMaximumHeight(110)
+        layout.addWidget(self.folders_list)
+        folder_row = QHBoxLayout()
+        self.add_folder_button = QPushButton("Weiteren Ordner ...")
+        self.add_folder_button.clicked.connect(self._browse)
+        folder_row.addWidget(self.add_folder_button)
+        folder_row.addStretch()
+        layout.addLayout(folder_row)
+
+        self.mails_check = QCheckBox("Mails aus Thunderbird aufnehmen")
+        layout.addWidget(self.mails_check)
+        self.mails_label = QLabel("")
+        self.mails_label.setStyleSheet("color: gray;")
+        self.mails_label.setWordWrap(True)
+        layout.addWidget(self.mails_label)
+
+        self.ocr_check = QCheckBox("Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen")
+        layout.addWidget(self.ocr_check)
+        self.ocr_label = QLabel("")
+        self.ocr_label.setStyleSheet("color: gray;")
+        self.ocr_label.setWordWrap(True)
+        layout.addWidget(self.ocr_label)
+
+        self.textlayer_check = QCheckBox(
+            "Erkannten Text unsichtbar in neue Scans schreiben (Textebene, mit Sicherungskopie)"
+        )
+        self.textlayer_check.setToolTip(
+            "Dann finden auch andere Programme den Text der Scans. Das Scanbild bleibt unveraendert; "
+            "abschalten unter Einstellungen > Suche > Textebene."
+        )
+        layout.addWidget(self.textlayer_check)
+
+        self.background_check = QCheckBox(
+            "Einmal taeglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird"
+        )
+        layout.addWidget(self.background_check)
+
+        privacy = QLabel(
+            "<b>Datenschutz:</b> Index und erkannter Text liegen in einer lokalen\n"
+            "Datenbank, nichts verlaesst den Rechner. Dateien werden nur gelesen;\n"
+            "einzige Ausnahme ist die Textebene fuer neue Scans (abschaltbar).\n"
+            "Ohne Ihre Zustimmung wird nichts indiziert. Alles laesst sich spaeter\n"
+            "unter <b>Extras &rarr; Einstellungen &rarr; Suche</b> aendern."
+        )
+        privacy.setWordWrap(True)
+        layout.addWidget(privacy)
+
+        self.migrate_button = QPushButton("Vorhandene PDFsuche uebernehmen ...")
+        self.migrate_button.setToolTip(
+            "Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\n"
+            "PDFsuche uebernehmen. Die Datenbank bleibt an ihrem Ort."
+        )
+        self.migrate_button.setVisible(False)
+        self.migrate_button.clicked.connect(self._migrate)
+        layout.addWidget(self.migrate_button)
+        self.migrate_label = QLabel("")
+        self.migrate_label.setStyleSheet("color: gray;")
+        self.migrate_label.setWordWrap(True)
+        self.migrate_label.setVisible(False)
+        layout.addWidget(self.migrate_label)
+
+        layout.addStretch()
+
+        self._visited = False
+        self._known: set[str] = set()
+        self._scan_folder = ""
+        self._mails_moeglich = False
+        self._ocr_moeglich = False
+        self._kandidaten: list[str] = []
+        self._uebernommen = None
+        self._update_enabled(False)
+
+    def initializePage(self):
+        from src.search import migration, plattform
+        from src.utils.tesseract import find_tesseract
+
+        self._visited = True
+        config = get_config()
+        cfg = config.get_search_config()
+        # Scan- und Zielordner aus den Assistentenseiten, sonst aus der Konfiguration
+        wizard = self.wizard()
+        scan = wizard.page(PAGE_SCAN_FOLDER).get_folder() if wizard is not None else ""
+        scan = scan or str(config.get_scan_folder() or "")
+        ziele = [wizard.page(PAGE_TARGET_FOLDER).get_folder()] if wizard is not None else []
+        ziele = [z for z in ziele if z] or [str(t) for t in config.get_target_folders()]
+        self._scan_folder = scan
+        # Nur beim ersten Betreten fuellen: ein "Zurueck"/"Weiter" soll manuell
+        # hinzugefuegte Ordner nicht verwerfen.
+        if self.folders_list.count() == 0:
+            self._fill_folders(cfg, [scan, *ziele])
+            self.enable_check.setChecked(cfg.aktiv)
+            self.background_check.setChecked(cfg.hintergrund_aktiv if cfg.aktiv else True)
+
+        try:
+            profil = plattform.thunderbird_mail_ordner()
+        except Exception:
+            profil = []
+        self._mails_moeglich = bool(profil)
+        self.mails_check.setChecked(cfg.mails_aktiv and self._mails_moeglich)
+        self.mails_label.setText(
+            "Thunderbird-Profil gefunden: " + ", ".join(profil) if profil
+            else "Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\n"
+                 "Einstellungen einrichten (Postfach-Ordner angeben)."
+        )
+
+        tesseract = find_tesseract()
+        self._ocr_moeglich = bool(tesseract)
+        self.ocr_check.setChecked(self._ocr_moeglich and cfg.ocr_aktiv)
+        self.textlayer_check.setChecked(cfg.textebene != "aus")
+        self.ocr_label.setText(
+            "Braucht Rechenzeit und laeuft mit niedriger Prioritaet; der erkannte\n"
+            "Text landet nur im Index." if tesseract
+            else "Tesseract nicht gefunden - die Texterkennung laesst sich spaeter einrichten."
+        )
+
+        try:
+            self._kandidaten = migration.finde_pdfsuche()
+        except Exception:
+            self._kandidaten = []
+        self.migrate_button.setVisible(bool(self._kandidaten) and self._uebernommen is None)
+        self._update_enabled(self.enable_check.isChecked() and self._uebernommen is None)
+
+    def _fill_folders(self, cfg, vorgaben: list[str]) -> None:
+        from src.search import plattform
+
+        self.folders_list.clear()
+        self._known.clear()
+        for p in vorgaben:
+            if p:
+                self._add_folder(p, True)
+        if cfg.aktiv:
+            for w in cfg.wurzeln:
+                self._add_folder(w, True)
+        try:
+            vorschlaege = plattform.wurzel_vorschlaege()
+        except Exception:
+            vorschlaege = []
+        for v in vorschlaege:
+            self._add_folder(v, False)
+
+    def _add_folder(self, pfad: str, checked: bool) -> None:
+        from src.search.konfig import norm_pfad
+
+        p = norm_pfad(pfad)
+        if p.lower() in self._known:
+            if checked:
+                for i in range(self.folders_list.count()):
+                    item = self.folders_list.item(i)
+                    if item.text().lower() == p.lower():
+                        item.setCheckState(Qt.CheckState.Checked)
+            return
+        self._known.add(p.lower())
+        item = QListWidgetItem(p)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        self.folders_list.addItem(item)
+
+    def _browse(self):
+        folder = QFileDialog.getExistingDirectory(self, "Ordner oder Laufwerk fuer die Suche waehlen", "")
+        if folder:
+            self._add_folder(folder, True)
+
+    def _update_enabled(self, on: bool) -> None:
+        for w in (self.folders_label, self.folders_list, self.add_folder_button, self.background_check):
+            w.setEnabled(on)
+        self.mails_check.setEnabled(on and self._mails_moeglich)
+        self.ocr_check.setEnabled(on and self._ocr_moeglich)
+        self.textlayer_check.setEnabled(on and self._ocr_moeglich)
+
+    def selected_folders(self) -> list[str]:
+        return [
+            self.folders_list.item(i).text() for i in range(self.folders_list.count())
+            if self.folders_list.item(i).checkState() == Qt.CheckState.Checked
+        ]
+
+    def was_visited(self) -> bool:
+        return self._visited
+
+    def get_search_config(self):
+        """``SearchConfig`` aus den Angaben dieser Seite; None nach einer Uebernahme (der Dialog hat schon gespeichert)."""
+        if self._uebernommen is not None:
+            return None
+        cfg = get_config().get_search_config()
+        cfg.aktiv = self.enable_check.isChecked()
+        cfg.wurzeln = self.selected_folders()
+        if self._scan_folder:
+            cfg.prioritaet = [self._scan_folder]
+        cfg.mails_aktiv = self.mails_check.isChecked() and self._mails_moeglich
+        if self._ocr_moeglich:
+            cfg.ocr_aktiv = self.ocr_check.isChecked()
+        cfg.hintergrund_aktiv = self.background_check.isChecked()
+        if not self.textlayer_check.isChecked():
+            cfg.textebene = "aus"
+        elif cfg.textebene == "aus":
+            cfg.textebene = "neue_scans"           # "alle" bleibt, wenn es schon eingestellt war
+        cfg.__post_init__()
+        return cfg
+
+    def _migrate(self):
+        from src.gui.search_migration_dialog import SearchMigrationDialog
+
+        dlg = SearchMigrationDialog(self, get_config(), kandidaten=self._kandidaten or None)
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.ergebnis is not None:
+            self._uebernommen = dlg.ergebnis
+            self.migrate_label.setText(
+                f"Uebernommen: {dlg.ergebnis.db_datei}\n"
+                "Die Einstellungen der PDFsuche gelten; aendern koennen Sie sie unter\n"
+                "Extras -> Einstellungen -> Suche."
+            )
+            self.migrate_label.setVisible(True)
+            self.migrate_button.setVisible(False)
+            self.enable_check.setChecked(True)
+            self.enable_check.setEnabled(False)
+            self._update_enabled(False)
+
+
 class DonePage(QWizardPage):
-    """Seite 5: Abschluss."""
+    """Seite 7: Abschluss."""
 
     def __init__(self):
         super().__init__()
@@ -956,6 +1203,7 @@ class SetupWizard(QWizard):
         self._target_page = TargetFolderPage()
         self._provider_page = ProviderPage()
         self._api_key_page = ApiKeyPage()
+        self._search_page = SearchPage()
         self._done_page = DonePage()
 
         self.setPage(PAGE_WELCOME, self._welcome_page)
@@ -963,6 +1211,7 @@ class SetupWizard(QWizard):
         self.setPage(PAGE_TARGET_FOLDER, self._target_page)
         self.setPage(PAGE_PROVIDER, self._provider_page)
         self.setPage(PAGE_API_KEY, self._api_key_page)
+        self.setPage(PAGE_SUCHE, self._search_page)
         self.setPage(PAGE_DONE, self._done_page)
 
         self.setStartId(PAGE_WELCOME)
@@ -1000,6 +1249,15 @@ class SetupWizard(QWizard):
         if target_folder and (accepted or self._target_page.was_visited()):
             self._ensure_folder_exists(target_folder)
             config.add_target_folder(target_folder)
+
+        # Dokumentensuche: nur speichern, wenn die Seite gesehen wurde (sonst
+        # bliebe "nichts indizieren" unausgesprochen). Nach einer Uebernahme
+        # hat der Dialog bereits gespeichert (get_search_config() ist None).
+        if self._search_page.was_visited():
+            search_cfg = self._search_page.get_search_config()
+            if search_cfg is not None:
+                config.set_search_config(search_cfg)
+                self._search_schedule_sync(search_cfg)
 
         # Provider und API-Key bzw. Server-URL speichern
         provider_id = self._provider_page.get_provider_id()
@@ -1042,6 +1300,24 @@ class SetupWizard(QWizard):
                     # darf den Wizard nicht zum Crash bringen. Der User
                     # kann es spaeter unter Einstellungen erneut versuchen.
                     pass
+
+    def _search_schedule_sync(self, search_cfg) -> None:
+        """Hintergrundindexierung gleich einrichten (Aufgabenplanung bzw. LaunchAgent), wenn eingeschaltet."""
+        import subprocess
+
+        from PyQt6.QtWidgets import QMessageBox
+
+        from src.search import zeitplan
+
+        if not zeitplan.etwas_gewuenscht(search_cfg):
+            return
+        try:
+            zeitplan.abgleichen(search_cfg)
+        except (zeitplan.ZeitplanFehler, OSError, subprocess.SubprocessError) as e:
+            QMessageBox.warning(
+                self, "Hintergrundindexierung",
+                "Die Dokumentensuche ist eingerichtet, aber der tägliche Lauf ließ sich nicht planen:\n\n"
+                f"{e}\n\nUnter Einstellungen > Suche lässt er sich erneut speichern.")
 
     @staticmethod
     def _ensure_folder_exists(folder: str) -> None:

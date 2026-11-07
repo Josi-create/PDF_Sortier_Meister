@@ -41,6 +41,13 @@ if ! "$PYTHON" -c "import openai, anthropic" 2>/dev/null; then
     "$PYTHON" -m pip install openai anthropic
 fi
 
+# Browser-Oberflaeche der Dokumentensuche (Extra suche-web) gehoert ins Release,
+# der MCP-Server braucht das Paket mcp.
+if ! "$PYTHON" -c "import flask, waitress, mcp" 2>/dev/null; then
+    echo "Pakete der Dokumentensuche nicht gefunden. Installiere flask, waitress, mcp..."
+    "$PYTHON" -m pip install flask waitress "mcp>=2.0.0"
+fi
+
 echo "Loesche alte Build-Dateien..."
 rm -rf build dist
 
@@ -71,6 +78,10 @@ if [ -n "${MACOS_CODESIGN_IDENTITY:-}" ]; then
 else
     echo "HINWEIS: MACOS_CODESIGN_IDENTITY nicht gesetzt - Build bleibt unsigniert."
 fi
+
+echo
+echo "Rauchtest des Dienstprogramms (pdfsm-dienst)..."
+"$PYTHON" scripts/rauchtest_dienst.py "$APP/Contents/MacOS"
 
 echo
 echo "Erstelle DMG..."

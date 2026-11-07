@@ -199,3 +199,36 @@ def test_retrieve_respects_filter_heuristics(tmp_path):
     f_both = rs._extract_filters("Telekom Rechnungen 2024")
     assert f_both.get("steuerjahr") == "2024"
     assert f_both.get("korrespondent") == "Telekom"
+
+
+# --------------------------------------------------------------------- #
+# Issue #148: Zusatz-Suchbegriffe aus dem Bezugsdokument
+# --------------------------------------------------------------------- #
+
+class _SpyDB:
+    """Merkt sich die Argumente von search_documents."""
+
+    def __init__(self):
+        self.calls = []
+
+    def search_documents(self, query, limit=50, **filters):
+        self.calls.append((query, filters))
+        return []
+
+
+def test_retrieve_zusatz_erweitert_die_oder_abfrage_ohne_filter():
+    db = _SpyDB()
+    RetrievalService(db=db).retrieve("Zeig mir ähnliche Rechnungen", k=3,
+                                     zusatz="Stadtwerke Musterstadt Rechnungen 2024")
+    query, filters = db.calls[-1]
+    for begriff in ("Rechnungen", "Stadtwerke", "Musterstadt", "2024"):
+        assert f'"{begriff}"*' in query
+    assert query.count('"Rechnungen"*') == 1  # doppelte Begriffe nur einmal
+    # Jahr und Korrespondent aus dem Zusatz werden NICHT zu Filtern
+    assert filters == {}
+
+
+def test_retrieve_zusatz_allein_reicht():
+    db = _SpyDB()
+    RetrievalService(db=db).retrieve("", k=3, zusatz="Telekom")
+    assert db.calls and '"Telekom"*' in db.calls[-1][0]

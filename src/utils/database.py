@@ -225,41 +225,69 @@ class PDFMaster(Base):
 
 
 
-# Maximale Laenge des extrahierten Textes pro Row in document_search
-# (RAG-Chat / Phase 19 / Architektur-Entscheidung Q3).
+# Maximale Laenge des Volltexts je Treffer in ``search_documents`` (RAG-Chat /
+# Phase 19 / Architektur-Entscheidung Q3): mehr liest der Kontextblock nicht.
 MAX_EXTRACTED_TEXT_LENGTH = 5000
 
 
-def _truncate_extracted_text(text, max_len: int = MAX_EXTRACTED_TEXT_LENGTH):
-    """Begrenzt den FTS5-indexierten Text auf ``max_len`` Zeichen.
-
-    Verhindert, dass sehr grosse PDFs das DB-Wachstum und den
-    Token-Verbrauch im RAG-Retrieval sprengen.
-    """
-    if not text:
+def _betrag_text(wert) -> str:
+    """REAL aus dem Suchindex als Text wie frueher in ``document_search`` ("59.99")."""
+    if wert is None or wert == "":
         return ""
-    if len(text) <= max_len:
-        return text
-    return text[:max_len] + "...[truncated]"
+    try:
+        return f"{float(wert):.2f}"
+    except (TypeError, ValueError):
+        return str(wert)
+
+
+def _ausschnitt(stellen: list) -> str:
+    """Fundstellen (``\x02``/``\x03``-Marker) als Ausschnitt mit den bisherigen Markern ``>>>``/``<<<``."""
+    teile = []
+    for s in stellen or []:
+        text = " ".join((s.get("text") or "").split())
+        teile.append(text.replace("\x02", ">>>").replace("\x03", "<<<"))
+    return " … ".join(t for t in teile if t)
 
 
 
 
 class Database:
-    """Datenbankverbindung und -operationen."""
+    """Datenbankverbindung und -operationen.
 
-    def __init__(self, db_path: Path = None):
+    Seit Phase 5 der PDFsuche-Integration gibt es nur noch eine Such-Datenbank:
+    Volltext und PDFSM-Metadaten liegen im Suchindex (``src/search``,
+    ``suche.db``); ``history.db`` behaelt Lern- und Historienbestand (``pdfs``,
+    Sortierhistorie, Korrespondenten, Regeln). ``search_documents()``,
+    ``index_document()`` und die Werte-Listen sind Fassaden auf ``self.suchindex``.
+    """
+
+    def __init__(self, db_path: Path = None, suchindex=None):
         """
         Initialisiert die Datenbankverbindung.
 
         Args:
             db_path: Pfad zur SQLite-Datenbank. Standard: aus Config.
+            suchindex: :class:`~src.search.suchindex.Suchindex` fuer Volltext und
+                Metadaten. Standard: aus der Konfiguration des Nutzers, wenn auch
+                ``db_path`` daher kommt; bei eigenem ``db_path`` (Tests, Werkzeuge)
+                ein Index daneben (``<ordner>/suche/suche.db``), nie der des Nutzers.
         """
         if db_path is None:
             config = get_config()
             db_path = config.database_path
+            if suchindex is None:
+                from src.search.suchindex import Suchindex
+                suchindex = Suchindex(config.get_search_config())
 
         self.db_path = db_path
+        if suchindex is None:
+            from src.search.konfig import SearchConfig
+            from src.search.suchindex import Suchindex
+            suchindex = Suchindex(SearchConfig(
+                aktiv=True, db_pfad=str(Path(db_path).parent / "suche" / "suche.db"),
+                ocr_aktiv=False, mails_aktiv=False,
+            ))
+        self.suchindex = suchindex
         self.engine = create_engine(
             f"sqlite:///{db_path}",
             connect_args={"check_same_thread": False},
@@ -272,8 +300,8 @@ class Database:
         # Migration: Neue Spalten hinzufügen (falls nicht vorhanden)
         self._migrate_database()
 
-        # FTS5-Volltextsuche erstellen (Phase 17)
-        self._create_fts_index()
+        # Einmalige Uebernahme der alten FTS5-Tabelle ``document_search`` (Phase 5)
+        self._document_search_uebernehmen()
 
         # Session-Factory
         self.Session = sessionmaker(bind=self.engine)
@@ -391,164 +419,67 @@ class Database:
             except Exception as e:
                 print(f"Migration-Warnung fuer pdfs-Tabelle: {e}")
 
-    # Volltext-Suchindex-Schemata (Phase 17 / Issue #25 Phase 2).
-    # Die ``document_search``-Tabelle hat in Phase 2 eine zusaetzliche
-    # ``pdf_id``-Spalte (UNINDEXED) als Verknuepfung zur ``pdfs``-
-    # Master-Tabelle. ``file_path`` bleibt in der Tabelle, damit
-    # bestehende search_documents-Aufrufer unveraendert funktionieren.
-    # Aeltere DBs (vor Phase 2) muessen migriert werden.
-    _FTS5_NEW_SCHEMA: str = """
-        CREATE VIRTUAL TABLE document_search
-        USING fts5(
-            pdf_id UNINDEXED,
-            file_path,
-            filename,
-            extracted_text,
-            keywords,
-            korrespondent,
-            kategorie,
-            steuerjahr,
-            betrag,
-            zusammenfassung,
-            target_folder,
-            tokenize='unicode61'
-        )
-    """
+    # === Volltextsuche (Phase 17; seit Phase 5 der PDFsuche-Integration ueber den Suchindex) ===
 
-    def _create_fts_index(self):
-        """Erstellt die FTS5-Volltextsuche-Tabelle (Phase 17).
+    _METADATEN = ("korrespondent", "kategorie", "steuerjahr", "betrag", "zusammenfassung", "schlagwoerter")
 
-        Delegiert an ``_migrate_document_search`` (Phase 2 / Issue #25),
-        das idempotent sowohl neue Datenbanken mit dem aktuellen
-        Schema anlegt als auch bestehende Datenbanken von der
-        Phase-1-Schema-Version migriert.
-        """
-        self._migrate_document_search()
+    @staticmethod
+    def _felder(korrespondent=None, kategorie=None, steuerjahr=None, betrag=None, zusammenfassung=None,
+                keywords=None, nur_gesetzte: bool = False) -> dict:
+        felder = {"korrespondent": korrespondent, "kategorie": kategorie, "steuerjahr": steuerjahr, "betrag": betrag,
+                  "zusammenfassung": zusammenfassung, "schlagwoerter": keywords}
+        if nur_gesetzte:
+            felder = {k: v for k, v in felder.items() if v not in (None, "")}
+        return felder
 
-    def _migrate_document_search(self) -> None:
-        """Stellt sicher, dass die FTS5-Tabelle das aktuelle Schema hat.
+    def _document_search_uebernehmen(self) -> int:
+        """Einmalige Uebernahme der alten FTS5-Tabelle ``document_search`` (bis v0.23) in den Suchindex.
 
-        Drei Faelle (alle idempotent):
-
-        1. Tabelle existiert nicht:
-           - CREATE VIRTUAL TABLE mit aktuellem Schema (inkl. ``pdf_id``)
-        2. Tabelle existiert und hat bereits eine ``pdf_id``-Spalte:
-           - Nichts tun (Migration bereits gelaufen)
-        3. Tabelle existiert ohne ``pdf_id``-Spalte (Phase-1-Schema):
-           - ALTER TABLE RENAME -> ``document_search_v1``
-           - CREATE VIRTUAL TABLE mit aktuellem Schema
-           - Datenmigration: fuer jede Zeile aus ``document_search_v1``
-             wird die ``pdf_id`` aus ``pdfs`` (per ``file_path``)
-             nachgeschlagen oder eine neue UUID angelegt.
-           - ``document_search_v1`` wird gedroppt.
-
-        Die Migration laeuft in einer einzigen Transaktion, damit bei
-        einem Fehler kein halbfertiger Zustand zurueckbleibt.
+        Zeilen, deren Datei noch existiert, bekommen ihre Metadaten (Quelle
+        ``'pdfsm'``) und den alten Text als Notnagel, bis der naechste Lauf die
+        Datei liest; Zeilen ohne Datei werden verworfen (ihre ``pdfs``-Eintraege
+        bleiben). Danach wird die Tabelle entfernt. Bei einem Fehler bleibt sie
+        stehen, der naechste Start versucht es erneut.
         """
         import sqlite3
 
-        conn = sqlite3.connect(str(self.db_path))
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+        except Exception:
+            return 0
         try:
             cursor = conn.cursor()
-
-            # 1) Existiert die Tabelle ueberhaupt?
-            cursor.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='document_search'"
-            )
-            table_exists = cursor.fetchone() is not None
-
-            if not table_exists:
-                # Frische Datenbank: aktuelles Schema anlegen.
-                cursor.execute(self._FTS5_NEW_SCHEMA)
-                conn.commit()
-                return
-
-            # 2) Hat die existierende Tabelle schon eine pdf_id-Spalte?
-            cursor.execute("PRAGMA table_info(document_search)")
-            columns = [row[1] for row in cursor.fetchall()]
-            if "pdf_id" in columns:
-                # Schema ist aktuell: nichts tun.
-                return
-
-            # 3) Migration vom alten (Phase-1-)Schema auf neues Schema.
-            # Alles in einer Transaktion.
-            cursor.execute("BEGIN")
-            try:
-                cursor.execute(
-                    "ALTER TABLE document_search RENAME TO document_search_v1"
-                )
-                cursor.execute(self._FTS5_NEW_SCHEMA)
-
-                # Datenmigration: pro Zeile aus v1 die pdf_id
-                # nachschlagen (per file_path in pdfs) oder neu erzeugen.
-                cursor.execute(
-                    "SELECT rowid, file_path, filename, extracted_text, "
-                    "keywords, korrespondent, kategorie, steuerjahr, "
-                    "betrag, zusammenfassung, target_folder "
-                    "FROM document_search_v1"
-                )
-                now_iso = datetime.utcnow().isoformat()
-                for v1_row in cursor.fetchall():
-                    (
-                        _v1_rowid,
-                        v1_path,
-                        v1_filename,
-                        v1_text,
-                        v1_kw,
-                        v1_korr,
-                        v1_kat,
-                        v1_jahr,
-                        v1_betrag,
-                        v1_zus,
-                        v1_folder,
-                    ) = v1_row
-
-                    # pdf_id aus Master-Tabelle (Phase 1) holen oder neu anlegen.
-                    pdfs_row = self._get_pdf_row_by_path(cursor, v1_path)
-                    if pdfs_row is not None:
-                        pdf_id = pdfs_row[0]
-                    else:
-                        pdf_id = self._ensure_pdf_id(
-                            cursor,
-                            v1_path,
-                            v1_filename or Path(v1_path).name if v1_path else "",
-                            None,
-                            now_iso,
-                        )
-
-                    cursor.execute(
-                        "INSERT INTO document_search "
-                        "(pdf_id, file_path, filename, extracted_text, keywords, "
-                        "korrespondent, kategorie, steuerjahr, betrag, "
-                        "zusammenfassung, target_folder) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            pdf_id,
-                            v1_path or "",
-                            v1_filename or "",
-                            v1_text or "",
-                            v1_kw or "",
-                            v1_korr or "",
-                            v1_kat or "",
-                            v1_jahr or "",
-                            v1_betrag or "",
-                            v1_zus or "",
-                            v1_folder or "",
-                        ),
-                    )
-
-                cursor.execute("DROP TABLE document_search_v1")
-                cursor.execute("COMMIT")
-            except Exception:
-                cursor.execute("ROLLBACK")
-                raise
+            if not cursor.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'").fetchone():
+                return 0
+            spalten = [r[1] for r in cursor.execute("PRAGMA table_info(document_search)")]
+            hat_id = "pdf_id" in spalten
+            rows = cursor.execute(
+                f"SELECT {'pdf_id, ' if hat_id else ''}file_path, filename, extracted_text, keywords, "
+                "korrespondent, kategorie, steuerjahr, betrag, zusammenfassung FROM document_search").fetchall()
+            n = 0
+            for row in rows:
+                if hat_id:
+                    pdf_id, fp, fn, text, kw, korr, kat, jahr, betrag, zus = row
+                else:
+                    pdf_id = None
+                    fp, fn, text, kw, korr, kat, jahr, betrag, zus = row
+                if not fp or not Path(fp).exists():
+                    continue
+                if not pdf_id:
+                    pdf_id = self.get_or_create_pdf_id(fp, fn or Path(fp).name)
+                felder = self._felder(korr, kat, jahr, betrag, zus, kw)
+                self.suchindex.metadaten_setzen(fp, felder, pdf_id, text=text or None, lesen=False)
+                n += 1
+            cursor.execute("DROP TABLE document_search")
+            conn.commit()
+            print(f"Suchindex: {n} Dokumente aus der fruehren Tabelle document_search uebernommen")
+            return n
         except Exception as e:
-            print(f"FTS5-Migration Warnung: {e}")
+            print(f"Uebernahme von document_search verschoben: {e}")
+            return 0
         finally:
             conn.close()
-
-    # === Volltextsuche (Phase 17) ===
 
     def index_document(
         self,
@@ -564,52 +495,45 @@ class Database:
         target_folder: str = "",
     ):
         """
-        Fügt ein Dokument zum Volltext-Suchindex hinzu.
+        Nimmt ein Dokument mit seinen PDFSM-Metadaten in den Suchindex auf.
 
-        Aufgerufen beim manuellen Indexieren eines Ordners ("Ordner zum
-        Suchindex hinzufuegen"); beim Verschieben/Umbenennen pflegt
-        ``update_pdf_path`` den Index. Der Text wird auf
-        ``MAX_EXTRACTED_TEXT_LENGTH`` (5000 Zeichen) gekappt.
-
-        Phase 2 (Issue #25): Vor dem INSERT in ``document_search`` wird
-        ueber ``get_or_create_pdf_id`` sichergestellt, dass ein
-        passender ``pdfs``-Master-Eintrag existiert. Die ``pdf_id``
-        wird in der FTS5-Tabelle als UNINDEXED-Spalte persistiert,
-        damit Suchergebnisse eine stabile Identitaet haben (ueberlebt
-        Moves und Renames).
+        Die Datei wird gelesen (Textebene; Bildseiten erkennt der naechste
+        OCR-Lauf), die Metadaten bekommen Quelle ``'pdfsm'`` und damit Vorrang
+        vor Werten aus der PDF. ``extracted_text`` dient nur noch als Notnagel,
+        wenn die Datei nicht lesbar ist (z. B. nicht mehr vorhanden); der Index
+        liest den Text selbst. ``target_folder`` ist ohne Bedeutung (der Ordner
+        kommt aus dem Pfad).
         """
-        import sqlite3
-
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            # Phase 2: stabile pdf_id aus Master-Tabelle (oder neu anlegen).
             pdf_id = self.get_or_create_pdf_id(file_path, filename)
-
-            # Alten Eintrag für diesen Pfad löschen (falls vorhanden)
-            cursor.execute(
-                "DELETE FROM document_search WHERE file_path = ?",
-                (file_path,)
-            )
-
-            # Neuen Eintrag einfügen (Phase 2: inkl. pdf_id)
-            cursor.execute("""
-                INSERT INTO document_search
-                (pdf_id, file_path, filename, extracted_text, keywords,
-                 korrespondent, kategorie, steuerjahr, betrag,
-                 zusammenfassung, target_folder)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                pdf_id, file_path, filename, _truncate_extracted_text(extracted_text or ""), keywords or "",
-                korrespondent or "", kategorie or "", steuerjahr or "",
-                betrag or "", zusammenfassung or "", target_folder or "",
-            ))
-
-            conn.commit()
-            conn.close()
+            felder = self._felder(korrespondent, kategorie, steuerjahr, betrag, zusammenfassung, keywords)
+            self.suchindex.metadaten_setzen(file_path, felder, pdf_id, text=extracted_text or None,
+                                            name=filename or None)
         except Exception as e:
-            print(f"FTS5-Indexierung Fehler: {e}")
+            print(f"Suchindex-Aufnahme Fehler: {e}")
+
+    def set_document_metadata(self, file_path: str, felder: dict, pdf_id: Optional[str] = None,
+                              sofort: bool = True) -> bool:
+        """PDFSM-Metadaten (Korrespondent, Kategorie, Steuerjahr, Betrag, Buchungsdatum, Zusammenfassung,
+        Schlagwoerter) fuer eine Datei in den Suchindex schreiben; die Datei wird bei Bedarf aufgenommen.
+
+        ``sofort=False`` reiht die Meldung in die Warteschlange ein (nie im GUI-Thread).
+        """
+        felder = {k: v for k, v in (felder or {}).items()
+                  if k in ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
+                           "schlagwoerter")}
+        if not felder:
+            return False
+        try:
+            if not pdf_id:
+                pdf_id = self.get_or_create_pdf_id(str(file_path), Path(file_path).name)
+            if sofort:
+                return bool(self.suchindex.metadaten_setzen(str(file_path), felder, pdf_id))
+            from src.search.meldungen import melden
+            return melden("metadaten_setzen", str(file_path), felder, pdf_id, index=self.suchindex)
+        except Exception as e:
+            print(f"Suchindex: Metadaten nicht gesetzt: {e}")
+            return False
 
     def update_pdf_path(
         self,
@@ -625,16 +549,13 @@ class Database:
         zusammenfassung: str = None,
         target_folder: str = None,
     ) -> bool:
-        """Verschiebt einen Suchindex-Eintrag atomar von old_path zu new_path.
+        """Meldet Umbenennen/Verschieben an ``pdfs`` und den Suchindex.
 
-        Felder aus dem alten Eintrag werden beibehalten; explizit übergebene
-        Parameter überschreiben die kopierten Werte. Gibt True zurück wenn
-        Daten migriert/angelegt wurden, False bei No-op.
-
-        Phase 1 (Issue #25): Statt DELETE+INSERT wird der vorhandene Eintrag
-        per UPDATE migriert, damit Metadaten und LLM-bezogene Felder
-        erhalten bleiben. Die Master-Tabelle ``pdfs`` wird konsistent
-        mitgepflegt (file_path/filename/last_seen_at aktualisiert).
+        Der Eintrag im Suchindex behaelt Text, OCR und Metadaten (``datei_verschoben``);
+        explizit uebergebene Metadaten ueberschreiben die alten Werte. Gab es noch
+        keinen Eintrag, wird die Datei unter dem neuen Pfad aufgenommen
+        (``extracted_text`` nur als Notnagel, wenn sie nicht lesbar ist). Gibt
+        True zurueck, wenn Daten migriert/angelegt wurden, False bei No-op.
         """
         import sqlite3
 
@@ -643,106 +564,28 @@ class Database:
 
         try:
             conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT rowid, filename, extracted_text, keywords, korrespondent, "
-                "kategorie, steuerjahr, betrag, zusammenfassung, target_folder "
-                "FROM document_search WHERE file_path = ?",
-                (old_path,)
-            )
-            row = cursor.fetchone()
-
-            # pdfs-Master-Eintrag (Lookup by old_path) - koennte bereits
-            # durch get_or_create_pdf_id angelegt worden sein.
-            pdfs_row = self._get_pdf_row_by_path(cursor, old_path)
-
-            now_iso = datetime.utcnow().isoformat()
-
-            if row is None:
-                # Kein alter document_search-Eintrag: neuen anlegen,
-                # ggf. pdfs-Master neu erzeugen oder den vorhandenen wiederverwenden.
+            try:
+                cursor = conn.cursor()
+                pdfs_row = self._get_pdf_row_by_path(cursor, old_path)
+                now_iso = datetime.utcnow().isoformat()
                 pdf_id = self._ensure_pdf_id(
-                    cursor, old_path, new_filename, pdfs_row, now_iso
+                    cursor, old_path, new_filename or Path(new_path).name, pdfs_row, now_iso
                 )
-
-                cursor.execute("""
-                    INSERT INTO document_search
-                    (pdf_id, file_path, filename, extracted_text, keywords,
-                     korrespondent, kategorie, steuerjahr, betrag,
-                     zusammenfassung, target_folder)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    pdf_id,
-                    new_path,
-                    new_filename or Path(new_path).name,
-                    _truncate_extracted_text(extracted_text or ""),
-                    keywords or "",
-                    korrespondent or "",
-                    kategorie or "",
-                    steuerjahr or "",
-                    betrag or "",
-                    zusammenfassung or "",
-                    target_folder or "",
-                ))
-
-                # pdfs-Pfad konsistent halten (kann alter Pfad gewesen sein)
-                if old_path != new_path or new_filename is not None:
-                    self._update_pdf_master(
-                        cursor, pdf_id, file_path=new_path,
-                        filename=new_filename, now_iso=now_iso,
-                    )
-
+                self._update_pdf_master(
+                    cursor, pdf_id, file_path=new_path, filename=new_filename, now_iso=now_iso,
+                )
                 conn.commit()
+            finally:
                 conn.close()
-                return True
 
-            rowid, old_fn, old_text, old_kw, old_korr, old_kat, old_jahr, old_betrag, old_zus, old_folder = row
-
-            final_filename = new_filename if new_filename is not None else old_fn
-            final_text = extracted_text if extracted_text is not None else (old_text or "")
-            final_kw = keywords if keywords is not None else (old_kw or "")
-            final_korr = korrespondent if korrespondent is not None else (old_korr or "")
-            final_kat = kategorie if kategorie is not None else (old_kat or "")
-            final_jahr = steuerjahr if steuerjahr is not None else (old_jahr or "")
-            final_betrag = betrag if betrag is not None else (old_betrag or "")
-            final_zus = zusammenfassung if zusammenfassung is not None else (old_zus or "")
-            final_folder = target_folder if target_folder is not None else (old_folder or "")
-
-            # pdfs-Master-Eintrag: erzeugen falls fehlt, dann Pfad/Filename updaten.
-            # Die ``pdf_id`` wird hier gleich mitermittelt, damit das
-            # nachfolgende document_search-UPDATE sie in Phase 2 mitschreiben
-            # kann (sonst waere der Eintrag nach dem Update ohne pdf_id).
-            pdf_id = self._ensure_pdf_id(
-                cursor, old_path, old_fn, pdfs_row, now_iso
-            )
-
-            # UPDATE statt DELETE+INSERT: Metadaten (z.B. LLM-Suggestionen)
-            # bleiben erhalten. file_path/filename werden ueberschrieben;
-            # explizit uebergebene Metadaten ueberschreiben die alten Werte.
-            # Phase 2: ``pdf_id`` wird explizit mitgeschrieben.
-            cursor.execute("""
-                UPDATE document_search
-                SET pdf_id = ?, file_path = ?, filename = ?, extracted_text = ?,
-                    keywords = ?, korrespondent = ?, kategorie = ?, steuerjahr = ?,
-                    betrag = ?, zusammenfassung = ?, target_folder = ?
-                WHERE rowid = ?
-            """, (
-                pdf_id,
-                new_path, final_filename,
-                _truncate_extracted_text(final_text), final_kw,
-                final_korr, final_kat, final_jahr, final_betrag,
-                final_zus, final_folder,
-                rowid,
-            ))
-
-            self._update_pdf_master(
-                cursor, pdf_id, file_path=new_path,
-                filename=new_filename, now_iso=now_iso,
-            )
-
-            conn.commit()
-            conn.close()
+            verschoben = self.suchindex.datei_verschoben(old_path, new_path)
+            felder = self._felder(korrespondent, kategorie, steuerjahr, betrag, zusammenfassung, keywords,
+                                  nur_gesetzte=True)
+            if not verschoben:
+                self.suchindex.metadaten_setzen(new_path, felder, pdf_id, text=extracted_text or None,
+                                                name=new_filename or None)
+            else:
+                self.suchindex.metadaten_setzen(new_path, felder, pdf_id)
             return True
 
         except Exception as e:
@@ -989,20 +832,19 @@ class Database:
         pdf_id: str = "",
     ) -> list[dict]:
         """
-        Durchsucht alle indexierten Dokumente per Volltextsuche.
+        Durchsucht den Suchindex (Volltext in PDFs, Office-Dateien, Markdown und Mails).
 
         query ist optional – wenn leer aber Filter gesetzt, werden alle
         passenden Dokumente zurückgegeben. datum_von/datum_bis (YYYY-MM-DD)
         werden gegen das Steuerjahr verglichen (Jahresanteil).
         betrag_von/betrag_bis = 0 bedeutet inaktiv.
 
-        Phase 2 (Issue #25): Jedes Result enthaelt zusaetzlich ``pdf_id``
-        (stabile UUID aus der ``pdfs``-Master-Tabelle) und es kann
-        optional nach einer konkreten ``pdf_id`` gefiltert werden
-        (exakter Match; rueckwaertskompatibel - Default ``""`` = inaktiv).
+        Ergebnisschluessel wie bisher (``pdf_id``, ``file_path``, ``filename``,
+        ``text_snippet``, ``keywords``, ``korrespondent``, ``kategorie``,
+        ``steuerjahr``, ``betrag``, ``zusammenfassung``, ``target_folder``),
+        dazu ``dok_id``, ``seite`` (erste Fundstelle), ``typ`` und
+        ``extracted_text`` (Volltext, gekappt).
         """
-        import sqlite3
-
         has_text = bool(query and query.strip())
         has_filter = any([
             steuerjahr, kategorie, korrespondent,
@@ -1010,208 +852,86 @@ class Database:
             betrag_von > 0, betrag_bis > 0,
             pdf_id,
         ])
-
         if not has_text and not has_filter:
             return []
 
+        q = ""
+        if has_text:
+            q = query.strip()
+            # Ohne FTS5-Operatoren: Woerter als Wortanfaenge, alle muessen vorkommen (bisheriges Verhalten)
+            if not any(op in q for op in (" OR ", " AND ", " NEAR ", " NOT ", '"', "*")):
+                q = " AND ".join(f'"{t}"*' for t in q.split() if t)
+
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            conditions: list[str] = []
-            params: list = []
-
-            if has_text:
-                # Wenn die Query bereits FTS5-Operatoren (OR, AND, NEAR, NOT) enthaelt,
-                # nutzen wir sie direkt. Andernfalls behandeln wir sie als Whitespace-
-                # getrennte Terme und joinen mit AND (Default-Verhalten).
-                q = query.strip()
-                if any(op in q for op in (" OR ", " AND ", " NEAR ", " NOT ")):
-                    fts_query = q
-                else:
-                    terms = q.split()
-                    fts_query = " AND ".join(f'"{t}"*' for t in terms if t)
-                if fts_query:
-                    conditions.append("document_search MATCH ?")
-                    params.append(fts_query)
-
-            if steuerjahr:
-                conditions.append("steuerjahr = ?")
-                params.append(steuerjahr)
-
-            if kategorie:
-                conditions.append("kategorie = ?")
-                params.append(kategorie)
-
-            if korrespondent:
-                conditions.append("korrespondent = ?")
-                params.append(korrespondent)
-
-            if datum_von:
-                conditions.append("steuerjahr >= ?")
-                params.append(datum_von[:4])
-
-            if datum_bis:
-                conditions.append("steuerjahr <= ?")
-                params.append(datum_bis[:4])
-
-            if betrag_von > 0:
-                conditions.append("CAST(NULLIF(betrag, '') AS REAL) >= ?")
-                params.append(betrag_von)
-
-            if betrag_bis > 0:
-                conditions.append("CAST(NULLIF(betrag, '') AS REAL) <= ?")
-                params.append(betrag_bis)
-
-            if pdf_id:
-                conditions.append("pdf_id = ?")
-                params.append(pdf_id)
-
-            where_clause = " AND ".join(conditions)
-
-            if has_text:
-                snippet_expr = "snippet(document_search, 2, '>>>', '<<<', '...', 30)"
-                order_clause = "ORDER BY rank"
-            else:
-                snippet_expr = "''"
-                order_clause = "ORDER BY filename"
-
-            params.append(limit)
-            cursor.execute(f"""
-                SELECT
-                    pdf_id,
-                    file_path,
-                    filename,
-                    {snippet_expr} as text_snippet,
-                    keywords,
-                    korrespondent,
-                    kategorie,
-                    steuerjahr,
-                    betrag,
-                    zusammenfassung,
-                    target_folder
-                FROM document_search
-                WHERE {where_clause}
-                {order_clause}
-                LIMIT ?
-            """, params)
-
-            results = []
-            for row in cursor.fetchall():
-                results.append({
-                    "pdf_id": row[0],
-                    "file_path": row[1],
-                    "filename": row[2],
-                    "text_snippet": row[3],
-                    "keywords": row[4],
-                    "korrespondent": row[5],
-                    "kategorie": row[6],
-                    "steuerjahr": row[7],
-                    "betrag": row[8],
-                    "zusammenfassung": row[9],
-                    "target_folder": row[10],
-                })
-
-            conn.close()
-            return results
-
+            erg = self.suchindex.suche(
+                q,
+                steuerjahr=steuerjahr or None,
+                kategorie=kategorie or None,
+                korrespondent=korrespondent or None,
+                steuerjahr_von=datum_von or None,
+                steuerjahr_bis=datum_bis or None,
+                betrag_von=betrag_von if betrag_von and betrag_von > 0 else None,
+                betrag_bis=betrag_bis if betrag_bis and betrag_bis > 0 else None,
+                pdf_id=pdf_id or None,
+                anzahl=int(limit),
+            )
         except Exception as e:
-            print(f"FTS5-Suche Fehler: {e}")
+            print(f"Suchindex-Suche Fehler: {e}")
             return []
+
+        results = []
+        for d in erg.get("treffer") or []:
+            pid = d.get("pdf_id") or ""
+            if not pid:
+                master = self.get_pdf_by_path(d.get("pfad") or "")
+                pid = master["pdf_id"] if master else ""
+            stellen = d.get("stellen") or []
+            results.append({
+                "pdf_id": pid,
+                "file_path": d.get("pfad") or "",
+                "filename": d.get("name") or "",
+                "text_snippet": _ausschnitt(stellen),
+                "keywords": d.get("schlagwoerter") or "",
+                "korrespondent": d.get("korrespondent") or "",
+                "kategorie": d.get("kategorie") or "",
+                "steuerjahr": d.get("steuerjahr") or "",
+                "betrag": _betrag_text(d.get("betrag")),
+                "zusammenfassung": d.get("zusammenfassung") or "",
+                "target_folder": d.get("ordner") or "",
+                "dok_id": d.get("id"),
+                "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
+                "typ": d.get("typ") or "",
+                "extracted_text": self.suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
+            })
+        return results
 
     def get_distinct_steuerjahre(self) -> list[str]:
-        """Gibt sortierte Liste eindeutiger Steuerjahre zurück."""
-        import sqlite3
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT DISTINCT steuerjahr FROM document_search "
-                "WHERE steuerjahr != '' ORDER BY steuerjahr DESC"
-            )
-            result = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return result
-        except Exception:
-            return []
+        """Gibt sortierte Liste eindeutiger Steuerjahre zurück (neueste zuerst)."""
+        return self.suchindex.werte("steuerjahr", absteigend=True)
 
     def get_distinct_kategorien(self) -> list[str]:
         """Gibt sortierte Liste eindeutiger Kategorien zurück."""
-        import sqlite3
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT DISTINCT kategorie FROM document_search "
-                "WHERE kategorie != '' ORDER BY kategorie"
-            )
-            result = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return result
-        except Exception:
-            return []
+        return self.suchindex.werte("kategorie")
 
     def get_top_kategorien(self, limit: int = 10) -> list[str]:
         """Die haeufigsten Kategorien der Sammlung, haeufigste zuerst (Issue #110)."""
-        import sqlite3
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT kategorie, COUNT(*) AS n FROM document_search "
-                "WHERE kategorie != '' GROUP BY kategorie ORDER BY n DESC, kategorie LIMIT ?",
-                (int(limit),),
-            )
-            result = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return result
-        except Exception:
-            return []
+        return self.suchindex.top_werte("kategorie", limit)
 
     def get_distinct_korrespondenten(self) -> list[str]:
         """Gibt sortierte Liste eindeutiger Korrespondenten zurück."""
-        import sqlite3
-        try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT DISTINCT korrespondent FROM document_search "
-                "WHERE korrespondent != '' ORDER BY korrespondent"
-            )
-            result = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return result
-        except Exception:
-            return []
+        return self.suchindex.werte("korrespondent")
 
     def get_search_index_count(self) -> int:
-        """Gibt die Anzahl der indexierten Dokumente zurück."""
-        import sqlite3
+        """Gibt die Anzahl der Dokumente im Suchindex zurück."""
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM document_search")
-            count = cursor.fetchone()[0]
-            conn.close()
-            return count
+            return self.suchindex.anzahl()
         except Exception:
             return 0
 
     def get_indexed_documents_brief(self, limit: int = 20000) -> list[dict]:
-        """Indexierte Dokumente ohne Volltext (fuer die Aehnlichkeitssuche)."""
-        import sqlite3
-        keys = ("filename", "file_path", "keywords", "korrespondent", "steuerjahr", "target_folder")
+        """Indizierte PDFs ohne Volltext (fuer die Aehnlichkeitssuche)."""
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            try:
-                rows = conn.execute(
-                    "SELECT filename, file_path, keywords, korrespondent, steuerjahr, target_folder "
-                    "FROM document_search LIMIT ?",
-                    (limit,),
-                ).fetchall()
-            finally:
-                conn.close()
-            return [dict(zip(keys, row)) for row in rows]
+            return self.suchindex.dokumente_kurz(typ="pdf", limit=limit)
         except Exception as e:
             print(f"Suchindex lesen fehlgeschlagen: {e}")
             return []
@@ -1223,13 +943,14 @@ class Database:
         analyze: bool = False,
         progress_callback=None,
     ) -> dict:
-        """Indiziert alle PDFs in einem Verzeichnis in den Volltext-Suchindex.
+        """Indiziert alle PDFs in einem Verzeichnis in den Suchindex (synchron, im Prozess).
+
+        Fuer grosse Ordner startet die Oberflaeche stattdessen einen Lauf des
+        Dienstes (``Suchindex.lauf_starten(pfad=...)``).
 
         Returns:
             Dict mit scanned, indexed, skipped, errors.
         """
-        import sqlite3
-
         folder_path = Path(folder)
         pattern = "**/*.pdf" if recursive else "*.pdf"
         pdf_files = sorted(folder_path.glob(pattern))
@@ -1244,35 +965,18 @@ class Database:
                 progress_callback(i + 1, total, path)
 
             try:
-                conn = sqlite3.connect(str(self.db_path))
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT COUNT(*) FROM document_search WHERE file_path = ?",
-                    (str(path),)
-                )
-                already_indexed = cursor.fetchone()[0] > 0
-                conn.close()
-
-                if already_indexed:
+                if self.suchindex.dokument_nach_pfad(str(path)) is not None:
                     skipped += 1
                     continue
 
-                extracted_text = ""
                 kw_str = ""
-
                 if analyze:
                     from src.core.pdf_analyzer import PDFAnalyzer
                     with PDFAnalyzer(path) as analyzer:
-                        extracted_text = analyzer.extract_text() or ""
                         kw_list = analyzer.extract_keywords() or []
                         kw_str = ", ".join(kw_list)
 
-                self.index_document(
-                    file_path=str(path),
-                    filename=path.name,
-                    extracted_text=extracted_text,
-                    keywords=kw_str,
-                )
+                self.index_document(file_path=str(path), filename=path.name, keywords=kw_str)
                 indexed += 1
 
             except Exception as e:
@@ -2085,9 +1789,8 @@ class Database:
             * Alle Sekundaer-Eintraege werden geloescht.
             * Sekundaer-Namen werden als Aliasse in den Primaer-Eintrag
               gemerged (Duplikate werden gefiltert, Reihenfolge bleibt stabil).
-            * FTS5-Eintraege (``document_search``) mit
-              ``korrespondent = secondary`` werden auf ``primary_name``
-              umgeschrieben.
+            * Dokumente im Suchindex mit ``korrespondent = secondary`` werden
+              auf ``primary_name`` umgeschrieben (``metadaten_ersetzen``).
             * ``sorting_history.korrespondent`` wird ebenfalls aktualisiert.
             * ``KorrespondentMetadata.korrespondent`` (gelernte Defaults)
               wird umbenannt, sodass vorhandene Lerneffekte erhalten bleiben.
@@ -2149,43 +1852,19 @@ class Database:
         finally:
             session.close()
 
-        # FTS5 + sorting_history + KorrespondentMetadata ausserhalb der
-        # SQLAlchemy-Session aktualisieren (FTS5 ist eine virtuelle Tabelle
-        # und sorting_history hat ggf. NULL-Werte).
+        # Suchindex + sorting_history + KorrespondentMetadata ausserhalb der
+        # SQLAlchemy-Session aktualisieren (sorting_history hat ggf. NULL-Werte).
         try:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
             for sec_name in secondary_names:
                 if not sec_name:
                     continue
-                # FTS5: alten Eintrag loeschen, mit neuem Korrespondent neu einfuegen
-                cursor.execute(
-                    "SELECT file_path, filename, extracted_text, keywords, "
-                    "kategorie, steuerjahr, betrag, zusammenfassung, target_folder "
-                    "FROM document_search WHERE korrespondent = ?",
-                    (sec_name,),
-                )
-                rows = cursor.fetchall()
-                for row in rows:
-                    (file_path, filename, text_, kw, kat, jahr, betrag, zus, folder) = row
-                    cursor.execute(
-                        "DELETE FROM document_search WHERE file_path = ?",
-                        (file_path,),
-                    )
-                    cursor.execute(
-                        """
-                        INSERT INTO document_search
-                        (file_path, filename, extracted_text, keywords,
-                         korrespondent, kategorie, steuerjahr, betrag,
-                         zusammenfassung, target_folder)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            file_path, filename, text_ or "", kw or "",
-                            primary_name, kat or "", jahr or "",
-                            betrag or "", zus or "", folder or "",
-                        ),
-                    )
+                # Suchindex: Korrespondent in allen Dokumenten umschreiben (Text und OCR bleiben)
+                try:
+                    self.suchindex.metadaten_ersetzen("korrespondent", sec_name, primary_name)
+                except Exception as e:
+                    print(f"merge_korrespondenten Suchindex-Warnung: {e}")
 
                 # sorting_history: schlichte Umbenennung der Spalte
                 cursor.execute(
@@ -2196,7 +1875,7 @@ class Database:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"merge_korrespondenten FTS5-Update Warnung: {e}")
+            print(f"merge_korrespondenten Update Warnung: {e}")
 
         # KorrespondentMetadata (gelernte Defaults) - Lookup-Name beibehalten,
         # aber den Primaer-Namen mitverwenden damit get_korrespondent_metadata

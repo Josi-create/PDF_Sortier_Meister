@@ -1,12 +1,16 @@
 """Konsolenprogramm ``pdfsm-dienst`` der Dokumentensuche (Qt-frei).
 
   pdfsm-dienst index [--nur-prioritaet] [--ohne-ocr] [--ohne-mail] [--pfad ORDNER] [--hintergrund]
-                     [--nur-leerlauf] [--max-minuten N]
+                     [--nur-leerlauf] [--einmal-taeglich] [--max-minuten N]
   pdfsm-dienst suche "Unterhalt UND 2019" [--typ pdf] [--ordner X] [--von 2019-01-01] [--bis ...] [-n 20] [--json]
   pdfsm-dienst lesen 1234 [--seiten 2-5]
   pdfsm-dienst status
   pdfsm-dienst web [--port N] [--nicht-oeffnen]
   pdfsm-dienst mcp
+  pdfsm-dienst migration [--von ORDNER] [--kopieren] [--ja]
+  pdfsm-dienst textebene schaetzen | protokoll [-n 50] | rueckgaengig ID [--erzwingen]
+                         | schreiben [--max-minuten N] [--hintergrund]
+  pdfsm-dienst zeitplan --einrichten | --entfernen | --status
   pdfsm-dienst --version
 
 Die Konfiguration kommt aus der ``config.json`` von PDF Sortier Meister (Block
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import multiprocessing
 import re
 import sys
@@ -63,6 +68,9 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--von", help="ab Datum (JJJJ-MM-TT)")
     s.add_argument("--bis", help="bis Datum (JJJJ-MM-TT)")
     s.add_argument("--sort", choices=["relevanz", "neu", "alt"], default="relevanz")
+    s.add_argument("--steuerjahr", help="PDFSM-Metadaten: Steuerjahr, z. B. 2024")
+    s.add_argument("--kategorie", help="PDFSM-Metadaten: Kategorie, z. B. Rechnung")
+    s.add_argument("--korrespondent", help="PDFSM-Metadaten: Korrespondent, z. B. Telekom")
     s.add_argument("-n", "--anzahl", type=int, default=20)
     s.add_argument("--json", action="store_true")
 
@@ -81,6 +89,8 @@ def parser() -> argparse.ArgumentParser:
     i.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
     i.add_argument("--nur-leerlauf", action="store_true",
                    help="pausieren, solange der Nutzer aktiv ist (für Zeitpläne ohne Leerlaufbedingung, z. B. macOS)")
+    i.add_argument("--einmal-taeglich", action="store_true",
+                   help="nichts tun, wenn heute schon ein vollständiger Lauf fertig wurde (Start bei der Anmeldung)")
     i.add_argument("--max-minuten", type=float, default=0)
 
     w = sub.add_parser("web", help="Browser-Oberfläche starten")
@@ -88,7 +98,129 @@ def parser() -> argparse.ArgumentParser:
     w.add_argument("--nicht-oeffnen", action="store_true")
 
     sub.add_parser("mcp", help="MCP-Server (stdio) für KI-Assistenten starten")
+
+    m = sub.add_parser("migration", help="vorhandene PDFsuche übernehmen (Einstellungen und Datenbank)")
+    m.add_argument("--von", help="Projektordner der PDFsuche (mit config.toml); ohne Angabe wird gesucht")
+    m.add_argument("--kopieren", action="store_true",
+                   help="Datenbank in das Datenverzeichnis kopieren statt sie am bisherigen Ort zu lassen")
+    m.add_argument("--ja", action="store_true", help="ohne Rückfrage übernehmen (sonst nur Vorschau)")
+
+    t = sub.add_parser("textebene", help="unsichtbare OCR-Textebene in gescannten PDFs (Schätzung, Protokoll, "
+                                         "Rückgängig, Schreiben)")
+    tsub = t.add_subparsers(dest="aktion", required=True)
+    tsub.add_parser("schaetzen", help="Aufwand für den Altbestand (Stufe „alle“) schätzen")
+    tp = tsub.add_parser("protokoll", help="geänderte Dateien anzeigen")
+    tp.add_argument("-n", "--anzahl", type=int, default=50)
+    tr = tsub.add_parser("rueckgaengig", help="eine Änderung zurücknehmen (Nummer aus dem Protokoll)")
+    tr.add_argument("id", type=int)
+    tr.add_argument("--erzwingen", action="store_true",
+                    help="auch wenn die Datei seither geändert wurde (diese Änderung geht verloren)")
+    ts = tsub.add_parser("schreiben", help="nur die Textebene schreiben (Stufe aus den Einstellungen)")
+    ts.add_argument("--max-minuten", type=float, default=0)
+    ts.add_argument("--hintergrund", action="store_true", help="niedrige Priorität, keine Konsolenausgabe")
+
+    z = sub.add_parser("zeitplan", help="Hintergrundindexierung und Web-Oberfläche bei Anmeldung "
+                                        "(Aufgabenplanung bzw. LaunchAgent)")
+    za = z.add_mutually_exclusive_group(required=True)
+    za.add_argument("--einrichten", action="store_true",
+                    help="nach den Einstellungen einrichten (Ausgeschaltetes wird entfernt)")
+    za.add_argument("--entfernen", action="store_true", help="alles entfernen (z. B. beim Deinstallieren)")
+    za.add_argument("--status", action="store_true", help="eingerichtete Einträge anzeigen")
     return p
+
+
+def _zeitplan(a) -> int:
+    """``pdfsm-dienst zeitplan ...``; ``--entfernen`` braucht keine (lesbare) Konfiguration."""
+    from src.search import zeitplan
+
+    try:
+        if a.entfernen:
+            for zeile in zeitplan.entfernen() or ["Nichts eingerichtet."]:
+                print(zeile)
+            return 0
+        if a.einrichten:
+            konfig = konfig_modul.lade(a.config)
+            konfig_pfad = a.config if a.config and not str(a.config).lower().endswith(".toml") else None
+            for zeile in zeitplan.abgleichen(konfig, konfig_pfad=konfig_pfad) or ["Bereits wie eingestellt."]:
+                print(zeile)
+        print(zeitplan.zustand_text(zeitplan.zustand()))
+    except zeitplan.ZeitplanFehler as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
+def _textebene(a, konfig) -> int:
+    """``pdfsm-dienst textebene ...``"""
+    from src.search import textebene
+
+    idx = Suchindex(konfig)
+    if a.aktion == "schaetzen":
+        print(f"Stufe in den Einstellungen: {konfig.textebene}")
+        print(textebene.schaetzung_text(idx.textebene_schaetzung()))
+        return 0
+    if a.aktion == "protokoll":
+        eintraege = idx.textebene_protokoll(a.anzahl)
+        if not eintraege:
+            print("Noch keine Datei mit Textebene versehen.")
+            return 0
+        for e in eintraege:
+            pfad = e.get("aktueller_pfad") or e["pfad"]
+            zusatz = "rückgängig gemacht" if e["status"] == "rueckgaengig" else (
+                "Sicherung vorhanden" if e.get("sicherung") else "Sicherung abgelaufen")
+            gedreht = f"  gedreht {e['gedreht']}" if e.get("gedreht") else ""
+            if e.get("gerade"):
+                gedreht += f"  gerade {e['gerade']}"
+            print(f"[{e['id']}] {e['am']}  Seiten {e['seiten'] or '-'}{gedreht}  ({zusatz})  {pfad}")
+        return 0
+    if a.aktion == "rueckgaengig":
+        ok, meldung = idx.textebene_rueckgaengig(a.id, erzwingen=a.erzwingen)
+        print(meldung)
+        return 0 if ok else 1
+    if konfig.textebene == "aus" and konfig.auto_drehen == "aus" and konfig.auto_gerade == "aus":
+        print("Textebene, automatisches Drehen und Ausrichten sind in den Einstellungen ausgeschaltet "
+              "(Suche › Gescannte PDFs verbessern).")
+        return 1
+    from src.search.indexer import Indexer, logging_einrichten
+    logging_einrichten(konfig, konsole=not a.hintergrund)
+    return Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten).lauf(nur_textebene=True)
+
+
+def _migration(a) -> int:
+    """``pdfsm-dienst migration``: Vorschau, mit ``--ja`` Uebernahme in die config.json von PDF Sortier Meister."""
+    from src.search import migration
+    from src.utils.config import Config, get_config
+
+    cfg = Config(a.config) if a.config and not str(a.config).lower().endswith(".toml") else get_config()
+    ordner = a.von
+    if not ordner:
+        kandidaten = migration.finde_pdfsuche()
+        if not kandidaten:
+            print("Keine PDFsuche gefunden – Projektordner mit --von ORDNER angeben.")
+            return 1
+        ordner = kandidaten[0]
+        if len(kandidaten) > 1:
+            print("Mehrere Kandidaten, der erste wird geprüft: " + ", ".join(kandidaten))
+    u = migration.pruefen(ordner)
+    print(u.zusammenfassung())
+    if not u.moeglich:
+        return 1
+    if not a.ja:
+        print("\nVorschau – zum Übernehmen erneut mit --ja aufrufen"
+              + (" (Datenbank wird kopiert)." if a.kopieren else " (Datenbank bleibt am Ort)."))
+        return 0
+
+    def fortschritt(kopiert, gesamt):
+        if gesamt:
+            print(f"\rKopiere Datenbank … {kopiert * 100 // gesamt} %", end="", flush=True)
+
+    konfig = migration.uebernehmen(u, cfg, kopieren=a.kopieren, fortschritt=fortschritt)
+    if a.kopieren:
+        print()
+    print(f"Übernommen. Datenbank: {konfig.db_datei}\nEinstellungen gespeichert in {cfg.config_path}")
+    if u.mitgenommen:
+        print(f"PDFSM-Metadaten aus dem bisherigen Index mitgenommen: {u.mitgenommen} Dokumente")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,11 +231,18 @@ def main(argv: list[str] | None = None) -> int:
         pass  # bereits gesetzt (z. B. unter pytest)
     _utf8()
     a = parser().parse_args(argv)
+    if a.befehl == "migration":
+        return _migration(a)
+    if a.befehl == "zeitplan":
+        return _zeitplan(a)
     konfig = konfig_modul.lade(a.config)
 
     if a.befehl == "index":
-        from src.search.indexer import Indexer, logging_einrichten
+        from src.search.indexer import Indexer, heute_schon_gelaufen, logging_einrichten
         logging_einrichten(konfig, konsole=not a.hintergrund)
+        if a.einmal_taeglich and heute_schon_gelaufen(konfig):
+            logging.getLogger("pdf_sortier_meister.suche").info("Heute lief schon ein vollständiger Lauf – Ende.")
+            return 0
         indexer = Indexer(konfig, hintergrund=a.hintergrund, max_minuten=a.max_minuten, nur_leerlauf=a.nur_leerlauf)
         return indexer.lauf(nur_prioritaet=a.nur_prioritaet, ohne_ocr=a.ohne_ocr, ohne_mail=a.ohne_mail,
                             nur_pfad=a.pfad)
@@ -117,10 +256,14 @@ def main(argv: list[str] | None = None) -> int:
         from src.search import mcp_server
         return mcp_server.main(konfig)
 
+    if a.befehl == "textebene":
+        return _textebene(a, konfig)
+
     idx = Suchindex(konfig)
     if a.befehl == "suche":
         abfrage = " ".join(a.abfrage)
-        erg = idx.suche(abfrage, typ=a.typ, ordner=a.ordner, von=a.von, bis=a.bis, sortierung=a.sort, anzahl=a.anzahl)
+        erg = idx.suche(abfrage, typ=a.typ, ordner=a.ordner, von=a.von, bis=a.bis, sortierung=a.sort, anzahl=a.anzahl,
+                        steuerjahr=a.steuerjahr, kategorie=a.kategorie, korrespondent=a.korrespondent)
         if a.json:
             print(json.dumps(erg, ensure_ascii=False, indent=1, default=str))
         else:

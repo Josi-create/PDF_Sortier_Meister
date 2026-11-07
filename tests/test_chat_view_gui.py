@@ -357,8 +357,9 @@ def test_source_click_uses_pdf_id_via_db_lookup(qtbot, tmp_path):
         view.sources_list.itemClicked.emit(item)
 
     args = signal.args
-    # Der DB-Pfad wurde aufgeloest
-    assert args == ["/real/path/to/aktuell.pdf"]
+    # Der DB-Pfad wurde aufgeloest (der Suchindex liefert ihn in Betriebssystemschreibweise)
+    from src.search.konfig import norm_pfad
+    assert args == [norm_pfad("/real/path/to/aktuell.pdf")]
 
 
 def test_source_click_falls_back_to_file_path_when_no_pdf_id(qtbot, chat_view):
@@ -405,7 +406,8 @@ def test_resolve_file_path_prefers_pdf_id(tmp_path):
     view = ChatView(db=db, hybrid_classifier=_StubHC(),
                     chat_config=ChatConfig())
     # Wenn pdf_id gesetzt ist, wird der DB-Pfad zurueckgegeben
-    assert view._resolve_file_path("/old/path.pdf", pid) == "/resolved/path.pdf"
+    from src.search.konfig import norm_pfad
+    assert view._resolve_file_path("/old/path.pdf", pid) == norm_pfad("/resolved/path.pdf")
     # Wenn nur file_path: bleibt er
     assert view._resolve_file_path("/only/path.pdf", "") == "/only/path.pdf"
     # Wenn beides leer: leerer String
@@ -453,3 +455,139 @@ class _SignalSpy:
 def pytestqt_signal_spy(signal):
     """Factory: liefert einen ``_SignalSpy`` fuer ein pyqtSignal."""
     return _SignalSpy(signal)
+
+
+# --------------------------------------------------------------------- #
+# Issue #148: Bezugsdokument (Chip + Schnellfragen)
+# --------------------------------------------------------------------- #
+
+
+class _BezugController:
+    """Stub mit ``ask(question, bezug=None)``; ``halt`` laesst den Aufruf warten."""
+
+    def __init__(self, hinweis: str = ""):
+        import threading
+
+        self.fragen = []
+        self.halt = threading.Event()
+        self.halt.set()
+        self.hinweis = hinweis
+
+    def reset(self) -> None:
+        pass
+
+    def ask(self, question: str, bezug=None):
+        self.fragen.append((question, bezug))
+        self.halt.wait(5)
+        antwort = _FakeResponse("")
+        antwort.hinweis = self.hinweis
+        return antwort
+
+
+def _bubble_texte(view: ChatView) -> list[str]:
+    from PyQt6.QtWidgets import QLabel
+
+    texte = []
+    for i in range(view.history_layout.count() - 1):
+        w = view.history_layout.itemAt(i).widget()
+        if w is not None:
+            texte += [lbl.text() for lbl in w.findChildren(QLabel)]
+    return texte
+
+
+def test_bezug_chip_erscheint_und_verschwindet(chat_view, tmp_path):
+    from src.rag.bezug import SCHNELLFRAGEN
+
+    assert chat_view.bezug is None and chat_view.bezug_box.isHidden()
+
+    chat_view.set_bezug(tmp_path / "Stromrechnung.pdf")
+    assert chat_view.bezug == tmp_path / "Stromrechnung.pdf"
+    assert not chat_view.bezug_box.isHidden()
+    assert chat_view.bezug_label.text() == "Bezug: Stromrechnung.pdf"
+    assert str(tmp_path / "Stromrechnung.pdf") in chat_view.bezug_chip.toolTip()
+    assert [b.text() for b in chat_view.schnellfragen_btns] == list(SCHNELLFRAGEN)
+    assert len(SCHNELLFRAGEN) == 4
+
+    chat_view.set_bezug(None)
+    assert chat_view.bezug is None and chat_view.bezug_box.isHidden()
+    assert chat_view.bezug_label.text() == ""
+
+
+def test_kreuz_entfernt_den_bezug(qtbot, chat_view, tmp_path):
+    chat_view.set_bezug(tmp_path / "a.pdf")
+    qtbot.mouseClick(chat_view.bezug_entfernen_btn, Qt.MouseButton.LeftButton)
+    assert chat_view.bezug is None and chat_view.bezug_box.isHidden()
+
+
+def test_schnellfrage_traegt_ein_und_sendet_mit_bezug(qtbot, chat_view, tmp_path):
+    ctrl = _BezugController()
+    chat_view._controller = ctrl
+    chat_view.set_bezug(tmp_path / "a.pdf")
+    btn = chat_view.schnellfragen_btns[3]
+
+    qtbot.mouseClick(btn, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: chat_view._chat_thread is None, timeout=5000)
+
+    frage, bezug = ctrl.fragen[-1]
+    assert frage == btn.text() == "In welchen Ordner gehört dieses PDF?"
+    assert bezug.pfad == tmp_path / "a.pdf"
+    assert btn.text() in _bubble_texte(chat_view)
+    assert chat_view.input_edit.toPlainText() == ""
+    # Der Bezug bleibt fuer Folgefragen bestehen
+    assert chat_view.bezug == tmp_path / "a.pdf"
+
+
+def test_schnellfragen_gesperrt_solange_die_antwort_laeuft(qtbot, chat_view, tmp_path):
+    ctrl = _BezugController()
+    ctrl.halt.clear()
+    chat_view._controller = ctrl
+    chat_view.set_bezug(tmp_path / "a.pdf")
+
+    chat_view.schnellfragen_btns[0].click()
+    assert all(not b.isEnabled() for b in chat_view.schnellfragen_btns)
+    # Ein zweiter Klick bricht die laufende Frage nicht ab und stellt keine neue
+    chat_view.schnellfragen_btns[1].click()
+    ctrl.halt.set()
+    qtbot.waitUntil(lambda: chat_view._chat_thread is None, timeout=5000)
+    assert all(b.isEnabled() for b in chat_view.schnellfragen_btns)
+    assert len(ctrl.fragen) == 1
+
+
+def test_bezug_daten_der_oberflaeche_gehen_an_den_controller(qtbot, chat_view, tmp_path):
+    from src.rag.bezug import Bezug
+
+    ctrl = _BezugController()
+    chat_view._controller = ctrl
+    gefragt = []
+
+    def daten(pfad):
+        gefragt.append(pfad)
+        return Bezug(pfad=pfad, text="Wohnung 3", sortier_vorschlaege=["Ablage/Energie (90 %)"])
+
+    chat_view.bezug_daten = daten
+    chat_view.set_bezug(tmp_path / "a.pdf")
+    _set_input_text(chat_view, "Was steht drin?")
+    chat_view._on_send()
+    qtbot.waitUntil(lambda: chat_view._chat_thread is None, timeout=5000)
+
+    assert gefragt == [tmp_path / "a.pdf"]
+    _frage, bezug = ctrl.fragen[-1]
+    assert bezug.text == "Wohnung 3" and bezug.sortier_vorschlaege == ["Ablage/Energie (90 %)"]
+
+
+def test_ohne_bezug_fragt_der_chat_wie_bisher(qtbot, chat_view):
+    ctrl = _BezugController()
+    chat_view._controller = ctrl
+    _set_input_text(chat_view, "Telekom 2024")
+    chat_view._on_send()
+    qtbot.waitUntil(lambda: chat_view._chat_thread is None, timeout=5000)
+    assert ctrl.fragen == [("Telekom 2024", None)]
+
+
+def test_offline_hinweis_erscheint_als_bubble(qtbot, chat_view, tmp_path):
+    ctrl = _BezugController(hinweis="Vorschlag der Sortierlogik: Ablage/Energie (90 %)")
+    chat_view._controller = ctrl
+    chat_view.set_bezug(tmp_path / "a.pdf")
+    chat_view.schnellfragen_btns[3].click()
+    qtbot.waitUntil(lambda: chat_view._chat_thread is None, timeout=5000)
+    assert any("Vorschlag der Sortierlogik: Ablage/Energie" in s for s in _bubble_texte(chat_view))
