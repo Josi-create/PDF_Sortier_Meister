@@ -265,7 +265,11 @@ def test_schema_bekommt_tabelle_und_spalte(tmp_path):
     con = db.verbinde(tmp_path / "suche.db")
     db.init(con)
     con.execute("DROP TABLE schraeglage")                   # Stand vor Issue #165 nachbauen
-    con.execute("ALTER TABLE textebene_protokoll DROP COLUMN gerade")
+    # Protokoll ohne Spalte gerade neu anlegen statt DROP COLUMN: aeltere SQLite-Versionen (CI) zerlegen beim
+    # Entfernen der letzten Spalte die Zeilenkommentare im CREATE TABLE ("incomplete input")
+    spalten = [f"{r[1]} {r[2]}" for r in con.execute("PRAGMA table_info(textebene_protokoll)") if r[1] != "gerade"]
+    con.execute("DROP TABLE textebene_protokoll")
+    con.execute(f"CREATE TABLE textebene_protokoll ({', '.join(spalten)})")
     con.commit()
     assert db.schema_stand(con) == 1
     assert db.ergaenze_schema(con) is True and db.schema_stand(con) == 2
