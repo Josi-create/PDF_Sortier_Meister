@@ -266,7 +266,10 @@ class PDFAnalyzer:
             from src.search import extract as suche_extract
 
             konfig = _search_konfig()
-            gelesen = suche_extract.pdf_text(pfad, konfig.ocr_min_zeichen if konfig else 25)
+            # Neuer Scan im ersten Vorrang-Ordner: Schraeglage gleich mitmessen (Issue #165); der Index merkt
+            # sie vor, auch wenn der Scan danach wegsortiert wird, bevor ein Indexlauf ihn liest
+            gerade = index is not None and index.konfig.gerade_vormerken(pfad)
+            gelesen = suche_extract.pdf_text(pfad, konfig.ocr_min_zeichen if konfig else 25, gerade)
             if gelesen["status"] in ("fehler", "verschluesselt"):
                 self._text = self._text_direkt()
                 return self._text

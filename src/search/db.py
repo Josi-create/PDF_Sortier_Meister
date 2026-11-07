@@ -149,6 +149,7 @@ OCR_CACHE_SPALTEN = {
 # Spalten des Protokolls, die nach Phase 5b dazukamen
 PROTOKOLL_SPALTEN = {
     "gedreht": "TEXT",           # Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
+    "gerade": "TEXT",            # Issue #165: gerade ausgerichtete Seiten mit Winkel, z. B. "1:-1.75"
 }
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
                     "schlagwoerter")
@@ -188,9 +189,19 @@ CREATE TABLE IF NOT EXISTS textebene_protokoll (
     mtime_ns_nachher INTEGER,
     status           TEXT NOT NULL,   -- 'geschrieben' | 'rueckgaengig'
     rueckgaengig_am  TEXT,
-    gedreht          TEXT         -- Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
+    gedreht          TEXT,        -- Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
+    gerade           TEXT         -- Issue #165: gerade ausgerichtete Seiten mit Winkel, z. B. "1:-1.75"
 );
 CREATE INDEX IF NOT EXISTS ix_textebene_dok ON textebene_protokoll(dok_id);
+
+-- Issue #165: gemessene Schraeglage schief gescannter Seiten, am Bild-Hash wie der OCR-Cache
+CREATE TABLE IF NOT EXISTS schraeglage (
+    bild_hash TEXT PRIMARY KEY,
+    winkel    REAL NOT NULL,      -- Grad gegen den Uhrzeigersinn, um die die angezeigte Seite gerade steht
+    gerade    INTEGER NOT NULL DEFAULT 0,  -- 1 = zum Ausrichten vorgemerkt; 0 = erledigt (auch nach Rueckgaengig)
+    erkannt   TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_schraeglage_gerade ON schraeglage(bild_hash) WHERE gerade = 1;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS metadaten_fts USING fts5(
     {_META_FTS}, content='dokumente', content_rowid='id',
@@ -257,7 +268,8 @@ def schema_stand(con) -> int:
         return 0
     if (set(V2_SPALTEN) <= spalten and "bild_hash" in _spalten(con, "seiten")
             and set(OCR_CACHE_SPALTEN) <= _spalten(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")
-            and set(PROTOKOLL_SPALTEN) <= _spalten(con, "textebene_protokoll")):
+            and set(PROTOKOLL_SPALTEN) <= _spalten(con, "textebene_protokoll")
+            and _tabelle_vorhanden(con, "schraeglage")):
         return 2
     return 1
 
@@ -544,6 +556,29 @@ def ocr_drehungen_eintragen(con, dok_id: int, drehungen: dict, drehen: bool = Fa
         if h and int(grad) % 360:
             n += con.execute("UPDATE ocr_cache SET drehung = ?, drehen = ? WHERE bild_hash = ?",
                              (int(grad) % 360, 1 if drehen else 0, h)).rowcount
+    return n
+
+
+def schraeglagen_eintragen(con, dok_id: int, schraeglagen: dict, vormerken: bool = True) -> int:
+    """Gemessene Schraeglagen (``{seite: grad}``, Issue #165) am Bild-Hash der Seite ablegen.
+
+    Ein schon bekannter Hash bleibt, wie er ist: Nach dem Ausrichten oder
+    Rueckgaengigmachen ist er erledigt (``gerade = 0``) und wird nicht erneut
+    vorgemerkt, auch nicht fuer eine Kopie des Scans. Liefert die Zahl neuer Eintraege.
+    """
+    if not schraeglagen:
+        return 0
+    ph = ",".join("?" * len(schraeglagen))
+    hashes = {r[0]: r[1] for r in con.execute(
+        f"SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND seite IN ({ph}) AND bild_hash IS NOT NULL",
+        (dok_id, *schraeglagen.keys()))}
+    n = 0
+    zeit = jetzt()
+    for seite, winkel in schraeglagen.items():
+        h = hashes.get(int(seite))
+        if h and winkel is not None:
+            n += con.execute("INSERT OR IGNORE INTO schraeglage (bild_hash, winkel, gerade, erkannt) VALUES (?, ?, ?, ?)",
+                             (h, round(float(winkel), 2), 1 if vormerken else 0, zeit)).rowcount
     return n
 
 
@@ -932,6 +967,12 @@ def status(con) -> dict:
             "AND status = 'geschrieben'").fetchone()[0]
     except sqlite3.OperationalError:
         textebene["gedreht"] = 0
+    try:                               # Issue #165: gerade ausgerichtete PDFs
+        textebene["gerade"] = con.execute(
+            "SELECT count(DISTINCT pfad) FROM textebene_protokoll WHERE gerade IS NOT NULL "
+            "AND status = 'geschrieben'").fetchone()[0]
+    except sqlite3.OperationalError:
+        textebene["gerade"] = 0
     return {
         "dokumente": sum(pro_typ.values()),
         "pro_typ": pro_typ,

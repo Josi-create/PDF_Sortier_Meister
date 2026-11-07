@@ -42,13 +42,24 @@ def stand_text(e: dict) -> str:
     return "Sicherung abgelaufen"
 
 
-def gedreht_text(gedreht: str | None) -> str:
-    """``"1:180,3:90"`` -> ``"S. 1: 180°, S. 3: 90°"`` (Issue #151); leer, wenn nichts gedreht wurde."""
+def gedreht_text(gedreht: str | None, gerade: str | None = None) -> str:
+    """``"1:180,3:90"`` -> ``"S. 1: 180°, S. 3: 90°"`` (Issue #151); leer, wenn nichts gedreht wurde.
+
+    ``gerade`` (Issue #165): ``"2:-1.75"`` -> ``"S. 2: 1,8° gerade"``.
+    """
     teile = []
     for teil in (gedreht or "").split(","):
         seite, _, grad = teil.partition(":")
         if seite.strip() and grad.strip():
             teile.append(f"S. {seite.strip()}: {grad.strip()}°")
+    for teil in (gerade or "").split(","):
+        seite, _, winkel = teil.partition(":")
+        try:
+            wert = abs(float(winkel))
+        except ValueError:
+            continue
+        if seite.strip():
+            teile.append(f"S. {seite.strip()}: {f'{wert:.1f}'.replace('.', ',')}° gerade")
     return ", ".join(teile)
 
 
@@ -86,9 +97,9 @@ class TextebeneProtokollDialog(QDialog):
 
         lay = QVBoxLayout(self)
         hinweis = QLabel(
-            "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen oder wurden richtig "
-            "herum gedreht. Vor jeder Änderung entstand eine Sicherungskopie; solange sie aufbewahrt wird, "
-            "lässt sich die Änderung zurücknehmen."
+            "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen, wurden richtig "
+            "herum gedreht oder gerade ausgerichtet. Vor jeder Änderung entstand eine Sicherungskopie; solange "
+            "sie aufbewahrt wird, lässt sich die Änderung zurücknehmen."
         )
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
@@ -106,7 +117,8 @@ class TextebeneProtokollDialog(QDialog):
         self.tabelle.itemSelectionChanged.connect(self._auswahl_geaendert)
         lay.addWidget(self.tabelle, 1)
 
-        self.leer_label = QLabel("Noch keine PDF hat eine Textebene bekommen oder wurde gedreht.")
+        self.leer_label = QLabel("Noch keine PDF hat eine Textebene bekommen, wurde gedreht oder gerade "
+                                 "ausgerichtet.")
         self.leer_label.setStyleSheet("color: gray;")
         lay.addWidget(self.leer_label)
 
@@ -135,7 +147,7 @@ class TextebeneProtokollDialog(QDialog):
         for zeile, e in enumerate(self.eintraege):
             pfad = e.get("aktueller_pfad") or e["pfad"]
             werte = ((e.get("am") or "").replace("T", " "), pfad, e.get("seiten") or "",
-                     gedreht_text(e.get("gedreht")), stand_text(e))
+                     gedreht_text(e.get("gedreht"), e.get("gerade")), stand_text(e))
             for spalte, wert in enumerate(werte):
                 item = QTableWidgetItem(wert)
                 item.setData(Qt.ItemDataRole.UserRole, e["id"])

@@ -656,6 +656,85 @@ den drei anderen Lagen und nimmt die beste. So herum wird die PDF gespeichert.
   etwa eine eigene Sicherung, wird nicht gedreht, und nach Rueckgaengig dreht
   kein Lauf die Datei erneut (zusaetzlich `textebene_grund = 'rueckgaengig'`).
 
+### 3.6 Schief gescannte Seiten gerade ausrichten (Issue #165)
+
+Zieht der Scanner ein Blatt schief ein, stehen die Zeilen ein paar Grad
+schraeg. PDFSM misst das und dreht den Seiteninhalt um diesen kleinen Winkel
+gerade. Das ersetzt ein eigenes Skript des Auftraggebers, das dafuer
+`ocrmypdf --deskew` ueber WSL aufrief. Ein PDF/A ist nicht noetig
+(Entscheidung vom 07.11.2026).
+
+**Messen** (`gerade.seite_messen`, Qt-frei, nur numpy):
+
+- Die Seite wird in Graustufen mit 100 dpi gerendert, so wie sie angezeigt
+  wird. Die dunklen Pixel werden fuer jeden Winkel von -10 bis +10 Grad auf
+  eine Achse projiziert (Projektionsprofil), erst in Schritten von 0,25 Grad,
+  dann um den besten Wert in Schritten von 0,02 Grad.
+- Stehen die Zeilen quer zur Achse, wechseln volle Zeilen und leere Abstaende
+  hart. Das Profil ist dann am schaerfsten (Summe der quadrierten Unterschiede
+  benachbarter Werte). Gemessen wird in beiden Richtungen, damit auch quer
+  liegende Seiten ihren Winkel bekommen. Der Winkel haengt nicht davon ab, ob
+  die Seite um 90 oder 180 Grad gedreht ist (Issue #151).
+- Keinen Winkel bekommt eine Seite mit zu wenig Schrift, mit zu viel dunkler
+  Flaeche (Foto) oder ohne deutliches Linienmuster (bester Winkel nicht
+  mindestens 1,5-mal so scharf wie der typische), ebenso ein bester Winkel am
+  Rand des Suchbereichs.
+- Ausgerichtet wird ab 0,3 Grad (`MIN_WINKEL`). Synthetische Scans trifft die
+  Messung auf wenige Hundertstel Grad, eine Seite kostet etwa 30 ms.
+- Gemessen werden nur gescannte Seiten (ein Bild bedeckt mindestens die halbe
+  Seite, `gerade.ist_scan`), auch wenn sie schon Text tragen. Die meisten Scans
+  bringen die Textebene des Scanprogramms (VueScan) mit und gehen gar nicht
+  durch Tesseract; deshalb misst nicht die OCR, sondern das Einlesen.
+
+**Ausrichten** (`gerade.ausrichten`):
+
+- Der ganze bisherige Seiteninhalt wird in `q <Drehung um die Mitte der CropBox> cm … Q`
+  eingeschlossen. Dazu kommen zwei kleine eigene Inhalts-Streams vorn und
+  hinten. Bild-Streams und bisherige Inhalts-Streams bleiben bytegleich, nichts
+  wird neu gerendert oder komprimiert (anders als bei ocrmypdf). Eine
+  vorhandene Textebene dreht mit und bleibt deckungsgleich.
+- Die Seite behaelt ihre Groesse und wird nicht verkleinert. Die Ecken des Scans
+  ragen um den kleinen Winkel ueber den Rand. `show_pdf_page(rotate=…)` waere
+  keine Alternative: Es verkleinert den gedrehten Inhalt, bis er ganz auf die
+  Seite passt.
+- Der vordere Stream beginnt mit dem Kommentar `%PDFSM gerade <winkel>`. Daran
+  erkennt PDFSM eine schon ausgerichtete Seite (`ist_ausgerichtet`, misst sie
+  nicht erneut) und kann die Ausrichtung wieder entfernen
+  (`ausrichtung_entfernen`).
+- Der Bild-Hash (`extract._bild_hash`) aendert sich nicht, auch nicht bei Seiten
+  mit Inline-Bild: Die eigenen Streams zaehlen dort nicht mit.
+
+**Automatisch** (Stufe `SearchConfig.auto_gerade`, wie `textebene`: `aus`,
+`neue_scans` = Standard, `alle`):
+
+- Gemessen wird beim Einlesen (`extract.pdf_text(gerade=…)`), nur wo die Stufe
+  gilt (`gerade_vormerken`): im Indexlauf, beim Einlesen ueber die Oberflaeche
+  und in der Analyse von PDFSM. Lohnt das Ausrichten, steht der Winkel am
+  Bild-Hash (Tabelle `schraeglage`, `gerade = 1`). Ein neuer Scan, den der
+  Nutzer danach wegsortiert, wird trotzdem ausgerichtet.
+- Ausgerichtet wird im Schreibschritt der Textebene, mit demselben Schutz und
+  derselben Pruefung (genau dieser Winkel, alle anderen Seiten unveraendert).
+  Das gilt auch fuer PDFs, deren Text schon in der Datei steht. Reihenfolge:
+  erst um 90 Grad drehen (#151), dann die Textebene auflegen, zuletzt
+  ausrichten, damit die Textebene mitdreht. Alles zusammen ergibt eine
+  Aenderung, eine Sicherungskopie und einen Protokolleintrag (Spalte `gerade`,
+  z. B. `1:-1.75`).
+- Danach ist die Vormerkung erledigt (`gerade = 0`): Weder der naechste Lauf
+  noch eine Kopie des Scans noch die Datei nach Rueckgaengig wird erneut
+  ausgerichtet. Eine inzwischen von Hand ausgerichtete Seite bleibt, wie sie
+  ist. PDF/A-Dateien bleiben wie bei der Textebene unberuehrt.
+- Der Bestand wird nicht nachtraeglich gemessen, auch nicht mit `alle`: Gemessen
+  wird nur, was neu eingelesen wird. Fuer einzelne Dateien gibt es den
+  Rechtsklick.
+
+**Rechtsklick** (`pdf_rotate.gerade_ausrichten`, Kachel › Drehen › „Gerade
+ausrichten (schief gescannt)“, auch fuer mehrere markierte PDFs):
+
+- Misst und richtet sofort aus, gespeichert inkrementell ueber eine Kopie wie
+  beim Drehen (#150). Signierte und verschluesselte PDFs werden abgelehnt.
+- Rueckgaengig mit Strg+Z (`ausrichtung_zuruecknehmen`): Die Ausrichtung wird
+  wieder herausgenommen.
+
 ---
 
 ## 4. Prozessmodell

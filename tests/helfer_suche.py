@@ -32,6 +32,8 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("textebene", "aus")
     # ... und drehen keine PDF (Issue #151, Standard ebenfalls "neue_scans")
     kw.setdefault("auto_drehen", "aus")
+    # ... und richten keine aus (Issue #165, Standard ebenfalls "neue_scans")
+    kw.setdefault("auto_gerade", "aus")
     return SearchConfig(**kw)
 
 
@@ -200,6 +202,73 @@ def scan_mit_lage(pfad: Path, inhalt_drehung: int = 0, seiten: int = 1, dpi: int
     doc.save(str(pfad), deflate=True)
     doc.close()
     return pfad
+
+
+BRIEF_ZEILEN = [
+    "Stadtwerke Musterstadt GmbH", "Postfach 12 34, 12345 Musterstadt", "",
+    "Rechnung Nummer 4711 vom 12.03.2025", "Kundennummer 0815-4711", "",
+    "Sehr geehrte Damen und Herren,", "für den Abrechnungszeitraum stellen wir Ihnen",
+    "folgende Leistungen in Rechnung:", "Strom Grundpreis 12 Monate      120,00 EUR",
+    "Arbeitspreis 3.200 kWh            896,00 EUR", "Zwischensumme                     1016,00 EUR",
+    "Mehrwertsteuer 19 %               193,04 EUR", "Gesamtbetrag                      1209,04 EUR",
+    "Bitte überweisen Sie den Betrag bis zum 30.03.2025", "auf das unten genannte Konto.",
+    "Mit freundlichen Grüßen", "Ihre Stadtwerke",
+]
+
+
+def scan_schief(pfad: Path, winkel: float, inhalt_drehung: int = 0, seiten: int = 1, dpi: int = 100,
+                textebene: bool = False, quadrat: bool = False) -> Path:
+    """Scan eines Briefs, schief eingezogen (Issue #165): das Bild ist um ``winkel`` Grad im
+    Uhrzeigersinn verdreht, dazu um ``inhalt_drehung`` (90/180/270, wie ``scan_mit_lage``).
+
+    Gerade steht die Seite also, wenn man sie um ``winkel`` Grad gegen den
+    Uhrzeigersinn dreht. ``textebene``: unsichtbarer Text ueber dem Bild, wie
+    ihn die Texterkennung eines Scanprogramms (VueScan) schreibt; die Seite
+    gilt damit als Text. ``quadrat``: schwarzes Quadrat oben links wie bei
+    ``scan_mit_lage`` (fuer ``fake_tesseract_lage``).
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    if quadrat:
+        q.draw_rect(pymupdf.Rect(30, 30, 160, 160), color=(0, 0, 0), fill=(0, 0, 0))
+    for i, zeile in enumerate(BRIEF_ZEILEN):
+        q.insert_text((72, 200 + 22 * i), zeile, fontsize=11)
+    z = dpi / 72
+    pix = q.get_pixmap(matrix=pymupdf.Matrix(z, z).prerotate(inhalt_drehung + winkel), colorspace=pymupdf.csGRAY)
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=pix.width * 72 / dpi, height=pix.height * 72 / dpi)
+        seite.insert_image(seite.rect, pixmap=pix)
+        if textebene:
+            for i, zeile in enumerate(BRIEF_ZEILEN[:6]):
+                if zeile:
+                    seite.insert_text((72, 120 + 22 * i), zeile, fontsize=11, render_mode=3)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+def schraeglage_der_datei(pfad: Path, seite: int = 1) -> float | None:
+    """Gemessene Schraeglage einer Seite, wie sie jetzt angezeigt wird (Issue #165)."""
+    import pymupdf
+
+    from src.search import gerade
+
+    with pymupdf.open(str(pfad)) as doc:
+        return gerade.seite_messen(doc[seite - 1])
+
+
+def ausrichtung_der_datei(pfad: Path, seite: int = 1) -> float:
+    """Winkel, um den PDFSM die Seite ausgerichtet hat (0 = nicht ausgerichtet)."""
+    import pymupdf
+
+    from src.search import gerade
+
+    with pymupdf.open(str(pfad)) as doc:
+        return gerade.ausrichtung(doc, doc[seite - 1])
 
 
 def _lage_tsv(woerter: list[str], konfidenz: int, senkrecht: bool) -> str:
