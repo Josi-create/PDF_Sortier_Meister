@@ -21,8 +21,13 @@ from typing import Optional, Generator
 from datetime import datetime
 
 import fitz  # PyMuPDF
+from PyQt6.QtCore import QFile
 
 from src.search.meldungen import melden as index_melden
+
+
+class PapierkorbNichtVerfuegbar(OSError):
+    """Die Datei konnte nicht in den System-Papierkorb verschoben werden."""
 
 
 class FileManager:
@@ -238,20 +243,39 @@ class FileManager:
 
         return target_path
 
-    def delete_file(self, file_path: Path | str) -> None:
+    def delete_file(self, file_path: Path | str, endgueltig: bool = False) -> Optional[Path]:
         """
-        Löscht eine Datei.
+        Verschiebt eine Datei in den System-Papierkorb.
 
         Args:
             file_path: Zu löschende Datei
+            endgueltig: True löscht ohne Papierkorb (nur nach ausdrücklicher Rückfrage)
+
+        Returns:
+            Pfad der Datei im Papierkorb (None bei endgültigem Löschen oder
+            wenn das System keinen Pfad liefert)
+
+        Raises:
+            PapierkorbNichtVerfuegbar: Papierkorb geht nicht (z. B. Netzlaufwerk);
+                es wird dann NICHT still endgültig gelöscht.
         """
         file_path = Path(file_path)
 
         if not file_path.exists():
             raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
 
-        file_path.unlink()
+        papierkorb_pfad: Optional[Path] = None
+        if endgueltig:
+            file_path.unlink()
+        else:
+            ok, pfad = QFile.moveToTrash(str(file_path))
+            if not ok:
+                raise PapierkorbNichtVerfuegbar(
+                    f"Papierkorb nicht verfügbar: {file_path}"
+                )
+            papierkorb_pfad = Path(pfad) if pfad else None
         index_melden("datei_geloescht", str(file_path))
+        return papierkorb_pfad
 
     def merge_pdfs(
         self,

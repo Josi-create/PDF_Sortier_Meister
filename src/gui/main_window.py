@@ -53,7 +53,7 @@ from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
 from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
-from src.core.file_manager import FileManager, FolderManager
+from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 
 
@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         # Undo-Historie für Verschiebe- und Umbenennungs-Aktionen
         # Move-Eintrag: {"type": "move", "moves": [(source, dest), ...], "description": str}
         # Rename-Eintrag: {"type": "rename", "old_path": Path, "new_path": Path, "description": str}
+        # Loesch-Eintrag: {"type": "delete", "original": Path, "papierkorb": Path, "description": str}
         # Stapel-Eintrag: {"type": "stack", "backups": [(original, sicherung), ...], "description": str}
         self._undo_stack: list[dict] = []
 
@@ -3175,21 +3176,40 @@ class MainWindow(QMainWindow):
     def _datei_loeschen(self, pdf_path: Path, titel: str, objekt: str, widget_entfernen):
         """Rueckfrage, Loeschen und Kachel entfernen - gemeinsam fuer PDFs und Office-Dateien.
 
-        Das Loeschen ist endgueltig (Papierkorb: Issue #124) und ist nur hier
-        umgesetzt, damit #124 spaeter beide Faelle abdeckt.
+        Verschiebt in den Papierkorb (Issue #124), mit Undo-Eintrag; ohne
+        Papierkorb nur nach ausdruecklicher Rueckfrage endgueltig.
         """
         reply = QMessageBox.question(
             self,
             titel,
-            f"Möchten Sie {objekt} wirklich löschen?\n\n{pdf_path.name}",
+            f"Möchten Sie {objekt} in den Papierkorb verschieben?\n\n{pdf_path.name}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                self.file_manager.delete_file(pdf_path)
+                try:
+                    papierkorb = self.file_manager.delete_file(pdf_path)
+                except PapierkorbNichtVerfuegbar:
+                    antwort = QMessageBox.question(
+                        self,
+                        "Papierkorb nicht verfügbar",
+                        f"Papierkorb nicht verfügbar – endgültig löschen?\n\n{pdf_path.name}",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No,
+                    )
+                    if antwort != QMessageBox.StandardButton.Yes:
+                        return
+                    papierkorb = self.file_manager.delete_file(pdf_path, endgueltig=True)
                 self.statusbar.showMessage(f"Gelöscht: {pdf_path.name}", 3000)
+                if papierkorb is not None:
+                    self._push_undo({
+                        "type": "delete",
+                        "original": pdf_path,
+                        "papierkorb": papierkorb,
+                        "description": f"Löschen: {pdf_path.name}",
+                    })
                 # Nur das gelöschte Widget entfernen
                 widget_entfernen(pdf_path)
             except Exception as e:
@@ -3682,8 +3702,40 @@ class MainWindow(QMainWindow):
             self._undo_rotate(entry)
         elif entry_type == "gerade":
             self._undo_gerade(entry)
+        elif entry_type == "delete":
+            self._undo_delete(entry)
         else:
             self._undo_move(entry)
+
+    def _undo_delete(self, entry: dict):
+        """Holt eine gelöschte Datei aus dem Papierkorb zurück."""
+        import shutil
+        original = Path(entry["original"])
+        papierkorb = Path(entry["papierkorb"])
+        self._undo_stack.pop()
+        self._update_undo_ui()
+        if not papierkorb.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"'{original.name}' ist nicht mehr im Papierkorb.\n\n"
+                "Möglicherweise wurde der Papierkorb geleert oder die Datei wiederhergestellt."
+            )
+            return
+        if original.exists():
+            QMessageBox.warning(
+                self, "Rückgängig nicht möglich",
+                f"Am ursprünglichen Ort existiert bereits eine Datei '{original.name}'."
+            )
+            return
+        try:
+            original.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(papierkorb), str(original))
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Rückgängig fehlgeschlagen", f"{original.name}:\n{e}")
+            return
+        index_melden("datei_aufnehmen", str(original))
+        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.refresh_view()
 
     def _undo_rename(self, entry: dict):
         """Macht eine Umbenennung rückgängig."""
