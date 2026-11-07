@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QWidget,
 )
 
@@ -72,6 +73,9 @@ class FavoritenLeiste(QFrame):
         self._aktuell: Optional[Path] = None
         self.knoepfe: list[QPushButton] = []
 
+        # Nur eine Zeile hoch: nie freien Platz der PDF-Ansicht abgreifen
+        # (Live-Test: die Leiste wuchs auf die halbe Spaltenhoehe)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         aussen = QHBoxLayout(self)
         aussen.setContentsMargins(6, 0, 6, 0)
         self._scroll = _SeitwaertsScroll()
