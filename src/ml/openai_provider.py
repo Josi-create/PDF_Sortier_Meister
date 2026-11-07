@@ -373,6 +373,39 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             return None, f"{self.API_NAME}-Fehler: {e}"
 
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Bilder (JPEG) mit Anweisung per ``chat/completions`` schicken (``image_url`` als data-URI; Issue #47).
+
+        Gilt auch fuer OpenRouter und Strata (gleiche API).
+        """
+        import base64
+
+        if not self.config.api_key:
+            raise RuntimeError(f"Für {self.API_NAME} fehlt der API-Schlüssel.")
+        content = [{"type": "text", "text": prompt}]
+        content += [
+            {"type": "image_url",
+             "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(img).decode("ascii")}}
+            for img in images
+        ]
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": max_tokens,
+            "temperature": self.config.temperature,
+            "messages": [{"role": "user", "content": content}],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.config.api_key}",
+        }
+        data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers, timeout=300)
+        if error or not data:
+            raise RuntimeError(error or f"Leere Antwort von {self.API_NAME}.")
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        return (choices[0].get("message") or {}).get("content", "") or ""
+
     def answer_with_context(
         self,
         system_prompt: str,

@@ -138,6 +138,8 @@ V2_SPALTEN = {
     "metadaten_quelle": "TEXT",  # 'pdf' = beim Indizieren aus der Datei gelesen, 'pdfsm' = von PDFSM gesetzt (Vorrang)
     "textebene_am": "TEXT",      # Phase 5b: OCR-Textebene in die PDF geschrieben (ISO-Zeit); NULL = nein
     "textebene_grund": "TEXT",   # Phase 5b: warum (noch) nicht, z. B. 'signiert', 'gesperrt' (textebene.py)
+    "ocr_lesbar_alle": "INTEGER",  # Issue #47: Zeichen aller von OCR erkannten Woerter (extract.lesbarkeit); NULL = nicht gemessen
+    "ocr_lesbar_gut": "INTEGER",   # Issue #47: davon die sicher erkannten (Konfidenz ab LAGE_KONFIDENZ)
 }
 # Spalten des OCR-Caches, die nach dem ersten Stand von Version 2 dazukamen (Phase 5b)
 OCR_CACHE_SPALTEN = {
@@ -559,6 +561,35 @@ def ocr_drehungen_eintragen(con, dok_id: int, drehungen: dict, drehen: bool = Fa
     return n
 
 
+def ocr_lesbarkeit_eintragen(con, dok_id: int, lesbarkeit: dict, ersetzen: bool = False) -> None:
+    """Lesbarkeit der OCR (``{seite: (alle, gut)}``, Issue #47) zum Dokument legen.
+
+    Die Summen stehen am Dokument (nicht an der Seite): Sie bleiben stehen, wenn
+    der Indexlauf die Textebene in die Datei geschrieben hat und die Seiten
+    danach als Text gelten. Neue OCR-Seiten kommen zu den vorhandenen hinzu
+    (erst die ersten Seiten im PDF-Analyzer, den Rest der Indexlauf); mit
+    ``ersetzen`` ("OCR neu/wiederholen") gelten nur noch die uebergebenen.
+    """
+    if not lesbarkeit:
+        return
+    alle = sum(int(w[0]) for w in lesbarkeit.values())
+    gut = sum(int(w[1]) for w in lesbarkeit.values())
+    if not ersetzen:
+        r = con.execute("SELECT ocr_lesbar_alle, ocr_lesbar_gut FROM dokumente WHERE id = ?", (dok_id,)).fetchone()
+        if r and r[0] is not None and r[1] is not None:
+            alle += r[0]
+            gut += r[1]
+    con.execute("UPDATE dokumente SET ocr_lesbar_alle = ?, ocr_lesbar_gut = ? WHERE id = ?", (alle, gut, dok_id))
+
+
+def ocr_lesbarkeit_holen(con, pfad: str) -> tuple[int, int] | None:
+    """Gemessene Lesbarkeit der OCR einer Datei ``(alle, gut)`` (Issue #47); None, wenn unbekannt."""
+    r = con.execute("SELECT ocr_lesbar_alle, ocr_lesbar_gut FROM dokumente WHERE pfad = ?", (pfad,)).fetchone()
+    if not r or r[0] is None or r[1] is None:
+        return None
+    return r[0], r[1]
+
+
 def schraeglagen_eintragen(con, dok_id: int, schraeglagen: dict, vormerken: bool = True) -> int:
     """Gemessene Schraeglagen (``{seite: grad}``, Issue #165) am Bild-Hash der Seite ablegen.
 
@@ -584,7 +615,8 @@ def schraeglagen_eintragen(con, dok_id: int, schraeglagen: dict, vormerken: bool
 
 def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = None, dpi: int | None = None,
                        nur_offene: bool = True, ebenen: dict | None = None, cache_ersetzen: bool = False,
-                       drehungen: dict | None = None, drehen: bool = False) -> int:
+                       drehungen: dict | None = None, drehen: bool = False,
+                       lesbarkeit: dict | None = None) -> int:
     """OCR-Ergebnis (``{seite: text | None}``) uebernehmen: Seiten fuellen, Cache befuellen, Status ableiten.
 
     ``None`` als Text markiert die Seite als ``ocr_fehler``. Mit ``nur_offene``
@@ -593,7 +625,8 @@ def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = Non
     Seite, ebenso ``drehungen`` (Lage der OCR, Issue #151; ``drehen`` merkt
     sie zum Schreiben vor). ``cache_ersetzen`` ueberschreibt vorhandene
     Cache-Eintraege (neue OCR auf Wunsch, Issue #150). Liefert die Zahl der
-    erkannten Seiten.
+    erkannten Seiten. ``lesbarkeit`` (``{seite: (alle, gut)}``, Issue #47)
+    kommt summiert zum Dokument (``ocr_lesbarkeit_eintragen``).
     """
     bedingung = " AND quelle IN ('ohne_text', 'ocr_fehler')" if nur_offene else ""
     erkannt = []
@@ -615,6 +648,9 @@ def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = Non
             ocr_ebenen_eintragen(con, dok_id, {s: e for s, e in ebenen.items() if s in erkannt})
         if drehungen:
             ocr_drehungen_eintragen(con, dok_id, {s: g for s, g in drehungen.items() if s in erkannt}, drehen)
+        if lesbarkeit:
+            ocr_lesbarkeit_eintragen(con, dok_id, {s: w for s, w in lesbarkeit.items() if s in erkannt},
+                                     ersetzen=cache_ersetzen)
         # Weitere offene Seiten desselben Dokuments mit bekanntem Bild (z. B. gleiches Deckblatt) gleich mit fuellen
         offen = con.execute("SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND quelle = 'ohne_text' "
                             "AND bild_hash IS NOT NULL", (dok_id,)).fetchall()

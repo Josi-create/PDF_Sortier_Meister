@@ -15,7 +15,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 # Modulweit importieren, nicht erst im Thread (Lazy-Imports in Worker-Threads
 # veraendern sys.modules waehrend der Tests, siehe conftest.patch_singletons)
-from src.core.pdf_analyzer import ocr_neu_durchfuehren
+from src.core.pdf_analyzer import ocr_neu_durchfuehren, ocr_wiederholen
 
 
 class OcrNeuWorker(QThread):
@@ -42,3 +42,22 @@ class OcrNeuWorker(QThread):
                 erg = {"index": False, "seiten": 0, "fehler": str(e)}
             ergebnisse.append((path, erg))
         self.fertig.emit(ergebnisse)
+
+
+class OcrWiederholenWorker(QThread):
+    """Liest eine PDF mit anderen Tesseract-Sprachen neu und uebernimmt nur Besseres (Issue #47)."""
+
+    # Ergebnis wie bei OcrNeuWorker: [(Path, Ergebnis von ocr_wiederholen)] mit einem Eintrag
+    fertig = pyqtSignal(list)
+
+    def __init__(self, path: Path, sprachen: str, parent=None):
+        super().__init__(parent)
+        self.path = Path(path)
+        self.sprachen = sprachen
+
+    def run(self):
+        try:
+            erg = ocr_wiederholen(self.path, self.sprachen, abbrechen=self.isInterruptionRequested)
+        except Exception as e:  # noqa: BLE001 - melden, nie den Thread verlieren
+            erg = {"index": False, "seiten": 0, "besser": False, "vorher": None, "nachher": None, "fehler": str(e)}
+        self.fertig.emit([(self.path, erg)])

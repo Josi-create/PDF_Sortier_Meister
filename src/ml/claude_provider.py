@@ -322,6 +322,37 @@ class ClaudeProvider(LLMProvider):
         except Exception as e:
             return None, f"Claude-Fehler: {e}"
 
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Bilder (JPEG) mit Anweisung an Claude schicken (Messages API, ``image``-Bloecke; Issue #47)."""
+        import base64
+
+        if not self.config.api_key:
+            raise RuntimeError("Für Claude fehlt der API-Schlüssel.")
+        content = [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                         "data": base64.b64encode(img).decode("ascii")}}
+            for img in images
+        ]
+        content.append({"type": "text", "text": prompt})
+        body = {
+            "model": self._get_model_id(),
+            "max_tokens": max_tokens,
+            "temperature": self.config.temperature,
+            "messages": [{"role": "user", "content": content}],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.config.api_key,
+            "anthropic-version": self.ANTHROPIC_VERSION,
+        }
+        data, error = self._http_post_json(self.MESSAGES_URL, body, headers, timeout=300)
+        if error or not data:
+            raise RuntimeError(error or "Leere Antwort von Claude.")
+        for block in data.get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "text":
+                return block.get("text", "") or ""
+        return ""
+
     def answer_with_context(
         self,
         system_prompt: str,

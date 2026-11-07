@@ -185,6 +185,16 @@ class Suchindex:
         finally:
             con.close()
 
+    def ocr_lesbarkeit(self, pfad: str) -> tuple[int, int] | None:
+        """Lesbarkeit der OCR einer Datei ``(alle, gut)`` (Issue #47); None, wenn unbekannt."""
+        con = self._lesen()
+        if con is None:
+            return None
+        try:
+            return db.ocr_lesbarkeit_holen(con, norm_pfad(pfad))
+        finally:
+            con.close()
+
     def status(self) -> dict:
         """Indexstand; ohne Datenbank nur Nullwerte und ``vorhanden = False``."""
         con = self._lesen()
@@ -318,7 +328,8 @@ class Suchindex:
         return self.datei_aufnehmen(pfad)
 
     def ocr_eintragen(self, pfad: str, texte: dict, ebenen: dict | None = None, ersetzen: bool = False,
-                      drehungen: dict | None = None, drehen: bool | None = None) -> int:
+                      drehungen: dict | None = None, drehen: bool | None = None,
+                      lesbarkeit: dict | None = None, sprachen: str | None = None) -> int:
         """OCR-Ergebnis der Oberflaeche uebernehmen (``{seite: text}``), auch in den Cache; 0, wenn unbekannt.
 
         ``ebenen`` (``{seite: text_pdf}``) sind die Text-PDFs aus demselben
@@ -328,7 +339,11 @@ class Suchindex:
         dreht der naechste Indexlauf die Datei (``drehen``: ausdruecklich
         vormerken oder nicht, None = nach Stufe und Ort). ``ersetzen`` ("OCR neu
         durchfuehren", Issue #150) ueberschreibt auch schon erkannte Seiten und
-        ihre Cache-Eintraege.
+        ihre Cache-Eintraege. ``lesbarkeit`` (``{seite: (alle, gut)}``, Issue
+        #47): wie gut Tesseract die Seiten las (``extract.lesbarkeit``), fuer die
+        Markierung schlecht erkannter PDFs; mit ``ersetzen`` ersetzt es den
+        bisherigen Wert des Dokuments, sonst kommt es dazu. ``sprachen``: mit
+        welchen Tesseract-Sprachen erkannt wurde (Standard: die Einstellung).
         """
         if not self.vorhanden() or not texte:
             return 0
@@ -338,9 +353,10 @@ class Suchindex:
             if not r:
                 return 0
             ocr = self.konfig.ocr_einstellungen()
-            n = db.ocr_text_eintragen(con, r[0], dict(texte), ocr.get("sprachen"), ocr.get("dpi"),
+            n = db.ocr_text_eintragen(con, r[0], dict(texte), sprachen or ocr.get("sprachen"), ocr.get("dpi"),
                                       nur_offene=not ersetzen, ebenen=dict(ebenen) if ebenen else None,
                                       cache_ersetzen=ersetzen, drehungen=dict(drehungen) if drehungen else None,
+                                      lesbarkeit=dict(lesbarkeit) if lesbarkeit else None,
                                       drehen=bool(drehungen) and (self.konfig.drehen_vormerken(norm_pfad(pfad))
                                                                   if drehen is None else drehen))
             con.commit()

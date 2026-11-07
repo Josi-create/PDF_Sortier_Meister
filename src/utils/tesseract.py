@@ -86,3 +86,110 @@ def fehlende_sprachen(tessdata: str | None, sprachen: str) -> list[str]:
         if s and not os.path.isfile(os.path.join(tessdata, s + ".traineddata")):
             fehlt.append(s)
     return fehlt
+
+
+# --------------------------------------------------------------------------- Sprachen (Issue #47)
+
+SPRACHNAMEN = {
+    "deu": "Deutsch",
+    "eng": "Englisch",
+    "fra": "Französisch",
+    "ita": "Italienisch",
+    "spa": "Spanisch",
+    "nld": "Niederländisch",
+    "por": "Portugiesisch",
+    "pol": "Polnisch",
+    "ces": "Tschechisch",
+    "tur": "Türkisch",
+    "rus": "Russisch",
+    "dan": "Dänisch",
+    "swe": "Schwedisch",
+    "nor": "Norwegisch",
+    "fin": "Finnisch",
+    "hun": "Ungarisch",
+    "lat": "Latein",
+    "ell": "Griechisch",
+    "deu_frak": "Deutsch (Fraktur)",
+    "frk": "Fraktur (alt)",
+}
+# Modelle, die keine Sprache zum Lesen sind
+KEINE_SPRACHE = {"osd", "equ", "snum"}
+FRAKTUR_MODELLE = ("deu_frak", "frk")
+FRAKTUR_URL = "https://github.com/tesseract-ocr/tessdata_best/raw/main/deu_frak.traineddata"
+
+
+def sprachname(code: str) -> str:
+    """Verstaendlicher deutscher Name zu einem Tesseract-Sprachcode (``deu_frak`` -> ``Deutsch (Fraktur)``)."""
+    if code in SPRACHNAMEN:
+        return SPRACHNAMEN[code]
+    return " + ".join(SPRACHNAMEN.get(c, c) for c in code.split("+"))
+
+
+def installierte_sprachen(tesseract_cmd: Optional[str], tessdata: Optional[str] = None) -> list[str]:
+    """Installierte Sprachmodelle (``tesseract --list-langs``) ohne ``osd``/``equ``; leer ohne Tesseract.
+
+    Antwortet Tesseract nicht, werden ersatzweise die ``*.traineddata`` im
+    Ordner ``tessdata`` gelesen (falls bekannt).
+    """
+    import subprocess
+
+    codes: list[str] = []
+    if tesseract_cmd:
+        args = [tesseract_cmd, "--list-langs"]
+        if tessdata:
+            args += ["--tessdata-dir", tessdata]
+        kw = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        try:
+            r = subprocess.run(args, capture_output=True, timeout=20, **kw)
+            if r.returncode == 0:
+                text = r.stdout.decode("utf-8", "replace")
+                # Erste Zeile: 'List of available languages in "<Pfad>" (n):'
+                codes = [z.strip() for z in text.splitlines()[1:] if z.strip()]
+        except (OSError, subprocess.SubprocessError):
+            codes = []
+    if not codes and tessdata and os.path.isdir(tessdata):
+        codes = sorted(f[:-len(".traineddata")] for f in os.listdir(tessdata) if f.endswith(".traineddata"))
+    return [c for c in codes if c not in KEINE_SPRACHE]
+
+
+def sprachwahl(installiert: list[str]) -> list[tuple[str, str]]:
+    """Angebote fuer "OCR wiederholen mit ...": ``[(Sprachcode(s), Name), ...]``.
+
+    Zuerst sinnvolle Kombinationen (``deu+eng``, Fraktur mit Deutsch), dann
+    jede installierte Sprache einzeln. Nur Modelle, die wirklich da sind.
+    """
+    have = set(installiert)
+    erg: list[tuple[str, str]] = []
+
+    def kombi(*codes: str) -> None:
+        if all(c in have for c in codes):
+            code = "+".join(codes)
+            erg.append((code, sprachname(code)))
+
+    kombi("deu", "eng")
+    for frak in FRAKTUR_MODELLE:
+        kombi(frak, "deu")
+    schon = {code for code, _ in erg}
+    for c in installiert:
+        if c not in schon:
+            erg.append((c, sprachname(c)))
+    return erg
+
+
+def hat_fraktur(installiert: list[str]) -> bool:
+    """Ist ein Fraktur-Modell installiert?"""
+    return any(m in installiert for m in FRAKTUR_MODELLE)
+
+
+def fraktur_hinweis(tessdata: Optional[str]) -> str:
+    """Anleitung, das Fraktur-Modell selbst zu installieren (es wird nie automatisch geladen)."""
+    ziel = tessdata or "dem Ordner „tessdata“ der Tesseract-Installation"
+    return (
+        "Für Frakturschrift fehlt das Tesseract-Modell „deu_frak“.\n\n"
+        "So installieren Sie es:\n"
+        f"1. Laden Sie die Datei deu_frak.traineddata herunter:\n   {FRAKTUR_URL}\n"
+        f"2. Legen Sie sie in diesen Ordner:\n   {ziel}\n"
+        "   (unter Windows braucht das Kopieren nach „Programme“ ggf. Administratorrechte)\n"
+        "3. Danach erscheint „Deutsch (Fraktur)“ im Menü „OCR wiederholen mit …“.\n\n"
+        "Es wird nichts automatisch heruntergeladen."
+    )

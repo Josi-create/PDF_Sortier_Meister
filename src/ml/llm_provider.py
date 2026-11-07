@@ -55,6 +55,25 @@ def is_cloud_provider(provider_type: str) -> bool:
     return str(provider_type).lower() in CLOUD_PROVIDERS
 
 
+# Modellnamen (Teile, kleingeschrieben), die Bilder verstehen (Issue #47: Handschrift per Bilderkennung).
+# Ollama und OpenRouter haben keine Eigenschaftsabfrage, die ohne Netz funktioniert; deshalb der Namensabgleich.
+VISION_MODELL_TEILE = (
+    "claude", "gpt-4o", "gpt-4.1", "gpt-4-turbo", "gpt-4.5", "gpt-5", "o1", "o3", "o4", "gemini", "pixtral",
+    "llava", "bakllava", "vision", "-vl", "vl:", "vl-", "qwen2.5vl", "qwen3-vl", "minicpm-v", "moondream",
+    "gemma3", "gemma4", "llama4", "llama-4", "mistral-small3", "granite3.2-vision", "internvl", "kimi-k",
+)
+# Treffer aus der Liste oben, die Bilder trotzdem nicht verstehen (kleine Textmodelle)
+VISION_AUSNAHMEN = ("o1-mini", "o1-preview", "o3-mini", "gemma3:1b", "gemma3:270m")
+
+
+def modell_versteht_bilder(modell: str | None) -> bool:
+    """Versteht ein Modell mit diesem Namen vermutlich Bilder (Vision)? Grobe Namensregel, kein Beweis."""
+    name = (modell or "").strip().lower()
+    if not name or any(a in name for a in VISION_AUSNAHMEN):
+        return False
+    return any(t in name for t in VISION_MODELL_TEILE)
+
+
 # Kanonische Metadaten-Schluessel, wie sie Detail-Panel, Umbenennen-Dialog und
 # Datenbank erwarten. Der Prompt fragt teils deutsche Namen ab ("beschreibung",
 # "category", "mwst"), und Modelle halten sich unterschiedlich daran - deshalb
@@ -315,6 +334,28 @@ class LLMProvider(ABC):
             True wenn der Provider verwendet werden kann
         """
         pass
+
+    def supports_vision(self) -> bool:
+        """Kann dieser Provider mit dem eingestellten Modell Bilder lesen (Issue #47)?
+
+        Der Provider muss ``describe_images`` umsetzen, und der Modellname muss
+        zu einem Vision-Modell passen (``modell_versteht_bilder``).
+        """
+        if type(self).describe_images is LLMProvider.describe_images:
+            return False
+        getter = getattr(self, "_get_model_id", None)
+        modell = getter() if callable(getter) else getattr(self.config, "model", "")
+        return modell_versteht_bilder(modell)
+
+    def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
+        """Schickt Bilder (JPEG-Bytes) mit einer Anweisung an das Modell und liefert dessen Text.
+
+        Wird fuer "Handschrift mit KI entziffern" gebraucht (Issue #47).
+        Provider ohne Bildeingabe lassen die Basis stehen. Bei Fehlern
+        (Netz, Schluessel, Modell ohne Bilder) wird ``RuntimeError`` mit
+        verstaendlichem Text geworfen.
+        """
+        raise NotImplementedError(f"{type(self).__name__} unterstützt keine Bildeingabe.")
 
     @abstractmethod
     def answer_with_context(
