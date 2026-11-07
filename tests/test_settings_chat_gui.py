@@ -88,9 +88,9 @@ def test_defaults_checkbox_aus_und_felder_deaktiviert(qtbot, fresh_config):
     for widget in (d.chat_provider_combo, d.chat_model_combo, d.chat_api_key_input,
                    d.chat_base_url_input, d.chat_test_button, d.chat_refresh_models_button):
         assert not widget.isEnabled(), widget
-    # Defaults der ChatConfig: Werkzeuge an, 6 Schritte, kein SQL
+    # Defaults der ChatConfig: Werkzeuge an, 8 Schritte, kein SQL
     assert d.chat_tools_check.isChecked()
-    assert d.chat_steps_spin.value() == 6
+    assert d.chat_steps_spin.value() == 8
     assert d.chat_steps_spin.minimum() == 1 and d.chat_steps_spin.maximum() == 12
     assert not d.chat_sql_check.isChecked()
     assert d.chat_steps_spin.isEnabled() and d.chat_sql_check.isEnabled()
@@ -265,7 +265,7 @@ def test_speichern_bei_checkbox_aus_schreibt_leeren_provider(qtbot, fresh_config
     # Modell/URL bleiben fuers Wiedereinschalten, andere Felder unberuehrt
     assert chat["model"] == "qwen3:8b" and chat["base_url"] == "http://x:1"
     assert chat["max_context_docs"] == 5 and chat["snippet_max_chars"] == 1234
-    assert chat["werkzeuge_aktiv"] is True and chat["max_werkzeug_schritte"] == 6
+    assert chat["werkzeuge_aktiv"] is True and chat["max_werkzeug_schritte"] == 8
     assert fresh_config.get_chat_llm_config() is None
 
 

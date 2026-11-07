@@ -366,7 +366,7 @@ class SettingsDialog(QDialog):
         steps_row.addWidget(QLabel("Höchstens"))
         self.chat_steps_spin = QSpinBox()
         self.chat_steps_spin.setRange(1, 12)
-        self.chat_steps_spin.setValue(6)
+        self.chat_steps_spin.setValue(8)
         self.chat_steps_spin.setToolTip(
             "Obergrenze für die Modellaufrufe mit Werkzeugen je Frage.\n"
             "Mehr Schritte = gründlicher, aber langsamer (und bei Cloud-Anbietern teurer)."

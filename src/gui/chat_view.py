@@ -225,11 +225,13 @@ class ChatView(QWidget):
         self.history_layout.setSpacing(8)
         self.history_layout.addStretch(1)  # Bubbles oben halten
         self.history_scroll.setWidget(self._history_container)
+        self._scroll_ausstehend = False
+        self.history_scroll.verticalScrollBar().rangeChanged.connect(self._on_history_range_changed)
         self.split.addWidget(self.history_scroll)
 
         # Rechte Seite: Quellen-Panel (collapsible -> startet sichtbar)
-        sources_panel = QWidget()
-        sources_layout = QVBoxLayout(sources_panel)
+        self.sources_panel = QWidget()
+        sources_layout = QVBoxLayout(self.sources_panel)
         sources_layout.setContentsMargins(2, 2, 2, 2)
         sources_layout.setSpacing(4)
 
@@ -249,14 +251,14 @@ class ChatView(QWidget):
         self.sources_list.itemClicked.connect(self._on_source_clicked)
         sources_layout.addWidget(self.sources_list, 1)
 
-        self.split.addWidget(sources_panel)
+        self.split.addWidget(self.sources_panel)
         self.split.setStretchFactor(0, 3)
         self.split.setStretchFactor(1, 1)
         self.split.setSizes([600, 250])
         if self.kompakt:
             # Quellen eingeklappt starten; der Knopf klappt sie unter dem Verlauf auf
-            self.split.setSizes([520, 140])
             self.sources_list.setVisible(False)
+            self._quellen_hoehe_anpassen()
 
         # Bezug-Chip und Schnellfragen (Issue #148), nur mit Bezugsdokument sichtbar
         self.bezug_box = QWidget()
@@ -366,6 +368,9 @@ class ChatView(QWidget):
         """
         bubble = QLabel()
         bubble.setWordWrap(True)
+        # Der Text ist immer HTML-maskiert; ohne RichText zeigt QLabel Entities
+        # wie &quot; woertlich, sobald kein Tag im Text steht (Live-Test)
+        bubble.setTextFormat(Qt.TextFormat.RichText)
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
@@ -437,10 +442,32 @@ class ChatView(QWidget):
         return rendered.replace("\n", "<br>")
 
     def _scroll_to_bottom(self) -> None:
-        """Scrollt die Historie ans Ende."""
+        """Scrollt die Historie ans Ende - auch dann, wenn das Layout erst noch waechst.
+
+        Direkt nach dem Einfuegen einer Bubble kennt die Scrollleiste die neue
+        Hoehe noch nicht (``maximum()`` ist alt). Deshalb wird nach dem naechsten
+        Ereignisdurchlauf gescrollt und zusaetzlich kurz auf ``rangeChanged``
+        reagiert, bis der Umbruch der Texte gerechnet ist (Live-Test: die
+        Antwort stand sonst unterhalb des sichtbaren Bereichs).
+        """
+        self._scroll_ausstehend = True
         bar = self.history_scroll.verticalScrollBar()
-        # Nach dem Layout-Durchlauf ans Ende scrollen
         bar.setValue(bar.maximum())
+        QTimer.singleShot(0, self._scroll_jetzt)
+        QTimer.singleShot(400, self._scroll_abschliessen)
+
+    def _scroll_jetzt(self) -> None:
+        bar = self.history_scroll.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def _scroll_abschliessen(self) -> None:
+        self._scroll_jetzt()
+        self._scroll_ausstehend = False
+
+    def _on_history_range_changed(self, _min: int, _max: int) -> None:
+        """Die Historie ist gewachsen: ans Ende, solange ein Scrollen aussteht."""
+        if getattr(self, "_scroll_ausstehend", False):
+            self._scroll_jetzt()
 
     # ------------------------------------------------------------------ #
     # Senden / Worker-Lifecycle                                          #
@@ -661,6 +688,9 @@ class ChatView(QWidget):
 
         bubble = QLabel()
         bubble.setWordWrap(True)
+        # Der Text ist immer HTML-maskiert; ohne RichText zeigt QLabel Entities
+        # wie &quot; woertlich, sobald kein Tag im Text steht (Live-Test)
+        bubble.setTextFormat(Qt.TextFormat.RichText)
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
@@ -695,6 +725,9 @@ class ChatView(QWidget):
 
         bubble = QLabel()
         bubble.setWordWrap(True)
+        # Der Text ist immer HTML-maskiert; ohne RichText zeigt QLabel Entities
+        # wie &quot; woertlich, sobald kein Tag im Text steht (Live-Test)
+        bubble.setTextFormat(Qt.TextFormat.RichText)
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
@@ -1119,6 +1152,21 @@ class ChatView(QWidget):
         visible = self.sources_list.isVisible()
         self.sources_list.setVisible(not visible)
         self.toggle_sources_btn.setText("▸" if visible else "▾")
+        self._quellen_hoehe_anpassen()
+
+    # Hoehe des Quellen-Bereichs im eingeklappten Zustand (kompakt): nur die Kopfzeile
+    QUELLEN_KOPF_HOEHE = 30
+
+    def _quellen_hoehe_anpassen(self) -> None:
+        """Kompakt: eingeklappte Quellen brauchen nur eine Zeile, ausgeklappte den Splitter-Anteil (Live-Test)."""
+        if not self.kompakt:
+            return
+        if self.sources_list.isHidden():
+            self.sources_panel.setMaximumHeight(self.QUELLEN_KOPF_HOEHE)
+        else:
+            self.sources_panel.setMaximumHeight(16777215)
+            gesamt = sum(self.split.sizes()) or 700
+            self.split.setSizes([max(200, gesamt - 180), 180])
 
     # ------------------------------------------------------------------ #
     # Reset & Status                                                     #

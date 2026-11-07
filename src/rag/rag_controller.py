@@ -73,8 +73,19 @@ BEZUG_LESE_ZEICHEN = 50000
 FRAGE_TREFFER_MINDESTENS = 2
 # Werkzeug-Schleife (Issue #166/#167, Phase 2): Rueckfall, falls die Konfiguration
 # keinen Wert hat
-WERKZEUG_SCHRITTE_STANDARD = 6
+WERKZEUG_SCHRITTE_STANDARD = 8
 ABGEBROCHEN_TEXT = "Abgebrochen."
+# Aufforderungen im letzten Schritt der Schleife (Live-Test: gpt-oss rief sonst
+# trotz leerer Werkzeugliste weiter auf und lieferte keinen Text)
+LETZTER_SCHRITT_HINWEIS = (
+    "Das war der letzte Werkzeugschritt. Beantworte die Frage jetzt mit dem, was du "
+    "bisher gefunden hast - ohne weitere Werkzeugaufrufe. Nenne die Quellen als [N] und "
+    "sage, was offen geblieben ist."
+)
+LETZTER_SCHRITT_NACHDRUCK = (
+    "Es stehen keine Werkzeuge mehr zur Verfügung. Antworte jetzt in Prosa auf die Frage "
+    "und fasse die bisherigen Ergebnisse zusammen."
+)
 
 
 @dataclass
@@ -506,16 +517,11 @@ class RAGController:
                 return self._antwort_abgebrochen(kasten)
             _melde(fortschritt, f"KI denkt (Schritt {schritt}/{max_schritte}) …")
             letzter = schritt == max_schritte
-            try:
-                antwort = self.llm_provider.chat_mit_werkzeugen(
-                    nachrichten=nachrichten,
-                    werkzeuge=[] if letzter else werkzeuge,
-                    max_tokens=max_tokens,
-                )
-            except Exception as e:  # noqa: BLE001 - Provider sollen nicht werfen, zur Sicherheit
-                antwort = WerkzeugAntwort(fehler=str(e) or type(e).__name__)
-            if antwort is None:
-                antwort = WerkzeugAntwort(fehler="Keine Antwort vom Provider.")
+            if letzter:
+                # Letzter Schritt: keine Werkzeuge mehr und eine klare Aufforderung
+                # zu antworten - ohne sie rufen Modelle wie gpt-oss weiter auf
+                nachrichten.append({"role": "user", "content": LETZTER_SCHRITT_HINWEIS})
+            antwort = self._werkzeug_schritt(nachrichten, [] if letzter else werkzeuge, max_tokens)
 
             fehler = str(getattr(antwort, "fehler", "") or "")
             aufrufe = list(getattr(antwort, "aufrufe", None) or [])
@@ -524,8 +530,16 @@ class RAGController:
                 # Das Modell wollte trotz leerer Werkzeugliste weiter rufen:
                 # der Text, falls vorhanden, ist die Antwort
                 aufrufe = []
-                if not text.strip():
-                    fehler = f"Das Modell hat nach {max_schritte} Schritten keine Antwort geliefert."
+            if letzter and not fehler and not text.strip():
+                # Noch ein Anlauf mit Nachdruck (zaehlt nicht als Werkzeugschritt);
+                # bleibt er leer, gibt es den Zwischenstand statt eines Fehlers
+                _melde(fortschritt, "KI formuliert die Antwort …")
+                nachrichten.append({"role": "user", "content": LETZTER_SCHRITT_NACHDRUCK})
+                antwort = self._werkzeug_schritt(nachrichten, [], max_tokens)
+                fehler = str(getattr(antwort, "fehler", "") or "")
+                text = str(getattr(antwort, "text", "") or "")
+                if not fehler and not text.strip():
+                    return self._antwort_zwischenstand(kasten, max_schritte)
             if not fehler and not aufrufe and not text.strip():
                 fehler = "Leere Antwort des Modells."
             if fehler:
@@ -590,6 +604,42 @@ class RAGController:
             retrieved_docs=kasten.dokumente(),
             used_llm=True,
             has_hallucinated_citations=bool(dropped),
+            schritte=list(kasten.protokoll),
+            werkzeuge_benutzt=True,
+        )
+
+    def _werkzeug_schritt(self, nachrichten: list[dict], werkzeuge: list, max_tokens: int) -> WerkzeugAntwort:
+        """Ein Modellaufruf der Schleife; Exceptions und None werden zu ``fehler``."""
+        try:
+            antwort = self.llm_provider.chat_mit_werkzeugen(
+                nachrichten=nachrichten, werkzeuge=werkzeuge, max_tokens=max_tokens,
+            )
+        except Exception as e:  # noqa: BLE001 - Provider sollen nicht werfen, zur Sicherheit
+            return WerkzeugAntwort(fehler=str(e) or type(e).__name__)
+        if antwort is None:
+            return WerkzeugAntwort(fehler="Keine Antwort vom Provider.")
+        return antwort
+
+    @staticmethod
+    def _antwort_zwischenstand(kasten: Werkzeugkasten, max_schritte: int) -> RAGResponse:
+        """Das Modell hat auch nach der Aufforderung nichts formuliert: der Zwischenstand als Antwort.
+
+        Statt "Werkzeugaufruf fehlgeschlagen" bekommt der Nutzer, was die
+        Werkzeuge ergeben haben, und kann gezielt nachfragen.
+        """
+        zeilen = [f"Ich konnte die Frage in {max_schritte} Schritten nicht abschließend beantworten. "
+                  "Das haben die Werkzeuge bisher ergeben:"]
+        for s in kasten.protokoll:
+            zeilen.append(f"- {s.zusammenfassung}")
+        gelesen = [d for d in kasten.dokumente() if (d.extra or {}).get("status") in ("gelesen", "zitiert")]
+        if gelesen:
+            zeilen.append("Gelesene Dokumente: " + ", ".join(f"[{d.index}] {d.filename}" for d in gelesen))
+        zeilen.append("Stelle die Frage bitte enger oder nenne das Dokument, in dem ich nachsehen soll.")
+        return RAGResponse(
+            answer_text="\n".join(zeilen),
+            citations=[],
+            retrieved_docs=kasten.dokumente(),
+            used_llm=True,
             schritte=list(kasten.protokoll),
             werkzeuge_benutzt=True,
         )

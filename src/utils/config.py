@@ -51,7 +51,7 @@ class ChatConfig:
     #     (provider-Kennungen "ollama", "ollama_cloud", "claude", "openai",
     #     "openrouter", "poe", "strata"); die Cloud-Einwilligung gilt global.
     werkzeuge_aktiv: bool = True
-    max_werkzeug_schritte: int = 6
+    max_werkzeug_schritte: int = 8
     sql_erlaubt: bool = False
     provider: str = ""
     model: str = ""

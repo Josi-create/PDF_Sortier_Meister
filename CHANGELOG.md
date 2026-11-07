@@ -34,9 +34,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Ordner-, Zeitraum- und Metadatenfiltern), „dokument_lesen“ (Volltext,
   seitenweise, bei Excel das Tabellenblatt), „ordner_vorschlag“ (Sortierlogik
   und ähnliche, bereits einsortierte Dokumente) und „korrespondent_info“
-  (Aliase, Notizen, MwSt, absetzbar). Es darf bis zu sechs Schritte lang
+  (Aliase, Notizen, MwSt, absetzbar). Es darf bis zu acht Schritte lang
   suchen und lesen, bevor es antwortet; die Statuszeile zeigt jeden Schritt,
-  „Abbrechen“ greift zwischen den Schritten. Im Chat erscheinen die
+  „Abbrechen“ greift zwischen den Schritten. Im letzten Schritt wird das
+  Modell ausdrücklich zur Antwort aufgefordert; bleibt sie aus, zeigt der Chat
+  den Zwischenstand der Werkzeuge statt einer Fehlermeldung. Im Chat erscheinen die
   Arbeitsschritte („🔎 Suche „226541“: 3 Treffer“) ein- und ausklappbar vor
   der Antwort, das Quellen-Panel unterscheidet zitierte, gelesene und
   gefundene Dokumente. Modelle ohne Werkzeuge antworten wie bisher; in den

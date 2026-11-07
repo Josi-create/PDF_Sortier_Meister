@@ -138,8 +138,8 @@ def test_schleife_suche_lesen_antwort(sammlung):
     assert len(llm.aufrufe) == 3
     erste, werkzeuge, max_tokens = llm.aufrufe[0]
     assert _rollen(erste) == ["system", "user"]
-    assert erste[0]["content"] == build_system_prompt_werkzeuge(6)
-    assert "{max_schritte}" not in erste[0]["content"] and "höchstens 6 Schritte" in erste[0]["content"]
+    assert erste[0]["content"] == build_system_prompt_werkzeuge(8)
+    assert "{max_schritte}" not in erste[0]["content"] and "höchstens 8 Schritte" in erste[0]["content"]
     assert "=== DOKUMENTE ===" in erste[1]["content"] and "BEZUGSDOKUMENT" in erste[1]["content"]
     assert "[D1] dateiname=Neu.pdf" in erste[1]["content"] and f"[D2] dateiname={JAHRESABRECHNUNG}" in erste[1]["content"]
     assert f"FRAGE: {FRAGE}" in erste[1]["content"]
@@ -343,9 +343,12 @@ def test_letzter_schritt_mit_aufrufen_nimmt_den_text(sammlung):
     assert response.answer_text == "Trotzdem eine Antwort [1]." and response.used_llm
     assert [s.werkzeug for s in response.schritte] == ["suche"]  # der zweite Aufruf lief nicht
 
+    # Ohne Text folgt ein zweiter Anlauf mit Nachdruck (Live-Test-Befund); der Stub antwortet dann "Fertig."
     llm = _WerkzeugLLM([_suche("Telekom"), WerkzeugAntwort(aufrufe=[WerkzeugAufruf("suche", {"abfrage": "x"})])])
     response = RAGController(db, llm, ChatConfig(max_werkzeug_schritte=2)).ask(FRAGE, bezug=bezug)
-    assert response.answer_text.startswith("Werkzeugaufruf fehlgeschlagen: Das Modell hat nach 2 Schritten")
+    assert response.answer_text == "Fertig." and response.used_llm
+    assert len(llm.aufrufe) == 3 and llm.aufrufe[2][1] == []
+    assert llm.aufrufe[2][0][-1]["role"] == "user"
 
 
 # --------------------------------------------------------------------------- (h) Fortschritt
@@ -364,15 +367,15 @@ def test_fortschritt_meldungen(sammlung):
     ])
     meldungen: list[str] = []
     RAGController(db, llm, ChatConfig(sql_erlaubt=True)).ask(FRAGE, bezug=bezug, fortschritt=meldungen.append)
-    assert meldungen[0] == "KI denkt (Schritt 1/6) …"
-    assert "KI denkt (Schritt 2/6) …" in meldungen and "KI denkt (Schritt 3/6) …" in meldungen
+    assert meldungen[0] == "KI denkt (Schritt 1/8) …"
+    assert "KI denkt (Schritt 2/8) …" in meldungen and "KI denkt (Schritt 3/8) …" in meldungen
     for erwartet in ("Suche „226541“ …", "Korrespondent „Telekom“ …", "Korrespondent „Telekom“: unbekannt",
                      "Lese D2 …", "Ordnervorschlag …", "SQL-Abfrage …", "SQL: 1 Zeilen"):
         assert erwartet in meldungen, (erwartet, meldungen)
     ergebnis = next(i for i, m in enumerate(meldungen) if m.startswith("Suche „226541“: 2 Treffer (D"))
-    assert meldungen.index("KI denkt (Schritt 1/6) …") < meldungen.index("Suche „226541“ …") < ergebnis
-    assert ergebnis < meldungen.index("KI denkt (Schritt 2/6) …") < meldungen.index("Lese D2 …")
-    assert meldungen.index("SQL: 1 Zeilen") < meldungen.index("KI denkt (Schritt 3/6) …") == len(meldungen) - 1
+    assert meldungen.index("KI denkt (Schritt 1/8) …") < meldungen.index("Suche „226541“ …") < ergebnis
+    assert ergebnis < meldungen.index("KI denkt (Schritt 2/8) …") < meldungen.index("Lese D2 …")
+    assert meldungen.index("SQL: 1 Zeilen") < meldungen.index("KI denkt (Schritt 3/8) …") == len(meldungen) - 1
 
 
 def test_fortschritt_callback_der_wirft_stoert_nicht(sammlung):
