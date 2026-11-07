@@ -81,7 +81,13 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
     (``"index": False``). ``abbrechen`` (Funktion ohne Argumente) wird vor
     jeder Seite gefragt.
 
-    Liefert ``{"index": bool, "seiten": int, "fehler": str | None}``.
+    Liegt eine Seite falsch herum, liest Tesseract sie auch gedreht
+    (Issue #151); die Lage merkt sich der Index. Weil der Nutzer die neue
+    Erkennung ausdruecklich verlangt hat, dreht der naechste Indexlauf die
+    Datei, wo sie auch liegt - ausser ``auto_drehen`` ist aus.
+
+    Liefert ``{"index": bool, "seiten": int, "fehler": str | None}``, dazu
+    ``"gedreht": int``, wenn Seiten erst gedreht lesbar waren.
     """
     from src.search import extract as suche_extract
 
@@ -109,6 +115,7 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
         cfg["textebene"] = True
     texte: dict = {}
     ebenen: dict = {}
+    drehungen: dict = {}
     for nr in offen:
         if abbrechen is not None and abbrechen():
             break
@@ -120,8 +127,14 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
             texte[nr] = text
             if res.get("ebenen", {}).get(nr):
                 ebenen[nr] = res["ebenen"][nr]
+            if res.get("drehungen", {}).get(nr):
+                drehungen[nr] = res["drehungen"][nr]
     if texte:
-        erg["seiten"] = index.ocr_eintragen(pfad, texte, ebenen=ebenen or None, ersetzen=True)
+        erg["seiten"] = index.ocr_eintragen(pfad, texte, ebenen=ebenen or None, ersetzen=True,
+                                            drehungen=drehungen or None,
+                                            drehen=index.konfig.auto_drehen != "aus")
+    if drehungen:
+        erg["gedreht"] = len(drehungen)
     return erg
 
 
@@ -277,7 +290,8 @@ class PDFAnalyzer:
                 seiten = [(nr, "ocr", erkannt[nr]) if nr in erkannt else (nr, q, txt) for nr, q, txt in seiten]
                 if index is not None:
                     try:
-                        index.ocr_eintragen(pfad, erkannt, ebenen=ebenen or None)
+                        index.ocr_eintragen(pfad, erkannt, ebenen=ebenen or None,
+                                            drehungen=self._ocr_drehungen or None)
                     except Exception as e:  # noqa: BLE001
                         print(f"Suchindex: OCR nicht eingetragen: {e}")
 
@@ -311,7 +325,10 @@ class PDFAnalyzer:
         Liefert ``({seite: text}, {seite: text_pdf})``; die Text-PDFs fuer die
         unsichtbare Textebene (Phase 5b) nur mit ``textebene``, aus demselben
         Tesseract-Aufruf. Geschrieben werden sie vom naechsten Indexlauf.
+        Seiten, die Tesseract gedreht besser las (Issue #151), stehen danach in
+        ``self._ocr_drehungen`` (``{seite: grad}``) fuer den Index.
         """
+        self._ocr_drehungen = {}
         cfg = ocr_einstellungen_fuer_analyse()
         if cfg is None:
             print("Warnung: Tesseract nicht gefunden. OCR nicht verfügbar.")
@@ -328,6 +345,7 @@ class PDFAnalyzer:
             print(f"OCR-Fehler: {res['fehler']}")
         texte = {nr: txt for nr, txt in res["texte"].items() if txt and txt.strip()}
         ebenen = {nr: e for nr, e in (res.get("ebenen") or {}).items() if nr in texte and e}
+        self._ocr_drehungen = {nr: g for nr, g in (res.get("drehungen") or {}).items() if nr in texte and g}
         return texte, ebenen
 
     def get_metadata(self) -> dict:

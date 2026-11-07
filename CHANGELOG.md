@@ -46,6 +46,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Wechsel in den Chat ein anderes PDF ausgewählt ist. Ohne KI zeigt der Chat
   wie bisher die gefundenen Dokumente, bei der Ordnerfrage zusätzlich den
   Vorschlag der Sortierlogik.
+- **Gedrehte Scans richtig herum** (#151): Liest die Texterkennung eine
+  Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die
+  drei anderen Lagen und nimmt die beste. Die Suche findet den Text dann auch
+  in falsch herum eingelegten Scans. So herum wird die PDF beim nächsten
+  Indexlauf gespeichert, standardmäßig nur für neue Scans im ersten
+  Vorrang-Ordner (Einstellungen › Suche › „Gedrehte Seiten richtig herum
+  speichern“: nur neue Scans, aus oder alle). Das gilt auch, wenn der Scan bis
+  dahin schon einsortiert ist. Geändert wird nur die Drehangabe der Seite, das
+  Scanbild bleibt unverändert. Wie bei der Textebene entsteht vorher eine
+  Sicherungskopie, die Änderung steht im Protokoll („Geänderte PDFs anzeigen /
+  rückgängig machen…“, Spalte „Gedreht“) und lässt sich zurücknehmen. Mit
+  Textebene entstehen Drehung und Textebene in einem Schritt. Bleibt eine Datei
+  ungedreht, liegt die Textebene trotzdem passend auf dem Scan. Signierte,
+  verschlüsselte, PDF/A- und geöffnete Dateien bleiben unberührt. Eine
+  aufrechte Seite kostet keinen zusätzlichen Erkennungslauf, eine falsch
+  liegende drei.
 
 ### Geaendert
 - **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die

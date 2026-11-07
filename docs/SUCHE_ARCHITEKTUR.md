@@ -594,6 +594,68 @@ bleibt die Ebene erhalten. Beide Reihenfolgen sind getestet.
   0 = unbegrenzt). Text-PDFs im Cache verfallen nach 60 Tagen
   (`EBENE_AUFBEWAHREN_TAGE`); danach braucht eine verlorene Ebene neue OCR.
 
+### 3.5 Gedrehte Scans erkennen und richtig herum speichern (Issue #151)
+
+Steht ein Scan auf dem Kopf, liefert Tesseract Buchstabensalat, und die Suche
+findet nichts. Deshalb liest die OCR eine falsch liegende Seite zusaetzlich in
+den drei anderen Lagen und nimmt die beste. So herum wird die PDF gespeichert.
+
+**Erkennen** (`extract.seite_erkennen`, bei jeder OCR mit `lage_pruefen`, das
+`SearchConfig.ocr_einstellungen()` immer setzt):
+
+- Derselbe Tesseract-Aufruf liefert die TSV mit. Ueber stdout kommen
+  nacheinander TSV und Text, bei der Textebene `.tsv` neben `.txt`/`.pdf`.
+  Bewertet wird mit `extract.lesbarkeit`: Buchstaben und Ziffern sicher
+  erkannter (Konfidenz ab 70) *waagerechter* Woerter im Verhaeltnis zu allen.
+- Ein Versuch mit dem mitgelieferten Tesseract (ohne `osd.traineddata`) zeigt,
+  warum beides noetig ist:
+  - Aufrecht sind nahezu 100 % sicher und waagerecht.
+  - Kopfstehend liefert Tesseract Salat mit etwa 12 % sicheren Zeichen.
+  - Quer liest Tesseract den Text zwar richtig, aber als senkrechte Woerter
+    (Box hoeher als breit), also 1 %.
+- Liegt der Anteil unter der Haelfte (`LAGE_ANTEIL`) und hat die Seite genug
+  Schrift (`min_zeichen`), liest Tesseract sie gedreht um 90, 180 und 270 Grad.
+  Gedreht wird dabei nur die Seite im Speicher (`set_rotation`), nicht die Datei.
+- Eine andere Lage gewinnt nur, wenn sie selbst aufrecht lesbar ist und
+  mindestens doppelt so viele sichere Zeichen hat (`LAGE_FAKTOR`). Sonst bleibt
+  alles wie angezeigt, etwa bei Handschrift.
+- Kosten: drei weitere Aufrufe, nur fuer falsch liegende Seiten (gemessen
+  2,2 statt 0,5 s je Seite). Leere Seiten und Stempel kosten nichts extra.
+- Mit `lage_pruefen` liest Tesseract mit `--psm 3` statt 1. Mit
+  `osd.traineddata` (System-Tesseract) dreht `--psm 1` kopfstehende Seiten
+  intern zurueck. Die Lage liesse sich dann nicht bewerten, und 90 nicht von
+  270 Grad unterscheiden. Ohne `osd.traineddata` faellt `--psm 1` ohnehin auf 3
+  zurueck, fuer das mitgelieferte Tesseract aendert sich also nichts.
+- Text und Text-PDF stammen aus der besten Lage. `pdf_ocr` meldet sie in
+  `drehungen`. Im Index steht sie beim Cache-Eintrag der Seite
+  (`ocr_cache.drehung`), auch fuer die Analyse in PDFSM und „OCR neu“
+  (`Suchindex.ocr_eintragen(drehungen=...)`).
+
+**Schreiben** (Stufe `SearchConfig.auto_drehen`, wie `textebene`: `aus`,
+`neue_scans` = Standard, `alle`):
+
+- Entschieden wird bei der OCR (`drehen_vormerken`, `ocr_cache.drehen`). Ein
+  neuer Scan, den der Nutzer danach wegsortiert, wird trotzdem gedreht. Die
+  Vormerkung haengt am Bild-Hash wie die Text-PDF.
+- Gedreht wird im Schreibschritt der Textebene (`textebene.datei_schreiben`,
+  Laufabschnitt „Textebene schreiben“), auch wenn die Textebene aus ist. Es gilt
+  derselbe Schutz: Kopie, `/Rotate` setzen, inkrementell speichern, pruefen
+  (genau die vorgesehene Drehung), Sicherungskopie, `datei_ersetzen`. Nie
+  angefasst werden dieselben Faelle wie bei der Textebene.
+- Mit Textebene entstehen Drehung und Ebene in *einer* Aenderung, mit einer
+  Sicherungskopie und einem Protokolleintrag (`gedreht`, z. B. `1:180`).
+  Rueckgaengig nimmt beides zurueck.
+- Bleibt die Datei ungedreht (Stufe `aus`, ausserhalb des Scan-Ordners), liegt
+  die Textebene trotzdem deckungsgleich auf dem Scan. `ebene_auflegen` bekommt
+  die Lage, in der Tesseract gelesen hat.
+- Nach dem Drehen hat die Seite einen neuen Bild-Hash (die Drehung gehoert dazu,
+  Issue #150). `seiten.bild_hash` und der Cache werden umgestellt, der Text
+  steht unter dem neuen Hash ohne Drehung. Der naechste Lauf erkennt also nichts
+  neu.
+- Der alte Eintrag verliert die Vormerkung. Eine Kopie des ungedrehten Scans,
+  etwa eine eigene Sicherung, wird nicht gedreht, und nach Rueckgaengig dreht
+  kein Lauf die Datei erneut (zusaetzlich `textebene_grund = 'rueckgaengig'`).
+
 ---
 
 ## 4. Prozessmodell

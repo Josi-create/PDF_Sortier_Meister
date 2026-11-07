@@ -206,8 +206,8 @@ def test_abbruch_mitten_im_schreiben_laesst_das_original_intakt(tmp_path, monkey
     else:
         echt = textebene._schreiben_tmp
 
-        def abbrechen(pfad, tmp, ebenen):
-            echt(pfad, tmp, ebenen)
+        def abbrechen(*args):
+            echt(*args)
             raise KeyboardInterrupt          # Prozess wird mitten im Schreiben beendet
         monkeypatch.setattr(textebene, "_schreiben_tmp", abbrechen)
     a = _auftrag(scan, _ebene_fuer(scan), tmp_path / "sicherung")
@@ -634,6 +634,7 @@ def test_dienst_textebene(tmp_path, ocr, monkeypatch, capsys):
     assert "schon rückgängig" in capsys.readouterr().out
 
     konfig.textebene = "aus"
+    konfig.auto_drehen = "aus"           # sonst dreht "schreiben" noch vorgemerkte Seiten (Issue #151)
     cfg.write_text(json.dumps({"suche": konfig.als_dict()}), encoding="utf-8")
     assert dienst.main(argv + ["schreiben"]) == 1
     assert "ausgeschaltet" in capsys.readouterr().out

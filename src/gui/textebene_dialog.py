@@ -30,7 +30,7 @@ from src.search.suchindex import Suchindex
 from src.search.textebene import MELDUNG_GEAENDERT
 from src.utils.platform_paths import file_manager_name
 
-SPALTEN = ("Geändert am", "Datei", "Seiten", "Stand")
+SPALTEN = ("Geändert am", "Datei", "Seiten", "Gedreht", "Stand")
 
 
 def stand_text(e: dict) -> str:
@@ -40,6 +40,16 @@ def stand_text(e: dict) -> str:
     if e.get("sicherung"):
         return "Sicherung vorhanden"
     return "Sicherung abgelaufen"
+
+
+def gedreht_text(gedreht: str | None) -> str:
+    """``"1:180,3:90"`` -> ``"S. 1: 180°, S. 3: 90°"`` (Issue #151); leer, wenn nichts gedreht wurde."""
+    teile = []
+    for teil in (gedreht or "").split(","):
+        seite, _, grad = teil.partition(":")
+        if seite.strip() and grad.strip():
+            teile.append(f"S. {seite.strip()}: {grad.strip()}°")
+    return ", ".join(teile)
 
 
 class RueckgaengigThread(QThread):
@@ -76,8 +86,9 @@ class TextebeneProtokollDialog(QDialog):
 
         lay = QVBoxLayout(self)
         hinweis = QLabel(
-            "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen. Vor jeder Änderung "
-            "entstand eine Sicherungskopie; solange sie aufbewahrt wird, lässt sich die Änderung zurücknehmen."
+            "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen oder wurden richtig "
+            "herum gedreht. Vor jeder Änderung entstand eine Sicherungskopie; solange sie aufbewahrt wird, "
+            "lässt sich die Änderung zurücknehmen."
         )
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
@@ -90,12 +101,12 @@ class TextebeneProtokollDialog(QDialog):
         self.tabelle.verticalHeader().setVisible(False)
         kopf = self.tabelle.horizontalHeader()
         kopf.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for spalte in (0, 2, 3):
+        for spalte in (0, 2, 3, 4):
             kopf.setSectionResizeMode(spalte, QHeaderView.ResizeMode.ResizeToContents)
         self.tabelle.itemSelectionChanged.connect(self._auswahl_geaendert)
         lay.addWidget(self.tabelle, 1)
 
-        self.leer_label = QLabel("Noch keine PDF hat eine Textebene bekommen.")
+        self.leer_label = QLabel("Noch keine PDF hat eine Textebene bekommen oder wurde gedreht.")
         self.leer_label.setStyleSheet("color: gray;")
         lay.addWidget(self.leer_label)
 
@@ -123,7 +134,8 @@ class TextebeneProtokollDialog(QDialog):
         self.tabelle.setRowCount(len(self.eintraege))
         for zeile, e in enumerate(self.eintraege):
             pfad = e.get("aktueller_pfad") or e["pfad"]
-            werte = ((e.get("am") or "").replace("T", " "), pfad, e.get("seiten") or "", stand_text(e))
+            werte = ((e.get("am") or "").replace("T", " "), pfad, e.get("seiten") or "",
+                     gedreht_text(e.get("gedreht")), stand_text(e))
             for spalte, wert in enumerate(werte):
                 item = QTableWidgetItem(wert)
                 item.setData(Qt.ItemDataRole.UserRole, e["id"])
