@@ -59,8 +59,8 @@ class FavoritenLeiste(QFrame):
     geaendert = pyqtSignal()  # Liste wurde veraendert
 
     _STIL = (
-        "QPushButton { border: 1px solid transparent; border-radius: 3px; "
-        "padding: 2px 8px; font-size: 11px; }"
+        "QPushButton { background-color: #ececec; border: 1px solid #b5b5b5; "
+        "border-radius: 3px; padding: 1px 8px; font-size: 11px; color: #333; }"
         "QPushButton:hover { background-color: #fff3cd; border-color: #daa520; }"
         "QPushButton[aktuell=\"true\"] { background-color: #ffe9a8; "
         "border-color: #daa520; font-weight: bold; }"
@@ -82,11 +82,13 @@ class FavoritenLeiste(QFrame):
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll.setFixedHeight(40)
+        # Kompakt: kein Scrollbalken (er wuerde die Zeile verdoppeln),
+        # seitwaerts scrollt das Mausrad (_SeitwaertsScroll)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setFixedHeight(26)
         innen = QWidget()
         self._zeile = QHBoxLayout(innen)
-        self._zeile.setContentsMargins(0, 2, 0, 2)
+        self._zeile.setContentsMargins(0, 1, 0, 1)
         self._zeile.setSpacing(4)
         self._zeile.addStretch()
         self._scroll.setWidget(innen)
