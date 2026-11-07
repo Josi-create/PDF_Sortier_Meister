@@ -52,7 +52,12 @@ class Config:
         "window_maximized": True,
         # Kachelgroesse im Scan-Bereich: "klein" / "mittel" / "gross" (Issue #117)
         "tile_view": "klein",
+        # Backup-Erinnerung (Issue #14): Abstand in Tagen, 0 = aus
         "backup_check_days": 7,
+        # ISO-Datum des zuletzt bestaetigten Backups ("" = nie)
+        "backup_last_confirmed": "",
+        # Frage mit "Nein" beantwortet: Statusleisten-Hinweis bleibt
+        "backup_pending": False,
         "language": "de",
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
