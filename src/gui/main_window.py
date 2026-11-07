@@ -40,7 +40,7 @@ from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
-from src.gui.folder_widget import FolderWidget
+from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -2227,12 +2227,17 @@ class MainWindow(QMainWindow):
             # auf den Baum (vorher stilles No-op, weil nie verbunden)
             widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
 
+            # Issue #32: nur der erste (beste) Vorschlag, nur bei hoher Konfidenz
+            if not self.suggestion_widgets and suggestion.confidence >= REGENBOGEN_SCHWELLE:
+                widget.set_regenbogen(True)
+
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
 
     def clear_suggestions(self):
         """Entfernt alle Vorschlag-Widgets."""
         for widget in self.suggestion_widgets:
+            widget.set_regenbogen(False)  # Animation sauber stoppen (Issue #32)
             widget.deleteLater()
         self.suggestion_widgets.clear()
         self._shown_suggestions = []
