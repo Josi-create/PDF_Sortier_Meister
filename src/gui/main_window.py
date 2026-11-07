@@ -51,6 +51,7 @@ from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondent_sidebar import KorrespondentSidebar
+from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
 from src.core.file_manager import FileManager, FolderManager
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 
@@ -89,6 +90,11 @@ class _ClickableLabel(QLabel):
     """QLabel, das bei Doppelklick ein Signal sendet (Statusleiste)."""
 
     doubleClicked = pyqtSignal()
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         self.doubleClicked.emit()
@@ -1736,7 +1742,12 @@ class MainWindow(QMainWindow):
         self._check_llm_connection()
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
-        self.backup_status_label = QLabel("Backup: Nicht geprüft")
+        # Backup-Erinnerung (Issue #14): nur sichtbar, solange "Nein" gilt
+        self.backup_status_label = _ClickableLabel("Kein aktuelles Backup gemacht")
+        self.backup_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        self.backup_status_label.setToolTip("Klicken, um ein gemachtes Backup zu bestätigen.")
+        self.backup_status_label.clicked.connect(self.confirm_backup_done)
+        self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
         self.statusbar.addPermanentWidget(self.backup_status_label)
 
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
@@ -4777,6 +4788,34 @@ class MainWindow(QMainWindow):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
         self.config.set("first_steps_hint_dismissed", dismiss.isChecked())
+
+    def check_backup_reminder(self):
+        """Fragt alle X Tage, ob ein Backup gemacht wurde (Issue #14)."""
+        days = self.config.get("backup_check_days", 7)
+        if not is_question_due(
+            days,
+            parse_date(self.config.get("backup_last_confirmed", "")),
+            bool(self.config.get("backup_pending", False)),
+            macrium_last_backup(),
+        ):
+            return
+        antwort = QMessageBox.question(
+            self, "Backup-Erinnerung",
+            f"Haben Sie in den letzten {int(days)} Tagen ein Backup gemacht?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if antwort == QMessageBox.StandardButton.Yes:
+            self.confirm_backup_done()
+        else:
+            self.config.set("backup_pending", True)
+            self.backup_status_label.setVisible(True)
+
+    def confirm_backup_done(self):
+        """Backup bestaetigt: Datum speichern, Statusleisten-Hinweis ausblenden."""
+        from datetime import datetime
+        self.config.set("backup_last_confirmed", datetime.now().isoformat(timespec="seconds"))
+        self.config.set("backup_pending", False)
+        self.backup_status_label.setVisible(False)
 
     def show_backup_hint(self, force: bool = False):
         """

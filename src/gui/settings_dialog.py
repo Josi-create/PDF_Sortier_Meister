@@ -920,6 +920,22 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(update_group)
 
+        # Backup-Erinnerung (Issue #14)
+        backup_group = QGroupBox("Backup-Erinnerung")
+        backup_layout = QHBoxLayout(backup_group)
+        backup_layout.addWidget(QLabel("Alle"))
+        self.backup_days_spin = QSpinBox()
+        self.backup_days_spin.setRange(0, 365)
+        self.backup_days_spin.setSuffix(" Tage")
+        self.backup_days_spin.setToolTip(
+            "Abstand, in dem gefragt wird, ob ein Backup gemacht wurde.\n"
+            "0 = Erinnerung aus. Ein aktuelles Macrium-Reflect-Log ersetzt die Frage."
+        )
+        backup_layout.addWidget(self.backup_days_spin)
+        backup_layout.addWidget(QLabel("nach einem Backup fragen (0 = aus)"))
+        backup_layout.addStretch()
+        layout.addWidget(backup_group)
+
         # Debug-Bereich
         debug_group = QGroupBox("Debug / Zurücksetzen")
         debug_layout = QVBoxLayout(debug_group)
@@ -2081,6 +2097,9 @@ class SettingsDialog(QDialog):
         # Update-Pruefung (Issue #73)
         self.update_check_checkbox.setChecked(self.config.get("update_check_enabled", True))
 
+        # Backup-Erinnerung (Issue #14)
+        self.backup_days_spin.setValue(int(self.config.get("backup_check_days", 7)))
+
         # PDF oeffnen (Issues #74/#76)
         mode = normalize_open_mode(self.config.get("pdf_open_mode"))
         self.pdf_open_mode_combo.setCurrentIndex(max(self.pdf_open_mode_combo.findData(mode), 0))
@@ -2148,6 +2167,9 @@ class SettingsDialog(QDialog):
 
         # Update-Pruefung (Issue #73)
         self.config.set("update_check_enabled", self.update_check_checkbox.isChecked())
+
+        # Backup-Erinnerung (Issue #14)
+        self.config.set("backup_check_days", self.backup_days_spin.value())
 
         # PDF oeffnen (Issues #74/#76)
         self.config.set("pdf_open_mode", self.pdf_open_mode_combo.currentData())
