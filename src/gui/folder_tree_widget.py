@@ -98,10 +98,12 @@ class FolderTreeWidget(QWidget):
     pdf_dropped = pyqtSignal(Path, Path)  # PDF auf Ordner gezogen (pdf_path, folder_path)
     folder_removed = pyqtSignal(Path)  # Ordner aus Liste entfernt
     scan_finished = pyqtSignal()  # Baum wurde (neu) befuellt
+    favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_folders: list[Path] = []
+        self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster (#114)
         self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
         # Ordner mit noch nicht geladenen Unterordnern (unterhalb der Scan-Tiefe)
         self._unloaded: set[Path] = set()
@@ -549,6 +551,13 @@ class FolderTreeWidget(QWidget):
         if folder_path in self._root_folders:
             remove_action = menu.addAction("❌ Aus Zielliste entfernen")
             remove_action.triggered.connect(lambda: self._remove_folder(folder_path))
+
+        # Favorit (Issue #114)
+        from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
+
+        ist_fav = bool(self.favorit_pruefer and self.favorit_pruefer(folder_path))
+        fav_action = menu.addAction(FAVORIT_ENTFERNEN_TEXT if ist_fav else FAVORIT_MERKEN_TEXT)
+        fav_action.triggered.connect(lambda: self.favorit_umschalten.emit(folder_path))
 
         return menu
 

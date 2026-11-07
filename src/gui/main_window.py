@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
+from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget
@@ -482,12 +483,21 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(header_layout)
 
+        # Favoriten-Leiste ueber der Pfadzeile (Issue #114)
+        self._favoriten_vorbelegen()
+        self.favoriten_leiste = FavoritenLeiste(self.config)
+        self.favoriten_leiste.ordner_geoeffnet.connect(self._on_favorit_geoeffnet)
+        layout.addWidget(self.favoriten_leiste)
+
         # Breadcrumb: klickbarer Pfad zum aktuellen Scan-Ordner (Explorer-Gefuehl)
-        self.breadcrumb_layout = QHBoxLayout()
+        self.breadcrumb_widget = QWidget()
+        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_widget)
         self.breadcrumb_layout.setContentsMargins(6, 0, 6, 2)
         self.breadcrumb_layout.setSpacing(2)
         self.breadcrumb_layout.addStretch()
-        layout.addLayout(self.breadcrumb_layout)
+        self.breadcrumb_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
+        layout.addWidget(self.breadcrumb_widget)
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
@@ -615,6 +625,8 @@ class MainWindow(QMainWindow):
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
+        self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
+        self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
         ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
@@ -780,6 +792,7 @@ class MainWindow(QMainWindow):
         if scan_folder and scan_folder.parent != scan_folder and scan_folder.parent.exists():
             parent_folder = scan_folder.parent
         self._update_breadcrumb(scan_folder)
+        self.favoriten_leiste.set_aktueller_ordner(scan_folder)
 
         if not pdf_files and not subfolders and parent_folder is None:
             self.empty_label.setText(
@@ -821,6 +834,8 @@ class MainWindow(QMainWindow):
                 # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
+            tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
             self.folder_tiles.append(tile)
         self._place_folder_rows()
 
@@ -3873,6 +3888,36 @@ class MainWindow(QMainWindow):
         self.file_manager.set_scan_folder(str(folder_path))
         self.load_pdfs()
         self._update_navigation_buttons()
+
+    def _favoriten_vorbelegen(self):
+        """Beim ersten Start den Scan-Ordner als ersten Favoriten eintragen (#114).
+
+        Nur einmal (Merker ``favoriten_vorbelegt``), damit eine bewusst geleerte
+        Liste leer bleibt.
+        """
+        if self.config.get("favoriten_vorbelegt", False):
+            return
+        self.config.set("favoriten_vorbelegt", True, auto_save=False)
+        scan = self.config.get_scan_folder()
+        if scan and Path(scan).is_dir() and not self.config.get("favoriten"):
+            self.config.set("favoriten", [{"pfad": str(scan), "name": ""}])
+        else:
+            self.config.save()
+
+    def _on_favorit_geoeffnet(self, folder_path: Path):
+        """Klick auf einen Favoriten: Ordner ueber die zentrale Navigation oeffnen."""
+        if Path(self.config.get_scan_folder()) == folder_path:
+            return
+        self._navigate_to_folder(folder_path)
+        self.statusbar.showMessage(f"Ordner geöffnet: {folder_path.name}", 3000)
+
+    def _breadcrumb_menue(self, pos):
+        """Rechtsklick auf die Pfadzeile: aktuellen Ordner als Favorit merken."""
+        scan = self.config.get_scan_folder()
+        if not scan:
+            return
+        menu = aktuellen_ordner_menue(self, self.favoriten_leiste, Path(scan))
+        menu.exec(self.breadcrumb_widget.mapToGlobal(pos))
 
     def _update_navigation_buttons(self):
         """Aktualisiert den Zustand des Zurück-Buttons."""

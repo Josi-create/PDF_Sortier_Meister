@@ -47,6 +47,10 @@ class Config:
     DEFAULTS = {
         "scan_folder": "",  # Wird beim ersten Start gesetzt
         "target_folders": [],  # Liste der Zielordner
+        # Favoriten-Leiste ueber der PDF-Ansicht (Issue #114): [{"pfad", "name"}]
+        "favoriten": [],
+        # Wurde die Favoritenliste einmal mit dem Scan-Ordner vorbelegt?
+        "favoriten_vorbelegt": False,
         "window_width": 1200,
         "window_height": 800,
         "window_maximized": True,
