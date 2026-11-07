@@ -33,10 +33,12 @@ class _TreeScanThread(QThread):
 
     Auf OneDrive/Netzlaufwerken dauert das Listen aller Ordner 3 Ebenen tief
     inkl. PDF-Zaehlung viele Sekunden - im UI-Thread friert dabei alles ein.
-    Ergebnis: Liste von (folder_path, parent_path | None, pdf_count).
+    Ergebnis: Liste von (folder_path, parent_path | None, pdf_count, has_more).
+    has_more: Ordner auf der tiefsten Ebene hat weitere Unterordner, die erst
+    beim Aufklappen nachgeladen werden.
     """
 
-    scanned = pyqtSignal(int, list)  # (generation, entries)
+    scanned = pyqtSignal(int, list, list)  # (generation, roots, entries)
 
     def __init__(self, roots: list[Path], generation: int, max_depth: int = 3, parent=None):
         super().__init__(parent)
@@ -45,7 +47,7 @@ class _TreeScanThread(QThread):
         self._max_depth = max_depth
 
     def run(self):
-        entries: list[tuple[Path, Optional[Path], int]] = []
+        entries: list[tuple[Path, Optional[Path], int, bool]] = []
 
         def scan(folder: Path, parent: Optional[Path], depth: int):
             pdf_count = 0
@@ -62,15 +64,16 @@ class _TreeScanThread(QThread):
                             continue
             except (PermissionError, OSError):
                 pass
-            entries.append((folder, parent, pdf_count))
-            if depth < self._max_depth:
+            at_limit = depth >= self._max_depth
+            entries.append((folder, parent, pdf_count, at_limit and bool(subfolders)))
+            if not at_limit:
                 for sub in sorted(subfolders):
                     scan(sub, folder, depth + 1)
 
         for root in self._roots:
             if root.exists():
                 scan(root, None, 0)
-        self.scanned.emit(self._generation, entries)
+        self.scanned.emit(self._generation, self._roots, entries)
 
 
 class FolderTreeWidget(QWidget):
@@ -100,6 +103,9 @@ class FolderTreeWidget(QWidget):
         super().__init__(parent)
         self._root_folders: list[Path] = []
         self._items: dict[Path, QTreeWidgetItem] = {}  # Pfad -> Item (fuer refresh_counts)
+        # Ordner mit noch nicht geladenen Unterordnern (unterhalb der Scan-Tiefe)
+        self._unloaded: set[Path] = set()
+        self._subtree_threads: set[_TreeScanThread] = set()
         self._scan_generation = 0  # verwirft Ergebnisse veralteter Scans
         self._scan_thread: Optional[_TreeScanThread] = None
         self.async_scan = True  # Tests koennen synchron scannen
@@ -191,6 +197,7 @@ class FolderTreeWidget(QWidget):
         # Signale verbinden
         self.tree.itemClicked.connect(self._on_item_clicked)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.tree.itemExpanded.connect(self._on_item_expanded)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -254,6 +261,7 @@ class FolderTreeWidget(QWidget):
         # Sofort etwas zeigen: Wurzeln ohne Zaehler, Rest folgt nach dem Scan
         self.tree.clear()
         self._items.clear()
+        self._unloaded.clear()
         for root in roots:
             item = QTreeWidgetItem(self.tree)
             item.setText(0, f"📁 {root.name}  …")
@@ -267,13 +275,24 @@ class FolderTreeWidget(QWidget):
         self._scan_thread = thread
         thread.start()
 
-    def _on_scan_finished(self, generation: int, entries: list):
+    def _on_scan_finished(self, generation: int, roots: list, entries: list):
         """Befuellt den Baum aus dem Scan-Ergebnis (UI-Thread)."""
         if generation != self._scan_generation:
             return  # veralteter Scan
         self.tree.clear()
         self._items.clear()
-        for folder_path, parent_path, pdf_count in entries:
+        self._unloaded.clear()
+        self._insert_entries(entries)
+
+        # Alle Einträge expandieren (erste Ebene)
+        self.tree.expandToDepth(0)
+        self.scan_finished.emit()
+
+    def _insert_entries(self, entries: list):
+        """Haengt Scan-Eintraege ein; schon vorhandene Ordner bleiben unberuehrt."""
+        for folder_path, parent_path, pdf_count, has_more in entries:
+            if folder_path in self._items:
+                continue
             parent_item = self._items.get(parent_path) if parent_path else None
             if parent_path is not None and parent_item is None:
                 continue
@@ -284,10 +303,44 @@ class FolderTreeWidget(QWidget):
             if folder_path in self._suggestion_folders:
                 item.setBackground(0, Qt.GlobalColor.green)
             self._items[folder_path] = item
+            if has_more:
+                self._mark_unloaded(folder_path, item)
 
-        # Alle Einträge expandieren (erste Ebene)
-        self.tree.expandToDepth(0)
-        self.scan_finished.emit()
+    def _mark_unloaded(self, folder_path: Path, item: QTreeWidgetItem):
+        """Zeigt den Aufklapp-Pfeil, obwohl die Unterordner noch fehlen."""
+        self._unloaded.add(folder_path)
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
+
+    def _on_item_expanded(self, item: QTreeWidgetItem):
+        """Laedt beim ersten Aufklappen die Unterordner unterhalb der Scan-Tiefe nach."""
+        folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+        if folder_path not in self._unloaded:
+            return
+        self._unloaded.discard(folder_path)
+        # eine Ebene listen; deren Unterordner bekommen wieder nur den Pfeil
+        thread = _TreeScanThread([folder_path], self._scan_generation, max_depth=1, parent=self)
+        thread.scanned.connect(self._on_subtree_scanned)
+        if not self.async_scan:
+            thread.run()  # synchron, im aktuellen Thread
+            return
+        self._subtree_threads.add(thread)
+        thread.finished.connect(lambda t=thread: self._subtree_threads.discard(t))
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+
+    def _on_subtree_scanned(self, generation: int, roots: list, entries: list):
+        """Haengt nachgeladene Unterordner unter den aufgeklappten Ordner."""
+        if generation != self._scan_generation:
+            return  # Baum wurde inzwischen neu aufgebaut
+        item = self._items.get(roots[0]) if roots else None
+        if item is None:
+            return
+        self._insert_entries(entries)
+        item.sortChildren(0, Qt.SortOrder.AscendingOrder)
+        # Pfeil wieder vom Inhalt abhaengig machen (Ordner evtl. inzwischen leer)
+        item.setChildIndicatorPolicy(
+            QTreeWidgetItem.ChildIndicatorPolicy.DontShowIndicatorWhenChildless
+        )
 
     @staticmethod
     def _item_text(folder_path: Path, pdf_count: int) -> str:
@@ -306,8 +359,20 @@ class FolderTreeWidget(QWidget):
         item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
         item.setToolTip(0, str(folder_path) + self._CLICK_HINT)
         self._items[folder_path] = item
+        if self._has_subfolders(folder_path):
+            self._mark_unloaded(folder_path, item)
         parent_item.sortChildren(0, Qt.SortOrder.AscendingOrder)
         return True
+
+    @staticmethod
+    def _has_subfolders(folder: Path) -> bool:
+        try:
+            with os.scandir(folder) as it:
+                return any(
+                    e.is_dir() and not e.name.startswith('.') for e in it
+                )
+        except OSError:
+            return False
 
     def _add_folder_item(
         self,
@@ -592,7 +657,10 @@ class FolderTreeWidget(QWidget):
     def _expand_drag_hover_item(self):
         """Klappt den Ordner auf, ueber dem die PDF gerade verweilt."""
         item = self._drag_hover_item
-        if item is not None and item.childCount() > 0 and not item.isExpanded():
+        if item is None or item.isExpanded():
+            return
+        folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+        if item.childCount() > 0 or folder_path in self._unloaded:
             item.setExpanded(True)
 
     def _tree_drag_move(self, event):

@@ -99,6 +99,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   funktionieren wie bisher.
 
 ### Behoben
+- **Tiefe Zielordner liessen sich nicht aufklappen**: Der Zielordner-Baum
+  liest nur drei Ebenen unter jedem Zielordner ein. Ordner auf der dritten
+  Ebene zeigten deshalb keinen Pfeil, auch wenn sie Unterordner hatten.
+  Jetzt bekommen sie den Pfeil, und die Unterordner werden beim ersten
+  Aufklappen nachgeladen, samt PDF-Zaehler. Das gilt auch, wenn eine PDF beim
+  Ziehen ueber dem Ordner verweilt.
 - **macOS (Intel): Release-Build gescheitert**: Für Intel-Macs gibt es von
   `cryptography` ab Version 49 und von `pikepdf` ab 10.14 keine fertigen
   Pakete mehr. Beim Bau aus dem Quellcode passten die mitgelieferte und die
