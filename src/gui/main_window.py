@@ -75,6 +75,8 @@ from src.core.pdf_rotate import (
     rotate_pdf,
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
+from src.gui.office_convert_worker import OfficeConvertWorker
+from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
 from src.ml.hybrid_classifier import get_hybrid_classifier, source_folder_hint
 from src.gui.chat_view import ChatView
@@ -136,6 +138,7 @@ class MainWindow(QMainWindow):
 
         # UI-Elemente
         self.pdf_widgets: list[PDFThumbnailWidget] = []
+        self.office_widgets: list[OfficeThumbnailWidget] = []  # .docx/.xlsx (Issue #9)
         self.folder_widgets: list[FolderWidget] = []
         self.suggestion_widgets: list[FolderWidget] = []
         self.selected_pdf: Optional[Path] = None
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
         self._preview_window: Optional[PdfPreviewWindow] = None
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
+        self._office_worker: Optional[OfficeConvertWorker] = None
         self._ocr_neu_paths: list[Path] = []
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
@@ -770,10 +774,12 @@ class MainWindow(QMainWindow):
                     item.widget().cleanup() if hasattr(item.widget(), 'cleanup') else None
                     item.widget().deleteLater()
         self.pdf_widgets.clear()
+        self.office_widgets.clear()
         self.folder_tiles = []
 
         # PDFs und Unterordner laden (Explorer-Gefuehl, Issue #29)
         pdf_files = self.file_manager.get_pdf_files()
+        office_files = self.file_manager.get_office_files()
         scan_folder = self.file_manager.scan_folder
         subfolders = self.folder_manager.get_subfolders(scan_folder) if scan_folder else []
         parent_folder = None
@@ -781,7 +787,7 @@ class MainWindow(QMainWindow):
             parent_folder = scan_folder.parent
         self._update_breadcrumb(scan_folder)
 
-        if not pdf_files and not subfolders and parent_folder is None:
+        if not pdf_files and not office_files and not subfolders and parent_folder is None:
             self.empty_label.setText(
                 "Keine PDFs im Scan-Ordner gefunden.\n\n"
                 f"Ordner: {self.file_manager.scan_folder}"
@@ -798,7 +804,7 @@ class MainWindow(QMainWindow):
         # Header aktualisieren
         self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
-        count = len(pdf_files)
+        count = len(pdf_files) + len(office_files)
         count_text = f"{count} {'Datei' if count == 1 else 'Dateien'}"
         if subfolders:
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
@@ -825,6 +831,7 @@ class MainWindow(QMainWindow):
         self._place_folder_rows()
 
         if not pdf_files:
+            self._add_office_widgets(office_files, 0)
             self.pdf_count_label.setText("PDFs: 0")
             self._pending_thumbnails = 0
             self._thumbnails_signal_emitted = True
@@ -863,6 +870,8 @@ class MainWindow(QMainWindow):
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
 
+        self._add_office_widgets(office_files, len(pdf_files))
+
         # Falls keine PDFs, Signal sofort senden
         if self._pending_thumbnails == 0:
             self.thumbnails_loaded.emit()
@@ -875,6 +884,57 @@ class MainWindow(QMainWindow):
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
+
+    def _add_office_widgets(self, office_files: list[Path], start_index: int):
+        """Kacheln fuer .docx/.xlsx hinter den PDFs im Raster (Issue #9)."""
+        for j, pfad in enumerate(office_files):
+            widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
+            widget.double_clicked.connect(self.open_office_file)
+            widget.open_requested.connect(self.open_office_file)
+            widget.convert_requested.connect(self.on_office_convert)
+            i = start_index + j
+            self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
+            self.office_widgets.append(widget)
+
+    def open_office_file(self, pfad: Path):
+        """Oeffnet eine .docx/.xlsx im Standardprogramm."""
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad))):
+            QMessageBox.warning(self, "Öffnen", f"Datei konnte nicht geöffnet werden:\n{pfad}")
+
+    def on_office_convert(self, pfad: Path, pdfa: bool):
+        """Kontextmenue "In PDF umwandeln": Hintergrund-Thread, PDF entsteht neben der Datei."""
+        if self._office_worker is not None:
+            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(f"Wandle in PDF um: {pfad.name}…")
+        worker = OfficeConvertWorker([pfad], pdfa, self)
+        worker.fertig.connect(self._on_office_converted)
+        self._office_worker = worker
+        worker.start()
+
+    def _on_office_converted(self, ergebnisse: list):
+        self._office_worker = None
+        QApplication.restoreOverrideCursor()
+        fehler = []
+        hinweise = []
+        erzeugt = []
+        for quelle, erg, fehlertext in ergebnisse:
+            if erg is None:
+                fehler.append(f"{quelle.name}: {fehlertext}")
+                continue
+            erzeugt.append(erg.pdf)
+            index_melden("datei_aufnehmen", str(erg.pdf))
+            hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
+            self.statusbar.showMessage(
+                f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
+            )
+        if erzeugt:
+            self.load_pdfs()
+        if fehler:
+            QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
+        elif hinweise:
+            QMessageBox.information(self, "In PDF umwandeln", "\n".join(hinweise))
 
     def _schedule_pre_caching(self, pdf_files: list[Path], delay_ms: int = 500):
         """Startet das Pre-Caching verzoegert ueber einen fenstergebundenen Timer.
@@ -1734,7 +1794,7 @@ class MainWindow(QMainWindow):
                 timer.stop()
 
         # Thumbnail-Threads beenden
-        for widget in self.pdf_widgets:
+        for widget in self.pdf_widgets + self.office_widgets:
             widget.cleanup()
 
         # Kind-Threads (Ordner-Scan, Metadaten-Leser) zu Ende laufen lassen.
@@ -1750,6 +1810,8 @@ class MainWindow(QMainWindow):
         # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
         if self._ocr_neu_worker is not None:
             self._ocr_neu_worker.requestInterruption()
+        if self._office_worker is not None:
+            self._office_worker.requestInterruption()
 
         for thread in self.findChildren(QThread):
             thread.wait(5000)
@@ -1816,7 +1878,7 @@ class MainWindow(QMainWindow):
             self._place_folder_rows()
         if cols != self._grid_cols or force:
             self._grid_cols = cols
-            for i, widget in enumerate(self.pdf_widgets):
+            for i, widget in enumerate(self.pdf_widgets + self.office_widgets):
                 self.pdf_layout.addWidget(widget, i // cols, i % cols)
 
     def set_tile_view(self, view_id: str):
@@ -1831,7 +1893,7 @@ class MainWindow(QMainWindow):
             self._tile_view = view
             self.config.set("tile_view", view.id)
             # Ordnerzeilen haben eine feste Groesse (Issue #147)
-            for widget in self.pdf_widgets:
+            for widget in self.pdf_widgets + self.office_widgets:
                 widget.set_view(view)
             self._relayout_pdf_grid(force=True)
         combo = getattr(self, "tile_view_combo", None)

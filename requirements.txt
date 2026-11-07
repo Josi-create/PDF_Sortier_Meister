@@ -16,6 +16,10 @@ pytesseract>=0.3.10
 pikepdf>=8.0.0; sys_platform != "darwin" or platform_machine != "x86_64"
 pikepdf>=8.0.0,<10.14; sys_platform == "darwin" and platform_machine == "x86_64"
 
+# Word/Excel -> PDF ueber die installierte Office-Software (COM, nur Windows; Issue #9).
+# Ohne Office bleibt LibreOffice als Rueckfall.
+pywin32>=306; sys_platform == "win32"
+
 # Machine Learning
 scikit-learn>=1.3.0
 

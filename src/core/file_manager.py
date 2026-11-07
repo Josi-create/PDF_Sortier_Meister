@@ -82,6 +82,23 @@ class FileManager:
 
         return pdf_files
 
+    def get_office_files(self) -> list[Path]:
+        """Findet .docx/.xlsx im Scan-Ordner (Issue #9), nach Name sortiert.
+
+        Word legt waehrend des Bearbeitens Sperrdateien ``~$name.docx`` an;
+        die werden ausgelassen.
+        """
+        if self._scan_folder is None:
+            return []
+        from src.core.office_convert import OFFICE_ENDUNGEN
+
+        dateien = [
+            f for f in self._scan_folder.iterdir()
+            if f.is_file() and f.suffix.lower() in OFFICE_ENDUNGEN and not f.name.startswith("~$")
+        ]
+        dateien.sort(key=lambda p: p.name.lower())
+        return dateien
+
     def get_pdf_count(self) -> int:
         """Gibt die Anzahl der PDFs im Scan-Ordner zurück."""
         return len(self.get_pdf_files())
