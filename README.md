@@ -88,11 +88,8 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 - **Suche** (`Ctrl+F`) mit Filtern: Steuerjahr, Kategorie, Korrespondent, Datums- und Betragsbereich
 - **Steuerauswertung**: Jahressummen nach Kategorie (brutto/netto/absetzbar) mit **CSV-Export**
 
-### Korrespondenten und Regeln
+### Korrespondenten
 - **Korrespondenten-Verwaltung** (Absender mit Aliasen, Kategorie, Farbe) — Klick filtert die PDF-Liste
-- **WENN-DANN-Regeln** mit Prioritäten und visuellem Editor: z. B. *Korrespondent = Stadtwerke →
-  Ordner `Wohnung/Nebenkosten`*. Heute zeigen Regeln nur einen Hinweis in der Statusleiste; das
-  automatische Anwenden ist ein offenes Vorhaben (#125)
 
 ### KI — optional, lokal oder Cloud
 - Ohne KI: alles oben funktioniert mit dem lokalen Klassifikator
@@ -291,7 +288,7 @@ das Modell bei Bedarf selbst mit „dokument_lesen“ nach.
 | pikepdf | XMP-Metadaten in PDFs schreiben |
 | pytesseract / Tesseract | OCR für Scans ohne Textebene (Deutsch und Englisch; im Hintergrund alle Seiten) |
 | scikit-learn | TF-IDF-Klassifikator (lokal, lernend) |
-| SQLAlchemy + SQLite | Lernhistorie, Korrespondenten, Regeln |
+| SQLAlchemy + SQLite | Lernhistorie, Korrespondenten |
 | SQLite FTS5 | Suchindex der Dokumentensuche (Volltext je Seite, OCR-Cache, Metadaten) |
 | extract-msg, olefile, xlrd | Dokumentensuche: Outlook-Mails (.msg), Word 97–2003 (.doc), Excel 97–2003 (.xls) |
 | mcp | MCP-Server der Dokumentensuche für KI-Assistenten (z. B. Claude) |

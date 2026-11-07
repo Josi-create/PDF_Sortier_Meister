@@ -488,7 +488,7 @@ Analog zu paperless-ai: Erkannte Firmen/Personen als persistente Kontakte:
 
 ### Phase 21: Automatisierungs-Regeln (NEU - Mittlere Priorität)
 
-**Status:** ✅ fertig (Issue #22 closed)
+**Status:** ❌ entfernt (Issue #125, nicht umgesetzt: Regeln griffen praktisch nie; DB-Tabelle `automation_rules` bleibt ungenutzt bestehen)
 
 Paperless-ai ermöglicht Custom Rules — für bekannte Absender vollautomatisches Sortieren:
 
@@ -754,7 +754,7 @@ Vergleich mit [paperless-ai](https://github.com/clusterzx/paperless-ai) (Add-On 
 | Betrag / MwSt-Extraktion | Nein | **Ja (v0.9.0)** | — |
 | Volltext-Suche | Nein | **Ja (v0.9.0)** | — |
 | RAG-Chat (natürliche Sprache) | Ja | Nein | Phase 19 |
-| Automatisierungs-Regeln | Ja | Nein | Phase 21 |
+| Automatisierungs-Regeln | Ja | Nein (verworfen, #125) | — |
 | Desktop-Anwendung (offline) | Nein (Web) | Ja | — |
 | Lokales LLM (Ollama) | Ja | Nein | Phase 11 |
 | Drag & Drop Sortierung | Nein | Ja | — |
