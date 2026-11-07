@@ -7,6 +7,97 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Rechtsklick: „Pfad kopieren“ und „Im Explorer anzeigen“** (#154): Die
+  PDF-Kacheln haben unter „PDF öffnen“ zwei neue Einträge: „Im Explorer
+  anzeigen“ öffnet den Ordner und markiert die Datei, „Pfad kopieren“ legt den
+  vollständigen Pfad in die Zwischenablage. Die Ordner im linken Fenster
+  (auch „..“) bekommen dafür erstmals ein Kontextmenü mit „Im Explorer
+  öffnen“ und „Pfad kopieren“; der Zielordner-Baum und die grünen
+  Vorschlagskacheln haben „Pfad kopieren“ zusätzlich. Unter macOS heißen die
+  Einträge „Im Finder zeigen“ bzw. „Im Finder öffnen“.
+- **PDF drehen und Texterkennung neu** (#150): Im Rechtsklickmenü einer
+  PDF-Kachel gibt es „Drehen“ mit „90° nach links“, „90° nach rechts“ und
+  „180°“ sowie „OCR neu durchführen“. Bei Mehrfachauswahl gilt beides für alle
+  markierten PDFs. Gedreht wird die ganze PDF verlustfrei über die
+  Seitendrehung: Scanbild, Textebene und gespeicherte Metadaten bleiben
+  unverändert, „Rückgängig“ (Strg+Z) dreht zurück. Kachel, Vorschau und
+  Suchindex zeigen sofort den neuen Stand. Digital signierte und
+  verschlüsselte PDFs werden nicht gedreht (die Signatur würde ungültig bzw.
+  der Schutz ginge verloren); kurz gesperrte Dateien (OneDrive, Vorschau)
+  werden mehrmals versucht. „OCR neu durchführen“ erkennt die gescannten
+  Seiten im Hintergrund noch einmal – am Zwischenspeicher der Texterkennung
+  vorbei, dessen Einträge dabei ersetzt werden. Nach dem Drehen ist das in der
+  Regel nicht nötig: Die Drehung gehört jetzt zum Erkennungsmerkmal einer
+  Seite, die nächste Analyse liest gedrehte Seiten deshalb von selbst neu,
+  statt den alten, falsch ausgerichteten Text wiederzuverwenden.
+- **Chat mit Bezugsdokument** (#148, #27): Wer im Reiter „Vorschau“ ein PDF
+  auswählt und in den „Chat“ wechselt, kann direkt Fragen zu diesem PDF
+  stellen. Über dem Eingabefeld steht dann „Bezug: <Dateiname>  ✕“, darunter
+  vier Schnellfragen, die mit einem Klick gestellt werden: „Zu welcher
+  Wohnung / welchem Objekt gehört dieses Dokument?“, „Zeig mir ähnliche
+  Rechnungen“, „Gibt es schon einen Ordner mit ähnlichen Dokumenten?“ und „In
+  welchen Ordner gehört dieses PDF?“. Die KI bekommt das PDF als erstes
+  Dokument (Text und Metadaten aus dem Suchindex, sonst aus der laufenden
+  Analyse) und dazu Dokumente aus der Sammlung, die zu Korrespondent,
+  Kategorie und Steuerjahr passen, jeweils mit ihrem Ablageort. Bei Fragen
+  nach dem Ordner steht der Vorschlag der Sortierlogik mit im Kontext. Der
+  Bezug gilt für alle weiteren Fragen, bis ✕ ihn entfernt oder beim nächsten
+  Wechsel in den Chat ein anderes PDF ausgewählt ist. Ohne KI zeigt der Chat
+  wie bisher die gefundenen Dokumente, bei der Ordnerfrage zusätzlich den
+  Vorschlag der Sortierlogik.
+- **Schief gescannte Seiten gerade ausrichten** (#165): Zieht der Scanner ein
+  Blatt schief ein, misst PDFSM den Winkel und dreht den Seiteninhalt gerade.
+  Neue Scans im ersten Vorrang-Ordner werden beim nächsten Indexlauf von selbst
+  ausgerichtet, auch wenn das Scanprogramm schon eine Textebene geschrieben hat
+  (Einstellungen › Suche › „Schief gescannte Seiten gerade ausrichten“: nur
+  neue Scans, aus oder alle neu eingelesenen). Einzelne PDFs per Rechtsklick ›
+  Drehen › „Gerade ausrichten“, auch für mehrere markierte PDFs, rückgängig mit
+  Strg+Z. Das Scanbild wird nicht neu berechnet oder komprimiert, eine
+  vorhandene Textebene dreht mit. Wie bei der Textebene entsteht beim
+  automatischen Ausrichten vorher eine Sicherungskopie, und die Änderung steht
+  im Protokoll. Drehen, Textebene und Ausrichten entstehen in einem Schritt.
+  Ersetzt den Umweg über `ocrmypdf --deskew` in WSL. Das Ergebnis ist ein
+  normales PDF, kein PDF/A.
+- **Gedrehte Scans richtig herum** (#151): Liest die Texterkennung eine
+  Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die
+  drei anderen Lagen und nimmt die beste. Die Suche findet den Text dann auch
+  in falsch herum eingelegten Scans. So herum wird die PDF beim nächsten
+  Indexlauf gespeichert, standardmäßig nur für neue Scans im ersten
+  Vorrang-Ordner (Einstellungen › Suche › „Gedrehte Seiten richtig herum
+  speichern“: nur neue Scans, aus oder alle). Das gilt auch, wenn der Scan bis
+  dahin schon einsortiert ist. Geändert wird nur die Drehangabe der Seite, das
+  Scanbild bleibt unverändert. Wie bei der Textebene entsteht vorher eine
+  Sicherungskopie, die Änderung steht im Protokoll („Geänderte PDFs anzeigen /
+  rückgängig machen…“, Spalte „Gedreht“) und lässt sich zurücknehmen. Mit
+  Textebene entstehen Drehung und Textebene in einem Schritt. Bleibt eine Datei
+  ungedreht, liegt die Textebene trotzdem passend auf dem Scan. Signierte,
+  verschlüsselte, PDF/A- und geöffnete Dateien bleiben unberührt. Eine
+  aufrechte Seite kostet keinen zusätzlichen Erkennungslauf, eine falsch
+  liegende drei.
+
+### Geaendert
+- **Kompakteres Detail-Panel: Vorschläge einklappbar** (#146): Die
+  Vorschlagsliste steht nicht mehr als eigener Block über dem Namen, sondern
+  eingeklappt in der Gruppe „Neuer Dateiname“. Rechts in deren Kopfzeile
+  zeigt ein Pfeil „Vorschläge (n)“, wie viele Vorschläge es gibt; ein Klick
+  klappt darunter den Schalter „Ordnerstruktur im Namen“, „Muster
+  bearbeiten…“ und die Liste auf. Eingeklappt (Standard) bleiben nur
+  Namensfeld, Vorschau und Warnung stehen, und die Vorschau der PDF bekommt
+  den Platz. Der oberste Vorschlag wird wie bisher automatisch als Dateiname
+  eingetragen. Der gewählte Zustand gilt für alle folgenden Dokumente und
+  bleibt nach einem Neustart erhalten; treffen KI-Vorschläge im Hintergrund
+  ein, zählt der Pfeil mit, ohne aufzuklappen.
+- **Ordner im linken Fenster als Zeilen** (#147): Unterordner und „..“
+  stehen nicht mehr als große Kacheln zwischen den PDFs, sondern als schmale
+  Zeilen darüber – Symbol, Name und rechts in Grau die Anzahl PDFs, z. B.
+  „📁 Archiv … 365 PDFs“. Ab knapp 500 Pixel Breite stehen sie in zwei
+  Spalten, sonst in einer. Lange Namen werden gekürzt, der volle Pfad steht im
+  Tooltip. Höhe und Schrift der Zeilen sind fest; die Kachelgröße
+  (Klein/Mittel/Groß) gilt nur noch für die PDFs. Klick auf „..“, Doppelklick
+  auf einen Ordner, Ablegen von PDFs per Drag & Drop und das Kontextmenü
+  funktionieren wie bisher.
+
 ## [0.24.0] - 2026-11-06
 
 ### Neu

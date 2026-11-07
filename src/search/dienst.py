@@ -168,14 +168,18 @@ def _textebene(a, konfig) -> int:
             pfad = e.get("aktueller_pfad") or e["pfad"]
             zusatz = "rückgängig gemacht" if e["status"] == "rueckgaengig" else (
                 "Sicherung vorhanden" if e.get("sicherung") else "Sicherung abgelaufen")
-            print(f"[{e['id']}] {e['am']}  Seiten {e['seiten']}  ({zusatz})  {pfad}")
+            gedreht = f"  gedreht {e['gedreht']}" if e.get("gedreht") else ""
+            if e.get("gerade"):
+                gedreht += f"  gerade {e['gerade']}"
+            print(f"[{e['id']}] {e['am']}  Seiten {e['seiten'] or '-'}{gedreht}  ({zusatz})  {pfad}")
         return 0
     if a.aktion == "rueckgaengig":
         ok, meldung = idx.textebene_rueckgaengig(a.id, erzwingen=a.erzwingen)
         print(meldung)
         return 0 if ok else 1
-    if konfig.textebene == "aus":
-        print("Die Textebene ist in den Einstellungen ausgeschaltet (Suche › Textebene in gescannte PDFs schreiben).")
+    if konfig.textebene == "aus" and konfig.auto_drehen == "aus" and konfig.auto_gerade == "aus":
+        print("Textebene, automatisches Drehen und Ausrichten sind in den Einstellungen ausgeschaltet "
+              "(Suche › Gescannte PDFs verbessern).")
         return 1
     from src.search.indexer import Indexer, logging_einrichten
     logging_einrichten(konfig, konsole=not a.hintergrund)

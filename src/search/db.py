@@ -143,6 +143,13 @@ V2_SPALTEN = {
 OCR_CACHE_SPALTEN = {
     "ebene": "BLOB",             # reine Text-PDF von Tesseract fuer die unsichtbare Textebene
     "ebene_am": "TEXT",          # wann sie entstand (Aufbewahrung, textebene.aufraeumen)
+    "drehung": "INTEGER",        # Issue #151: Lage von Text und Text-PDF (90/180/270 im Uhrzeigersinn); NULL = wie angezeigt
+    "drehen": "INTEGER",         # Issue #151: 1 = diese Drehung in die PDF schreiben (bei der OCR vorgemerkt)
+}
+# Spalten des Protokolls, die nach Phase 5b dazukamen
+PROTOKOLL_SPALTEN = {
+    "gedreht": "TEXT",           # Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
+    "gerade": "TEXT",            # Issue #165: gerade ausgerichtete Seiten mit Winkel, z. B. "1:-1.75"
 }
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
                     "schlagwoerter")
@@ -158,7 +165,9 @@ CREATE TABLE IF NOT EXISTS ocr_cache (
     dpi       INTEGER,
     erstellt  TEXT,
     ebene     BLOB,               -- Phase 5b: Text-PDF fuer die Textebene (nur, solange sie gebraucht wird)
-    ebene_am  TEXT
+    ebene_am  TEXT,
+    drehung   INTEGER,            -- Issue #151: Text und Text-PDF stammen aus der um so viel gedrehten Seite
+    drehen    INTEGER             -- Issue #151: 1 = diese Drehung in die PDF schreiben
 );
 CREATE INDEX IF NOT EXISTS ix_seiten_hash      ON seiten(bild_hash);
 CREATE INDEX IF NOT EXISTS ix_dok_pdf_id       ON dokumente(pdf_id);
@@ -179,9 +188,20 @@ CREATE TABLE IF NOT EXISTS textebene_protokoll (
     groesse_nachher  INTEGER,
     mtime_ns_nachher INTEGER,
     status           TEXT NOT NULL,   -- 'geschrieben' | 'rueckgaengig'
-    rueckgaengig_am  TEXT
+    rueckgaengig_am  TEXT,
+    gedreht          TEXT,        -- Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
+    gerade           TEXT         -- Issue #165: gerade ausgerichtete Seiten mit Winkel, z. B. "1:-1.75"
 );
 CREATE INDEX IF NOT EXISTS ix_textebene_dok ON textebene_protokoll(dok_id);
+
+-- Issue #165: gemessene Schraeglage schief gescannter Seiten, am Bild-Hash wie der OCR-Cache
+CREATE TABLE IF NOT EXISTS schraeglage (
+    bild_hash TEXT PRIMARY KEY,
+    winkel    REAL NOT NULL,      -- Grad gegen den Uhrzeigersinn, um die die angezeigte Seite gerade steht
+    gerade    INTEGER NOT NULL DEFAULT 0,  -- 1 = zum Ausrichten vorgemerkt; 0 = erledigt (auch nach Rueckgaengig)
+    erkannt   TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_schraeglage_gerade ON schraeglage(bild_hash) WHERE gerade = 1;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS metadaten_fts USING fts5(
     {_META_FTS}, content='dokumente', content_rowid='id',
@@ -248,7 +268,8 @@ def schema_stand(con) -> int:
         return 0
     if (set(V2_SPALTEN) <= spalten and "bild_hash" in _spalten(con, "seiten")
             and set(OCR_CACHE_SPALTEN) <= _spalten(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")
-            and _tabelle_vorhanden(con, "textebene_protokoll")):
+            and set(PROTOKOLL_SPALTEN) <= _spalten(con, "textebene_protokoll")
+            and _tabelle_vorhanden(con, "schraeglage")):
         return 2
     return 1
 
@@ -278,8 +299,15 @@ def ergaenze_schema(con) -> bool:
     if not _tabelle_vorhanden(con, "textebene_protokoll"):
         geaendert = True
     con.executescript(SCHEMA_V2)
+    protokoll_spalten = _spalten(con, "textebene_protokoll")
+    for name, typ in PROTOKOLL_SPALTEN.items():
+        if name not in protokoll_spalten:
+            con.execute(f"ALTER TABLE textebene_protokoll ADD COLUMN {name} {typ}")
+            geaendert = True
     # Offene Textebenen im Cache schnell finden (Phase 5b); nach SCHEMA_V2, die Spalte kommt ggf. erst per ALTER
     con.execute("CREATE INDEX IF NOT EXISTS ix_ocr_cache_ebene ON ocr_cache(ebene_am) WHERE ebene IS NOT NULL")
+    # Vorgemerkte Drehungen (Issue #151) ebenso
+    con.execute("CREATE INDEX IF NOT EXISTS ix_ocr_cache_drehen ON ocr_cache(drehung) WHERE drehen = 1")
     if fts_neu:
         con.execute("INSERT INTO metadaten_fts(metadaten_fts) VALUES ('rebuild')")
         geaendert = True
@@ -454,13 +482,20 @@ def ocr_cache_holen(con, hashes) -> dict[str, str]:
     return erg
 
 
-def ocr_cache_eintragen(con, eintraege, sprachen: str | None = None, dpi: int | None = None) -> int:
-    """``[(hash, text), ...]`` in den Cache (vorhandene Hashes bleiben). Liefert die Zahl neuer Eintraege."""
+def ocr_cache_eintragen(con, eintraege, sprachen: str | None = None, dpi: int | None = None,
+                        ersetzen: bool = False) -> int:
+    """``[(hash, text), ...]`` in den Cache. Liefert die Zahl geschriebener Eintraege.
+
+    Vorhandene Hashes bleiben, ausser mit ``ersetzen`` ("OCR neu durchfuehren",
+    Issue #150): Dann ersetzt der neue Text den alten, und eine Text-PDF der
+    alten Erkennung (``ebene``) faellt mit weg.
+    """
     zeilen = [(h, t, sprachen, dpi, jetzt()) for h, t in eintraege if h and t is not None]
     if not zeilen:
         return 0
     vorher = con.total_changes
-    con.executemany("INSERT OR IGNORE INTO ocr_cache (bild_hash, text, sprachen, dpi, erstellt) VALUES (?, ?, ?, ?, ?)",
+    art = "REPLACE" if ersetzen else "IGNORE"
+    con.executemany(f"INSERT OR {art} INTO ocr_cache (bild_hash, text, sprachen, dpi, erstellt) VALUES (?, ?, ?, ?, ?)",
                     zeilen)
     return con.total_changes - vorher
 
@@ -503,14 +538,62 @@ def ocr_ebenen_eintragen(con, dok_id: int, ebenen: dict) -> int:
     return n
 
 
+def ocr_drehungen_eintragen(con, dok_id: int, drehungen: dict, drehen: bool = False) -> int:
+    """Lage der OCR (``{seite: 90 | 180 | 270}``, Issue #151) zum Cache-Eintrag der Seite legen.
+
+    ``drehen``: die Drehung zum Schreiben in die PDF vormerken
+    (``SearchConfig.drehen_vormerken``). Liefert die Zahl geaenderter Eintraege.
+    """
+    if not drehungen:
+        return 0
+    ph = ",".join("?" * len(drehungen))
+    hashes = {r[0]: r[1] for r in con.execute(
+        f"SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND seite IN ({ph}) AND bild_hash IS NOT NULL",
+        (dok_id, *drehungen.keys()))}
+    n = 0
+    for seite, grad in drehungen.items():
+        h = hashes.get(seite)
+        if h and int(grad) % 360:
+            n += con.execute("UPDATE ocr_cache SET drehung = ?, drehen = ? WHERE bild_hash = ?",
+                             (int(grad) % 360, 1 if drehen else 0, h)).rowcount
+    return n
+
+
+def schraeglagen_eintragen(con, dok_id: int, schraeglagen: dict, vormerken: bool = True) -> int:
+    """Gemessene Schraeglagen (``{seite: grad}``, Issue #165) am Bild-Hash der Seite ablegen.
+
+    Ein schon bekannter Hash bleibt, wie er ist: Nach dem Ausrichten oder
+    Rueckgaengigmachen ist er erledigt (``gerade = 0``) und wird nicht erneut
+    vorgemerkt, auch nicht fuer eine Kopie des Scans. Liefert die Zahl neuer Eintraege.
+    """
+    if not schraeglagen:
+        return 0
+    ph = ",".join("?" * len(schraeglagen))
+    hashes = {r[0]: r[1] for r in con.execute(
+        f"SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND seite IN ({ph}) AND bild_hash IS NOT NULL",
+        (dok_id, *schraeglagen.keys()))}
+    n = 0
+    zeit = jetzt()
+    for seite, winkel in schraeglagen.items():
+        h = hashes.get(int(seite))
+        if h and winkel is not None:
+            n += con.execute("INSERT OR IGNORE INTO schraeglage (bild_hash, winkel, gerade, erkannt) VALUES (?, ?, ?, ?)",
+                             (h, round(float(winkel), 2), 1 if vormerken else 0, zeit)).rowcount
+    return n
+
+
 def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = None, dpi: int | None = None,
-                       nur_offene: bool = True, ebenen: dict | None = None) -> int:
+                       nur_offene: bool = True, ebenen: dict | None = None, cache_ersetzen: bool = False,
+                       drehungen: dict | None = None, drehen: bool = False) -> int:
     """OCR-Ergebnis (``{seite: text | None}``) uebernehmen: Seiten fuellen, Cache befuellen, Status ableiten.
 
     ``None`` als Text markiert die Seite als ``ocr_fehler``. Mit ``nur_offene``
     werden nur Seiten geaendert, die noch auf OCR warten (``ohne_text``/``ocr_fehler``).
     ``ebenen`` (``{seite: text_pdf}``, Phase 5b) kommen zum Cache-Eintrag der
-    Seite. Liefert die Zahl der erkannten Seiten.
+    Seite, ebenso ``drehungen`` (Lage der OCR, Issue #151; ``drehen`` merkt
+    sie zum Schreiben vor). ``cache_ersetzen`` ueberschreibt vorhandene
+    Cache-Eintraege (neue OCR auf Wunsch, Issue #150). Liefert die Zahl der
+    erkannten Seiten.
     """
     bedingung = " AND quelle IN ('ohne_text', 'ocr_fehler')" if nur_offene else ""
     erkannt = []
@@ -527,9 +610,11 @@ def ocr_text_eintragen(con, dok_id: int, texte: dict, sprachen: str | None = Non
         ph = ",".join("?" * len(erkannt))
         zeilen = con.execute(f"SELECT bild_hash, text FROM seiten WHERE dok_id = ? AND seite IN ({ph})",
                              (dok_id, *erkannt)).fetchall()
-        ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi)
+        ocr_cache_eintragen(con, [(r[0], r[1]) for r in zeilen], sprachen, dpi, ersetzen=cache_ersetzen)
         if ebenen:
             ocr_ebenen_eintragen(con, dok_id, {s: e for s, e in ebenen.items() if s in erkannt})
+        if drehungen:
+            ocr_drehungen_eintragen(con, dok_id, {s: g for s, g in drehungen.items() if s in erkannt}, drehen)
         # Weitere offene Seiten desselben Dokuments mit bekanntem Bild (z. B. gleiches Deckblatt) gleich mit fuellen
         offen = con.execute("SELECT seite, bild_hash FROM seiten WHERE dok_id = ? AND quelle = 'ohne_text' "
                             "AND bild_hash IS NOT NULL", (dok_id,)).fetchall()
@@ -876,6 +961,18 @@ def status(con) -> dict:
         }
     except sqlite3.OperationalError:   # Datenbank noch ohne die Spalten der Phase 5b (nur lesend geoeffnet)
         textebene = {"geschrieben": 0, "gruende": {}}
+    try:                               # Issue #151: richtig herum gedrehte PDFs (noch nicht rueckgaengig gemacht)
+        textebene["gedreht"] = con.execute(
+            "SELECT count(DISTINCT pfad) FROM textebene_protokoll WHERE gedreht IS NOT NULL "
+            "AND status = 'geschrieben'").fetchone()[0]
+    except sqlite3.OperationalError:
+        textebene["gedreht"] = 0
+    try:                               # Issue #165: gerade ausgerichtete PDFs
+        textebene["gerade"] = con.execute(
+            "SELECT count(DISTINCT pfad) FROM textebene_protokoll WHERE gerade IS NOT NULL "
+            "AND status = 'geschrieben'").fetchone()[0]
+    except sqlite3.OperationalError:
+        textebene["gerade"] = 0
     return {
         "dokumente": sum(pro_typ.values()),
         "pro_typ": pro_typ,

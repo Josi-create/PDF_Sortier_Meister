@@ -74,6 +74,12 @@ def status_text(idx) -> str:
             zeile += " – nicht geschrieben: " + ", ".join(
                 f"{GRUENDE.get(k, k)}: {v}" for k, v in sorted(te["gruende"].items()))
         z.append(zeile)
+    drehen = getattr(getattr(idx, "konfig", None), "auto_drehen", "aus")
+    if drehen != "aus" or te.get("gedreht"):
+        z.append(f"Gedrehte Scans richtig herum gespeichert ({drehen}): {te.get('gedreht', 0)} PDFs")
+    gerade = getattr(getattr(idx, "konfig", None), "auto_gerade", "aus")
+    if gerade != "aus" or te.get("gerade"):
+        z.append(f"Schiefe Scans gerade ausgerichtet ({gerade}): {te.get('gerade', 0)} PDFs")
     if st["laeufe"]:
         lauf = st["laeufe"][0]
         z.append(f"Letzter Lauf: {lauf['beginn']} bis {lauf['ende'] or '…'} – {lauf['status']} ({lauf['phase']})")

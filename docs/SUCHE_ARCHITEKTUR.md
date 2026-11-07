@@ -388,6 +388,15 @@ und die OCR-Arbeit waere verloren. Deshalb:
 - Damit ueberleben OCR-Texte Umbenennen, Verschieben, XMP-Schreiben, Stapeln,
   Teilen, Kopieren und Wiederherstellen aus `stapel_sicherung`, auch ohne
   Meldung der GUI.
+- **Drehung im Hash** (Issue #150, 11/2026): Eine gedrehte Seite (`/Rotate`
+  ungleich 0) bekommt `rot=<Grad>` in den Hash. Drehen aendert die Bild-Streams
+  nicht, wohl aber das Seitenbild fuer Tesseract; ohne diesen Zusatz kaeme nach
+  „Drehen“ im Kontextmenue der alte, falsch ausgerichtete Text aus dem Cache.
+  Seiten ohne Drehung behalten ihren Hash; bereits gedrehte Scans werden einmal
+  neu erkannt. „OCR neu durchführen“ (`pdf_analyzer.ocr_neu_durchfuehren`)
+  erkennt alle Bildseiten am Cache vorbei und ersetzt Seiten und Cache-Eintraege
+  (`Suchindex.ocr_eintragen(..., ersetzen=True)`, `INSERT OR REPLACE`; eine
+  Text-PDF der alten Erkennung faellt dabei weg).
 - **Auffuellen des Bestands:** Ein Laufabschnitt „OCR-Cache ergaenzen“ berechnet
   die Hashes fuer vorhandene Seiten mit `quelle='ocr'` und `bild_hash IS NULL`
   (derzeit rund 1.400 Dokumente) und traegt sie in den Cache ein. Der Schritt ist
@@ -584,6 +593,147 @@ bleibt die Ebene erhalten. Beide Reihenfolgen sind getestet.
 - Sicherungen werden nach `textebene_sicherung_tage` geloescht (Standard 30,
   0 = unbegrenzt). Text-PDFs im Cache verfallen nach 60 Tagen
   (`EBENE_AUFBEWAHREN_TAGE`); danach braucht eine verlorene Ebene neue OCR.
+
+### 3.5 Gedrehte Scans erkennen und richtig herum speichern (Issue #151)
+
+Steht ein Scan auf dem Kopf, liefert Tesseract Buchstabensalat, und die Suche
+findet nichts. Deshalb liest die OCR eine falsch liegende Seite zusaetzlich in
+den drei anderen Lagen und nimmt die beste. So herum wird die PDF gespeichert.
+
+**Erkennen** (`extract.seite_erkennen`, bei jeder OCR mit `lage_pruefen`, das
+`SearchConfig.ocr_einstellungen()` immer setzt):
+
+- Derselbe Tesseract-Aufruf liefert die TSV mit. Ueber stdout kommen
+  nacheinander TSV und Text, bei der Textebene `.tsv` neben `.txt`/`.pdf`.
+  Bewertet wird mit `extract.lesbarkeit`: Buchstaben und Ziffern sicher
+  erkannter (Konfidenz ab 70) *waagerechter* Woerter im Verhaeltnis zu allen.
+- Ein Versuch mit dem mitgelieferten Tesseract (ohne `osd.traineddata`) zeigt,
+  warum beides noetig ist:
+  - Aufrecht sind nahezu 100 % sicher und waagerecht.
+  - Kopfstehend liefert Tesseract Salat mit etwa 12 % sicheren Zeichen.
+  - Quer liest Tesseract den Text zwar richtig, aber als senkrechte Woerter
+    (Box hoeher als breit), also 1 %.
+- Liegt der Anteil unter der Haelfte (`LAGE_ANTEIL`) und hat die Seite genug
+  Schrift (`min_zeichen`), liest Tesseract sie gedreht um 90, 180 und 270 Grad.
+  Gedreht wird dabei nur die Seite im Speicher (`set_rotation`), nicht die Datei.
+- Eine andere Lage gewinnt nur, wenn sie selbst aufrecht lesbar ist und
+  mindestens doppelt so viele sichere Zeichen hat (`LAGE_FAKTOR`). Sonst bleibt
+  alles wie angezeigt, etwa bei Handschrift.
+- Kosten: drei weitere Aufrufe, nur fuer falsch liegende Seiten (gemessen
+  2,2 statt 0,5 s je Seite). Leere Seiten und Stempel kosten nichts extra.
+- Mit `lage_pruefen` liest Tesseract mit `--psm 3` statt 1. Mit
+  `osd.traineddata` (System-Tesseract) dreht `--psm 1` kopfstehende Seiten
+  intern zurueck. Die Lage liesse sich dann nicht bewerten, und 90 nicht von
+  270 Grad unterscheiden. Ohne `osd.traineddata` faellt `--psm 1` ohnehin auf 3
+  zurueck, fuer das mitgelieferte Tesseract aendert sich also nichts.
+- Text und Text-PDF stammen aus der besten Lage. `pdf_ocr` meldet sie in
+  `drehungen`. Im Index steht sie beim Cache-Eintrag der Seite
+  (`ocr_cache.drehung`), auch fuer die Analyse in PDFSM und „OCR neu“
+  (`Suchindex.ocr_eintragen(drehungen=...)`).
+
+**Schreiben** (Stufe `SearchConfig.auto_drehen`, wie `textebene`: `aus`,
+`neue_scans` = Standard, `alle`):
+
+- Entschieden wird bei der OCR (`drehen_vormerken`, `ocr_cache.drehen`). Ein
+  neuer Scan, den der Nutzer danach wegsortiert, wird trotzdem gedreht. Die
+  Vormerkung haengt am Bild-Hash wie die Text-PDF.
+- Gedreht wird im Schreibschritt der Textebene (`textebene.datei_schreiben`,
+  Laufabschnitt „Textebene schreiben“), auch wenn die Textebene aus ist. Es gilt
+  derselbe Schutz: Kopie, `/Rotate` setzen, inkrementell speichern, pruefen
+  (genau die vorgesehene Drehung), Sicherungskopie, `datei_ersetzen`. Nie
+  angefasst werden dieselben Faelle wie bei der Textebene.
+- Mit Textebene entstehen Drehung und Ebene in *einer* Aenderung, mit einer
+  Sicherungskopie und einem Protokolleintrag (`gedreht`, z. B. `1:180`).
+  Rueckgaengig nimmt beides zurueck.
+- Bleibt die Datei ungedreht (Stufe `aus`, ausserhalb des Scan-Ordners), liegt
+  die Textebene trotzdem deckungsgleich auf dem Scan. `ebene_auflegen` bekommt
+  die Lage, in der Tesseract gelesen hat.
+- Nach dem Drehen hat die Seite einen neuen Bild-Hash (die Drehung gehoert dazu,
+  Issue #150). `seiten.bild_hash` und der Cache werden umgestellt, der Text
+  steht unter dem neuen Hash ohne Drehung. Der naechste Lauf erkennt also nichts
+  neu.
+- Der alte Eintrag verliert die Vormerkung. Eine Kopie des ungedrehten Scans,
+  etwa eine eigene Sicherung, wird nicht gedreht, und nach Rueckgaengig dreht
+  kein Lauf die Datei erneut (zusaetzlich `textebene_grund = 'rueckgaengig'`).
+
+### 3.6 Schief gescannte Seiten gerade ausrichten (Issue #165)
+
+Zieht der Scanner ein Blatt schief ein, stehen die Zeilen ein paar Grad
+schraeg. PDFSM misst das und dreht den Seiteninhalt um diesen kleinen Winkel
+gerade. Das ersetzt ein eigenes Skript des Auftraggebers, das dafuer
+`ocrmypdf --deskew` ueber WSL aufrief. Ein PDF/A ist nicht noetig
+(Entscheidung vom 07.11.2026).
+
+**Messen** (`gerade.seite_messen`, Qt-frei, nur numpy):
+
+- Die Seite wird in Graustufen mit 100 dpi gerendert, so wie sie angezeigt
+  wird. Die dunklen Pixel werden fuer jeden Winkel von -10 bis +10 Grad auf
+  eine Achse projiziert (Projektionsprofil), erst in Schritten von 0,25 Grad,
+  dann um den besten Wert in Schritten von 0,02 Grad.
+- Stehen die Zeilen quer zur Achse, wechseln volle Zeilen und leere Abstaende
+  hart. Das Profil ist dann am schaerfsten (Summe der quadrierten Unterschiede
+  benachbarter Werte). Gemessen wird in beiden Richtungen, damit auch quer
+  liegende Seiten ihren Winkel bekommen. Der Winkel haengt nicht davon ab, ob
+  die Seite um 90 oder 180 Grad gedreht ist (Issue #151).
+- Keinen Winkel bekommt eine Seite mit zu wenig Schrift, mit zu viel dunkler
+  Flaeche (Foto) oder ohne deutliches Linienmuster (bester Winkel nicht
+  mindestens 1,5-mal so scharf wie der typische), ebenso ein bester Winkel am
+  Rand des Suchbereichs.
+- Ausgerichtet wird ab 0,3 Grad (`MIN_WINKEL`). Synthetische Scans trifft die
+  Messung auf wenige Hundertstel Grad, eine Seite kostet etwa 30 ms.
+- Gemessen werden nur gescannte Seiten (ein Bild bedeckt mindestens die halbe
+  Seite, `gerade.ist_scan`), auch wenn sie schon Text tragen. Die meisten Scans
+  bringen die Textebene des Scanprogramms (VueScan) mit und gehen gar nicht
+  durch Tesseract; deshalb misst nicht die OCR, sondern das Einlesen.
+
+**Ausrichten** (`gerade.ausrichten`):
+
+- Der ganze bisherige Seiteninhalt wird in `q <Drehung um die Mitte der CropBox> cm … Q`
+  eingeschlossen. Dazu kommen zwei kleine eigene Inhalts-Streams vorn und
+  hinten. Bild-Streams und bisherige Inhalts-Streams bleiben bytegleich, nichts
+  wird neu gerendert oder komprimiert (anders als bei ocrmypdf). Eine
+  vorhandene Textebene dreht mit und bleibt deckungsgleich.
+- Die Seite behaelt ihre Groesse und wird nicht verkleinert. Die Ecken des Scans
+  ragen um den kleinen Winkel ueber den Rand. `show_pdf_page(rotate=…)` waere
+  keine Alternative: Es verkleinert den gedrehten Inhalt, bis er ganz auf die
+  Seite passt.
+- Der vordere Stream beginnt mit dem Kommentar `%PDFSM gerade <winkel>`. Daran
+  erkennt PDFSM eine schon ausgerichtete Seite (`ist_ausgerichtet`, misst sie
+  nicht erneut) und kann die Ausrichtung wieder entfernen
+  (`ausrichtung_entfernen`).
+- Der Bild-Hash (`extract._bild_hash`) aendert sich nicht, auch nicht bei Seiten
+  mit Inline-Bild: Die eigenen Streams zaehlen dort nicht mit.
+
+**Automatisch** (Stufe `SearchConfig.auto_gerade`, wie `textebene`: `aus`,
+`neue_scans` = Standard, `alle`):
+
+- Gemessen wird beim Einlesen (`extract.pdf_text(gerade=…)`), nur wo die Stufe
+  gilt (`gerade_vormerken`): im Indexlauf, beim Einlesen ueber die Oberflaeche
+  und in der Analyse von PDFSM. Lohnt das Ausrichten, steht der Winkel am
+  Bild-Hash (Tabelle `schraeglage`, `gerade = 1`). Ein neuer Scan, den der
+  Nutzer danach wegsortiert, wird trotzdem ausgerichtet.
+- Ausgerichtet wird im Schreibschritt der Textebene, mit demselben Schutz und
+  derselben Pruefung (genau dieser Winkel, alle anderen Seiten unveraendert).
+  Das gilt auch fuer PDFs, deren Text schon in der Datei steht. Reihenfolge:
+  erst um 90 Grad drehen (#151), dann die Textebene auflegen, zuletzt
+  ausrichten, damit die Textebene mitdreht. Alles zusammen ergibt eine
+  Aenderung, eine Sicherungskopie und einen Protokolleintrag (Spalte `gerade`,
+  z. B. `1:-1.75`).
+- Danach ist die Vormerkung erledigt (`gerade = 0`): Weder der naechste Lauf
+  noch eine Kopie des Scans noch die Datei nach Rueckgaengig wird erneut
+  ausgerichtet. Eine inzwischen von Hand ausgerichtete Seite bleibt, wie sie
+  ist. PDF/A-Dateien bleiben wie bei der Textebene unberuehrt.
+- Der Bestand wird nicht nachtraeglich gemessen, auch nicht mit `alle`: Gemessen
+  wird nur, was neu eingelesen wird. Fuer einzelne Dateien gibt es den
+  Rechtsklick.
+
+**Rechtsklick** (`pdf_rotate.gerade_ausrichten`, Kachel › Drehen › „Gerade
+ausrichten (schief gescannt)“, auch fuer mehrere markierte PDFs):
+
+- Misst und richtet sofort aus, gespeichert inkrementell ueber eine Kopie wie
+  beim Drehen (#150). Signierte und verschluesselte PDFs werden abgelehnt.
+- Rueckgaengig mit Strg+Z (`ausrichtung_zuruecknehmen`): Die Ausrichtung wird
+  wieder herausgenommen.
 
 ---
 

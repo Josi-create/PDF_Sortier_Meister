@@ -1,7 +1,8 @@
 """
 Kachelgroessen fuer den Scan-Bereich (Issue #117)
 
-Der linke Bereich zeigt PDFs und Unterordner als Kacheln. Wie im
+Der linke Bereich zeigt PDFs als Kacheln (Unterordner stehen seit
+Issue #147 als Zeilen mit fester Groesse darueber). Wie im
 Windows-Explorer laesst sich die Groesse umschalten (Klein / Mittel / Gross).
 Das Thumbnail wird weiterhin in 140x160 gerendert und auf Platte gecacht;
 kleinere Ansichten skalieren nur dieses Bild herunter. Bei den kompakten
@@ -28,7 +29,7 @@ class TileView:
     # True: Bild fuellt die Flaeche in der Breite, unten wird abgeschnitten
     # (Kopf der Seite). False: ganze Seite eingepasst, Rest bleibt frei.
     thumb_crop: bool
-    tile_w: int  # Mindestbreite/-hoehe der Kachel (PDF und Ordner gleich)
+    tile_w: int  # Mindestbreite/-hoehe der PDF-Kachel
     tile_h: int
     tile_max_w: int
     tile_max_h: int
@@ -37,7 +38,6 @@ class TileView:
     font_px: int  # Schriftgroesse des Dateinamens
     name_lines: int  # Zeilen fuer den Namen; die letzte wird mittig gekuerzt
     name_max_height: int  # Hoehe des Namensfelds
-    folder_icon_px: int  # Schriftgroesse des Ordner-Symbols
     hover_preview: bool  # Mauszeiger ueber PDF zeigt das Original-Thumbnail
 
     @property
@@ -62,7 +62,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
         tile_w=92, tile_h=104, tile_max_w=102, tile_max_h=126,
         margin=4, spacing=3, font_px=10,
         name_lines=2, name_max_height=30,
-        folder_icon_px=22, hover_preview=True,
+        hover_preview=True,
     ),
     TileView(
         id="mittel", label="Mittel",
@@ -70,7 +70,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
         tile_w=104, tile_h=142, tile_max_w=114, tile_max_h=166,
         margin=6, spacing=4, font_px=10,
         name_lines=2, name_max_height=30,
-        folder_icon_px=32, hover_preview=True,
+        hover_preview=True,
     ),
     TileView(
         id="gross", label="Groß",
@@ -78,7 +78,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
         tile_w=160, tile_h=230, tile_max_w=180, tile_max_h=260,
         margin=8, spacing=5, font_px=11,
         name_lines=3, name_max_height=55,
-        folder_icon_px=48, hover_preview=False,
+        hover_preview=False,
     ),
 )
 

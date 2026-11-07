@@ -16,8 +16,10 @@ verwaltete Dokumente bleiben beim Aufraeumen stehen, solange die Datei
 existiert. ``einzeldatei_indizieren`` liest eine Datei synchron (Meldungen der
 Oberflaeche). Phase 5b: Nach der OCR schreibt der Lauf die unsichtbare
 Textebene in die PDFs (``textebene.py``; Stufe ``alle`` auch fuer den
-Altbestand). Eine Datei ``indexer.anhalten`` im Datenordner haelt den Lauf an;
-der naechste Lauf setzt fort.
+Altbestand). Issue #151: Liest die OCR eine Seite gedreht besser, dreht
+derselbe Schritt die PDF (Stufe ``auto_drehen``). Eine Datei
+``indexer.anhalten`` im Datenordner haelt den Lauf an; der naechste Lauf
+setzt fort.
 """
 
 from __future__ import annotations
@@ -186,10 +188,11 @@ def dokument_speichern(con, basis: dict, fmt: str, res: dict) -> tuple[int, dict
 
     PDFs: Seiten ohne Text bekommen ihren OCR-Text aus dem Cache (Bild-Hash),
     die PDFSM-Metadaten aus Info-Dict und XMP landen mit Quelle ``'pdf'``
-    (Werte mit Quelle ``'pdfsm'`` bleiben, Vorrangregel). Liefert
-    ``(dok_id, dok, zaehler)`` mit ``zaehler = {"ocr_cache": n}``.
+    (Werte mit Quelle ``'pdfsm'`` bleiben, Vorrangregel). Gemessene
+    Schraeglagen (Issue #165) werden am Bild-Hash vorgemerkt. Liefert
+    ``(dok_id, dok, zaehler)`` mit ``zaehler = {"ocr_cache": n, "schief": n}``.
     """
-    zaehler = {"ocr_cache": 0}
+    zaehler = {"ocr_cache": 0, "schief": 0}
     hashes: dict = {}
     if fmt == "pdf":
         seiten = list(res["seiten"])
@@ -230,6 +233,8 @@ def dokument_speichern(con, basis: dict, fmt: str, res: dict) -> tuple[int, dict
     dok_id = db.speichere(con, dok, seiten, bild_hashes=hashes)
     if fmt == "pdf" and res.get("metadaten"):
         db.metadaten_setzen(con, dok_id, res["metadaten"], quelle="pdf")
+    if fmt == "pdf" and res.get("schraeglagen"):
+        zaehler["schief"] = db.schraeglagen_eintragen(con, dok_id, res["schraeglagen"])
     if vorher is not None and vorher[0] and any(q == "ocr" and (t or "").strip() for _, q, t in seiten):
         # Seiten mit Textebene lesen sich als Text; erkannte Bildseiten heissen, sie ist verloren gegangen
         # (z. B. aeltere Fassung zurueckkopiert) - der naechste Lauf schreibt sie neu
@@ -248,7 +253,7 @@ def datei_lesen(pfad: str, konfig: SearchConfig) -> tuple[dict, str, dict] | Non
              "typ": typ, "format": fmt, "groesse": st.st_size, "mtime_ns": st.st_mtime_ns, "datum": st.st_mtime,
              "prioritaet": 9}
     if fmt == "pdf":
-        res = extract.pdf_text(pfad, konfig.ocr_einstellungen()["min_zeichen"])
+        res = extract.pdf_text(pfad, konfig.ocr_einstellungen()["min_zeichen"], konfig.gerade_vormerken(pfad))
     elif fmt in OFFICE:
         res = office.office_text(pfad, fmt)
     elif fmt == "md":
@@ -465,6 +470,8 @@ class Indexer:
             dok_id, dok, zaehler = dokument_speichern(self.con, basis, fmt, res)
             if zaehler["ocr_cache"]:
                 self.stat["ocr_cache"] += zaehler["ocr_cache"]
+            if zaehler["schief"]:
+                self.stat["schief_erkannt"] += zaehler["schief"]
             alt_quelle = (self.bekannt.get(basis["pfad"].lower()) or [None] * 6)[5]
             self.bekannt[basis["pfad"].lower()] = [dok_id, basis["groesse"], basis["mtime_ns"], dok["textstatus"],
                                                    basis["prioritaet"], alt_quelle]
@@ -479,9 +486,13 @@ class Indexer:
             texte = dict(res["texte"])
             for s in i["seiten"]:
                 texte.setdefault(s, None)   # nicht geliefert = Fehler
+            drehungen = res.get("drehungen") or {}
             erkannt = db.ocr_text_eintragen(self.con, dok_id, texte, self.ocr.get("sprachen"), self.ocr.get("dpi"),
-                                            nur_offene=True, ebenen=res.get("ebenen"))
+                                            nur_offene=True, ebenen=res.get("ebenen"), drehungen=drehungen,
+                                            drehen=bool(drehungen) and self.konfig.drehen_vormerken(i["pfad"]))
             self.stat["ocr_seiten"] += erkannt
+            if drehungen:
+                self.stat["ocr_gedreht_erkannt"] += len(drehungen)
             self._ocr_status(dok_id, res.get("fehler"))
         elif a.art == "hash":
             # OCR-Cache des Bestands auffuellen: Hashes nachtragen, Texte in den Cache
@@ -501,6 +512,10 @@ class Indexer:
             self.stat[f"textebene_{status}"] += 1
             if status == "geschrieben":
                 self._stand_nachziehen(res["pfad"], res["groesse"], res["mtime_ns"])
+                if res.get("gedreht"):
+                    self.stat["gedreht_seiten"] += len(res["gedreht"])
+                if res.get("gerade"):
+                    self.stat["gerade_seiten"] += len(res["gerade"])
         elif a.art == "mbox":
             for off, laenge, m in res:
                 dok = {
@@ -751,8 +766,8 @@ class Indexer:
             self._nur_name(basis, "zu_gross")
             return
         if fmt == "pdf":
-            a = Auftrag("datei", extract.pdf_text, (pfad, self.ocr["min_zeichen"]), {"pfad": pfad, "basis": basis},
-                        zeitlimit=300 + st.st_size / 1_000_000 * 5)
+            a = Auftrag("datei", extract.pdf_text, (pfad, self.ocr["min_zeichen"], self.konfig.gerade_vormerken(pfad)),
+                        {"pfad": pfad, "basis": basis}, zeitlimit=300 + st.st_size / 1_000_000 * 5)
         elif fmt in OFFICE:
             a = Auftrag("datei", office.office_text, (pfad, fmt), {"pfad": pfad, "basis": basis},
                         zeitlimit=300 + st.st_size / 1_000_000 * 10)
@@ -916,20 +931,31 @@ class Indexer:
         alt[1], alt[2] = groesse, mtime_ns
         self.signatur.setdefault((groesse, mtime_ns), []).append(k)
 
+    def _schreiben_an(self) -> bool:
+        """Darf der Lauf PDFs aendern (Textebene, automatisches Drehen #151 oder Ausrichten #165)?"""
+        return self.konfig.textebene != "aus" or self.konfig.auto_drehen != "aus" or self.konfig.auto_gerade != "aus"
+
     def _textebene(self, altbestand: bool = False) -> None:
         """Textebene in die PDFs schreiben: aus dem OCR-Cache bzw. (Altbestand) mit erneuter Texterkennung.
 
-        Haelt der Nutzer den Lauf an oder ist die Zeit um, werden die laufenden
-        Auftraege noch fertig geschrieben (keine halben Dateien, keine liegen
-        gebliebenen temporaeren Dateien); der naechste Lauf setzt fort.
+        Im selben Schritt dreht der Lauf Seiten, deren Drehung die OCR
+        vorgemerkt hat (Issue #151), und richtet schief gescannte Seiten
+        gerade aus (Issue #165), auch wenn die Textebene aus ist. Haelt der
+        Nutzer den Lauf an oder ist die Zeit um, werden die laufenden Auftraege
+        noch fertig geschrieben (keine halben Dateien, keine liegen gebliebenen
+        temporaeren Dateien); der naechste Lauf setzt fort.
         """
-        if self.konfig.textebene == "aus":
+        ebene = self.konfig.textebene != "aus"
+        drehen = self.konfig.auto_drehen != "aus"
+        gerade = self.konfig.auto_gerade != "aus"
+        if not ebene and (altbestand or not (drehen or gerade)):
             return
         ocr = self.ocr if self.ocr["aktiv"] else None
         if altbestand and ocr is None:
             log.warning("Textebene für den Altbestand übersprungen: %s", self.ocr["grund"])
             return
-        zeilen = textebene.altbestand(self.con) if altbestand else textebene.offene(self.con)
+        zeilen = (textebene.altbestand(self.con) if altbestand
+                  else textebene.offene(self.con, ebene=ebene, drehen=drehen, gerade=gerade))
         if zeilen:
             log.info("Textebene: %d Dateien%s", len(zeilen), " (Altbestand)" if altbestand else "")
             self.stat["textebene_dateien"] += len(zeilen)
@@ -937,14 +963,15 @@ class Indexer:
             if (self.ende_zeit and time.monotonic() > self.ende_zeit) or self._anhalten_angefordert():
                 self._abarbeiten()
                 raise Abbruch("angehalten" if anhalten_datei(self.konfig).exists() else "Zeitlimit erreicht")
-            a = textebene.auftrag(self.con, d, self.konfig, ocr)
+            a = textebene.auftrag(self.con, d, self.konfig, ocr, altbestand=altbestand)
             if a is None:
                 self.aenderungen += 1
                 continue
             nachholen = sum(1 for v in a["seiten"].values() if v["ebene"] is None)
             self._einreichen(Auftrag("textebene", textebene.datei_schreiben, (a,),
                                      {"pfad": d["datei"], "dok_id": d["id"]},
-                                     zeitlimit=120 + 10 * len(a["seiten"]) + 180 * nachholen))
+                                     zeitlimit=120 + 10 * (len(a["seiten"]) + len(a["drehen"]) + len(a["gerade"]))
+                                     + 180 * nachholen))
         self._abarbeiten()
         if not altbestand:
             weg = textebene.aufraeumen(self.con, self.konfig)
@@ -1080,7 +1107,7 @@ class Indexer:
                 if not ohne_ocr:
                     self._phase("Texterkennung (OCR)")
                     self._ocr(p)
-                if self.konfig.textebene != "aus":
+                if self._schreiben_an():
                     self._phase("Textebene schreiben")
                     self._textebene()
             else:
@@ -1110,7 +1137,7 @@ class Indexer:
                     if not nur_prioritaet:
                         self._phase("OCR-Cache ergänzen")
                         self._ocr_cache_ergaenzen()
-                if self.konfig.textebene != "aus":
+                if self._schreiben_an():
                     self._phase("Textebene schreiben")
                     self._textebene()
                     if self.konfig.textebene == "alle" and not nur_prioritaet and not ohne_ocr:

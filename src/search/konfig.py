@@ -21,6 +21,10 @@ from src.utils.platform_paths import get_app_data_dir
 # Stufen fuer „OCR-Text als Textebene in die PDF schreiben“ (Phase 5b):
 # aus | nur neue Scans im ersten Vorrang-Ordner | alle (Altbestand, nur auf Wunsch)
 TEXTEBENE_STUFEN = ("aus", "neue_scans", "alle")
+# Gedrehte Scans richtig herum speichern (Issue #151): gleiche Stufen wie die Textebene
+DREH_STUFEN = TEXTEBENE_STUFEN
+# Schief gescannte Seiten gerade ausrichten (Issue #165): ebenso
+GERADE_STUFEN = TEXTEBENE_STUFEN
 
 STANDARD_ENDUNGEN = (
     ".pdf", ".md", ".eml", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
@@ -86,6 +90,13 @@ class SearchConfig:
             Sicherungskopien (0 = unbegrenzt); ``textebene_sicherung_ordner``:
             leer = ``get_app_data_dir()/suche/textebene_sicherung``.
             Umsetzung in ``textebene.py`` (Phase 5b).
+        auto_drehen: falsch herum oder quer gescannte Seiten, die die OCR in
+            einer anderen Lage besser liest, gedreht in der PDF speichern
+            (Issue #151; ``DREH_STUFEN`` wie ``textebene``; die Lage erkennt
+            die OCR immer, die Stufe entscheidet nur ueber das Schreiben).
+        auto_gerade: schief gescannte Seiten gerade ausrichten (Issue #165;
+            ``GERADE_STUFEN`` wie ``textebene``). Gemessen wird nur, wo die
+            Stufe gilt, beim Einlesen der Datei (``gerade_vormerken``).
     """
 
     aktiv: bool = False
@@ -118,10 +129,16 @@ class SearchConfig:
     textebene: str = "neue_scans"          # Opt-out (06.11.2026): neue Scans bekommen die Textebene
     textebene_sicherung_tage: int = 30
     textebene_sicherung_ordner: str = ""
+    auto_drehen: str = "neue_scans"        # Issue #151: wie die Textebene nur neue Scans (Opt-out)
+    auto_gerade: str = "neue_scans"        # Issue #165: schiefe neue Scans gerade ausrichten (Opt-out)
 
     def __post_init__(self) -> None:
         if self.textebene not in TEXTEBENE_STUFEN:
             self.textebene = "aus"
+        if self.auto_drehen not in DREH_STUFEN:
+            self.auto_drehen = "aus"
+        if self.auto_gerade not in GERADE_STUFEN:
+            self.auto_gerade = "aus"
         self.textebene_sicherung_tage = max(0, int(self.textebene_sicherung_tage))
         self.wurzeln = [norm_pfad(p) for p in self.wurzeln if str(p).strip()]
         self.prioritaet = [norm_pfad(p) for p in self.prioritaet if str(p).strip()]
@@ -162,9 +179,32 @@ class SearchConfig:
         ``alle``: jede PDF. ``neue_scans``: nur Dateien im ersten Vorrang-Ordner
         (dort landen frische Scans). ``aus``: nie.
         """
-        if self.textebene == "alle":
+        return self._stufe_gilt(self.textebene, pfad)
+
+    def drehen_vormerken(self, pfad: str) -> bool:
+        """Soll eine bei der OCR erkannte Drehung dieser Datei in die PDF geschrieben werden (Issue #151)?
+
+        Entschieden wird bei der OCR, wie bei der Textebene: Wird ein neuer
+        Scan erst danach aus dem ersten Vorrang-Ordner wegsortiert, dreht der
+        naechste Lauf ihn trotzdem (die Vormerkung haengt am Bild-Hash im
+        OCR-Cache). ``alle``: jede PDF. ``aus``: nie.
+        """
+        return self._stufe_gilt(self.auto_drehen, pfad)
+
+    def gerade_vormerken(self, pfad: str) -> bool:
+        """Soll beim Einlesen dieser Datei die Schraeglage ihrer Scanseiten gemessen werden (Issue #165)?
+
+        Gemessen wird beim Einlesen (Indexlauf, PDF-Analyzer), vorgemerkt am
+        Bild-Hash; der naechste Lauf richtet die Seiten aus, auch wenn der Scan
+        inzwischen wegsortiert ist. ``alle``: jede neu eingelesene PDF.
+        ``aus``: nie.
+        """
+        return self._stufe_gilt(self.auto_gerade, pfad)
+
+    def _stufe_gilt(self, stufe: str, pfad: str) -> bool:
+        if stufe == "alle":
             return True
-        if self.textebene != "neue_scans" or not self.prioritaet:
+        if stufe != "neue_scans" or not self.prioritaet:
             return False
         ordner = os.path.normcase(self.prioritaet[0]).rstrip("\\/")
         datei = os.path.normcase(norm_pfad(pfad))
@@ -225,6 +265,7 @@ class SearchConfig:
             "dpi": int(self.ocr_dpi),
             "min_zeichen": int(self.ocr_min_zeichen),
             "max_seiten": int(self.ocr_max_seiten),
+            "lage_pruefen": True,      # Issue #151: falsch liegende Seiten auch gedreht lesen
         }
 
     # ------------------------------------------------------------------ JSON

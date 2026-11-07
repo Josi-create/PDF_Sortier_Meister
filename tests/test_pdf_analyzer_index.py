@@ -113,3 +113,101 @@ def test_ocr_hoechstens_fuenf_seiten_interaktiv(umgebung, monkeypatch):
     d = idx.dokument_nach_pfad(str(scan))
     # Die restlichen Seiten (gleiches Bild) hat der Cache gefuellt, der Lauf haette sonst 2 Seiten offen
     assert d["ocr_seiten"] == 7 and d["textstatus"] == "ocr"
+
+
+# --- Issue #150: Drehen und "OCR neu durchführen" ------------------------------
+
+
+def test_nach_drehen_neue_ocr_statt_altem_cache_text(umgebung, monkeypatch):
+    from src.core.pdf_rotate import rotate_pdf
+
+    ablage, konfig, idx = umgebung
+    scan = h.pdf_mit_bild(ablage / "kopfueber.pdf", seiten=1)
+    antwort = {"text": b"Kopfueber Kauderwelsch"}
+    aufrufe = []
+
+    def fake_run(args, **kw):
+        aufrufe.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=antwort["text"], stderr=b"")
+
+    monkeypatch.setattr(extract.subprocess, "run", fake_run)
+    with PDFAnalyzer(scan) as a:
+        assert "Kauderwelsch" in a.extract_text()
+    assert len(aufrufe) == 1
+
+    rotate_pdf(scan, 180)
+    antwort["text"] = b"Rechnung richtig herum"
+    with PDFAnalyzer(scan) as a:
+        text = a.extract_text()
+    assert "Rechnung richtig herum" in text and "Kauderwelsch" not in text and a.ocr_used
+    assert len(aufrufe) == 2
+
+    # Zurueckgedreht: der alte Cache-Eintrag passt wieder, keine dritte OCR
+    rotate_pdf(scan, 180)
+    with PDFAnalyzer(scan) as a:
+        assert "Kauderwelsch" in a.extract_text() and not a.ocr_used
+    assert len(aufrufe) == 2
+
+
+def test_ocr_neu_ersetzt_text_und_cache(umgebung, monkeypatch):
+    from src.core.pdf_analyzer import ocr_neu_durchfuehren
+
+    ablage, konfig, idx = umgebung
+    scan = h.pdf_mit_bild(ablage / "scan.pdf", seiten=2, text_seiten=["Deckblatt"])
+    antwort = {"text": b"Alter Text"}
+    aufrufe = []
+    monkeypatch.setattr(extract.subprocess, "run", lambda args, **kw: aufrufe.append(args) or
+                        subprocess.CompletedProcess(args, 0, stdout=antwort["text"], stderr=b""))
+    with PDFAnalyzer(scan) as a:
+        assert "Alter Text" in a.extract_text()
+    vorher = len(aufrufe)
+
+    antwort["text"] = b"Neu erkannt"
+    erg = ocr_neu_durchfuehren(scan)
+    assert erg == {"index": True, "seiten": 2, "fehler": None}
+    assert len(aufrufe) == vorher + 2  # beide Bildseiten, am Cache vorbei
+
+    with PDFAnalyzer(scan) as a:
+        text = a.extract_text()
+    assert "Neu erkannt" in text and "Alter Text" not in text and not a.ocr_used
+    # Auch der Cache ist ersetzt: eine Kopie bekommt den neuen Text
+    shutil.copy2(scan, ablage / "kopie.pdf")
+    with PDFAnalyzer(ablage / "kopie.pdf") as a:
+        assert "Neu erkannt" in a.extract_text() and not a.ocr_used
+
+
+def test_ocr_neu_nimmt_datei_ausserhalb_der_wurzeln_auf(umgebung, tmp_path, monkeypatch):
+    from src.core.pdf_analyzer import ocr_neu_durchfuehren
+
+    ablage, konfig, idx = umgebung
+    fremd = h.pdf_mit_bild(tmp_path / "fremd.pdf", seiten=1)
+    monkeypatch.setattr(extract.subprocess, "run", lambda args, **kw:
+                        subprocess.CompletedProcess(args, 0, stdout=b"Fremd erkannt", stderr=b""))
+    erg = ocr_neu_durchfuehren(fremd)
+    assert erg["index"] and erg["seiten"] == 1
+    assert idx.dokument_nach_pfad(str(fremd))["textstatus"] == "ocr"
+
+
+def test_ocr_neu_abbrechen_vor_der_naechsten_seite(umgebung, monkeypatch):
+    from src.core.pdf_analyzer import ocr_neu_durchfuehren
+
+    ablage, konfig, idx = umgebung
+    scan = h.pdf_mit_bild(ablage / "lang.pdf", seiten=3)
+    aufrufe = []
+    monkeypatch.setattr(extract.subprocess, "run", lambda args, **kw: aufrufe.append(args) or
+                        subprocess.CompletedProcess(args, 0, stdout=b"Text", stderr=b""))
+    erg = ocr_neu_durchfuehren(scan, abbrechen=lambda: len(aufrufe) >= 1)
+    assert len(aufrufe) == 1 and erg["seiten"] == 1
+
+
+def test_ocr_neu_ohne_suche_tut_nichts(tmp_path, monkeypatch):
+    from src.core.pdf_analyzer import ocr_neu_durchfuehren
+
+    monkeypatch.setattr("src.core.pdf_analyzer.suchindex_fuer_analyse", lambda: None)
+
+    def verboten(*a, **k):
+        raise AssertionError("ohne Suchindex keine OCR hier - die naechste Analyse erkennt neu")
+
+    monkeypatch.setattr(extract.subprocess, "run", verboten)
+    scan = h.pdf_mit_bild(tmp_path / "scan.pdf", seiten=1)
+    assert ocr_neu_durchfuehren(scan) == {"index": False, "seiten": 0, "fehler": None}

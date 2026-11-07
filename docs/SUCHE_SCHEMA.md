@@ -123,11 +123,14 @@ umbenannt, kopiert oder mit neuen Metadaten gespeichert wird.
 | `sprachen`, `dpi` | Einstellungen der Erkennung (z. B. `deu+eng`, 300) |
 | `erstellt` | Zeitpunkt (ISO) |
 | `ebene`, `ebene_am` | reine Text-PDF von Tesseract fuer die Textebene, solange sie gebraucht wird |
+| `drehung` | Issue #151: Text und Text-PDF stammen aus der um so viel Grad (90/180/270, im Uhrzeigersinn) gedrehten Seite; `NULL` = wie angezeigt |
+| `drehen` | Issue #151: `1` = diese Drehung beim naechsten Lauf in die PDF schreiben (bei der OCR vorgemerkt, Stufe `auto_drehen`) |
 
 ## Tabelle `textebene_protokoll` (neu in Version 2)
 
-Jede Aenderung einer PDF durch die Textebene, mit Sicherungskopie zum
-Rueckgaengigmachen (`pdfsm-dienst textebene rueckgaengig <id>`).
+Jede Aenderung einer PDF durch die Textebene oder das automatische Drehen
+(Issue #151), mit Sicherungskopie zum Rueckgaengigmachen
+(`pdfsm-dienst textebene rueckgaengig <id>`).
 
 | Spalte | Bedeutung |
 |---|---|
@@ -135,10 +138,26 @@ Rueckgaengigmachen (`pdfsm-dienst textebene rueckgaengig <id>`).
 | `dok_id` | → `dokumente.id` (ohne Fremdschluessel: der Eintrag bleibt, wenn das Dokument verschwindet) |
 | `pfad`, `am` | Datei und Zeitpunkt |
 | `seiten` | Seiten mit neuer Textebene, z. B. `1,2,5` |
+| `gedreht` | Issue #151: richtig herum gedrehte Seiten mit Grad, z. B. `1:180,3:90`; `NULL` = nichts gedreht |
+| `gerade` | Issue #165: gerade ausgerichtete Seiten mit Winkel (Grad gegen den Uhrzeigersinn), z. B. `1:-1.75`; `NULL` = nichts ausgerichtet |
 | `sicherung` | Pfad der Sicherungskopie; `NULL` = abgelaufen bzw. nach Rueckgaengig entfernt |
 | `groesse_vorher`, `mtime_ns_vorher`, `groesse_nachher`, `mtime_ns_nachher` | Dateistand vor und nach dem Schreiben |
 | `status` | `geschrieben` oder `rueckgaengig` |
 | `rueckgaengig_am` | Zeitpunkt des Rueckgaengigmachens |
+
+## Tabelle `schraeglage` (Issue #165)
+
+Gemessene Schraeglage schief gescannter Seiten, am Bild-Hash wie der OCR-Cache.
+Nur Seiten, bei denen sich das Ausrichten lohnt (ab 0,3 Grad), stehen hier.
+
+| Spalte | Bedeutung |
+|---|---|
+| `bild_hash` | Schluessel, wie `seiten.bild_hash` (fuer gemessene Seiten auch bei Textseiten gesetzt) |
+| `winkel` | Grad gegen den Uhrzeigersinn, um die die angezeigte Seite gerade steht |
+| `gerade` | `1` = beim naechsten Lauf ausrichten (beim Einlesen vorgemerkt, Stufe `auto_gerade`); `0` = erledigt, auch nach Rueckgaengig |
+| `erkannt` | Zeitpunkt der Messung (ISO) |
+
+Teilindex `ix_schraeglage_gerade` (nur vorgemerkte Seiten).
 
 ## Weitere Tabellen
 

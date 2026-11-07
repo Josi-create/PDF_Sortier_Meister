@@ -161,6 +161,11 @@ class FolderWidget(QFrame):
         open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
         open_action.triggered.connect(lambda: self._open_in_explorer())
 
+        # Issue #154: Pfad in die Zwischenablage
+        from src.gui.pfad_aktionen import PFAD_KOPIEREN_TEXT
+        copy_action = menu.addAction(PFAD_KOPIEREN_TEXT)
+        copy_action.triggered.connect(self._copy_path)
+
         # Aus Liste entfernen - nur fuer echte Zielordner-Kacheln. Auf den
         # gruenen Vorschlagskacheln war der Eintrag wirkungslos (Signal nie
         # verbunden) und inhaltlich falsch: Vorschlaege sind meist Unterordner,
@@ -177,6 +182,12 @@ class FolderWidget(QFrame):
         from src.utils.platform_paths import open_with_default_app
 
         open_with_default_app(self.folder_path)
+
+    def _copy_path(self):
+        """Legt den Ordnerpfad in die Zwischenablage (Issue #154)."""
+        from src.gui.pfad_aktionen import pfad_kopieren
+
+        pfad_kopieren(self.folder_path)
 
     # Drag & Drop Unterstützung
     def dragEnterEvent(self, event: QDragEnterEvent):
