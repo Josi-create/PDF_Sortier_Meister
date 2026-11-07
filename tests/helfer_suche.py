@@ -30,6 +30,8 @@ def konfig_fuer(tmp_path: Path, **kw) -> SearchConfig:
     kw.setdefault("textebene_sicherung_ordner", str(tmp_path / "textebene_sicherung"))
     # Indextests schreiben keine Textebene, solange sie es nicht ausdruecklich wollen (Standard ist "neue_scans")
     kw.setdefault("textebene", "aus")
+    # ... und drehen keine PDF (Issue #151, Standard ebenfalls "neue_scans")
+    kw.setdefault("auto_drehen", "aus")
     return SearchConfig(**kw)
 
 
@@ -164,6 +166,114 @@ def fake_tesseract(monkeypatch, text: str = "Erkannter Scantext") -> list:
 
     monkeypatch.setattr(extract.subprocess, "run", run)
     return aufrufe
+
+
+# --------------------------------------------------------------------------- Lage der Seite (Issue #151)
+
+LAGE_TEXT = "Rechnung Nummer 4711 Gesamtbetrag 1181,20 Euro Stadtwerke"
+LAGE_SALAT = "USNBIUSA JU] JON} MUEQ U9jalA Jpejsiajsn esseyseds"   # so liest Tesseract Kopfstehendes
+
+
+def scan_mit_lage(pfad: Path, inhalt_drehung: int = 0, seiten: int = 1, dpi: int = 72,
+                  zeilen: list[str] | None = None) -> Path:
+    """Scan, dessen Bild um ``inhalt_drehung`` Grad im Uhrzeigersinn verdreht ist (``/Rotate`` bleibt 0).
+
+    Aufrecht steht oben links ein schwarzes Quadrat (daran erkennt
+    ``fake_tesseract_lage`` die Lage) und darunter Text (``zeilen``, fuer
+    echtes Tesseract). Aufrecht wird die Seite also mit
+    ``(360 - inhalt_drehung) % 360`` Grad Drehung.
+    """
+    import pymupdf
+
+    quelle = pymupdf.open()
+    q = quelle.new_page(width=595, height=842)
+    q.draw_rect(pymupdf.Rect(30, 30, 160, 160), color=(0, 0, 0), fill=(0, 0, 0))
+    for i, zeile in enumerate(zeilen or ["Rechnung Nummer 4711"]):
+        q.insert_text((72, 220 + 30 * i), zeile, fontsize=18)
+    z = dpi / 72
+    pix = q.get_pixmap(matrix=pymupdf.Matrix(z, z).prerotate(inhalt_drehung), colorspace=pymupdf.csGRAY)
+    quelle.close()
+    doc = pymupdf.open()
+    for _ in range(seiten):
+        seite = doc.new_page(width=pix.width * 72 / dpi, height=pix.height * 72 / dpi)
+        seite.insert_image(seite.rect, pixmap=pix)
+    doc.save(str(pfad), deflate=True)
+    doc.close()
+    return pfad
+
+
+def _lage_tsv(woerter: list[str], konfidenz: int, senkrecht: bool) -> str:
+    zeilen = ["level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext",
+              "1\t1\t0\t0\t0\t0\t0\t0\t1000\t1400\t-1\t"]
+    breite, hoehe = (30, 120) if senkrecht else (120, 30)
+    for i, wort in enumerate(woerter, start=1):
+        zeilen.append(f"5\t1\t1\t1\t1\t{i}\t{40 * i}\t100\t{breite}\t{hoehe}\t{konfidenz}\t{wort}")
+    return "\n".join(zeilen) + "\n"
+
+
+def bild_lage(png: bytes) -> str:
+    """``'aufrecht'`` | ``'quer'`` | ``'kopf'`` | ``'leer'`` – wo das Quadrat von ``scan_mit_lage`` steht."""
+    import pymupdf
+
+    pix = pymupdf.Pixmap(png)
+
+    def dunkel(fx: float, fy: float) -> bool:
+        return pix.pixel(int(pix.width * fx), int(pix.height * fy))[0] < 100
+
+    if dunkel(0.12, 0.12):
+        return "aufrecht"
+    if dunkel(0.88, 0.12) or dunkel(0.12, 0.88):
+        return "quer"
+    if dunkel(0.88, 0.88):
+        return "kopf"
+    return "leer"
+
+
+def fake_tesseract_lage(monkeypatch, text: str = LAGE_TEXT) -> list:
+    """Tesseract-Attrappe, die sieht, wie das Seitenbild liegt (Issue #151; Scans aus ``scan_mit_lage``).
+
+    Wie echtes Tesseract ohne ``osd``: aufrecht der Text mit sicheren,
+    waagerechten Woertern; quer derselbe Text, aber als senkrechte Woerter;
+    kopfstehend Buchstabensalat mit niedriger Konfidenz; leere Seite nichts.
+    Beherrscht stdout (Text, mit ``tessedit_create_tsv`` erst die TSV) und die
+    Ausgabe in Dateien (``.txt``, ``.pdf`` mit ``tessedit_create_pdf``, ``.tsv``).
+    Liefert die Liste der gesehenen Lagen, ein Eintrag je Aufruf.
+    """
+    import subprocess
+
+    import pymupdf
+
+    from src.search import extract
+
+    lagen: list = []
+
+    def run(args, **kw):
+        lage = bild_lage(kw["input"])
+        lagen.append(lage)
+        if lage == "aufrecht":
+            ausgabe, tsv = text, _lage_tsv(text.split(), 95, senkrecht=False)
+        elif lage == "quer":
+            ausgabe, tsv = text, _lage_tsv(text.split(), 95, senkrecht=True)
+        elif lage == "kopf":
+            ausgabe, tsv = LAGE_SALAT, _lage_tsv(LAGE_SALAT.split(), 30, senkrecht=False)
+        else:
+            ausgabe, tsv = "", _lage_tsv([], 0, senkrecht=False)
+        mit_tsv = "tessedit_create_tsv=1" in args
+        if args[2] == "stdout":
+            out = (tsv if mit_tsv else "") + ausgabe
+            return subprocess.CompletedProcess(args, 0, stdout=out.encode("utf-8"), stderr=b"")
+        basis = args[2]
+        Path(basis + ".txt").write_text(ausgabe, encoding="utf-8")
+        if mit_tsv:
+            Path(basis + ".tsv").write_text(tsv, encoding="utf-8")
+        if "tessedit_create_pdf=1" in args:
+            dpi = int(args[args.index("--dpi") + 1])
+            pix = pymupdf.Pixmap(kw["input"])
+            Path(basis + ".pdf").write_bytes(text_pdf(pix.width * 72 / dpi, pix.height * 72 / dpi, ausgabe or " "))
+        return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(extract.subprocess, "run", run)
+    return lagen
 
 
 def pdf_verschluesselt(pfad: Path, text: str = "Geheim") -> Path:

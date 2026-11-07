@@ -1176,7 +1176,7 @@ class SettingsDialog(QDialog):
         layout.addWidget(perf_group)
 
         # Textebene (Phase 5b)
-        text_group = QGroupBox("Textebene in gescannte PDFs schreiben")
+        text_group = QGroupBox("Gescannte PDFs verbessern (Textebene, Drehung)")
         text_layout = QFormLayout(text_group)
         self.search_textlayer_combo = QComboBox()
         for label, stufe in (
@@ -1210,6 +1210,27 @@ class SettingsDialog(QDialog):
         text_hint.setStyleSheet("color: gray;")
         text_hint.setWordWrap(True)
         text_layout.addRow(text_hint)
+        # Gedrehte Scans (Issue #151)
+        self.search_autorotate_combo = QComboBox()
+        for label, stufe in (
+            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
+            ("Aus – Seiten bleiben, wie sie gescannt wurden", "aus"),
+            ("Alle PDFs, deren Texterkennung eine gedrehte Seite findet", "alle"),
+        ):
+            self.search_autorotate_combo.addItem(label, stufe)
+        self.search_autorotate_combo.setToolTip(
+            "Liest die Texterkennung eine Seite erst gedreht richtig, wird die PDF so gespeichert"
+        )
+        text_layout.addRow("Gedrehte Seiten richtig herum speichern:", self.search_autorotate_combo)
+        rotate_hint = QLabel(
+            "Liest die Texterkennung eine Seite nicht, weil sie auf dem Kopf steht oder quer "
+            "liegt, versucht sie die drei anderen Lagen und nimmt die beste. So herum wird die "
+            "Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die "
+            "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert."
+        )
+        rotate_hint.setStyleSheet("color: gray;")
+        rotate_hint.setWordWrap(True)
+        text_layout.addRow(rotate_hint)
         layout.addWidget(text_group)
 
         # Speicherort und Uebernahme
@@ -1371,6 +1392,7 @@ class SettingsDialog(QDialog):
         self.search_textlayer_combo.blockSignals(False)
         self._search_textlayer_previous = self.search_textlayer_combo.currentData() or "aus"
         self.search_textlayer_backup_days_spin.setValue(cfg.textebene_sicherung_tage)
+        self.search_autorotate_combo.setCurrentIndex(max(self.search_autorotate_combo.findData(cfg.auto_drehen), 0))
         self.search_db_path_edit.setText(cfg.db_pfad)
         self.search_db_path_edit.setPlaceholderText(str(SearchConfig().db_datei))
 
@@ -1411,6 +1433,7 @@ class SettingsDialog(QDialog):
             textebene=self.search_textlayer_combo.currentData() or "aus",
             textebene_sicherung_tage=self.search_textlayer_backup_days_spin.value(),
             textebene_sicherung_ordner=alt.textebene_sicherung_ordner,
+            auto_drehen=self.search_autorotate_combo.currentData() or "aus",
         )
         self.config.set_search_config(cfg)
         self._sync_search_schedule(alt, cfg)

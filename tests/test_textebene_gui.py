@@ -138,7 +138,7 @@ def test_protokoll_rueckgaengig(qtbot, monkeypatch, ebene):
     qtbot.addWidget(dlg)
     assert dlg.tabelle.rowCount() == 1 and not dlg.leer_label.isVisibleTo(dlg)
     assert os.path.samefile(dlg.tabelle.item(0, 1).text(), scan)
-    assert dlg.tabelle.item(0, 3).text() == "Sicherung vorhanden"
+    assert dlg.tabelle.item(0, 4).text() == "Sicherung vorhanden"
     assert not dlg.rueckgaengig_button.isEnabled()
     dlg.tabelle.selectRow(0)
     assert dlg.rueckgaengig_button.isEnabled() and dlg.zeigen_button.isEnabled()
@@ -152,7 +152,7 @@ def test_protokoll_rueckgaengig(qtbot, monkeypatch, ebene):
         dlg.rueckgaengig_button.click()
     assert signal.args[0] is True and gezeigt == [("information", signal.args[1])]
     assert scan.read_bytes() == vorher
-    assert dlg.tabelle.item(0, 3).text() == "rückgängig gemacht" and not dlg.rueckgaengig_button.isEnabled()
+    assert dlg.tabelle.item(0, 4).text() == "rückgängig gemacht" and not dlg.rueckgaengig_button.isEnabled()
     dlg.accept()
 
 
@@ -177,7 +177,7 @@ def test_protokoll_nach_spaeterer_aenderung_nur_nach_zweiter_rueckfrage(qtbot, m
     with qtbot.waitSignal(dlg.rueckgaengig_fertig, timeout=30000) as signal:
         dlg.rueckgaengig_button.click()
     assert signal.args[0] is True and len(gestellt) == 2 and _ocr_schriften(scan) == 0
-    assert dlg.tabelle.item(0, 3).text() == "rückgängig gemacht"
+    assert dlg.tabelle.item(0, 4).text() == "rückgängig gemacht"
     dlg.accept()
 
 

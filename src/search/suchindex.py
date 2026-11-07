@@ -317,13 +317,18 @@ class Suchindex:
         """
         return self.datei_aufnehmen(pfad)
 
-    def ocr_eintragen(self, pfad: str, texte: dict, ebenen: dict | None = None, ersetzen: bool = False) -> int:
+    def ocr_eintragen(self, pfad: str, texte: dict, ebenen: dict | None = None, ersetzen: bool = False,
+                      drehungen: dict | None = None, drehen: bool | None = None) -> int:
         """OCR-Ergebnis der Oberflaeche uebernehmen (``{seite: text}``), auch in den Cache; 0, wenn unbekannt.
 
         ``ebenen`` (``{seite: text_pdf}``) sind die Text-PDFs aus demselben
         Tesseract-Aufruf; der naechste Indexlauf schreibt sie als Textebene in
-        die Datei (Phase 5b). ``ersetzen`` ("OCR neu durchfuehren", Issue #150)
-        ueberschreibt auch schon erkannte Seiten und ihre Cache-Eintraege.
+        die Datei (Phase 5b). ``drehungen`` (``{seite: grad}``, Issue #151):
+        Lage, in der die OCR die Seite besser las; je nach ``auto_drehen``
+        dreht der naechste Indexlauf die Datei (``drehen``: ausdruecklich
+        vormerken oder nicht, None = nach Stufe und Ort). ``ersetzen`` ("OCR neu
+        durchfuehren", Issue #150) ueberschreibt auch schon erkannte Seiten und
+        ihre Cache-Eintraege.
         """
         if not self.vorhanden() or not texte:
             return 0
@@ -335,7 +340,9 @@ class Suchindex:
             ocr = self.konfig.ocr_einstellungen()
             n = db.ocr_text_eintragen(con, r[0], dict(texte), ocr.get("sprachen"), ocr.get("dpi"),
                                       nur_offene=not ersetzen, ebenen=dict(ebenen) if ebenen else None,
-                                      cache_ersetzen=ersetzen)
+                                      cache_ersetzen=ersetzen, drehungen=dict(drehungen) if drehungen else None,
+                                      drehen=bool(drehungen) and (self.konfig.drehen_vormerken(norm_pfad(pfad))
+                                                                  if drehen is None else drehen))
             con.commit()
             return n
         finally:

@@ -123,11 +123,14 @@ umbenannt, kopiert oder mit neuen Metadaten gespeichert wird.
 | `sprachen`, `dpi` | Einstellungen der Erkennung (z. B. `deu+eng`, 300) |
 | `erstellt` | Zeitpunkt (ISO) |
 | `ebene`, `ebene_am` | reine Text-PDF von Tesseract fuer die Textebene, solange sie gebraucht wird |
+| `drehung` | Issue #151: Text und Text-PDF stammen aus der um so viel Grad (90/180/270, im Uhrzeigersinn) gedrehten Seite; `NULL` = wie angezeigt |
+| `drehen` | Issue #151: `1` = diese Drehung beim naechsten Lauf in die PDF schreiben (bei der OCR vorgemerkt, Stufe `auto_drehen`) |
 
 ## Tabelle `textebene_protokoll` (neu in Version 2)
 
-Jede Aenderung einer PDF durch die Textebene, mit Sicherungskopie zum
-Rueckgaengigmachen (`pdfsm-dienst textebene rueckgaengig <id>`).
+Jede Aenderung einer PDF durch die Textebene oder das automatische Drehen
+(Issue #151), mit Sicherungskopie zum Rueckgaengigmachen
+(`pdfsm-dienst textebene rueckgaengig <id>`).
 
 | Spalte | Bedeutung |
 |---|---|
@@ -135,6 +138,7 @@ Rueckgaengigmachen (`pdfsm-dienst textebene rueckgaengig <id>`).
 | `dok_id` | → `dokumente.id` (ohne Fremdschluessel: der Eintrag bleibt, wenn das Dokument verschwindet) |
 | `pfad`, `am` | Datei und Zeitpunkt |
 | `seiten` | Seiten mit neuer Textebene, z. B. `1,2,5` |
+| `gedreht` | Issue #151: richtig herum gedrehte Seiten mit Grad, z. B. `1:180,3:90`; `NULL` = nichts gedreht |
 | `sicherung` | Pfad der Sicherungskopie; `NULL` = abgelaufen bzw. nach Rueckgaengig entfernt |
 | `groesse_vorher`, `mtime_ns_vorher`, `groesse_nachher`, `mtime_ns_nachher` | Dateistand vor und nach dem Schreiben |
 | `status` | `geschrieben` oder `rueckgaengig` |

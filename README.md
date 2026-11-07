@@ -126,6 +126,9 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   erkannten Text als unsichtbare Ebene — dann finden auch der Explorer, Acrobat und andere Programme den
   Text. Das Scanbild bleibt unverändert, vorher wird eine Sicherungskopie angelegt, jede Änderung ist
   protokolliert und lässt sich rückgängig machen (`pdfsm-dienst textebene rueckgaengig <Nr>`)
+- **Gedrehte Scans richtig herum** (abschaltbar): Steht eine Seite auf dem Kopf oder liegt sie quer, liest
+  die Texterkennung sie in allen vier Lagen und nimmt die beste. Neue Scans werden so herum gespeichert;
+  geändert wird nur die Drehangabe, mit Sicherungskopie und Protokoll wie bei der Textebene
 - **Browser-Oberfläche** (optional): dieselbe Suche unter `http://localhost:18425`, nur auf diesem Rechner
   erreichbar; startet auf Wunsch bei der Anmeldung
 - **KI-Assistenten** (MCP): Claude Code, Claude Desktop und andere MCP-fähige Programme durchsuchen den
@@ -173,8 +176,9 @@ Das ist ein Desktop-Programm. Ohne konfigurierten Cloud-Anbieter verlässt **nic
 Alle Daten (Konfiguration, Lernhistorie, Suchindex, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
 Es gibt keine Telemetrie und keinen Auto-Update-Mechanismus.
 
-Die Dokumentensuche **liest** deine Dateien nur. Einzige Ausnahme ist die abschaltbare Textebene für neue
-Scans (siehe oben): Sie schreibt den erkannten Text unsichtbar in die PDF, mit Sicherungskopie.
+Die Dokumentensuche **liest** deine Dateien nur. Einzige Ausnahmen sind die abschaltbare Textebene und das
+abschaltbare Drehen für neue Scans (siehe oben): Sie schreiben den erkannten Text unsichtbar in die PDF bzw.
+drehen falsch herum gescannte Seiten, jeweils mit Sicherungskopie.
 
 ---
 

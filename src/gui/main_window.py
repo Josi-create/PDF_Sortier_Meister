@@ -3315,9 +3315,11 @@ class MainWindow(QMainWindow):
         self._ocr_neu_paths = []
         fehler = []
         seiten = 0
+        gedreht = 0
         for path, erg in ergebnisse:
             self.pdf_cache.clear_for_pdf(path)
             seiten += int(erg.get("seiten") or 0)
+            gedreht += int(erg.get("gedreht") or 0)
             if erg.get("fehler"):
                 fehler.append(f"{path.name}: {erg['fehler']}")
         if self.selected_pdf is not None and not self.selected_pdfs and any(
@@ -3327,6 +3329,9 @@ class MainWindow(QMainWindow):
         text = f"Texterkennung neu: {len(ergebnisse)} PDF(s)"
         if seiten:
             text += f", {seiten} Seite(n) erkannt"
+        if gedreht:
+            # Issue #151: die Datei dreht der naechste Indexlauf (je nach Einstellung)
+            text += f", {gedreht} davon erst gedreht lesbar"
         self.statusbar.showMessage(text, 6000)
         if fehler:
             QMessageBox.warning(self, "OCR neu durchführen", "\n".join(fehler))

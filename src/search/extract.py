@@ -293,11 +293,17 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
     die reine Text-PDF fuer die unsichtbare Textebene (``'ebenen': {seite:
     bytes}``, Phase 5b); sie kommt in den OCR-Cache und wird spaeter in die
     Datei geschrieben (``textebene.py``). Es gibt also nie eine zweite OCR.
+
+    Mit ``cfg["lage_pruefen"]`` (Issue #151) wird eine Seite, die falsch herum
+    oder quer liegt, zusaetzlich in den drei anderen Lagen gelesen
+    (``seite_erkennen``); Text und Text-PDF stammen dann aus der besten Lage,
+    und ``'drehungen'`` nennt sie (``{seite: 90 | 180 | 270}``, im
+    Uhrzeigersinn zur angezeigten Seite).
     """
     import pymupdf
 
     mit_ebene = bool(cfg.get("textebene"))
-    erg: dict = {"texte": {}, "ebenen": {}, "fehler": None}
+    erg: dict = {"texte": {}, "ebenen": {}, "drehungen": {}, "fehler": None}
     try:
         doc = pymupdf.open(pfad)
         if doc.needs_pass:
@@ -311,12 +317,12 @@ def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
                 continue
             seite = doc[nr - 1]
             try:
+                text, ebene, drehung = seite_erkennen(seite, cfg, ebene=mit_ebene)
+                erg["texte"][nr] = _saeubern(text)
                 if mit_ebene:
-                    text, ebene = ocr_seite_mit_textebene(seite, cfg)
-                    erg["texte"][nr] = _saeubern(text)
                     erg["ebenen"][nr] = ebene
-                else:
-                    erg["texte"][nr] = _saeubern(_ocr_seite(seite, cfg))
+                if drehung:
+                    erg["drehungen"][nr] = drehung
             except Exception as e:
                 erg["fehler"] = f"Seite {nr}: {fehlertext(e, pfad)}"
                 erg["texte"][nr] = None
@@ -345,39 +351,176 @@ def _seitenbild(seite, cfg: dict) -> tuple[bytes, int, dict]:
     return pix.tobytes("png"), dpi, env
 
 
-def _ocr_seite(seite, cfg: dict) -> str:
+TSV_KOPF = "level\tpage_num"   # erste Zeile der TSV-Ausgabe von Tesseract
+
+
+def _psm(cfg: dict) -> str:
+    """Seitensegmentierung: ``1`` (mit Lageerkennung, braucht ``osd.traineddata``), mit ``lage_pruefen`` ``3``.
+
+    Mit ``osd.traineddata`` dreht Tesseract bei ``--psm 1`` kopfstehende
+    Seiten intern selbst zurueck; die Lage liesse sich dann nicht mehr
+    bewerten, und 90 von 270 Grad nicht unterscheiden. ``--psm 3`` liest
+    genau das gerenderte Bild, die Lage bestimmt ``seite_erkennen``. Ohne
+    ``osd.traineddata`` (mitgeliefertes Tesseract) faellt ``--psm 1`` ohnehin
+    auf 3 zurueck.
+    """
+    return "3" if cfg.get("lage_pruefen") else "1"
+
+
+def _ocr_seite(seite, cfg: dict, tsv: bool = False) -> tuple[str, str | None]:
+    """Text der Seite ueber stdout; mit ``tsv`` dazu die TSV (``(text, tsv | None)``).
+
+    Mit beiden Schaltern schreibt Tesseract nacheinander nach stdout: erst die
+    TSV (jede Zeile mit Tabulatoren), dann den Text. Fehlt der TSV-Kopf (etwa
+    bei einem Tesseract, der den Schalter nicht kennt), ist alles Text.
+    """
     png, dpi, env = _seitenbild(seite, cfg)
-    r = subprocess.run(
-        [cfg["tesseract"], "stdin", "stdout", "-l", cfg["sprachen"], "--psm", "1", "--dpi", str(dpi)],
-        input=png, capture_output=True, timeout=600, env=env, **_popen_kwargs(),
-    )
+    args = [cfg["tesseract"], "stdin", "stdout", "-l", cfg["sprachen"], "--psm", _psm(cfg), "--dpi", str(dpi)]
+    if tsv:
+        args += ["-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=1"]
+    r = subprocess.run(args, input=png, capture_output=True, timeout=600, env=env, **_popen_kwargs())
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace").strip()[-300:])
-    return r.stdout.decode("utf-8", "replace")
+    ausgabe = r.stdout.decode("utf-8", "replace")
+    if not tsv or not ausgabe.startswith(TSV_KOPF):
+        return ausgabe, None
+    zeilen = ausgabe.splitlines(keepends=True)
+    i = 0
+    while i < len(zeilen) and "\t" in zeilen[i]:
+        i += 1
+    return "".join(zeilen[i:]), "".join(zeilen[:i])
 
 
 def ocr_seite_mit_textebene(seite, cfg: dict) -> tuple[str, bytes]:
-    """Eine Seite erkennen und dabei die Textebene erzeugen: ``(text, text_pdf)`` aus einem Tesseract-Aufruf.
+    """Eine Seite erkennen und dabei die Textebene erzeugen: ``(text, text_pdf)`` aus einem Tesseract-Aufruf."""
+    text, pdf, _ = _tesseract(seite, cfg, ebene=True)
+    return text, pdf
 
-    Tesseract schreibt Text (``tessedit_create_txt``) und eine reine Text-PDF
-    (``tessedit_create_pdf`` mit ``textonly_pdf=1``: unsichtbarer Text in der
-    Schrift ``GlyphLessFont``, ohne Bild) in einen temporaeren Ordner. Die
-    Schalter statt der Konfigurationsdateien ``txt``/``pdf`` funktionieren auch
-    mit einem mitgelieferten Tesseract ohne ``tessdata/configs``.
+
+def _tesseract(seite, cfg: dict, ebene: bool = False, tsv: bool = False) -> tuple[str, bytes | None, str | None]:
+    """Ein Tesseract-Aufruf fuer die angezeigte Seite: ``(text, text_pdf | None, tsv | None)``.
+
+    Tesseract schreibt Text (``tessedit_create_txt``), auf Wunsch eine reine
+    Text-PDF (``tessedit_create_pdf`` mit ``textonly_pdf=1``: unsichtbarer Text
+    in der Schrift ``GlyphLessFont``, ohne Bild) und die Woerter mit Lage und
+    Konfidenz (``tessedit_create_tsv``) in einen temporaeren Ordner. Die
+    Schalter statt der Konfigurationsdateien ``txt``/``pdf``/``tsv``
+    funktionieren auch mit einem mitgelieferten Tesseract ohne
+    ``tessdata/configs``. Ohne Text-PDF geht alles ueber stdout (``_ocr_seite``).
     """
+    if not ebene:
+        text, tsv_text = _ocr_seite(seite, cfg, tsv=tsv)
+        return text, None, tsv_text
     png, dpi, env = _seitenbild(seite, cfg)
+    schalter = ["-c", "tessedit_create_txt=1"]
+    if ebene:
+        schalter += ["-c", "tessedit_create_pdf=1", "-c", "textonly_pdf=1"]
+    if tsv:
+        schalter += ["-c", "tessedit_create_tsv=1"]
     with tempfile.TemporaryDirectory(prefix="pdfsm-ocr-") as tmp:
         basis = os.path.join(tmp, "seite")
         r = subprocess.run(
-            [cfg["tesseract"], "stdin", basis, "-l", cfg["sprachen"], "--psm", "1", "--dpi", str(dpi),
-             "-c", "tessedit_create_txt=1", "-c", "tessedit_create_pdf=1", "-c", "textonly_pdf=1"],
+            [cfg["tesseract"], "stdin", basis, "-l", cfg["sprachen"], "--psm", _psm(cfg), "--dpi", str(dpi), *schalter],
             input=png, capture_output=True, timeout=600, env=env, **_popen_kwargs(),
         )
         if r.returncode != 0:
             raise RuntimeError(r.stderr.decode("utf-8", "replace").strip()[-300:])
         text = Path(basis + ".txt").read_text(encoding="utf-8", errors="replace")
-        pdf = Path(basis + ".pdf").read_bytes()
-    return text, pdf
+        pdf = Path(basis + ".pdf").read_bytes() if ebene else None
+        tsv_datei = Path(basis + ".tsv")
+        tsv_text = tsv_datei.read_text(encoding="utf-8", errors="replace") if tsv and tsv_datei.exists() else None
+    return text, pdf, tsv_text
+
+
+# --------------------------------------------------------------------------- Lage der Seite (Issue #151)
+
+LAGE_KONFIDENZ = 70     # ab dieser Tesseract-Konfidenz (0-100) gilt ein Wort als sicher erkannt
+LAGE_ANTEIL = 0.5       # weniger sichere, waagerechte Zeichen als dieser Anteil: Seite liegt falsch
+LAGE_FAKTOR = 2         # eine andere Lage gewinnt nur deutlich: mindestens doppelt so viele sichere Zeichen
+LAGEN = (90, 180, 270)  # weitere Lagen im Uhrzeigersinn, in dieser Reihenfolge gelesen
+
+
+def lesbarkeit(tsv: str | None) -> tuple[int, int] | None:
+    """``(alle, gut)`` aus der TSV-Ausgabe von Tesseract; None ohne TSV.
+
+    ``alle``: Buchstaben und Ziffern aller Woerter, ``gut``: davon die der
+    sicher erkannten (Konfidenz ab ``LAGE_KONFIDENZ``) *waagerechten* Woerter.
+    Woerter mit weniger als zwei Buchstaben oder Ziffern zaehlen nicht
+    (Rauschen, Striche). Ein Versuch mit dem mitgelieferten Tesseract (ohne
+    ``osd``) zeigt, warum beides noetig ist: Kopfstehenden Text liest
+    Tesseract als Buchstabensalat mit niedriger Konfidenz (etwa 12 % sicher),
+    quer liegenden Text dagegen richtig, aber als senkrechte Woerter (Box
+    hoeher als breit). Aufrecht sind es nahezu 100 %.
+    """
+    if tsv is None:
+        return None
+    alle = gut = 0
+    for zeile in tsv.splitlines()[1:]:
+        f = zeile.split("\t")
+        if len(f) < 12 or f[0] != "5":
+            continue
+        n = sum(ch.isalnum() for ch in f[11])
+        if n < 2:
+            continue
+        alle += n
+        try:
+            sicher = float(f[10]) >= LAGE_KONFIDENZ
+            waagerecht = int(f[8]) >= int(f[9])
+        except ValueError:
+            continue
+        if sicher and waagerecht:
+            gut += n
+    return alle, gut
+
+
+def liegt_falsch(wert: tuple[int, int] | None, min_zeichen: int) -> bool:
+    """Genug Schrift auf der Seite, aber zu wenig davon aufrecht lesbar? (leere Seiten: nein)"""
+    if wert is None:
+        return False
+    alle, gut = wert
+    return alle >= max(1, min_zeichen) and gut < LAGE_ANTEIL * alle
+
+
+def seite_erkennen(seite, cfg: dict, ebene: bool = False) -> tuple[str, bytes | None, int]:
+    """Eine Seite erkennen, bei falscher Lage auch gedreht: ``(text, text_pdf | None, drehung)``.
+
+    Ohne ``cfg["lage_pruefen"]`` ein Aufruf wie bisher. Sonst liefert derselbe
+    Aufruf die TSV mit; liegt die Seite falsch (``liegt_falsch``), liest
+    Tesseract sie in den drei anderen Lagen (90, 180, 270 Grad im
+    Uhrzeigersinn; gedreht wird nur die Seite im Speicher, die Datei bleibt
+    unveraendert). Eine andere Lage gewinnt nur, wenn sie selbst aufrecht
+    lesbar ist und mindestens ``LAGE_FAKTOR``-mal so viele sichere Zeichen hat
+    wie die angezeigte, sonst bleibt alles wie angezeigt (``drehung`` 0).
+    Text und Text-PDF stammen aus der gewaehlten Lage; die Text-PDF hat dann
+    deren Seitengroesse (``textebene.ebene_auflegen`` mit ``drehung``).
+    Kosten: drei weitere Tesseract-Aufrufe, nur fuer falsch liegende Seiten.
+    """
+    pruefen = bool(cfg.get("lage_pruefen"))
+    text, pdf, tsv = _tesseract(seite, cfg, ebene=ebene, tsv=pruefen)
+    min_zeichen = int(cfg.get("min_zeichen", 25))
+    wert = lesbarkeit(tsv) if pruefen else None
+    if not liegt_falsch(wert, min_zeichen):
+        return text, pdf, 0
+    beste = (wert[1], 0, text, pdf)
+    alt = seite.rotation
+    try:
+        for d in LAGEN:
+            seite.set_rotation((alt + d) % 360)
+            try:
+                t, p, s = _tesseract(seite, cfg, ebene=ebene, tsv=True)
+            finally:
+                seite.set_rotation(alt)
+            w = lesbarkeit(s)
+            if w is None or liegt_falsch(w, min_zeichen):
+                continue
+            if w[1] > beste[0]:
+                beste = (w[1], d, t, p)
+    except Exception:  # noqa: BLE001 - die Lage zu pruefen ist Zusatz: dann gilt die angezeigte
+        return text, pdf, 0
+    gut, d, t, p = beste
+    if d and gut >= max(min_zeichen, LAGE_FAKTOR * wert[1]):
+        return t, p, d
+    return text, pdf, 0
 
 
 # --------------------------------------------------------------------------- Markdown
