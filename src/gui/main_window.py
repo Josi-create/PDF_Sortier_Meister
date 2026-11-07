@@ -519,17 +519,23 @@ class MainWindow(QMainWindow):
         self._favoriten_vorbelegen()
         self.favoriten_leiste = FavoritenLeiste(self.config)
         self.favoriten_leiste.ordner_geoeffnet.connect(self._on_favorit_geoeffnet)
-        layout.addWidget(self.favoriten_leiste)
+        # Favoriten und Pfadzeile eng beieinander, ohne den Panel-Abstand
+        navi_layout = QVBoxLayout()
+        navi_layout.setContentsMargins(0, 0, 0, 0)
+        navi_layout.setSpacing(0)
+        navi_layout.addWidget(self.favoriten_leiste)
 
         # Breadcrumb: klickbarer Pfad zum aktuellen Scan-Ordner (Explorer-Gefuehl)
         self.breadcrumb_widget = QWidget()
+        self.breadcrumb_widget.setFixedHeight(20)
         self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_widget)
-        self.breadcrumb_layout.setContentsMargins(6, 0, 6, 2)
+        self.breadcrumb_layout.setContentsMargins(6, 0, 6, 0)
         self.breadcrumb_layout.setSpacing(2)
         self.breadcrumb_layout.addStretch()
         self.breadcrumb_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
-        layout.addWidget(self.breadcrumb_widget)
+        navi_layout.addWidget(self.breadcrumb_widget)
+        layout.addLayout(navi_layout)
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
@@ -4297,7 +4303,7 @@ class MainWindow(QMainWindow):
             btn.setToolTip(str(target))
             btn.setEnabled(not is_last)
             btn.setStyleSheet(
-                "QToolButton { padding: 1px 4px; font-size: 11px; }"
+                "QToolButton { padding: 0px 4px; margin: 0px; font-size: 11px; }"
                 + (" QToolButton:disabled { color: #222; font-weight: bold; }" if is_last else "")
             )
             btn.clicked.connect(lambda _=False, p=target: self.on_folder_tile_double_clicked(p))
