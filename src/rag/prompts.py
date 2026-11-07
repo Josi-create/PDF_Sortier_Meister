@@ -1,9 +1,8 @@
 """
 Prompts und Text-Builder fuer das RAG-Chat-Feature (Phase 19 / M1).
 
-Stellt den exakten System-Prompt aus der Architektur-Spezifikation
-(``docs/ARCHITECTURE.md`` Section 4) sowie zwei Builder-Funktionen
-bereit:
+Stellt den System-Prompt (``docs/ARCHITECTURE.md`` Section 4) sowie zwei
+Builder-Funktionen bereit:
 
 * :func:`build_context_block` erzeugt den ``=== DOKUMENTE ===``-Block.
 * :func:`build_user_prompt` baut die User-Message inkl. History.
@@ -11,20 +10,28 @@ bereit:
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
-# System-Prompt - VERBATIM aus docs/ARCHITECTURE.md Section 4.
-# Nicht modifizieren: Wird vom M1-Testsuitet als Referenztext erwartet.
+# System-Prompt - gleicher Wortlaut wie docs/ARCHITECTURE.md Section 4.
+# Issue #166/#167: Schlussfolgerungen ueber gemeinsame Kennungen sind
+# ausdruecklich erlaubt; der Nutzer wird nicht mehr zum Selbst-Suchen
+# aufgefordert (die Suche macht das Programm).
 SYSTEM_PROMPT = """\
 Du bist ein Assistent für die private PDF-Sammlung des Nutzers.
 
 REGELN:
 1. Antworte NUR basierend auf den unten bereitgestellten Dokumentauszügen.
-2. Wenn die Auszüge die Frage NICHT beantworten, sage wörtlich:
+2. Schlussfolgerungen über mehrere Dokumente hinweg sind erwünscht, wenn eine
+   gemeinsame Kennung (Vertragsnummer, Zählernummer, Kundennummer,
+   Rechnungsnummer, IBAN, Adresse) die Verbindung belegt. Auch Dateiname und
+   Ablageort eines Dokuments sind Belege. Nenne dann die Kette, z.B.
+   "[1] nennt die Vertragsnummer X; [2] ordnet X der Abnahmestelle Y zu".
+3. Wenn die Auszüge die Frage NICHT beantworten, sage wörtlich:
    "Ich finde dazu keine passenden Dokumente in deiner Sammlung."
-   und schlage vor, wonach der Nutzer stattdessen suchen könnte.
-3. Erfinde KEINE Quellen, Zahlen, Daten oder Fakten, die nicht in den Auszügen stehen.
-4. Zitiere jede konkrete Aussage mit [1], [2], ... (Index auf die bereitgestellten Dokumente).
-5. Am Ende der Antwort: "Quellen:" gefolgt von der nummerierten Liste.
-6. Antworte in der Sprache der Frage."""
+   und nenne, was in den Auszügen am ehesten dazu passt. Fordere den Nutzer
+   nicht auf, selbst zu suchen.
+4. Erfinde KEINE Quellen, Zahlen, Daten oder Fakten, die nicht in den Auszügen stehen.
+5. Zitiere jede konkrete Aussage mit [1], [2], ... (Index auf die bereitgestellten Dokumente).
+6. Am Ende der Antwort: "Quellen:" gefolgt von der nummerierten Liste.
+7. Antworte in der Sprache der Frage."""
 
 
 # Issue #148: Kopfzeilen fuer das Bezugsdokument und die weiteren Suchtreffer
@@ -34,6 +41,10 @@ BEZUG_UEBERSCHRIFT = (
 )
 WEITERE_UEBERSCHRIFT = "WEITERE DOKUMENTE AUS DER SAMMLUNG (Suchtreffer):"
 SORTIERLOGIK_PRAEFIX = "VORSCHLAG DER SORTIERLOGIK:"
+# Issue #166/#167: Kennungen und Scan-Eingang
+KENNUNGEN_PRAEFIX = "kennungen in diesem Dokument:"
+GEMEINSAME_KENNUNGEN_PRAEFIX = "gemeinsame Kennungen mit dem Bezugsdokument:"
+SCAN_EINGANG_HINWEIS = "LIEGT NOCH UNSORTIERT IM SCAN-EINGANG (noch kein Ablageort)."
 
 
 def _format_doc(doc: dict) -> str:
@@ -49,6 +60,12 @@ def _format_doc(doc: dict) -> str:
     * ``ordner`` (str): Ablageort, eigene Zeile ``ordner=...``.
     * ``hinweise`` (list[str]): Zeilen vor dem Text, z.B.
       ``VORSCHLAG DER SORTIERLOGIK: ...``.
+
+    Optional (Issue #166/#167, Kennungen):
+
+    * ``kennungen`` (list[str]): Kennungen des Bezugsdokuments.
+    * ``gemeinsame_kennungen`` (list[str]): Kennungen, die ein Suchtreffer
+      mit dem Bezugsdokument teilt.
     """
     if not isinstance(doc, dict):
         return ""
@@ -81,6 +98,12 @@ def _format_doc(doc: dict) -> str:
     ordner = doc.get("ordner", "") or ""
     if ordner:
         parts.append(f"     ordner={ordner}")
+    kennungen = [str(k) for k in (doc.get("kennungen") or ()) if k]
+    if kennungen:
+        parts.append(f"     {KENNUNGEN_PRAEFIX} {', '.join(kennungen)}")
+    gemeinsame = [str(k) for k in (doc.get("gemeinsame_kennungen") or ()) if k]
+    if gemeinsame:
+        parts.append(f"     {GEMEINSAME_KENNUNGEN_PRAEFIX} {', '.join(gemeinsame)}")
     for hinweis in doc.get("hinweise") or ():
         if hinweis:
             parts.append(str(hinweis))

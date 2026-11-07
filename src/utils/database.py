@@ -830,6 +830,7 @@ class Database:
         betrag_von: float = 0.0,
         betrag_bis: float = 0.0,
         pdf_id: str = "",
+        typ: str = "",
     ) -> list[dict]:
         """
         Durchsucht den Suchindex (Volltext in PDFs, Office-Dateien, Markdown und Mails).
@@ -837,20 +838,22 @@ class Database:
         query ist optional – wenn leer aber Filter gesetzt, werden alle
         passenden Dokumente zurückgegeben. datum_von/datum_bis (YYYY-MM-DD)
         werden gegen das Steuerjahr verglichen (Jahresanteil).
-        betrag_von/betrag_bis = 0 bedeutet inaktiv.
+        betrag_von/betrag_bis = 0 bedeutet inaktiv. ``typ`` schraenkt auf 'pdf',
+        'office', 'md' oder 'mail' ein (auch Kombination 'pdf,office'; Issue #166).
 
         Ergebnisschluessel wie bisher (``pdf_id``, ``file_path``, ``filename``,
         ``text_snippet``, ``keywords``, ``korrespondent``, ``kategorie``,
         ``steuerjahr``, ``betrag``, ``zusammenfassung``, ``target_folder``),
-        dazu ``dok_id``, ``seite`` (erste Fundstelle), ``typ`` und
-        ``extracted_text`` (Volltext, gekappt).
+        dazu ``dok_id``, ``seite`` (erste Fundstelle), ``typ``, ``format``,
+        ``groesse``, ``datum`` (Unix-Zeit), ``rang`` (bm25, kleiner = besser)
+        und ``extracted_text`` (Volltext, gekappt).
         """
         has_text = bool(query and query.strip())
         has_filter = any([
             steuerjahr, kategorie, korrespondent,
             datum_von, datum_bis,
             betrag_von > 0, betrag_bis > 0,
-            pdf_id,
+            pdf_id, typ,
         ])
         if not has_text and not has_filter:
             return []
@@ -873,6 +876,7 @@ class Database:
                 betrag_von=betrag_von if betrag_von and betrag_von > 0 else None,
                 betrag_bis=betrag_bis if betrag_bis and betrag_bis > 0 else None,
                 pdf_id=pdf_id or None,
+                typ=typ or None,
                 anzahl=int(limit),
             )
         except Exception as e:
@@ -901,6 +905,10 @@ class Database:
                 "dok_id": d.get("id"),
                 "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
                 "typ": d.get("typ") or "",
+                "format": d.get("format") or "",
+                "groesse": d.get("groesse"),
+                "datum": d.get("datum"),
+                "rang": d.get("rang"),
                 "extracted_text": self.suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
             })
         return results

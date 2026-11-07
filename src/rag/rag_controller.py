@@ -9,6 +9,12 @@ Der Controller haelt zusaetzlich eine ``ChatSession`` (Konversationshistorie)
 und einen simplen LRU-Cache fuer Frage/Antwort-Paaren, damit
 wiederholt gestellte Fragen nicht erneut das LLM rufen.
 
+Mit Bezugsdokument (Issue #148, #166/#167) laeuft das Retrieval zweigleisig:
+Kennungen aus dem Bezug (Vertrags-, Zaehler-, Kundennummer ...) holen die
+damit verknuepften Dokumente, die Frage selbst die uebrigen Treffer. Die
+Kennungs-Treffer stehen vorn und tragen die gemeinsamen Kennungen im Prompt,
+damit die KI die Kette "gleiche Vertragsnummer -> Abnahmestelle" sieht.
+
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
@@ -24,16 +30,19 @@ from typing import Optional
 from src.rag.bezug import (
     BEZUG_FELDER,
     BEZUG_MAX_ZEICHEN,
+    KENNUNG_TREFFER_JE,
     SUCH_FELDER,
     Bezug,
     ablageort,
     als_bezug,
     frage_betrifft_ordner,
     gleicher_pfad,
+    kennungen_aus_text,
 )
 from src.rag.chat_session import ChatSession, ChatTurn
 from src.rag.citation import Citation, CitationParser
 from src.rag.prompts import (
+    SCAN_EINGANG_HINWEIS,
     SORTIERLOGIK_PRAEFIX,
     SYSTEM_PROMPT,
     build_context_block,
@@ -42,8 +51,12 @@ from src.rag.prompts import (
 from src.rag.retrieval import RetrievedDoc, RetrievalService
 
 # Volltext des Bezugsdokuments hoechstens so weit lesen (der Auszug nimmt
-# davon Anfang und Ende, siehe RetrievalService._build_snippet)
+# davon Anfang und Ende, siehe RetrievalService._build_snippet; die
+# Kennungen werden aus dem ganzen gelesenen Text gezogen)
 BEZUG_LESE_ZEICHEN = 50000
+# Mindestens so viele Plaetze im Kontext bleiben den Treffern zur Frage,
+# wenn Kennungs-Treffer dazukommen
+FRAGE_TREFFER_MINDESTENS = 2
 
 
 @dataclass
@@ -108,9 +121,10 @@ class RAGController:
             question: Freitext-Frage des Nutzers.
             bezug: Optionales Bezugsdokument (Issue #148): ein
                 :class:`~src.rag.bezug.Bezug`, ein Pfad oder ``None``. Es
-                steht als Dokument 1 unter ``BEZUGSDOKUMENT`` im Kontext,
-                die Suche nach weiteren Dokumenten wird um Korrespondent,
-                Kategorie und Steuerjahr des Bezugs ergaenzt.
+                steht als Dokument 1 unter ``BEZUGSDOKUMENT`` im Kontext;
+                Dokumente mit gemeinsamen Kennungen (Issue #166/#167) folgen
+                zuerst, dann die Treffer zur Frage, angereichert um
+                Korrespondent, Kategorie und Steuerjahr des Bezugs.
 
         Returns:
             :class:`RAGResponse` mit Antwort, Citations und Retrieval-Docs.
@@ -152,12 +166,7 @@ class RAGController:
             if bezug_doc is None:
                 retrieved = self.retrieval.retrieve(question, k=k) or []
             else:
-                # Einer mehr: das Bezugsdokument selbst kann unter den Treffern sein
-                treffer = self.retrieval.retrieve(
-                    question, k=k + 1, zusatz=self._bezug_suchbegriffe(bezug_doc),
-                ) or []
-                treffer = [d for d in treffer if not gleicher_pfad(_feld(d, "file_path"), bezug.pfad)]
-                retrieved = [_mit_index(d, i) for i, d in enumerate(treffer[:k], start=1)]
+                retrieved = self._treffer_zum_bezug(question, bezug, bezug_doc, k)
         except Exception as e:
             return RAGResponse(
                 answer_text=f"Suche fehlgeschlagen: {e}",
@@ -169,7 +178,7 @@ class RAGController:
         hinweis = ""
         if bezug_doc is not None and frage_betrifft_ordner(question):
             vorschlaege = "; ".join(bezug.sortier_vorschlaege) or "keiner"
-            bezug_doc.extra["hinweise"] = [f"{SORTIERLOGIK_PRAEFIX} {vorschlaege}"]
+            bezug_doc.extra.setdefault("hinweise", []).append(f"{SORTIERLOGIK_PRAEFIX} {vorschlaege}")
             if bezug.sortier_vorschlaege:
                 hinweis = f"Vorschlag der Sortierlogik: {vorschlaege}"
 
@@ -244,6 +253,35 @@ class RAGController:
     # ------------------------------------------------------------------ #
     # Intern
     # ------------------------------------------------------------------ #
+
+    def _treffer_zum_bezug(self, question: str, bezug: Bezug, bezug_doc: RetrievedDoc, k: int) -> list:
+        """Suchtreffer mit Bezugsdokument (Issue #148, #166/#167).
+
+        Zuerst Dokumente, die eine Kennung des Bezugs woertlich enthalten
+        (hoechstens ``k - FRAGE_TREFFER_MINDESTENS``), dann die Treffer zur
+        Frage. Das Bezugsdokument selbst und Doppelte fallen heraus; die
+        Nummern laufen ab 1 (der Aufrufer setzt den Bezug davor).
+        """
+        kennungen = bezug_doc.extra.get("kennung_objekte") or []
+        kennung_treffer: list = []
+        if kennungen:
+            kennung_treffer = self.retrieval.retrieve_kennungen(
+                kennungen, k_je=KENNUNG_TREFFER_JE,
+                limit=max(1, k - FRAGE_TREFFER_MINDESTENS), ausser=bezug.pfad,
+            ) or []
+        # Einer mehr: das Bezugsdokument selbst kann unter den Treffern sein
+        frage_treffer = self.retrieval.retrieve(
+            question, k=k + 1, zusatz=self._bezug_suchbegriffe(bezug_doc),
+        ) or []
+        zusammen = list(kennung_treffer)
+        for d in frage_treffer:
+            pfad = _feld(d, "file_path")
+            if gleicher_pfad(pfad, bezug.pfad):
+                continue
+            if any(gleicher_pfad(pfad, _feld(e, "file_path")) for e in zusammen):
+                continue
+            zusammen.append(d)
+        return [_mit_index(d, i) for i, d in enumerate(zusammen[:k], start=1)]
 
     def _has_indexed_documents(self) -> bool:
         """True, wenn die DB mindestens ein indexiertes Dokument enthaelt.
@@ -353,9 +391,10 @@ class RAGController:
             # Phase 5: Seite der Fundstelle (fuer Zitate auf Dokument und Seite)
             "seite": getattr(doc, "seite", 0),
         }
-        # Issue #148: Bezugsdokument, Ablageort und Hinweise (nur wenn gesetzt)
+        # Issue #148: Bezugsdokument, Ablageort und Hinweise;
+        # Issue #166/#167: Kennungen (nur wenn gesetzt)
         extra = getattr(doc, "extra", None) or {}
-        for key in ("bezug", "ordner", "hinweise"):
+        for key in ("bezug", "ordner", "hinweise", "kennungen", "gemeinsame_kennungen"):
             if extra.get(key):
                 prompt_dict[key] = extra[key]
         return prompt_dict
@@ -366,6 +405,12 @@ class RAGController:
         Text und Metadaten kommen aus dem Suchindex; was dort fehlt (Datei
         noch nicht indexiert, keine Metadaten gespeichert), aus dem
         :class:`Bezug` (``pdf_cache`` bzw. KI-Vorschlag der GUI).
+
+        Issue #166/#167: Die Kennungen des Texts stehen in
+        ``extra["kennungen"]`` (Text fuer den Prompt) und
+        ``extra["kennung_objekte"]`` (fuer die Suche). Liegt das Dokument im
+        Scan-Eingang, gibt es keinen Ablageort, sondern den Hinweis
+        ``SCAN_EINGANG_HINWEIS``.
         """
         meta: dict = {}
         text = ""
@@ -391,6 +436,16 @@ class RAGController:
             text = bezug.text or ""
         text = text.replace("\f", "\n").strip()
         snippet = RetrievalService._build_snippet(text, BEZUG_MAX_ZEICHEN) or "(Kein Text erkannt.)"
+        kennungen = kennungen_aus_text(text)
+        extra: dict = {"bezug": True}
+        if bezug.im_scan_ordner():
+            extra["ordner"] = ""
+            extra["hinweise"] = [SCAN_EINGANG_HINWEIS]
+        else:
+            extra["ordner"] = ablageort(bezug.pfad, bezug.wurzeln)
+        if kennungen:
+            extra["kennungen"] = [str(kn) for kn in kennungen]
+            extra["kennung_objekte"] = kennungen
         return RetrievedDoc(
             index=1,
             file_path=str(bezug.pfad),
@@ -404,7 +459,7 @@ class RAGController:
             pdf_id=pdf_id,
             dok_id=dok_id,
             seite=0,
-            extra={"bezug": True, "ordner": ablageort(bezug.pfad, bezug.wurzeln)},
+            extra=extra,
         )
 
     @staticmethod

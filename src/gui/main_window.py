@@ -352,6 +352,7 @@ class MainWindow(QMainWindow):
             metadaten=metadaten,
             sortier_vorschlaege=vorschlaege,
             wurzeln=list(self.folder_manager.target_folders),
+            scan_ordner=self.file_manager.scan_folder,
         )
 
     def show_search_tab(self) -> None:

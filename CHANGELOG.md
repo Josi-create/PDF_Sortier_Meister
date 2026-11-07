@@ -7,6 +7,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
+  Bezugsdokument zieht der Chat Vertrags-, Kunden-, Zähler- und
+  Rechnungsnummern, IBANs und ähnliche Codes aus dem Text und sucht damit
+  exakt im Index. Die Verbrauchsabrechnung mit derselben Vertragsnummer steht
+  so als Erstes im Kontext, markiert mit der gemeinsamen Kennung, und die KI
+  darf die Kette („gleiche Vertragsnummer, Abnahmestelle X“) ausdrücklich
+  ziehen. Fragewörter („bitte“, „zeig mir“, „Dokument“, „Ordner“) verwässern
+  die Suche nicht mehr; nennt die Frage „Excel“, „Tabelle“ oder „Mail“, kommt
+  eine zweite Suche nur in diesem Dateityp dazu. Kopien derselben Datei
+  (OneDrive, Archiv) zählen einmal, bei nahezu gleicher Relevanz stehen
+  neuere Dokumente vorn. Der Auszug eines Treffers besteht jetzt aus den
+  Fundstellen und der Trefferseite statt aus Anfang und Ende des Dokuments.
+- **Chat fordert nicht mehr zum Selbst-Suchen auf** (#167): Der Systemprompt
+  verlangt statt „schlage vor, wonach der Nutzer suchen könnte“ jetzt, das
+  Nächstliegende aus den Auszügen zu nennen. Ein Bezugsdokument im
+  Scan-Eingang wird als „noch unsortiert“ gekennzeichnet, damit die KI den
+  Eingang nicht als Ablageort vorschlägt.
+
 ## [0.25.0] - 2026-11-07
 
 ### Neu
