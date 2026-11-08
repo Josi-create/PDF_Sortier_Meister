@@ -15,14 +15,23 @@ Ablauf
    (oben links, oben rechts, unten rechts, unten links) sind der Start, dann wird je eine
    Gerade an die Huellenpunkte jeder Seite gelegt und es werden die Schnittpunkte genommen.
 
-2. **Konfidenz**: Der schwaechste von sechs Werten (Flaechenanteil, Fuellung der Huelle,
-   Huelle gegen Viereck, Winkel, Seitenverhaeltnis der Gegenseiten, Kontrast am Rand), 0 bis 1. Ab
+   *Feinabgleich*: Die Huelle ist grob und fasst helle Nachbarflaechen (Tisch, Tuete) mit ein.
+   Quer zu jeder Seite wird deshalb die Papierkante gesucht - eine anhaltende Helligkeitsstufe,
+   innen hell, aussen dunkler (duenne Linien im Dokument zaehlen nicht). Die laengste
+   zusammenhaengende Kette solcher Stufen ist die Kante (der Rand gefalteter Briefe ist stetig,
+   aber nicht gerade); ihre Ausgleichsgerade ersetzt die Seite. Eine Blattecke darf knapp
+   ausserhalb des Fotos liegen (``RAND_UEBERSTAND``).
+
+2. **Konfidenz**: Der schwaechste von acht Werten (Flaechenanteil, Fuellung der Huelle,
+   Huelle gegen Viereck, Winkel, Seitenverhaeltnis der Gegenseiten, Kontrast am Rand,
+   Kantentreue der schwaechsten Seite, keine Schrift ausserhalb), 0 bis 1. Ab
    ``KONFIDENZ_SICHER`` gilt das Ergebnis als sicher. Der bessere der beiden Wege gewinnt.
 
 3. **Entzerren** (``entzerrte_seite``): perspektivische Abbildung des Vierecks auf ein
    Rechteck. Das Seitenverhaeltnis kommt aus den Kanten (mit Perspektivkorrektur nach Zhang
-   und He, Rueckfall: Mittel der Gegenseiten). Liegt es nah an A4, A5 oder Letter, wird das
-   genaue Format genommen (hoch oder quer), sonst bleibt das gemessene Verhaeltnis.
+   und He, Rueckfall: Mittel der Gegenseiten). Liegt es nah an A4, wird das genaue Format
+   genommen (hoch oder quer), sonst - und immer, wenn das Blatt angeschnitten ist (eine Seite
+   laeuft am Bildrand entlang) - bleibt das gemessene Verhaeltnis.
 
 4. **Tonwerte**: Beleuchtung ausgleichen (Teilen durch eine weichgezeichnete Hintergrund-
    schaetzung), Papier weiss, Schrift kraeftig; "farbe" laesst Stempel, Unterschriften und
@@ -56,6 +65,22 @@ KANTEN_ANTEIL = 0.08        # Kantenschwelle: Anteil des 99,5-%-Wertes der Kante
 KANTEN_MIN = 3.5            # ... mindestens (Grauwertstufen)
 KANTEN_SCHLIESSEN = 4       # Kantenring: so viele Pixel aufweiten, fuellen, zuruecknehmen
 MIN_KOMPONENTE = 0.04       # kleinere Flaeche (Anteil am Bild): kein Blatt gefunden
+RAND_UEBERSTAND = 0.08      # Ecken duerfen so weit (Anteil der Bildseite) ausserhalb liegen (Blattecke nicht im Bild)
+
+# --- Feinabgleich der Seiten an der Papierkante ------------------------------------
+FEIN_SUCHE = (0.05, 0.012)  # Suchweite quer zur Seite (Anteil der langen Seite): erst grob, dann fein
+FEIN_PROBEN = 48            # Messstellen je Seite
+FEIN_FENSTER = 3            # Stufe = Mittel so vieler Pixel innen minus aussen
+FEIN_STUFE_MIN = 3.0        # schwaechere Helligkeitsstufen (Grauwerte) zaehlen nicht als Kante ...
+FEIN_STUFE_ANTEIL = 0.35    # ... ebenso Stufen unter diesem Anteil der staerksten an derselben Messstelle
+FEIN_STEIGUNG = 0.45        # Kante darf zwischen Nachbar-Messstellen so steil abweichen (Versatz/Abstand):
+                            # gefaltete und gewoelbte Briefe haben keinen geraden Rand
+FEIN_SPRUNG_MIN = 2.0       # ... mindestens so viele Pixel Versatz sind zwischen Nachbarn immer erlaubt
+FEIN_LUECKE = 3             # so viele Messstellen ohne Kante darf eine Kante ueberbruecken (Finger, Klammer)
+FEIN_MIN_ANTEIL = 0.35      # kuerzere Kante (Anteil der Messstellen): die Seite bleibt, wie sie war
+FEIN_AEHNLICH = 0.85        # Kanten mit so viel Laenge wie die laengste gelten als gleich gut: die aeussere gewinnt
+FEIN_MAX_DREHUNG = 8.0      # Grad: staerker gegen die Seite gedrehte Geraden zaehlen nicht
+FEIN_FLAECHE = (0.75, 1.25)  # Flaeche nach/vor dem Abgleich ausserhalb: Abgleich verworfen
 
 # --- Konfidenz -----------------------------------------------------------------
 KONFIDENZ_SICHER = 0.6      # ab hier gilt die Erkennung als sicher
@@ -72,10 +97,21 @@ WINKEL_GRENZE = (45.0, 135.0)  # ausserhalb: 0
 MAX_SEITENVERHAELTNIS = (1.8, 3.0)  # Gegenseiten: bis 1,8 voller Wert, ab 3,0 gleich 0
 RAND_ABSTAND = 5            # Randkontrast: so viele Pixel innen und aussen der Viereckseite vergleichen
 RAND_KONTRAST = (4.0, 12.0)  # mittlerer Helligkeitsunterschied am Rand: bis 4 gleich 0, ab 12 voller Wert
+KANTENTREUE = (0.3, 0.6)    # Anteil der Messstellen mit Papierkante auf der schwaechsten Seite: bis 0,3 gleich 0
+SCHRIFT_BAND = (4, 24)      # Streifen ausserhalb jeder Seite (Pixel bei ERKENNUNG_PX), in dem nach Schrift gesucht wird
+SCHRIFT_PAPIER = 0.85       # ... er ist Papier, wenn sein Median mindestens so hell ist (Anteil des Papierweiss innen)
+SCHRIFT_TINTE = (0.6, 0.03)  # ... mit Schrift, wenn mindestens 3 % seiner Pixel dunkler als 60 % des Papierweiss sind
+SCHRIFT_AUSSEN = (0.08, 0.2)  # Anteil solcher Messstellen an der schlimmsten Seite: bis 0,08 voller Wert, ab 0,2 gleich 0
 
 # --- Seitenformat und Ausgabe ------------------------------------------------------
-FORMATE = (("A4", 210.0, 297.0), ("A5", 148.5, 210.0), ("Letter", 215.9, 279.4))  # mm; A5 = A4-Verhaeltnis
-FORMAT_TOLERANZ = 0.08      # Abweichung des Verhaeltnisses, bis zu der das Format einrastet
+# Einrastende Formate: Name, kurze und lange Seite (mm), erlaubte Abweichung des Verhaeltnisses kurz/lang
+# nach unten und oben. Die Reihenfolge ist der Vorrang. Falze und Woelbung verkuerzen die lange Seite,
+# gemessen wird also eher zu breit - daher oben mehr Spielraum (Fotos gefalteter A4-Briefe: bis +11 %).
+# A5 hat das A4-Verhaeltnis (Groesse ist nicht messbar); Letter (215,9 x 279,4) laege ganz im A4-Bereich
+# und kaeme erst mit einer englischen Fassung (#118) und eigener Vorrangliste in Frage.
+FORMATE = (("A4", 210.0, 297.0, 0.08, 0.12),)
+RAND_TOLERANZ = 0.008       # beide Ecken einer Seite so nah (Anteil der langen Bildseite) am selben Bildrand:
+                            # das Blatt ist angeschnitten, das Format nicht messbar (kein Einrasten)
 ZIEL_DPI = 250              # Ausgabeaufloesung bezogen auf das Seitenformat
 MIN_DPI = 100               # darunter nie zurueckrechnen (sehr kleine Quellen bleiben unscharf, aber nicht riesig)
 BRENNWEITE_STANDARD = 0.8   # angenommene Brennweite (Anteil der langen Bildseite), wenn sie sich nicht messen laesst
@@ -313,6 +349,163 @@ def _viereck(huelle: np.ndarray) -> np.ndarray:
     return ecken
 
 
+def _am_bildrand(a, c, groesse_bh: tuple[float, float], toleranz: float) -> bool:
+    """True, wenn beide Punkte nah am selben Bildrand liegen (oder dahinter)."""
+    b, h = groesse_bh
+    (x1, y1), (x2, y2) = a, c
+    return bool((x1 <= toleranz and x2 <= toleranz) or (y1 <= toleranz and y2 <= toleranz)
+                or (x1 >= b - 1 - toleranz and x2 >= b - 1 - toleranz)
+                or (y1 >= h - 1 - toleranz and y2 >= h - 1 - toleranz))
+
+
+def _seite_messen(grau: np.ndarray, a: np.ndarray, c: np.ndarray, innen: np.ndarray, suche: int):
+    """Kandidaten fuer die Papierkante quer zur Seite a-c.
+
+    An ``FEIN_PROBEN`` Messstellen wird ``suche`` Pixel nach innen und aussen jede Helligkeitsstufe
+    gesucht, bei der es nach innen heller wird (Papier vor dunklerem Untergrund) und die stark genug
+    ist. Ergebnis: (Kandidaten als Zeilen Messstelle, x, y, Versatz; Zahl der Messstellen im Bild).
+    Ein negativer Versatz liegt ausserhalb des bisherigen Vierecks.
+    """
+    h, b = grau.shape
+    t = np.linspace(0.06, 0.94, FEIN_PROBEN)
+    basis = a + t[:, None] * (c - a)                                   # (N, 2)
+    rand = FEIN_FENSTER + 2
+    im_bild = ((basis[:, 0] >= rand) & (basis[:, 0] <= b - 1 - rand)
+               & (basis[:, 1] >= rand) & (basis[:, 1] <= h - 1 - rand))
+    versatz = np.arange(-suche, suche + 1, dtype=np.float64)           # (D,)
+    w = FEIN_FENSTER
+    nah = np.arange(1, w + 1, dtype=np.float64)                       # direkt an der Stufe
+    fern = np.arange(w + 2, 3 * w + 2, dtype=np.float64)              # etwas weiter weg
+
+    def band(k, seite):
+        """(Mittelwerte (N, D), gueltig (N, D)) eines Streifens innen (+1) oder aussen (-1)."""
+        p = basis[:, None, None, :] + (versatz[None, :, None] + seite * k[None, None, :])[..., None] * innen
+        gueltig = ((p[..., 0] >= 0) & (p[..., 0] <= b - 1) & (p[..., 1] >= 0) & (p[..., 1] <= h - 1)).all(axis=2)
+        werte = ndimage.map_coordinates(grau, [p[..., 1].ravel(), p[..., 0].ravel()], order=1, mode="nearest")
+        return werte.reshape(p.shape[:3]).mean(axis=2), gueltig
+
+    # Eine Papierkante ist eine anhaltende Stufe: innen hell, aussen auch etwas weiter weg noch dunkel.
+    # Eine duenne Linie im Dokument (Tabellen-, Trennlinie) ist es nicht - aussen wird es gleich wieder hell.
+    (i_nah, g1), (i_fern, g2), (a_nah, g3), (a_fern, g4) = (band(nah, 1), band(fern, 1), band(nah, -1),
+                                                            band(fern, -1))
+    ok = g1 & g2 & g3 & g4 & im_bild[:, None]                         # (N, D)
+    stufe = np.where(ok, np.minimum(i_nah, i_fern) - np.maximum(a_nah, a_fern), -np.inf)
+    leer = np.full((len(t), 1), -np.inf)
+    links = np.concatenate([leer, stufe[:, :-1]], axis=1)
+    rechts = np.concatenate([stufe[:, 1:], leer], axis=1)
+    staerkste = np.max(np.where(ok, stufe, 0.0), axis=1, keepdims=True)
+    schwelle = np.maximum(FEIN_STUFE_MIN, FEIN_STUFE_ANTEIL * staerkste)
+    gipfel = ok & (stufe >= links) & (stufe > rechts) & (stufe >= schwelle)
+    i, j = np.nonzero(gipfel)
+    punkte = basis[i] + versatz[j][:, None] * innen
+    # Sicher messbar sind die Stellen, deren ganzer Suchbereich nach aussen im Bild liegt; naeher am
+    # Bildrand kann die Papierkante ausserhalb der Reichweite liegen (Blatt ragt aus dem Foto)
+    return np.column_stack([i, punkte, versatz[j]]), ok[:, 0].copy()
+
+
+def _kante_finden(kandidaten: np.ndarray, messbar: np.ndarray, abstand: float, richtung: np.ndarray):
+    """Laengste zusammenhaengende Kante: (Punkt, Richtung, Anteil der Messstellen) oder None.
+
+    Je Messstelle hoechstens ein Kandidat; Nachbarn duerfen um ``FEIN_STEIGUNG`` mal ihren Abstand
+    springen (der Rand eines gefalteten Briefs ist stetig, aber nicht gerade), Luecken bis
+    ``FEIN_LUECKE`` Stellen. Eine falsche Seite quer durchs Blatt findet nur verstreute Stufen.
+    Unter fast gleich langen Ketten gewinnt die aeussere - die Papierkante liegt aussen,
+    Rahmen- und Tabellenlinien innen. Die Gerade ist die Ausgleichsgerade der Kette.
+
+    Der Anteil zaehlt die Messstellen der Kette gegen alle messbaren: Stellen nah am Bildrand
+    (``messbar`` falsch) zaehlen nur mit, wenn die Kette sie erreicht - dort kann das Blatt aus
+    dem Foto ragen, verstreute Stufen im Blatt sind dann kein Mangel der Seite.
+    """
+    if len(kandidaten) < 3:
+        return None
+    k = kandidaten[np.lexsort((kandidaten[:, 3], kandidaten[:, 0]))]
+    stelle, versatz = k[:, 0].astype(int), k[:, 3]
+    n = len(k)
+    # Wert einer Kette: ihre Messstellen minus die uebersprungenen (Luecken kosten, sonst liessen sich
+    # verstreute Stufen ueber Luecken hinweg zu langen Scheinketten verbinden)
+    wert, vorher = np.ones(n, dtype=int), np.full(n, -1)
+    summe, zahl = versatz.copy(), np.ones(n, dtype=int)
+    for i in range(n):
+        for j in range(i - 1, -1, -1):
+            schritt = stelle[i] - stelle[j]
+            if schritt == 0:
+                continue
+            if schritt > FEIN_LUECKE + 1:
+                break
+            if abs(versatz[i] - versatz[j]) > max(FEIN_SPRUNG_MIN, FEIN_STEIGUNG * abstand * schritt):
+                continue
+            neu, neu_summe = wert[j] + 2 - schritt, summe[j] + versatz[i]
+            if neu > wert[i] or (neu == wert[i] and neu_summe < summe[i]):
+                wert[i], vorher[i], summe[i], zahl[i] = neu, j, neu_summe, zahl[j] + 1
+    gut = np.flatnonzero(wert >= FEIN_AEHNLICH * wert.max())
+    ende = int(gut[np.argmin(summe[gut] / zahl[gut])])
+    bester = int(wert[ende])
+    kette = []
+    while ende >= 0:
+        kette.append(ende)
+        ende = int(vorher[ende])
+    zaehlen = messbar.copy()
+    zaehlen[stelle[kette]] = True
+    n_stellen = int(zaehlen.sum())
+    if len(kette) < 3 or n_stellen < 8:
+        return None
+    p, r = _gerade_anpassen(k[kette, 1:3])
+    if abs(r[0] * richtung[1] - r[1] * richtung[0]) > math.sin(math.radians(FEIN_MAX_DREHUNG)):
+        return p, r, 0.0  # die Kette laeuft schraeg zur Seite: keine Papierkante dieser Seite
+    return p, r, bester / n_stellen
+
+
+def _viereck_verfeinern(grau: np.ndarray, ecken: np.ndarray) -> tuple[np.ndarray, list[Optional[float]]]:
+    """Legt jede Seite auf die Papierkante in ihrer Naehe (erst grob, dann fein, ``FEIN_SUCHE``).
+
+    Die Huelle der Blattflaeche ist grob und schliesst helle Nachbarflaechen (Tisch, Tuete) mit
+    ein; die Helligkeitsstufe am Papierrand ist genauer. Ergebnis: Ecken und je Seite der Anteil
+    der Messstellen auf der Kante ("Kantentreue"; None, wenn die Seite am Bildrand liegt).
+    """
+    hoehe, breite = grau.shape
+    lang = max(hoehe, breite)
+    toleranz = RAND_TOLERANZ * lang
+    ecken = np.asarray(ecken, dtype=np.float64)
+    treue: list[Optional[float]] = [None] * 4
+    for anteil in FEIN_SUCHE:
+        suche = max(3, round(anteil * lang))
+        mittel = ecken.mean(axis=0)
+        geraden, treue = [], []
+        for i in range(4):
+            a, c = ecken[i], ecken[(i + 1) % 4]
+            laenge = float(np.hypot(*(c - a)))
+            if laenge < 10:
+                return ecken, [None] * 4
+            r = (c - a) / laenge
+            innen = np.array([-r[1], r[0]])
+            if np.dot(innen, mittel - (a + c) / 2) < 0:
+                innen = -innen
+            if _am_bildrand(a, c, (breite, hoehe), toleranz):  # Blatt ragt hier aus dem Foto
+                geraden.append((a, r))
+                treue.append(None)
+                continue
+            kandidaten, messbar = _seite_messen(grau, a, c, innen, suche)
+            gefunden = _kante_finden(kandidaten, messbar, laenge * 0.88 / (FEIN_PROBEN - 1), r)
+            if gefunden is not None and gefunden[2] >= FEIN_MIN_ANTEIL:
+                geraden.append((gefunden[0], gefunden[1]))
+                treue.append(gefunden[2])
+            else:
+                geraden.append((a, r))
+                treue.append(gefunden[2] if gefunden else (0.0 if messbar.sum() >= 8 else None))
+        neu = []
+        for i in range(4):
+            ecke = _schnitt(geraden[i - 1], geraden[i])
+            if ecke is None:
+                return ecken, treue
+            neu.append(ecke)
+        neu = np.array(neu)
+        verh = _flaeche(neu) / max(_flaeche(ecken), 1.0)
+        if not _konvex(neu) or not (FEIN_FLAECHE[0] <= verh <= FEIN_FLAECHE[1]):
+            return ecken, treue
+        ecken = neu
+    return ecken, treue
+
+
 def _winkel(ecken: np.ndarray) -> list[float]:
     werte = []
     for i in range(4):
@@ -370,8 +563,51 @@ def _randkontrast(grau: np.ndarray, ecken: np.ndarray) -> Optional[float]:
     return float(np.mean(werte)) if werte else None
 
 
+def _schrift_aussen(grau: np.ndarray, ecken: np.ndarray) -> float:
+    """Groesster Anteil der Messstellen einer Seite, hinter denen noch Papier mit Schrift liegt.
+
+    Hinter einer echten Blattkante liegt Untergrund. Liegt dort helles Papier mit dunklen Strichen,
+    schneidet die Seite durchs Dokument (etwa an einer Trennlinie im Briefkopf).
+    """
+    h, b = grau.shape
+    mittel = ecken.mean(axis=0)
+    t = np.linspace(0.06, 0.94, FEIN_PROBEN)
+    k = np.arange(SCHRIFT_BAND[0], SCHRIFT_BAND[1] + 1, dtype=np.float64)
+    schlimmste = 0.0
+    for i in range(4):
+        a, c = ecken[i], ecken[(i + 1) % 4]
+        laenge = float(np.hypot(*(c - a)))
+        if laenge < 10:
+            continue
+        r = (c - a) / laenge
+        innen = np.array([-r[1], r[0]])
+        if np.dot(innen, mittel - (a + c) / 2) < 0:
+            innen = -innen
+        basis = a + t[:, None] * (c - a)
+        streifen = []
+        for seite in (1, -1):
+            p = basis[:, None, :] + seite * k[None, :, None] * innen
+            ok = (p[..., 0] >= 0) & (p[..., 0] <= b - 1) & (p[..., 1] >= 0) & (p[..., 1] <= h - 1)
+            v = ndimage.map_coordinates(grau, [p[..., 1].ravel(), p[..., 0].ravel()], order=1, mode="nearest")
+            streifen.append((v.reshape(ok.shape), ok))
+        (wert_in, ok_in), (wert_aus, ok_aus) = streifen
+        voll = ok_aus.all(axis=1) & ok_in.any(axis=1)  # nur Stellen, deren Aussenstreifen ganz im Bild liegt
+        if voll.sum() < 8:
+            continue
+        weiss = float(np.percentile(wert_in[ok_in], 90))
+        if weiss <= 0:
+            continue
+        aus = wert_aus[voll]
+        papier = np.median(aus, axis=1) >= SCHRIFT_PAPIER * weiss
+        tinte = (aus < SCHRIFT_TINTE[0] * weiss).mean(axis=1) >= SCHRIFT_TINTE[1]
+        schlimmste = max(schlimmste, float((papier & tinte).sum()) / float(voll.sum()))
+    return schlimmste
+
+
 def _bewerten(maske: np.ndarray, ecken: np.ndarray, huelle: np.ndarray, groesse: tuple[int, int],
-              grau: Optional[np.ndarray] = None) -> tuple[float, list[str]]:
+              grau: Optional[np.ndarray] = None,
+              treue: Optional[list[Optional[float]]] = None,
+              ecken_huelle: Optional[np.ndarray] = None) -> tuple[float, list[str]]:
     """Konfidenz 0..1 (schwaechstes Glied) und die Gruende fuer Abzuege."""
     hoehe, breite = groesse
     gruende: list[str] = []
@@ -385,7 +621,8 @@ def _bewerten(maske: np.ndarray, ecken: np.ndarray, huelle: np.ndarray, groesse:
         teile["Blattgröße"] = 1.0 - 0.7 * _rampe(anteil, VOLL_FLAECHE, MAX_FLAECHE)
     hflaeche = _flaeche(huelle)
     teile["Fuellung"] = _rampe(float(maske.sum()) / max(hflaeche, 1.0), MIN_FUELLUNG, GUTE_FUELLUNG)
-    verh = hflaeche / max(_flaeche(ecken), 1.0)
+    # Form der Flaeche: Huelle gegen ihr eigenes Viereck (vor dem Feinabgleich, der Tischecken abschneidet)
+    verh = hflaeche / max(_flaeche(ecken if ecken_huelle is None else ecken_huelle), 1.0)
     teile["Viereck"] = _rampe(min(verh, 1.0 / verh), MIN_VIERECK, GUTES_VIERECK)
     abw = max(max(abs(w - 90.0) for w in _winkel(ecken)) - (WINKEL_GUT[1] - 90.0), 0.0)
     teile["Winkel"] = 1.0 - _rampe(abw, 0.0, WINKEL_GRENZE[1] - WINKEL_GUT[1])
@@ -397,6 +634,10 @@ def _bewerten(maske: np.ndarray, ecken: np.ndarray, huelle: np.ndarray, groesse:
         kontrast = _randkontrast(grau, ecken)
         if kontrast is not None:
             teile["Randkontrast"] = _rampe(kontrast, *RAND_KONTRAST)
+        teile["Schrift außerhalb"] = 1.0 - _rampe(_schrift_aussen(grau, ecken), *SCHRIFT_AUSSEN)
+    gemessen = [t for t in (treue or []) if t is not None]
+    if gemessen:  # die schwaechste Seite zaehlt: eine falsche Seite laeuft quer durch Flaechen ohne Kante
+        teile["Kantentreue"] = _rampe(min(gemessen), *KANTENTREUE)
     for name, wert in teile.items():
         if wert < 0.99:
             gruende.append(f"{name} {wert:.2f}")
@@ -410,8 +651,9 @@ def _kandidat(maske: Optional[np.ndarray], groesse: tuple[int, int], grau: Optio
     huelle = _huelle(maske)
     if huelle is None or len(huelle) < 3:
         return None
-    ecken = _viereck(huelle)
-    konfidenz, gruende = _bewerten(maske, ecken, huelle, groesse, grau)
+    grob = _viereck(huelle)
+    ecken, treue = (grob, None) if grau is None else _viereck_verfeinern(grau, grob)
+    konfidenz, gruende = _bewerten(maske, ecken, huelle, groesse, grau, treue, grob)
     return konfidenz, ecken, gruende
 
 
@@ -435,7 +677,9 @@ def blatt_finden(bild) -> Erkennung:
     # Der erste Weg (Helligkeit) gewinnt bei Gleichstand; max() nimmt das erste Maximum
     konfidenz, methode, ecken, gruende = max(kandidaten, key=lambda k: k[0])
     ecken = [(float(x * faktor), float(y * faktor)) for x, y in ecken]
-    ecken = [(min(max(x, 0.0), bild.width), min(max(y, 0.0), bild.height)) for x, y in ecken]
+    # Eine Blattecke darf knapp ausserhalb liegen (Schnitt zweier sichtbarer Kanten); weiter weg ist Unsinn
+    ux, uy = RAND_UEBERSTAND * bild.width, RAND_UEBERSTAND * bild.height
+    ecken = [(min(max(x, -ux), bild.width + ux), min(max(y, -uy), bild.height + uy)) for x, y in ecken]
     return Erkennung(ecken, float(konfidenz), konfidenz >= KONFIDENZ_SICHER, methode, gruende,
                      time.perf_counter() - t0)
 
@@ -488,23 +732,28 @@ def seitenverhaeltnis(ecken, bildgroesse) -> float:
     return verh
 
 
-def seitenformat(verhaeltnis: float) -> tuple[float, float, str]:
+def angeschnitten(ecken, bildgroesse) -> bool:
+    """True, wenn eine Seite des Vierecks am Bildrand entlang laeuft: Das Blatt ragt aus dem Foto,
+    sein Format laesst sich nicht messen."""
+    e = [(float(x), float(y)) for x, y in ecken]
+    toleranz = RAND_TOLERANZ * max(bildgroesse)
+    return any(_am_bildrand(e[i], e[(i + 1) % 4], bildgroesse, toleranz) for i in range(4))
+
+
+def seitenformat(verhaeltnis: float, einrasten: bool = True) -> tuple[float, float, str]:
     """(Breite mm, Hoehe mm, Name) der Zielseite zu Breite/Hoehe ``verhaeltnis``.
 
-    Liegt das Verhaeltnis nah an A4, A5 oder Letter (hoch oder quer, ``FORMAT_TOLERANZ``),
-    kommt das genaue Format; sonst bleibt das gemessene Verhaeltnis (z. B. Kassenbon),
-    eingepasst in ``BOX_MM``.
+    Liegt das Verhaeltnis kurz/lang nah an einem Format aus ``FORMATE`` (hoch oder quer),
+    kommt das genaue Format - das erste passende. Sonst (oder ohne ``einrasten``) bleibt das
+    gemessene Verhaeltnis (z. B. Kassenbon, angeschnittenes Blatt), eingepasst in ``BOX_MM``.
     """
     verhaeltnis = max(verhaeltnis, 1e-3)
-    beste = None
-    for name, b, h in FORMATE:
-        for quer in (False, True):
-            ziel = (h / b) if quer else (b / h)
-            abw = abs(verhaeltnis - ziel) / ziel
-            if abw <= FORMAT_TOLERANZ and (beste is None or abw < beste[0] - 1e-3):  # Gleichstand (A4/A5): das erste
-                beste = (abw, (h, b) if quer else (b, h), name)
-    if beste is not None:
-        return beste[1][0], beste[1][1], beste[2]
+    quer = verhaeltnis > 1.0
+    kurz_lang = 1.0 / verhaeltnis if quer else verhaeltnis
+    for name, kurz, lang, unten, oben in (FORMATE if einrasten else ()):
+        abw = kurz_lang / (kurz / lang) - 1.0
+        if -unten <= abw <= oben:
+            return (lang, kurz, name) if quer else (kurz, lang, name)
     bw, bh = BOX_MM if verhaeltnis <= 1 else (BOX_MM[1], BOX_MM[0])
     skala = min(bw / verhaeltnis, bh) if verhaeltnis <= 1 else min(bw, bh * verhaeltnis)
     if verhaeltnis <= 1:
@@ -600,7 +849,7 @@ def entzerrte_seite(bild, ecken, tonwerte: str = TONWERT_STANDARD, max_pixel: Op
 
     e = [(float(x), float(y)) for x, y in ecken]
     verh = seitenverhaeltnis(e, bild.size)
-    b_mm, h_mm, name = seitenformat(verh)
+    b_mm, h_mm, name = seitenformat(verh, einrasten=not angeschnitten(e, bild.size))
     oben, unten, links, rechts = _kantenlaengen(e)
     nativ_b, nativ_h = max(oben, unten), max(links, rechts)
     b_zoll, h_zoll = b_mm / 25.4, h_mm / 25.4
@@ -618,8 +867,9 @@ def entzerrte_seite(bild, ecken, tonwerte: str = TONWERT_STANDARD, max_pixel: Op
         e = [(x / reduktion, y / reduktion) for x, y in e]
     e = _beschneiden(e, BESCHNITT)
     koeff = _koeffizienten([(0, 0), (pixel_b, 0), (pixel_b, pixel_h), (0, pixel_h)], e)
+    # Liegt eine Ecke ausserhalb des Fotos, wird der fehlende Zipfel weiss (wie Papier) statt schwarz
     flach = quelle.transform((pixel_b, pixel_h), Image.Transform.PERSPECTIVE, tuple(koeff),
-                             resample=Image.Resampling.BICUBIC)
+                             resample=Image.Resampling.BICUBIC, fillcolor=(255, 255, 255))
     flach = tonwerte_anwenden(flach, tonwerte)
     return flach, (b_mm / 25.4 * 72.0, h_mm / 25.4 * 72.0), name
 

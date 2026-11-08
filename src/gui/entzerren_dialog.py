@@ -159,8 +159,11 @@ class _Eintrag:
             bild = bild.resize((round(bild.width / self.faktor), round(bild.height / self.faktor)),
                                Image.Resampling.LANCZOS)
         self.klein = bild
-        self.automatisch = [tuple(map(float, p)) for p in self.vorgabe] if self.vorgabe else \
-            standard_ecken(*self.groesse)
+        b, h = self.groesse
+        # Die Erkennung darf eine Blattecke knapp ausserhalb des Fotos setzen; im Fenster muss jeder
+        # Anfasser greifbar bleiben, also an den Bildrand
+        self.automatisch = [(min(max(float(x), 0.0), b), min(max(float(y), 0.0), h)) for x, y in self.vorgabe] \
+            if self.vorgabe else standard_ecken(*self.groesse)
         if not self.ecken:
             self.ecken = list(self.automatisch)
 

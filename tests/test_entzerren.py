@@ -10,7 +10,7 @@ import math
 import numpy as np
 import pymupdf
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from src.core import entzerren as ez
 from src.core.bild_convert import bilder_in_pdf
@@ -87,11 +87,99 @@ def test_a4_rastet_ein_hoch_und_quer():
     assert (name, round(b), round(h)) == ("A4", 297, 210)
 
 
-def test_letter_rastet_ein_und_zu_weit_weg_bleibt_frei():
-    b, h, name = ez.seitenformat(215.9 / 279.4)
-    assert name == "Letter" and round(b, 1) == 215.9
+def test_gefalteter_brief_rastet_auf_a4_und_zu_weit_weg_bleibt_frei():
+    # Falze verkuerzen die lange Seite: ein A4-Brief misst sich bis gut 10 % zu breit (echte Fotos)
+    for verh in (0.79, 1 / 0.79, 215.9 / 279.4):
+        b, h, name = ez.seitenformat(verh)
+        assert name == "A4" and {round(b), round(h)} == {210, 297}
     b, h, name = ez.seitenformat(0.55)  # zwischen allem: bleibt wie gemessen
     assert name == "frei" and b / h == pytest.approx(0.55, rel=1e-6)
+    assert ez.seitenformat(0.64)[2] == "frei"  # deutlich schmaler als A4 rastet nicht ein
+
+
+def test_ohne_einrasten_bleibt_das_gemessene_verhaeltnis():
+    b, h, name = ez.seitenformat(0.72, einrasten=False)
+    assert name == "frei" and b / h == pytest.approx(0.72, rel=1e-6)
+
+
+def test_angeschnittenes_blatt_rastet_nicht_ein():
+    groesse = (1200, 1600)
+    # Die untere Seite laeuft am Bildrand entlang: das Blatt ragt unten aus dem Foto
+    unten_ab = [(100, 80), (1100, 90), (1110, 1597), (95, 1600)]
+    assert ez.angeschnitten(unten_ab, groesse)
+    # Nur eine Ecke knapp ausserhalb (beide Kanten sichtbar): nicht angeschnitten
+    assert not ez.angeschnitten([(100, 80), (1100, 90), (1215, 1500), (95, 1450)], groesse)
+    papier = foto([(0, 0), (1200, 0), (1200, 1600), (0, 1600)], groesse)
+    assert ez.entzerrte_seite(papier, unten_ab)[2] == "frei"
+
+
+# --- Feinabgleich an der Papierkante und Konfidenz ---------------------------------------------
+
+def _grau_klein(bild):
+    from scipy import ndimage
+    rgb, faktor = ez._klein(bild, ez.ERKENNUNG_PX)
+    return ndimage.gaussian_filter(rgb.mean(axis=2), 1.0), faktor
+
+
+def _blatt_mit_rahmen():
+    papier = blatt()
+    b, h = papier.size
+    rand = int(0.05 * b)
+    ImageDraw.Draw(papier).rectangle([rand, rand, b - rand, h - rand], outline=(20, 20, 20), width=14)
+    return papier
+
+
+@pytest.mark.parametrize("art", ["dunkel", "hell", "muster"])
+def test_feinabgleich_legt_falsche_seiten_auf_die_papierkante(art):
+    """Die Huelle irrt (helle Nachbarflaeche, Schatten): der Abgleich findet die Papierkante wieder."""
+    grau, faktor = _grau_klein(foto(LEICHT, GROESSE, art=art))
+    wahr = np.array(LEICHT) / faktor
+    falsch = wahr + np.array([[0, 0], [-12, 5], [6, 4], [-28, 10]])  # unten links weit aussen, oben rechts innen
+    ecken, treue = ez._viereck_verfeinern(grau, falsch)
+    assert ecken_abstand(ecken * faktor, LEICHT) < 0.006 * DIAGONALE
+    assert min(t for t in treue if t is not None) > 0.8
+
+
+def test_rahmenlinie_im_blatt_zieht_die_seite_nicht_nach_innen():
+    """Unter gleich langen Kanten gewinnt die aeussere: Papierkante vor gedrucktem Rahmen."""
+    grau, faktor = _grau_klein(foto(LEICHT, GROESSE, art="dunkel", papier=_blatt_mit_rahmen()))
+    wahr = np.array(LEICHT) / faktor
+    mitte = wahr.mean(axis=0)
+    ecken, _treue = ez._viereck_verfeinern(grau, mitte + (wahr - mitte) * 0.97)  # zwischen Rand und Rahmen
+    assert ecken_abstand(ecken * faktor, LEICHT) < 0.006 * DIAGONALE
+    erk = ez.blatt_finden(foto(LEICHT, GROESSE, art="dunkel", papier=_blatt_mit_rahmen()))
+    assert erk.sicher and ecken_abstand(erk.ecken, LEICHT) < 0.006 * DIAGONALE
+
+
+def test_kante_darf_gebogen_sein_aber_nicht_verstreut():
+    """Der Rand eines gefalteten Briefs ist stetig, aber nicht gerade; eine falsche Seite findet nur Streuung."""
+    stellen = np.arange(ez.FEIN_PROBEN)
+    messbar = np.ones(ez.FEIN_PROBEN, dtype=bool)
+    richtung = np.array([0.0, 1.0])
+
+    def kandidaten(versatz):  # Seite senkrecht bei x = 100, innen = +x
+        return np.column_stack([stellen, 100 + versatz, stellen * 14.0, versatz])
+
+    gebogen = 9 * np.sin(stellen / ez.FEIN_PROBEN * 2 * np.pi)  # Falz-Welle, bis 9 Pixel
+    _p, _r, anteil = ez._kante_finden(kandidaten(gebogen), messbar, 14.0, richtung)
+    assert anteil == pytest.approx(1.0)
+    rng = np.random.default_rng(5)
+    verstreut = rng.uniform(-20, 20, ez.FEIN_PROBEN)
+    gefunden = ez._kante_finden(kandidaten(verstreut), messbar, 14.0, richtung)
+    assert gefunden is None or gefunden[2] < ez.KANTENTREUE[0]
+
+
+def test_schrift_ausserhalb_einer_seite_wird_erkannt():
+    """Liegt hinter einer Seite helles Papier mit Schrift, schneidet sie durchs Dokument."""
+    grau = np.full((400, 300), 40.0)                    # dunkler Tisch
+    grau[100:380, 30:270] = 235.0                        # Blatt (Viereck)
+    ecken = np.array([[30, 100], [270, 100], [270, 380], [30, 380]], dtype=float)
+    assert ez._schrift_aussen(grau, ecken) == 0.0
+    grau[20:100, 30:270] = 235.0                         # oberhalb geht das Papier weiter ...
+    for y in (40, 62, 84):                               # ... mit Textzeilen
+        grau[y:y + 4, 40:260:9] = 30.0
+        grau[y:y + 4, 41:260:9] = 30.0
+    assert ez._schrift_aussen(grau, ecken) > ez.SCHRIFT_AUSSEN[1]
 
 
 def test_kassenbon_behaelt_sein_verhaeltnis():
