@@ -1125,6 +1125,94 @@ class Database:
         finally:
             session.close()
 
+    def pfade_umziehen(self, alt: str, neu: str, root_folders=()) -> dict:
+        """Zieht gespeicherte Ordnerpfade um, wenn ein Ordner verschoben wurde (Issue #196).
+
+        Betrifft ``alt`` und alles darunter in: Sortierhistorie (Zielordner, die der
+        Klassifikator gelernt hat), Zielordner-Statistik und Umbenennungshistorie
+        (die Dateien selbst: :meth:`dateipfade_umziehen`). ``root_folders`` sind die
+        Zielordner NACH dem Umzug; daraus wird der relative Pfad neu gebildet. Gibt die Anzahl je Tabelle zurueck.
+        """
+        import os
+
+        from sqlalchemy import func
+
+        from src.core.similar_documents import relative_folder
+
+        alt, neu = str(alt), str(neu)
+        sep = os.sep
+        n = len(alt)
+
+        def neuer_pfad(p: str):
+            if p == alt:
+                return neu
+            if p.startswith(alt + sep):
+                return neu + p[n:]
+            return None
+
+        anzahl = {"sorting_history": 0, "target_folders": 0, "rename_history": 0}
+        session = self.get_session()
+        try:
+            def betroffen(spalte):
+                return (spalte == alt) | (func.substr(spalte, 1, n + 1) == alt + sep)
+
+            for row in session.query(SortingHistory).filter(betroffen(SortingHistory.target_folder)).all():
+                row.target_folder = neuer_pfad(row.target_folder)
+                row.target_folder_name = Path(row.target_folder).name or row.target_folder_name
+                rel = relative_folder(row.target_folder, root_folders)
+                if rel:
+                    row.target_relative_path = rel
+                anzahl["sorting_history"] += 1
+
+            for row in session.query(RenameHistory).filter(betroffen(RenameHistory.target_folder)).all():
+                row.target_folder = neuer_pfad(row.target_folder)
+                anzahl["rename_history"] += 1
+
+            for row in session.query(TargetFolder).filter(betroffen(TargetFolder.path)).all():
+                ziel = neuer_pfad(row.path)
+                vorhanden = session.query(TargetFolder).filter(TargetFolder.path == ziel).first()
+                if vorhanden is not None:  # Zusammenfuehren: Statistik addieren (Pfad ist eindeutig)
+                    vorhanden.usage_count = (vorhanden.usage_count or 0) + (row.usage_count or 0)
+                    session.delete(row)
+                else:
+                    row.path = ziel
+                    row.name = Path(ziel).name or row.name
+                    row.parent_path = str(Path(ziel).parent)
+                    rel = relative_folder(ziel, root_folders)
+                    if rel:
+                        row.relative_path = rel
+                anzahl["target_folders"] += 1
+            session.commit()
+        finally:
+            session.close()
+
+        return anzahl
+
+    def dateipfade_umziehen(self, paare) -> int:
+        """Zieht die ``pdfs``-Eintraege einzelner Dateien auf ihre neuen Pfade um (Issue #196).
+
+        ``paare``: ``[(alt, neu)]`` mit den tatsaechlichen Zielpfaden (auch bei " (2)"
+        im Namen). Ein bereits belegter Zielpfad bleibt unveraendert (Pfad ist eindeutig).
+        """
+        import sqlite3
+
+        anzahl = 0
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                for alt, neu in paare:
+                    cur = conn.execute(
+                        "UPDATE OR IGNORE pdfs SET file_path = ?, filename = ? WHERE file_path = ?",
+                        (str(neu), Path(neu).name, str(alt)),
+                    )
+                    anzahl += max(cur.rowcount, 0)
+                conn.commit()
+            finally:
+                conn.close()
+        except sqlite3.Error as e:
+            print(f"dateipfade_umziehen Fehler: {e}")
+        return anzahl
+
     def get_all_sorting_entries(self) -> list[SortingHistory]:
         """Gibt alle Sortierhistorie-Einträge zurück."""
         session = self.get_session()

@@ -936,6 +936,39 @@ class PDFCache(QObject):
             # Neuen Eintrag speichern
             self._save_to_db(old_entry)
 
+    def pfade_umziehen(self, paare) -> int:
+        """Zieht die Eintraege mehrerer Dateien auf neue Pfade um (Ordner verschoben, Issue #196).
+
+        ``paare``: ``[(alt, neu)]``. Text, Schluesselwoerter und KI-Vorschlaege bleiben
+        erhalten; der gespeicherte Cache bekommt die neuen Pfade in einem Zug.
+        Gibt die Anzahl umgezogener Eintraege zurueck.
+        """
+        bewegt = []
+        with self._lock:
+            for alt, neu in paare:
+                alt, neu = Path(alt), Path(neu)
+                eintrag = self._cache.pop(alt, None)
+                if eintrag is None:
+                    continue
+                eintrag.pdf_path = neu
+                self._cache[neu] = eintrag
+                bewegt.append((alt, neu, eintrag))
+        if bewegt and self._persist_cache and self._db_path:
+            try:
+                conn = sqlite3.connect(str(self._db_path))
+                try:
+                    conn.executemany(
+                        "DELETE FROM pdf_cache WHERE pdf_path = ?", [(str(a),) for a, _n, _e in bewegt]
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
+            except Exception as e:
+                logger.error(f"Cache-Umzug fehlgeschlagen: {e}")
+            for _a, _n, eintrag in bewegt:
+                self._save_to_db(eintrag)
+        return len(bewegt)
+
     def get_stats(self) -> dict:
         """Gibt Cache-Statistiken zurück."""
         with self._lock:
