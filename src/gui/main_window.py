@@ -39,6 +39,7 @@ from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
+from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
@@ -648,7 +649,31 @@ class MainWindow(QMainWindow):
         self.breadcrumb_layout.addStretch()
         self.breadcrumb_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
-        navi_layout.addWidget(self.breadcrumb_widget)
+        # Ordnersuche (Issue #159): Klick auf die freie Pfadzeile oder die Lupe
+        # blendet das Suchfeld an Stelle der Pfadzeile ein (wie im Explorer).
+        self.breadcrumb_widget.setToolTip("Klicken zum Suchen nach Ordnern")
+        self.breadcrumb_widget.mousePressEvent = self._breadcrumb_klick
+        self.breadcrumb_suche_btn = QToolButton()
+        self.breadcrumb_suche_btn.setText("🔍")
+        self.breadcrumb_suche_btn.setAutoRaise(True)
+        self.breadcrumb_suche_btn.setFixedSize(20, 20)
+        self.breadcrumb_suche_btn.setToolTip("Ordner suchen")
+        self.breadcrumb_suche_btn.clicked.connect(self._ordnersuche_links_oeffnen)
+        self.breadcrumb_zeile = QWidget()
+        zeile_layout = QHBoxLayout(self.breadcrumb_zeile)
+        zeile_layout.setContentsMargins(0, 0, 0, 0)
+        zeile_layout.setSpacing(0)
+        zeile_layout.addWidget(self.breadcrumb_widget, stretch=1)
+        zeile_layout.addWidget(self.breadcrumb_suche_btn)
+        navi_layout.addWidget(self.breadcrumb_zeile)
+        self.ordner_suche_links = OrdnerSuchfeld(self._ordnersuche_wurzeln, schwebend=True)
+        self.ordner_suche_links.setFixedHeight(20)
+        self.ordner_suche_links.eingabe.setFixedHeight(20)
+        self.ordner_suche_links.eingabe.setStyleSheet("font-size: 11px;")
+        self.ordner_suche_links.treffer_gewaehlt.connect(self._on_favorit_geoeffnet)
+        self.ordner_suche_links.beendet.connect(self._ordnersuche_links_schliessen)
+        self.ordner_suche_links.setVisible(False)
+        navi_layout.addWidget(self.ordner_suche_links)
         layout.addLayout(navi_layout)
 
         # Info-Label für leeren Ordner
@@ -4429,6 +4454,29 @@ class MainWindow(QMainWindow):
             return
         menu = aktuellen_ordner_menue(self, self.favoriten_leiste, Path(scan))
         menu.exec(self.breadcrumb_widget.mapToGlobal(pos))
+
+    def _breadcrumb_klick(self, event):
+        """Linksklick auf die freie Pfadzeile: Ordnersuche einblenden (#159)."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._ordnersuche_links_oeffnen()
+
+    def _ordnersuche_wurzeln(self) -> list[Path]:
+        """Gesucht wird unter dem Scan-Ordner und den Zielordnern."""
+        wurzeln = []
+        scan = self.config.get_scan_folder()
+        if scan:
+            wurzeln.append(Path(scan))
+        wurzeln.extend(self.config.get_target_folders())
+        return wurzeln
+
+    def _ordnersuche_links_oeffnen(self):
+        self.breadcrumb_zeile.setVisible(False)
+        self.ordner_suche_links.setVisible(True)
+        self.ordner_suche_links.fokus_setzen()
+
+    def _ordnersuche_links_schliessen(self):
+        self.ordner_suche_links.setVisible(False)
+        self.breadcrumb_zeile.setVisible(True)
 
     def _update_navigation_buttons(self):
         """Aktualisiert den Zustand des Zurück-Buttons."""

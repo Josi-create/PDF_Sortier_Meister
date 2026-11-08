@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 
 from src.core.office_convert import ist_sortierbar
+from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -186,6 +187,11 @@ class FolderTreeWidget(QWidget):
         bar_layout.addWidget(self.view_root_back_btn)
         self.view_root_bar.setVisible(False)
         layout.addWidget(self.view_root_bar)
+
+        # Ordnersuche oberhalb des Baums (Issue #159)
+        self.suchfeld = OrdnerSuchfeld(self._effective_roots)
+        self.suchfeld.treffer_gewaehlt.connect(self.reveal_folder)
+        layout.addWidget(self.suchfeld)
 
         # Tree Widget
         self.tree = QTreeWidget()
@@ -1076,6 +1082,19 @@ class FolderTreeWidget(QWidget):
             item.setBackground(0, Qt.GlobalColor.green)
         else:
             item.setBackground(0, Qt.GlobalColor.transparent)
+
+    def reveal_folder(self, folder: Path) -> bool:
+        """Klappt den Baum bis zum Ordner auf, markiert und scrollt ihn ins Bild.
+
+        Verschiebt nichts: markiert wird nur programmatisch (kein Klick, daher
+        kein ``folder_selected``). Der Nutzer klickt den Ordner danach selbst.
+        """
+        folder = Path(folder)
+        if not self._ensure_folder_item(folder):
+            self.status_message.emit(f"Ordner nicht im sichtbaren Baum: {folder.name}")
+            return False
+        self._mark_folder(folder)
+        return True
 
     def get_selected_folder(self) -> Optional[Path]:
         """Gibt den aktuell ausgewählten Ordner zurück."""
