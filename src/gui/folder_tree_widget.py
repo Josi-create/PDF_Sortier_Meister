@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 
 from src.core.office_convert import ist_sortierbar
+from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from PyQt6.QtWidgets import (
     QTreeWidget,
@@ -106,6 +107,8 @@ class FolderTreeWidget(QWidget):
     move_here_requested = pyqtSignal(Path)  # Kontextmenue "Hierhin verschieben" (Issue #93)
     folder_renamed = pyqtSignal(Path, Path)  # Ordner umbenannt (alt, neu)
     status_message = pyqtSignal(str)  # Kurzinfo fuer die Statusleiste
+    copy_here_requested = pyqtSignal(Path)  # Kontextmenue "Hierhin kopieren" (Issue #179)
+    pdf_copy_dropped = pyqtSignal(list, Path)  # Strg+Drop: (Dateien, Ordner), Issue #179
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
 
     # Kontextmenue (Issue #93)
@@ -129,6 +132,7 @@ class FolderTreeWidget(QWidget):
         # MainWindow setzt hier eine Funktion, die sagt, ob links PDFs ausgewaehlt
         # sind ("Hierhin verschieben" ist sonst deaktiviert).
         self.has_pdf_selection = lambda: False
+        self.auswahl_pruefer = None  # Callable[[], list[Path]], setzt das Hauptfenster (#179)
         self._view_root: Optional[Path] = None  # "Als Wurzel anzeigen" (nicht gespeichert)
         self._pending_expand: dict[Path, int] = {}  # Ordner -> Restebenen nach dem Nachladen
         self._expand_budget = 0
@@ -631,6 +635,8 @@ class FolderTreeWidget(QWidget):
         if not has_pdfs:
             move_action.setToolTip("Links ist keine PDF ausgewählt")
         move_action.triggered.connect(lambda: self.move_here_requested.emit(folder_path))
+        # Issue #179: Kopie statt Verschieben
+        kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(folder_path))
 
         menu.addSeparator()
 
@@ -988,7 +994,7 @@ class FolderTreeWidget(QWidget):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 if ist_sortierbar(url.toLocalFile()):
-                    event.acceptProposedAction()
+                    drop_aktion_setzen(event)
                     return
         event.ignore()
 
@@ -1028,7 +1034,7 @@ class FolderTreeWidget(QWidget):
                     self._drag_expand_timer.start()
                 self._drag_hover_item = item
                 self._highlight_drop_target(item)
-                event.acceptProposedAction()
+                drop_aktion_setzen(event)  # Strg: Cursor zeigt Kopieren (Issue #179)
                 return
 
         # Kein gültiges Ziel - altes Hover zurücksetzen
@@ -1063,12 +1069,14 @@ class FolderTreeWidget(QWidget):
 
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
 
-        for url in event.mimeData().urls():
-            file_path = Path(url.toLocalFile())
-            if ist_sortierbar(file_path):
-                self.pdf_dropped.emit(file_path, folder_path)
-
-        event.acceptProposedAction()
+        dateien = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
+        dateien = [d for d in dateien if ist_sortierbar(d)]
+        if drop_aktion_setzen(event):  # Strg: kopieren statt verschieben (Issue #179)
+            if dateien:
+                self.pdf_copy_dropped.emit(dateien, folder_path)
+            return
+        for file_path in dateien:
+            self.pdf_dropped.emit(file_path, folder_path)
 
     def _highlight_drop_target(self, item: QTreeWidgetItem):
         """Hebt ein Item als Drop-Ziel hervor."""

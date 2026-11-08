@@ -55,7 +55,8 @@ from src.gui.setup_wizard import SetupWizard
 from src.gui.korrespondenten_view import KorrespondentenView
 from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
-from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
+from src.core.folder_naming import coerce_date
+from src.gui.hierhin_kopieren import HierhinKopierenMixin
 
 
 def _iso_to_date(value):
@@ -172,7 +173,7 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(QMainWindow):
+class MainWindow(HierhinKopierenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -678,6 +679,7 @@ class MainWindow(QMainWindow):
         self._favoriten_vorbelegen()
         self.favoriten_leiste = FavoritenLeiste(self.config)
         self.favoriten_leiste.ordner_geoeffnet.connect(self._on_favorit_geoeffnet)
+        self.verbinde_hierhin_kopieren(self.favoriten_leiste)  # Issue #179
         # Favoriten und Pfadzeile eng beieinander, ohne den Panel-Abstand
         navi_layout = QVBoxLayout()
         navi_layout.setContentsMargins(0, 0, 0, 0)
@@ -839,6 +841,7 @@ class MainWindow(QMainWindow):
         self.folder_tree.folder_selected.connect(self.on_tree_folder_selected)
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+        self.verbinde_hierhin_kopieren(self.folder_tree)  # Issue #179
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
         self.folder_tree.move_here_requested.connect(self.on_tree_folder_selected)  # Issue #93
         self.folder_tree.folder_renamed.connect(self.on_tree_folder_renamed)
@@ -961,6 +964,8 @@ class MainWindow(QMainWindow):
                 # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            self.verbinde_hierhin_kopieren(tile)  # Issue #179
+            self.verbinde_ordnerzeile(tile)  # Issue #183
             tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
             tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
             self.folder_tiles.append(tile)
@@ -982,6 +987,7 @@ class MainWindow(QMainWindow):
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
             widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
+            self._kopie_hinweis_anwenden(widget)  # Issue #179
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
@@ -1041,6 +1047,7 @@ class MainWindow(QMainWindow):
         """
         for j, pfad in enumerate(office_files):
             widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
+            self._kopie_hinweis_anwenden(widget)  # Issue #179
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
@@ -1627,6 +1634,7 @@ class MainWindow(QMainWindow):
             widget.clicked.connect(self.on_folder_clicked)
             widget.double_clicked.connect(self.on_folder_double_clicked)
             widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            self.verbinde_hierhin_kopieren(widget)  # Issue #179
             widget.remove_requested.connect(self.on_folder_remove)
 
             row = i // 4
@@ -2621,6 +2629,7 @@ class MainWindow(QMainWindow):
                 # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
                 # auf den Baum (vorher stilles No-op, weil nie verbunden)
                 widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+                self.verbinde_hierhin_kopieren(widget)  # Issue #179
 
             # Issue #32: nur der erste bestehende (beste) Vorschlag, nur bei hoher
             # Konfidenz - nie ein neuer Ordner (Issue #116)
@@ -2687,44 +2696,10 @@ class MainWindow(QMainWindow):
         """
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
-        new_name = self.detail_panel.get_new_name()
-        metadata = self.detail_panel.get_metadata()
-        # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
-        office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
-        if office_ext and new_name:
-            new_name = endung_tauschen(new_name, office_ext)
-
-        # Der vom Nutzer gewaehlte/korrigierte Name ist das, was die KI
-        # kuenftig liefern soll - nur er geht als Beispiel in die Historie.
-        # Das Ordner-Praefix (#42) kommt beim Verschieben dazu und wuerde
-        # die KI sonst dazu verleiten, selbst Ordnernummern zu erfinden.
-        learned_name = new_name
-        folder_naming_applied = False
-
-        # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
-        if self.config.get("folder_naming_enabled", False):
-            folder_naming_applied = True
-            # Datum aus dem Feld "Datum" des Detail-Panels (Issue #132),
-            # sonst das erkannte Datum der Analyse
-            fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
-            if fallback_date is None and self.selected_pdf_dates:
-                fallback_date = coerce_date(self.selected_pdf_dates[0])
-            basis_name = new_name or pdf_path.name
-            if office_ext:
-                basis_name = basis_name[: -len(office_ext)] if basis_name.lower().endswith(office_ext) else basis_name
-            new_name = build_folder_based_name(
-                basis_name,
-                folder_path,
-                relative_path,
-                template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
-                initials=self.config.get("owner_initials", ""),
-                fallback_date=fallback_date,
-            )
-            if office_ext:
-                new_name = endung_tauschen(new_name, office_ext)
-
-        # Prüfen ob umbenannt wird
-        name_changed = new_name and new_name != pdf_path.name
+        # Name und Metadaten (gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
+        namen = self._ablage_namen(pdf_path, folder_path, relative_path)
+        new_name, metadata = namen.new_name, namen.metadata
+        office_ext, name_changed = namen.office_ext, namen.name_changed
 
         # Bestätigungsdialog
         if create_folder:
@@ -2737,7 +2712,6 @@ class MainWindow(QMainWindow):
             msg = f"'{pdf_path.name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
         else:
             msg = f"'{pdf_path.name}' nach '{relative_path}' verschieben?"
-            new_name = None  # Originalname beibehalten
 
         reply = QMessageBox.question(
             self, "Neuen Ordner anlegen" if create_folder else "PDF verschieben",
@@ -2775,11 +2749,6 @@ class MainWindow(QMainWindow):
                 if not office_ext:  # in .docx/.xlsx schreiben wir keine PDF-Metadaten
                     self._write_pdf_metadata_async(new_path, new_path.name,
                                                    self.selected_pdf_keywords, metadata)
-                # Korrespondent-Zuordnung lernen
-                if metadata.get("korrespondent"):
-                    self.db.learn_korrespondent_metadata(
-                        metadata["korrespondent"], metadata
-                    )
             timer.step("metadata")
 
             # Undo-Eintrag
@@ -2796,39 +2765,15 @@ class MainWindow(QMainWindow):
                 undo_entry["created_dirs"] = list(created_dirs)
             self._push_undo(undo_entry)
 
-            # Aus der Entscheidung lernen
-            if self.selected_pdf_text:
-                self.classifier.learn(
-                    pdf_path=pdf_path,
-                    target_folder=folder_path,
-                    extracted_text=self.selected_pdf_text,
-                    keywords=self.selected_pdf_keywords,
-                    relative_path=relative_path,
-                )
+            # Aus der Entscheidung lernen (Klassifikator, Umbenennung, Korrespondent;
+            # gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
+            self._aus_ablage_lernen(
+                pdf_path, folder_path, relative_path, new_path, namen,
+                text=self.selected_pdf_text,
+                keywords=self.selected_pdf_keywords,
+                dates=self.selected_pdf_dates,
+            )
             timer.step("learn")
-
-            # Umbenennung lernen (falls Name geändert)
-            if name_changed:
-                # Vom Nutzer bestaetigtes/korrigiertes Datum (Issue #132) vor dem erkannten
-                detected_date = metadata.get("buchungsdatum") if metadata else None
-                if not detected_date and self.selected_pdf_dates:
-                    try:
-                        d = self.selected_pdf_dates[0]
-                        detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
-                    except Exception:
-                        pass
-                history_name = (
-                    learned_name if folder_naming_applied and learned_name else new_path.name
-                )
-                if history_name != pdf_path.name:
-                    self.db.add_rename_entry(
-                        original_filename=pdf_path.name,
-                        new_filename=history_name,
-                        extracted_text=self.selected_pdf_text,
-                        keywords=self.selected_pdf_keywords,
-                        detected_date=detected_date,
-                        target_folder=str(folder_path),
-                    )
 
             # Volltext-Suchindex befüllen (Phase 17)
             self.db.update_pdf_path(

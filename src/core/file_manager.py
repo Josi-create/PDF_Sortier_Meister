@@ -209,16 +209,23 @@ class FileManager:
 
         # Zieldateiname bestimmen
         if new_name:
-            if not new_name.lower().endswith('.pdf'):
-                new_name += '.pdf'
-            target_name = new_name
+            # Endung wie beim Verschieben (.pdf; bei Office-Dateien deren eigene)
+            target_name = self._mit_endung(source, new_name)
         else:
             target_name = source.name
 
         target_path = target_folder / target_name
         target_path = self._get_unique_path(target_path)
 
-        shutil.copy2(str(source), str(target_path))
+        try:
+            shutil.copy2(str(source), str(target_path))
+        except BaseException:
+            # Halbfertige Kopie nicht liegen lassen; das Original wird nie angefasst
+            try:
+                target_path.unlink()
+            except OSError:
+                pass
+            raise
         index_melden("datei_aufnehmen", str(target_path))
 
         return target_path
