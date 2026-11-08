@@ -143,7 +143,10 @@ def test_restore_stack_is_byte_identical(tmp_path: Path) -> None:
         assert pfad.read_bytes() == daten
 
 
-@pytest.mark.parametrize("winerror", [False, True])
+@pytest.mark.parametrize("winerror", [
+    False,
+    pytest.param(True, marks=pytest.mark.skipif(os.name != "nt", reason="WinError nur unter Windows")),
+])
 def test_restore_stack_across_drives(tmp_path: Path, monkeypatch, winerror: bool) -> None:
     """Sicherung auf anderem Laufwerk: os.replace scheitert, es wird kopiert statt verloren."""
     docs = tmp_path / "docs"
