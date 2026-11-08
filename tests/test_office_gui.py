@@ -213,7 +213,11 @@ def test_klick_auf_office_kachel_waehlt_aus_und_zeigt_vorschau(qtbot, main_windo
     # Klick auf eine PDF waehlt um
     monkeypatch.setattr(main_window, "update_suggestions_for_pdf", lambda p: None)
     main_window.on_pdf_clicked(scan / "a.pdf")
-    assert not w.selected
+    # Die Kachel frisch holen: laedt das Fenster die Liste im Hintergrund neu,
+    # ist ``w`` eine alte, nicht mehr angezeigte Kachel (CI, sporadisch)
+    aktuell = main_window._pdf_widget_for(docx)
+    assert main_window.selected_pdf == scan / "a.pdf"
+    assert aktuell is None or not aktuell.selected
 
 
 def test_analysiere_nutzt_lastprinted_bei_datumsfeldern(tmp_path):

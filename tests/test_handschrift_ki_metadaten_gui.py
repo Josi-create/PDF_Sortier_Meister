@@ -86,11 +86,17 @@ def test_keine_ki_metadaten_wenn_inzwischen_anderes_ausgewaehlt(ablauf, qtbot):
 
 def test_ohne_ki_hinweis_in_der_statusleiste(ablauf, qtbot, monkeypatch):
     monkeypatch.setattr(ablauf.detail_panel, "ki_metadaten_neu_generieren", lambda: False)
+    # Alle Meldungen mitschreiben: andere Meldungen (Analyse, Auswahl) koennen den
+    # Hinweis sonst kurz danach ueberschreiben (auf macOS in der CI gesehen)
+    meldungen = []
+    original = ablauf.statusbar.showMessage
+    monkeypatch.setattr(ablauf.statusbar, "showMessage",
+                        lambda text, *a: meldungen.append(text) or original(text, *a))
     pdf = ablauf._pdf
     _kachel(ablauf).handschrift_requested.emit(pdf)
     _auf_ergebnis_warten(ablauf, qtbot)
     _analyse_fertig(ablauf, pdf, qtbot)
-    assert "keine KI eingerichtet" in ablauf.statusbar.currentMessage()
+    qtbot.waitUntil(lambda: any("keine KI eingerichtet" in m for m in meldungen), timeout=2000)
 
 
 def test_ki_metadaten_neu_generieren_ohne_pdf_startet_nichts(main_window):
