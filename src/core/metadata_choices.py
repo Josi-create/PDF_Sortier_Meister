@@ -30,6 +30,45 @@ def remember_category(recent: Iterable[str] | None, category: str) -> list[str]:
     return ([category] + result)[:RECENT_CATEGORIES_MAX]
 
 
+_DEFAULT_LOWER = {c.lower() for c in DEFAULT_CATEGORIES}
+# "{'Sonstiges'}", "['Rechnung']", "('Bank',)": Python-Darstellung einer Sammlung
+_SAMMLUNG_RE = re.compile(r"^[\[{(](.*)[\]})]$", re.S)
+_LEER_WERTE = {"", "none", "null", "unbekannt", "unknown", "n/a", "-"}
+# Aufzaehlung mehrerer Kategorien: "Rechnung/Vertrag", "Rechnung, Vertrag", "Rechnung oder Vertrag"
+_AUFZAEHLUNG_RE = re.compile(r"\s*(?:/|,|;|\||\boder\b|:)\s*", re.I)
+
+
+def clean_category(value) -> str:
+    """Genau eine Kategorie aus einem KI-, PDF- oder Datenbankwert.
+
+    - Sammlungen (XMP-Bag als ``set``, Listen) und ihre Textform wie
+      ``"{'Sonstiges'}"`` ergeben das (erste) enthaltene Element; bei mehreren
+      gewinnt eine Standardkategorie.
+    - Die aus dem KI-Prompt abgeschriebene Auswahlliste
+      (``Rechnung/Vertrag/Steuer/...``, auch gekuerzt oder mit Komma/"oder")
+      ist keine Wahl und ergibt "".
+    - Platzhalter wie ``UNBEKANNT``/``null`` und Woerterbuecher ergeben "".
+    """
+    if value is None or isinstance(value, dict):
+        return ""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        items = sorted(value, key=str) if isinstance(value, (set, frozenset)) else list(value)
+        cats = [c for c in (clean_category(i) for i in items) if c]
+        known = [c for c in cats if c.lower() in _DEFAULT_LOWER]
+        return (known or cats or [""])[0]
+    text = " ".join(str(value).split())
+    match = _SAMMLUNG_RE.match(text)
+    if match:
+        return clean_category([t.strip().strip("'\"") for t in match.group(1).split(",")])
+    text = text.strip("'\"").strip()
+    if text.lower() in _LEER_WERTE:
+        return ""
+    parts = [p.strip(" .:").lower() for p in _AUFZAEHLUNG_RE.split(text)]
+    if len(parts) > 1 and sum(p in _DEFAULT_LOWER for p in parts) >= 2:
+        return ""
+    return text
+
+
 def _looks_like_category(name: str) -> bool:
     return len(name) <= MAX_INDEX_CATEGORY_LEN and len(name.split()) <= MAX_INDEX_CATEGORY_WORDS
 

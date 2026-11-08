@@ -284,9 +284,10 @@ def placeholder_values_from_metadata(
         values["jahr"] = str(md["steuerjahr"]).strip()
     if md.get("korrespondent"):
         values["kontakt"] = str(md["korrespondent"]).strip()
-    category = md.get("subject") or md.get("category") or md.get("kategorie")
+    from src.core.metadata_choices import clean_category
+    category = clean_category(md.get("subject") or md.get("category") or md.get("kategorie"))
     if category:
-        values["kategorie"] = str(category).strip()
+        values["kategorie"] = category
     summary = md.get("description") or md.get("beschreibung")
     if summary:
         values["betreff"] = " ".join(str(summary).split()[:4])

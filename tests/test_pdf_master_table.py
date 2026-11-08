@@ -299,3 +299,45 @@ def test_uebernahme_verwendet_vorhandene_pdf_id(tmp_path: Path) -> None:
     assert results[0]["pdf_id"] == pre_pid
     master = db.get_pdf_by_path(str(datei))
     assert master is not None and master["pdf_id"] == pre_pid
+
+
+def test_update_pdf_path_ziel_mit_veraltetem_eintrag(tmp_path: Path) -> None:
+    """Live-Test 2026-11-08: am Zielpfad stand noch der Eintrag einer frueheren Datei.
+
+    Vorher scheiterte das Umtragen an UNIQUE(file_path) - und weil die Ausnahme alles
+    abbrach, bekam auch der Suchindex das Verschieben nicht mit.
+    """
+    db = _make_db(tmp_path)
+    pid = db.get_or_create_pdf_id("/src/a.pdf", "a.pdf")
+    alt = db.get_or_create_pdf_id("/dst/a.pdf", "a.pdf")
+    assert alt != pid
+
+    assert db.update_pdf_path("/src/a.pdf", "/dst/a.pdf", "a.pdf") is True
+    entry = db.get_pdf_by_path("/dst/a.pdf")
+    assert entry["pdf_id"] == pid
+    assert db.get_pdf_by_path("/src/a.pdf") is None
+
+
+def test_update_pdf_path_nur_ziel_bekannt(tmp_path: Path) -> None:
+    """Kennt ``pdfs`` die Datei nur unter dem neuen Pfad, wird dieser Eintrag weitergefuehrt."""
+    db = _make_db(tmp_path)
+    pid = db.get_or_create_pdf_id("/dst/b.pdf", "b.pdf")
+
+    assert db.update_pdf_path("/src/b.pdf", "/dst/b.pdf", "b.pdf") is True
+    assert db.get_pdf_by_path("/dst/b.pdf")["pdf_id"] == pid
+    assert db.get_pdf_by_path("/src/b.pdf") is None
+
+
+def test_update_pdf_path_ziel_konflikt_suchindex_zieht_mit(tmp_path: Path) -> None:
+    db = _make_db(tmp_path)
+    quelle = _pdf(tmp_path / "quelle.pdf", "Auftrag Balkonabdichtung")
+    ziel = tmp_path / "ablage" / "quelle.pdf"
+    ziel.parent.mkdir()
+    db.suchindex.datei_aufnehmen(str(quelle))
+    db.get_or_create_pdf_id(str(quelle), quelle.name)
+    db.get_or_create_pdf_id(str(ziel), ziel.name)  # veralteter Eintrag
+    quelle.rename(ziel)
+
+    assert db.update_pdf_path(str(quelle), str(ziel), ziel.name) is True
+    assert db.suchindex.dokument_nach_pfad(str(ziel)) is not None
+    assert db.suchindex.dokument_nach_pfad(str(quelle)) is None

@@ -220,6 +220,12 @@ def normalize_llm_metadata(metadata) -> dict:
             if value.lower() in _UNKNOWN_VALUES:
                 continue
         canonical = _canonical(key)
+        if canonical == "subject":
+            # Nur eine Kategorie: keine abgeschriebene Auswahlliste, keine Mengen-Textform
+            from src.core.metadata_choices import clean_category
+            value = clean_category(value)
+            if not value:
+                continue
         if canonical in result and result[canonical] not in (None, ""):
             continue  # kanonischer Wert war zuerst da / hat Vorrang
         result[canonical] = value
@@ -610,7 +616,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
   "reason": "Kurze Begründung (max 2 Sätze)",
   "confidence": 0.9,
   "metadata": {{
-    "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
+    "category": "genau EINE von: Rechnung, Vertrag, Steuer, Versicherung, Bank, Gehalt, Arzt, Energie, Sonstiges",
     "korrespondent": "{KORRESPONDENT_SCHEMA}",
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",
@@ -740,7 +746,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
   "reason": "Kurze Begründung für den Dateinamen",
   "confidence": 0.9,
   "metadata": {{
-    "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
+    "category": "genau EINE von: Rechnung, Vertrag, Steuer, Versicherung, Bank, Gehalt, Arzt, Energie, Sonstiges",
     "korrespondent": "{KORRESPONDENT_SCHEMA}",
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",

@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from src.core.metadata_choices import clean_category
+
 
 # Custom XMP-Namespace für PDF Sortier Meister
 CUSTOM_NS = "http://pdfsortiermeister.de/ns/1.0/"
@@ -64,6 +66,11 @@ class PDFMetadata:
         return result
 
 
+def ist_pdf(pfad) -> bool:
+    """True fuer Dateien mit Endung .pdf - nur dort gibt es XMP-Metadaten zu lesen/schreiben."""
+    return Path(pfad).suffix.lower() == ".pdf"
+
+
 def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
     """
     Schreibt XMP-Metadaten in eine PDF-Datei.
@@ -73,8 +80,10 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
         metadata: PDFMetadata-Objekt mit den zu schreibenden Feldern
 
     Returns:
-        True bei Erfolg, False bei Fehler
+        True bei Erfolg, False bei Fehler oder wenn die Datei keine PDF ist
     """
+    if not ist_pdf(pdf_path):
+        return False  # Word/Excel/Bilder tragen keine XMP-Metadaten
     if not metadata.has_any_data():
         return True  # Nichts zu schreiben
 
@@ -86,8 +95,9 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
                 # Standard XMP-Felder setzen
                 if metadata.title:
                     meta["dc:title"] = metadata.title
-                if metadata.subject:
-                    meta["dc:subject"] = metadata.subject
+                subject = clean_category(metadata.subject)
+                if subject:
+                    meta["dc:subject"] = subject
                 if metadata.description:
                     meta["dc:description"] = metadata.description
                 if metadata.keywords:
@@ -117,8 +127,11 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
         pdf_path: Pfad zur PDF-Datei
 
     Returns:
-        PDFMetadata-Objekt oder None bei Fehler
+        PDFMetadata-Objekt oder None bei Fehler (und fuer Nicht-PDFs wie
+        Word-/Excel-Dateien oder Bilder, die keine XMP-Metadaten tragen)
     """
+    if not ist_pdf(pdf_path):
+        return None
     try:
         import pikepdf
 
@@ -127,7 +140,9 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
         with pikepdf.open(pdf_path) as pdf:
             with pdf.open_metadata() as meta:
                 metadata.title = meta.get("dc:title", None)
-                metadata.subject = meta.get("dc:subject", None)
+                # dc:subject ist ein XMP-Bag (pikepdf liefert dann ein set); alte
+                # Dateien tragen mitunter dessen Textform "{'Sonstiges'}"
+                metadata.subject = clean_category(meta.get("dc:subject", None)) or None
                 metadata.description = _clean_foreign_description(
                     meta.get("dc:description", None)
                 )
