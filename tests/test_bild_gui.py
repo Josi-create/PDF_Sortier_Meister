@@ -55,6 +55,14 @@ def _fragen(monkeypatch, antwort=(True, False)):
     return gestellt
 
 
+def _statusmeldungen(mw) -> list:
+    """Merkt alle Statusmeldungen (die spaetere Analyse ueberschreibt die sichtbare)."""
+    meldungen = []
+    original = mw.statusbar.showMessage
+    mw.statusbar.showMessage = lambda text, *a: (meldungen.append(text), original(text, *a))[1]
+    return meldungen
+
+
 def _umwandeln_und_warten(qtbot, mw, pfad):
     mw.on_office_convert(pfad, False)
     qtbot.waitUntil(lambda: mw._bild_worker is None, timeout=10000)
@@ -139,6 +147,7 @@ def test_umwandeln_ohne_wegraeumen_behaelt_original(qtbot, main_window, scan, mo
     bild = _bild(scan / "a.jpg")
     main_window._navigate_to_folder(scan)
     gestellt = _fragen(monkeypatch, (False, False))
+    meldungen = _statusmeldungen(main_window)
     _umwandeln_und_warten(qtbot, main_window, bild)
     assert (scan / "a.pdf").exists() and bild.exists() and len(gestellt) == 1
     assert main_window.selected_pdf == scan / "a.pdf"
@@ -244,11 +253,12 @@ def test_ocr_hinweis_in_der_statusleiste_und_aufruf(qtbot, main_window, scan, mo
         return "Strom", doc.tobytes()
 
     monkeypatch.setattr(bc, "ocr_seite", ocr)
+    meldungen = _statusmeldungen(main_window)
     _umwandeln_und_warten(qtbot, main_window, bild)
     assert aufrufe == [1]
     with pymupdf.open(scan / "a.pdf") as doc:
         assert "Strom" in doc[0].get_text()
-    assert "durchsuchbar" in main_window.statusbar.currentMessage()
+    assert any("durchsuchbar" in m for m in meldungen)
 
 
 # --- Mehrere Bilder ----------------------------------------------------------------------
