@@ -83,7 +83,8 @@ def test_mindestbreite_klein_und_scroll_nur_bei_vielen(qtbot, tmp_path):
     host, liste, fake = _aufbau(qtbot, tmp_path, 7, 300)
     assert liste.minimumSizeHint().width() < 240 and liste.minimumWidth() == 0
     assert liste.spalten.minimumSize().width() < 240
-    assert liste.verticalScrollBar().maximum() > 0  # 7 Reihen > 3 sichtbare
+    # 7 Reihen > 3 sichtbare; der Scrollbereich steht erst nach dem Layout (macOS-CI langsamer)
+    qtbot.waitUntil(lambda: liste.verticalScrollBar().maximum() > 0, timeout=2000)
     host2, liste2, _ = _aufbau(qtbot, tmp_path, 2, 500)
     assert liste2.verticalScrollBar().maximum() == 0
 
