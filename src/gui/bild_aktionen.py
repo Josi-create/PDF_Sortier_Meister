@@ -15,8 +15,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
+from src.core.entzerren import TONWERT_STANDARD, TONWERTE, Entzerrung
 from src.gui import original_wegraeumen as ow
-from src.gui.bild_convert_worker import BildConvertWorker, BilderEinzelnWorker
+from src.gui.bild_convert_worker import BildConvertWorker, BilderEinzelnWorker, EntzerrErkennungWorker
+from src.gui.entzerren_dialog import EntzerrenDialog
 from src.search.meldungen import melden as index_melden
 
 
@@ -31,6 +33,7 @@ class BildAktionenMixin:
     """Mixin fuer ``MainWindow``; braucht ``statusbar``, ``config``, ``file_manager``, ``pdf_widgets`` usw."""
 
     _bild_worker: Optional[BildConvertWorker] = None
+    _erkennung_worker: Optional[EntzerrErkennungWorker] = None  # Blatt suchen (Issue #205)
 
     # --- Bilder -> PDF -----------------------------------------------------------
 
@@ -47,14 +50,81 @@ class BildAktionenMixin:
         markiert.sort(key=lambda p: reihenfolge.get(p, len(reihenfolge)))
         self._bilder_umwandeln(markiert)
 
-    def bilder_einzeln_umwandeln(self, pfade: list[Path]):
+    def _bild_beschaeftigt(self) -> bool:
+        return (self._bild_worker is not None or self._erkennung_worker is not None
+                or self._office_worker is not None)
+
+    # --- Entzerren (Issue #205) ----------------------------------------------------
+
+    def on_bild_entzerren(self, pfad: Path, art: str, modus: str):
+        """Kontextmenue "... und automatisch/von Hand entzerren".
+
+        ``art``: ``einzeln`` (je Bild ein PDF) oder ``zusammen`` (ein PDF aus allen markierten Bildern);
+        ``modus``: ``auto`` oder ``hand``.
+        """
+        markiert = [p for p in self.selected_pdfs if ist_bild_datei(p)]
+        if pfad not in markiert:
+            markiert = [pfad]
+        reihenfolge = {w.pdf_path: i for i, w in enumerate(self.pdf_widgets)}
+        markiert.sort(key=lambda p: reihenfolge.get(p, len(reihenfolge)))
+        self.bilder_entzerren(markiert, art, modus)
+
+    def bilder_entzerren(self, pfade: list[Path], art: str, modus: str):
+        """Sucht im Hintergrund das Blatt je Foto; danach Dialog (von Hand / unsichere) oder direkt umwandeln."""
+        if self._bild_beschaeftigt():
+            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        text = pfade[0].name if len(pfade) == 1 else f"{len(pfade)} Bildern"
+        self.statusbar.showMessage(f"Suche das Blatt in {text}…")
+        worker = EntzerrErkennungWorker(pfade, self)
+        worker.fertig.connect(lambda ergebnisse: self._on_erkennung_fertig(ergebnisse, art, modus))
+        self._erkennung_worker = worker
+        worker.start()
+
+    def _tonwerte_standard(self) -> str:
+        wert = self.config.get("bild_tonwerte", TONWERT_STANDARD)
+        return wert if wert in TONWERTE else TONWERT_STANDARD
+
+    def _on_erkennung_fertig(self, ergebnisse: list, art: str, modus: str):
+        self._erkennung_worker = None
+        QApplication.restoreOverrideCursor()
+        tonwerte = self._tonwerte_standard()
+        lesbar = [(p, erk) for p, erk, fehler in ergebnisse if erk is not None]
+        fehler = [f"{p.name}: {text}" for p, erk, text in ergebnisse if erk is None]
+        if fehler:
+            QMessageBox.warning(self, "Entzerren", "\n".join(fehler))
+        if not lesbar:
+            self.statusbar.showMessage("Entzerren: kein Bild lesbar.", 6000)
+            return
+        vorgaben = {p: erk.ecken for p, erk in lesbar}
+        unsicher = {p for p, erk in lesbar if not erk.sicher}
+        auftraege = {p: Entzerrung(list(erk.ecken), tonwerte) for p, erk in lesbar}
+        # Von Hand: alle im Fenster; automatisch: nur die Bilder, bei denen die Erkennung unsicher war
+        im_fenster = [p for p, _ in lesbar if modus == "hand" or p in unsicher]
+        if im_fenster:
+            dialog = EntzerrenDialog(im_fenster, vorgaben, tonwerte, self, unsicher=unsicher)
+            if dialog.exec() != EntzerrenDialog.DialogCode.Accepted:
+                self.statusbar.showMessage("Entzerren abgebrochen - nichts wurde geändert.", 5000)
+                return
+            auftraege.update(dialog.ergebnis())
+            tonwerte = dialog.tonwerte()  # die Wahl im Fenster gilt fuer alle Bilder dieses Auftrags
+            for auftrag in auftraege.values():
+                auftrag.tonwerte = tonwerte
+        pfade = [p for p, _ in lesbar if p in auftraege]
+        if art == "zusammen" or len(pfade) == 1:
+            self._bilder_umwandeln(pfade, entzerrung=auftraege)
+        else:
+            self.bilder_einzeln_umwandeln(pfade, entzerrung=auftraege)
+
+    def bilder_einzeln_umwandeln(self, pfade: list[Path], entzerrung: Optional[dict] = None):
         """Mehrfachauswahl "Einzeln in PDFs umwandeln": jedes Bild ein eigenes PDF (Live-Test 08.11.2026)."""
-        if (self._bild_worker is not None) or self._office_worker is not None:
+        if self._bild_beschaeftigt():
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         self.statusbar.showMessage(f"Wandle {len(pfade)} Bilder einzeln in PDFs um (mit Texterkennung)…")
-        worker = BilderEinzelnWorker(pfade, self)
+        worker = BilderEinzelnWorker(pfade, self, entzerrung)
         worker.fortschritt.connect(lambda i, n, p: self.statusbar.showMessage(
             f"Wandle in PDF um ({i}/{n}, mit Texterkennung): {p.name}…"))
         worker.fertig.connect(self._on_bilder_einzeln_converted)
@@ -87,14 +157,14 @@ class BildAktionenMixin:
         if fehler:
             QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
 
-    def _bilder_umwandeln(self, pfade: list[Path]):
-        if (self._bild_worker is not None) or self._office_worker is not None:
+    def _bilder_umwandeln(self, pfade: list[Path], entzerrung: Optional[dict] = None):
+        if self._bild_beschaeftigt():
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         text = pfade[0].name if len(pfade) == 1 else f"{len(pfade)} Bilder"
         self.statusbar.showMessage(f"Wandle in PDF um (mit Texterkennung): {text}…")
-        worker = BildConvertWorker(pfade, self)
+        worker = BildConvertWorker(pfade, self, entzerrung)
         worker.fertig.connect(self._on_bild_converted)
         self._bild_worker = worker
         worker.start()

@@ -38,9 +38,12 @@ def _sichtbar(qtbot, mw, monkeypatch, scan):
 def test_klick_in_die_kacheln_dann_strg_a_markiert_alle(qtbot, main_window, fresh_singletons, monkeypatch):
     scan = _ordner(fresh_singletons)
     _sichtbar(qtbot, main_window, monkeypatch, scan)
-    kachel = main_window._pdf_widget_for(scan / "dok_2.pdf")
-    qtbot.waitUntil(lambda: kachel.isVisible() and kachel.width() > 20, timeout=3000)  # Layout steht
-    qtbot.mouseClick(kachel, Qt.MouseButton.LeftButton, pos=QPoint(10, 10))
+    def kachel():  # jedes Mal frisch: ein Neuladen ersetzt die Kacheln
+        return main_window._pdf_widget_for(scan / "dok_2.pdf")
+
+    qtbot.waitUntil(lambda: kachel() is not None and kachel().isVisible() and kachel().width() > 20,
+                    timeout=3000)  # Layout steht
+    qtbot.mouseClick(kachel(), Qt.MouseButton.LeftButton, pos=QPoint(10, 10))
     assert main_window.selected_pdf == scan / "dok_2.pdf"
     qtbot.waitUntil(lambda: main_window.pdf_scroll_area.isAncestorOf(QApplication.focusWidget())
                     or QApplication.focusWidget() is main_window.pdf_scroll_area, timeout=2000)

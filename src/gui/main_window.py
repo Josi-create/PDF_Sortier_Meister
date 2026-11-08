@@ -1163,6 +1163,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
             widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
+            widget.bild_entzerren_requested.connect(self.on_bild_entzerren)  # Issue #205
             widget.mehrere_umwandeln_requested.connect(self.on_mehrere_umwandeln)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
@@ -1231,7 +1232,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._office_umwandeln([p for p in pfade if not ist_bild_datei(p)], pdfa)
 
     def _office_umwandeln(self, pfade: list[Path], pdfa: bool):
-        if self._office_worker is not None or self._bild_worker is not None:
+        if self._office_worker is not None or self._bild_beschaeftigt():
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
@@ -2257,6 +2258,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_schwer_lesbar.abbrechen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
+        if self._erkennung_worker is not None:
+            self._erkennung_worker.requestInterruption()
         if self._bild_worker is not None:
             self._bild_worker.requestInterruption()
         self._office_preview_pfad = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen

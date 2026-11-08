@@ -154,6 +154,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
 
     convert_requested = pyqtSignal(Path, bool)  # (Datei, als PDF/A)
     bilder_zusammenfuegen_requested = pyqtSignal(Path)  # markierte Bilder zu einem PDF (Issue #184)
+    # Foto(s) entzerren und umwandeln (Issue #205): (Bild, "einzeln" | "zusammen", "auto" | "hand")
+    bild_entzerren_requested = pyqtSignal(Path, str, str)
     # Markierte Dateien je einzeln in PDF: (Dateien, als PDF/A) - Live-Test 08.11.2026
     mehrere_umwandeln_requested = pyqtSignal(list, bool)
 
@@ -251,10 +253,38 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                 convert = menu.addAction("In PDF umwandeln")
                 convert.setToolTip("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild")
                 convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
+                for text, modus, tipp in (
+                    ("In PDF umwandeln und automatisch entzerren", "auto",
+                     "Erkennt das Blatt im Foto, zieht es gerade und gleicht die Tonwerte an. "
+                     "Ist die Erkennung unsicher, öffnet sich das Entzerren-Fenster."),
+                    ("In PDF umwandeln und von Hand entzerren", "hand",
+                     "Öffnet ein Fenster, in dem Sie die vier Ecken des Blatts selbst setzen."),
+                ):
+                    aktion = menu.addAction(text)
+                    aktion.setToolTip(tipp)
+                    aktion.triggered.connect(
+                        lambda _c=False, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, "einzeln", m))
             if len(bilder) > 1:
                 zusammen = menu.addAction(f"Zu einem PDF zusammenfügen ({len(bilder)} Bilder)")
                 zusammen.setToolTip("Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht")
                 zusammen.triggered.connect(lambda: self.bilder_zusammenfuegen_requested.emit(self.pdf_path))
+                # Entzerren (Issue #205): Untermenue, damit das Menue schlank bleibt
+                sub = menu.addMenu(f"Fotos entzerren ({len(bilder)} Bilder)")
+                for text, art, modus, tipp in (
+                    ("Einzeln in PDFs umwandeln und automatisch entzerren", "einzeln", "auto",
+                     "Je Foto ein PDF; das Blatt wird erkannt und gerade gezogen. "
+                     "Bei unsicherer Erkennung öffnet sich das Entzerren-Fenster."),
+                    ("Einzeln in PDFs umwandeln und von Hand entzerren", "einzeln", "hand",
+                     "Je Foto ein PDF; die Ecken legen Sie selbst im Entzerren-Fenster fest."),
+                    ("Zu einem PDF zusammenfügen und automatisch entzerren", "zusammen", "auto",
+                     "Ein PDF aus allen markierten Fotos; Blatt erkannt und gerade gezogen."),
+                    ("Zu einem PDF zusammenfügen und von Hand entzerren", "zusammen", "hand",
+                     "Ein PDF aus allen markierten Fotos; die Ecken legen Sie selbst fest."),
+                ):
+                    aktion = sub.addAction(text)
+                    aktion.setToolTip(tipp)
+                    aktion.triggered.connect(
+                        lambda _c=False, a=art, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, a, m))
             menu.addSeparator()
             menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu

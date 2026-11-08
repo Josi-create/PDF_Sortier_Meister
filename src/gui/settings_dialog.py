@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 import sys
 
+from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
 from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
@@ -1067,6 +1068,26 @@ class SettingsDialog(QDialog):
         open_layout.addRow(open_hint)
 
         layout.addWidget(open_group)
+
+        # Tonwerte beim Entzerren fotografierter Dokumente (Issue #205)
+        foto_group = QGroupBox("Fotos entzerren (Rechtsklick auf ein Bild)")
+        foto_layout = QFormLayout(foto_group)
+        self.bild_tonwerte_combo = QComboBox()
+        for schluessel in TONWERTE:
+            self.bild_tonwerte_combo.addItem(TONWERT_NAMEN[schluessel], schluessel)
+        self.bild_tonwerte_combo.setToolTip(
+            "Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\n"
+            "Graustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei)."
+        )
+        foto_layout.addRow("Tonwerte:", self.bild_tonwerte_combo)
+        foto_hint = QLabel(
+            "Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
+            "lässt sich die Wahl für den einzelnen Auftrag ändern."
+        )
+        foto_hint.setStyleSheet("color: gray;")
+        foto_hint.setWordWrap(True)
+        foto_layout.addRow(foto_hint)
+        layout.addWidget(foto_group)
 
         # Original nach Umwandeln/Trennen (Issues #184, #187)
         original_group = QGroupBox("Original nach dem Umwandeln und Trennen")
@@ -2371,6 +2392,10 @@ class SettingsDialog(QDialog):
         self.pdf_open_command_input.setText(self.config.get("pdf_open_command", "") or "")
         self._update_pdf_open_command_enabled()
 
+        # Tonwerte beim Entzerren (Issue #205)
+        tonwerte = self.config.get("bild_tonwerte", TONWERT_STANDARD)
+        self.bild_tonwerte_combo.setCurrentIndex(max(self.bild_tonwerte_combo.findData(tonwerte), 0))
+
         # Explorer-Integration: aktuellen Stand aus der Registry lesen.
         if sys.platform == "win32":
             try:
@@ -2447,6 +2472,9 @@ class SettingsDialog(QDialog):
         # PDF oeffnen (Issues #74/#76)
         self.config.set("pdf_open_mode", self.pdf_open_mode_combo.currentData())
         self.config.set("pdf_open_command", self.pdf_open_command_input.text().strip())
+
+        # Tonwerte beim Entzerren (Issue #205)
+        self.config.set("bild_tonwerte", self.bild_tonwerte_combo.currentData() or TONWERT_STANDARD)
 
         # Cache-Modul über Änderung informieren
         try:

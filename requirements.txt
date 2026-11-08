@@ -12,6 +12,8 @@ PyQt6-Pdf>=6.140.0
 # PDF-Verarbeitung
 PyMuPDF>=1.23.0
 pytesseract>=0.3.10
+# Handyfotos: HEIC/HEIF lesen (Issue #205); Wheels auch fuer macOS Intel (x86_64) und arm64
+pillow-heif>=0.18.0
 # Ab 10.14 gibt es keine macOS-Intel-Wheels mehr; der Quellbau scheitert ohne qpdf
 pikepdf>=8.0.0; sys_platform != "darwin" or platform_machine != "x86_64"
 pikepdf>=8.0.0,<10.14; sys_platform == "darwin" and platform_machine == "x86_64"
