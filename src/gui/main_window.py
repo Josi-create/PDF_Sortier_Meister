@@ -274,6 +274,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         QTimer.singleShot(100, self.initial_load)
         QTimer.singleShot(300, self._start_warmup)
 
+    # Mindestbreiten links / Mitte / rechts im Vorschau-Splitter (Issue #188)
+    SPALTEN_MINDESTBREITEN = (300, 320, 240)
+
     def setup_ui(self):
         """Initialisiert die Haupt-UI-Komponenten."""
         self.setWindowTitle("PDF Sortier Meister")
@@ -365,6 +368,18 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Rechte Spalte: Zielordner
         folder_panel = self.create_folder_panel()
         splitter.addWidget(folder_panel)
+
+        # Issue #188: Die Mindestbreiten der Spalten kommen sonst aus den Inhalten
+        # (Kopfzeilen, Platzhaltertexte, Vorschlags-Chips: zusammen > 2400 px bei
+        # Schriftskalierung/RDP). Dann liegen die Spalten schon am Minimum, ein
+        # Griff laesst sich nicht greifen oder das Fenster springt. Feste, kleine
+        # Mindestbreiten (Summe < 1024 px) und keine kollabierenden Spalten.
+        splitter.setChildrenCollapsible(False)
+        for spalte, mindestbreite in zip(
+            (self.left_tabs, self.detail_panel, folder_panel), self.SPALTEN_MINDESTBREITEN
+        ):
+            spalte.setMinimumWidth(mindestbreite)
+        self.main_splitter = splitter
 
         # Splitter-Größenverhältnis fixieren (30/40/30%)
         splitter.setStretchFactor(0, 3)  # Links: 30%

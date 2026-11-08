@@ -170,6 +170,15 @@ def _bubbles(view: ChatView) -> list[QLabel]:
     return labels
 
 
+def _klartext(label: QLabel) -> str:
+    """Sichtbarer Text einer Bubble (Antworten sind seit #199 formatiertes HTML)."""
+    from PyQt6.QtGui import QTextDocument
+
+    doc = QTextDocument()
+    doc.setHtml(label.text())
+    return doc.toPlainText()
+
+
 def _antwort_mit_schritten(text: str = "Die Rechnung ist da.", used_llm: bool = True) -> RAGResponse:
     return RAGResponse(
         answer_text=text,
@@ -262,7 +271,7 @@ def test_ohne_schritte_kein_block(chat_view):
     chat_view._zeige_antwort(RAGResponse(answer_text="Hallo", used_llm=True))
     assert _schritte_knopf(chat_view) is None
     assert _schritt_labels(chat_view) == []
-    assert [b.text() for b in _bubbles(chat_view)] == ["Hallo"]
+    assert [_klartext(b) for b in _bubbles(chat_view)] == ["Hallo"]
 
 
 def test_abbruch_mit_schritten_zeigt_schritte_und_system_bubble(chat_view):
@@ -320,7 +329,7 @@ def test_antwort_ueber_den_worker_rendert_schritte_und_gruppen(qtbot, chat_view)
     assert ctrl.fragen == ["Wo ist die Jahresabrechnung?"]
     assert _schritte_knopf(chat_view) is not None
     assert len(_schritt_labels(chat_view)) == 2
-    texte = [b.text() for b in _bubbles(chat_view)]
+    texte = [_klartext(b) for b in _bubbles(chat_view)]
     assert texte == ["Wo ist die Jahresabrechnung?", "Die Rechnung ist da."]
     eintraege = [chat_view.sources_list.item(i).text() for i in range(chat_view.sources_list.count())]
     assert eintraege == ["Zitiert", "D2: Jahresabrechnung.pdf", "Gefunden", "D1: bezug.pdf"]
