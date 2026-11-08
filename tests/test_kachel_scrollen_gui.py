@@ -43,14 +43,16 @@ def test_zur_kachel_scrollen_zeigt_die_letzte_kachel(qtbot, main_window, fresh_s
     main_window.on_pdf_clicked(letzte_pfad)
     main_window.zur_kachel_scrollen(letzte_pfad)
 
-    letzte = main_window._pdf_widget_for(letzte_pfad)
-    # Erst wenn das Layout steht (Kachel weit unten in der Liste), zaehlt "sichtbar" -
-    # vorher liegen alle neuen Kacheln bei (0, 0)
-    qtbot.waitUntil(
-        lambda: leiste.maximum() > 0 and letzte.y() > leiste.pageStep()
-        and _sichtbar_im_viewport(main_window, letzte),
-        timeout=3000,
-    )
+    def steht_sichtbar() -> bool:
+        # Die Kachel jedes Mal frisch holen: laedt das Fenster im Hintergrund neu,
+        # ist eine gemerkte Kachel schon geloescht (CI Windows, sporadisch)
+        letzte = main_window._pdf_widget_for(letzte_pfad)
+        # Erst wenn das Layout steht (Kachel weit unten in der Liste), zaehlt "sichtbar" -
+        # vorher liegen alle neuen Kacheln bei (0, 0)
+        return (letzte is not None and leiste.maximum() > 0 and letzte.y() > leiste.pageStep()
+                and _sichtbar_im_viewport(main_window, letzte))
+
+    qtbot.waitUntil(steht_sichtbar, timeout=3000)
     assert leiste.value() > 0
 
 

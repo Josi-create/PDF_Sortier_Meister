@@ -5,6 +5,7 @@ Schwarz waren sie, weil ein Stylesheet ohne Selektor ("background: transparent")
 fuer die Tooltips aller Kinder gilt - ein transparenter Tooltip wird unter Windows schwarz.
 """
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -119,13 +120,14 @@ def test_zeile_zeigt_vollen_pfad_auf_zwei_zeilen(qtbot, tmp_path):
     eltern = (tmp_path / Path(rel)).parent
     assert z._pfad_voll == str(eltern)  # absoluter Pfad samt Laufwerk
     oben, unten, fett = z._zeilen
-    assert fett == "\\Ziel" and "<b>\\Ziel</b>" in z.name_label.text()  # Ziel fett, unten
-    assert oben.endswith("\\") and z.path_label.text() == oben and z.path_label.isVisibleTo(z)
+    sep = os.sep  # "\" unter Windows, "/" unter macOS/Linux (CI)
+    assert fett == f"{sep}Ziel" and f"<b>{sep}Ziel</b>" in z.name_label.text()  # Ziel fett, unten
+    assert oben.endswith(sep) and z.path_label.text() == oben and z.path_label.isVisibleTo(z)
     assert str(tmp_path / Path(rel)) in z.toolTip()
 
     # Breit genug: alles unten, obere Zeile weg (ein Vorschlag bekommt eine von drei Spalten)
     host.resize(30000, 400)
-    qtbot.waitUntil(lambda: z._zeilen == ("", str(eltern), "\\Ziel"), timeout=2000)
+    qtbot.waitUntil(lambda: z._zeilen == ("", str(eltern), f"{sep}Ziel"), timeout=2000)
     assert not z.path_label.isVisibleTo(z)
 
 
@@ -141,7 +143,7 @@ def test_neuer_ordner_zeigt_ebenfalls_den_vollen_elternpfad(qtbot, tmp_path):
     z = fake.suggestion_widgets[0]
     assert z._pfad_voll == str(tmp_path / "Steuer 2026")
     assert z._name_voll == "Versicherungen" and z._praefix == "➕ neu: "
-    assert "➕ neu: " in z.name_label.text() and "<b>\\Versicherungen</b>" in z.name_label.text()
+    assert "➕ neu: " in z.name_label.text() and f"<b>{os.sep}Versicherungen</b>" in z.name_label.text()
 
 
 # --- Tooltips ----------------------------------------------------------------
