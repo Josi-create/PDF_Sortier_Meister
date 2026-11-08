@@ -254,7 +254,16 @@ def test_aktionen_oeffnen_zeigen_kopieren_eml(qtbot, view, monkeypatch, tmp_path
     assert [a.text() for a in view._aktionen_menue(mail.dok).actions()] == [
         "Mail öffnen", "Pfad kopieren", "Als .eml speichern…"]
     texte = [a.text() for a in view._aktionen_menue(pdf.dok).actions()]
-    assert texte[0] == "Öffnen" and texte[1].startswith("Im ") and texte[2:] == ["Pfad kopieren"]
+    assert texte[0] == "Öffnen" and texte[1] == "📂 Im Ordner anzeigen"
+    assert texte[2].startswith("Im ") and texte[3:] == ["Pfad kopieren"]
+    # Markdown ist nicht sortierbar: kein "Im Ordner anzeigen"
+    assert "📂 Im Ordner anzeigen" not in [a.text() for a in view._aktionen_menue(md.dok).actions()]
+
+    # "Im Ordner anzeigen" meldet die Datei ans Hauptfenster
+    gemeldet = []
+    view.im_ordner_anzeigen_requested.connect(gemeldet.append)
+    view._im_ordner_anzeigen(pdf.dok)
+    assert gemeldet == [Path(pdf.dok["datei"])]
 
     # Datei weg: Meldung statt Oeffnen
     Path(md.dok["datei"]).unlink()

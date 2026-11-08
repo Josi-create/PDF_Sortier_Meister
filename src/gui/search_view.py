@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.core.office_convert import ist_sortierbar
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.search_worker import DokumentLaden, StatusAbfrage, SuchAbfrage
 from src.gui.zeitraum_feld import ZeitraumFeld
@@ -366,6 +367,7 @@ class SearchView(QWidget):
     Signale:
         open_pdf_requested(Path): PDF so oeffnen, wie es eingestellt ist (Hauptfenster)
         open_pdf_external_requested(Path): „Extern öffnen“ aus der Vorschau
+        im_ordner_anzeigen_requested(Path): „Im Ordner anzeigen“ (Ordner in „PDFs“, Datei auswaehlen)
         einrichten_requested: Knopf „Einrichten…“ im Hinweis (Einstellungen > Suche)
         suche_fertig(dict): Ergebnis der angezeigten Abfrage (auch fuer Tests)
         status_aktualisiert(dict): Indexstand ist da
@@ -374,6 +376,7 @@ class SearchView(QWidget):
 
     open_pdf_requested = pyqtSignal(Path)
     open_pdf_external_requested = pyqtSignal(Path)
+    im_ordner_anzeigen_requested = pyqtSignal(Path)
     einrichten_requested = pyqtSignal()
     suche_fertig = pyqtSignal(object)
     status_aktualisiert = pyqtSignal(object)
@@ -1086,6 +1089,9 @@ class SearchView(QWidget):
         """Kontextmenue eines Treffers (ohne exec, auch fuer Tests)."""
         menue = QMenu(self)
         menue.addAction("Mail öffnen" if d.get("typ") == "mail" else "Öffnen", lambda: self._oeffnen(d))
+        if d.get("typ") != "mail" and ist_sortierbar(Path(d.get("datei") or "")):
+            # Im Programm: Ordner in "PDFs" oeffnen, Datei auswaehlen (umbenennen/verschieben)
+            menue.addAction("📂 Im Ordner anzeigen", lambda: self._im_ordner_anzeigen(d))
         if d.get("format") != "mbox":
             menue.addAction(f"Im {file_manager_name()} zeigen", lambda: self._im_dateimanager_zeigen(d))
         menue.addAction("Pfad kopieren", lambda: self._pfad_kopieren(d))
@@ -1115,6 +1121,14 @@ class SearchView(QWidget):
             self.open_pdf_requested.emit(Path(pfad))
         else:
             open_with_default_app(pfad)
+
+    def _im_ordner_anzeigen(self, d: dict) -> None:
+        """Treffer im Programm zeigen: Ordner in "PDFs" oeffnen, Datei auswaehlen."""
+        pfad = d.get("datei") or ""
+        if not pfad or not os.path.exists(pfad):
+            self._meldung("Die Datei existiert nicht mehr.")
+            return
+        self.im_ordner_anzeigen_requested.emit(Path(pfad))
 
     def _im_dateimanager_zeigen(self, d: dict) -> None:
         pfad = d.get("datei") or ""

@@ -387,6 +387,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self.search_view = SearchView(self.config)
         self.search_view.open_pdf_requested.connect(self.open_pdf)
         self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.search_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
         self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
         self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
@@ -4403,6 +4404,34 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 150,
                 lambda path=pdf: self._select_pdf_and_open_rename(path),
             )
+
+    def zeige_datei_im_ordner(self, pfad: Path) -> None:
+        """"Im Ordner anzeigen" aus dem Reiter Suche: Ordner in "PDFs" oeffnen,
+        die Datei auswaehlen und in der Vorschau zeigen (umbenennen, verschieben)."""
+        from src.rag.bezug import gleicher_pfad
+
+        pfad = Path(pfad)
+        if not pfad.is_file():
+            self.statusbar.showMessage(f"Datei nicht gefunden: {pfad}", 5000)
+            return
+        aktuell = self.config.get_scan_folder()
+        if not aktuell or not gleicher_pfad(aktuell, pfad.parent):
+            self._navigate_to_folder(pfad.parent)  # load_pdfs baut die Kacheln synchron
+        self.left_tabs.setCurrentIndex(0)
+        self.center_tabs.setCurrentIndex(0)
+        widget = next(
+            (w for w in self.pdf_widgets if gleicher_pfad(getattr(w, "pdf_path", ""), pfad)), None
+        )
+        if widget is None:
+            self.statusbar.showMessage(
+                f"„{pfad.name}“ ist in der Liste nicht zu sehen (Filter aktiv?)", 6000
+            )
+            return
+        # Ein Klick auf das bereits ausgewaehlte PDF hebt die Auswahl auf - das nicht
+        if self.selected_pdf != widget.pdf_path or self.selected_pdfs:
+            self.on_pdf_clicked(widget.pdf_path)
+        QTimer.singleShot(0, lambda: self.pdf_scroll_area.ensureWidgetVisible(widget))
+        self.statusbar.showMessage(f"Im Ordner angezeigt: {pfad.name}", 4000)
 
     def _select_pdf_and_open_rename(self, pdf_path: Path):
         """
