@@ -27,8 +27,22 @@ from src.core.office_convert import endung_tauschen, ist_office_datei
 
 NICHTS_AUSGEWAEHLT_TIP = "In der PDF-Ansicht ist keine Datei ausgewählt"
 
+# Mime-Typ beim Ziehen einer Ordnerzeile (Issue #196); bewusst ohne URLs, damit andere
+# Programme den Ordner nicht selbst verschieben
+ORDNER_MIME = "application/x-pdfsm-ordner"
+
+
+def ordner_aus_mime(mime) -> Optional[Path]:
+    """Der gezogene Ordner (Issue #196) oder None, wenn es keine Ordnerzeile ist."""
+    if mime is None or not mime.hasFormat(ORDNER_MIME):
+        return None
+    text = bytes(mime.data(ORDNER_MIME)).decode("utf-8", "replace")
+    return Path(text) if text else None
+
 
 def _aktions_text(dateien: list[Path], symbol: str, verb: str) -> str:
+    if len(dateien) == 1 and Path(dateien[0]).is_dir():  # markierter Ordner (Issue #196)
+        return f"📁 Ordner hierhin {verb}"
     if len(dateien) > 1:
         return f"{symbol} {len(dateien)} Dateien hierhin {verb}"
     if len(dateien) == 1 and ist_office_datei(dateien[0]):
@@ -246,7 +260,12 @@ class HierhinKopierenMixin:
     # --- Auswahl und Anbindung der Ordner-Widgets -----------------------------
 
     def kopier_auswahl(self) -> list[Path]:
-        """Die Dateien, auf die "Hierhin kopieren" wirkt: die aktuelle Auswahl der PDF-Ansicht."""
+        """Die Dateien, auf die "Hierhin kopieren" wirkt: die aktuelle Auswahl der PDF-Ansicht.
+
+        Ist links ein Ordner markiert (Issue #196), ist es dieser Ordner.
+        """
+        if getattr(self, "_markierter_ordner", None) is not None:
+            return [self._markierter_ordner]
         if len(self.selected_pdfs) > 1:
             return list(self.selected_pdfs)
         if self.selected_pdf:
@@ -288,6 +307,9 @@ class HierhinKopierenMixin:
 
     def on_copy_here_requested(self, folder_path: Path) -> None:
         """Menue "Hierhin kopieren": kopiert die aktuelle Auswahl in den Ordner."""
+        if getattr(self, "_markierter_ordner", None) is not None:
+            self.ordner_uebertragen(self._markierter_ordner, Path(folder_path), kopieren=True)  # Issue #196
+            return
         dateien = self.kopier_auswahl()
         if not dateien:
             self.statusbar.showMessage("Zum Kopieren zuerst eine Datei auswählen", 3000)

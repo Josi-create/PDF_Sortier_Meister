@@ -101,7 +101,9 @@ def test_ordnerkachel_menue(qtbot, tmp_path, gezeigt, is_parent):
     if not is_parent:
         erwartet.append("★ Als Favorit merken")  # Issue #114
         # Issue #179/#183: Eintraege fuer die Auswahl stehen davor
+        # Issue #196: Untermenues fuer den ganzen Ordner ganz vorn
         erwartet = [
+            "📁 Ordner verschieben nach …", "📁 Ordner kopieren nach …",
             "📄 PDF hierhin kopieren", "➡ PDF hierhin verschieben",
             "🌳 Rechts im Baum zeigen", "⭐ Als Zielordner merken",
         ] + erwartet
