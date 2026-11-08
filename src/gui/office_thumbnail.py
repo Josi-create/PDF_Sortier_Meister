@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QImage, QImageReader, QPainter, QPixmap
 from PyQt6.QtWidgets import QMenu
 
 from src.core import office_vorschau
+from src.core.bild_convert import erste_seite_png, ist_bild_datei
 from src.core.office_convert import WORD_ENDUNGEN
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
@@ -28,11 +29,18 @@ from src.gui.tile_view import TileView
 
 WORD_FARBE = "#2b579a"
 EXCEL_FARBE = "#217346"
+BILD_FARBE = "#7a5195"
+
+
+def _typfarbe(pfad: Path) -> str:
+    if ist_bild_datei(pfad):
+        return BILD_FARBE
+    return WORD_FARBE if pfad.suffix.lower() in WORD_ENDUNGEN else EXCEL_FARBE
 
 
 def platzhalter_bild(pfad: Path, breite: int = 140, hoehe: int = 160) -> QPixmap:
     """Einfaches Seitenbild: weisse Seite, farbiger Balken mit Dateityp."""
-    farbe = QColor(WORD_FARBE if pfad.suffix.lower() in WORD_ENDUNGEN else EXCEL_FARBE)
+    farbe = QColor(_typfarbe(pfad))
     pixmap = QPixmap(breite, hoehe)
     pixmap.fill(QColor("white"))
     p = QPainter(pixmap)
@@ -60,7 +68,7 @@ def text_seite(zeilen: list[str], pfad: Path, breite: int = 140, hoehe: int = 16
     bild.fill(QColor("white"))
     p = QPainter(bild)
     try:
-        farbe = QColor(WORD_FARBE if pfad.suffix.lower() in WORD_ENDUNGEN else EXCEL_FARBE)
+        farbe = QColor(_typfarbe(pfad))
         p.fillRect(0, 0, breite, 4, farbe)
         font = QFont()
         font.setPixelSize(9)
@@ -79,11 +87,31 @@ def text_seite(zeilen: list[str], pfad: Path, breite: int = 140, hoehe: int = 16
     return bild
 
 
+def bild_kachelbild(pfad: Path, groesse: int = 400) -> Optional[QImage]:
+    """Kachelbild einer Bilddatei (Issue #184): Qt liest es (mit EXIF-Ausrichtung), sonst pymupdf/Pillow."""
+    leser = QImageReader(str(pfad))
+    leser.setAutoTransform(True)
+    original = leser.size()
+    if original.isValid() and max(original.width(), original.height()) > groesse:
+        leser.setScaledSize(original.scaled(groesse, groesse, Qt.AspectRatioMode.KeepAspectRatio))
+    bild = leser.read()
+    if not bild.isNull():
+        return bild
+    roh = erste_seite_png(pfad, groesse)
+    if roh:
+        bild = QImage.fromData(roh)
+        if not bild.isNull():
+            return bild
+    return None
+
+
 def kachelbild(pfad: Path) -> Optional[QImage]:
     """Bestes schnell verfuegbares Bild: eingebettet, Windows-Shell, erste Textzeilen.
 
     Startet weder Word noch Excel. Laeuft im Hintergrund-Thread (nur QImage).
     """
+    if ist_bild_datei(pfad):
+        return bild_kachelbild(pfad)
     roh = office_vorschau.eingebettetes_bild(pfad)
     if roh:
         bild = QImage.fromData(roh)
@@ -125,13 +153,25 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
     """Kachel einer Word-/Excel-Datei. ``pdf_path`` ist hier der Pfad der Office-Datei."""
 
     convert_requested = pyqtSignal(Path, bool)  # (Datei, als PDF/A)
+    bilder_zusammenfuegen_requested = pyqtSignal(Path)  # markierte Bilder zu einem PDF (Issue #184)
 
-    _BASE_TOOLTIP = (
+    _OFFICE_TOOLTIP = (
         "Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
         "Doppelklick öffnet sie im Standardprogramm.\n"
         "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
     )
+
+    _BILD_TOOLTIP = (
+        "Bild. Anklicken wählt es aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        "Ziehen verschiebt es per Drag & Drop in einen Zielordner.\n"
+        "Doppelklick öffnet es im Standardprogramm.\n"
+        "Rechtsklick: In PDF umwandeln (mit Texterkennung; das Bild bleibt erhalten)."
+    )
+
+    @property
+    def _BASE_TOOLTIP(self) -> str:  # noqa: N802 - ersetzt das Klassenattribut der PDF-Kachel
+        return self._BILD_TOOLTIP if ist_bild_datei(self.pdf_path) else self._OFFICE_TOOLTIP
 
     def __init__(self, pfad: Path, parent=None, view: Optional[TileView] = None):
         super().__init__(pfad, parent, view)
@@ -151,6 +191,12 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
             self._original_pixmap = pixmap
             self._apply_thumbnail_pixmap()
 
+    def _markierte_bilder(self) -> list[Path]:
+        """Die markierten Bilder, wenn diese Kachel zur Mehrfachauswahl gehoert (sonst leer)."""
+        auswahl = getattr(self.window(), "selected_pdfs", None) or []
+        bilder = [p for p in auswahl if ist_bild_datei(p)]
+        return bilder if self.pdf_path in bilder else []
+
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)
         menu.addAction("Öffnen").triggered.connect(lambda: self.open_requested.emit(self.pdf_path))
@@ -159,6 +205,18 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         menu.addSeparator()
         menu.addAction("Verschieben nach...").triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
         menu.addSeparator()
+        if ist_bild_datei(self.pdf_path):
+            convert = menu.addAction("In PDF umwandeln")
+            convert.setToolTip("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild")
+            convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
+            bilder = self._markierte_bilder()
+            if len(bilder) > 1:
+                zusammen = menu.addAction(f"Zu einem PDF zusammenfügen ({len(bilder)} Bilder)")
+                zusammen.setToolTip("Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht")
+                zusammen.triggered.connect(lambda: self.bilder_zusammenfuegen_requested.emit(self.pdf_path))
+            menu.addSeparator()
+            menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
+            return menu
         convert = menu.addAction("In PDF umwandeln")
         convert.setToolTip("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten")
         convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))

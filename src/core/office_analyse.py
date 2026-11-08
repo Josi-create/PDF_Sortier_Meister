@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from src.core.bild_convert import ist_bild_datei
 from src.core.office_convert import WORD_ENDUNGEN, druckdatum, hat_datumsfelder
 
 
@@ -23,6 +24,8 @@ def analysiere(pfad: Path | str) -> tuple[str, list[str], list[datetime]]:
     pfad = Path(pfad)
     text = ""
     try:
+        if ist_bild_datei(pfad):  # Bilder (Issue #184) haben keinen Text; Name und Datum genuegen
+            raise ValueError("Bild")
         from src.search.office import office_text
 
         seiten = office_text(str(pfad), pfad.suffix.lower().lstrip(".")).get("seiten") or []

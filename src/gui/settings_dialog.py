@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 import sys
 
+from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
 from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
@@ -1066,6 +1067,20 @@ class SettingsDialog(QDialog):
         open_layout.addRow(open_hint)
 
         layout.addWidget(open_group)
+
+        # Original nach Umwandeln/Trennen (Issues #184, #187)
+        original_group = QGroupBox("Original nach dem Umwandeln und Trennen")
+        original_layout = QFormLayout(original_group)
+        self.original_combos = {}
+        for aktion, label in AKTIONEN.items():
+            combo = QComboBox()
+            combo.addItem("Jedes Mal fragen", None)
+            combo.addItem("In den Papierkorb verschieben", True)
+            combo.addItem("Behalten", False)
+            combo.setToolTip("Mit Strg+Z holst du ein weggeräumtes Original zurück.")
+            self.original_combos[aktion] = combo
+            original_layout.addRow(f"{label}:", combo)
+        layout.addWidget(original_group)
 
         # Update-Pruefung (Issue #73)
         update_group = QGroupBox("Updates")
@@ -2337,6 +2352,10 @@ class SettingsDialog(QDialog):
         self.llm_precache_checkbox.setChecked(self.config.get("llm_precache_enabled", True))
         self._update_cache_stats()
 
+        # Original nach Umwandeln/Trennen (Issues #184, #187)
+        for aktion, combo in self.original_combos.items():
+            combo.setCurrentIndex(max(combo.findData(gespeicherte_antwort(self.config, aktion)), 0))
+
         # Update-Pruefung (Issue #73)
         self.update_check_checkbox.setChecked(self.config.get("update_check_enabled", True))
 
@@ -2411,6 +2430,10 @@ class SettingsDialog(QDialog):
 
         llm_precache = self.llm_precache_checkbox.isChecked()
         self.config.set("llm_precache_enabled", llm_precache)
+
+        # Original nach Umwandeln/Trennen (Issues #184, #187)
+        for aktion, combo in self.original_combos.items():
+            antwort_speichern(self.config, aktion, combo.currentData())
 
         # Update-Pruefung (Issue #73)
         self.config.set("update_check_enabled", self.update_check_checkbox.isChecked())
