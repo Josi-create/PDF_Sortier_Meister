@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QAction, QDesktopServices
+from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -826,6 +826,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Scroll-Bereich für PDF-Thumbnails
         self.pdf_scroll_area = QScrollArea()
         self.pdf_scroll_area.setWidgetResizable(True)
+        # Ein Klick auf Kachel oder Flaeche gibt der Kachelansicht den Fokus,
+        # damit Strg+A dort alle Kacheln markiert (Live-Test 08.11.2026)
+        self.pdf_scroll_area.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.pdf_scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
@@ -1937,6 +1940,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         deselect_action.triggered.connect(self._clear_selection)
         edit_menu.addAction(deselect_action)
 
+        # Strg+A nur in der Kachelansicht: in Textfeldern markiert es weiter den Text
+        self.select_all_action = QAction("Alle markieren", self)
+        self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        self.select_all_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.select_all_action.setToolTip("Alle Kacheln im Bereich PDFs markieren (Strg+A)")
+        self.select_all_action.triggered.connect(self.alle_markieren)
+        self.pdf_scroll_area.addAction(self.select_all_action)
+        edit_menu.addAction(self.select_all_action)
+
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
 
@@ -2467,6 +2479,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
                 widget.selected = False
 
         # Statusbar aktualisieren
+        self._update_selection_status()
+
+    def alle_markieren(self):
+        """Strg+A in der Kachelansicht: alle Kacheln markieren (Live-Test 08.11.2026).
+
+        Die bisher aktive PDF bleibt die aktive (Detailansicht, Vorschlaege, Anker fuer Shift+Klick).
+        """
+        pfade = [w.pdf_path for w in self.pdf_widgets]
+        if not pfade:
+            return
+        if len(pfade) == 1:
+            if self.selected_pdf != pfade[0] or self.selected_pdfs:
+                self.on_pdf_clicked(pfade[0])
+            return
+        aktiv = self.selected_pdf if self.selected_pdf in pfade else None
+        if aktiv is not None:
+            pfade.remove(aktiv)
+            pfade.append(aktiv)  # _update_selection_status nimmt die letzte als aktive
+        for widget in self.pdf_widgets:
+            widget.selected = True
+        self.selected_pdfs = pfade
         self._update_selection_status()
 
     def _update_selection_status(self):
