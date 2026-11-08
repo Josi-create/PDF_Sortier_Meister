@@ -97,18 +97,19 @@ class FileManager:
         return new_name if new_name.lower().endswith('.pdf') else new_name + '.pdf'
 
     def get_office_files(self) -> list[Path]:
-        """Findet .docx/.xlsx im Scan-Ordner (Issue #9), nach Name sortiert.
+        """Findet .docx/.xlsx und Bilder im Scan-Ordner (Issues #9, #184), nach Name sortiert.
 
         Word legt waehrend des Bearbeitens Sperrdateien ``~$name.docx`` an;
         die werden ausgelassen.
         """
         if self._scan_folder is None:
             return []
-        from src.core.office_convert import OFFICE_ENDUNGEN
+        from src.core.office_convert import sortierbare_endungen
 
+        endungen = sortierbare_endungen()
         dateien = [
             f for f in self._scan_folder.iterdir()
-            if f.is_file() and f.suffix.lower() in OFFICE_ENDUNGEN and not f.name.startswith("~$")
+            if f.is_file() and f.suffix.lower() in endungen and not f.name.startswith("~$")
         ]
         dateien.sort(key=lambda p: p.name.lower())
         return dateien

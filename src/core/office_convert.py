@@ -85,11 +85,25 @@ class UmwandlungsErgebnis:
 
 
 def ist_office_datei(pfad: Path | str) -> bool:
-    return Path(pfad).suffix.lower() in OFFICE_ENDUNGEN
+    """Sortierbare Nicht-PDF-Datei: .docx/.xlsx und seit Issue #184 auch Bilder.
+
+    Sie erscheinen als eigene Kachel, tragen keine PDF-Metadaten und lassen
+    sich in PDF umwandeln (Bilder: ``bild_convert``).
+    """
+    from src.core.bild_convert import ist_bild_datei
+
+    return Path(pfad).suffix.lower() in OFFICE_ENDUNGEN or ist_bild_datei(pfad)
+
+
+def sortierbare_endungen() -> tuple[str, ...]:
+    """Endungen aller Nicht-PDF-Dateien, die als Kachel erscheinen (Office und Bilder)."""
+    from src.core.bild_convert import bild_endungen
+
+    return OFFICE_ENDUNGEN + bild_endungen()
 
 
 def ist_sortierbar(pfad: Path | str) -> bool:
-    """PDF oder Office-Datei: darf in Zielordner verschoben/abgelegt werden."""
+    """PDF, Office-Datei oder Bild: darf in Zielordner verschoben/abgelegt werden."""
     return Path(pfad).suffix.lower() == ".pdf" or ist_office_datei(pfad)
 
 

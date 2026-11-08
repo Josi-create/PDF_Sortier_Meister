@@ -81,7 +81,10 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.core import office_vorschau
+from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
+from src.gui import original_wegraeumen
+from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -173,7 +176,7 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(HierhinKopierenMixin, QMainWindow):
+class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -262,6 +265,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
         self._office_worker: Optional[OfficeConvertWorker] = None
+        self._bild_worker = None  # Bilder -> PDF (Issue #184)
         self._office_vorschau_worker: Optional[OfficeVorschauWorker] = None
         self._office_preview_pfad: Optional[Path] = None  # .docx/.xlsx, deren Seitenvorschau gewuenscht ist
         self._ocr_neu_paths: list[Path] = []
@@ -1127,6 +1131,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             widget.move_requested.connect(self.on_pdf_move)
             widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
+            widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
@@ -1179,7 +1184,10 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
     def on_office_convert(self, pfad: Path, pdfa: bool):
         """Kontextmenue "In PDF umwandeln": Hintergrund-Thread, PDF entsteht neben der Datei."""
-        if self._office_worker is not None:
+        if ist_bild_datei(pfad):  # Issue #184
+            self.on_bild_convert(pfad)
+            return
+        if self._office_worker is not None or self._bild_worker is not None:
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
@@ -1201,6 +1209,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 continue
             erzeugt.append(erg.pdf)
             index_melden("datei_aufnehmen", str(erg.pdf))
+            if pdf_lesbar(erg.pdf):  # Issue #184: Original nur nach geglueckter Umwandlung zur Wahl stellen
+                self.original_nach_umwandeln([quelle], erg.pdf)
             hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
             self.statusbar.showMessage(
                 f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
@@ -2166,6 +2176,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self._ocr_schwer_lesbar.abbrechen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
+        if self._bild_worker is not None:
+            self._bild_worker.requestInterruption()
         self._office_preview_pfad = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
 
         for thread in self.findChildren(QThread):
@@ -3261,7 +3273,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
         if ist_office_datei(pdf_path):
             self.statusbar.showMessage(
-                "Word-/Excel-Dateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
+                "Word-/Excel-/Bilddateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
             return
         from src.core.pdf_cache import get_pdf_cache
 
@@ -3591,6 +3603,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
             n = len(output_files)
             self.statusbar.showMessage(f"PDF getrennt: {n} Datei(en) erstellt", 4000)
+            if self.original_nach_trennen(pdf_path, output_files):  # Issue #187
+                self.statusbar.showMessage(
+                    f"PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)", 6000)
             self.load_pdfs()
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
@@ -4001,6 +4016,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             self._undo_gerade(entry)
         elif entry_type == "delete":
             self._undo_delete(entry)
+        elif entry_type == "wegraeumen":  # Issues #184/#187: Original(e) nach Umwandeln/Trennen
+            original_wegraeumen.rueckgaengig(self, entry)
         else:
             self._undo_move(entry)
 
