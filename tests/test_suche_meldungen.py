@@ -65,7 +65,7 @@ def test_stapeln_und_rueckgaengig_melden_inhalt_und_quellen(tmp_path):
     assert meldungen.warten(10)
     assert idx.dokument_nach_pfad(str(quelle)) is None
     d = idx.dokument_nach_pfad(str(ziel))
-    assert d["seiten"] == 2 and idx.suche("Quelle")["treffer"][0]["stellen"][0]["seite"] == 2
+    assert d["seiten"] == 2 and idx.suche("Quelle")["treffer"][0]["stellen"][0]["seite"] == 1  # Quelle liegt jetzt vorn
 
     fm.restore_stack(sicherungen)
     assert meldungen.warten(10)

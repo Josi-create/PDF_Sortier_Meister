@@ -3656,8 +3656,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 )
 
     def on_pdf_stacked(self, sources: list, target: Path):
-        """Haengt die auf eine PDF gezogenen PDFs an diese an - ohne Rueckfrage,
-        rueckgaengig mit Ctrl+Z."""
+        """Legt die auf eine PDF gezogenen PDFs davor (wie Papier: oben liegt Seite 1) -
+        ohne Rueckfrage, rueckgaengig mit Ctrl+Z."""
         from datetime import datetime
         sources = [Path(s) for s in sources if Path(s) != target]
         if not sources:
@@ -3673,9 +3673,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self._prune_stack_backups()
 
         if len(sources) == 1:
-            desc = f"{sources[0].name} an {target.name} angehängt"
+            desc = f"{sources[0].name} vor {target.name} gelegt"
         else:
-            desc = f"{len(sources)} PDFs an {target.name} angehängt"
+            desc = f"{len(sources)} PDFs vor {target.name} gelegt"
         self._push_undo({"type": "stack", "backups": backups, "description": desc})
 
         # Inhalt der Ziel-PDF hat sich geaendert: Analyse neu, Vorschau neu
@@ -3710,10 +3710,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             QMessageBox.critical(
                 self, "Fehler", f"Stapeln konnte nicht rückgängig gemacht werden:\n{e}"
             )
-            return
-        finally:
-            self._undo_stack.pop()
-            self._update_undo_ui()
+            return  # Eintrag bleibt: die Sicherung ist noch da, ein neuer Versuch ist moeglich
+        self._undo_stack.pop()
+        self._update_undo_ui()
 
         for original, _ in backups:
             self.pdf_cache.clear_for_pdf(original)
