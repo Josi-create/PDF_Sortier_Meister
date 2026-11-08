@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import QLabel, QMenu
 
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
-from src.core.office_convert import WORD_ENDUNGEN
+from src.core.office_convert import WORD_ENDUNGEN, ist_office_datei
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
@@ -154,6 +154,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
 
     convert_requested = pyqtSignal(Path, bool)  # (Datei, als PDF/A)
     bilder_zusammenfuegen_requested = pyqtSignal(Path)  # markierte Bilder zu einem PDF (Issue #184)
+    # Markierte Dateien je einzeln in PDF: (Dateien, als PDF/A) - Live-Test 08.11.2026
+    mehrere_umwandeln_requested = pyqtSignal(list, bool)
 
     _OFFICE_TOOLTIP = (
         "Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
@@ -186,9 +188,11 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self._ist_bild = ist_bild_datei(pfad)
         farbe = self.BILD_ETIKETT if self._ist_bild else self.OFFICE_ETIKETT
         self.typ_label = QLabel(pfad.suffix.upper().lstrip("."), self.thumbnail_label)
+        # Mit Selektor: sonst erbt der Tooltip des Etiketts Farbe und Mini-Schrift
+        self.typ_label.setObjectName("typEtikett")
         self.typ_label.setStyleSheet(
-            f"background-color: {farbe}; color: white; font-size: 9px; font-weight: bold; "
-            "border: none; border-radius: 3px; padding: 1px 4px;"
+            f"QLabel#typEtikett {{ background-color: {farbe}; color: white; font-size: 9px; "
+            "font-weight: bold; border: none; border-radius: 3px; padding: 1px 4px; }"
         )
         self.typ_label.setToolTip(
             "Bild" if self._ist_bild
@@ -222,6 +226,12 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         bilder = [p for p in auswahl if ist_bild_datei(p)]
         return bilder if self.pdf_path in bilder else []
 
+    def _markierte_office(self) -> list[Path]:
+        """Die markierten docx/xlsx, wenn diese Kachel zur Mehrfachauswahl gehoert (sonst leer)."""
+        auswahl = getattr(self.window(), "selected_pdfs", None) or []
+        dateien = [p for p in auswahl if ist_office_datei(p) and not ist_bild_datei(p)]
+        return dateien if self.pdf_path in dateien else []
+
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)
         menu.addAction("Öffnen").triggered.connect(lambda: self.open_requested.emit(self.pdf_path))
@@ -231,10 +241,16 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         menu.addAction("Verschieben nach...").triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
         menu.addSeparator()
         if ist_bild_datei(self.pdf_path):
-            convert = menu.addAction("In PDF umwandeln")
-            convert.setToolTip("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild")
-            convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
             bilder = self._markierte_bilder()
+            if len(bilder) > 1:
+                # Mehrfachauswahl: jedes markierte Bild ein eigenes PDF (vorher nur das angeklickte)
+                convert = menu.addAction(f"Einzeln in PDFs umwandeln ({len(bilder)} Bilder)")
+                convert.setToolTip("Je Bild ein durchsuchbares PDF (Texterkennung) neben dem Bild")
+                convert.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(bilder, False))
+            else:
+                convert = menu.addAction("In PDF umwandeln")
+                convert.setToolTip("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild")
+                convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
             if len(bilder) > 1:
                 zusammen = menu.addAction(f"Zu einem PDF zusammenfügen ({len(bilder)} Bilder)")
                 zusammen.setToolTip("Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht")
@@ -242,12 +258,22 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
             menu.addSeparator()
             menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu
-        convert = menu.addAction("In PDF umwandeln")
-        convert.setToolTip("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten")
-        convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
-        convert_a = menu.addAction("In PDF/A umwandeln (Langzeitarchiv)")
-        convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
-        convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
+        dateien = self._markierte_office()
+        if len(dateien) > 1:
+            # Mehrfachauswahl: alle markierten Dateien, je ein PDF (Live-Test 08.11.2026)
+            convert = menu.addAction(f"In PDF umwandeln ({len(dateien)} Dateien)")
+            convert.setToolTip("Je Datei ein PDF neben der Datei")
+            convert.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, False))
+            convert_a = menu.addAction(f"In PDF/A umwandeln ({len(dateien)} Dateien)")
+            convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
+            convert_a.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, True))
+        else:
+            convert = menu.addAction("In PDF umwandeln")
+            convert.setToolTip("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten")
+            convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
+            convert_a = menu.addAction("In PDF/A umwandeln (Langzeitarchiv)")
+            convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
+            convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
         menu.addSeparator()
         menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
         return menu

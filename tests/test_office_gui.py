@@ -26,9 +26,12 @@ def fresh_singletons(monkeypatch, tmp_path):
     fresh_config = cfg_mod.Config(config_path=tmp_path / "config.json")
     fresh_config.set("persist_pdf_cache", False)
     monkeypatch.setattr(pc_mod.PDFCache, "_instance", None)
+    # Eine Datenbank je Test: eine neue je Aufruf liess Haupt- und Hintergrund-Thread
+    # gleichzeitig create_all() ausfuehren ("table ... already exists", sporadisch)
+    datenbank = db_mod.Database(db_path=str(db_path))
     patch_singletons(monkeypatch, {
         "get_config": lambda: fresh_config,
-        "get_database": lambda: db_mod.Database(db_path=str(db_path)),
+        "get_database": lambda: datenbank,
         "get_classifier": cl_mod.PDFClassifier,
         "get_hybrid_classifier": hc_mod.HybridClassifier,
         "get_pdf_cache": pc_mod.PDFCache,

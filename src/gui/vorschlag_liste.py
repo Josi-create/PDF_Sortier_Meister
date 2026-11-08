@@ -1,14 +1,20 @@
 """
 Kompakte Ordnervorschlaege (rechte Spalte "Vorgeschlagene Ziele").
 
-* ``VorschlagZeile``: ein FolderWidget als schlanke Zeile (Symbol, fetter Name,
-  grauer Elternpfad, Prozentzahl rechts). Drop, Menue, Regenbogen und Signale
+* ``VorschlagZeile``: ein FolderWidget als schlanke Zeile (Symbol, voller Pfad auf
+  zwei Zeilen, Prozentzahl rechts). Unten steht das Ende des Pfads mit dem Zielordner
+  fett, oben grau der Anfang (``zeilen_aufteilen``). Rechts hat Vorrang: der Zielordner
+  ist immer zu sehen, dann der Ordner darueber usw.; was oben nicht passt, faellt von
+  links in ganzen Ordnern weg (``pfad_kuerzen``). Drop, Menue, Regenbogen und Signale
   erbt sie unveraendert von FolderWidget.
 * ``SpaltenLayout``: verteilt die Zeilen zeilenweise auf 1 bis 3 Spalten, je
   nach verfuegbarer Breite. Die Mindestbreite bleibt klein (keine Rueckkopplung
   auf den Splitter).
 * ``VorschlagListe``: Scrollbereich darum; scrollt erst ab ``MAX_ZEILEN`` Reihen.
 """
+
+import html
+from typing import Callable
 
 from PyQt6.QtCore import QEvent, QRect, QSize, Qt
 from PyQt6.QtGui import QCursor, QFont, QFontMetrics
@@ -23,14 +29,103 @@ ZEILEN_MIN_BREITE = 210  # darunter wird eine Spalte weniger genommen
 MAX_SPALTEN = 3
 ABSTAND = 6
 MAX_ZEILEN = 3  # sichtbare Reihen, danach vertikal scrollen
+AUSLASSUNG = "…"
+
+
+def pfad_kuerzen(pfad: str, messen: Callable[[str], int], breite: int) -> str:
+    r"""Kuerzt einen Pfad von links in ganzen Ordnern, rechts hat Vorrang.
+
+    ``C:\A\B\C\E`` wird je nach Breite zu ``…\B\C\E``, ``…\C\E`` oder ``…\E``.
+    Passt selbst der letzte Ordner nicht, wird er links gekuerzt (Ende bleibt lesbar).
+    ``messen`` liefert die Textbreite in Pixeln (QFontMetrics.horizontalAdvance).
+    """
+    if not pfad or messen(pfad) <= breite:
+        return pfad
+    sep = "\\" if "\\" in pfad else "/"
+    teile = [t for t in pfad.replace("/", sep).split(sep) if t]
+    for anzahl in range(len(teile) - 1, 0, -1):
+        kandidat = AUSLASSUNG + sep + sep.join(teile[-anzahl:])
+        if messen(kandidat) <= breite:
+            return kandidat
+    letzter = teile[-1] if teile else pfad
+    for start in range(1, len(letzter)):
+        kandidat = AUSLASSUNG + letzter[start:]
+        if messen(kandidat) <= breite:
+            return kandidat
+    return AUSLASSUNG
+
+
+def _rechts_kuerzen(text: str, messen: Callable[[str], int], breite: int) -> str:
+    """Kuerzt ``text`` rechts mit "…", bis er in ``breite`` passt."""
+    if messen(text) <= breite:
+        return text
+    for ende in range(len(text) - 1, 0, -1):
+        kandidat = text[:ende] + AUSLASSUNG
+        if messen(kandidat) <= breite:
+            return kandidat
+    return AUSLASSUNG
+
+
+def zeilen_aufteilen(
+    elternpfad: str,
+    name: str,
+    breite: int,
+    messen_oben: Callable[[str], int],
+    messen_unten: Callable[[str], int],
+    messen_fett: Callable[[str], int],
+    praefix: str = "",
+) -> tuple[str, str, str]:
+    r"""Verteilt den Pfad eines Zielordners auf zwei Zeilen (Live-Test 08.11.2026).
+
+    Unten stehen so viele Ordner vom Ende des Elternpfads, wie neben dem fetten
+    ``\Ziel`` Platz haben, oben grau der Rest bis zum Laufwerk. Passt oben nicht alles,
+    fallen dort ganze Ordner von links weg:
+
+        oben:  E:\Users\johan_000\OneDrive\
+        unten: \1PaperPort14\Kinder          (\Kinder fett)
+
+    Rueckgabe: ``(oben, unten_normal, unten_fett)``. ``breite <= 1`` (Geometrie noch
+    unbekannt): alles unten, ungekuerzt.
+    """
+    sep = "\\" if "\\" in elternpfad else "/"
+    anfang_len = len(elternpfad) - len(elternpfad.lstrip("\\/"))
+    anfang = elternpfad[:anfang_len].replace("/", sep)  # "/" bei Unix, "\\" bei UNC-Pfaden
+    teile = [t for t in elternpfad.replace("/", sep).split(sep) if t]
+    fett = sep + name if teile else name
+    if breite <= 1:
+        return "", praefix + anfang + sep.join(teile), fett
+
+    platz = breite - messen_unten(praefix)
+    if messen_fett(fett) > platz:  # schon das Ziel passt nicht: Ziel kuerzen, Pfad oben
+        unten_k = 0
+        fett = _rechts_kuerzen(fett, messen_fett, max(platz, 0))
+    else:
+        unten_k = 0
+        for k in range(len(teile), 0, -1):
+            schwanz = anfang + sep.join(teile) if k == len(teile) else sep + sep.join(teile[-k:])
+            if messen_unten(schwanz) + messen_fett(fett) <= platz:
+                unten_k = k
+                break
+    if unten_k == len(teile):
+        return "", praefix + anfang + sep.join(teile), fett
+    schwanz = sep + sep.join(teile[-unten_k:]) if unten_k else ""
+    rest = anfang + sep.join(teile[:len(teile) - unten_k])
+    oben = pfad_kuerzen(rest, lambda s: messen_oben(s + sep), breite) + sep
+    return oben, praefix + schwanz, fett
 
 
 class VorschlagZeile(FolderWidget):
-    """Kompakte Vorschlagszeile (Name_label = Ordnername, path_label = Elternpfad)."""
+    """Kompakte Vorschlagszeile: oben der Anfang des Pfads (path_label), unten das Ende
+    mit dem Zielordner fett (name_label, Rich Text)."""
+
+    FARBE_PFAD = "#666"
+    FARBE_NEU = "#1e6fd9"
 
     def __init__(self, folder_path, parent=None):
         self._name_voll = ""
         self._pfad_voll = ""
+        self._praefix = ""
+        self._zeilen = ("", "", "")  # (oben, unten normal, unten fett) - fuer Tests
         self._geometrie_bekannt = False
         super().__init__(folder_path, 0, parent)
 
@@ -55,10 +150,11 @@ class VorschlagZeile(FolderWidget):
         textspalte = QVBoxLayout()
         textspalte.setSpacing(0)
         textspalte.setContentsMargins(0, 0, 0, 0)
-        self.name_label = self._label(bold=True, px=12)
-        self.path_label = self._label(bold=False, px=10, farbe="#666")
-        textspalte.addWidget(self.name_label)
+        self.path_label = self._label(bold=False, px=10, farbe=self.FARBE_PFAD)  # oben: Anfang
+        self.name_label = self._label(bold=False, px=12)  # unten: Ende, Ziel fett
+        self.name_label.setTextFormat(Qt.TextFormat.RichText)
         textspalte.addWidget(self.path_label)
+        textspalte.addWidget(self.name_label)
         layout.addLayout(textspalte, 1)
 
         self.count_label = QLabel()
@@ -82,23 +178,38 @@ class VorschlagZeile(FolderWidget):
     def _update_count_label(self):
         pass  # Prozentzahl setzt das Hauptfenster
 
-    def set_anzeige(self, name: str, pfad: str):
-        """Setzt Ordnername und Elternpfad (ungekuerzt); Kuerzen passiert nach Breite."""
+    def set_anzeige(self, name: str, pfad: str, praefix: str = ""):
+        """Setzt Ordnername, Elternpfad (ungekuerzt) und ein Praefix vor der unteren Zeile
+        (z. B. "➕ neu: "); die Aufteilung auf zwei Zeilen passiert nach Breite."""
         self._name_voll = name
         self._pfad_voll = pfad
-        self.path_label.setVisible(bool(pfad))
+        self._praefix = praefix
         self._kuerzen()
 
     def _kuerzen(self):
-        for label, voll, modus in (
-            (self.name_label, self._name_voll, Qt.TextElideMode.ElideRight),
-            (self.path_label, self._pfad_voll, Qt.TextElideMode.ElideMiddle),
-        ):
-            text = voll
-            breite = label.width()
-            if self._geometrie_bekannt and breite > 1:
-                text = QFontMetrics(label.font()).elidedText(voll, modus, breite)
-            label.setText(text)
+        breite = self.name_label.width() if self._geometrie_bekannt else 0
+        breite = max(breite - 4, 0) if breite > 1 else 0  # etwas Luft fuer den Rich-Text-Rand
+        fett_font = QFont(self.name_label.font())
+        fett_font.setBold(True)
+        oben, unten, fett = zeilen_aufteilen(
+            self._pfad_voll, self._name_voll, breite,
+            QFontMetrics(self.path_label.font()).horizontalAdvance,
+            QFontMetrics(self.name_label.font()).horizontalAdvance,
+            QFontMetrics(fett_font).horizontalAdvance,
+            self._praefix,
+        )
+        self._zeilen = (oben, unten, fett)
+        self.path_label.setText(oben)
+        self.path_label.setVisible(bool(oben))
+        praefix = self._praefix if unten.startswith(self._praefix) else ""
+        rest = unten[len(praefix):]
+        teile = []
+        if praefix:
+            teile.append(f'<span style="color:{self.FARBE_NEU}">{html.escape(praefix)}</span>')
+        if rest:
+            teile.append(f'<span style="color:{self.FARBE_PFAD}">{html.escape(rest)}</span>')
+        teile.append(f"<b>{html.escape(fett)}</b>")
+        self.name_label.setText(f'<span style="white-space:pre">{"".join(teile)}</span>')
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -205,7 +316,10 @@ class VorschlagListe(QScrollArea):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.inhalt = _Inhalt(self)
-        self.inhalt.setStyleSheet("background: transparent;")
+        # Nur dieses Widget: ein Stylesheet ohne Selektor erben auch die Tooltips
+        # der Zeilen - transparent wird unter Windows zu schwarzen Tooltips
+        self.inhalt.setObjectName("vorschlagInhalt")
+        self.inhalt.setStyleSheet("QWidget#vorschlagInhalt { background: transparent; }")
         self.viewport().setAutoFillBackground(False)
         self.spalten = SpaltenLayout(self.inhalt)
         self.setWidget(self.inhalt)

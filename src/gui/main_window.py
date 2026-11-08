@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QAction, QDesktopServices
+from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -826,6 +826,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Scroll-Bereich für PDF-Thumbnails
         self.pdf_scroll_area = QScrollArea()
         self.pdf_scroll_area.setWidgetResizable(True)
+        # Ein Klick auf Kachel oder Flaeche gibt der Kachelansicht den Fokus,
+        # damit Strg+A dort alle Kacheln markiert (Live-Test 08.11.2026)
+        self.pdf_scroll_area.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.pdf_scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
@@ -1147,6 +1150,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
             widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
+            widget.mehrere_umwandeln_requested.connect(self.on_mehrere_umwandeln)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
@@ -1202,12 +1206,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         if ist_bild_datei(pfad):  # Issue #184
             self.on_bild_convert(pfad)
             return
+        self._office_umwandeln([pfad], pdfa)
+
+    def on_mehrere_umwandeln(self, pfade: list, pdfa: bool):
+        """Kontextmenue der Mehrfachauswahl: jede markierte Datei ein eigenes PDF (Live-Test 08.11.2026)."""
+        reihenfolge = {w.pdf_path: i for i, w in enumerate(self.pdf_widgets)}
+        pfade = sorted((Path(p) for p in pfade), key=lambda p: reihenfolge.get(p, len(reihenfolge)))
+        if pfade and all(ist_bild_datei(p) for p in pfade):
+            self.bilder_einzeln_umwandeln(pfade)
+        elif pfade:
+            self._office_umwandeln([p for p in pfade if not ist_bild_datei(p)], pdfa)
+
+    def _office_umwandeln(self, pfade: list[Path], pdfa: bool):
         if self._office_worker is not None or self._bild_worker is not None:
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self.statusbar.showMessage(f"Wandle in PDF um: {pfad.name}…")
-        worker = OfficeConvertWorker([pfad], pdfa, self)
+        self.statusbar.showMessage(f"Wandle in PDF um: {pfade[0].name}…")
+        worker = OfficeConvertWorker(pfade, pdfa, self)
+        if len(pfade) > 1:
+            worker.fortschritt.connect(
+                lambda i, n, p: self.statusbar.showMessage(f"Wandle in PDF um ({i}/{n}): {p.name}…"))
         worker.fertig.connect(self._on_office_converted)
         self._office_worker = worker
         worker.start()
@@ -1218,18 +1237,24 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         fehler = []
         hinweise = []
         erzeugt = []
+        lesbar = []  # (Quelle, PDF): nur diese Originale werden zur Wahl gestellt (Issue #184)
         for quelle, erg, fehlertext in ergebnisse:
             if erg is None:
                 fehler.append(f"{quelle.name}: {fehlertext}")
                 continue
             erzeugt.append(erg.pdf)
             index_melden("datei_aufnehmen", str(erg.pdf))
-            if pdf_lesbar(erg.pdf):  # Issue #184: Original nur nach geglueckter Umwandlung zur Wahl stellen
-                self.original_nach_umwandeln([quelle], erg.pdf)
+            if pdf_lesbar(erg.pdf):
+                lesbar.append((quelle, erg.pdf))
             hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
             self.statusbar.showMessage(
                 f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
             )
+        if lesbar:
+            # Eine Frage fuer alle Originale, nicht eine je Datei
+            self.original_nach_umwandeln([q for q, _ in lesbar], [p for _, p in lesbar])
+        if len(erzeugt) > 1:
+            self.statusbar.showMessage(f"{len(erzeugt)} PDFs erstellt", 6000)
         if erzeugt:
             self.load_pdfs()
             # Das neue PDF wie angeklickt auswaehlen (load_pdfs baut die Kacheln synchron)
@@ -1915,6 +1940,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         deselect_action.triggered.connect(self._clear_selection)
         edit_menu.addAction(deselect_action)
 
+        # Strg+A nur in der Kachelansicht: in Textfeldern markiert es weiter den Text
+        self.select_all_action = QAction("Alle markieren", self)
+        self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        self.select_all_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.select_all_action.setToolTip("Alle Kacheln im Bereich PDFs markieren (Strg+A)")
+        self.select_all_action.triggered.connect(self.alle_markieren)
+        self.pdf_scroll_area.addAction(self.select_all_action)
+        edit_menu.addAction(self.select_all_action)
+
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
 
@@ -2447,6 +2481,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Statusbar aktualisieren
         self._update_selection_status()
 
+    def alle_markieren(self):
+        """Strg+A in der Kachelansicht: alle Kacheln markieren (Live-Test 08.11.2026).
+
+        Die bisher aktive PDF bleibt die aktive (Detailansicht, Vorschlaege, Anker fuer Shift+Klick).
+        """
+        pfade = [w.pdf_path for w in self.pdf_widgets]
+        if not pfade:
+            return
+        if len(pfade) == 1:
+            if self.selected_pdf != pfade[0] or self.selected_pdfs:
+                self.on_pdf_clicked(pfade[0])
+            return
+        aktiv = self.selected_pdf if self.selected_pdf in pfade else None
+        if aktiv is not None:
+            pfade.remove(aktiv)
+            pfade.append(aktiv)  # _update_selection_status nimmt die letzte als aktive
+        for widget in self.pdf_widgets:
+            widget.selected = True
+        self.selected_pdfs = pfade
+        self._update_selection_status()
+
     def _update_selection_status(self):
         """Aktualisiert die Statusbar basierend auf der aktuellen Auswahl."""
         count = len(self.selected_pdfs)
@@ -2712,17 +2767,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             if is_new:
                 widget.set_neu(True)
 
-            # Name = letzter Pfadteil (fett), darunter der Elternpfad relativ zur Zielordner-Wurzel
+            # Voller Pfad auf zwei Zeilen: unten das Ende mit dem Zielordner fett, oben der
+            # Anfang; was nicht passt, faellt oben links weg (Live-Test 08.11.2026)
             rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
             elternpfad, _, name = rel.rpartition("/")
             if not name:
                 name = suggestion.folder_name
-            if is_new:
-                name = f"➕ neu: {name}"
-            widget.set_anzeige(name, elternpfad)
+            ordner = Path(suggestion.folder_path) if suggestion.folder_path else None
+            if ordner is not None and ordner.is_absolute():
+                elternpfad = str(ordner.parent)
+            widget.set_anzeige(name, elternpfad, "➕ neu: " if is_new else "")
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
-            tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
+            voller_pfad = str(ordner) if ordner is not None and ordner.is_absolute() else (
+                suggestion.relative_path or suggestion.folder_name)
+            tooltip = f"Pfad: {voller_pfad}\n"
             tooltip += f"{suggestion.reason}\n"
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
             if is_new:
