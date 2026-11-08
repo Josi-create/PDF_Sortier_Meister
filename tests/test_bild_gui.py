@@ -151,8 +151,7 @@ def test_umwandeln_ohne_wegraeumen_behaelt_original(qtbot, main_window, scan, mo
     _umwandeln_und_warten(qtbot, main_window, bild)
     assert (scan / "a.pdf").exists() and bild.exists() and len(gestellt) == 1
     assert main_window.selected_pdf == scan / "a.pdf"
-    assert "keine Texterkennung" in main_window.statusbar.currentMessage().lower() or \
-        "Tesseract" in main_window.statusbar.currentMessage()
+    assert any("Tesseract" in m for m in meldungen)
 
 
 def test_ja_verschiebt_in_papierkorb_und_strg_z_holt_zurueck(qtbot, main_window, scan, monkeypatch):  # noqa: F811
