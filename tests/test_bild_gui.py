@@ -70,7 +70,9 @@ def _umwandeln_und_warten(qtbot, mw, pfad):
 
 # --- Kacheln und Menue -----------------------------------------------------------------
 
-def test_bilder_erscheinen_als_kacheln_mit_vorschaubild(qtbot, main_window, scan):  # noqa: F811
+def test_bilder_erscheinen_als_kacheln_mit_vorschaubild(qtbot, main_window, scan, monkeypatch):  # noqa: F811
+    from src.core import bild_convert
+    monkeypatch.setattr(bild_convert, "_heif_geprueft", False)  # ohne pillow-heif (Issue #205: jetzt Pflichtpaket)
     for name in ("a.jpg", "b.PNG", "c.tif", "d.bmp", "e.gif", "f.webp"):
         _bild(scan / name)
     (scan / "g.heic").write_bytes(b"x")  # ohne pillow-heif ignoriert

@@ -78,6 +78,8 @@ hiddenimports = [
     "sklearn.neighbors._quad_tree",
     "sklearn.tree._utils",
     "sqlalchemy.sql.default_comparator",
+    # HEIC-Handyfotos (Issue #205); der Hook von pyinstaller-hooks-contrib holt die Bibliotheken
+    "pillow_heif",
 ]
 
 # Optionale LLM-Pakete nur einbinden, falls installiert

@@ -1,8 +1,8 @@
 """Bilder in PDF umwandeln (Issue #184) - Qt-frei.
 
 Unterstuetzt: JPG/JPEG, PNG, TIFF/TIF (auch mehrseitig), BMP, GIF und WEBP;
-HEIC/HEIF nur, wenn das optionale Paket ``pillow-heif`` da ist (keine
-Pflichtabhaengigkeit, die CI installiert es nicht).
+HEIC/HEIF mit ``pillow-heif`` (steht in requirements.txt, Issue #205; ist es
+trotzdem nicht da, bleiben HEIC-Dateien unsichtbar).
 
 Umwandlung
 ----------
@@ -195,7 +195,19 @@ def _texterkennung(doc, erg: BildErgebnis) -> None:
         erg.ocr_hinweis = f"Texterkennung bei {fehler} Seite(n) fehlgeschlagen."
 
 
-def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr: bool = True) -> BildErgebnis:
+def _entzerrt_pdf_bytes(quelle: Path, auftrag) -> bytes:
+    """Das Foto entzerrt (Ecken und Tonwerte aus ``auftrag``) als einseitiges PDF (Issue #205)."""
+    from src.core.entzerren import bild_laden, seite_als_pdf_bytes
+
+    try:
+        bild = bild_laden(quelle)
+    except Exception as e:  # noqa: BLE001
+        raise BildFehler(f"{quelle.name}: Bild nicht lesbar ({e})") from e
+    return seite_als_pdf_bytes(bild, auftrag.ecken, auftrag.tonwerte)
+
+
+def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr: bool = True,
+                  entzerrung: Optional[dict] = None) -> BildErgebnis:
     """Wandelt ein oder mehrere Bilder in *ein* PDF um; die Quellen bleiben unveraendert.
 
     Args:
@@ -203,6 +215,9 @@ def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr
         ziel: gewuenschter PDF-Pfad; Standard: Ordner und Name des ersten Bildes, ``.pdf``.
             Existiert er schon, wird ``Name (1).pdf`` verwendet (nichts wird ueberschrieben).
         ocr: unsichtbare Textebene erzeugen (ohne Tesseract: ohne, mit ``ocr_hinweis``)
+        entzerrung: ``{Bildpfad: Entzerrung}`` (Issue #205): diese Bilder werden vor dem
+            Einbetten perspektivisch gerade gezogen (Ecken, Tonwerte); mehrseitige TIFFs nur
+            mit der ersten Seite. Andere Bilder laufen wie bisher.
 
     Raises:
         BildFehler: Umwandlung fehlgeschlagen (nichts bleibt liegen)
@@ -212,6 +227,7 @@ def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr
     from src.core.office_convert import _freier_pfad
 
     quellen = [Path(q) for q in quellen]
+    entzerrung = {Path(k): v for k, v in (entzerrung or {}).items()}
     if not quellen:
         raise BildFehler("Kein Bild angegeben.")
     for q in quellen:
@@ -225,7 +241,9 @@ def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr
     try:
         for q in quellen:
             try:
-                with pymupdf.open("pdf", _pdf_bytes(q)) as seiten:
+                auftrag = (entzerrung or {}).get(q)
+                data = _entzerrt_pdf_bytes(q, auftrag) if auftrag is not None else _pdf_bytes(q)
+                with pymupdf.open("pdf", data) as seiten:
                     doc.insert_pdf(seiten)
             except BildFehler:
                 raise

@@ -142,6 +142,9 @@ class Config:
         # "integrated" (Vorschau-Fenster) | "system" (Standardprogramm) | "custom"
         "pdf_open_mode": "integrated",
         "pdf_open_command": "",  # Pfad zum eigenen Programm bei "custom"
+        # Tonwerte beim Entzerren fotografierter Dokumente (Issue #205):
+        # "farbe" (aufgehellt) | "grau" | "sw" (Schwarzweiss)
+        "bild_tonwerte": "farbe",
         "preview_window_geometry": [],  # [x, y, w, h] des Vorschau-Fensters
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
         # Vorschlagsliste unter "Neuer Dateiname" aufgeklappt (Issue #146)
