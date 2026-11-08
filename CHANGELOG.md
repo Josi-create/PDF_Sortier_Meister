@@ -7,7 +7,29 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-08
+
 ### Neu
+- **Word- und Excel-Dateien sortieren und in PDF umwandeln** (#9): .docx- und
+  .xlsx-Dateien im Scan-Ordner erscheinen als Kacheln mit Vorschaubild
+  (eingebettetes Bild, Windows-Vorschau oder die ersten Textzeilen) und zeigen
+  beim Anklicken eine Seitenvorschau; Word-Sperrdateien (`~$…`) bleiben
+  ausgeblendet. Sie lassen sich wie PDFs auswählen, bekommen Ordnervorschläge,
+  werden per Vorschlag, Baumklick oder Drag & Drop verschoben, beim Umbenennen
+  behalten sie ihre Endung, und Strg+Z macht das rückgängig. Doppelklick öffnet
+  sie im Standardprogramm. Rechtsklick › „In PDF umwandeln“ bzw. „In PDF/A
+  umwandeln“ (bei Mehrfachauswahl „… (N Dateien)“) legt das PDF neben das
+  Original, wählt es aus und scrollt es ins Bild; schlägt eine Datei fehl,
+  laufen die anderen weiter. Umgewandelt wird mit Word bzw. Excel, sonst mit
+  LibreOffice; fehlt beides, sagt eine Meldung, was fehlt. Datums- und
+  Zeitfelder in Word-Briefen (`PRINTDATE`, `DATE`, `TIME`) zeigen im PDF das
+  letzte Druckdatum des Dokuments statt des heutigen Datums; fehlt es, wird
+  ersatzweise das Änderungs- oder Erstelldatum genommen und darauf hingewiesen.
+  Die Originaldatei bleibt dabei unverändert. PDF/A aus Excel gibt es nur über
+  LibreOffice, sonst entsteht ein normales PDF mit Hinweis. Die Kacheln tragen
+  oben links ein Etikett mit der Endung („DOCX“, „XLSX“) und werden nach der
+  Erkennung hellblau statt grün. Drehen, OCR, Zusammenfügen und Stapeln bleiben
+  PDFs vorbehalten.
 - **OpenDocument-Text (.odt) wie .docx**: .odt-Dateien erscheinen als Kachel
   (Etikett „ODT“) mit Vorschau, fließen in die Ordner-Vorschläge ein, behalten
   beim Verschieben/Umbenennen/Hierhin-Kopieren ihre Endung und lassen sich per
@@ -15,32 +37,140 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   LibreOffice. Datumsfelder (`text:date`, `text:time`, `text:print-date`,
   `text:print-time`) werden vor dem Umwandeln auf das Druckdatum aus `meta.xml`
   festgesetzt, damit ein alter Brief nicht das heutige Datum bekommt.
-- **Korrespondenten neu gedacht** (#160): Der Korrespondent ist jetzt immer
-  die Gegenpartei aus Sicht des Nutzers – bei fremder Post der Absender, bei
-  eigenen Schreiben der Empfänger bzw. die andere Vertragspartei (Mietvertrag →
-  Mieter, Arztbrief als Arzt → Patient). Nie der Nutzer selbst, nie ein
-  Formularverlag wie „Haus & Grund“ oder Zweckform. Der bisherige rechte Reiter
+- **Bilder sortieren und in PDF umwandeln** (#184): JPG, PNG, TIFF (auch
+  mehrseitig), BMP, GIF, WEBP und HEIC/HEIF erscheinen wie Word-Dateien als
+  Kacheln, mit Vorschaubild in der richtigen Ausrichtung (EXIF) und Vorschau in
+  der Mitte, und lassen sich verschieben, kopieren und löschen. Rechtsklick ›
+  „In PDF umwandeln“ erzeugt ein PDF mit Texterkennung, damit es durchsuchbar
+  ist; ohne Tesseract entsteht es ohne Texterkennung, mit Hinweis in der
+  Statusleiste. Bei mehreren markierten Bildern gibt es „Einzeln in PDFs
+  umwandeln (N Bilder)“, je Bild ein PDF, und „Zu einem PDF zusammenfügen“ in
+  der Reihenfolge der Ansicht, benannt nach dem ersten Bild. Bildkacheln tragen
+  ein Etikett mit dem Format und werden nach der Erkennung rosa.
+- **Fotos entzerren beim Umwandeln** (#205): Ein mit dem Handy fotografiertes
+  Blatt wird beim Umwandeln in PDF gerade gezogen und zugeschnitten. Rechtsklick
+  auf ein Bild › „In PDF umwandeln und automatisch entzerren“ bzw. „… und von
+  Hand entzerren“, bei mehreren markierten Bildern das Untermenü „Fotos
+  entzerren (N Bilder)“, je einzeln oder zu einem PDF zusammengefügt.
+  Automatisch sucht PDFSM das Blatt selbst; ist die Erkennung unsicher, öffnet
+  sich für diese Fotos das Fenster „Foto entzerren“, vorbelegt mit dem besten
+  Versuch. Dort lassen sich die vier Ecken ziehen, rechts steht die Vorschau,
+  dazu „Zurücksetzen“ und Blättern zwischen mehreren Fotos; „Abbrechen“ ändert
+  nichts. Liegt das Blatt nah an A4, bekommt die Seite genau das A4-Format; ist
+  es am Bildrand angeschnitten, bleibt das gemessene Format. Blattecken dürfen
+  knapp außerhalb des Fotos liegen, der fehlende Zipfel wird weiß. Die Tonwerte
+  (Farbe aufgehellt, Graustufen, Schwarzweiß) stehen unter Einstellungen ›
+  Allgemein › „Fotos entzerren“ und lassen sich im Fenster je Auftrag ändern.
+  Das PDF bekommt wie beim normalen Umwandeln eine Texterkennung.
+- **Original nach dem Umwandeln oder Trennen wegräumen** (#187): Nach „In PDF
+  umwandeln“ (Bilder, Word, Excel, .odt) und nach „PDF trennen...“ fragt PDFSM,
+  ob das Original in den Papierkorb soll (Standard Ja, mit „Nicht mehr fragen“).
+  Bei mehreren Dateien kommt die Frage einmal für alle. Weggeräumt wird nur bei
+  lesbarem Ergebnis und nie endgültig: Strg+Z holt alle Originale zurück, das
+  PDF bzw. die Teile bleiben. Unter Einstellungen › Allgemein › „Original nach
+  dem Umwandeln und Trennen“ lässt sich je Aktion „Jedes Mal fragen“, „In den
+  Papierkorb verschieben“ oder „Behalten“ wählen. Die Lücke der entfernten
+  Kachel schließt sich sofort.
+- **Ganze Ordner verschieben und kopieren** (#196): Ordner lassen sich wie PDFs
+  einsortieren: „Versicherungen“ auf „Steuer 2025“ ergibt
+  „Steuer 2025/Versicherungen“, mit allen Unterordnern und allen Dateien. Ein
+  Einfachklick auf eine Ordnerzeile links markiert den Ordner (blau), ein
+  zweiter hebt die Markierung auf, Doppelklick öffnet ihn wie bisher. Rechts
+  erscheinen dann „Vorgeschlagene Ziele für Ordner …“; ein Klick auf einen
+  Vorschlag oder einen Ordner im Zielordner-Baum verschiebt. Ziehen der
+  Ordnerzeile auf den Baum verschiebt, mit Strg (macOS: Wahltaste) wird kopiert.
+  Im Rechtsklickmenü der Ordnerzeile stehen „📁 Ordner verschieben nach …“ und
+  „📁 Ordner kopieren nach …“ mit den Vorschlägen und „Anderen Ordner wählen …“.
+  Die Vorschläge kommen aus dem Inhalt (gelernte Zuordnungen, Sortierlogik,
+  gespeicherte KI-Vorschläge) und aus gleichnamigen Ordnern mit Jahresanpassung
+  („Steuer 2024/Versicherungen“ → „Steuer 2025“; fehlt der Jahresordner, wird er
+  nach Rückfrage angelegt). „🤖 KI fragen“ holt auf Knopfdruck einen Vorschlag
+  der KI. Vor dem Ausführen nennt eine Rückfrage die Zahl der Dateien, ein
+  Fortschrittsfenster mit „Abbrechen“ zeigt den Stand. Gibt es das Ziel schon,
+  wird zusammengeführt: gleiche Namen bekommen „(2)“, inhaltsgleiche Dateien
+  landen nicht doppelt, leere Quellordner verschwinden. Strg+Z macht Verschieben
+  und Kopieren rückgängig (eine Kopie wandert in den Papierkorb). Gespeicherte
+  Pfade ziehen beim Verschieben mit: Zielordner, „zuletzt verwendet“, Favoriten,
+  gelernte Zuordnungen, Analyse-Zwischenspeicher und Suchindex. Jede Datei mit
+  erkanntem Text zählt dabei als einzeln einsortiert.
+- **Neue Ordner vorschlagen** (#116): PDFSM schlägt jetzt auch Ordner vor, die
+  es noch nicht gibt. Sieht eine Rechnung mit Datum 2027 aus wie die bisherigen
+  in „Steuer 2025/Medikamente“, steht vorne „➕ neu: Steuer 2027/Medikamente“ mit
+  derselben Unterstruktur (Jahresregel ohne KI; das Jahr kommt aus dem
+  Steuerjahr, sonst aus dem erkannten Datum). Passt kein vorhandener Ordner,
+  darf auch die KI einen neuen Pfad unter einem Zielordner nennen; sie bekommt
+  dafür die vorhandenen Ordner als Liste. Je Dokument gibt es höchstens einen
+  solchen Vorschlag, blau gestrichelt an erster Stelle. Ein Klick fragt
+  „Ordner … anlegen und Datei dorthin verschieben?“; danach läuft alles wie bei
+  einem bestehenden Ordner (Namensvorlage, Lernen, Metadaten). Strg+Z verschiebt
+  zurück und entfernt die dabei angelegten Ordner wieder, sofern sie leer sind.
+  Ziehen auf den neuen Ordner verschiebt nicht, „hierhin kopieren“ (auch
+  Strg+Ziehen) geht aber. Abschalten lässt sich das unter Einstellungen ›
+  Allgemein › Darstellung › „Neue Ordner vorschlagen“ (Standard: an).
+- **Favoriten-Leiste** (#114): Über der Pfadzeile der PDF-Ansicht steht eine
+  Leiste mit Lieblingsordnern als graue Knöpfe. Ein Klick öffnet den Ordner
+  (Zurück und Alt+Links funktionieren weiter), der geöffnete Ordner ist
+  hervorgehoben, der Tooltip zeigt den vollen Pfad. Gemerkt wird per Rechtsklick
+  auf eine Ordnerzeile links, einen Ordner im Zielordner-Baum oder die Pfadzeile
+  („Aktuellen Ordner als Favorit merken“). Rechtsklick auf einen Favoriten:
+  „Entfernen“, „Umbenennen (Anzeigename)“, „Nach links“, „Nach rechts“, „Im
+  Explorer öffnen“. Viele Favoriten scrollen seitwärts, das Fenster wird nicht
+  breiter. Fehlt ein Ordner, wird der Knopf grau und kursiv, und ein Klick
+  bietet das Entfernen an. Beim ersten Start steht der Scan-Ordner als erster
+  Favorit drin; ohne Favoriten ist die Leiste ausgeblendet.
+- **Hierhin kopieren** (#179, #183): Im Rechtsklickmenü der Ordnervorschläge,
+  der Ordnerzeilen links, des Zielordner-Baums und der Favoriten steht „📄 PDF
+  hierhin kopieren“ (bei mehreren „📄 N Dateien hierhin kopieren“), auch für neu
+  anzulegende Ordner. Mit gedrückter Strg-Taste (macOS: Wahltaste) kopiert auch
+  das Ziehen auf einen Ordner, statt zu verschieben. Die Kopie bekommt Namen und
+  Metadaten wie beim Verschieben und kommt in den Suchindex; das Original bleibt
+  unverändert und ausgewählt und zeigt „📄 kopiert nach …“. Gelernt wird wie beim
+  Verschieben, dasselbe Dokument im selben Ordner zählt je Sitzung aber nur
+  einmal. Die Ordnerzeilen links haben außerdem „➡ PDF hierhin verschieben“,
+  „🌳 Rechts im Baum zeigen“ und „⭐ Als Zielordner merken“ bzw. „Aus Zielliste
+  entfernen“.
+- **Ordnersuche** (#159): Über dem Zielordner-Baum steht ein Suchfeld. Ein
+  Treffer aus der Liste klappt den Baum bis dorthin auf (auch tiefer als bisher
+  eingelesen), markiert den Ordner und scrollt ihn ins Bild, ohne etwas zu
+  verschieben. Links öffnet ein Klick auf die freie Fläche der Pfadzeile oder
+  auf die Lupe dasselbe Suchfeld; ein Treffer öffnet den Ordner in der
+  PDF-Ansicht, Esc bringt die Pfadzeile zurück. Gesucht wird nach Teilen des
+  Namens ohne Rücksicht auf Groß-/Kleinschreibung, `*` und `?` sind Platzhalter.
+  Die Suche läuft im Hintergrund unter Scan-Ordner und Zielordnern, bis acht
+  Ebenen tief und mit höchstens 50 Treffern; versteckte und Systemordner sowie
+  symbolische Links werden übersprungen.
+- **Größeres Rechtsklickmenü im Zielordner-Baum** (#93): Das Menü ist neu
+  gegliedert. Neu sind „📂 Unterordner öffnen“ (Untermenü), „➕ Alle Unterordner
+  aufklappen“ (drei Ebenen), „➖ Unterordner zuklappen“, „➖ Alles zuklappen“ und
+  „🔎 Diesen Ordner als Wurzel anzeigen“ (mit „Zurück zur Gesamtansicht“),
+  „📥 Hierhin verschieben“ für die links ausgewählten PDFs (wie ein Klick auf den
+  Ordner), „✏️ Ordner umbenennen“, „🗑️ Ordner löschen (in den Papierkorb)“ für
+  leere Ordner und „ℹ️ Inhalt anzeigen“ (in der Statusleiste). Beim Umbenennen
+  ziehen gespeicherte Zielordner, Favoriten, gelernte Zuordnungen und der
+  Suchindex mit. Doppelklick bleibt wie bisher.
+- **Korrespondenten neu gedacht** (#160): Der Korrespondent ist jetzt immer die
+  Gegenpartei aus Sicht des Nutzers – bei fremder Post der Absender, bei eigenen
+  Schreiben der Empfänger bzw. die andere Vertragspartei (Mietvertrag → Mieter,
+  Arztbrief als Arzt → Patient). Nie der Nutzer selbst, nie ein Formularverlag
+  wie „Haus & Grund“ oder Zweckform. Der bisherige rechte Reiter
   „Korrespondenten“ entfällt (rechts steht nur noch der Zielordner-Baum);
   stattdessen gibt es links neben „PDFs“ und „Chat“ den Reiter
   „Korrespondenten“: alle Korrespondenten aus dem Suchindex mit Anzahl und
   Suchfeld, darunter die Dokumente des gewählten (Klick zeigt sie in der
   Vorschau, Doppelklick öffnet, Rechtsklick „Im Explorer zeigen“ / „Ordner links
-  öffnen“). Schreibvarianten werden automatisch zusammengeführt (Groß/klein,
-  Satzzeichen, Rechtsformen, ae/ä; unklare Fälle entscheidet die KI einmal im
-  Hintergrund). Rechtsklick auf das Detailfeld Korrespondent springt zu allen
-  Dokumenten dieses Korrespondenten. „Aufräumen…“ prüft nur auffällige
+  öffnen“). Ein Klick auf ein Dokument füllt Detailbereich, Dateinamen- und
+  Ordnervorschläge wie unter „PDFs“; Verschieben, Kopieren, Umbenennen, Lernen
+  und Strg+Z funktionieren auch für Dateien außerhalb des links geöffneten
+  Ordners. Mehrere Dokumente lassen sich mit Strg/Umschalt markieren und
+  gemeinsam verschieben (ohne Umbenennen) oder kopieren, auch per Ziehen auf
+  einen Ordner (mit Strg wird kopiert). Beim Zurückwechseln ist die Auswahl
+  unter „PDFs“ wieder da. Schreibvarianten werden automatisch zusammengeführt
+  (Groß/klein, Satzzeichen, Rechtsformen, ae/ä; unklare Fälle entscheidet die KI
+  einmal im Hintergrund). Rechtsklick auf das Detailfeld Korrespondent springt
+  zu allen Dokumenten dieses Korrespondenten. „Aufräumen…“ prüft nur auffällige
   Dokumente (leer, der Nutzer selbst, Formularverlag) erneut per KI und
   speichert wie „Metadaten speichern“. Bearbeiten-, Zusammenführen- und
   Farb-Dialog entfallen.
-- **LM Studio als lokaler KI-Anbieter** (#45): Wer LM Studio bereits nutzt,
-  kann es in den Einstellungen als Anbieter „LM Studio“ wählen. Ein API-Key ist
-  nicht nötig, die Server-URL ist einstellbar (Standard
-  `http://localhost:1234/v1`). Läuft LM Studio, erkennt die App das sofort und
-  zeigt die verfügbaren Modelle zur Auswahl (Embedding-Modelle ausgenommen);
-  sonst erscheint der Hinweis, LM Studio zu starten und den lokalen Server zu
-  aktivieren. Im Einrichtungsassistenten wird LM Studio nur angeboten, wenn es
-  gerade läuft; die Empfehlung bleibt Ollama. Die App bietet LM Studio nie zum
-  Download an.
 - **Chat in der linken Spalte, Verschieben mit einem Klick** (#166): Der Chat
   ist jetzt ein zweiter Reiter neben „PDFs“ in der linken Spalte des
   Vorschau-Reiters; Detailbereich, Vorschau und Zielordner bleiben dabei
@@ -89,6 +219,63 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ein großes Modell (Ollama Cloud, OpenRouter, Claude) zum Fragen. Die
   Einwilligung für Cloud-Anbieter gilt auch hier. Die Statusleiste zeigt
   „Chat: Anbieter/Modell“, wenn es abweicht.
+- **Schwer lesbare Scans** (#47): Ist der Text eines Scans schlecht erkannt
+  (weniger als 60 % der Zeichen sicher gelesen), trägt die Kachel oben rechts
+  ein orangefarbenes Warndreieck. Im Rechtsklickmenü gibt es „OCR wiederholen
+  mit …“ mit den installierten Tesseract-Sprachen und Kombinationen wie
+  Deutsch + Englisch; fehlt Fraktur, steht dort ein Installationshinweis. Ein
+  besseres Ergebnis ersetzt den Text in Analyse und Suchindex, ein schlechteres
+  wird verworfen, gemeldet wird beides; die Textebene in der PDF bleibt
+  unverändert. „Handschrift mit KI entziffern (Bilderkennung)“ schickt bis zu
+  zehn Seiten als Bild an das eingestellte Modell, sofern es Bilder versteht
+  (Claude, OpenAI, OpenRouter, Strata, Ollama); sonst erklärt ein Hinweis, wo
+  man ein passendes Modell einstellt. Bei Cloud-Anbietern wird vorher gefragt.
+  Das Ergebnis lässt sich kopieren oder mit „Als Text übernehmen“ speichern;
+  danach analysiert PDFSM das PDF neu und erzeugt die KI-Metadaten aus dem
+  entzifferten Text.
+- **LM Studio als lokaler KI-Anbieter** (#45): Wer LM Studio bereits nutzt,
+  kann es in den Einstellungen als Anbieter „LM Studio“ wählen. Ein API-Key ist
+  nicht nötig, die Server-URL ist einstellbar (Standard
+  `http://localhost:1234/v1`). Läuft LM Studio, erkennt die App das sofort und
+  zeigt die verfügbaren Modelle zur Auswahl (Embedding-Modelle ausgenommen);
+  sonst erscheint der Hinweis, LM Studio zu starten und den lokalen Server zu
+  aktivieren. Im Einrichtungsassistenten wird LM Studio nur angeboten, wenn es
+  gerade läuft; die Empfehlung bleibt Ollama. Die App bietet LM Studio nie zum
+  Download an. LM Studio lässt sich auch als eigenes Chat-Modell wählen.
+- **Sortierung der Kacheln** (#33): Über den Kacheln steht neben „Ansicht:“ das
+  Auswahlfeld „Sortieren:“ mit Datum (neueste/älteste zuerst), Name (A–Z/Z–A)
+  und Größe (größte/kleinste zuerst). Namen werden natürlich sortiert („Scan 2“
+  vor „Scan 10“). Umschalten ordnet nur um, ohne neue Analyse; Auswahl und
+  Mehrfachauswahl bleiben, die Wahl bleibt nach einem Neustart erhalten.
+  Standard ist wie bisher Datum, neueste zuerst.
+- **Suche: „Im Ordner anzeigen“**: Rechtsklick auf einen Treffer (PDF oder
+  sortierbare Office-Datei) im Reiter „Suche“ › „📂 Im Ordner anzeigen“ öffnet
+  dessen Ordner unter „PDFs“, wechselt auf „Vorschau“ und wählt die Datei aus.
+  Von dort lässt sie sich umbenennen und verschieben.
+- **Alle markieren (Strg+A)**: Bearbeiten › „Alle markieren“ markiert in der
+  Kachelansicht „PDFs“ alle Kacheln, sobald der Fokus dort liegt (ein Klick auf
+  eine Kachel oder die Fläche genügt); in Textfeldern markiert Strg+A wie
+  gewohnt den Text. Die aktive PDF bleibt aktiv.
+- **Regenbogenrahmen am besten Vorschlag** (#32): Ist der beste Ordnervorschlag
+  zu mindestens 85 % sicher, läuft ein farbiger Rahmen um ihn. Nur der erste
+  solche Vorschlag bekommt ihn, nie ein neu anzulegender Ordner; Klickverhalten
+  und grüne Hervorhebung bleiben.
+- **Backup-Erinnerung** (#14): Alle 7 Tage (einstellbar unter Einstellungen ›
+  Allgemein › „Backup-Erinnerung“, 0 = aus) fragt PDFSM „Haben Sie in den
+  letzten 7 Tagen ein Backup gemacht?“. Bei „Nein“ steht dezent „Kein aktuelles
+  Backup gemacht“ in der Statusleiste, auch nach einem Neustart; ein Klick
+  darauf bestätigt das Backup. Ist das neueste Protokoll von Macrium Reflect
+  jünger als der eingestellte Abstand, entfällt die Frage. Beim Start erscheint
+  höchstens ein Hinweisfenster, das erste fällige aus Erste Schritte,
+  Backup-Hinweis, Backup-Frage und Unterstützen.
+- **Unterstützen** (#115): Hilfe › „Unterstützen ...“ öffnet einen Dialog mit
+  freiwilligen Beträgen in Stufen (z. B. „Ein Kaffee – 3 €“); jeder Knopf führt
+  zur Zahlungsseite, der Betrag wird dort eingegeben. Ausdrücklich ohne
+  Gegenleistung und ohne Freischaltung von Funktionen. Nach „Ich habe gerade
+  unterstützt“ pausiert der Hinweis je nach Betrag, ab 49 € für immer, und der
+  Über-Dialog zeigt „Unterstützer seit …“. Von selbst erscheint der Hinweis erst
+  ab 50 sortierten Dokumenten und dann höchstens alle 30 Tage; unter
+  Einstellungen › Allgemein › „Unterstützen“ lässt er sich abschalten.
 
 ### Behoben
 - **Stapeln rückgängig machen** (#189): Lag das Dokument auf einem anderen
@@ -100,6 +287,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Stapeln wie bei Papier** (#190): Die gezogene PDF wird Seite 1, die
   darunterliegende folgt (bisher umgekehrt). Mehrere gezogene PDFs kommen in
   ihrer Reihenfolge alle davor. Namen und Ablageort behält die Ziel-PDF.
+- **Mehrere PDFs auf einen Ordner ziehen**: Zog man mehrere markierte PDFs auf
+  einen Ordner, wurden sie verschoben, aber für jede weitere Datei kam
+  zusätzlich ein Fehlerdialog „Quelldatei nicht gefunden“.
+- **Mittlere Spalte ließ sich nicht vergrößern** (#188): Die Trennstriche
+  zwischen den drei Spalten des Hauptfensters standen am Anschlag, weil
+  Beschriftungen, Auswahlfelder und Vorschläge zusammen über 2400 Pixel
+  Mindestbreite verlangten. Jetzt haben die Spalten feste Mindestbreiten, die
+  Trennstriche lassen sich stufenlos ziehen (auch über Remote Desktop), und
+  keine Spalte klappt dabei ganz zu.
 - **Kategorie ist genau ein Wert**: Die KI schrieb gelegentlich die
   Auswahlliste aus dem Prompt ab („Rechnung/Vertrag/Steuer/…“), ältere PDFs
   trugen „{'Sonstiges'}“. Solche Werte landen nicht mehr in PDF, Suchindex,
@@ -114,6 +310,33 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Meldung an den Suchindex vor der Konsolenausgabe raus.
 
 ### Verbessert
+- **Ordnervorschläge als kompakte Zeilen**: Die Vorschläge rechts stehen nicht
+  mehr als Kacheln, sondern als schmale Zeilen in ein bis drei Spalten je nach
+  Breite: oben grau der Anfang des Pfads mit Laufwerk, unten das Ende mit dem
+  Zielordner fett, rechts die Prozentzahl. Ist der Pfad zu lang, fallen links
+  ganze Ordner weg; der Tooltip zeigt den vollen Pfad und ist nicht mehr
+  schwarz. Sortiert wird nach Konfidenz (ein neu anzulegender Ordner steht
+  vorn), bisher stand der KI- oder Verknüpfungsordner immer oben. Der Ordner, in
+  dem die PDF schon liegt, wird nicht mehr vorgeschlagen.
+- **Löschen in den Papierkorb** (#124): „Löschen“ verschiebt Dateien jetzt in
+  den Papierkorb des Systems, statt sie endgültig zu löschen, und Strg+Z holt
+  sie zurück, mit klarer Meldung, wenn die Datei nicht mehr im Papierkorb liegt
+  oder der Platz belegt ist. Ist kein Papierkorb verfügbar, fragt PDFSM
+  ausdrücklich, ob endgültig gelöscht werden soll. Das gilt auch für Word-,
+  Excel- und Bilddateien.
+- **Zeitraum frei eintippen** (#161): Statt Kalenderfeldern mit Häkchen für
+  „von“ und „bis“ gibt es in der Filterleiste („Filter ▼“) und im Reiter „Suche“
+  ein Feld „Zeitraum“: `2024`, `12/2024`, `Jan 2024`, `Q2 2024`, `3.5.2024`,
+  Bereiche wie `2004-2006`, `12/2023-3/2024` oder `2004 bis 2006` und offene
+  Angaben wie `ab 2020` oder `bis 12/2023`. Darunter steht grau, wie die Eingabe
+  verstanden wird; Unlesbares bekommt einen roten Rand und löst keine Suche aus.
+  Das Datumsfeld in der Detailansicht nimmt „3.5.24“, „03.05.2024“,
+  „3. Mai 2024“ oder „2024-05-03“ und schreibt daraus beim Verlassen JJJJ-MM-TT.
+- **Chat-Antworten formatiert** (#199): Antworten im Chat erscheinen mit Fett-
+  und Kursivschrift, Listen, Überschriften, Code in Festbreitenschrift und
+  Tabellen statt mit Markdown-Zeichen. Die Quellenverweise wie `[1]` bleiben
+  klickbar, auch in Listen und Fettdruck. HTML aus der Antwort erscheint als
+  Text, andere Links sind nicht anklickbar.
 - **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
   Bezugsdokument zieht der Chat Vertrags-, Kunden-, Zähler- und
   Rechnungsnummern, IBANs und ähnliche Codes aus dem Text und sucht damit
@@ -1165,7 +1388,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.22.0...v0.23.0
