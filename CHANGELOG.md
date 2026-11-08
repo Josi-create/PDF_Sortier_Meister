@@ -85,6 +85,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Scan-Eingang wird als „noch unsortiert“ gekennzeichnet, damit die KI den
   Eingang nicht als Ablageort vorschlägt.
 
+### Entfernt
+- **Automatisierungs-Regeln** (#125): Der Reiter „Automatisierungs-Regeln“ in
+  den Einstellungen, der Regel-Editor und der Statusleisten-Hinweis nach dem
+  Verschieben sind weg. Die Regeln griffen in der Praxis nie, weil sie erst
+  nach dem Verschieben geprüft wurden und nur einen Hinweis zeigten. Bereits
+  gespeicherte Regeln bleiben unberührt in der Datenbank, bestehende
+  Datenbanken öffnen weiter ohne Migration.
+
 ## [0.25.0] - 2026-11-07
 
 ### Neu
