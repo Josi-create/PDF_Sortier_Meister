@@ -7,6 +7,7 @@ und klickt rechts auf einen Zielordner zum Verschieben+Umbenennen.
 """
 
 from pathlib import Path
+from datetime import date
 from typing import Optional
 
 import logging
@@ -37,7 +38,20 @@ from PyQt6.QtWidgets import (
 
 logger = logging.getLogger(__name__)
 
+from src.core import datum_eingabe
 from src.core.document_date import is_iso_date, parse_user_date
+
+
+def _datum_iso(text: str) -> Optional[str]:
+    """Tag aus dem Feld "Datum" als JJJJ-MM-TT (None, wenn unlesbar oder kein ganzer Tag).
+
+    Erst die freie Eingabe (Issue #161: "3.5.24", "3. Mai 2024"), danach wie
+    bisher das erste Datum im Text (markierter Vorschautext).
+    """
+    tag = datum_eingabe.parse_tag(text)
+    if isinstance(tag, date):
+        return tag.isoformat()
+    return parse_user_date(text)
 from src.core.llm_activity import (
     KIND_SUGGEST,
     format_elapsed,
@@ -450,7 +464,7 @@ class DetailPanel(QWidget):
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
                 if field_key == "buchungsdatum":
-                    input_field.setPlaceholderText("JJJJ-MM-TT")
+                    input_field.setPlaceholderText("z. B. 3.5.24")
                     # Vor dem allgemeinen textChanged-Handler: Steuerjahr nachziehen
                     input_field.textChanged.connect(self._on_date_field_changed)
                     input_field.editingFinished.connect(self._normalize_date_field)
@@ -458,7 +472,19 @@ class DetailPanel(QWidget):
                 # Letztes einzelnes Feld ohne Partner (IBAN) ueber die volle Breite
                 span = 3 if (col == 0 and idx == single_count - 1) else 1
                 grid.addWidget(label, row_idx, col * 2)
-                grid.addWidget(input_field, row_idx, col * 2 + 1, 1, span)
+                if field_key == "buchungsdatum":
+                    # Feld + graue Deutung darunter (Issue #161)
+                    cell = QWidget()
+                    cell_layout = QVBoxLayout(cell)
+                    cell_layout.setContentsMargins(0, 0, 0, 0)
+                    cell_layout.setSpacing(1)
+                    cell_layout.addWidget(input_field)
+                    self._date_hint = QLabel("")
+                    self._date_hint.setVisible(False)
+                    cell_layout.addWidget(self._date_hint)
+                    grid.addWidget(cell, row_idx, col * 2 + 1, 1, span)
+                else:
+                    grid.addWidget(input_field, row_idx, col * 2 + 1, 1, span)
 
             tooltip = field_tooltips.get(field_key)
             if tooltip:
@@ -801,7 +827,7 @@ class DetailPanel(QWidget):
                 value = input_field.text().strip()
             if field_key == "buchungsdatum":
                 # Nur ein lesbares Datum wird gespeichert - als JJJJ-MM-TT
-                value = parse_user_date(value) or ""
+                value = _datum_iso(value) or ""
             if value:
                 metadata[field_key] = value
         return metadata
@@ -811,7 +837,7 @@ class DetailPanel(QWidget):
         widget = self._metadata_inputs.get("buchungsdatum")
         if widget is None:
             return None
-        return parse_user_date(widget.text())
+        return _datum_iso(widget.text())
 
     def has_user_edits(self) -> bool:
         """True, wenn der Nutzer Dateiname oder Metadaten selbst geaendert hat.
@@ -941,12 +967,13 @@ class DetailPanel(QWidget):
     # --- Feld "Datum" (Issue #132) -------------------------------------- #
 
     _DATE_TOOLTIP = (
-        "Datum des Dokuments (JJJJ-MM-TT) - Quelle für {datum} im Dateinamen\n"
+        "Datum des Dokuments - Quelle für {datum} im Dateinamen\n"
         "und Vorlage für das Steuerjahr.\n"
-        "Eingabe auch als TT.MM.JJJJ möglich; oder das Datum in der Vorschau\n"
+        "Frei eintippen: 3.5.24, 03.05.2024, 3. Mai 2024 oder 2024-05-03;\n"
+        "gespeichert wird JJJJ-MM-TT. Oder das Datum in der Vorschau\n"
         "markieren und per Rechtsklick „Als Datum übernehmen“."
     )
-    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte als JJJJ-MM-TT oder TT.MM.JJJJ eingeben."
+    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024."
     _INVALID_FIELD_STYLE = " border: 1px solid #d32f2f; background-color: #fdecea; border-radius: 3px;"
 
     @staticmethod
@@ -971,10 +998,11 @@ class DetailPanel(QWidget):
         "Eigenstaendig" heisst: das Steuerjahr entspricht weder dem Jahr des
         bisherigen Datums noch ist es leer - dann bleibt es unangetastet.
         """
-        new_iso = parse_user_date(text)
+        new_iso = _datum_iso(text)
         prev_year = (self._date_prev_iso or "")[:4]
         self._date_prev_iso = new_iso
         invalid = bool(text.strip()) and new_iso is None
+        self._update_date_hint(text, new_iso)
         if invalid != self._date_invalid:
             self._date_invalid = invalid
             widget = self._metadata_inputs.get("buchungsdatum")
@@ -991,12 +1019,29 @@ class DetailPanel(QWidget):
         if current in ("", prev_year) and current != year:
             steuerjahr.setText(year)
 
+    def _update_date_hint(self, text: str, iso: Optional[str]) -> None:
+        """Graue Deutung ("= 03.05.2024") bzw. roter Hinweis unter dem Feld "Datum"."""
+        hint = getattr(self, "_date_hint", None)
+        if hint is None:
+            return
+        text = text.strip()
+        if not text or (iso and text == iso):
+            hint.setVisible(False)
+            return
+        if iso:
+            hint.setText(f"= {datum_eingabe.tag_text(date.fromisoformat(iso))}")
+            hint.setStyleSheet("color: #888; font-size: 10px;")
+        else:
+            hint.setText(datum_eingabe.beschreibe(datum_eingabe.parse_tag(text)))
+            hint.setStyleSheet("color: #b71c1c; font-size: 10px;")
+        hint.setVisible(True)
+
     def _normalize_date_field(self):
         """Nach der Eingabe: "12.3.2004" -> "2004-03-12"; Unlesbares bleibt stehen."""
         widget = self._metadata_inputs.get("buchungsdatum")
         if widget is None:
             return
-        iso = parse_user_date(widget.text())
+        iso = _datum_iso(widget.text())
         if iso and widget.text().strip() != iso:
             widget.setText(iso)
 

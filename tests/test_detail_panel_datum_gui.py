@@ -3,6 +3,7 @@
 Das Datum ist die eine Quelle fuer {datum} in den Mustern, belegt das
 Steuerjahr vor und laesst sich aus der Vorschau uebernehmen oder tippen.
 """
+import pytest
 from PyQt6.QtWidgets import QLineEdit
 
 from src.gui.rename_dialog import RenameSuggestion
@@ -170,3 +171,33 @@ def test_gespeichertes_datum_kommt_aus_der_pdf(qtbot, monkeypatch, tmp_path):
     qtbot.waitUntil(lambda: panel._metadata_source == "pdf", timeout=5000)
     assert panel._metadata_inputs["buchungsdatum"].text() == "2004-03-12"
     assert "buchungsdatum" in panel._saved_metadata_snapshot
+
+
+@pytest.mark.parametrize("eingabe", ["3.5.24", "03.05.2024", "3. Mai 2024", "2024-05-03"])
+def test_datum_feld_normalisiert_freie_eingabe_zu_iso(qtbot, monkeypatch, tmp_path, eingabe):
+    panel = _panel(qtbot, monkeypatch, tmp_path)
+    _show(panel, tmp_path)
+    datum = panel._metadata_inputs["buchungsdatum"]
+    datum.setText(eingabe)
+    if eingabe != "2024-05-03":
+        assert panel._date_hint.isVisibleTo(panel) and panel._date_hint.text() == "= 03.05.2024"
+    assert panel.get_metadata()["buchungsdatum"] == "2024-05-03"
+    datum.editingFinished.emit()
+    assert datum.text() == "2024-05-03"
+    assert not panel._date_hint.isVisibleTo(panel)
+    assert "#d32f2f" not in datum.styleSheet()
+
+
+@pytest.mark.parametrize("eingabe,hinweis", [
+    ("2024", "ganzen Tag"), ("Mai 2024", "ganzen Tag"), ("abc", "nicht erkannt"),
+])
+def test_datum_feld_nur_eindeutige_tage_sind_gueltig(qtbot, monkeypatch, tmp_path, eingabe, hinweis):
+    panel = _panel(qtbot, monkeypatch, tmp_path)
+    _show(panel, tmp_path)
+    datum = panel._metadata_inputs["buchungsdatum"]
+    datum.setText(eingabe)
+    assert "buchungsdatum" not in panel.get_metadata()
+    assert "#d32f2f" in datum.styleSheet()
+    assert hinweis in panel._date_hint.text() and panel._date_hint.isVisibleTo(panel)
+    datum.editingFinished.emit()
+    assert datum.text() == eingabe  # Unlesbares bleibt stehen

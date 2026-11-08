@@ -137,3 +137,28 @@ def test_werkzeugleisten_suche_landet_im_reiter(qtbot, hauptfenster):
     assert win.search_view.search_edit.text() == "" and win.search_view.meta_combos["steuerjahr"].currentIndex() == 0
     qtbot.wait(800)   # eine nachlaufende Antwort der vorigen Abfrage darf die Liste nicht mehr fuellen
     assert win.search_view.karten() == [] and win.search_count_label.text() == ""
+
+
+def test_zeitraum_feld_der_filterleiste_gibt_grenzen_an_den_reiter(qtbot, hauptfenster):
+    win = hauptfenster
+    win.filter_toggle_btn.setChecked(True)
+    assert not hasattr(win, "filter_datum_von")
+    win.filter_zeitraum.setText("2004-2006")
+    assert win.filter_zeitraum.hinweis.text() == "= 01.01.2004 – 31.12.2006"
+    assert win._has_active_filters()
+    with qtbot.waitSignal(win.search_view.suche_fertig, timeout=15000):
+        win.filter_zeitraum.edit.returnPressed.emit()
+    assert win.search_view._filter_argumente()["von"] == "2004-01-01"
+    assert win.search_view._filter_argumente()["bis"] == "2006-12-31"
+    assert win.search_view.zeitraum_edit.text() == "01.01.2004 bis 31.12.2006"
+    # Unlesbar: roter Rand und Hinweis, es wird keine Suche ausgeloest
+    ausgeloest = []
+    win.filter_zeitraum.geaendert.connect(lambda: ausgeloest.append(1))
+    win.filter_zeitraum.setText("Quatsch")
+    win.filter_zeitraum.edit.returnPressed.emit()
+    assert "#d32f2f" in win.filter_zeitraum.edit.styleSheet()
+    assert win.filter_zeitraum.hinweis.text().startswith("nicht erkannt")
+    assert ausgeloest == []
+    win._reset_filters()
+    assert win.filter_zeitraum.text() == "" and not win._has_active_filters()
+    assert win.search_view.zeitraum_edit.text() == ""
