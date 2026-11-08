@@ -483,14 +483,24 @@ class HybridClassifier:
             from src.core.similar_documents import (
                 describe_similar_for_prompt, document_year, find_similar_documents,
             )
-            roots = get_config().get_target_folders()
+            config = get_config()
+            roots = config.get_target_folders()
             if not roots:
                 return ""
             similar = find_similar_documents(text, keywords, roots, db=get_database(), limit=5)
-            return describe_similar_for_prompt(similar, document_year(detected_date, file_date), roots)
+            info = describe_similar_for_prompt(similar, document_year(detected_date, file_date), roots)
         except Exception as e:  # noqa: BLE001 - Kontext ist optional
             logger.debug(f"Aehnliche Dokumente nicht verfuegbar: {e}")
             return ""
+        # Issue #116: vorhandene Ordner als relative Pfade; die KI darf dann
+        # auch einen neuen Pfad unter einem Zielordner nennen
+        try:
+            from src.core import neuer_ordner
+            if neuer_ordner.aktiv(config):
+                info += neuer_ordner.ordnerliste_fuer_prompt(roots)
+        except Exception as e:  # noqa: BLE001 - Kontext ist optional
+            logger.debug(f"Ordnerliste fuer den Prompt nicht verfuegbar: {e}")
+        return info
 
     def _get_llm_filename_suggestion(
         self,

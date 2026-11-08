@@ -88,6 +88,8 @@ class Config:
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
+        # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
+        "suggest_new_folders": True,
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Johannes Härle-Wack"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
