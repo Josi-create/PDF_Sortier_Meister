@@ -2767,8 +2767,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             if is_new:
                 widget.set_neu(True)
 
-            # Name = letzter Pfadteil (fett), darunter grau der volle Pfad des Elternordners.
-            # Passt er nicht, faellt er von links in ganzen Ordnern weg (Live-Test 08.11.2026)
+            # Voller Pfad auf zwei Zeilen: unten das Ende mit dem Zielordner fett, oben der
+            # Anfang; was nicht passt, faellt oben links weg (Live-Test 08.11.2026)
             rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
             elternpfad, _, name = rel.rpartition("/")
             if not name:
@@ -2776,9 +2776,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             ordner = Path(suggestion.folder_path) if suggestion.folder_path else None
             if ordner is not None and ordner.is_absolute():
                 elternpfad = str(ordner.parent)
-            if is_new:
-                name = f"➕ neu: {name}"
-            widget.set_anzeige(name, elternpfad)
+            widget.set_anzeige(name, elternpfad, "➕ neu: " if is_new else "")
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             voller_pfad = str(ordner) if ordner is not None and ordner.is_absolute() else (

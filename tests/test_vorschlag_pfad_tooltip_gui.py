@@ -12,7 +12,13 @@ import pytest
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QApplication, QToolTip
 
-from src.gui.vorschlag_liste import AUSLASSUNG, VorschlagListe, VorschlagZeile, pfad_kuerzen
+from src.gui.vorschlag_liste import (
+    AUSLASSUNG,
+    VorschlagListe,
+    VorschlagZeile,
+    pfad_kuerzen,
+    zeilen_aufteilen,
+)
 from tests.test_vorschlag_liste_gui import _aufbau
 
 
@@ -48,21 +54,79 @@ def test_zu_schmal_fuer_den_letzten_ordner_zeigt_dessen_ende():
     assert pfad_kuerzen("C:\\A\\Versicherungen", _laenge, 0) == AUSLASSUNG
 
 
+# --- zeilen_aufteilen: unten Ende + fettes Ziel, oben der Anfang --------------
+
+def _halb(text: str) -> int:
+    return len(text) // 2  # obere Zeile: kleinere Schrift
+
+
+def _teilen(breite, eltern="E:\\Users\\johan_000\\OneDrive\\1PaperPort14", name="Kinder", praefix="",
+            messen_oben=_halb):
+    return zeilen_aufteilen(eltern, name, breite, messen_oben, _laenge, _laenge, praefix)
+
+
+def test_beispiel_des_users():
+    # unten passt "\1PaperPort14" + "\Kinder" (20 Zeichen), mehr nicht
+    assert _teilen(20) == ("E:\\Users\\johan_000\\OneDrive\\", "\\1PaperPort14", "\\Kinder")
+
+
+def test_unten_wird_von_rechts_gefuellt_oben_bekommt_den_rest():
+    oben, unten, fett = _teilen(29)
+    assert (oben, unten, fett) == ("E:\\Users\\johan_000\\", "\\OneDrive\\1PaperPort14", "\\Kinder")
+    assert oben + unten[1:] + fett == "E:\\Users\\johan_000\\OneDrive\\1PaperPort14\\Kinder"
+
+
+def test_passt_alles_unten_bleibt_oben_leer():
+    assert _teilen(200) == ("", "E:\\Users\\johan_000\\OneDrive\\1PaperPort14", "\\Kinder")
+    assert _teilen(0) == ("", "E:\\Users\\johan_000\\OneDrive\\1PaperPort14", "\\Kinder")  # Geometrie unbekannt
+
+
+def test_oben_zu_lang_faellt_links_in_ganzen_ordnern_weg():
+    eltern = "E:\\Users\\johan_000\\Sehr langer Ordnername\\Noch einer\\OneDrive\\1PaperPort14"
+    oben, unten, fett = _teilen(len("\\OneDrive\\1PaperPort14\\Kinder"), eltern, messen_oben=_laenge)
+    assert unten == "\\OneDrive\\1PaperPort14" and fett == "\\Kinder"
+    assert oben == "…\\Noch einer\\"  # der Ordner direkt ueber der unteren Zeile bleibt
+
+
+def test_nur_das_ziel_passt_unten():
+    oben, unten, fett = _teilen(len("\\Kinder") + 2)
+    assert unten == "" and fett == "\\Kinder"
+    assert oben == "…\\1PaperPort14\\"
+
+
+def test_ziel_zu_lang_wird_rechts_gekuerzt():
+    oben, unten, fett = _teilen(5)
+    assert fett.endswith(AUSLASSUNG) and len(fett) <= 5 and fett.startswith("\\Ki")
+    assert unten == "" and oben.endswith("\\")
+
+
+def test_praefix_fuer_neue_ordner_und_unix_pfade():
+    oben, unten, fett = zeilen_aufteilen("/home/ich/Steuer 2026", "Versicherungen", 200,
+                                         _laenge, _laenge, _laenge, "➕ neu: ")
+    assert (oben, unten, fett) == ("", "➕ neu: /home/ich/Steuer 2026", "/Versicherungen")
+    oben, unten, fett = zeilen_aufteilen("/home/ich/Steuer 2026", "Versicherungen",
+                                         len("➕ neu: /Steuer 2026/Versicherungen"),
+                                         _laenge, _laenge, _laenge, "➕ neu: ")
+    assert (oben, unten, fett) == ("/home/ich/", "➕ neu: /Steuer 2026", "/Versicherungen")
+
+
 # --- Vorschlagszeile im Hauptfenster-Ablauf ----------------------------------
 
-def test_zeile_zeigt_vollen_elternpfad_rechts_mit_vorrang(qtbot, tmp_path):
+def test_zeile_zeigt_vollen_pfad_auf_zwei_zeilen(qtbot, tmp_path):
     rel = "Ablage/" + "/".join(["Sehr langer Unterordner"] * 4) + "/Steuer 2025/Ziel"
     host, liste, fake = _aufbau(qtbot, tmp_path, 1, 260, rels=[rel])
     z = fake.suggestion_widgets[0]
     eltern = (tmp_path / Path(rel)).parent
     assert z._pfad_voll == str(eltern)  # absoluter Pfad samt Laufwerk
-    text = z.path_label.text()
-    assert text.startswith(AUSLASSUNG) and text.endswith("Steuer 2025")  # Ordner direkt darueber sichtbar
+    oben, unten, fett = z._zeilen
+    assert fett == "\\Ziel" and "<b>\\Ziel</b>" in z.name_label.text()  # Ziel fett, unten
+    assert oben.endswith("\\") and z.path_label.text() == oben and z.path_label.isVisibleTo(z)
     assert str(tmp_path / Path(rel)) in z.toolTip()
 
-    # Breit genug: ganzer Pfad (ein Vorschlag bekommt nur eine von drei Spalten)
+    # Breit genug: alles unten, obere Zeile weg (ein Vorschlag bekommt eine von drei Spalten)
     host.resize(30000, 400)
-    qtbot.waitUntil(lambda: z.path_label.text() == str(eltern), timeout=2000)
+    qtbot.waitUntil(lambda: z._zeilen == ("", str(eltern), "\\Ziel"), timeout=2000)
+    assert not z.path_label.isVisibleTo(z)
 
 
 def test_neuer_ordner_zeigt_ebenfalls_den_vollen_elternpfad(qtbot, tmp_path):
@@ -76,7 +140,8 @@ def test_neuer_ordner_zeigt_ebenfalls_den_vollen_elternpfad(qtbot, tmp_path):
     MainWindow.display_suggestions(fake, [s])
     z = fake.suggestion_widgets[0]
     assert z._pfad_voll == str(tmp_path / "Steuer 2026")
-    assert z._name_voll == "➕ neu: Versicherungen"
+    assert z._name_voll == "Versicherungen" and z._praefix == "➕ neu: "
+    assert "➕ neu: " in z.name_label.text() and "<b>\\Versicherungen</b>" in z.name_label.text()
 
 
 # --- Tooltips ----------------------------------------------------------------

@@ -92,8 +92,8 @@ def test_langer_pfad_gekuerzt_tooltip_voll(qtbot, tmp_path):
     lang = "Ablage/" + "/".join(["Sehr langer Unterordner"] * 5) + "/Ziel"
     host, liste, fake = _aufbau(qtbot, tmp_path, 1, 300, rels=[lang])
     z = fake.suggestion_widgets[0]
-    assert z.name_label.text() == "Ziel"
-    assert z.path_label.text() != z._pfad_voll and "…" in z.path_label.text()
+    assert z._zeilen[2].endswith("Ziel") and "<b>" in z.name_label.text()  # Ziel unten, fett
+    assert z.path_label.text() and z.path_label.text() != z._pfad_voll  # oben gekuerzter Anfang
     assert str(tmp_path / Path(lang)) in z.toolTip()  # voller Pfad samt Laufwerk
 
 
