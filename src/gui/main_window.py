@@ -52,7 +52,7 @@ from src.utils.pdf_open import OPEN_MODE_INTEGRATED, normalize_open_mode, open_p
 from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
-from src.gui.korrespondent_sidebar import KorrespondentSidebar
+from src.gui.korrespondenten_view import KorrespondentenView
 from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
@@ -326,6 +326,17 @@ class MainWindow(QMainWindow):
         self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
         self.left_tabs.addTab(self.chat_view, "Chat")
         self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        # Korrespondenten aus dem Suchindex mit ihren Dokumenten (Issue #160)
+        self.korrespondenten_view = KorrespondentenView(
+            self.db, self.config, self.hybrid_classifier,
+            wurzeln=lambda: list(self.folder_manager.target_folders),
+        )
+        self.korrespondenten_view.dokument_gewaehlt.connect(self._on_korrespondent_dokument)
+        self.korrespondenten_view.dokument_oeffnen.connect(self.open_pdf_external)
+        self.korrespondenten_view.ordner_oeffnen.connect(self._on_korrespondent_ordner)
+        self.korrespondenten_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.left_tabs.addTab(self.korrespondenten_view, "Korrespondenten")
+        self.left_tabs.setTabToolTip(2, "Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente")
         self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
         splitter.addWidget(self.left_tabs)
 
@@ -338,6 +349,7 @@ class MainWindow(QMainWindow):
         self.detail_panel.office_preview_requested.connect(self._on_office_preview_requested)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
+        self.detail_panel.korrespondent_dokumente_requested.connect(self.show_korrespondent)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
         if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
@@ -387,9 +399,41 @@ class MainWindow(QMainWindow):
 
     def _on_left_tab_changed(self, index: int) -> None:
         """Linke Spalte: beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148)."""
-        if self.left_tabs.widget(index) is self.chat_view:
+        widget = self.left_tabs.widget(index)
+        if widget is self.korrespondenten_view:
+            self.korrespondenten_view.refresh()
+        elif self.detail_panel.zeigt_ansicht():
+            self._detail_panel_zuruecksetzen()  # Ansicht aus dem Reiter "Korrespondenten" beenden (#160)
+        if widget is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
+
+    def show_korrespondent(self, name: str) -> None:
+        """Reiter "Korrespondenten" mit diesem Korrespondenten zeigen (Rechtsklick im Detailbereich, #160)."""
+        self.left_tabs.setCurrentWidget(self.korrespondenten_view)
+        self.korrespondenten_view.waehlen(name)
+
+    def _on_korrespondent_dokument(self, dok: dict) -> None:
+        """Dokument aus dem Reiter "Korrespondenten" in der Mitte zeigen (Vorschau, ohne Felder)."""
+        pfad = Path(dok.get("datei") or dok.get("pfad") or "")
+        zeilen = [pfad.name]
+        angaben = [str(dok.get(k) or "") for k in ("korrespondent", "kategorie", "buchungsdatum")]
+        if any(angaben):
+            zeilen.append(" · ".join(a for a in angaben if a))
+        zeilen.append(str(pfad.parent))
+        self.detail_panel.zeige_ansicht(pfad, "\n".join(zeilen))
+
+    def _on_korrespondent_ordner(self, ordner: Path) -> None:
+        """Kontextmenue "Ordner links öffnen": Ordner in der Liste "PDFs" zeigen."""
+        self._navigate_to_folder(Path(ordner))
+        self.left_tabs.setCurrentIndex(0)
+
+    def _detail_panel_zuruecksetzen(self) -> None:
+        """Detailbereich wieder fuer die ausgewaehlte PDF fuellen (oder leeren)."""
+        if self.selected_pdf is not None and Path(self.selected_pdf).exists():
+            self.update_suggestions_for_pdf(self.selected_pdf)
+        else:
+            self.detail_panel.clear()
 
     def show_chat_tab(self) -> None:
         """Wechselt in der linken Spalte auf den Chat."""
@@ -695,22 +739,21 @@ class MainWindow(QMainWindow):
         return panel
 
     def create_folder_panel(self) -> QWidget:
-        """Erstellt das Panel für die Zielordner und Korrespondenten (Phase 20).
+        """Erstellt das Panel für die Zielordner.
 
         Inhalt:
             * Kopfzeile (Titel + Buttons)
             * Vorschlagsbereich
             * Trennlinie
-            * QTabWidget mit zwei Tabs:
-                - "Zielordner"   -> FolderTreeWidget (bisheriges Verhalten)
-                - "Korrespondenten" -> KorrespondentSidebar (Phase 20)
+            * Zielordner-Baum (FolderTreeWidget); die Korrespondenten sind seit
+              Issue #160 ein Reiter der linken Spalte
         """
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
         # Überschrift mit Buttons
         header_layout = QHBoxLayout()
-        header = QLabel("Zielordner & Korrespondenten")
+        header = QLabel("Zielordner")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(header)
         header_layout.addStretch()
@@ -760,12 +803,7 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
-        # Tab-Widget: Zielordner + Korrespondenten (Phase 20 / Issue #21)
-        self.right_panel_tabs = QTabWidget()
-        self.right_panel_tabs.setTabPosition(QTabWidget.TabPosition.North)
-        self.right_panel_tabs.setStyleSheet("QTabBar::tab { padding: 4px 10px; }")
-
-        # --- Tab "Zielordner" (bisheriges Verhalten) ---
+        # Zielordner-Baum
         folder_tree_container = QWidget()
         ft_layout = QVBoxLayout(folder_tree_container)
         ft_layout.setContentsMargins(0, 0, 0, 0)
@@ -793,63 +831,9 @@ class MainWindow(QMainWindow):
         self.folder_container.hide()  # Grid-Ansicht versteckt
         ft_layout.addWidget(self.folder_container)
 
-        self.right_panel_tabs.addTab(folder_tree_container, "Zielordner")
-        self.right_panel_tabs.setTabToolTip(
-            0, "Zielordner-Baum: hier klicken, um die ausgewählte PDF zu verschieben"
-        )
-
-        # --- Tab "Korrespondenten" (Phase 20 / Issue #21) ---
-        self.korrespondent_sidebar = KorrespondentSidebar(self.db, parent=self)
-        self.korrespondent_sidebar.korrespondent_selected.connect(
-            self._on_korrespondent_sidebar_selected
-        )
-        self.right_panel_tabs.addTab(self.korrespondent_sidebar, "Korrespondenten")
-        self.right_panel_tabs.setTabToolTip(
-            1, "Bekannte Korrespondenten - anklicken filtert die Dokumente danach"
-        )
-
-        layout.addWidget(self.right_panel_tabs, stretch=1)
+        layout.addWidget(folder_tree_container, stretch=1)
 
         return panel
-
-    def _on_korrespondent_sidebar_selected(self, name_or_none) -> None:
-        """Wird aufgerufen, wenn in der Korrespondenten-Sidebar ein Eintrag
-        angeklickt wird. Setzt den Korrespondent-Filter in der Filterleiste
-        und loest eine Suche aus.
-
-        Args:
-            name_or_none: Name des Korrespondenten oder ``None`` fuer "Alle".
-        """
-        if not hasattr(self, "filter_korrespondent"):
-            return
-        # Filter-Dropdown aktualisieren
-        self.filter_korrespondent.blockSignals(True)
-        if name_or_none is None:
-            # "Alle" -> ersten Eintrag
-            self.filter_korrespondent.setCurrentIndex(0)
-        else:
-            # Dropdown neu befuellen, falls der Name fehlt
-            current = self.filter_korrespondent.currentText()
-            items = [self.filter_korrespondent.itemText(i)
-                     for i in range(self.filter_korrespondent.count())]
-            if name_or_none not in items:
-                self.filter_korrespondent.addItem(name_or_none)
-            idx = self.filter_korrespondent.findText(name_or_none)
-            if idx >= 0:
-                self.filter_korrespondent.setCurrentIndex(idx)
-            else:
-                self.filter_korrespondent.setCurrentIndex(0)
-        self.filter_korrespondent.blockSignals(False)
-        # Suche ausloesen
-        if hasattr(self, "_execute_search"):
-            self._execute_search()
-        # Statusmeldung
-        if name_or_none:
-            self.statusbar.showMessage(
-                f"Filter: Korrespondent '{name_or_none}'", 3000
-            )
-        else:
-            self.statusbar.showMessage("Filter aufgehoben (Alle)", 2000)
 
     def _check_automation_rules(self, pdf_path: Path, metadata: dict = None) -> None:
         """Phase 21: Prueft Automatisierungs-Regeln VOR dem Verschieben.
@@ -891,7 +875,7 @@ class MainWindow(QMainWindow):
 
     def _auto_collect_korrespondenten(self) -> None:
         """Phase 20: Sammelt Korrespondenten aus der Sortierhistorie
-        in die Verwaltungstabelle und refresht die Sidebar.
+        in die Verwaltungstabelle (Wiedererkennen im Text, Issue #109).
 
         Wird nach jedem PDF-Move aufgerufen. Idempotent: bereits
         vorhandene Korrespondenten werden nicht doppelt angelegt.
@@ -903,9 +887,7 @@ class MainWindow(QMainWindow):
         if self._auto_collect_done:
             return
         try:
-            new_count = self.db.auto_collect_from_history()
-            if new_count > 0 and hasattr(self, "korrespondent_sidebar"):
-                self.korrespondent_sidebar.refresh()
+            self.db.auto_collect_from_history()
             # Nach dem ersten Sammeln pro Session sind alle
             # bisherigen Korrespondenten erfasst; neue Moves
             # fuegen nur weitere hinzu (was auto_collect_from_history
@@ -2077,6 +2059,7 @@ class MainWindow(QMainWindow):
             self._preview_window.close()
         # Reiter „Suche“: Abfrage-Threads und PDF-Leser der eigenen Vorschau
         self.search_view.shutdown()
+        self.korrespondenten_view.shutdown()
 
         # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
         if self._ocr_neu_worker is not None:
@@ -2516,6 +2499,8 @@ class MainWindow(QMainWindow):
 
     def _populate_detail_panel(self, pdf_path: Path, result: PDFAnalysisResult, detected_date: str = None):
         """Befüllt das Detail-Panel mit Umbenennungsvorschlägen und Metadaten."""
+        if self.detail_panel.zeigt_ansicht() and self.left_tabs.currentWidget() is self.korrespondenten_view:
+            return  # Mitte zeigt ein Dokument aus "Korrespondenten"; beim Reiterwechsel wird nachgezogen
         try:
             # Rename-Suggestions generieren (gleiche Logik wie on_pdf_rename)
             rename_suggestions = generate_rename_suggestions(

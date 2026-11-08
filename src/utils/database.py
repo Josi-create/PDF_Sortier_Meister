@@ -1508,12 +1508,11 @@ class Database:
         if not korrespondent or not korrespondent.strip():
             return
 
-        korrespondent = korrespondent.strip()
+        # Issue #160: Alias und gleichwertige Schreibweisen lernen unter dem kanonischen Namen
+        korrespondent = self.kanonischer_korrespondent(korrespondent)
         session = self.get_session()
         try:
-            existing = session.query(KorrespondentMetadata).filter(
-                KorrespondentMetadata.korrespondent == korrespondent
-            ).first()
+            existing = self._gelernte_zeile(session, korrespondent)
 
             if existing:
                 # Bestehenden Eintrag aktualisieren
@@ -1555,11 +1554,10 @@ class Database:
         if not korrespondent or not korrespondent.strip():
             return None
 
+        korrespondent = self.kanonischer_korrespondent(korrespondent)
         session = self.get_session()
         try:
-            entry = session.query(KorrespondentMetadata).filter(
-                KorrespondentMetadata.korrespondent == korrespondent.strip()
-            ).first()
+            entry = self._gelernte_zeile(session, korrespondent)
 
             if not entry:
                 # Fuzzy-Suche: Teilübereinstimmung (z.B. "ista GmbH" findet "ista")
@@ -1586,6 +1584,35 @@ class Database:
             return result if result else None
         finally:
             session.close()
+
+    def kanonischer_korrespondent(self, name: str) -> str:
+        """Schreibweise der Korrespondenten-Verwaltung fuer ``name`` (Name oder Alias, Issue #160).
+
+        Gleichwertige Schreibweisen ("Stadtwerke Göttingen AG") und von der KI
+        zugeordnete Aliasse ("Stadtwerke GÖ") ergeben den Namen des Eintrags;
+        ohne passenden Eintrag bleibt ``name`` stehen.
+        """
+        from src.core.korrespondenten import kanonisch
+
+        try:
+            eintraege = self.list_korrespondenten()
+        except Exception:  # noqa: BLE001 - ohne Tabelle bleibt der Name
+            eintraege = []
+        return kanonisch(name, eintraege)
+
+    @staticmethod
+    def _gelernte_zeile(session, korrespondent: str):
+        """Gelernte Metadaten fuer genau diesen Namen, sonst fuer eine gleichwertige Schreibweise."""
+        from src.core.korrespondenten import schluessel
+
+        entry = session.query(KorrespondentMetadata).filter(
+            KorrespondentMetadata.korrespondent == korrespondent
+        ).first()
+        if entry is None:
+            k = schluessel(korrespondent)
+            entry = next((e for e in session.query(KorrespondentMetadata).all()
+                          if k and schluessel(e.korrespondent) == k), None)
+        return entry
 
     def get_steuerauswertung(self) -> list[dict]:
         """
@@ -1655,19 +1682,7 @@ class Database:
         finally:
             session.close()
 
-    # === Korrespondenten-Verwaltung (Phase 20 / Issue #21) ===
-
-    # Standard-Kategorien fuer die GUI-Kombobox
-    KORRESPONDENT_KATEGORIEN: list[str] = [
-        "Energie",
-        "Versicherung",
-        "Telekommunikation",
-        "Steuer",
-        "Bank",
-        "Behoerde",
-        "Vermieter",
-        "Sonstiges",
-    ]
+    # === Korrespondenten-Verwaltung (Phase 20 / Issue #21; seit #160 ohne Handpflege) ===
 
     def list_korrespondenten(self) -> list[dict]:
         """Gibt alle verwalteten Korrespondenten zurueck.
@@ -1809,8 +1824,35 @@ class Database:
         finally:
             session.close()
 
+    def korrespondent_alias_setzen(self, kanonisch: str, alias: str) -> None:
+        """Merkt sich ``alias`` als andere Schreibweise von ``kanonisch`` (Issue #160).
+
+        Fehlt der kanonische Eintrag, wird er ohne Nutzungszaehler angelegt.
+        Ein eigener Eintrag des Alias geht im kanonischen auf (Aliasse, Zaehler,
+        gelernte Metadaten). Suchindex und Sortierhistorie bleiben unveraendert:
+        Liste, Wiedererkennen und Lernen wenden die Zuordnung beim Lesen an.
+        """
+        kanonisch, alias = (kanonisch or "").strip(), (alias or "").strip()
+        if not kanonisch or not alias or kanonisch == alias:
+            return
+        session = self.get_session()
+        try:
+            eintrag = session.query(Korrespondent).filter(Korrespondent.name == kanonisch).first()
+            if eintrag is None:
+                eintrag = Korrespondent(name=kanonisch, usage_count=0)
+                session.add(eintrag)
+            aliases = self._deserialize_aliases(eintrag.aliases)
+            if alias not in aliases:
+                aliases.append(alias)
+            eintrag.aliases = self._serialize_aliases(aliases)
+            eintrag.updated_at = datetime.utcnow()
+            session.commit()
+        finally:
+            session.close()
+        self.merge_korrespondenten(kanonisch, [alias], index_umschreiben=False)
+
     def merge_korrespondenten(
-        self, primary_name: str, secondary_names: list[str]
+        self, primary_name: str, secondary_names: list[str], index_umschreiben: bool = True,
     ) -> None:
         """Fuehrt mehrere Korrespondenten zu einem Primaerkorrespondenten zusammen.
 
@@ -1820,15 +1862,18 @@ class Database:
             * Alle Sekundaer-Eintraege werden geloescht.
             * Sekundaer-Namen werden als Aliasse in den Primaer-Eintrag
               gemerged (Duplikate werden gefiltert, Reihenfolge bleibt stabil).
-            * Dokumente im Suchindex mit ``korrespondent = secondary`` werden
-              auf ``primary_name`` umgeschrieben (``metadaten_ersetzen``).
-            * ``sorting_history.korrespondent`` wird ebenfalls aktualisiert.
+            * Mit ``index_umschreiben``: Dokumente im Suchindex mit
+              ``korrespondent = secondary`` werden auf ``primary_name``
+              umgeschrieben (``metadaten_ersetzen``), ebenso
+              ``sorting_history.korrespondent``.
             * ``KorrespondentMetadata.korrespondent`` (gelernte Defaults)
               wird umbenannt, sodass vorhandene Lerneffekte erhalten bleiben.
 
         Args:
             primary_name: Name des Primaerkorrespondenten (muss existieren)
             secondary_names: Liste von Sekundaernamen (werden geloescht)
+            index_umschreiben: False laesst Suchindex und Historie unberuehrt
+                (automatisches Zusammenfuehren, Issue #160)
         """
         import sqlite3
 
@@ -1888,7 +1933,7 @@ class Database:
         try:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
-            for sec_name in secondary_names:
+            for sec_name in (secondary_names if index_umschreiben else []):
                 if not sec_name:
                     continue
                 # Suchindex: Korrespondent in allen Dokumenten umschreiben (Text und OCR bleiben)

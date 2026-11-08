@@ -114,6 +114,40 @@ class Suchindex:
         finally:
             con.close()
 
+    def werte_mit_anzahl(self, feld: str) -> list[tuple[str, int]]:
+        """Werte eines Metadatenfelds mit Dokumentzahl, haeufigste zuerst (Korrespondenten-Reiter, #160)."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.werte_mit_anzahl(con, feld)
+        except Exception:
+            return []
+        finally:
+            con.close()
+
+    def dokumente_mit_werten(self, feld: str, werte, limit: int = 5000) -> list[dict]:
+        """Dokumente mit einem dieser Werte im Metadatenfeld, neueste zuerst (#160)."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.dokumente_mit_werten(con, feld, werte, limit)
+        finally:
+            con.close()
+
+    def metadaten_liste(self, typ: str | None = "pdf") -> list[dict]:
+        """Alle Dokumente (ohne Text) mit Pfad, Name und Korrespondent - fuer "Korrespondenten aufräumen" (#160)."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            sql = ("SELECT id, pfad, datei, name, ordner, typ, korrespondent, metadaten_quelle FROM dokumente"
+                   + (" WHERE typ = ?" if typ else "") + " ORDER BY id")
+            return [dict(r) for r in con.execute(sql, (typ,) if typ else ())]
+        finally:
+            con.close()
+
     def anzahl(self, typ: str | None = None) -> int:
         con = self._lesen()
         if con is None:
