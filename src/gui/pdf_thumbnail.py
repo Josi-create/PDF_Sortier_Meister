@@ -177,6 +177,18 @@ class PDFThumbnailWidget(QFrame):
         self._ocr_symbol = OcrWarnSymbol(self.thumbnail_label)
         self._ocr_symbol.hide()
 
+        # Hinweis "kopiert nach ..." (Issue #179): schmaler Streifen am unteren
+        # Bildrand, ohne Einfluss auf die Kachelgroesse
+        self.kopie_label = QLabel(self.thumbnail_label)
+        self.kopie_label.setStyleSheet(
+            "background-color: rgba(255, 243, 205, 230); color: #6b4e00; "
+            "border: none; border-top: 1px solid #daa520; padding: 0 2px;"
+        )
+        self.kopie_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.kopie_label.hide()
+        self._kopie_text = ""
+        self._kopie_kurz = ""
+
         self._apply_view()
 
     @property
@@ -201,6 +213,7 @@ class PDFThumbnailWidget(QFrame):
         self._layout.setSpacing(v.spacing)
         self.thumbnail_label.setFixedSize(v.thumb_w, v.thumb_h)
         self._ocr_symbol.move(max(0, v.thumb_w - self._ocr_symbol.width() - 3), 3)
+        self._kopie_label_anpassen()
         self.name_label.setMaximumHeight(v.name_max_height)
         self._apply_name_style()
         if self._original_pixmap is not None:
@@ -209,6 +222,35 @@ class PDFThumbnailWidget(QFrame):
             self.name_label.setText(self.ANALYZING_TEXT)
         else:
             self.update_name_display()
+
+    def set_kopie_hinweis(self, text: str, tooltip: str = "", kurz: str = ""):
+        """Zeigt "kopiert nach ..." auf der Kachel (leerer Text blendet aus, Issue #179).
+
+        ``kurz`` ist die Kurzform fuer schmale Kacheln, wenn ``text`` nicht passt.
+        """
+        self._kopie_text = text
+        self._kopie_kurz = kurz
+        self.kopie_label.setToolTip(tooltip)
+        self._kopie_label_anpassen()
+
+    def _kopie_label_anpassen(self):
+        """Setzt Groesse, Schrift und (gekuerzten) Text des Kopie-Hinweises."""
+        if not self._kopie_text:
+            self.kopie_label.hide()
+            return
+        v = self._view
+        font = self.kopie_label.font()
+        font.setPixelSize(max(8, v.font_px - 1))
+        self.kopie_label.setFont(font)
+        h = max(12, v.font_px + 4)
+        self.kopie_label.setGeometry(0, v.thumb_h - h, v.thumb_w, h)
+        fm = QFontMetrics(font)
+        breite = max(10, v.thumb_w - 6)
+        text = self._kopie_text
+        if self._kopie_kurz and fm.horizontalAdvance(text) > breite:
+            text = self._kopie_kurz
+        self.kopie_label.setText(fm.elidedText(text, Qt.TextElideMode.ElideRight, breite))
+        self.kopie_label.show()
 
     def _apply_name_style(self):
         """Schrift ueber QFont (nicht Stylesheet), damit QFontMetrics fuer den

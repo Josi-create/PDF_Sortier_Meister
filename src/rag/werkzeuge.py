@@ -385,7 +385,7 @@ class Werkzeugkasten:
             Werkzeug(
                 name="korrespondent_info",
                 beschreibung=(
-                    "Was PDF Sortier Meister über einen Korrespondenten (Absender, Firma, Behörde) gelernt hat: "
+                    "Was PDF Sortier Meister über einen Korrespondenten (Gegenpartei des Nutzers: Person, Firma oder Behörde) gelernt hat: "
                     "Aliase (andere Schreibweisen), Kategorie, Notizen, MwSt-Satz, steuerlich absetzbar, Währung "
                     "und wie oft er verwendet wurde. Benutze es, um die genaue Schreibweise für den Filter "
                     "korrespondent der Suche zu klären oder ein Dokument einzuordnen. Teiltreffer im Namen oder "

@@ -7,6 +7,7 @@ und klickt rechts auf einen Zielordner zum Verschieben+Umbenennen.
 """
 
 from pathlib import Path
+from datetime import date
 from typing import Optional
 
 import logging
@@ -23,6 +24,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QGroupBox,
     QPlainTextEdit,
     QScrollArea,
@@ -37,7 +39,20 @@ from PyQt6.QtWidgets import (
 
 logger = logging.getLogger(__name__)
 
+from src.core import datum_eingabe
 from src.core.document_date import is_iso_date, parse_user_date
+
+
+def _datum_iso(text: str) -> Optional[str]:
+    """Tag aus dem Feld "Datum" als JJJJ-MM-TT (None, wenn unlesbar oder kein ganzer Tag).
+
+    Erst die freie Eingabe (Issue #161: "3.5.24", "3. Mai 2024"), danach wie
+    bisher das erste Datum im Text (markierter Vorschautext).
+    """
+    tag = datum_eingabe.parse_tag(text)
+    if isinstance(tag, date):
+        return tag.isoformat()
+    return parse_user_date(text)
 from src.core.llm_activity import (
     KIND_SUGGEST,
     format_elapsed,
@@ -175,6 +190,8 @@ class DetailPanel(QWidget):
     office_preview_requested = pyqtSignal(Path)      # .docx/.xlsx: Seitenvorschau erzeugen lassen (Issue #9)
     # "Muster bearbeiten" in der Vorschlags-Kopfzeile: Einstellungen > Dateinamen
     edit_pattern_requested = pyqtSignal()
+    # Rechtsklick auf das Feld Korrespondent: alle Dokumente zeigen (Issue #160)
+    korrespondent_dokumente_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -409,7 +426,11 @@ class DetailPanel(QWidget):
         field_tooltips = {
             "buchungsdatum": self._DATE_TOOLTIP,
             "subject": "Kategorie des Dokuments (z.B. Rechnung, Vertrag).",
-            "korrespondent": "Absender oder Firma des Dokuments.",
+            "korrespondent": (
+                "Gegenpartei des Dokuments aus Ihrer Sicht: Absender fremder Post, bei eigenen\n"
+                "Schreiben der Empfänger bzw. Vertragspartner (Person, Firma oder Behörde).\n"
+                "Rechtsklick: alle Dokumente dieses Korrespondenten anzeigen."
+            ),
             "betrag_netto": "Rechnungsbetrag ohne MwSt.",
             "betrag_brutto": "Rechnungsbetrag inkl. MwSt.",
             "waehrung": "Währung des Betrags (z.B. EUR).",
@@ -450,7 +471,7 @@ class DetailPanel(QWidget):
                 input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 10px; padding: 2px;")
                 if field_key == "buchungsdatum":
-                    input_field.setPlaceholderText("JJJJ-MM-TT")
+                    input_field.setPlaceholderText("z. B. 3.5.24")
                     # Vor dem allgemeinen textChanged-Handler: Steuerjahr nachziehen
                     input_field.textChanged.connect(self._on_date_field_changed)
                     input_field.editingFinished.connect(self._normalize_date_field)
@@ -458,7 +479,19 @@ class DetailPanel(QWidget):
                 # Letztes einzelnes Feld ohne Partner (IBAN) ueber die volle Breite
                 span = 3 if (col == 0 and idx == single_count - 1) else 1
                 grid.addWidget(label, row_idx, col * 2)
-                grid.addWidget(input_field, row_idx, col * 2 + 1, 1, span)
+                if field_key == "buchungsdatum":
+                    # Feld + graue Deutung darunter (Issue #161)
+                    cell = QWidget()
+                    cell_layout = QVBoxLayout(cell)
+                    cell_layout.setContentsMargins(0, 0, 0, 0)
+                    cell_layout.setSpacing(1)
+                    cell_layout.addWidget(input_field)
+                    self._date_hint = QLabel("")
+                    self._date_hint.setVisible(False)
+                    cell_layout.addWidget(self._date_hint)
+                    grid.addWidget(cell, row_idx, col * 2 + 1, 1, span)
+                else:
+                    grid.addWidget(input_field, row_idx, col * 2 + 1, 1, span)
 
             tooltip = field_tooltips.get(field_key)
             if tooltip:
@@ -466,6 +499,9 @@ class DetailPanel(QWidget):
             input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
             self._field_base_styles[field_key] = input_field.styleSheet()
+            if field_key == "korrespondent":
+                input_field.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                input_field.customContextMenuRequested.connect(self._korrespondent_menue_zeigen)
 
         metadata_layout.addLayout(grid)
 
@@ -625,6 +661,9 @@ class DetailPanel(QWidget):
             known = self._known_korrespondent(extracted_text)
             if known:
                 self._metadata["korrespondent"] = known
+            elif self._metadata.get("korrespondent"):
+                # Issue #160: Alias bzw. gleichwertige Schreibweise -> Schreibweise der Verwaltung
+                self._metadata["korrespondent"] = self._kanonisch(self._metadata["korrespondent"])
 
             # Gelernte Korrespondent-Zuordnungen
             korrespondent = self._metadata.get("korrespondent")
@@ -801,7 +840,7 @@ class DetailPanel(QWidget):
                 value = input_field.text().strip()
             if field_key == "buchungsdatum":
                 # Nur ein lesbares Datum wird gespeichert - als JJJJ-MM-TT
-                value = parse_user_date(value) or ""
+                value = _datum_iso(value) or ""
             if value:
                 metadata[field_key] = value
         return metadata
@@ -811,7 +850,7 @@ class DetailPanel(QWidget):
         widget = self._metadata_inputs.get("buchungsdatum")
         if widget is None:
             return None
-        return parse_user_date(widget.text())
+        return _datum_iso(widget.text())
 
     def has_user_edits(self) -> bool:
         """True, wenn der Nutzer Dateiname oder Metadaten selbst geaendert hat.
@@ -941,12 +980,13 @@ class DetailPanel(QWidget):
     # --- Feld "Datum" (Issue #132) -------------------------------------- #
 
     _DATE_TOOLTIP = (
-        "Datum des Dokuments (JJJJ-MM-TT) - Quelle für {datum} im Dateinamen\n"
+        "Datum des Dokuments - Quelle für {datum} im Dateinamen\n"
         "und Vorlage für das Steuerjahr.\n"
-        "Eingabe auch als TT.MM.JJJJ möglich; oder das Datum in der Vorschau\n"
+        "Frei eintippen: 3.5.24, 03.05.2024, 3. Mai 2024 oder 2024-05-03;\n"
+        "gespeichert wird JJJJ-MM-TT. Oder das Datum in der Vorschau\n"
         "markieren und per Rechtsklick „Als Datum übernehmen“."
     )
-    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte als JJJJ-MM-TT oder TT.MM.JJJJ eingeben."
+    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024."
     _INVALID_FIELD_STYLE = " border: 1px solid #d32f2f; background-color: #fdecea; border-radius: 3px;"
 
     @staticmethod
@@ -971,10 +1011,11 @@ class DetailPanel(QWidget):
         "Eigenstaendig" heisst: das Steuerjahr entspricht weder dem Jahr des
         bisherigen Datums noch ist es leer - dann bleibt es unangetastet.
         """
-        new_iso = parse_user_date(text)
+        new_iso = _datum_iso(text)
         prev_year = (self._date_prev_iso or "")[:4]
         self._date_prev_iso = new_iso
         invalid = bool(text.strip()) and new_iso is None
+        self._update_date_hint(text, new_iso)
         if invalid != self._date_invalid:
             self._date_invalid = invalid
             widget = self._metadata_inputs.get("buchungsdatum")
@@ -991,12 +1032,29 @@ class DetailPanel(QWidget):
         if current in ("", prev_year) and current != year:
             steuerjahr.setText(year)
 
+    def _update_date_hint(self, text: str, iso: Optional[str]) -> None:
+        """Graue Deutung ("= 03.05.2024") bzw. roter Hinweis unter dem Feld "Datum"."""
+        hint = getattr(self, "_date_hint", None)
+        if hint is None:
+            return
+        text = text.strip()
+        if not text or (iso and text == iso):
+            hint.setVisible(False)
+            return
+        if iso:
+            hint.setText(f"= {datum_eingabe.tag_text(date.fromisoformat(iso))}")
+            hint.setStyleSheet("color: #888; font-size: 10px;")
+        else:
+            hint.setText(datum_eingabe.beschreibe(datum_eingabe.parse_tag(text)))
+            hint.setStyleSheet("color: #b71c1c; font-size: 10px;")
+        hint.setVisible(True)
+
     def _normalize_date_field(self):
         """Nach der Eingabe: "12.3.2004" -> "2004-03-12"; Unlesbares bleibt stehen."""
         widget = self._metadata_inputs.get("buchungsdatum")
         if widget is None:
             return
-        iso = parse_user_date(widget.text())
+        iso = _datum_iso(widget.text())
         if iso and widget.text().strip() != iso:
             widget.setText(iso)
 
@@ -1243,17 +1301,51 @@ class DetailPanel(QWidget):
         self._load_category_choices()
 
     def _known_korrespondent(self, text: str) -> Optional[str]:
-        """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt."""
+        """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt.
+
+        Der Nutzer selbst und Formularverlage zaehlen nicht (Issue #160): ihr
+        Name steht auf vielen Dokumenten, ohne die Gegenpartei zu sein.
+        """
         if not text:
             return None
         from src.core.korrespondent_match import find_known_korrespondent
+        from src.core.korrespondenten import erkennbare_eintraege, owner_namen
 
         try:
             from src.utils.database import get_database
-            entries = get_database().list_korrespondenten()
+            from src.utils.config import get_config
+            entries = erkennbare_eintraege(get_database().list_korrespondenten(), owner_namen(get_config()))
         except Exception:
             return None
         return find_known_korrespondent(text, entries)
+
+    @staticmethod
+    def _kanonisch(name: str) -> str:
+        """Schreibweise der Korrespondenten-Verwaltung (Alias, gleichwertige Schreibweise; Issue #160)."""
+        try:
+            from src.utils.database import get_database
+            return get_database().kanonischer_korrespondent(name) or name
+        except Exception:  # noqa: BLE001 - ohne Datenbank bleibt der Name
+            return name
+
+    def korrespondent_menue(self) -> QMenu:
+        """Kontextmenue des Felds Korrespondent: Standardaktionen und "Alle Dokumente von … anzeigen" (#160)."""
+        feld = self._metadata_inputs["korrespondent"]
+        menue = feld.createStandardContextMenu()
+        name = feld.text().strip()
+        menue.addSeparator()
+        aktion = menue.addAction(
+            f"Alle Dokumente von „{name}“ anzeigen" if name else "Alle Dokumente des Korrespondenten anzeigen"
+        )
+        aktion.setEnabled(bool(name))
+        aktion.triggered.connect(lambda: self.korrespondent_dokumente_requested.emit(name))
+        return menue
+
+    def _korrespondent_menue_zeigen(self, pos) -> None:
+        feld = self._metadata_inputs["korrespondent"]
+        menue = self.korrespondent_menue()
+        menue.exec(feld.mapToGlobal(pos))
+        menue.deleteLater()
 
     def apply_preview_text(self, field_key: str, text: str):
         """Markierten Text (auch aus dem grossen Vorschau-Fenster) in ein Feld uebernehmen."""
@@ -1702,6 +1794,8 @@ class DetailPanel(QWidget):
                     self._loading_metadata = True
                     for key, value in s.metadata.items():
                         widget = self._metadata_inputs.get(key)
+                        if key == "korrespondent" and value:
+                            value = self._kanonisch(str(value))  # Issue #160
                         if widget:
                             if isinstance(widget, QPlainTextEdit):
                                 widget.setPlainText(str(value))

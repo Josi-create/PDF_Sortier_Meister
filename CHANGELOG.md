@@ -8,6 +8,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Korrespondenten neu gedacht** (#160): Der Korrespondent ist jetzt immer
+  die Gegenpartei aus Sicht des Nutzers – bei fremder Post der Absender, bei
+  eigenen Schreiben der Empfänger bzw. die andere Vertragspartei (Mietvertrag →
+  Mieter, Arztbrief als Arzt → Patient). Nie der Nutzer selbst, nie ein
+  Formularverlag wie „Haus & Grund“ oder Zweckform. Der bisherige rechte Reiter
+  „Korrespondenten“ entfällt (rechts steht nur noch der Zielordner-Baum);
+  stattdessen gibt es links neben „PDFs“ und „Chat“ den Reiter
+  „Korrespondenten“: alle Korrespondenten aus dem Suchindex mit Anzahl und
+  Suchfeld, darunter die Dokumente des gewählten (Klick zeigt sie in der
+  Vorschau, Doppelklick öffnet, Rechtsklick „Im Explorer zeigen“ / „Ordner links
+  öffnen“). Schreibvarianten werden automatisch zusammengeführt (Groß/klein,
+  Satzzeichen, Rechtsformen, ae/ä; unklare Fälle entscheidet die KI einmal im
+  Hintergrund). Rechtsklick auf das Detailfeld Korrespondent springt zu allen
+  Dokumenten dieses Korrespondenten. „Aufräumen…“ prüft nur auffällige
+  Dokumente (leer, der Nutzer selbst, Formularverlag) erneut per KI und
+  speichert wie „Metadaten speichern“. Bearbeiten-, Zusammenführen- und
+  Farb-Dialog entfallen.
 - **LM Studio als lokaler KI-Anbieter** (#45): Wer LM Studio bereits nutzt,
   kann es in den Einstellungen als Anbieter „LM Studio“ wählen. Ein API-Key ist
   nicht nötig, die Server-URL ist einstellbar (Standard
@@ -84,6 +101,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Nächstliegende aus den Auszügen zu nennen. Ein Bezugsdokument im
   Scan-Eingang wird als „noch unsortiert“ gekennzeichnet, damit die KI den
   Eingang nicht als Ablageort vorschlägt.
+
+### Entfernt
+- **Automatisierungs-Regeln** (#125): Der Reiter „Automatisierungs-Regeln“ in
+  den Einstellungen, der Regel-Editor und der Statusleisten-Hinweis nach dem
+  Verschieben sind weg. Die Regeln griffen in der Praxis nie, weil sie erst
+  nach dem Verschieben geprüft wurden und nur einen Hinweis zeigten. Bereits
+  gespeicherte Regeln bleiben unberührt in der Datenbank, bestehende
+  Datenbanken öffnen weiter ohne Migration.
 
 ## [0.25.0] - 2026-11-07
 

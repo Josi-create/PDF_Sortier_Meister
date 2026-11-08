@@ -318,12 +318,21 @@ def test_regenbogen_nur_erster_vorschlag_ab_schwelle(qtbot, tmp_path):
     fake.no_suggestions_label = QLabel()
     fake.clear_suggestions = lambda: MainWindow.clear_suggestions(fake)
     fake.on_suggestion_clicked = fake.on_folder_double_clicked = fake.on_pdf_dropped_on_folder = lambda *a: None
+    fake.verbinde_hierhin_kopieren = lambda widget: None  # Issue #179
 
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.9), _suggestion(tmp_path, "b", 0.95)])
     assert [w.regenbogen for w in fake.suggestion_widgets] == [True, False]
 
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.84), _suggestion(tmp_path, "b", 0.99)])
     assert [w.regenbogen for w in fake.suggestion_widgets] == [False, False]
+
+    # Issue #116: ein neuer Ordner steht vorne, der Regenbogen geht an den
+    # ersten BESTEHENDEN Vorschlag
+    neu = _suggestion(tmp_path, "neu", 0.99)
+    neu.new_source = "jahr"
+    MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.9), neu])
+    assert [w.neu for w in fake.suggestion_widgets] == [True, False]
+    assert [w.regenbogen for w in fake.suggestion_widgets] == [False, True]
 
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.85)])
     first = fake.suggestion_widgets[0]

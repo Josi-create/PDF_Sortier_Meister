@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
 
 from src.core.office_convert import ist_sortierbar
 from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
+from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, verschieben_eintrag
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
     im_dateimanager_zeigen,
@@ -40,6 +41,11 @@ class FolderTileWidget(QFrame):
     double_clicked = pyqtSignal(Path)  # In den Ordner wechseln
     pdf_dropped = pyqtSignal(Path, Path)  # (pdf_path, folder_path)
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
+    copy_here_requested = pyqtSignal(Path)  # Menue "Hierhin kopieren" (Issue #179)
+    pdf_copy_dropped = pyqtSignal(list, Path)  # Strg+Drop: (Dateien, Ordner), Issue #179
+    move_here_requested = pyqtSignal(Path)  # Menue "Hierhin verschieben" (Issue #183)
+    show_in_tree_requested = pyqtSignal(Path)  # Menue "Rechts im Baum zeigen" (Issue #183)
+    target_toggle_requested = pyqtSignal(Path)  # Menue "Als Zielordner merken" (Issue #183)
 
     ROW_HEIGHT = 26  # feste Zeilenhoehe in Pixeln
     NAME_PX = 12  # Schriftgroesse des Ordnernamens
@@ -72,6 +78,8 @@ class FolderTileWidget(QFrame):
         self.is_parent = is_parent
         self._pdf_count = pdf_count
         self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster
+        self.auswahl_pruefer = None  # Callable[[], list[Path]], setzt das Hauptfenster (#179)
+        self.ziel_pruefer = None  # Callable[[Path], bool]: Ordner schon in der Zielliste? (#183)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -180,6 +188,22 @@ class FolderTileWidget(QFrame):
     def _build_context_menu(self) -> QMenu:
         """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
+        if not self.is_parent:
+            kopier_eintrag(
+                menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path)
+            )
+            # Issue #183: verschieben wie Ziehen, im Baum zeigen, als Zielordner merken
+            verschieben_eintrag(
+                menu, self.auswahl_pruefer, lambda: self.move_here_requested.emit(self.folder_path)
+            )
+            menu.addAction("🌳 Rechts im Baum zeigen").triggered.connect(
+                lambda: self.show_in_tree_requested.emit(self.folder_path)
+            )
+            drin = bool(self.ziel_pruefer and self.ziel_pruefer(self.folder_path))
+            menu.addAction("Aus Zielliste entfernen" if drin else "⭐ Als Zielordner merken").triggered.connect(
+                lambda: self.target_toggle_requested.emit(self.folder_path)
+            )
+            menu.addSeparator()
         open_action = menu.addAction(oeffnen_text())
         open_action.triggered.connect(self._open_in_file_manager)
         copy_action = menu.addAction(PFAD_KOPIEREN_TEXT)
@@ -216,7 +240,14 @@ class FolderTileWidget(QFrame):
     def dragEnterEvent(self, event: QDragEnterEvent):
         if self._pdf_paths(event.mimeData()):
             self.setStyleSheet(self._STYLE_DROP)
-            event.acceptProposedAction()
+            drop_aktion_setzen(event)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        """Strg waehrend des Ziehens: Cursor zeigt die Kopieraktion (Issue #179)."""
+        if self._pdf_paths(event.mimeData()):
+            drop_aktion_setzen(event)
         else:
             event.ignore()
 
@@ -230,6 +261,8 @@ class FolderTileWidget(QFrame):
         if not pdfs:
             event.ignore()
             return
+        if drop_aktion_setzen(event):
+            self.pdf_copy_dropped.emit(pdfs, self.folder_path)
+            return
         for pdf in pdfs:
             self.pdf_dropped.emit(pdf, self.folder_path)
-        event.acceptProposedAction()

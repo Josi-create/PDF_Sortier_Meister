@@ -20,13 +20,12 @@ from html import escape
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QDate, QEvent, QPoint, Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QComboBox,
-    QDateEdit,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -45,8 +44,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.core.office_convert import ist_sortierbar
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.search_worker import DokumentLaden, StatusAbfrage, SuchAbfrage
+from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.ausgabe import datum as datum_text
 from src.search.plattform import im_dateimanager_zeigen
 from src.search.suchindex import Suchindex
@@ -72,7 +73,6 @@ WEB_PRUEFEN_MS = 6000         # nach dem Start der Browser-Oberflaeche pruefen, 
 
 _MARK_AUF = '<span style="background-color:#fff0a0; color:#000000;"><b>'
 _MARK_ZU = "</b></span>"
-_KEIN_DATUM = QDate(1900, 1, 1)  # Sonderwert der Datumsfelder: kein Filter
 
 HILFE_HTML = (
     "<b>So wird gesucht</b><ul>"
@@ -367,6 +367,7 @@ class SearchView(QWidget):
     Signale:
         open_pdf_requested(Path): PDF so oeffnen, wie es eingestellt ist (Hauptfenster)
         open_pdf_external_requested(Path): „Extern öffnen“ aus der Vorschau
+        im_ordner_anzeigen_requested(Path): „Im Ordner anzeigen“ (Ordner in „PDFs“, Datei auswaehlen)
         einrichten_requested: Knopf „Einrichten…“ im Hinweis (Einstellungen > Suche)
         suche_fertig(dict): Ergebnis der angezeigten Abfrage (auch fuer Tests)
         status_aktualisiert(dict): Indexstand ist da
@@ -375,6 +376,7 @@ class SearchView(QWidget):
 
     open_pdf_requested = pyqtSignal(Path)
     open_pdf_external_requested = pyqtSignal(Path)
+    im_ordner_anzeigen_requested = pyqtSignal(Path)
     einrichten_requested = pyqtSignal()
     suche_fertig = pyqtSignal(object)
     status_aktualisiert = pyqtSignal(object)
@@ -549,18 +551,11 @@ class SearchView(QWidget):
         self.ordner_edit.setClearButtonEnabled(True)
         self.ordner_edit.editingFinished.connect(self._filter_geaendert)
         filter2.addWidget(self.ordner_edit, 1)
-        filter2.addWidget(QLabel("von:"))
-        self.von_edit = self._datum_feld()
-        filter2.addWidget(self.von_edit)
-        filter2.addWidget(QLabel("bis:"))
-        self.bis_edit = self._datum_feld()
-        filter2.addWidget(self.bis_edit)
-        self.datum_reset = QToolButton()
-        self.datum_reset.setText("×")
-        self.datum_reset.setToolTip("Zeitraum zurücksetzen")
-        self.datum_reset.setAutoRaise(True)
-        self.datum_reset.clicked.connect(self._zeitraum_zuruecksetzen)
-        filter2.addWidget(self.datum_reset)
+        filter2.addWidget(QLabel("Zeitraum:"), 0, Qt.AlignmentFlag.AlignTop)
+        self.zeitraum_edit = ZeitraumFeld()
+        self.zeitraum_edit.setToolTip("Dokumentdatum (Dateidatum bzw. Mail-Datum); leer = kein Filter")
+        self.zeitraum_edit.geaendert.connect(self._filter_geaendert)
+        filter2.addWidget(self.zeitraum_edit, 1)
         lay.addLayout(filter2)
 
         # PDFSM-Metadaten (Phase 5): Steuerjahr, Kategorie, Korrespondent, Betrag
@@ -685,17 +680,6 @@ class SearchView(QWidget):
         feld.valueChanged.connect(lambda _v: self._filter_geaendert())
         return feld
 
-    def _datum_feld(self) -> QDateEdit:
-        feld = QDateEdit()
-        feld.setCalendarPopup(True)
-        feld.setDisplayFormat("dd.MM.yyyy")
-        feld.setMinimumDate(_KEIN_DATUM)
-        feld.setSpecialValueText("–")
-        feld.setDate(_KEIN_DATUM)
-        feld.setToolTip("Dokumentdatum (Dateidatum bzw. Mail-Datum); „–“ = kein Filter")
-        feld.dateChanged.connect(lambda _d: self._filter_geaendert())
-        return feld
-
     # ------------------------------------------------------------------ Einstellungen / Sichtbarkeit
 
     def refresh_settings(self) -> None:
@@ -777,13 +761,7 @@ class SearchView(QWidget):
             self._text_geaendert("")
 
     def _zeitraum_zuruecksetzen(self) -> None:
-        for feld in (self.von_edit, self.bis_edit):
-            feld.setDate(_KEIN_DATUM)
-
-    @staticmethod
-    def _datum(feld: QDateEdit) -> str | None:
-        d = feld.date()
-        return None if d <= _KEIN_DATUM else d.toString("yyyy-MM-dd")
+        self.zeitraum_edit.zuruecksetzen()
 
     def _filter_argumente(self) -> dict:
         """Filter der Oberflaeche als Argumente fuer ``Suchindex.suche``."""
@@ -795,7 +773,7 @@ class SearchView(QWidget):
         ordner = self.ordner_edit.text().strip()
         if ordner:
             args["ordner"] = ordner
-        von, bis = self._datum(self.von_edit), self._datum(self.bis_edit)
+        von, bis = self.zeitraum_edit.grenzen()
         if von:
             args["von"] = von
         if bis:
@@ -820,7 +798,7 @@ class SearchView(QWidget):
                korrespondent: str = "", von: str = "", bis: str = "", betrag_von: float = 0.0,
                betrag_bis: float = 0.0) -> None:
         """Suche von aussen (Werkzeugleiste, Strg+F): Suchbegriff und Filter setzen, sofort suchen."""
-        for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.von_edit, self.bis_edit,
+        for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.zeitraum_edit,
                   self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
             w.blockSignals(True)
         try:
@@ -829,12 +807,11 @@ class SearchView(QWidget):
                 self.typ_buttons[typ].setChecked(True)
             for feld, wert in (("steuerjahr", steuerjahr), ("kategorie", kategorie), ("korrespondent", korrespondent)):
                 self._combo_waehlen(self.meta_combos[feld], wert)
-            self.von_edit.setDate(QDate.fromString(von, "yyyy-MM-dd") if von else _KEIN_DATUM)
-            self.bis_edit.setDate(QDate.fromString(bis, "yyyy-MM-dd") if bis else _KEIN_DATUM)
+            self.zeitraum_edit.setGrenzen(von, bis)
             self.betrag_von_spin.setValue(float(betrag_von or 0))
             self.betrag_bis_spin.setValue(float(betrag_bis or 0))
         finally:
-            for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.von_edit, self.bis_edit,
+            for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.zeitraum_edit,
                       self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
                 w.blockSignals(False)
         self._suche_starten()
@@ -854,7 +831,7 @@ class SearchView(QWidget):
     def leeren(self) -> None:
         """Suchfeld, Filter und Trefferliste zuruecksetzen (Werkzeugleiste „Suche leeren“)."""
         self._tipp_timer.stop()
-        felder = (self.search_edit, self.ordner_edit, self.von_edit, self.bis_edit, self.betrag_von_spin,
+        felder = (self.search_edit, self.ordner_edit, self.zeitraum_edit, self.betrag_von_spin,
                   self.betrag_bis_spin, *self.meta_combos.values())
         for w in felder:
             w.blockSignals(True)
@@ -1112,6 +1089,9 @@ class SearchView(QWidget):
         """Kontextmenue eines Treffers (ohne exec, auch fuer Tests)."""
         menue = QMenu(self)
         menue.addAction("Mail öffnen" if d.get("typ") == "mail" else "Öffnen", lambda: self._oeffnen(d))
+        if d.get("typ") != "mail" and ist_sortierbar(Path(d.get("datei") or "")):
+            # Im Programm: Ordner in "PDFs" oeffnen, Datei auswaehlen (umbenennen/verschieben)
+            menue.addAction("📂 Im Ordner anzeigen", lambda: self._im_ordner_anzeigen(d))
         if d.get("format") != "mbox":
             menue.addAction(f"Im {file_manager_name()} zeigen", lambda: self._im_dateimanager_zeigen(d))
         menue.addAction("Pfad kopieren", lambda: self._pfad_kopieren(d))
@@ -1141,6 +1121,14 @@ class SearchView(QWidget):
             self.open_pdf_requested.emit(Path(pfad))
         else:
             open_with_default_app(pfad)
+
+    def _im_ordner_anzeigen(self, d: dict) -> None:
+        """Treffer im Programm zeigen: Ordner in "PDFs" oeffnen, Datei auswaehlen."""
+        pfad = d.get("datei") or ""
+        if not pfad or not os.path.exists(pfad):
+            self._meldung("Die Datei existiert nicht mehr.")
+            return
+        self.im_ordner_anzeigen_requested.emit(Path(pfad))
 
     def _im_dateimanager_zeigen(self, d: dict) -> None:
         pfad = d.get("datei") or ""

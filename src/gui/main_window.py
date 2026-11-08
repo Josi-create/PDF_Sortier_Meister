@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QDate, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -30,7 +30,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QComboBox,
-    QDateEdit,
     QDoubleSpinBox,
     QToolButton,
 )
@@ -39,6 +38,7 @@ from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
+from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
@@ -52,10 +52,11 @@ from src.utils.pdf_open import OPEN_MODE_INTEGRATED, normalize_open_mode, open_p
 from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
-from src.gui.korrespondent_sidebar import KorrespondentSidebar
+from src.gui.korrespondenten_view import KorrespondentenView, dokument_pfad
 from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
-from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
+from src.core.folder_naming import coerce_date
+from src.gui.hierhin_kopieren import HierhinKopierenMixin
 
 
 def _iso_to_date(value):
@@ -80,7 +81,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.core import office_vorschau
-from src.core.office_convert import endung_tauschen, ist_office_datei
+from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -89,6 +90,7 @@ from src.ml.provider_factory import erzeuge_provider, grund_text
 from src.gui.chat_view import ChatView
 from src.rag.bezug import Bezug
 from src.gui.search_view import SearchView
+from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.meldungen import melden as index_melden
 
 
@@ -171,7 +173,7 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(QMainWindow):
+class MainWindow(HierhinKopierenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -207,6 +209,10 @@ class MainWindow(QMainWindow):
         self.selected_pdf_keywords: Optional[list[str]] = None
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
+        # Auswahl im Reiter "Korrespondenten" (#160): sie ersetzt selected_pdf(s), solange sie aktiv ist;
+        # die Auswahl der Liste "PDFs" wird derweil hier gemerkt (selected_pdf, selected_pdfs)
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt: Optional[tuple] = None
         # Angezeigte Ordnervorschlaege der Auswahl (fuer den Chat, Issue #148)
         self._shown_suggestions: list = []
 
@@ -326,6 +332,17 @@ class MainWindow(QMainWindow):
         self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
         self.left_tabs.addTab(self.chat_view, "Chat")
         self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        # Korrespondenten aus dem Suchindex mit ihren Dokumenten (Issue #160)
+        self.korrespondenten_view = KorrespondentenView(
+            self.db, self.config, self.hybrid_classifier,
+            wurzeln=lambda: list(self.folder_manager.target_folders),
+        )
+        self.korrespondenten_view.dokumente_gewaehlt.connect(self._on_korrespondent_dokumente)
+        self.korrespondenten_view.dokument_oeffnen.connect(self.open_pdf_external)
+        self.korrespondenten_view.ordner_oeffnen.connect(self._on_korrespondent_ordner)
+        self.korrespondenten_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.left_tabs.addTab(self.korrespondenten_view, "Korrespondenten")
+        self.left_tabs.setTabToolTip(2, "Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente")
         self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
         splitter.addWidget(self.left_tabs)
 
@@ -338,6 +355,7 @@ class MainWindow(QMainWindow):
         self.detail_panel.office_preview_requested.connect(self._on_office_preview_requested)
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
+        self.detail_panel.korrespondent_dokumente_requested.connect(self.show_korrespondent)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
         if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
@@ -369,6 +387,7 @@ class MainWindow(QMainWindow):
         self.search_view = SearchView(self.config)
         self.search_view.open_pdf_requested.connect(self.open_pdf)
         self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
+        self.search_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
         self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
         self.search_view.suche_fertig.connect(self._on_search_view_result)
         self.center_tabs.addTab(self.search_view, "Suche")
@@ -387,9 +406,107 @@ class MainWindow(QMainWindow):
 
     def _on_left_tab_changed(self, index: int) -> None:
         """Linke Spalte: beim Wechsel in den Chat wird das ausgewaehlte PDF zum Bezugsdokument (Issue #148)."""
-        if self.left_tabs.widget(index) is self.chat_view:
+        widget = self.left_tabs.widget(index)
+        if widget is self.korrespondenten_view:
+            self.korrespondenten_view.refresh()
+        elif self._korr_aktiv:
+            self._korr_auswahl_beenden()  # die Auswahl der Liste "PDFs" gilt wieder (#160)
+        if widget is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
+
+    def show_korrespondent(self, name: str) -> None:
+        """Reiter "Korrespondenten" mit diesem Korrespondenten zeigen (Rechtsklick im Detailbereich, #160)."""
+        self.left_tabs.setCurrentWidget(self.korrespondenten_view)
+        self.korrespondenten_view.waehlen(name)
+
+    def _on_korrespondent_dokumente(self, doks: list) -> None:
+        """Markierte Dokumente des Reiters "Korrespondenten" wie eine Auswahl unter "PDFs" behandeln.
+
+        Sie laufen ueber den normalen Weg (selected_pdf/selected_pdfs, Analyse bzw. Cache,
+        Ordnervorschlaege, Felder, Vorschau): Verschieben, Kopieren, Umbenennen, Lernen und
+        Rueckgaengig sind dieselben wie fuer eine PDF im Eingangsordner.
+        """
+        pfade = [p for p in (dokument_pfad(d) for d in doks) if p.is_file() and ist_sortierbar(p)]
+        if not pfade:
+            if doks:
+                self.statusbar.showMessage("Diese Dokumente lassen sich hier nicht bearbeiten (Mail oder Datei fehlt)", 4000)
+            if self._korr_aktiv:
+                self._korr_auswahl_leeren()
+            return
+        if not self._korr_aktiv:
+            self._pdf_auswahl_gemerkt = (self.selected_pdf, list(self.selected_pdfs))
+            self._korr_aktiv = True
+        self._end_analysis_wait()
+        self.selected_pdfs = pfade if len(pfade) > 1 else []
+        self.selected_pdf = pfade[-1]  # wie unter "PDFs": die letzte ist die "aktive"
+        self._auswahl_anzeigen()
+        if len(pfade) > 1:
+            self.statusbar.showMessage(f"{len(pfade)} Dokumente ausgewählt")
+        else:
+            self.statusbar.showMessage(f"Ausgewählt: {pfade[0].name}")
+
+    def _auswahl_anzeigen(self) -> None:
+        """Felder, Vorschau und Vorschlaege fuer ``selected_pdf`` zeigen.
+
+        Ist die Analyse noch nicht da, wird die Anzeige vorher geleert: Das Detailfeld darf
+        nie Felder eines anderen Dokuments zeigen, sonst gingen Namen und Metadaten beim
+        Speichern oder Verschieben an die falsche Datei.
+        """
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdf_dates = None
+        if self.pdf_cache.get(self.selected_pdf) is None:
+            self.detail_panel.clear()
+            self.clear_suggestions()
+        self.update_suggestions_for_pdf(self.selected_pdf)
+
+    def _korr_auswahl_leeren(self) -> None:
+        """Nichts mehr ausgewaehlt (Korrespondenten-Reiter bleibt aktiv, die gemerkte Auswahl auch)."""
+        self._end_analysis_wait()
+        self.selected_pdf = None
+        self.selected_pdfs = []
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdf_dates = None
+        self.clear_suggestions()
+        self.detail_panel.clear()
+        self.korrespondenten_view.auswahl_aufheben()
+
+    def _korr_auswahl_beenden(self) -> None:
+        """Zurueck zu "PDFs" (oder Chat): deren Auswahl gilt wieder."""
+        pdf, pdfs = self._pdf_auswahl_gemerkt or (None, [])
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt = None
+        self._end_analysis_wait()
+        self.korrespondenten_view.auswahl_aufheben()
+        self.selected_pdf = Path(pdf) if pdf is not None and Path(pdf).exists() else None
+        self.selected_pdfs = [Path(p) for p in pdfs if Path(p).exists()]
+        self._detail_panel_zuruecksetzen()
+
+    def _korr_auswahl_verwerfen(self) -> None:
+        """Auswahl ganz aufheben, auch die gemerkte (Wechsel in einen anderen Ordner)."""
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt = None
+        self.korrespondenten_view.auswahl_aufheben()
+        self._clear_selection()
+
+    def _on_korrespondent_ordner(self, ordner: Path) -> None:
+        """Kontextmenue "Ordner links öffnen": Ordner in der Liste "PDFs" zeigen."""
+        self._korr_auswahl_verwerfen()
+        self._navigate_to_folder(Path(ordner))
+        self.left_tabs.setCurrentIndex(0)
+
+    def _detail_panel_zuruecksetzen(self) -> None:
+        """Detailbereich wieder fuer die ausgewaehlte PDF fuellen (oder leeren)."""
+        if self.selected_pdf is not None and Path(self.selected_pdf).exists():
+            self._auswahl_anzeigen()
+        else:
+            self.selected_pdf = None
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
+            self.clear_suggestions()
+            self.detail_panel.clear()
 
     def show_chat_tab(self) -> None:
         """Wechselt in der linken Spalte auf den Chat."""
@@ -633,6 +750,7 @@ class MainWindow(QMainWindow):
         self._favoriten_vorbelegen()
         self.favoriten_leiste = FavoritenLeiste(self.config)
         self.favoriten_leiste.ordner_geoeffnet.connect(self._on_favorit_geoeffnet)
+        self.verbinde_hierhin_kopieren(self.favoriten_leiste)  # Issue #179
         # Favoriten und Pfadzeile eng beieinander, ohne den Panel-Abstand
         navi_layout = QVBoxLayout()
         navi_layout.setContentsMargins(0, 0, 0, 0)
@@ -648,7 +766,31 @@ class MainWindow(QMainWindow):
         self.breadcrumb_layout.addStretch()
         self.breadcrumb_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
-        navi_layout.addWidget(self.breadcrumb_widget)
+        # Ordnersuche (Issue #159): Klick auf die freie Pfadzeile oder die Lupe
+        # blendet das Suchfeld an Stelle der Pfadzeile ein (wie im Explorer).
+        self.breadcrumb_widget.setToolTip("Klicken zum Suchen nach Ordnern")
+        self.breadcrumb_widget.mousePressEvent = self._breadcrumb_klick
+        self.breadcrumb_suche_btn = QToolButton()
+        self.breadcrumb_suche_btn.setText("🔍")
+        self.breadcrumb_suche_btn.setAutoRaise(True)
+        self.breadcrumb_suche_btn.setFixedSize(20, 20)
+        self.breadcrumb_suche_btn.setToolTip("Ordner suchen")
+        self.breadcrumb_suche_btn.clicked.connect(self._ordnersuche_links_oeffnen)
+        self.breadcrumb_zeile = QWidget()
+        zeile_layout = QHBoxLayout(self.breadcrumb_zeile)
+        zeile_layout.setContentsMargins(0, 0, 0, 0)
+        zeile_layout.setSpacing(0)
+        zeile_layout.addWidget(self.breadcrumb_widget, stretch=1)
+        zeile_layout.addWidget(self.breadcrumb_suche_btn)
+        navi_layout.addWidget(self.breadcrumb_zeile)
+        self.ordner_suche_links = OrdnerSuchfeld(self._ordnersuche_wurzeln, schwebend=True)
+        self.ordner_suche_links.setFixedHeight(20)
+        self.ordner_suche_links.eingabe.setFixedHeight(20)
+        self.ordner_suche_links.eingabe.setStyleSheet("font-size: 11px;")
+        self.ordner_suche_links.treffer_gewaehlt.connect(self._on_favorit_geoeffnet)
+        self.ordner_suche_links.beendet.connect(self._ordnersuche_links_schliessen)
+        self.ordner_suche_links.setVisible(False)
+        navi_layout.addWidget(self.ordner_suche_links)
         layout.addLayout(navi_layout)
 
         # Info-Label für leeren Ordner
@@ -695,22 +837,21 @@ class MainWindow(QMainWindow):
         return panel
 
     def create_folder_panel(self) -> QWidget:
-        """Erstellt das Panel für die Zielordner und Korrespondenten (Phase 20).
+        """Erstellt das Panel für die Zielordner.
 
         Inhalt:
             * Kopfzeile (Titel + Buttons)
             * Vorschlagsbereich
             * Trennlinie
-            * QTabWidget mit zwei Tabs:
-                - "Zielordner"   -> FolderTreeWidget (bisheriges Verhalten)
-                - "Korrespondenten" -> KorrespondentSidebar (Phase 20)
+            * Zielordner-Baum (FolderTreeWidget); die Korrespondenten sind seit
+              Issue #160 ein Reiter der linken Spalte
         """
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
         # Überschrift mit Buttons
         header_layout = QHBoxLayout()
-        header = QLabel("Zielordner & Korrespondenten")
+        header = QLabel("Zielordner")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(header)
         header_layout.addStretch()
@@ -760,12 +901,7 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
-        # Tab-Widget: Zielordner + Korrespondenten (Phase 20 / Issue #21)
-        self.right_panel_tabs = QTabWidget()
-        self.right_panel_tabs.setTabPosition(QTabWidget.TabPosition.North)
-        self.right_panel_tabs.setStyleSheet("QTabBar::tab { padding: 4px 10px; }")
-
-        # --- Tab "Zielordner" (bisheriges Verhalten) ---
+        # Zielordner-Baum
         folder_tree_container = QWidget()
         ft_layout = QVBoxLayout(folder_tree_container)
         ft_layout.setContentsMargins(0, 0, 0, 0)
@@ -776,6 +912,7 @@ class MainWindow(QMainWindow):
         self.folder_tree.folder_selected.connect(self.on_tree_folder_selected)
         self.folder_tree.folder_double_clicked.connect(self.on_tree_folder_double_clicked)
         self.folder_tree.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+        self.verbinde_hierhin_kopieren(self.folder_tree)  # Issue #179
         self.folder_tree.folder_removed.connect(self.on_folder_remove)
         self.folder_tree.move_here_requested.connect(self.on_tree_folder_selected)  # Issue #93
         self.folder_tree.folder_renamed.connect(self.on_tree_folder_renamed)
@@ -793,105 +930,14 @@ class MainWindow(QMainWindow):
         self.folder_container.hide()  # Grid-Ansicht versteckt
         ft_layout.addWidget(self.folder_container)
 
-        self.right_panel_tabs.addTab(folder_tree_container, "Zielordner")
-        self.right_panel_tabs.setTabToolTip(
-            0, "Zielordner-Baum: hier klicken, um die ausgewählte PDF zu verschieben"
-        )
-
-        # --- Tab "Korrespondenten" (Phase 20 / Issue #21) ---
-        self.korrespondent_sidebar = KorrespondentSidebar(self.db, parent=self)
-        self.korrespondent_sidebar.korrespondent_selected.connect(
-            self._on_korrespondent_sidebar_selected
-        )
-        self.right_panel_tabs.addTab(self.korrespondent_sidebar, "Korrespondenten")
-        self.right_panel_tabs.setTabToolTip(
-            1, "Bekannte Korrespondenten - anklicken filtert die Dokumente danach"
-        )
-
-        layout.addWidget(self.right_panel_tabs, stretch=1)
+        layout.addWidget(folder_tree_container, stretch=1)
 
         return panel
 
-    def _on_korrespondent_sidebar_selected(self, name_or_none) -> None:
-        """Wird aufgerufen, wenn in der Korrespondenten-Sidebar ein Eintrag
-        angeklickt wird. Setzt den Korrespondent-Filter in der Filterleiste
-        und loest eine Suche aus.
-
-        Args:
-            name_or_none: Name des Korrespondenten oder ``None`` fuer "Alle".
-        """
-        if not hasattr(self, "filter_korrespondent"):
-            return
-        # Filter-Dropdown aktualisieren
-        self.filter_korrespondent.blockSignals(True)
-        if name_or_none is None:
-            # "Alle" -> ersten Eintrag
-            self.filter_korrespondent.setCurrentIndex(0)
-        else:
-            # Dropdown neu befuellen, falls der Name fehlt
-            current = self.filter_korrespondent.currentText()
-            items = [self.filter_korrespondent.itemText(i)
-                     for i in range(self.filter_korrespondent.count())]
-            if name_or_none not in items:
-                self.filter_korrespondent.addItem(name_or_none)
-            idx = self.filter_korrespondent.findText(name_or_none)
-            if idx >= 0:
-                self.filter_korrespondent.setCurrentIndex(idx)
-            else:
-                self.filter_korrespondent.setCurrentIndex(0)
-        self.filter_korrespondent.blockSignals(False)
-        # Suche ausloesen
-        if hasattr(self, "_execute_search"):
-            self._execute_search()
-        # Statusmeldung
-        if name_or_none:
-            self.statusbar.showMessage(
-                f"Filter: Korrespondent '{name_or_none}'", 3000
-            )
-        else:
-            self.statusbar.showMessage("Filter aufgehoben (Alle)", 2000)
-
-    def _check_automation_rules(self, pdf_path: Path, metadata: dict = None) -> None:
-        """Phase 21: Prueft Automatisierungs-Regeln VOR dem Verschieben.
-
-        Wenn eine Regel mit hoher Konfidenz (>= 0.9) und target_folder-Aktion
-        matcht, wird der Zielordner als Vorschlag im Statusbar angezeigt
-        (KEIN Auto-Move ohne User-Bestaetigung in v1).
-        """
-        try:
-            from src.utils.database import get_database
-            from src.core.rule_engine import RuleEngine
-
-            db = get_database()
-            engine = RuleEngine(db)
-            md = dict(metadata or {})
-            md.setdefault("dateiname", pdf_path.name)
-            matches = engine.evaluate(md)
-            if matches:
-                top = matches[0]
-                folders = []
-                for a in top.matched_actions:
-                    if a.get("type") == "target_folder":
-                        tmpl = a.get("template", "")
-                        try:
-                            resolved = engine.apply_actions([a], md).get(
-                                "target_folder", tmpl
-                            )
-                        except Exception:
-                            resolved = tmpl
-                        folders.append(resolved)
-                if folders:
-                    self.statusbar.showMessage(
-                        f"Regel '{top.rule['name']}' wuerde vorschlagen: "
-                        f"{', '.join(folders)}",
-                        5000,
-                    )
-        except Exception:
-            pass
 
     def _auto_collect_korrespondenten(self) -> None:
         """Phase 20: Sammelt Korrespondenten aus der Sortierhistorie
-        in die Verwaltungstabelle und refresht die Sidebar.
+        in die Verwaltungstabelle (Wiedererkennen im Text, Issue #109).
 
         Wird nach jedem PDF-Move aufgerufen. Idempotent: bereits
         vorhandene Korrespondenten werden nicht doppelt angelegt.
@@ -903,9 +949,7 @@ class MainWindow(QMainWindow):
         if self._auto_collect_done:
             return
         try:
-            new_count = self.db.auto_collect_from_history()
-            if new_count > 0 and hasattr(self, "korrespondent_sidebar"):
-                self.korrespondent_sidebar.refresh()
+            self.db.auto_collect_from_history()
             # Nach dem ersten Sammeln pro Session sind alle
             # bisherigen Korrespondenten erfasst; neue Moves
             # fuegen nur weitere hinzu (was auto_collect_from_history
@@ -991,6 +1035,8 @@ class MainWindow(QMainWindow):
                 # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
                 tile.clicked.connect(self.on_parent_tile_clicked)
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            self.verbinde_hierhin_kopieren(tile)  # Issue #179
+            self.verbinde_ordnerzeile(tile)  # Issue #183
             tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
             tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
             self.folder_tiles.append(tile)
@@ -1012,6 +1058,7 @@ class MainWindow(QMainWindow):
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
             widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
+            self._kopie_hinweis_anwenden(widget)  # Issue #179
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
@@ -1071,6 +1118,7 @@ class MainWindow(QMainWindow):
         """
         for j, pfad in enumerate(office_files):
             widget = OfficeThumbnailWidget(pfad, view=self._tile_view)
+            self._kopie_hinweis_anwenden(widget)  # Issue #179
             widget.clicked.connect(self.on_pdf_clicked)
             widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
             widget.shift_clicked.connect(self.on_pdf_shift_clicked)
@@ -1314,7 +1362,38 @@ class MainWindow(QMainWindow):
 
         Die KI kennt die Ablageorte aehnlicher Dokumente (Sortierhistorie und
         Suchindex) und nennt den passenden Ordner mit dem Jahr DIESES Dokuments.
+        Dazu kommt hoechstens ein Vorschlag fuer einen NEUEN Ordner (Issue #116).
         """
+        merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
+        return self._with_new_folder(pdf_path, merged, detected_date)
+
+    def _with_new_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """Hoechstens ein Neuer-Ordner-Vorschlag, vorne (Issue #116).
+
+        Jahresregel (A) vor KI (B); ist der Schalter aus, bleibt alles wie bisher.
+        """
+        from src.core import neuer_ordner
+        if not neuer_ordner.aktiv(self.config):
+            return list(suggestions)
+        try:
+            roots = self.folder_manager.target_folders
+            metas = [m for s in (self.pdf_cache.get_llm_suggestions(pdf_path) or [])
+                     if isinstance(m := getattr(s, "metadata", None), dict)]
+            year = neuer_ordner.dokument_jahr(detected_date, metas[0] if metas else None)
+            neu = neuer_ordner.jahres_neuer_ordner(suggestions, year, roots)
+            for meta in metas:
+                if neu is not None:
+                    break
+                neu = neuer_ordner.ki_neuer_ordner(meta, roots)
+            if neu is None:
+                return list(suggestions)
+            return neuer_ordner.hoechstens_einer_vorne([neu, *suggestions])
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Neuer-Ordner-Vorschlag nicht verfuegbar: {e}")
+            return list(suggestions)
+
+    def _with_existing_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """KI-Ordner und verknuepfte Dokumente (nur bestehende Ordner)."""
         try:
             from src.core.similar_documents import (
                 document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
@@ -1478,7 +1557,8 @@ class MainWindow(QMainWindow):
         Vorschläge und Ordner-Highlights wie bei einem echten Klick aktualisiert
         werden. Gibt True zurück, wenn eine Folge-PDF automatisch ausgewählt wurde.
         """
-        was_selected = self.selected_pdf == pdf_path
+        # Im Reiter "Korrespondenten" gibt es keine "naechste PDF" der Liste (#160)
+        was_selected = self.selected_pdf == pdf_path and not self._korr_aktiv
         index = self.remove_pdf_widget(pdf_path)
         if was_selected and index is not None and self.pdf_widgets:
             next_index = min(index, len(self.pdf_widgets) - 1)
@@ -1626,6 +1706,7 @@ class MainWindow(QMainWindow):
             widget.clicked.connect(self.on_folder_clicked)
             widget.double_clicked.connect(self.on_folder_double_clicked)
             widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            self.verbinde_hierhin_kopieren(widget)  # Issue #179
             widget.remove_requested.connect(self.on_folder_remove)
 
             row = i // 4
@@ -2077,6 +2158,7 @@ class MainWindow(QMainWindow):
             self._preview_window.close()
         # Reiter „Suche“: Abfrage-Threads und PDF-Leser der eigenen Vorschau
         self.search_view.shutdown()
+        self.korrespondenten_view.shutdown()
 
         # "OCR neu" bricht vor der naechsten Seite ab (Issue #150)
         if self._ocr_neu_worker is not None:
@@ -2572,39 +2654,61 @@ class MainWindow(QMainWindow):
 
         self.no_suggestions_label.hide()
 
+        # Issue #116: ein Vorschlag fuer einen neuen Ordner steht immer vorne
+        suggestions = sorted(suggestions, key=lambda s: not getattr(s, "new_source", ""))
+        first_existing = True
+
         # Vorschlag-Widgets erstellen
         for suggestion in suggestions:
+            is_new = bool(getattr(suggestion, "new_source", ""))
             widget = FolderWidget(suggestion.folder_path, 0)
             widget.is_suggestion = True
+            if is_new:
+                widget.set_neu(True)
 
             # NEU: Relativen Pfad anzeigen wenn vorhanden
             display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
             # Nur bei extrem langen Namen kürzen (WordWrap übernimmt den Rest)
             if len(display_name) > 50:
                 display_name = "..." + display_name[-47:]
+            if is_new:
+                display_name = f"➕ neu: {display_name}"
             widget.name_label.setText(display_name)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
             tooltip += f"{suggestion.reason}\n"
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
-            tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
+            if is_new:
+                tooltip += ("Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach "
+                            "einer Rückfrage an und verschiebt die ausgewählte Datei dorthin "
+                            "(Rechtsklick: hierhin kopieren).")
+            else:
+                tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
             widget.setToolTip(tooltip)
 
             # Konfidenz im Namen anzeigen
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
-            widget.count_label.setStyleSheet("font-size: 10px; color: #28a745; font-weight: bold;")
+            farbe = "#1e6fd9" if is_new else "#28a745"
+            widget.count_label.setStyleSheet(f"font-size: 10px; color: {farbe}; font-weight: bold;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
-            widget.double_clicked.connect(self.on_folder_double_clicked)
-            # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
-            # auf den Baum (vorher stilles No-op, weil nie verbunden)
-            widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            if not is_new:
+                # Neuer Ordner: Verschieben nur per Klick (kein Doppelklick-Navigieren, kein Drop)
+                widget.double_clicked.connect(self.on_folder_double_clicked)
+                # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
+                # auf den Baum (vorher stilles No-op, weil nie verbunden)
+                widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            # Issue #179: Kopieren (Menue, Strg-Drop) auch in einen neuen Ordner; er wird angelegt
+            self.verbinde_hierhin_kopieren(widget)
 
-            # Issue #32: nur der erste (beste) Vorschlag, nur bei hoher Konfidenz
-            if not self.suggestion_widgets and suggestion.confidence >= REGENBOGEN_SCHWELLE:
-                widget.set_regenbogen(True)
+            # Issue #32: nur der erste bestehende (beste) Vorschlag, nur bei hoher
+            # Konfidenz - nie ein neuer Ordner (Issue #116)
+            if not is_new:
+                if first_existing and suggestion.confidence >= REGENBOGEN_SCHWELLE:
+                    widget.set_regenbogen(True)
+                first_existing = False
 
             self.suggestions_layout.addWidget(widget)
             self.suggestion_widgets.append(widget)
@@ -2623,64 +2727,66 @@ class MainWindow(QMainWindow):
 
     def on_suggestion_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Vorschlag angeklickt wird."""
+        neu = self._new_folder_suggestion_for(folder_path)
+        if neu is not None:
+            # Issue #116: neuer Ordner nur fuer die eine ausgewaehlte Datei
+            if len(self.selected_pdfs) > 1:
+                self.statusbar.showMessage(
+                    "Neuer Ordner: bitte nur eine Datei auswählen", 4000
+                )
+            elif self.selected_pdf:
+                self._move_rename_and_learn(self.selected_pdf, folder_path, create_folder=True)
+            return
         # Multi-Selektion: Mehrere PDFs verschieben
         if len(self.selected_pdfs) > 1:
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
         elif self.selected_pdf:
             self._move_rename_and_learn(self.selected_pdf, folder_path)
 
-    def _move_rename_and_learn(self, pdf_path: Path, folder_path: Path):
-        """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow)."""
+    def _new_folder_suggestion_for(self, folder_path: Path):
+        """Der angezeigte Neuer-Ordner-Vorschlag fuer diesen Pfad (oder None, Issue #116)."""
+        if Path(folder_path).exists():
+            return None  # inzwischen angelegt: wie ein bestehender Vorschlag
+        for s in getattr(self, "_shown_suggestions", None) or []:
+            if getattr(s, "new_source", "") and Path(s.folder_path) == Path(folder_path):
+                return s
+        return None
+
+    def _invalidate_folder_caches(self):
+        """Neue bzw. weggeraeumte Ordner: Classifier-Cache und Prompt-Ordnerliste vergessen."""
+        if hasattr(self, 'classifier'):
+            self.classifier._folder_cache = {}
+            self.classifier._folder_cache_roots = []
+        from src.core import neuer_ordner
+        neuer_ordner.invalidieren()
+
+    def _move_rename_and_learn(self, pdf_path: Path, folder_path: Path, create_folder: bool = False):
+        """Verschiebt eine PDF mit optionaler Umbenennung und Metadaten (3-Spalten-Workflow).
+
+        Mit ``create_folder`` (Issue #116) wird der noch fehlende Zielordner nach
+        der Rueckfrage angelegt; Rueckgaengig raeumt ihn wieder weg, wenn er leer ist.
+        """
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
-        new_name = self.detail_panel.get_new_name()
-        metadata = self.detail_panel.get_metadata()
-        # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
-        office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
-        if office_ext and new_name:
-            new_name = endung_tauschen(new_name, office_ext)
-
-        # Der vom Nutzer gewaehlte/korrigierte Name ist das, was die KI
-        # kuenftig liefern soll - nur er geht als Beispiel in die Historie.
-        # Das Ordner-Praefix (#42) kommt beim Verschieben dazu und wuerde
-        # die KI sonst dazu verleiten, selbst Ordnernummern zu erfinden.
-        learned_name = new_name
-        folder_naming_applied = False
-
-        # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
-        if self.config.get("folder_naming_enabled", False):
-            folder_naming_applied = True
-            # Datum aus dem Feld "Datum" des Detail-Panels (Issue #132),
-            # sonst das erkannte Datum der Analyse
-            fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
-            if fallback_date is None and self.selected_pdf_dates:
-                fallback_date = coerce_date(self.selected_pdf_dates[0])
-            basis_name = new_name or pdf_path.name
-            if office_ext:
-                basis_name = basis_name[: -len(office_ext)] if basis_name.lower().endswith(office_ext) else basis_name
-            new_name = build_folder_based_name(
-                basis_name,
-                folder_path,
-                relative_path,
-                template=self.config.get("folder_naming_template", "") or DEFAULT_TEMPLATE,
-                initials=self.config.get("owner_initials", ""),
-                fallback_date=fallback_date,
-            )
-            if office_ext:
-                new_name = endung_tauschen(new_name, office_ext)
-
-        # Prüfen ob umbenannt wird
-        name_changed = new_name and new_name != pdf_path.name
+        # Name und Metadaten (gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
+        namen = self._ablage_namen(pdf_path, folder_path, relative_path)
+        new_name, metadata = namen.new_name, namen.metadata
+        office_ext, name_changed = namen.office_ext, namen.name_changed
 
         # Bestätigungsdialog
-        if name_changed:
+        if create_folder:
+            msg = f"Ordner '{relative_path}' anlegen und Datei dorthin verschieben?"
+            if name_changed:
+                msg += f"\n\n'{pdf_path.name}'\n→ '{new_name}'"
+            else:
+                new_name = None
+        elif name_changed:
             msg = f"'{pdf_path.name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
         else:
             msg = f"'{pdf_path.name}' nach '{relative_path}' verschieben?"
-            new_name = None  # Originalname beibehalten
 
         reply = QMessageBox.question(
-            self, "PDF verschieben",
+            self, "Neuen Ordner anlegen" if create_folder else "PDF verschieben",
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
@@ -2688,6 +2794,16 @@ class MainWindow(QMainWindow):
 
         if reply != QMessageBox.StandardButton.Yes:
             return
+
+        created_dirs: list[Path] = []
+        if create_folder:
+            from src.core import neuer_ordner
+            try:
+                created_dirs = neuer_ordner.anlegen(folder_path)
+            except OSError as e:
+                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{e}")
+                return
+            self._invalidate_folder_caches()
 
         timer = StepTimer("Verschieben")
         try:
@@ -2705,56 +2821,31 @@ class MainWindow(QMainWindow):
                 if not office_ext:  # in .docx/.xlsx schreiben wir keine PDF-Metadaten
                     self._write_pdf_metadata_async(new_path, new_path.name,
                                                    self.selected_pdf_keywords, metadata)
-                # Korrespondent-Zuordnung lernen
-                if metadata.get("korrespondent"):
-                    self.db.learn_korrespondent_metadata(
-                        metadata["korrespondent"], metadata
-                    )
             timer.step("metadata")
 
             # Undo-Eintrag
             desc = f"{pdf_path.name} → {relative_path}"
             if name_changed:
                 desc = f"{pdf_path.name} → {new_path.name} → {relative_path}"
-            self._push_undo({
+            undo_entry = {
                 "type": "move",
                 "moves": [(pdf_path, new_path)],
                 "description": desc,
-            })
+            }
+            if created_dirs:
+                # Issue #116: beim Rueckgaengigmachen wieder wegraeumen (wenn leer)
+                undo_entry["created_dirs"] = list(created_dirs)
+            self._push_undo(undo_entry)
 
-            # Aus der Entscheidung lernen
-            if self.selected_pdf_text:
-                self.classifier.learn(
-                    pdf_path=pdf_path,
-                    target_folder=folder_path,
-                    extracted_text=self.selected_pdf_text,
-                    keywords=self.selected_pdf_keywords,
-                    relative_path=relative_path,
-                )
+            # Aus der Entscheidung lernen (Klassifikator, Umbenennung, Korrespondent;
+            # gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
+            self._aus_ablage_lernen(
+                pdf_path, folder_path, relative_path, new_path, namen,
+                text=self.selected_pdf_text,
+                keywords=self.selected_pdf_keywords,
+                dates=self.selected_pdf_dates,
+            )
             timer.step("learn")
-
-            # Umbenennung lernen (falls Name geändert)
-            if name_changed:
-                # Vom Nutzer bestaetigtes/korrigiertes Datum (Issue #132) vor dem erkannten
-                detected_date = metadata.get("buchungsdatum") if metadata else None
-                if not detected_date and self.selected_pdf_dates:
-                    try:
-                        d = self.selected_pdf_dates[0]
-                        detected_date = d.strftime("%Y-%m-%d") if hasattr(d, 'strftime') else str(d)
-                    except Exception:
-                        pass
-                history_name = (
-                    learned_name if folder_naming_applied and learned_name else new_path.name
-                )
-                if history_name != pdf_path.name:
-                    self.db.add_rename_entry(
-                        original_filename=pdf_path.name,
-                        new_filename=history_name,
-                        extracted_text=self.selected_pdf_text,
-                        keywords=self.selected_pdf_keywords,
-                        detected_date=detected_date,
-                        target_folder=str(folder_path),
-                    )
 
             # Volltext-Suchindex befüllen (Phase 17)
             self.db.update_pdf_path(
@@ -2786,20 +2877,21 @@ class MainWindow(QMainWindow):
             self.config.add_to_last_used(folder_path)
             if not self._remove_pdf_widget_and_select_next(pdf_path):
                 self.detail_panel.clear()
+            if self._korr_aktiv:
+                self._korr_auswahl_leeren()  # Dokument aus dem Reiter "Korrespondenten" ist abgelegt
             timer.step("ui")
             self._refresh_after_move(folder_path, pdf_path.parent)
             timer.step("tree")
-            # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
-            self._check_automation_rules(
-                pdf_path, metadata=self.detail_panel.get_metadata()
-            )
-            timer.step("rules")
             # Phase 20: Korrespondenten aus Historie in Verwaltungstabelle sammeln
             self._auto_collect_korrespondenten()
             timer.step("korrespondenten")
             timer.done()
 
         except Exception as e:
+            if created_dirs:
+                from src.core import neuer_ordner
+                neuer_ordner.leere_wegraeumen(created_dirs)
+                self._invalidate_folder_caches()
             QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
@@ -2866,8 +2958,6 @@ class MainWindow(QMainWindow):
                 # Ordneransicht aktualisieren (um PDF-Zähler zu aktualisieren)
                 self._refresh_after_move(folder_path, pdf_path.parent)
 
-                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
-                self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
                 self._auto_collect_korrespondenten()
 
@@ -2958,7 +3048,7 @@ class MainWindow(QMainWindow):
         # Auswahl zurücksetzen
         self.selected_pdfs = []
         auto_selected = False
-        if selected_removed_index is not None and self.pdf_widgets:
+        if selected_removed_index is not None and self.pdf_widgets and not self._korr_aktiv:
             next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
             next_path = self.pdf_widgets[next_index].pdf_path
             self.on_pdf_clicked(next_path)
@@ -2977,6 +3067,8 @@ class MainWindow(QMainWindow):
         # Vorschläge leeren (nur wenn keine Folge-PDF automatisch ausgewählt wurde)
         if not auto_selected:
             self.clear_suggestions()
+        if self._korr_aktiv:
+            self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Doppelklick auf ein Thumbnail: PDF öffnen (Vorschau oder extern)."""
@@ -3436,8 +3528,6 @@ class MainWindow(QMainWindow):
                 self._remove_pdf_widget_and_select_next(pdf_path)
                 # Ordneransicht aktualisieren
                 self._refresh_after_move(Path(folder), pdf_path.parent)
-                # Phase 21: Automation-Regeln (Vorschlag im Statusbar)
-                self._check_automation_rules(pdf_path)
                 # Phase 20: Korrespondenten aus Historie sammeln
                 self._auto_collect_korrespondenten()
             except Exception as e:
@@ -3863,6 +3953,13 @@ class MainWindow(QMainWindow):
     def _push_undo(self, entry: dict):
         """Fügt einen Eintrag zum Undo-Stack hinzu."""
         self._undo_stack.append(entry)
+        # Der Reiter "Korrespondenten" zeigt neue Pfade sofort (der Suchindex zieht per Warteschlange nach)
+        paare = list(entry.get("moves") or [])
+        if entry.get("type") == "rename":
+            paare.append((entry["old_path"], entry["new_path"]))
+        view = getattr(self, "korrespondenten_view", None)
+        if paare and view is not None:
+            view.pfade_aktualisieren(paare)
         # Maximal 20 Einträge behalten
         if len(self._undo_stack) > 20:
             self._undo_stack.pop(0)
@@ -3990,6 +4087,7 @@ class MainWindow(QMainWindow):
 
             # Widget-Namen aktualisieren
             self._update_pdf_widget_path(new_path, restored_path)
+            self.korrespondenten_view.pfade_aktualisieren([(new_path, restored_path)])
 
         except Exception as e:
             QMessageBox.critical(
@@ -4039,6 +4137,7 @@ class MainWindow(QMainWindow):
         import shutil
         restored = 0
         errors = []
+        zurueck = []
 
         for source_orig, dest_path in moves:
             try:
@@ -4049,6 +4148,7 @@ class MainWindow(QMainWindow):
                 restored_path = target_dir / dest_path.name
                 shutil.move(str(dest_path), str(restored_path))
                 index_melden("datei_verschoben", str(dest_path), str(restored_path))
+                zurueck.append((dest_path, restored_path))
                 restored += 1
             except Exception as e:
                 errors.append(f"{dest_path.name}: {e}")
@@ -4056,6 +4156,14 @@ class MainWindow(QMainWindow):
         # Undo-Eintrag entfernen
         self._undo_stack.pop()
         self._update_undo_ui()
+        self.korrespondenten_view.pfade_aktualisieren(zurueck)
+
+        # Issue #116: beim Verschieben neu angelegte Ordner wieder wegraeumen -
+        # nur die aus diesem Schritt und nur, wenn sie jetzt leer sind
+        if entry.get("created_dirs") and not errors:
+            from src.core import neuer_ordner
+            neuer_ordner.leere_wegraeumen(entry["created_dirs"])
+            self._invalidate_folder_caches()
 
         if errors:
             QMessageBox.warning(
@@ -4297,6 +4405,34 @@ class MainWindow(QMainWindow):
                 lambda path=pdf: self._select_pdf_and_open_rename(path),
             )
 
+    def zeige_datei_im_ordner(self, pfad: Path) -> None:
+        """"Im Ordner anzeigen" aus dem Reiter Suche: Ordner in "PDFs" oeffnen,
+        die Datei auswaehlen und in der Vorschau zeigen (umbenennen, verschieben)."""
+        from src.rag.bezug import gleicher_pfad
+
+        pfad = Path(pfad)
+        if not pfad.is_file():
+            self.statusbar.showMessage(f"Datei nicht gefunden: {pfad}", 5000)
+            return
+        aktuell = self.config.get_scan_folder()
+        if not aktuell or not gleicher_pfad(aktuell, pfad.parent):
+            self._navigate_to_folder(pfad.parent)  # load_pdfs baut die Kacheln synchron
+        self.left_tabs.setCurrentIndex(0)
+        self.center_tabs.setCurrentIndex(0)
+        widget = next(
+            (w for w in self.pdf_widgets if gleicher_pfad(getattr(w, "pdf_path", ""), pfad)), None
+        )
+        if widget is None:
+            self.statusbar.showMessage(
+                f"„{pfad.name}“ ist in der Liste nicht zu sehen (Filter aktiv?)", 6000
+            )
+            return
+        # Ein Klick auf das bereits ausgewaehlte PDF hebt die Auswahl auf - das nicht
+        if self.selected_pdf != widget.pdf_path or self.selected_pdfs:
+            self.on_pdf_clicked(widget.pdf_path)
+        QTimer.singleShot(0, lambda: self.pdf_scroll_area.ensureWidgetVisible(widget))
+        self.statusbar.showMessage(f"Im Ordner angezeigt: {pfad.name}", 4000)
+
     def _select_pdf_and_open_rename(self, pdf_path: Path):
         """
         Hilfsmethode fuer handle_external_path: selektiert eine PDF
@@ -4364,6 +4500,29 @@ class MainWindow(QMainWindow):
             return
         menu = aktuellen_ordner_menue(self, self.favoriten_leiste, Path(scan))
         menu.exec(self.breadcrumb_widget.mapToGlobal(pos))
+
+    def _breadcrumb_klick(self, event):
+        """Linksklick auf die freie Pfadzeile: Ordnersuche einblenden (#159)."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._ordnersuche_links_oeffnen()
+
+    def _ordnersuche_wurzeln(self) -> list[Path]:
+        """Gesucht wird unter dem Scan-Ordner und den Zielordnern."""
+        wurzeln = []
+        scan = self.config.get_scan_folder()
+        if scan:
+            wurzeln.append(Path(scan))
+        wurzeln.extend(self.config.get_target_folders())
+        return wurzeln
+
+    def _ordnersuche_links_oeffnen(self):
+        self.breadcrumb_zeile.setVisible(False)
+        self.ordner_suche_links.setVisible(True)
+        self.ordner_suche_links.fokus_setzen()
+
+    def _ordnersuche_links_schliessen(self):
+        self.ordner_suche_links.setVisible(False)
+        self.breadcrumb_zeile.setVisible(True)
 
     def _update_navigation_buttons(self):
         """Aktualisiert den Zustand des Zurück-Buttons."""
@@ -4500,6 +4659,11 @@ class MainWindow(QMainWindow):
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
         """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""
+        # Ein Drop mehrerer Dateien ruft diese Methode je Datei auf; die erste verschiebt schon
+        # die ganze Mehrfachauswahl, die folgenden duerfen dann nicht mehr meckern
+        if pdf_path in self.__dict__.get("_drop_erledigt", ()):
+            return
+
         # Relativen Pfad für die Baumansicht berechnen
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
@@ -4507,6 +4671,9 @@ class MainWindow(QMainWindow):
         pdfs_to_move = []
         if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
             pdfs_to_move = list(self.selected_pdfs)
+            erledigt = self.__dict__.setdefault("_drop_erledigt", set())
+            erledigt.update(pdfs_to_move)
+            QTimer.singleShot(0, erledigt.clear)  # gilt nur fuer diesen einen Drop
         else:
             pdfs_to_move = [pdf_path]
 
@@ -4570,6 +4737,8 @@ class MainWindow(QMainWindow):
         self.selected_pdf_text = None
         self.selected_pdf_keywords = None
         self.selected_pdfs = []
+        if self._korr_aktiv:
+            self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt
 
         # Zuletzt verwendet aktualisieren
         self.config.add_to_last_used(folder_path)
@@ -4679,23 +4848,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(reset_btn, 0, 6, 2, 1)
 
         # Zeile 1: Datum, Betrag
-        self.filter_datum_von_cb = QCheckBox("Datum von:")
-        self.filter_datum_von_cb.setToolTip("Aktivieren, um nur Dokumente ab diesem Datum anzuzeigen")
-        layout.addWidget(self.filter_datum_von_cb, 1, 0)
-        self.filter_datum_von = QDateEdit()
-        self.filter_datum_von.setCalendarPopup(True)
-        self.filter_datum_von.setDate(QDate.currentDate().addYears(-1))
-        self.filter_datum_von.setEnabled(False)
-        layout.addWidget(self.filter_datum_von, 1, 1)
-
-        self.filter_datum_bis_cb = QCheckBox("Datum bis:")
-        self.filter_datum_bis_cb.setToolTip("Aktivieren, um nur Dokumente bis zu diesem Datum anzuzeigen")
-        layout.addWidget(self.filter_datum_bis_cb, 1, 2)
-        self.filter_datum_bis = QDateEdit()
-        self.filter_datum_bis.setCalendarPopup(True)
-        self.filter_datum_bis.setDate(QDate.currentDate())
-        self.filter_datum_bis.setEnabled(False)
-        layout.addWidget(self.filter_datum_bis, 1, 3)
+        datum_label = QLabel("Zeitraum:")
+        layout.addWidget(datum_label, 1, 0, Qt.AlignmentFlag.AlignTop)
+        self.filter_zeitraum = ZeitraumFeld()
+        self.filter_zeitraum.setToolTip("Nur Dokumente aus diesem Zeitraum anzeigen; leer = keine Grenze")
+        layout.addWidget(self.filter_zeitraum, 1, 1, 1, 3)
 
         betrag_label = QLabel("Betrag (€):")
         layout.addWidget(betrag_label, 1, 4)
@@ -4725,12 +4882,7 @@ class MainWindow(QMainWindow):
         self.filter_steuerjahr.currentTextChanged.connect(self._execute_search)
         self.filter_kategorie.currentTextChanged.connect(self._execute_search)
         self.filter_korrespondent.currentTextChanged.connect(self._execute_search)
-        self.filter_datum_von_cb.toggled.connect(self.filter_datum_von.setEnabled)
-        self.filter_datum_von_cb.toggled.connect(self._execute_search)
-        self.filter_datum_von.dateChanged.connect(self._execute_search)
-        self.filter_datum_bis_cb.toggled.connect(self.filter_datum_bis.setEnabled)
-        self.filter_datum_bis_cb.toggled.connect(self._execute_search)
-        self.filter_datum_bis.dateChanged.connect(self._execute_search)
+        self.filter_zeitraum.geaendert.connect(self._execute_search)
         self.filter_betrag_von.valueChanged.connect(self._execute_search)
         self.filter_betrag_bis.valueChanged.connect(self._execute_search)
 
@@ -4769,7 +4921,7 @@ class MainWindow(QMainWindow):
             return True
         if self.filter_korrespondent.currentText() not in ("", "Alle"):
             return True
-        if self.filter_datum_von_cb.isChecked() or self.filter_datum_bis_cb.isChecked():
+        if self.filter_zeitraum.hat_grenze():
             return True
         if self.filter_betrag_von.value() > 0 or self.filter_betrag_bis.value() > 0:
             return True
@@ -4779,7 +4931,7 @@ class MainWindow(QMainWindow):
         """Setzt alle Filterfelder zurück."""
         widgets = [
             self.filter_steuerjahr, self.filter_kategorie, self.filter_korrespondent,
-            self.filter_datum_von_cb, self.filter_datum_bis_cb,
+            self.filter_zeitraum,
             self.filter_betrag_von, self.filter_betrag_bis,
         ]
         for w in widgets:
@@ -4787,10 +4939,7 @@ class MainWindow(QMainWindow):
         self.filter_steuerjahr.setCurrentIndex(0)
         self.filter_kategorie.setCurrentIndex(0)
         self.filter_korrespondent.setCurrentIndex(0)
-        self.filter_datum_von_cb.setChecked(False)
-        self.filter_datum_von.setEnabled(False)
-        self.filter_datum_bis_cb.setChecked(False)
-        self.filter_datum_bis.setEnabled(False)
+        self.filter_zeitraum.zuruecksetzen()
         self.filter_betrag_von.setValue(0.0)
         self.filter_betrag_bis.setValue(0.0)
         for w in widgets:
@@ -4828,10 +4977,7 @@ class MainWindow(QMainWindow):
             kategorie = "" if val == "Alle" else val
             val = self.filter_korrespondent.currentText()
             korrespondent = "" if val == "Alle" else val
-            if self.filter_datum_von_cb.isChecked():
-                datum_von = self.filter_datum_von.date().toString("yyyy-MM-dd")
-            if self.filter_datum_bis_cb.isChecked():
-                datum_bis = self.filter_datum_bis.date().toString("yyyy-MM-dd")
+            datum_von, datum_bis = self.filter_zeitraum.grenzen()
             betrag_von = self.filter_betrag_von.value()
             betrag_bis = self.filter_betrag_bis.value()
 

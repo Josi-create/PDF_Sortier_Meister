@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.gui.hierhin_kopieren import kopier_eintrag
 from src.gui.pfad_aktionen import im_dateimanager_zeigen, oeffnen_text
 
 FAVORIT_MERKEN_TEXT = "★ Als Favorit merken"
@@ -57,6 +58,7 @@ class FavoritenLeiste(QFrame):
 
     ordner_geoeffnet = pyqtSignal(Path)  # Klick auf einen Favoriten
     geaendert = pyqtSignal()  # Liste wurde veraendert
+    copy_here_requested = pyqtSignal(Path)  # Rechtsklick "Hierhin kopieren" (Issue #179)
 
     _STIL = (
         "QPushButton { background-color: #ececec; border: 1px solid #b5b5b5; "
@@ -72,6 +74,7 @@ class FavoritenLeiste(QFrame):
         self._config = config
         self._aktuell: Optional[Path] = None
         self.knoepfe: list[QPushButton] = []
+        self.auswahl_pruefer = None  # Callable[[], list[Path]], setzt das Hauptfenster (#179)
 
         # Nur eine Zeile hoch: nie freien Platz der PDF-Ansicht abgreifen
         # (Live-Test: die Leiste wuchs auf die halbe Spaltenhoehe)
@@ -231,6 +234,9 @@ class FavoritenLeiste(QFrame):
         """Kontextmenue eines Favoriten-Knopfs (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
         i = self._index(pfad)
+        if pfad.is_dir():
+            kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(pfad))
+            menu.addSeparator()
         menu.addAction("Entfernen").triggered.connect(lambda: self.entfernen(pfad))
         menu.addAction("Umbenennen (Anzeigename)").triggered.connect(
             lambda: self._umbenennen_fragen(pfad)

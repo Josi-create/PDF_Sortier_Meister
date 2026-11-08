@@ -168,8 +168,8 @@ class Korrespondent(Base):
 class AutomationRule(Base):
     """Regeln fuer automatische Sortierung (Phase 21 / Issue #22).
 
-    Bedingungen (``conditions_json``) und Aktionen (``actions_json``)
-    werden als JSON-Listen persistiert und vom ``RuleEngine`` ausgewertet.
+    Ungenutzt seit #125 (Feature entfernt), Tabelle bleibt fuer bestehende
+    Datenbanken, damit sie ohne Migration weiter oeffnen und nichts verlieren.
 
     Felder:
         id: Primaerschluessel
@@ -380,8 +380,8 @@ class Database:
             except Exception as e:
                 print(f"Migration-Warnung fuer korrespondenten-Tabelle: {e}")
 
-            # Phase 21 (Issue #22): Automatisierungs-Regeln fuer die
-            # RuleEngine. Idempotente Anlage auch fuer externe DBs.
+            # Ungenutzt seit #125, Tabelle bleibt fuer bestehende
+            # Datenbanken. Idempotente Anlage auch fuer externe DBs.
             try:
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS automation_rules (
@@ -590,6 +590,35 @@ class Database:
 
         except Exception as e:
             print(f"update_pdf_path Fehler: {e}")
+            return False
+
+    def kopie_aufnehmen(
+        self,
+        new_path: str,
+        filename: str,
+        extracted_text: str = None,
+        keywords: str = None,
+        korrespondent: str = None,
+        kategorie: str = None,
+        steuerjahr: str = None,
+        betrag: str = None,
+        zusammenfassung: str = None,
+    ) -> bool:
+        """Nimmt eine Kopie (Issue #179) als eigenes Dokument in ``pdfs`` und den Suchindex auf.
+
+        Anders als :meth:`update_pdf_path` bleibt der Eintrag des Originals
+        unberuehrt: die Kopie bekommt eine eigene ``pdf_id``, es gibt keine
+        Verknuepfung zwischen beiden.
+        """
+        try:
+            pdf_id = self.get_or_create_pdf_id(new_path, filename)
+            felder = self._felder(korrespondent, kategorie, steuerjahr, betrag, zusammenfassung, keywords,
+                                  nur_gesetzte=True)
+            self.suchindex.metadaten_setzen(new_path, felder, pdf_id, text=extracted_text or None,
+                                            name=filename or None)
+            return True
+        except Exception as e:
+            print(f"kopie_aufnehmen Fehler: {e}")
             return False
 
     # === pdfs Master-Tabelle (Issue #25 / Phase 1) ===
@@ -1508,12 +1537,11 @@ class Database:
         if not korrespondent or not korrespondent.strip():
             return
 
-        korrespondent = korrespondent.strip()
+        # Issue #160: Alias und gleichwertige Schreibweisen lernen unter dem kanonischen Namen
+        korrespondent = self.kanonischer_korrespondent(korrespondent)
         session = self.get_session()
         try:
-            existing = session.query(KorrespondentMetadata).filter(
-                KorrespondentMetadata.korrespondent == korrespondent
-            ).first()
+            existing = self._gelernte_zeile(session, korrespondent)
 
             if existing:
                 # Bestehenden Eintrag aktualisieren
@@ -1555,11 +1583,10 @@ class Database:
         if not korrespondent or not korrespondent.strip():
             return None
 
+        korrespondent = self.kanonischer_korrespondent(korrespondent)
         session = self.get_session()
         try:
-            entry = session.query(KorrespondentMetadata).filter(
-                KorrespondentMetadata.korrespondent == korrespondent.strip()
-            ).first()
+            entry = self._gelernte_zeile(session, korrespondent)
 
             if not entry:
                 # Fuzzy-Suche: Teilübereinstimmung (z.B. "ista GmbH" findet "ista")
@@ -1586,6 +1613,35 @@ class Database:
             return result if result else None
         finally:
             session.close()
+
+    def kanonischer_korrespondent(self, name: str) -> str:
+        """Schreibweise der Korrespondenten-Verwaltung fuer ``name`` (Name oder Alias, Issue #160).
+
+        Gleichwertige Schreibweisen ("Stadtwerke Göttingen AG") und von der KI
+        zugeordnete Aliasse ("Stadtwerke GÖ") ergeben den Namen des Eintrags;
+        ohne passenden Eintrag bleibt ``name`` stehen.
+        """
+        from src.core.korrespondenten import kanonisch
+
+        try:
+            eintraege = self.list_korrespondenten()
+        except Exception:  # noqa: BLE001 - ohne Tabelle bleibt der Name
+            eintraege = []
+        return kanonisch(name, eintraege)
+
+    @staticmethod
+    def _gelernte_zeile(session, korrespondent: str):
+        """Gelernte Metadaten fuer genau diesen Namen, sonst fuer eine gleichwertige Schreibweise."""
+        from src.core.korrespondenten import schluessel
+
+        entry = session.query(KorrespondentMetadata).filter(
+            KorrespondentMetadata.korrespondent == korrespondent
+        ).first()
+        if entry is None:
+            k = schluessel(korrespondent)
+            entry = next((e for e in session.query(KorrespondentMetadata).all()
+                          if k and schluessel(e.korrespondent) == k), None)
+        return entry
 
     def get_steuerauswertung(self) -> list[dict]:
         """
@@ -1655,19 +1711,7 @@ class Database:
         finally:
             session.close()
 
-    # === Korrespondenten-Verwaltung (Phase 20 / Issue #21) ===
-
-    # Standard-Kategorien fuer die GUI-Kombobox
-    KORRESPONDENT_KATEGORIEN: list[str] = [
-        "Energie",
-        "Versicherung",
-        "Telekommunikation",
-        "Steuer",
-        "Bank",
-        "Behoerde",
-        "Vermieter",
-        "Sonstiges",
-    ]
+    # === Korrespondenten-Verwaltung (Phase 20 / Issue #21; seit #160 ohne Handpflege) ===
 
     def list_korrespondenten(self) -> list[dict]:
         """Gibt alle verwalteten Korrespondenten zurueck.
@@ -1809,8 +1853,35 @@ class Database:
         finally:
             session.close()
 
+    def korrespondent_alias_setzen(self, kanonisch: str, alias: str) -> None:
+        """Merkt sich ``alias`` als andere Schreibweise von ``kanonisch`` (Issue #160).
+
+        Fehlt der kanonische Eintrag, wird er ohne Nutzungszaehler angelegt.
+        Ein eigener Eintrag des Alias geht im kanonischen auf (Aliasse, Zaehler,
+        gelernte Metadaten). Suchindex und Sortierhistorie bleiben unveraendert:
+        Liste, Wiedererkennen und Lernen wenden die Zuordnung beim Lesen an.
+        """
+        kanonisch, alias = (kanonisch or "").strip(), (alias or "").strip()
+        if not kanonisch or not alias or kanonisch == alias:
+            return
+        session = self.get_session()
+        try:
+            eintrag = session.query(Korrespondent).filter(Korrespondent.name == kanonisch).first()
+            if eintrag is None:
+                eintrag = Korrespondent(name=kanonisch, usage_count=0)
+                session.add(eintrag)
+            aliases = self._deserialize_aliases(eintrag.aliases)
+            if alias not in aliases:
+                aliases.append(alias)
+            eintrag.aliases = self._serialize_aliases(aliases)
+            eintrag.updated_at = datetime.utcnow()
+            session.commit()
+        finally:
+            session.close()
+        self.merge_korrespondenten(kanonisch, [alias], index_umschreiben=False)
+
     def merge_korrespondenten(
-        self, primary_name: str, secondary_names: list[str]
+        self, primary_name: str, secondary_names: list[str], index_umschreiben: bool = True,
     ) -> None:
         """Fuehrt mehrere Korrespondenten zu einem Primaerkorrespondenten zusammen.
 
@@ -1820,15 +1891,18 @@ class Database:
             * Alle Sekundaer-Eintraege werden geloescht.
             * Sekundaer-Namen werden als Aliasse in den Primaer-Eintrag
               gemerged (Duplikate werden gefiltert, Reihenfolge bleibt stabil).
-            * Dokumente im Suchindex mit ``korrespondent = secondary`` werden
-              auf ``primary_name`` umgeschrieben (``metadaten_ersetzen``).
-            * ``sorting_history.korrespondent`` wird ebenfalls aktualisiert.
+            * Mit ``index_umschreiben``: Dokumente im Suchindex mit
+              ``korrespondent = secondary`` werden auf ``primary_name``
+              umgeschrieben (``metadaten_ersetzen``), ebenso
+              ``sorting_history.korrespondent``.
             * ``KorrespondentMetadata.korrespondent`` (gelernte Defaults)
               wird umbenannt, sodass vorhandene Lerneffekte erhalten bleiben.
 
         Args:
             primary_name: Name des Primaerkorrespondenten (muss existieren)
             secondary_names: Liste von Sekundaernamen (werden geloescht)
+            index_umschreiben: False laesst Suchindex und Historie unberuehrt
+                (automatisches Zusammenfuehren, Issue #160)
         """
         import sqlite3
 
@@ -1888,7 +1962,7 @@ class Database:
         try:
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
-            for sec_name in secondary_names:
+            for sec_name in (secondary_names if index_umschreiben else []):
                 if not sec_name:
                     continue
                 # Suchindex: Korrespondent in allen Dokumenten umschreiben (Text und OCR bleiben)
@@ -2001,229 +2075,6 @@ class Database:
 
         return new_count
 
-    # === Automatisierungs-Regeln (Phase 21 / Issue #22) ===
-
-    # Konfigurierbare Bedingungs-/Aktionstypen fuer den GUI-Editor.
-    # Werden vom RuleEngine unterstuetzt; weitere Typen koennen in
-    # ``src/core/rule_engine.py`` ergaenzt werden.
-    AVAILABLE_CONDITION_TYPES: list[str] = [
-        "korrespondent",   # operator: equals, contains
-        "kategorie",       # operator: equals, in
-        "betrag",          # operator: gt, gte, lt, lte, between
-        "datum",           # operator: after, before, between (ISO-String)
-        "keywords",        # operator: any, all
-    ]
-
-    AVAILABLE_ACTION_TYPES: list[str] = [
-        "target_folder",       # template: Zielordner mit Platzhaltern
-        "filename_pattern",    # template: Dateinamenmuster mit Platzhaltern
-        "metadata_field",      # field + value: Metadatenfeld setzen
-        "tag",                 # value: Tag zur Tag-Liste hinzufuegen
-    ]
-
-    def list_rules(self, enabled_only: bool = False) -> list[dict]:
-        """Gibt alle Automatisierungs-Regeln zurueck.
-
-        Sortierung: ``priority`` DESC, dann ``id`` ASC (deterministisch).
-
-        Args:
-            enabled_only: Wenn ``True``, werden nur aktivierte Regeln
-                zurueckgegeben.
-
-        Returns:
-            Liste von Dicts mit allen Feldern (``id``, ``name``,
-            ``priority``, ``enabled``, ``conditions``, ``actions``,
-            ``created_at``, ``updated_at``). ``conditions`` und
-            ``actions`` sind als Python-Listen deserialisiert.
-        """
-        session = self.get_session()
-        try:
-            query = session.query(AutomationRule).order_by(
-                AutomationRule.priority.desc(),
-                AutomationRule.id.asc(),
-            )
-            if enabled_only:
-                query = query.filter(AutomationRule.enabled == 1)
-            return [self._rule_to_dict(r) for r in query.all()]
-        finally:
-            session.close()
-
-    def get_rule(self, rule_id: int) -> Optional[dict]:
-        """Gibt eine einzelne Regel per ID zurueck.
-
-        Args:
-            rule_id: Primaerschluessel der Regel
-
-        Returns:
-            Dict oder ``None`` falls nicht gefunden.
-        """
-        session = self.get_session()
-        try:
-            entry = (
-                session.query(AutomationRule)
-                .filter(AutomationRule.id == rule_id)
-                .first()
-            )
-            return self._rule_to_dict(entry) if entry else None
-        finally:
-            session.close()
-
-    def add_rule(
-        self,
-        name: str,
-        priority: int = 0,
-        enabled: bool = True,
-        conditions: Optional[list[dict]] = None,
-        actions: Optional[list[dict]] = None,
-    ) -> dict:
-        """Legt eine neue Automatisierungs-Regel an.
-
-        Args:
-            name: Anzeigename (eindeutig, NOT NULL)
-            priority: Hoeher = wichtiger (Default 0)
-            enabled: Aktiv/Inaktiv (Default True)
-            conditions: Liste von Bedingungs-Dicts (Default [])
-            actions: Liste von Aktions-Dicts (Default [])
-
-        Returns:
-            Vollstaendiges Dict der gespeicherten Regel (inkl. ``id``)
-
-        Raises:
-            ValueError: Wenn ``name`` leer ist.
-            sqlalchemy.exc.IntegrityError: Wenn ``name`` bereits existiert.
-        """
-        if not name or not str(name).strip():
-            raise ValueError("Regelname darf nicht leer sein")
-
-        name = str(name).strip()
-        conditions_json = json.dumps(conditions or [], ensure_ascii=False)
-        actions_json = json.dumps(actions or [], ensure_ascii=False)
-
-        session = self.get_session()
-        try:
-            entry = AutomationRule(
-                name=name,
-                priority=int(priority) if priority is not None else 0,
-                enabled=1 if enabled else 0,
-                conditions_json=conditions_json,
-                actions_json=actions_json,
-            )
-            session.add(entry)
-            session.commit()
-            return self._rule_to_dict(entry)
-        finally:
-            session.close()
-
-    def update_rule(self, rule_id: int, **kwargs) -> dict:
-        """Aktualisiert eine vorhandene Regel (partielles Update).
-
-        Akzeptierte Keyword-Argumente:
-            ``name`` (str), ``priority`` (int), ``enabled`` (bool),
-            ``conditions`` (list[dict]), ``actions`` (list[dict]).
-
-        ``conditions`` und ``actions`` werden automatisch JSON-serialisiert.
-
-        Args:
-            rule_id: Primaerschluessel der zu aendernden Regel
-
-        Returns:
-            Aktualisiertes Dict der Regel.
-
-        Raises:
-            ValueError: Wenn die Regel nicht existiert oder ein
-                unbekannter Parameter uebergeben wird.
-        """
-        allowed = {"name", "priority", "enabled", "conditions", "actions"}
-        unknown = set(kwargs) - allowed
-        if unknown:
-            raise ValueError(
-                f"Unbekannte Parameter fuer update_rule: {sorted(unknown)}"
-            )
-
-        session = self.get_session()
-        try:
-            entry = (
-                session.query(AutomationRule)
-                .filter(AutomationRule.id == rule_id)
-                .first()
-            )
-            if entry is None:
-                raise ValueError(f"Regel mit id={rule_id} existiert nicht")
-
-            if "name" in kwargs:
-                new_name = kwargs["name"]
-                if not new_name or not str(new_name).strip():
-                    raise ValueError("Regelname darf nicht leer sein")
-                entry.name = str(new_name).strip()
-            if "priority" in kwargs:
-                entry.priority = int(kwargs["priority"]) if kwargs["priority"] is not None else 0
-            if "enabled" in kwargs:
-                entry.enabled = 1 if kwargs["enabled"] else 0
-            if "conditions" in kwargs:
-                entry.conditions_json = json.dumps(
-                    kwargs["conditions"] or [], ensure_ascii=False
-                )
-            if "actions" in kwargs:
-                entry.actions_json = json.dumps(
-                    kwargs["actions"] or [], ensure_ascii=False
-                )
-            entry.updated_at = datetime.utcnow()
-            session.commit()
-            return self._rule_to_dict(entry)
-        finally:
-            session.close()
-
-    def delete_rule(self, rule_id: int) -> bool:
-        """Loescht eine Regel.
-
-        Args:
-            rule_id: Primaerschluessel der Regel
-
-        Returns:
-            ``True`` wenn geloescht, ``False`` wenn nicht gefunden.
-        """
-        session = self.get_session()
-        try:
-            entry = (
-                session.query(AutomationRule)
-                .filter(AutomationRule.id == rule_id)
-                .first()
-            )
-            if entry is None:
-                return False
-            session.delete(entry)
-            session.commit()
-            return True
-        finally:
-            session.close()
-
-    def reorder_rules(self, rule_ids_in_new_order: list[int]) -> None:
-        """Setzt die Prioritaeten in der angegebenen Reihenfolge.
-
-        Die erste ID erhaelt ``priority=100``, die zweite ``99``, usw.
-        Nicht in der Liste enthaltene Regeln behalten ihre Prioritaet.
-
-        Args:
-            rule_ids_in_new_order: Liste der Regel-IDs in der
-                gewuenschten Reihenfolge (Index 0 = hoechste Prio).
-        """
-        if not rule_ids_in_new_order:
-            return
-
-        session = self.get_session()
-        try:
-            for new_pos, rule_id in enumerate(rule_ids_in_new_order):
-                priority = 100 - new_pos
-                session.query(AutomationRule).filter(
-                    AutomationRule.id == rule_id
-                ).update({
-                    "priority": priority,
-                    "updated_at": datetime.utcnow(),
-                })
-            session.commit()
-        finally:
-            session.close()
-
     # === Interne Helper (Korrespondent) ===
 
     @staticmethod
@@ -2263,41 +2114,6 @@ class Database:
         except (ValueError, TypeError):
             # Fallback: versuch als Komma-getrennte Liste zu interpretieren
             return [a.strip() for a in str(value).split(",") if a.strip()]
-
-    @staticmethod
-    def _rule_to_dict(entry: Optional[AutomationRule]) -> Optional[dict]:
-        """Konvertiert ein ``AutomationRule``-ORM-Objekt in ein Dict.
-
-        ``conditions_json`` und ``actions_json`` werden als Listen
-        deserialisiert; korrupte Werte werden durch ``[]`` ersetzt
-        (defensiv, damit der RuleEngine nicht abstuerzt).
-        """
-        if entry is None:
-            return None
-
-        def _safe_load(value) -> list:
-            if not value:
-                return []
-            if isinstance(value, (list, tuple)):
-                return [dict(x) if isinstance(x, dict) else x for x in value]
-            try:
-                parsed = json.loads(value)
-                if isinstance(parsed, list):
-                    return [dict(x) if isinstance(x, dict) else x for x in parsed]
-                return []
-            except (ValueError, TypeError):
-                return []
-
-        return {
-            "id": entry.id,
-            "name": entry.name,
-            "priority": entry.priority if entry.priority is not None else 0,
-            "enabled": bool(entry.enabled),
-            "conditions": _safe_load(entry.conditions_json),
-            "actions": _safe_load(entry.actions_json),
-            "created_at": entry.created_at,
-            "updated_at": entry.updated_at,
-        }
 
     @staticmethod
     def _korrespondent_to_dict(entry: Optional[Korrespondent]) -> Optional[dict]:
