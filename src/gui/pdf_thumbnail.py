@@ -100,7 +100,7 @@ class PDFThumbnailWidget(QFrame):
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
-    stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
+    stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten davorlegen
     rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
     reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
     straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
@@ -111,7 +111,7 @@ class PDFThumbnailWidget(QFrame):
     _BASE_TOOLTIP = (
         "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
-        "Auf eine andere PDF gezogen, haengt sie ihre Seiten dort an (Stapeln).\n"
+        "Auf eine andere PDF gelegt, kommen ihre Seiten davor (Stapeln, wie Papier).\n"
         "Doppelklick öffnet die PDF im Standardprogramm."
     )
     AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
@@ -389,7 +389,7 @@ class PDFThumbnailWidget(QFrame):
     AI_BACKGROUND = "#e6f4e6"
     AI_BORDER = "#7cc47f"
 
-    # Farben fuer "hier ablegen = Seiten anhaengen"
+    # Farben fuer "hier ablegen = Seiten davorlegen"
     STACK_BACKGROUND = "#fff3e0"
     STACK_BORDER = "#e67e22"
 

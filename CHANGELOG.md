@@ -83,6 +83,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Einwilligung für Cloud-Anbieter gilt auch hier. Die Statusleiste zeigt
   „Chat: Anbieter/Modell“, wenn es abweicht.
 
+### Behoben
+- **Stapeln rückgängig machen** (#189): Lag das Dokument auf einem anderen
+  Laufwerk als der Programmordner (`%APPDATA%`), scheiterte „Rückgängig“ mit
+  „[WinError 17] Das System kann die Datei nicht auf ein anderes Laufwerk
+  verschieben“. Die Sicherung wird jetzt über Laufwerksgrenzen kopiert und
+  erst nach dem Einsetzen gelöscht; bei einem Fehler bleibt sie erhalten und
+  der Eintrag in „Rückgängig“ bestehen.
+- **Stapeln wie bei Papier** (#190): Die gezogene PDF wird Seite 1, die
+  darunterliegende folgt (bisher umgekehrt). Mehrere gezogene PDFs kommen in
+  ihrer Reihenfolge alle davor. Namen und Ablageort behält die Ziel-PDF.
+
 ### Verbessert
 - **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
   Bezugsdokument zieht der Chat Vertrags-, Kunden-, Zähler- und
