@@ -245,7 +245,11 @@ class OrdnerVerschiebenMixin:
             rel = (s.relative_path or s.folder_name).replace("\\", "/")
             eltern, _, kurz = rel.rpartition("/")
             kurz = kurz or s.folder_name
-            zeile.set_anzeige(f"➕ neu: {kurz}" if is_new else kurz, eltern)
+            # Wie bei PDF-Vorschlaegen: voller Pfad auf zwei Zeilen, Ziel unten fett
+            ziel = Path(s.folder_path) if s.folder_path else None
+            if ziel is not None and ziel.is_absolute():
+                eltern = str(ziel.parent)
+            zeile.set_anzeige(kurz, eltern, "➕ neu: " if is_new else "")
             tooltip = f"Ordner „{name}“ wird nach {rel}/{name} einsortiert.\n{s.reason}\n"
             tooltip += f"Konfidenz: {int(s.confidence * 100)}%\n"
             tooltip += (

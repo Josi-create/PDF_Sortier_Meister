@@ -2505,6 +2505,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         pfade = [w.pdf_path for w in self.pdf_widgets]
         if not pfade:
             return
+        self._ordner_markierung_aufheben()  # Issue #196: Ordnermarkierung und PDF-Auswahl schliessen sich aus
         if len(pfade) == 1:
             if self.selected_pdf != pfade[0] or self.selected_pdfs:
                 self.on_pdf_clicked(pfade[0])
