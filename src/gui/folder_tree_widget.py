@@ -16,7 +16,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 
 from src.core.office_convert import ist_sortierbar
-from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag
+from src.core.ordner_verschieben import pruefe as ordner_pruefen
+from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, ordner_aus_mime
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from PyQt6.QtWidgets import (
     QTreeWidget,
@@ -110,6 +111,8 @@ class FolderTreeWidget(QWidget):
     copy_here_requested = pyqtSignal(Path)  # Kontextmenue "Hierhin kopieren" (Issue #179)
     pdf_copy_dropped = pyqtSignal(list, Path)  # Strg+Drop: (Dateien, Ordner), Issue #179
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
+    ordner_dropped = pyqtSignal(Path, Path)  # Ordnerzeile gezogen: (Ordner, Zielordner), Issue #196
+    ordner_copy_dropped = pyqtSignal(Path, Path)  # dasselbe mit Strg: kopieren, Issue #196
 
     # Kontextmenue (Issue #93)
     EXPAND_LEVELS = 3  # "Alle Unterordner aufklappen": so viele Ebenen tief
@@ -215,7 +218,9 @@ class FolderTreeWidget(QWidget):
             "Doppelklick: Ordner links als Scan-Ordner oeffnen (Navigation).\n"
             "Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\n"
             "Rechtsklick: weitere Aktionen.\n"
-            "PDFs koennen auch per Drag & Drop hierher gezogen werden."
+            "PDFs koennen auch per Drag & Drop hierher gezogen werden.\n"
+            "Links markierter Ordner: Klick (oder Ordnerzeile hierher ziehen) verschiebt "
+            "den ganzen Ordner, Strg+Ziehen kopiert ihn."
         )
 
         # Styling
@@ -991,6 +996,9 @@ class FolderTreeWidget(QWidget):
 
     def _tree_drag_enter(self, event: QDragEnterEvent):
         """Behandelt das Eintreten eines Drag-Objekts."""
+        if ordner_aus_mime(event.mimeData()) is not None:  # Ordnerzeile (Issue #196)
+            drop_aktion_setzen(event)
+            return
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 if ist_sortierbar(url.toLocalFile()):
@@ -1021,12 +1029,23 @@ class FolderTreeWidget(QWidget):
         # Qt-Grundverhalten zuerst: startet Auto-Scroll am Rand.
         # Annehmen/Ablehnen entscheidet danach der Code unten.
         QTreeWidget.dragMoveEvent(self.tree, event)
-        if event.mimeData().hasUrls():
+        ordner = ordner_aus_mime(event.mimeData())
+        if event.mimeData().hasUrls() or ordner is not None:
             item = self.tree.itemAt(event.position().toPoint())
 
             # Altes Hover-Item zurücksetzen
             if self._drag_hover_item and self._drag_hover_item != item:
                 self._reset_item_style(self._drag_hover_item)
+
+            # Issue #196: Ein Ordner nicht in sich selbst, einen Unterordner oder dorthin, wo er liegt
+            if item and ordner is not None and ordner_pruefen(
+                ordner, Path(item.data(0, Qt.ItemDataRole.UserRole))
+            ):
+                if self._drag_hover_item:
+                    self._reset_item_style(self._drag_hover_item)
+                    self._drag_hover_item = None
+                event.ignore()
+                return
 
             if item:
                 # Neues Item hervorheben; Verweilzeit fuers Aufklappen neu starten
@@ -1058,7 +1077,8 @@ class FolderTreeWidget(QWidget):
             self._reset_item_style(self._drag_hover_item)
             self._drag_hover_item = None
 
-        if not event.mimeData().hasUrls():
+        ordner = ordner_aus_mime(event.mimeData())
+        if not event.mimeData().hasUrls() and ordner is None:
             event.ignore()
             return
 
@@ -1068,6 +1088,16 @@ class FolderTreeWidget(QWidget):
             return
 
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
+
+        if ordner is not None:  # Ordnerzeile auf einen Ordner im Baum (Issue #196)
+            if ordner_pruefen(ordner, folder_path):
+                event.ignore()
+                return
+            if drop_aktion_setzen(event):
+                self.ordner_copy_dropped.emit(ordner, folder_path)
+            else:
+                self.ordner_dropped.emit(ordner, folder_path)
+            return
 
         dateien = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
         dateien = [d for d in dateien if ist_sortierbar(d)]

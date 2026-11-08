@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QAction, QDesktopServices
+from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -58,6 +58,7 @@ from src.core.backup_reminder import is_question_due, macrium_last_backup, parse
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import coerce_date
 from src.gui.hierhin_kopieren import HierhinKopierenMixin
+from src.gui.ordner_verschieben_gui import OrdnerVerschiebenMixin
 
 
 def _iso_to_date(value):
@@ -177,7 +178,7 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
+class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -225,6 +226,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Rename-Eintrag: {"type": "rename", "old_path": Path, "new_path": Path, "description": str}
         # Loesch-Eintrag: {"type": "delete", "original": Path, "papierkorb": Path, "description": str}
         # Stapel-Eintrag: {"type": "stack", "backups": [(original, sicherung), ...], "description": str}
+        # Ordner-Eintrag: {"type": "ordner", "ergebnis": OrdnerErgebnis, "description": str} (Issue #196)
         self._undo_stack: list[dict] = []
 
         # Ordner-Navigations-Historie für Zurück-Button
@@ -826,6 +828,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Scroll-Bereich für PDF-Thumbnails
         self.pdf_scroll_area = QScrollArea()
         self.pdf_scroll_area.setWidgetResizable(True)
+        # Ein Klick auf Kachel oder Flaeche gibt der Kachelansicht den Fokus,
+        # damit Strg+A dort alle Kacheln markiert (Live-Test 08.11.2026)
+        self.pdf_scroll_area.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.pdf_scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
@@ -902,7 +907,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Vorschläge-Bereich
         self.suggestions_label = QLabel("Vorgeschlagene Ziele:")
         self.suggestions_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(self.suggestions_label)
+        # Issue #196: "KI fragen" erscheint, solange links ein Ordner markiert ist
+        suggestions_kopf = QHBoxLayout()
+        suggestions_kopf.addWidget(self.suggestions_label, 1)
+        self.ordner_ki_btn = self.ordner_ki_knopf_bauen()
+        suggestions_kopf.addWidget(self.ordner_ki_btn)
+        layout.addLayout(suggestions_kopf)
 
         # Kompakte Zeilen in 1-3 Spalten, scrollt erst bei vielen Vorschlaegen
         self.suggestions_container = VorschlagListe()
@@ -936,7 +946,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         self.folder_tree.move_here_requested.connect(self.on_tree_folder_selected)  # Issue #93
         self.folder_tree.folder_renamed.connect(self.on_tree_folder_renamed)
         self.folder_tree.status_message.connect(lambda t: self.statusbar.showMessage(t, 8000))
-        self.folder_tree.has_pdf_selection = lambda: bool(self.selected_pdf or self.selected_pdfs)
+        self.folder_tree.has_pdf_selection = lambda: bool(
+            self.selected_pdf or self.selected_pdfs or self._markierter_ordner is not None
+        )
+        self.folder_tree.ordner_dropped.connect(self.on_tree_ordner_dropped)  # Issue #196
+        self.folder_tree.ordner_copy_dropped.connect(self.on_tree_ordner_copy_dropped)
         self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
         self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
         ft_layout.addWidget(self.folder_tree, stretch=1)
@@ -1056,10 +1070,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
             self.verbinde_hierhin_kopieren(tile)  # Issue #179
             self.verbinde_ordnerzeile(tile)  # Issue #183
+            self.verbinde_ordner_markierung(tile)  # Issue #196
             tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
             tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
             self.folder_tiles.append(tile)
         self._place_folder_rows()
+        self._ordner_markierung_anwenden()  # Issue #196: markierter Ordner bleibt markiert
 
         if not pdf_files:
             self._add_office_widgets(office_files, 0)
@@ -1147,6 +1163,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
             widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
+            widget.mehrere_umwandeln_requested.connect(self.on_mehrere_umwandeln)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
@@ -1202,12 +1219,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         if ist_bild_datei(pfad):  # Issue #184
             self.on_bild_convert(pfad)
             return
+        self._office_umwandeln([pfad], pdfa)
+
+    def on_mehrere_umwandeln(self, pfade: list, pdfa: bool):
+        """Kontextmenue der Mehrfachauswahl: jede markierte Datei ein eigenes PDF (Live-Test 08.11.2026)."""
+        reihenfolge = {w.pdf_path: i for i, w in enumerate(self.pdf_widgets)}
+        pfade = sorted((Path(p) for p in pfade), key=lambda p: reihenfolge.get(p, len(reihenfolge)))
+        if pfade and all(ist_bild_datei(p) for p in pfade):
+            self.bilder_einzeln_umwandeln(pfade)
+        elif pfade:
+            self._office_umwandeln([p for p in pfade if not ist_bild_datei(p)], pdfa)
+
+    def _office_umwandeln(self, pfade: list[Path], pdfa: bool):
         if self._office_worker is not None or self._bild_worker is not None:
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self.statusbar.showMessage(f"Wandle in PDF um: {pfad.name}…")
-        worker = OfficeConvertWorker([pfad], pdfa, self)
+        self.statusbar.showMessage(f"Wandle in PDF um: {pfade[0].name}…")
+        worker = OfficeConvertWorker(pfade, pdfa, self)
+        if len(pfade) > 1:
+            worker.fortschritt.connect(
+                lambda i, n, p: self.statusbar.showMessage(f"Wandle in PDF um ({i}/{n}): {p.name}…"))
         worker.fertig.connect(self._on_office_converted)
         self._office_worker = worker
         worker.start()
@@ -1218,18 +1250,24 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         fehler = []
         hinweise = []
         erzeugt = []
+        lesbar = []  # (Quelle, PDF): nur diese Originale werden zur Wahl gestellt (Issue #184)
         for quelle, erg, fehlertext in ergebnisse:
             if erg is None:
                 fehler.append(f"{quelle.name}: {fehlertext}")
                 continue
             erzeugt.append(erg.pdf)
             index_melden("datei_aufnehmen", str(erg.pdf))
-            if pdf_lesbar(erg.pdf):  # Issue #184: Original nur nach geglueckter Umwandlung zur Wahl stellen
-                self.original_nach_umwandeln([quelle], erg.pdf)
+            if pdf_lesbar(erg.pdf):
+                lesbar.append((quelle, erg.pdf))
             hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
             self.statusbar.showMessage(
                 f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
             )
+        if lesbar:
+            # Eine Frage fuer alle Originale, nicht eine je Datei
+            self.original_nach_umwandeln([q for q, _ in lesbar], [p for _, p in lesbar])
+        if len(erzeugt) > 1:
+            self.statusbar.showMessage(f"{len(erzeugt)} PDFs erstellt", 6000)
         if erzeugt:
             self.load_pdfs()
             # Das neue PDF wie angeklickt auswaehlen (load_pdfs baut die Kacheln synchron)
@@ -1915,6 +1953,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         deselect_action.triggered.connect(self._clear_selection)
         edit_menu.addAction(deselect_action)
 
+        # Strg+A nur in der Kachelansicht: in Textfeldern markiert es weiter den Text
+        self.select_all_action = QAction("Alle markieren", self)
+        self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        self.select_all_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.select_all_action.setToolTip("Alle Kacheln im Bereich PDFs markieren (Strg+A)")
+        self.select_all_action.triggered.connect(self.alle_markieren)
+        self.pdf_scroll_area.addAction(self.select_all_action)
+        edit_menu.addAction(self.select_all_action)
+
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
 
@@ -2348,6 +2395,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
 
     def on_pdf_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF angeklickt wird."""
+        self._ordner_markierung_aufheben()  # Issue #196: Ordnermarkierung und PDF-Auswahl schliessen sich aus
         # Klick auf bereits ausgewähltes PDF -> Auswahl aufheben
         # Nur wenn wirklich eine Einzelauswahl vorliegt (nicht bei Mehrfachauswahl)
         if self.selected_pdf == pdf_path and not self.selected_pdfs:
@@ -2381,6 +2429,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
 
     def on_pdf_ctrl_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF mit Ctrl angeklickt wird (Mehrfachauswahl)."""
+        self._ordner_markierung_aufheben()  # Issue #196
         # Falls noch keine Mehrfachauswahl aktiv ist, aber eine Einzelauswahl existiert,
         # diese in die Mehrfachauswahl übernehmen
         if not self.selected_pdfs and self.selected_pdf:
@@ -2406,6 +2455,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
 
     def on_pdf_shift_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF mit Shift angeklickt wird (Bereichsauswahl)."""
+        self._ordner_markierung_aufheben()  # Issue #196
         # Für Bereichsauswahl brauchen wir einen Ankerpunkt
         # Der Ankerpunkt ist entweder die letzte Einzelauswahl oder die letzte aus der Mehrfachauswahl
         anchor = self.selected_pdf
@@ -2447,6 +2497,28 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Statusbar aktualisieren
         self._update_selection_status()
 
+    def alle_markieren(self):
+        """Strg+A in der Kachelansicht: alle Kacheln markieren (Live-Test 08.11.2026).
+
+        Die bisher aktive PDF bleibt die aktive (Detailansicht, Vorschlaege, Anker fuer Shift+Klick).
+        """
+        pfade = [w.pdf_path for w in self.pdf_widgets]
+        if not pfade:
+            return
+        self._ordner_markierung_aufheben()  # Issue #196: Ordnermarkierung und PDF-Auswahl schliessen sich aus
+        if len(pfade) == 1:
+            if self.selected_pdf != pfade[0] or self.selected_pdfs:
+                self.on_pdf_clicked(pfade[0])
+            return
+        aktiv = self.selected_pdf if self.selected_pdf in pfade else None
+        if aktiv is not None:
+            pfade.remove(aktiv)
+            pfade.append(aktiv)  # _update_selection_status nimmt die letzte als aktive
+        for widget in self.pdf_widgets:
+            widget.selected = True
+        self.selected_pdfs = pfade
+        self._update_selection_status()
+
     def _update_selection_status(self):
         """Aktualisiert die Statusbar basierend auf der aktuellen Auswahl."""
         count = len(self.selected_pdfs)
@@ -2466,6 +2538,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
     def _clear_selection(self):
         """Hebt die aktuelle Auswahl vollständig auf."""
         self._end_analysis_wait()
+        self._ordner_markierung_aufheben()  # Issue #196
         try:
             # Alle Widgets deselektieren
             for widget in self.pdf_widgets:
@@ -2712,17 +2785,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             if is_new:
                 widget.set_neu(True)
 
-            # Name = letzter Pfadteil (fett), darunter der Elternpfad relativ zur Zielordner-Wurzel
+            # Voller Pfad auf zwei Zeilen: unten das Ende mit dem Zielordner fett, oben der
+            # Anfang; was nicht passt, faellt oben links weg (Live-Test 08.11.2026)
             rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
             elternpfad, _, name = rel.rpartition("/")
             if not name:
                 name = suggestion.folder_name
-            if is_new:
-                name = f"➕ neu: {name}"
-            widget.set_anzeige(name, elternpfad)
+            ordner = Path(suggestion.folder_path) if suggestion.folder_path else None
+            if ordner is not None and ordner.is_absolute():
+                elternpfad = str(ordner.parent)
+            widget.set_anzeige(name, elternpfad, "➕ neu: " if is_new else "")
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
-            tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
+            voller_pfad = str(ordner) if ordner is not None and ordner.is_absolute() else (
+                suggestion.relative_path or suggestion.folder_name)
+            tooltip = f"Pfad: {voller_pfad}\n"
             tooltip += f"{suggestion.reason}\n"
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
             if is_new:
@@ -4052,6 +4129,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             self._undo_delete(entry)
         elif entry_type == "wegraeumen":  # Issues #184/#187: Original(e) nach Umwandeln/Trennen
             original_wegraeumen.rueckgaengig(self, entry)
+        elif entry_type == "ordner":  # Issue #196: ganzer Ordner verschoben/kopiert
+            self._undo_ordner(entry)
         else:
             self._undo_move(entry)
 
@@ -4714,6 +4793,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
 
     def on_tree_folder_selected(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
+        # Issue #196: links ist ein Ordner markiert -> den ganzen Ordner hierher verschieben
+        if self._markierter_ordner is not None:
+            self.ordner_uebertragen(self._markierter_ordner, Path(folder_path), False)
+            return
         # Multi-Selektion: Mehrere PDFs verschieben
         if len(self.selected_pdfs) > 1:
             self.move_multiple_pdfs_to_folder(self.selected_pdfs, folder_path)
@@ -4721,14 +4804,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             self._move_rename_and_learn(self.selected_pdf, folder_path)
 
     def on_tree_folder_renamed(self, old: Path, new: Path):
-        """Zieht gespeicherte Zielordner nach, wenn ein Ordner im Baum umbenannt wurde."""
-        for folder in self.config.get_target_folders():
-            if folder == old or old in folder.parents:
-                moved = new / folder.relative_to(old)
-                self.config.remove_target_folder(folder)
-                self.config.add_target_folder(moved)
-                self.folder_manager.remove_folder(folder)
-                self.folder_manager.add_folder(moved)
+        """Zieht gespeicherte Pfade nach, wenn ein Ordner im Baum umbenannt wurde.
+
+        Seit Issue #196 mit dem gemeinsamen Helfer: Zielordner, Favoriten, gelernte
+        Zuordnungen, Analyse-Cache und Suchindex wandern mit.
+        """
+        self._ordner_pfade_umziehen(old, new, None, umbenannt=True)
+        self._invalidate_folder_caches()
+        self.classifier._schedule_retrain()
         self.statusbar.showMessage(f"Ordner umbenannt: {old.name} -> {new.name}", 3000)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):

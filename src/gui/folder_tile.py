@@ -8,19 +8,27 @@ Schrift sind fest und haengen nicht von der Kachelgroesse der PDFs ab
 (Issue #117). Doppelklick wechselt in den Ordner, die ".."-Zeile reagiert
 auf Einfachklick, PDFs koennen per Drag & Drop hineingeschoben werden.
 
+Issue #196: Ein Einfachklick markiert den Ordner (er wird dann ganz verschoben
+oder kopiert); die Zeile laesst sich auch auf den Zielbaum ziehen.
+
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QCursor, QDragEnterEvent, QDropEvent, QFontMetrics
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
+from PyQt6.QtCore import QMimeData, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor, QDrag, QDragEnterEvent, QDropEvent, QFontMetrics
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
 
 from src.core.office_convert import ist_sortierbar
 from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
-from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, verschieben_eintrag
+from src.gui.hierhin_kopieren import (
+    ORDNER_MIME,
+    drop_aktion_setzen,
+    kopier_eintrag,
+    verschieben_eintrag,
+)
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
     im_dateimanager_zeigen,
@@ -37,7 +45,7 @@ class FolderTileWidget(QFrame):
     oder zwei Spalten ueber den PDF-Kacheln an.
     """
 
-    clicked = pyqtSignal(Path)  # Einfachklick (nur fuer ".." verbunden, Issue #50)
+    clicked = pyqtSignal(Path)  # Einfachklick: ".." wechselt hoch (#50), Ordner werden markiert (#196)
     double_clicked = pyqtSignal(Path)  # In den Ordner wechseln
     pdf_dropped = pyqtSignal(Path, Path)  # (pdf_path, folder_path)
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
@@ -46,6 +54,9 @@ class FolderTileWidget(QFrame):
     move_here_requested = pyqtSignal(Path)  # Menue "Hierhin verschieben" (Issue #183)
     show_in_tree_requested = pyqtSignal(Path)  # Menue "Rechts im Baum zeigen" (Issue #183)
     target_toggle_requested = pyqtSignal(Path)  # Menue "Als Zielordner merken" (Issue #183)
+    markieren_requested = pyqtSignal(Path)  # Rechtsklick: Ordner markieren, ohne umzuschalten (#196)
+    ordner_ziel_gewaehlt = pyqtSignal(Path, Path, bool)  # (Ordner, Ziel, kopieren), Issue #196
+    ordner_ziel_waehlen = pyqtSignal(Path, bool)  # Menue "Anderen Ordner wählen …" (Issue #196)
 
     ROW_HEIGHT = 26  # feste Zeilenhoehe in Pixeln
     NAME_PX = 12  # Schriftgroesse des Ordnernamens
@@ -59,6 +70,10 @@ class FolderTileWidget(QFrame):
     )
     _STYLE_HOVER = (
         "FolderTileWidget { background-color: #fff3cd; border: 1px solid #daa520; "
+        "border-radius: 3px; }"
+    )
+    _STYLE_MARKIERT = (
+        "FolderTileWidget { background-color: #d6e9ff; border: 2px solid #1e6fd9; "
         "border-radius: 3px; }"
     )
     _STYLE_DROP = (
@@ -80,6 +95,11 @@ class FolderTileWidget(QFrame):
         self.favorit_pruefer = None  # Callable[[Path], bool], setzt das Hauptfenster
         self.auswahl_pruefer = None  # Callable[[], list[Path]], setzt das Hauptfenster (#179)
         self.ziel_pruefer = None  # Callable[[Path], bool]: Ordner schon in der Zielliste? (#183)
+        # Callable[[Path], list[(Text, Path)]]: berechnete Zielvorschlaege fuer den Ordner (#196)
+        self.ziel_vorschlag_pruefer = None
+        self._markiert = False
+        self._drag_start = None
+        self._doppelklick = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -130,7 +150,9 @@ class FolderTileWidget(QFrame):
         else:
             self.setToolTip(
                 f"{self.folder_path}\n"
-                "Doppelklick öffnet den Ordner, PDFs hierher ziehen verschiebt sie."
+                "Klick markiert den Ordner (dann rechts das Ziel anklicken), "
+                "Doppelklick öffnet ihn, Ziehen verschiebt ihn (Strg: kopiert).\n"
+                "PDFs hierher ziehen verschiebt sie."
             )
 
     @property
@@ -166,10 +188,58 @@ class FolderTileWidget(QFrame):
             return ""
         return f"{self._pdf_count} {'PDF' if self._pdf_count == 1 else 'PDFs'}"
 
+    # --- Markierung (Issue #196) -------------------------------------------
+
+    @property
+    def markiert(self) -> bool:
+        return self._markiert
+
+    @markiert.setter
+    def markiert(self, wert: bool):
+        wert = bool(wert) and not self.is_parent
+        if wert != self._markiert:
+            self._markiert = wert
+            self.setStyleSheet(self._style_ruhe())
+
+    def _style_ruhe(self) -> str:
+        return self._STYLE_MARKIERT if self._markiert else self._STYLE_NORMAL
+
     # --- Maus -----------------------------------------------------------
 
-    def mouseReleaseEvent(self, event):
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and not self.is_parent:
+            self._drag_start = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Ordnerzeile ziehen (Issue #196): auf den Zielbaum, Strg kopiert."""
         if (
+            self._drag_start is not None
+            and event.buttons() & Qt.MouseButton.LeftButton
+            and (event.position().toPoint() - self._drag_start).manhattanLength()
+            >= QApplication.startDragDistance()
+        ):
+            self._drag_start = None
+            self._ziehen_starten()
+            return
+        super().mouseMoveEvent(event)
+
+    def _ziehen_starten(self):
+        mime = QMimeData()
+        mime.setData(ORDNER_MIME, str(self.folder_path).encode("utf-8"))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.setPixmap(self.grab())
+        drag.exec(
+            Qt.DropAction.MoveAction | Qt.DropAction.CopyAction, Qt.DropAction.MoveAction
+        )
+        self.setStyleSheet(self._style_ruhe())
+
+    def mouseReleaseEvent(self, event):
+        self._drag_start = None
+        if self._doppelklick:  # zweiter Klick eines Doppelklicks: nicht nochmal markieren
+            self._doppelklick = False
+        elif (
             event.button() == Qt.MouseButton.LeftButton
             and self.rect().contains(event.position().toPoint())
         ):
@@ -178,17 +248,24 @@ class FolderTileWidget(QFrame):
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self._doppelklick = True
             self.double_clicked.emit(self.folder_path)
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event):
         """Rechtsklick: im Dateimanager oeffnen, Pfad kopieren (Issue #154)."""
+        if not self.is_parent:
+            self.markieren_requested.emit(self.folder_path)  # Vorschlaege fuers Untermenue (#196)
         self._build_context_menu().exec(event.globalPos())
 
     def _build_context_menu(self) -> QMenu:
         """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
         if not self.is_parent:
+            # Issue #196: den ganzen Ordner verschieben/kopieren (Untermenue mit Vorschlaegen)
+            self._ordner_ziel_menue(menu, "📁 Ordner verschieben nach …", False)
+            self._ordner_ziel_menue(menu, "📁 Ordner kopieren nach …", True)
+            menu.addSeparator()
             kopier_eintrag(
                 menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path)
             )
@@ -214,6 +291,27 @@ class FolderTileWidget(QFrame):
             fav.triggered.connect(lambda: self.favorit_umschalten.emit(self.folder_path))
         return menu
 
+    def _ordner_ziel_menue(self, menu: QMenu, titel: str, kopieren: bool) -> QMenu:
+        """Untermenue: berechnete Vorschlaege fuer diesen Ordner, dazu "Anderen Ordner wählen …"."""
+        untermenue = menu.addMenu(titel)
+        pruefer = self.ziel_vorschlag_pruefer
+        vorschlaege = list(pruefer(self.folder_path) or []) if pruefer else []
+        if vorschlaege:
+            for text, ziel in vorschlaege:
+                aktion = untermenue.addAction(text.replace("&", "&&"))
+                aktion.triggered.connect(
+                    lambda _=False, z=Path(ziel): self.ordner_ziel_gewaehlt.emit(
+                        self.folder_path, z, kopieren
+                    )
+                )
+        else:
+            leer = untermenue.addAction("(noch keine Vorschläge)")
+            leer.setEnabled(False)
+        untermenue.addSeparator()
+        waehlen = untermenue.addAction("Anderen Ordner wählen …")
+        waehlen.triggered.connect(lambda: self.ordner_ziel_waehlen.emit(self.folder_path, kopieren))
+        return untermenue
+
     def _open_in_file_manager(self):
         im_dateimanager_zeigen(self.folder_path)
 
@@ -225,7 +323,7 @@ class FolderTileWidget(QFrame):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self.setStyleSheet(self._STYLE_NORMAL)
+        self.setStyleSheet(self._style_ruhe())
         super().leaveEvent(event)
 
     # --- Drag & Drop ------------------------------------------------------
@@ -252,11 +350,11 @@ class FolderTileWidget(QFrame):
             event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet(self._STYLE_NORMAL)
+        self.setStyleSheet(self._style_ruhe())
         super().dragLeaveEvent(event)
 
     def dropEvent(self, event: QDropEvent):
-        self.setStyleSheet(self._STYLE_NORMAL)
+        self.setStyleSheet(self._style_ruhe())
         pdfs = self._pdf_paths(event.mimeData())
         if not pdfs:
             event.ignore()
