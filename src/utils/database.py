@@ -592,6 +592,35 @@ class Database:
             print(f"update_pdf_path Fehler: {e}")
             return False
 
+    def kopie_aufnehmen(
+        self,
+        new_path: str,
+        filename: str,
+        extracted_text: str = None,
+        keywords: str = None,
+        korrespondent: str = None,
+        kategorie: str = None,
+        steuerjahr: str = None,
+        betrag: str = None,
+        zusammenfassung: str = None,
+    ) -> bool:
+        """Nimmt eine Kopie (Issue #179) als eigenes Dokument in ``pdfs`` und den Suchindex auf.
+
+        Anders als :meth:`update_pdf_path` bleibt der Eintrag des Originals
+        unberuehrt: die Kopie bekommt eine eigene ``pdf_id``, es gibt keine
+        Verknuepfung zwischen beiden.
+        """
+        try:
+            pdf_id = self.get_or_create_pdf_id(new_path, filename)
+            felder = self._felder(korrespondent, kategorie, steuerjahr, betrag, zusammenfassung, keywords,
+                                  nur_gesetzte=True)
+            self.suchindex.metadaten_setzen(new_path, felder, pdf_id, text=extracted_text or None,
+                                            name=filename or None)
+            return True
+        except Exception as e:
+            print(f"kopie_aufnehmen Fehler: {e}")
+            return False
+
     # === pdfs Master-Tabelle (Issue #25 / Phase 1) ===
 
     def _generate_pdf_id(self) -> str:

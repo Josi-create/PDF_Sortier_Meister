@@ -318,6 +318,7 @@ def test_regenbogen_nur_erster_vorschlag_ab_schwelle(qtbot, tmp_path):
     fake.no_suggestions_label = QLabel()
     fake.clear_suggestions = lambda: MainWindow.clear_suggestions(fake)
     fake.on_suggestion_clicked = fake.on_folder_double_clicked = fake.on_pdf_dropped_on_folder = lambda *a: None
+    fake.verbinde_hierhin_kopieren = lambda widget: None  # Issue #179
 
     MainWindow.display_suggestions(fake, [_suggestion(tmp_path, "a", 0.9), _suggestion(tmp_path, "b", 0.95)])
     assert [w.regenbogen for w in fake.suggestion_widgets] == [True, False]

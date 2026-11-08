@@ -14,6 +14,7 @@ from PyQt6.QtGui import (
 )
 
 from src.core.office_convert import ist_sortierbar
+from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -35,6 +36,8 @@ class FolderWidget(QFrame):
     double_clicked = pyqtSignal(Path)  # Ordner wurde doppelgeklickt
     pdf_dropped = pyqtSignal(Path, Path)  # PDF wurde auf Ordner gezogen (pdf_path, folder_path)
     remove_requested = pyqtSignal(Path)  # Ordner soll entfernt werden
+    copy_here_requested = pyqtSignal(Path)  # Menue "Hierhin kopieren" (Issue #179)
+    pdf_copy_dropped = pyqtSignal(list, Path)  # Strg+Drop: (Dateien, Ordner), Issue #179
 
     def __init__(self, folder_path: Path, pdf_count: int = 0, parent=None):
         super().__init__(parent)
@@ -45,6 +48,7 @@ class FolderWidget(QFrame):
         self._regenbogen = False
         self._regenbogen_winkel = 0.0
         self._regenbogen_anim: Optional[QVariantAnimation] = None
+        self.auswahl_pruefer = None  # Callable[[], list[Path]], setzt das Hauptfenster (#179)
 
         self.setup_ui()
         self.setAcceptDrops(True)
@@ -234,6 +238,10 @@ class FolderWidget(QFrame):
         """Baut das Kontextmenue (getrennt, damit es testbar ist)."""
         menu = QMenu(self)
 
+        # Issue #179: ausgewaehlte Datei hierhin kopieren statt verschieben
+        kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path))
+        menu.addSeparator()
+
         # Im Dateimanager öffnen
         from src.utils.platform_paths import file_manager_name
         open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
@@ -274,12 +282,16 @@ class FolderWidget(QFrame):
             # Prüfen ob es PDF-Dateien sind
             for url in event.mimeData().urls():
                 if ist_sortierbar(url.toLocalFile()):
-                    event.acceptProposedAction()
+                    drop_aktion_setzen(event)
                     self.setStyleSheet(
                         "FolderWidget { background-color: #b8daff; border: 3px solid #007bff; border-radius: 8px; }"
                     )
                     return
         event.ignore()
+
+    def dragMoveEvent(self, event):
+        """Strg waehrend des Ziehens: Cursor zeigt die Kopieraktion (Issue #179)."""
+        drop_aktion_setzen(event)
 
     def dragLeaveEvent(self, event):
         """Behandelt das Verlassen eines Drag-Objekts."""
@@ -290,9 +302,11 @@ class FolderWidget(QFrame):
         self._update_style()
 
         if event.mimeData().hasUrls():
-            for url in event.mimeData().urls():
-                file_path = Path(url.toLocalFile())
-                if ist_sortierbar(file_path):
+            dateien = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
+            dateien = [d for d in dateien if ist_sortierbar(d)]
+            if drop_aktion_setzen(event):
+                if dateien:
+                    self.pdf_copy_dropped.emit(dateien, self.folder_path)
+            else:
+                for file_path in dateien:
                     self.pdf_dropped.emit(file_path, self.folder_path)
-
-            event.acceptProposedAction()
