@@ -42,6 +42,7 @@ from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
+from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.gui.tile_view import TILE_VIEWS, tile_view
@@ -566,9 +567,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             vorschlag = ordner_vorschlag_aus_chat(ordner_pfad, begruendung, self.folder_manager.target_folders)
             if vorschlag is None:
                 return
-            suggestions = merge_folder_suggestion(
+            suggestions = self._ordnen(self.selected_pdf, merge_folder_suggestion(
                 list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
-            )
+            ))
             self.display_suggestions(suggestions)
             self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
         except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
@@ -903,10 +904,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         self.suggestions_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(self.suggestions_label)
 
-        self.suggestions_container = QWidget()
-        self.suggestions_layout = QHBoxLayout(self.suggestions_container)
-        self.suggestions_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.suggestions_layout.setContentsMargins(0, 0, 0, 0)
+        # Kompakte Zeilen in 1-3 Spalten, scrollt erst bei vielen Vorschlaegen
+        self.suggestions_container = VorschlagListe()
+        self.suggestions_layout = self.suggestions_container.spalten
         layout.addWidget(self.suggestions_container)
 
         # Platzhalter wenn keine Vorschläge
@@ -1390,7 +1390,22 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         Dazu kommt hoechstens ein Vorschlag fuer einen NEUEN Ordner (Issue #116).
         """
         merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
-        return self._with_new_folder(pdf_path, merged, detected_date)
+        return self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+
+    @staticmethod
+    def _ordnen(pdf_path: Path, suggestions: list) -> list:
+        """Endgueltige Reihenfolge: Neuer Ordner (#116) vorne, dann absteigend nach Konfidenz.
+
+        Stabil, damit bei Gleichstand die Begruendungsreihenfolge bleibt. Der Ordner,
+        in dem die PDF schon liegt, wird nie vorgeschlagen (Verschieben waere wirkungslos).
+        """
+        from src.core import neuer_ordner
+        from src.rag.bezug import gleicher_pfad
+        eigener = Path(pdf_path).parent if pdf_path else None
+        rest = [s for s in suggestions
+                if not (eigener and not neuer_ordner.ist_neu(s) and gleicher_pfad(s.folder_path, eigener))]
+        rest.sort(key=lambda s: (not neuer_ordner.ist_neu(s), -float(s.confidence)))
+        return rest
 
     def _with_new_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
         """Hoechstens ein Neuer-Ordner-Vorschlag, vorne (Issue #116).
@@ -2688,19 +2703,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Vorschlag-Widgets erstellen
         for suggestion in suggestions:
             is_new = bool(getattr(suggestion, "new_source", ""))
-            widget = FolderWidget(suggestion.folder_path, 0)
+            widget = VorschlagZeile(suggestion.folder_path)
             widget.is_suggestion = True
             if is_new:
                 widget.set_neu(True)
 
-            # NEU: Relativen Pfad anzeigen wenn vorhanden
-            display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
-            # Nur bei extrem langen Namen kürzen (WordWrap übernimmt den Rest)
-            if len(display_name) > 50:
-                display_name = "..." + display_name[-47:]
+            # Name = letzter Pfadteil (fett), darunter der Elternpfad relativ zur Zielordner-Wurzel
+            rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
+            elternpfad, _, name = rel.rpartition("/")
+            if not name:
+                name = suggestion.folder_name
             if is_new:
-                display_name = f"➕ neu: {display_name}"
-            widget.name_label.setText(display_name)
+                name = f"➕ neu: {name}"
+            widget.set_anzeige(name, elternpfad)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
@@ -2718,7 +2733,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
             farbe = "#1e6fd9" if is_new else "#28a745"
-            widget.count_label.setStyleSheet(f"font-size: 10px; color: {farbe}; font-weight: bold;")
+            widget.count_label.setStyleSheet(
+                f"font-size: 11px; color: {farbe}; font-weight: bold; background: transparent; border: none;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
             if not is_new:
