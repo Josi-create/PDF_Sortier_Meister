@@ -13,6 +13,7 @@ Dateien (Kopie, Stapel, Teilen, Zusammenfuegen) werden gelesen. Die Meldungen
 laufen in einem eigenen Thread und sind ohne eingerichtete Suche wirkungslos.
 """
 
+import errno
 import os
 import shutil
 import time
@@ -97,18 +98,19 @@ class FileManager:
         return new_name if new_name.lower().endswith('.pdf') else new_name + '.pdf'
 
     def get_office_files(self) -> list[Path]:
-        """Findet .docx/.xlsx im Scan-Ordner (Issue #9), nach Name sortiert.
+        """Findet .docx/.xlsx und Bilder im Scan-Ordner (Issues #9, #184), nach Name sortiert.
 
         Word legt waehrend des Bearbeitens Sperrdateien ``~$name.docx`` an;
         die werden ausgelassen.
         """
         if self._scan_folder is None:
             return []
-        from src.core.office_convert import OFFICE_ENDUNGEN
+        from src.core.office_convert import sortierbare_endungen
 
+        endungen = sortierbare_endungen()
         dateien = [
             f for f in self._scan_folder.iterdir()
-            if f.is_file() and f.suffix.lower() in OFFICE_ENDUNGEN and not f.name.startswith("~$")
+            if f.is_file() and f.suffix.lower() in endungen and not f.name.startswith("~$")
         ]
         dateien.sort(key=lambda p: p.name.lower())
         return dateien
@@ -344,8 +346,9 @@ class FileManager:
         backup_dir: Path | str,
     ) -> list[tuple[Path, Path]]:
         """
-        Haengt die Seiten der Quell-PDFs hinten an die Ziel-PDF an
-        ("Stapeln" wie in PaperPort: PDF auf eine andere PDF ziehen).
+        Legt die Quell-PDFs vor die Ziel-PDF ("Stapeln" wie bei Papier: was man
+        auf ein anderes Blatt legt, liegt oben und ist Seite 1; PDF auf eine
+        andere PDF ziehen).
 
         Die Ziel-PDF behaelt Namen und Metadaten (XMP). Quellen aus dem
         Ordner der Ziel-PDF gehen im Stapel auf und verschwinden dort;
@@ -356,7 +359,7 @@ class FileManager:
 
         Args:
             target: PDF, an die angehaengt wird
-            sources: PDFs, deren Seiten angehaengt werden (in dieser Reihenfolge)
+            sources: PDFs, deren Seiten vor die Ziel-PDF kommen (in dieser Reihenfolge)
             backup_dir: Ordner fuer die Sicherung der Originale (wird angelegt)
 
         Returns:
@@ -378,9 +381,11 @@ class FileManager:
         temp_path = target.with_name(f"{target.stem}.stapel-tmp.pdf")
         try:
             with fitz.open(str(target)) as doc:
+                position = 0
                 for source in source_paths:
                     with fitz.open(str(source)) as src_doc:
-                        doc.insert_pdf(src_doc)
+                        doc.insert_pdf(src_doc, start_at=position)
+                        position += len(src_doc)
                 doc.save(str(temp_path), garbage=3, deflate=True)
         except Exception:
             temp_path.unlink(missing_ok=True)
@@ -405,6 +410,33 @@ class FileManager:
 
         return backups
 
+    @staticmethod
+    def _ersetzen_ueber_laufwerke(quelle: Path, ziel: Path) -> None:
+        """``quelle`` an die Stelle von ``ziel`` legen, auch ueber Laufwerksgrenzen.
+
+        Erst ``os.replace`` (atomar, gleiches Laufwerk). Scheitert das mit
+        "anderes Laufwerk" (EXDEV bzw. WinError 17), wird neben ``ziel`` kopiert,
+        die Kopie atomar eingesetzt und erst danach ``quelle`` geloescht.
+        Bei Fehlern bleibt ``quelle`` erhalten und ``ziel`` unveraendert.
+        """
+        try:
+            os.replace(str(quelle), str(ziel))
+            return
+        except OSError as e:
+            if e.errno != errno.EXDEV and getattr(e, "winerror", None) != 17:
+                raise
+        tmp = ziel.with_name(f"{ziel.stem}.rueckgaengig-tmp{ziel.suffix}")
+        try:
+            shutil.copy2(str(quelle), str(tmp))
+            os.replace(str(tmp), str(ziel))
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        try:
+            quelle.unlink()
+        except OSError:
+            pass  # Kopie liegt am Platz; ein Rest in der Sicherung ist harmlos
+
     def restore_stack(self, backups: list[tuple[Path, Path]]) -> list[Path]:
         """
         Macht stack_pdfs() rueckgaengig: Die Ziel-PDF bekommt ihren alten
@@ -424,7 +456,7 @@ class FileManager:
             if not backup.exists():
                 raise FileNotFoundError(f"Sicherung nicht gefunden: {backup}")
             if i == 0:
-                os.replace(str(backup), str(original))
+                self._ersetzen_ueber_laufwerke(backup, original)
                 restored.append(original)
                 index_melden("datei_geaendert", str(original))
             else:

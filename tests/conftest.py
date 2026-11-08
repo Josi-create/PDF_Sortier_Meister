@@ -142,3 +142,15 @@ def zeitplan_speicher(monkeypatch):
     monkeypatch.setattr(zeitplan, "_backend_fuer_tests", speicher)
     monkeypatch.setattr(zeitplan, "_ausfuehren", gesperrt)
     return speicher
+
+
+@pytest.fixture(autouse=True)
+def original_dialog_und_ocr_aus(monkeypatch):
+    """Kein Test blockiert in der Frage "Original in den Papierkorb?" (Issues #184/#187) oder liest
+    die Tesseract-Einstellungen des Nutzers: Standard ist "Nein, behalten" und "keine Texterkennung".
+    Tests dazu patchen ``_frage`` bzw. ``bild_convert.ocr_einstellungen`` selbst und gewinnen damit."""
+    from src.core import bild_convert
+    from src.gui import original_wegraeumen
+
+    monkeypatch.setattr(original_wegraeumen, "_frage", lambda parent, text: (False, False))
+    monkeypatch.setattr(bild_convert, "ocr_einstellungen", lambda: None)

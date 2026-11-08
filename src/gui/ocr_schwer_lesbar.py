@@ -19,7 +19,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -120,6 +120,7 @@ class OcrSchwerLesbar(QObject):
         self.fenster = fenster
         self._worker: Optional[QThread] = None
         self._pdf: Optional[Path] = None
+        self._ki_nach_analyse = None   # Slot an pdf_cache.pdf_analyzed (nach "Als Text übernehmen")
 
     @property
     def laeuft(self) -> bool:
@@ -159,6 +160,55 @@ class OcrSchwerLesbar(QObject):
         fenster.pdf_cache.clear_for_pdf(pdf_path)
         if fenster.selected_pdf is not None and not fenster.selected_pdfs and fenster.selected_pdf == pdf_path:
             fenster.update_suggestions_for_pdf(pdf_path)
+
+    def _ki_metadaten_nach_analyse(self, pdf_path: Path):
+        """Nach "Als Text übernehmen": PDF auswaehlen, neu analysieren und danach
+        automatisch "KI-Metadaten neu generieren" (Live-Test 08.11.2026).
+
+        Die KI liest den Text aus der Analyse - deshalb erst, wenn die neue Analyse
+        (mit dem entzifferten Text) im Cache steht, nicht sofort.
+        """
+        fenster = self.fenster
+        cache = fenster.pdf_cache
+        self._ki_trennen()
+        if fenster.selected_pdf != pdf_path or fenster.selected_pdfs:
+            fenster.on_pdf_clicked(pdf_path)   # Detailansicht zeigt dieses PDF
+
+        def starten():
+            if fenster.selected_pdf != pdf_path or fenster.selected_pdfs:
+                return   # inzwischen etwas anderes ausgewaehlt
+            panel = fenster.detail_panel
+            if panel.get_current_pdf() != pdf_path:
+                return
+            if not panel.ki_metadaten_neu_generieren():
+                fenster.statusbar.showMessage(
+                    "Text übernommen - für KI-Metadaten ist keine KI eingerichtet.", 6000)
+
+        def analysiert(pfad):
+            if Path(pfad) != pdf_path:
+                return
+            self._ki_trennen()
+            QTimer.singleShot(0, starten)   # nach den uebrigen Empfaengern (Detailansicht fuellen)
+
+        self._ki_nach_analyse = analysiert
+        cache.pdf_analyzed.connect(analysiert)
+        QTimer.singleShot(120_000, lambda: self._ki_trennen(analysiert))   # Analyse kam nie
+
+        self._text_neu_laden(pdf_path)
+        # Analyse lief synchron (ohne Signal): gleich starten
+        if self._ki_nach_analyse is analysiert and cache.get(pdf_path) is not None:
+            analysiert(pdf_path)
+
+    def _ki_trennen(self, nur=None):
+        """Den wartenden Slot "KI nach Analyse" loesen (``nur``: nur diesen)."""
+        slot = self._ki_nach_analyse
+        if slot is None or (nur is not None and slot is not nur):
+            return
+        self._ki_nach_analyse = None
+        try:
+            self.fenster.pdf_cache.pdf_analyzed.disconnect(slot)
+        except (TypeError, RuntimeError):
+            pass
 
     # --- OCR wiederholen mit ... --------------------------------------------
 
@@ -278,11 +328,12 @@ class OcrSchwerLesbar(QObject):
                 "Der Text wird im Suchindex gespeichert, und der ist nicht eingerichtet. "
                 "Richten Sie die Suche in den Einstellungen ein.")
         else:
-            self._text_neu_laden(pdf_path)
             widget = fenster._pdf_widget_for(pdf_path)
             if widget is not None:
                 widget.ocr_schlecht = False
             fenster.statusbar.showMessage(f"Entzifferter Text gespeichert ({erg.get('seiten', 0)} Seite(n))", 6000)
+            # Danach automatisch "KI-Metadaten neu generieren" (laedt die Analyse neu)
+            self._ki_metadaten_nach_analyse(pdf_path)
 
 
 def _prozent(wert) -> str:

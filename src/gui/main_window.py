@@ -42,6 +42,7 @@ from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
+from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.gui.tile_view import TILE_VIEWS, tile_view
@@ -81,7 +82,10 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.core import office_vorschau
+from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
+from src.gui import original_wegraeumen
+from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -173,7 +177,7 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(HierhinKopierenMixin, QMainWindow):
+class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -262,6 +266,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # "OCR neu durchführen" im Hintergrund (Issue #150)
         self._ocr_neu_worker: Optional[OcrNeuWorker] = None
         self._office_worker: Optional[OfficeConvertWorker] = None
+        self._bild_worker = None  # Bilder -> PDF (Issue #184)
         self._office_vorschau_worker: Optional[OfficeVorschauWorker] = None
         self._office_preview_pfad: Optional[Path] = None  # .docx/.xlsx, deren Seitenvorschau gewuenscht ist
         self._ocr_neu_paths: list[Path] = []
@@ -273,6 +278,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Initial laden
         QTimer.singleShot(100, self.initial_load)
         QTimer.singleShot(300, self._start_warmup)
+
+    # Mindestbreiten links / Mitte / rechts im Vorschau-Splitter (Issue #188)
+    SPALTEN_MINDESTBREITEN = (300, 320, 240)
 
     def setup_ui(self):
         """Initialisiert die Haupt-UI-Komponenten."""
@@ -365,6 +373,18 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Rechte Spalte: Zielordner
         folder_panel = self.create_folder_panel()
         splitter.addWidget(folder_panel)
+
+        # Issue #188: Die Mindestbreiten der Spalten kommen sonst aus den Inhalten
+        # (Kopfzeilen, Platzhaltertexte, Vorschlags-Chips: zusammen > 2400 px bei
+        # Schriftskalierung/RDP). Dann liegen die Spalten schon am Minimum, ein
+        # Griff laesst sich nicht greifen oder das Fenster springt. Feste, kleine
+        # Mindestbreiten (Summe < 1024 px) und keine kollabierenden Spalten.
+        splitter.setChildrenCollapsible(False)
+        for spalte, mindestbreite in zip(
+            (self.left_tabs, self.detail_panel, folder_panel), self.SPALTEN_MINDESTBREITEN
+        ):
+            spalte.setMinimumWidth(mindestbreite)
+        self.main_splitter = splitter
 
         # Splitter-Größenverhältnis fixieren (30/40/30%)
         splitter.setStretchFactor(0, 3)  # Links: 30%
@@ -547,9 +567,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             vorschlag = ordner_vorschlag_aus_chat(ordner_pfad, begruendung, self.folder_manager.target_folders)
             if vorschlag is None:
                 return
-            suggestions = merge_folder_suggestion(
+            suggestions = self._ordnen(self.selected_pdf, merge_folder_suggestion(
                 list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
-            )
+            ))
             self.display_suggestions(suggestions)
             self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
         except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
@@ -884,10 +904,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self.suggestions_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(self.suggestions_label)
 
-        self.suggestions_container = QWidget()
-        self.suggestions_layout = QHBoxLayout(self.suggestions_container)
-        self.suggestions_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.suggestions_layout.setContentsMargins(0, 0, 0, 0)
+        # Kompakte Zeilen in 1-3 Spalten, scrollt erst bei vielen Vorschlaegen
+        self.suggestions_container = VorschlagListe()
+        self.suggestions_layout = self.suggestions_container.spalten
         layout.addWidget(self.suggestions_container)
 
         # Platzhalter wenn keine Vorschläge
@@ -1127,6 +1146,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             widget.move_requested.connect(self.on_pdf_move)
             widget.delete_requested.connect(self.on_office_delete)
             widget.convert_requested.connect(self.on_office_convert)
+            widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
@@ -1179,7 +1199,10 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
     def on_office_convert(self, pfad: Path, pdfa: bool):
         """Kontextmenue "In PDF umwandeln": Hintergrund-Thread, PDF entsteht neben der Datei."""
-        if self._office_worker is not None:
+        if ist_bild_datei(pfad):  # Issue #184
+            self.on_bild_convert(pfad)
+            return
+        if self._office_worker is not None or self._bild_worker is not None:
             self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
@@ -1201,6 +1224,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 continue
             erzeugt.append(erg.pdf)
             index_melden("datei_aufnehmen", str(erg.pdf))
+            if pdf_lesbar(erg.pdf):  # Issue #184: Original nur nach geglueckter Umwandlung zur Wahl stellen
+                self.original_nach_umwandeln([quelle], erg.pdf)
             hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
             self.statusbar.showMessage(
                 f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
@@ -1211,7 +1236,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             widget = self._pdf_widget_for(erzeugt[0])
             if widget is not None:
                 self.on_pdf_clicked(erzeugt[0])
-                self.pdf_scroll_area.ensureWidgetVisible(widget)
+                self.zur_kachel_scrollen(erzeugt[0])
         if fehler:
             QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
         elif hinweise:
@@ -1365,7 +1390,22 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         Dazu kommt hoechstens ein Vorschlag fuer einen NEUEN Ordner (Issue #116).
         """
         merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
-        return self._with_new_folder(pdf_path, merged, detected_date)
+        return self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+
+    @staticmethod
+    def _ordnen(pdf_path: Path, suggestions: list) -> list:
+        """Endgueltige Reihenfolge: Neuer Ordner (#116) vorne, dann absteigend nach Konfidenz.
+
+        Stabil, damit bei Gleichstand die Begruendungsreihenfolge bleibt. Der Ordner,
+        in dem die PDF schon liegt, wird nie vorgeschlagen (Verschieben waere wirkungslos).
+        """
+        from src.core import neuer_ordner
+        from src.rag.bezug import gleicher_pfad
+        eigener = Path(pdf_path).parent if pdf_path else None
+        rest = [s for s in suggestions
+                if not (eigener and not neuer_ordner.ist_neu(s) and gleicher_pfad(s.folder_path, eigener))]
+        rest.sort(key=lambda s: (not neuer_ordner.ist_neu(s), -float(s.confidence)))
+        return rest
 
     def _with_new_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
         """Hoechstens ein Neuer-Ordner-Vorschlag, vorne (Issue #116).
@@ -1522,6 +1562,10 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 widget.deleteLater()
                 self.pdf_widgets.remove(widget)
                 break
+
+        # Luecke im Raster schliessen: nachfolgende Kacheln ruecken auf
+        if index is not None:
+            self._relayout_pdf_grid(force=True)
 
         # PDF-Zähler aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(self.pdf_widgets)}")
@@ -2166,6 +2210,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self._ocr_schwer_lesbar.abbrechen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
+        if self._bild_worker is not None:
+            self._bild_worker.requestInterruption()
         self._office_preview_pfad = None  # laufende Vorschau-Umwandlung nicht mehr nachziehen
 
         for thread in self.findChildren(QThread):
@@ -2661,19 +2707,19 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Vorschlag-Widgets erstellen
         for suggestion in suggestions:
             is_new = bool(getattr(suggestion, "new_source", ""))
-            widget = FolderWidget(suggestion.folder_path, 0)
+            widget = VorschlagZeile(suggestion.folder_path)
             widget.is_suggestion = True
             if is_new:
                 widget.set_neu(True)
 
-            # NEU: Relativen Pfad anzeigen wenn vorhanden
-            display_name = suggestion.relative_path if suggestion.relative_path else suggestion.folder_name
-            # Nur bei extrem langen Namen kürzen (WordWrap übernimmt den Rest)
-            if len(display_name) > 50:
-                display_name = "..." + display_name[-47:]
+            # Name = letzter Pfadteil (fett), darunter der Elternpfad relativ zur Zielordner-Wurzel
+            rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
+            elternpfad, _, name = rel.rpartition("/")
+            if not name:
+                name = suggestion.folder_name
             if is_new:
-                display_name = f"➕ neu: {display_name}"
-            widget.name_label.setText(display_name)
+                name = f"➕ neu: {name}"
+            widget.set_anzeige(name, elternpfad)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
@@ -2691,7 +2737,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
             farbe = "#1e6fd9" if is_new else "#28a745"
-            widget.count_label.setStyleSheet(f"font-size: 10px; color: {farbe}; font-weight: bold;")
+            widget.count_label.setStyleSheet(
+                f"font-size: 11px; color: {farbe}; font-weight: bold; background: transparent; border: none;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
             if not is_new:
@@ -3261,7 +3308,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
         if ist_office_datei(pdf_path):
             self.statusbar.showMessage(
-                "Word-/Excel-Dateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
+                "Word-/Excel-/Bilddateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
             return
         from src.core.pdf_cache import get_pdf_cache
 
@@ -3591,6 +3638,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
             n = len(output_files)
             self.statusbar.showMessage(f"PDF getrennt: {n} Datei(en) erstellt", 4000)
+            if self.original_nach_trennen(pdf_path, output_files):  # Issue #187
+                self.statusbar.showMessage(
+                    f"PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)", 6000)
             self.load_pdfs()
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
@@ -3656,8 +3706,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 )
 
     def on_pdf_stacked(self, sources: list, target: Path):
-        """Haengt die auf eine PDF gezogenen PDFs an diese an - ohne Rueckfrage,
-        rueckgaengig mit Ctrl+Z."""
+        """Legt die auf eine PDF gezogenen PDFs davor (wie Papier: oben liegt Seite 1) -
+        ohne Rueckfrage, rueckgaengig mit Ctrl+Z."""
         from datetime import datetime
         sources = [Path(s) for s in sources if Path(s) != target]
         if not sources:
@@ -3673,9 +3723,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self._prune_stack_backups()
 
         if len(sources) == 1:
-            desc = f"{sources[0].name} an {target.name} angehängt"
+            desc = f"{sources[0].name} vor {target.name} gelegt"
         else:
-            desc = f"{len(sources)} PDFs an {target.name} angehängt"
+            desc = f"{len(sources)} PDFs vor {target.name} gelegt"
         self._push_undo({"type": "stack", "backups": backups, "description": desc})
 
         # Inhalt der Ziel-PDF hat sich geaendert: Analyse neu, Vorschau neu
@@ -3710,10 +3760,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             QMessageBox.critical(
                 self, "Fehler", f"Stapeln konnte nicht rückgängig gemacht werden:\n{e}"
             )
-            return
-        finally:
-            self._undo_stack.pop()
-            self._update_undo_ui()
+            return  # Eintrag bleibt: die Sicherung ist noch da, ein neuer Versuch ist moeglich
+        self._undo_stack.pop()
+        self._update_undo_ui()
 
         for original, _ in backups:
             self.pdf_cache.clear_for_pdf(original)
@@ -4001,6 +4050,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             self._undo_gerade(entry)
         elif entry_type == "delete":
             self._undo_delete(entry)
+        elif entry_type == "wegraeumen":  # Issues #184/#187: Original(e) nach Umwandeln/Trennen
+            original_wegraeumen.rueckgaengig(self, entry)
         else:
             self._undo_move(entry)
 
@@ -4430,8 +4481,48 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Ein Klick auf das bereits ausgewaehlte PDF hebt die Auswahl auf - das nicht
         if self.selected_pdf != widget.pdf_path or self.selected_pdfs:
             self.on_pdf_clicked(widget.pdf_path)
-        QTimer.singleShot(0, lambda: self.pdf_scroll_area.ensureWidgetVisible(widget))
+        self.zur_kachel_scrollen(widget.pdf_path)
         self.statusbar.showMessage(f"Im Ordner angezeigt: {pfad.name}", 4000)
+
+    def zur_kachel_scrollen(self, pfad: Path) -> None:
+        """Scrollt die Liste "PDFs" so, dass die Kachel von ``pfad`` sichtbar ist.
+
+        Direkt nach ``load_pdfs`` hat die Liste ihre Hoehe noch nicht - das Layout
+        rechnet erst einige hundert Millisekunden spaeter (offscreen gemessen). Ein
+        sofortiges ``ensureWidgetVisible`` blieb wirkungslos (Live-Test: das aus einer
+        docx erzeugte PDF stand ausgewaehlt, aber unsichtbar ganz unten). Deshalb
+        wird gleich, nach dem naechsten Ereignisdurchlauf und bei jeder Aenderung
+        des Scrollbereichs (``rangeChanged``) gescrollt, bis die Liste fertig ist.
+        """
+        leiste = self.pdf_scroll_area.verticalScrollBar()
+        alte = getattr(self, "_kachel_scroll_slot", None)
+        if alte is not None:
+            try:
+                leiste.rangeChanged.disconnect(alte)
+            except (TypeError, RuntimeError):
+                pass
+
+        def scrollen(*_):
+            try:
+                widget = self._pdf_widget_for(pfad)
+                if widget is not None:
+                    self.pdf_scroll_area.ensureWidgetVisible(widget)
+            except RuntimeError:
+                pass  # Fenster bzw. Kachel inzwischen geschlossen
+
+        def beenden():
+            if getattr(self, "_kachel_scroll_slot", None) is scrollen:
+                self._kachel_scroll_slot = None
+                try:
+                    leiste.rangeChanged.disconnect(scrollen)
+                except (TypeError, RuntimeError):
+                    pass
+
+        self._kachel_scroll_slot = scrollen
+        leiste.rangeChanged.connect(scrollen)
+        scrollen()
+        QTimer.singleShot(0, scrollen)
+        QTimer.singleShot(2000, beenden)
 
     def _select_pdf_and_open_rename(self, pdf_path: Path):
         """

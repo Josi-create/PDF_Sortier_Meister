@@ -21,6 +21,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+from src.core.bild_convert import bilder_in_pdf, ist_bild_datei
 from src.core.office_convert import umwandeln
 
 MAX_CACHE_DATEIEN = 40
@@ -195,7 +196,10 @@ def vorschau_pdf(quelle: Path | str, cache_dir: Path | None = None,
         ziel.touch()  # zuletzt benutzt
         return ziel
     ziel.unlink(missing_ok=True)
-    erg = umwandeln(quelle, ziel)
+    if ist_bild_datei(quelle):  # Bild (Issue #184): einfach als PDF einbetten, ohne Texterkennung
+        erg = bilder_in_pdf([quelle], ziel, ocr=False)
+    else:
+        erg = umwandeln(quelle, ziel)
     for alt in cache_dir.glob(f"{_cache_praefix(quelle)}_*.pdf"):
         if alt != erg.pdf:
             alt.unlink(missing_ok=True)

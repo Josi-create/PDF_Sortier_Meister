@@ -100,7 +100,7 @@ class PDFThumbnailWidget(QFrame):
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
-    stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten anhaengen
+    stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten davorlegen
     rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
     reocr_requested = pyqtSignal(Path)  # "OCR neu durchführen" (Issue #150)
     straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
@@ -111,7 +111,7 @@ class PDFThumbnailWidget(QFrame):
     _BASE_TOOLTIP = (
         "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
-        "Auf eine andere PDF gezogen, haengt sie ihre Seiten dort an (Stapeln).\n"
+        "Auf eine andere PDF gelegt, kommen ihre Seiten davor (Stapeln, wie Papier).\n"
         "Doppelklick öffnet die PDF im Standardprogramm."
     )
     AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
@@ -389,9 +389,13 @@ class PDFThumbnailWidget(QFrame):
     AI_BACKGROUND = "#e6f4e6"
     AI_BORDER = "#7cc47f"
 
-    # Farben fuer "hier ablegen = Seiten anhaengen"
+    # Farben fuer "hier ablegen = Seiten davorlegen"
     STACK_BACKGROUND = "#fff3e0"
     STACK_BORDER = "#e67e22"
+
+    def _typ_farben(self):
+        """(Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen) nach KI-Vorschlag; None = gruen (PDF)."""
+        return None
 
     def _update_style(self):
         """Aktualisiert den Style: Stapel-Ziel (orange) vor Auswahl (blau)
@@ -406,10 +410,12 @@ class PDFThumbnailWidget(QFrame):
                 "PDFThumbnailWidget { background-color: #cce5ff; border: 2px solid #0066cc; border-radius: 5px; }"
             )
         elif self._has_ai_suggestion:
+            bg, border, hover_bg, hover_border = self._typ_farben() or (
+                self.AI_BACKGROUND, self.AI_BORDER, "#d5ecd6", "#5cb860")
             self.setStyleSheet(
-                f"PDFThumbnailWidget {{ background-color: {self.AI_BACKGROUND}; "
-                f"border: 1px solid {self.AI_BORDER}; border-radius: 5px; }}"
-                "PDFThumbnailWidget:hover { background-color: #d5ecd6; border: 1px solid #5cb860; }"
+                f"PDFThumbnailWidget {{ background-color: {bg}; "
+                f"border: 1px solid {border}; border-radius: 5px; }}"
+                f"PDFThumbnailWidget:hover {{ background-color: {hover_bg}; border: 1px solid {hover_border}; }}"
             )
         else:
             self.setStyleSheet(
