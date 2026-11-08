@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.gui import original_wegraeumen as ow
-from src.gui.bild_convert_worker import BildConvertWorker
+from src.gui.bild_convert_worker import BildConvertWorker, BilderEinzelnWorker
 from src.search.meldungen import melden as index_melden
 
 
@@ -46,6 +46,46 @@ class BildAktionenMixin:
         reihenfolge = {w.pdf_path: i for i, w in enumerate(self.pdf_widgets)}
         markiert.sort(key=lambda p: reihenfolge.get(p, len(reihenfolge)))
         self._bilder_umwandeln(markiert)
+
+    def bilder_einzeln_umwandeln(self, pfade: list[Path]):
+        """Mehrfachauswahl "Einzeln in PDFs umwandeln": jedes Bild ein eigenes PDF (Live-Test 08.11.2026)."""
+        if (self._bild_worker is not None) or self._office_worker is not None:
+            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self.statusbar.showMessage(f"Wandle {len(pfade)} Bilder einzeln in PDFs um (mit Texterkennung)…")
+        worker = BilderEinzelnWorker(pfade, self)
+        worker.fortschritt.connect(lambda i, n, p: self.statusbar.showMessage(
+            f"Wandle in PDF um ({i}/{n}, mit Texterkennung): {p.name}…"))
+        worker.fertig.connect(self._on_bilder_einzeln_converted)
+        self._bild_worker = worker
+        worker.start()
+
+    def _on_bilder_einzeln_converted(self, ergebnisse: list):
+        self._bild_worker = None
+        QApplication.restoreOverrideCursor()
+        fehler, hinweise, erzeugt, lesbar = [], [], [], []
+        for quelle, erg, fehlertext in ergebnisse:
+            if erg is None:
+                fehler.append(f"{quelle.name}: {fehlertext}")
+                continue
+            erzeugt.append(erg.pdf)
+            index_melden("datei_aufnehmen", str(erg.pdf))
+            if erg.ocr_hinweis:
+                hinweise.append(erg.ocr_hinweis)
+            if pdf_lesbar(erg.pdf, erg.seiten):
+                lesbar.append((quelle, erg.pdf))
+        if lesbar:
+            # Eine Frage fuer alle Originale, nicht eine je Bild
+            self.original_nach_umwandeln([q for q, _ in lesbar], [p for _, p in lesbar])
+        if erzeugt:
+            self.neues_pdf_auswaehlen(erzeugt[0])
+            meldung = f"{len(erzeugt)} PDF(s) erstellt"
+            if hinweise:
+                meldung += f" - {hinweise[0]}"  # z. B. "ohne Texterkennung", gilt fuer alle
+            self.statusbar.showMessage(meldung, 10000 if hinweise else 6000)  # nach der Auswahl
+        if fehler:
+            QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
 
     def _bilder_umwandeln(self, pfade: list[Path]):
         if (self._bild_worker is not None) or self._office_worker is not None:
@@ -79,10 +119,18 @@ class BildAktionenMixin:
 
     # --- Original wegraeumen -------------------------------------------------------
 
-    def original_nach_umwandeln(self, quellen: list[Path], pdf: Path) -> list[Path]:
-        """Fragt (oder nutzt die gemerkte Antwort), ob die umgewandelten Originale in den Papierkorb sollen."""
-        text = (f"Das PDF '{pdf.name}' wurde erstellt.\n\n"
-                f"Original in den Papierkorb verschieben?\n{_namen(quellen)}")
+    def original_nach_umwandeln(self, quellen: list[Path], pdf) -> list[Path]:
+        """Fragt (oder nutzt die gemerkte Antwort), ob die umgewandelten Originale in den Papierkorb sollen.
+
+        ``pdf``: das erzeugte PDF oder die Liste der erzeugten PDFs (eine Frage fuer alle).
+        """
+        pdfs = list(pdf) if isinstance(pdf, (list, tuple)) else [pdf]
+        if len(pdfs) == 1:
+            text = (f"Das PDF '{pdfs[0].name}' wurde erstellt.\n\n"
+                    f"Original in den Papierkorb verschieben?\n{_namen(quellen)}")
+        else:
+            text = (f"{len(pdfs)} PDFs wurden erstellt.\n\n"
+                    f"Die {len(quellen)} Originale in den Papierkorb verschieben?\n{_namen(quellen)}")
         beschreibung = f"Original weggeräumt: {_namen(quellen)}"
         return ow.original_wegraeumen(self, quellen, "umwandeln", text, beschreibung)
 
