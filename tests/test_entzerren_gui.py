@@ -287,7 +287,7 @@ def test_dialog_blaettern_je_bild_eigene_ecken_und_uebernehmen_fuer_alle(qtbot, 
     assert standard[0] == pytest.approx((60.0, 45.0))  # ohne Erkennung: eingerueckt an den Bildecken
     dlg._punkte[2].setPos(1000, 700)
     dlg.zurueck_knopf.click()
-    assert dlg.ecken() == pytest.approx(erste)  # das erste Bild behielt seine Ecken
+    assert np.asarray(dlg.ecken()) == pytest.approx(np.asarray(erste))  # das erste Bild behielt seine Ecken
     ergebnis = dlg.ergebnis()
     assert set(ergebnis) == {a, b} and all(e.tonwerte == "grau" for e in ergebnis.values())
     assert ergebnis[b].ecken[2] == pytest.approx((1000.0, 700.0))
