@@ -13,7 +13,7 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QImage, QImageReader, QPainter, QPixmap
-from PyQt6.QtWidgets import QMenu
+from PyQt6.QtWidgets import QLabel, QMenu
 
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
@@ -173,9 +173,34 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
     def _BASE_TOOLTIP(self) -> str:  # noqa: N802 - ersetzt das Klassenattribut der PDF-Kachel
         return self._BILD_TOOLTIP if ist_bild_datei(self.pdf_path) else self._OFFICE_TOOLTIP
 
+    # Farben nach Dateityp (nach der Erkennung statt Gruen): (Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen)
+    OFFICE_FARBEN = ("#e3edfb", "#6a9be0", "#d3e3f9", "#4f86d6")
+    BILD_FARBEN = ("#fde6f0", "#e58ab4", "#fbd5e6", "#d96aa0")
+    # Etikett mit der Dateiendung (oben links; oben rechts sitzt das Warndreieck, unten "kopiert nach")
+    OFFICE_ETIKETT = "#2b579a"
+    BILD_ETIKETT = "#d6336c"
+
     def __init__(self, pfad: Path, parent=None, view: Optional[TileView] = None):
         super().__init__(pfad, parent, view)
         self.setAcceptDrops(False)  # Stapeln (PDF auf PDF) gibt es nur bei PDFs
+        self._ist_bild = ist_bild_datei(pfad)
+        farbe = self.BILD_ETIKETT if self._ist_bild else self.OFFICE_ETIKETT
+        self.typ_label = QLabel(pfad.suffix.upper().lstrip("."), self.thumbnail_label)
+        self.typ_label.setStyleSheet(
+            f"background-color: {farbe}; color: white; font-size: 9px; font-weight: bold; "
+            "border: none; border-radius: 3px; padding: 1px 4px;"
+        )
+        self.typ_label.setToolTip(
+            "Bild" if self._ist_bild
+            else ("Word-Dokument" if pfad.suffix.lower() in WORD_ENDUNGEN else "Excel-Tabelle")
+        )
+        self.typ_label.adjustSize()
+        self.typ_label.move(3, 3)
+        self.typ_label.raise_()
+        self._update_style()
+
+    def _typ_farben(self):
+        return self.BILD_FARBEN if getattr(self, "_ist_bild", ist_bild_datei(self.pdf_path)) else self.OFFICE_FARBEN
 
     def load_thumbnail(self):
         """Sofort der Platzhalter, danach (im Hintergrund) das beste echte Bild."""

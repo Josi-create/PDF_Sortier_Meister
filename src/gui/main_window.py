@@ -1563,6 +1563,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
                 self.pdf_widgets.remove(widget)
                 break
 
+        # Luecke im Raster schliessen: nachfolgende Kacheln ruecken auf
+        if index is not None:
+            self._relayout_pdf_grid(force=True)
+
         # PDF-Zähler aktualisieren
         self.pdf_count_label.setText(f"PDFs: {len(self.pdf_widgets)}")
 

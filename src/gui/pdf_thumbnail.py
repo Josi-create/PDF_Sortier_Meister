@@ -393,6 +393,10 @@ class PDFThumbnailWidget(QFrame):
     STACK_BACKGROUND = "#fff3e0"
     STACK_BORDER = "#e67e22"
 
+    def _typ_farben(self):
+        """(Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen) nach KI-Vorschlag; None = gruen (PDF)."""
+        return None
+
     def _update_style(self):
         """Aktualisiert den Style: Stapel-Ziel (orange) vor Auswahl (blau)
         vor KI-Markierung (grün)."""
@@ -406,10 +410,12 @@ class PDFThumbnailWidget(QFrame):
                 "PDFThumbnailWidget { background-color: #cce5ff; border: 2px solid #0066cc; border-radius: 5px; }"
             )
         elif self._has_ai_suggestion:
+            bg, border, hover_bg, hover_border = self._typ_farben() or (
+                self.AI_BACKGROUND, self.AI_BORDER, "#d5ecd6", "#5cb860")
             self.setStyleSheet(
-                f"PDFThumbnailWidget {{ background-color: {self.AI_BACKGROUND}; "
-                f"border: 1px solid {self.AI_BORDER}; border-radius: 5px; }}"
-                "PDFThumbnailWidget:hover { background-color: #d5ecd6; border: 1px solid #5cb860; }"
+                f"PDFThumbnailWidget {{ background-color: {bg}; "
+                f"border: 1px solid {border}; border-radius: 5px; }}"
+                f"PDFThumbnailWidget:hover {{ background-color: {hover_bg}; border: 1px solid {hover_border}; }}"
             )
         else:
             self.setStyleSheet(
