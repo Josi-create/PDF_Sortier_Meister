@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QGroupBox,
     QPlainTextEdit,
     QScrollArea,
@@ -189,10 +190,14 @@ class DetailPanel(QWidget):
     office_preview_requested = pyqtSignal(Path)      # .docx/.xlsx: Seitenvorschau erzeugen lassen (Issue #9)
     # "Muster bearbeiten" in der Vorschlags-Kopfzeile: Einstellungen > Dateinamen
     edit_pattern_requested = pyqtSignal()
+    # Rechtsklick auf das Feld Korrespondent: alle Dokumente zeigen (Issue #160)
+    korrespondent_dokumente_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
+        # Dokument aus dem Reiter "Korrespondenten", das nur angesehen wird (Issue #160)
+        self._ansicht_pfad: Optional[Path] = None
         self._suggestions: list[RenameSuggestion] = []
         # Tatsaechlich angezeigte Liste (#99/#106): _suggestions + ein
         # Muster-Vorschlag je Vorlage, sortiert nach der gemerkten Rangfolge;
@@ -423,7 +428,11 @@ class DetailPanel(QWidget):
         field_tooltips = {
             "buchungsdatum": self._DATE_TOOLTIP,
             "subject": "Kategorie des Dokuments (z.B. Rechnung, Vertrag).",
-            "korrespondent": "Absender oder Firma des Dokuments.",
+            "korrespondent": (
+                "Gegenpartei des Dokuments aus Ihrer Sicht: Absender fremder Post, bei eigenen\n"
+                "Schreiben der Empfänger bzw. Vertragspartner (Person, Firma oder Behörde).\n"
+                "Rechtsklick: alle Dokumente dieses Korrespondenten anzeigen."
+            ),
             "betrag_netto": "Rechnungsbetrag ohne MwSt.",
             "betrag_brutto": "Rechnungsbetrag inkl. MwSt.",
             "waehrung": "Währung des Betrags (z.B. EUR).",
@@ -492,6 +501,9 @@ class DetailPanel(QWidget):
             input_field.textChanged.connect(self._on_metadata_user_edit)
             self._metadata_inputs[field_key] = input_field
             self._field_base_styles[field_key] = input_field.styleSheet()
+            if field_key == "korrespondent":
+                input_field.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                input_field.customContextMenuRequested.connect(self._korrespondent_menue_zeigen)
 
         metadata_layout.addLayout(grid)
 
@@ -569,6 +581,17 @@ class DetailPanel(QWidget):
         self.search_container.hide()
         layout.addWidget(self.search_container)
 
+        # Nur-Ansicht eines Dokuments aus dem Reiter "Korrespondenten" (Issue #160):
+        # Kopfzeile mit den Angaben, darunter die Vorschau; keine Felder
+        self.ansicht_label = QLabel()
+        self.ansicht_label.setWordWrap(True)
+        self.ansicht_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.ansicht_label.setStyleSheet(
+            "font-size: 11px; color: #444; padding: 6px; background-color: #f5f5f5; border-radius: 3px;"
+        )
+        self.ansicht_label.hide()
+        layout.addWidget(self.ansicht_label)
+
         scroll.setWidget(container)
 
         # PDF-Vorschau unten (Issue #74): vertikaler Splitter, oben die
@@ -606,6 +629,7 @@ class DetailPanel(QWidget):
         detected_date: str = None,
     ):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
+        self._ansicht_beenden()
         self._current_pdf = pdf_path
         self._suggestions = suggestions or []
         self._detected_date = detected_date
@@ -651,6 +675,9 @@ class DetailPanel(QWidget):
             known = self._known_korrespondent(extracted_text)
             if known:
                 self._metadata["korrespondent"] = known
+            elif self._metadata.get("korrespondent"):
+                # Issue #160: Alias bzw. gleichwertige Schreibweise -> Schreibweise der Verwaltung
+                self._metadata["korrespondent"] = self._kanonisch(self._metadata["korrespondent"])
 
             # Gelernte Korrespondent-Zuordnungen
             korrespondent = self._metadata.get("korrespondent")
@@ -703,6 +730,7 @@ class DetailPanel(QWidget):
 
     def show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse an."""
+        self._ansicht_beenden()
         self.placeholder.hide()
         self.detail_container.hide()
         self.search_container.show()
@@ -782,8 +810,38 @@ class DetailPanel(QWidget):
             return
         self.open_pdf_requested.emit(path)
 
+    def zeige_ansicht(self, pfad: Path, details: str = "") -> None:
+        """Ein Dokument aus dem Reiter "Korrespondenten" nur ansehen (Issue #160).
+
+        Die Felder der ausgewaehlten Scan-PDF verschwinden, oben stehen
+        ``details`` (Name, Datum, Ablageort ...), unten die Vorschau. Die
+        naechste Auswahl links (``set_pdf``) oder ``clear`` beendet die Ansicht.
+        """
+        pfad = Path(pfad)
+        self._ansicht_pfad = pfad
+        self.placeholder.hide()
+        self.detail_container.hide()
+        self.search_container.hide()
+        self.ansicht_label.setText(details or pfad.name)
+        self.ansicht_label.show()
+        if not pfad.exists():
+            self.preview.show_message(f"Die Datei gibt es nicht mehr:\n{pfad}")
+        elif pfad.suffix.lower() != ".pdf":
+            self.preview.show_message("Keine Vorschau für diesen Dateityp –\nDoppelklick öffnet die Datei.")
+        else:
+            self.preview.load_pdf(pfad)
+
+    def zeigt_ansicht(self) -> bool:
+        """Zeigt das Panel gerade ein Dokument nur zur Ansicht (statt der ausgewaehlten PDF)?"""
+        return self._ansicht_pfad is not None
+
+    def _ansicht_beenden(self) -> None:
+        self._ansicht_pfad = None
+        self.ansicht_label.hide()
+
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
+        self._ansicht_beenden()
         self._current_pdf = None
         self._suggestions = []
         self._metadata = {}
@@ -1288,17 +1346,51 @@ class DetailPanel(QWidget):
         self._load_category_choices()
 
     def _known_korrespondent(self, text: str) -> Optional[str]:
-        """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt."""
+        """Bekannter Korrespondent (Verwaltung), der im Dokumenttext vorkommt.
+
+        Der Nutzer selbst und Formularverlage zaehlen nicht (Issue #160): ihr
+        Name steht auf vielen Dokumenten, ohne die Gegenpartei zu sein.
+        """
         if not text:
             return None
         from src.core.korrespondent_match import find_known_korrespondent
+        from src.core.korrespondenten import erkennbare_eintraege, owner_namen
 
         try:
             from src.utils.database import get_database
-            entries = get_database().list_korrespondenten()
+            from src.utils.config import get_config
+            entries = erkennbare_eintraege(get_database().list_korrespondenten(), owner_namen(get_config()))
         except Exception:
             return None
         return find_known_korrespondent(text, entries)
+
+    @staticmethod
+    def _kanonisch(name: str) -> str:
+        """Schreibweise der Korrespondenten-Verwaltung (Alias, gleichwertige Schreibweise; Issue #160)."""
+        try:
+            from src.utils.database import get_database
+            return get_database().kanonischer_korrespondent(name) or name
+        except Exception:  # noqa: BLE001 - ohne Datenbank bleibt der Name
+            return name
+
+    def korrespondent_menue(self) -> QMenu:
+        """Kontextmenue des Felds Korrespondent: Standardaktionen und "Alle Dokumente von … anzeigen" (#160)."""
+        feld = self._metadata_inputs["korrespondent"]
+        menue = feld.createStandardContextMenu()
+        name = feld.text().strip()
+        menue.addSeparator()
+        aktion = menue.addAction(
+            f"Alle Dokumente von „{name}“ anzeigen" if name else "Alle Dokumente des Korrespondenten anzeigen"
+        )
+        aktion.setEnabled(bool(name))
+        aktion.triggered.connect(lambda: self.korrespondent_dokumente_requested.emit(name))
+        return menue
+
+    def _korrespondent_menue_zeigen(self, pos) -> None:
+        feld = self._metadata_inputs["korrespondent"]
+        menue = self.korrespondent_menue()
+        menue.exec(feld.mapToGlobal(pos))
+        menue.deleteLater()
 
     def apply_preview_text(self, field_key: str, text: str):
         """Markierten Text (auch aus dem grossen Vorschau-Fenster) in ein Feld uebernehmen."""
@@ -1308,6 +1400,8 @@ class DetailPanel(QWidget):
         """Markierter Text aus der Vorschau -> Metadaten-Feld; Korrespondent wird gelernt."""
         from src.core.metadata_choices import normalize_for_field
 
+        if self._ansicht_pfad is not None:
+            return  # die Vorschau zeigt ein anderes Dokument als die Felder (Issue #160)
         text = normalize_for_field(field_key, text)
         widget = self._metadata_inputs.get(field_key)
         if widget is None or not text:
@@ -1747,6 +1841,8 @@ class DetailPanel(QWidget):
                     self._loading_metadata = True
                     for key, value in s.metadata.items():
                         widget = self._metadata_inputs.get(key)
+                        if key == "korrespondent" and value:
+                            value = self._kanonisch(str(value))  # Issue #160
                         if widget:
                             if isinstance(widget, QPlainTextEdit):
                                 widget.setPlainText(str(value))

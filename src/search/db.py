@@ -464,6 +464,43 @@ def top_werte(con, feld: str, limit: int = 10) -> list[str]:
         f"GROUP BY {feld} ORDER BY n DESC, {feld} LIMIT ?", (int(limit),))]
 
 
+def werte_mit_anzahl(con, feld: str) -> list[tuple[str, int]]:
+    """Vorkommende Werte eines Metadatenfelds mit ihrer Dokumentzahl, haeufigste zuerst (Issue #160)."""
+    if feld not in METADATEN_FELDER:
+        raise ValueError(f"Unbekanntes Metadatenfeld: {feld}")
+    return [(r[0], r[1]) for r in con.execute(
+        f"SELECT {feld}, count(*) n FROM dokumente WHERE {feld} IS NOT NULL AND {feld} != '' "
+        f"GROUP BY {feld} ORDER BY n DESC, {feld}")]
+
+
+def dokumente_mit_werten(con, feld: str, werte, limit: int = 5000) -> list[dict]:
+    """Dokumente, deren Metadatenfeld einen der ``werte`` hat; neueste zuerst
+    (Buchungsdatum, sonst Dateidatum), dann Name (Issue #160)."""
+    if feld not in METADATEN_FELDER:
+        raise ValueError(f"Unbekanntes Metadatenfeld: {feld}")
+    werte = [str(w) for w in werte if w not in (None, "")]
+    if not werte:
+        return []
+    zeilen = []
+    for i in range(0, len(werte), 900):
+        teil = werte[i:i + 900]
+        zeilen += [dict(r) for r in con.execute(
+            f"SELECT * FROM dokumente WHERE {feld} IN ({','.join('?' * len(teil))})", teil)]
+
+    def neu_zuerst(d: dict):
+        datum = d.get("buchungsdatum") or ""
+        if not datum and d.get("datum"):
+            try:
+                datum = datetime.fromtimestamp(float(d["datum"])).strftime("%Y-%m-%d")
+            except (OverflowError, OSError, ValueError):
+                datum = ""
+        return datum
+
+    zeilen.sort(key=lambda d: (d.get("name") or "").casefold())
+    zeilen.sort(key=neu_zuerst, reverse=True)
+    return [_kurz(d) for d in zeilen[:int(limit)]]
+
+
 def anzahl(con, typ: str | None = None) -> int:
     if typ:
         return con.execute("SELECT count(*) FROM dokumente WHERE typ = ?", (typ,)).fetchone()[0]

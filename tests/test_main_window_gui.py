@@ -139,7 +139,7 @@ def test_main_window_has_chat_tab(main_window):
         main_window.left_tabs.tabText(i)
         for i in range(main_window.left_tabs.count())
     ]
-    assert tab_titles == ["PDFs", "Chat"], f"Tab-Titel: {tab_titles}"
+    assert tab_titles == ["PDFs", "Chat", "Korrespondenten"], f"Tab-Titel: {tab_titles}"  # #160
     assert main_window.left_tabs.widget(1) is main_window.chat_view
     mitte = [main_window.center_tabs.tabText(i) for i in range(main_window.center_tabs.count())]
     assert "Chat" not in mitte

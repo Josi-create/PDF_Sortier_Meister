@@ -65,7 +65,7 @@ VORGEHEN:
 2. Reichen die Fundstellen nicht, lies das Dokument mit dokument_lesen - lange
    Dokumente seitenweise (seiten), bei Tabellen das passende Blatt.
 3. Fragen nach Ordner oder Ablageort eines Dokuments: ordner_vorschlag. Schreibweise
-   oder Hintergrund eines Absenders: korrespondent_info. Summen, Zählungen und
+   oder Hintergrund eines Korrespondenten (Gegenpartei): korrespondent_info. Summen, Zählungen und
    Listen über viele Dokumente: sql_abfrage, falls vorhanden.
 4. Du hast höchstens {max_schritte} Schritte (Modellaufrufe mit Werkzeugen). Danach
    antworte mit dem, was du hast. Rufe nicht zweimal dasselbe Werkzeug mit denselben

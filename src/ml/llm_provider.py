@@ -111,6 +111,29 @@ METADATA_KEY_ALIASES: dict[str, str] = {
     "document_date": "buchungsdatum",
 }
 
+# Feld "korrespondent" (Issue #160): Gegenpartei aus Sicht des Nutzers, Person oder
+# Firma/Institution - nie der Nutzer selbst, nie ein Formularverlag. Die Regel steht
+# in jedem Metadaten-Prompt (Klassifikation und Dateiname, alle Provider);
+# {nutzer} nennt die Namen aus der Konfiguration (_build_korrespondent_regel).
+KORRESPONDENT_SCHEMA = "Gegenpartei aus Sicht des Nutzers (Person oder Firma/Institution) oder UNBEKANNT"
+KORRESPONDENT_REGEL = """
+KORRESPONDENT (genau einer je Dokument):
+Der Korrespondent ist die GEGENPARTEI des Dokuments aus Sicht des Nutzers: eine Person oder
+eine Firma, Behörde, Praxis bzw. Institution.
+- Hat ein Dritter das Dokument an den Nutzer geschickt, ist es der Absender (z.B. Stadtwerke,
+  Bank, Finanzamt; Arztbrief an den Nutzer als Patienten -> der Arzt bzw. die Praxis).
+- Hat der Nutzer das Dokument verfasst oder ist er Aussteller bzw. Vermieter, ist es die andere
+  Partei: der Empfänger, die andere Vertragspartei oder die Person, für die bzw. über die er
+  schreibt (Mietvertrag -> der Mieter; Arztbrief, den der Nutzer als Arzt schreibt -> der
+  Patient, auch wenn der Brief an einen anderen Arzt geht; Rechnung des Nutzers -> der Kunde).
+- Niemals der Nutzer selbst. Niemals ein Formularverlag, eine Druckerei, eine Software oder ein
+  Vordruck-Anbieter, dessen Name nur auf dem Formular steht (z.B. "Haus & Grund" im Kopf eines
+  Mietvertragsformulars, Zweckform, Avery).
+- Personen mit Vor- und Nachnamen, Firmen und Behörden mit ihrem gebräuchlichen Namen, ohne Adresse.
+- Ist keine Gegenpartei erkennbar: UNBEKANNT.
+{nutzer}
+"""
+
 # Platzhalter, die Modelle fuer "nicht vorhanden" liefern - werden verworfen
 _UNKNOWN_VALUES = {"", "unbekannt", "unknown", "null", "none", "n/a", "-"}
 
@@ -562,6 +585,8 @@ class LLMProvider(ABC):
         if detected_date:
             date_info = f"\nErkanntes Datum im Dokument: {detected_date}"
 
+        korrespondent_regel = self._build_korrespondent_regel()
+
         return f"""Du bist ein Assistent zum Sortieren von Dokumenten. Analysiere das folgende Dokument und wähle den passendsten Zielordner aus der Liste.
 
 VERFÜGBARE ORDNER:
@@ -577,7 +602,8 @@ AUFGABE:
 3. Begründe deine Wahl kurz.
 4. Metadaten nur aus dem Dokument: "mwst" nur, wenn der Steuersatz ausdruecklich im Text
    steht, sonst UNBEKANNT; bei Nicht-Rechnungen sind Betraege, mwst und iban UNBEKANNT.
-
+5. "korrespondent" nach der Regel KORRESPONDENT unten.
+{korrespondent_regel}
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
   "folder": "Exakter Ordnername aus der Liste oder NULL",
@@ -585,7 +611,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
   "confidence": 0.9,
   "metadata": {{
     "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
-    "korrespondent": "Firmenname des Absenders",
+    "korrespondent": "{KORRESPONDENT_SCHEMA}",
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",
     "waehrung": "EUR/USD oder UNBEKANNT",
@@ -655,6 +681,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             source_info = f"\nQuellordner (kann auf Zeitraum oder Thema hinweisen): {source_folder}"
 
         owner_info = self._build_owner_info()
+        korrespondent_regel = self._build_korrespondent_regel()
         pattern_info = self._build_filename_pattern_info()
         from src.core.rename_examples import describe_examples_for_prompt
         examples_info = describe_examples_for_prompt(examples or [])
@@ -694,7 +721,7 @@ REGELN FÜR DEN DATEINAMEN:
    nur ein Hinweis. Erst wenn das Dokument gar kein Datum nennt, nutze das Scandatum.
    Steuerjahr = Jahr des Dokumentdatums, ausser das Dokument betrifft ausdruecklich ein
    anderes Jahr (z.B. Steuerbescheid fuer 2003).
-5. Kontakt/Absender/Korrespondent ist immer der NAME einer Person oder Organisation
+5. Kontakt/Korrespondent ist immer der NAME einer Person oder Organisation
    (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
    Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
    leite den Namen daraus ab (kathrin.haerle@web.de -> Kathrin_Haerle).
@@ -706,7 +733,7 @@ REGELN FÜR DEN DATEINAMEN:
    steht (z.B. "19 % MwSt", "USt 7 %"), sonst UNBEKANNT. Kein Rechnungs-/Beleg-Dokument
    (Brief, Vertrag, Befund, Noten, Anleitung): betrag_netto, betrag_brutto, mwst und iban
    sind UNBEKANNT. Niemals einen Standardwert raten.
-
+{korrespondent_regel}
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
   "filename": "Vorgeschlagener_Dateiname.pdf",
@@ -714,7 +741,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
   "confidence": 0.9,
   "metadata": {{
     "category": "Rechnung/Vertrag/Steuer/Versicherung/Bank/Gehalt/Arzt/Energie/Sonstiges",
-    "korrespondent": "Firmenname des Absenders",
+    "korrespondent": "{KORRESPONDENT_SCHEMA}",
     "betrag_netto": "123.45 oder UNBEKANNT",
     "betrag_brutto": "123.45 oder UNBEKANNT",
     "waehrung": "EUR/USD oder UNBEKANNT",
@@ -748,6 +775,30 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         pattern = migrate_legacy_pattern(pattern)
         return describe_for_prompt(pattern, initials or derive_initials(owner_name))
 
+    def _build_korrespondent_regel(self) -> str:
+        """Regel KORRESPONDENT fuer alle Metadaten-Prompts (Issue #160).
+
+        Der Korrespondent ist die Gegenpartei aus Sicht des Nutzers, nie der
+        Nutzer selbst und nie ein Formularverlag. Die Namen des Nutzers kommen
+        aus der Konfiguration (``owner_name``, ``owner_name_variants``,
+        ``owner_company``); ohne sie gilt die Regel sinngemaess.
+        """
+        try:
+            from src.core.korrespondenten import owner_namen
+            from src.utils.config import get_config
+            namen = owner_namen(get_config())
+        except Exception:
+            namen = []
+        if namen:
+            nutzer = f'Der Nutzer heißt "{namen[0]}"'
+            if len(namen) > 1:
+                nutzer += " (auch " + ", ".join(f'"{n}"' for n in namen[1:]) + ")"
+            nutzer += " - er ist nie der Korrespondent."
+        else:
+            nutzer = ("Der Nutzer ist der Besitzer dieser Dokumente (Empfänger fremder Post, Verfasser "
+                      "eigener Schreiben) - er ist nie der Korrespondent.")
+        return KORRESPONDENT_REGEL.format(nutzer=nutzer)
+
     def _build_owner_info(self) -> str:
         """Erstellt den Benutzer-Identitäts-Abschnitt für den Prompt."""
         try:
@@ -777,8 +828,8 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
             if names:
                 names_str = ", ".join(f'"{n}"' for n in names)
                 parts.append(
-                    f" Die folgenden Namen gehören dem Benutzer "
-                    f"(Empfänger/Besitzer der Dokumente): {names_str}."
+                    f" Die folgenden Namen gehören dem Benutzer (Besitzer der Dokumente: "
+                    f"Empfänger fremder Post, Verfasser eigener Schreiben): {names_str}."
                 )
             if emails:
                 emails_str = ", ".join(f'"{e}"' for e in emails)
@@ -788,7 +839,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
                 )
             parts.append(
                 " Diese Namen und Adressen sind NICHT der Korrespondent! "
-                "Der Korrespondent ist immer der ABSENDER/die andere Partei."
+                "Der Korrespondent ist immer die GEGENPARTEI (siehe KORRESPONDENT)."
             )
             return "".join(parts)
         except Exception:
