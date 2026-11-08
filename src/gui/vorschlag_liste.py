@@ -2,13 +2,17 @@
 Kompakte Ordnervorschlaege (rechte Spalte "Vorgeschlagene Ziele").
 
 * ``VorschlagZeile``: ein FolderWidget als schlanke Zeile (Symbol, fetter Name,
-  grauer Elternpfad, Prozentzahl rechts). Drop, Menue, Regenbogen und Signale
+  darunter grau der volle Pfad des Elternordners, Prozentzahl rechts). Passt der
+  Pfad nicht, faellt er von links in ganzen Ordnern weg (``pfad_kuerzen``): der
+  Ordner direkt ueber dem Ziel bleibt am laengsten sichtbar. Drop, Menue, Regenbogen und Signale
   erbt sie unveraendert von FolderWidget.
 * ``SpaltenLayout``: verteilt die Zeilen zeilenweise auf 1 bis 3 Spalten, je
   nach verfuegbarer Breite. Die Mindestbreite bleibt klein (keine Rueckkopplung
   auf den Splitter).
 * ``VorschlagListe``: Scrollbereich darum; scrollt erst ab ``MAX_ZEILEN`` Reihen.
 """
+
+from typing import Callable
 
 from PyQt6.QtCore import QEvent, QRect, QSize, Qt
 from PyQt6.QtGui import QCursor, QFont, QFontMetrics
@@ -23,10 +27,34 @@ ZEILEN_MIN_BREITE = 210  # darunter wird eine Spalte weniger genommen
 MAX_SPALTEN = 3
 ABSTAND = 6
 MAX_ZEILEN = 3  # sichtbare Reihen, danach vertikal scrollen
+AUSLASSUNG = "…"
+
+
+def pfad_kuerzen(pfad: str, messen: Callable[[str], int], breite: int) -> str:
+    r"""Kuerzt einen Pfad von links in ganzen Ordnern, rechts hat Vorrang.
+
+    ``C:\A\B\C\E`` wird je nach Breite zu ``…\B\C\E``, ``…\C\E`` oder ``…\E``.
+    Passt selbst der letzte Ordner nicht, wird er links gekuerzt (Ende bleibt lesbar).
+    ``messen`` liefert die Textbreite in Pixeln (QFontMetrics.horizontalAdvance).
+    """
+    if not pfad or messen(pfad) <= breite:
+        return pfad
+    sep = "\\" if "\\" in pfad else "/"
+    teile = [t for t in pfad.replace("/", sep).split(sep) if t]
+    for anzahl in range(len(teile) - 1, 0, -1):
+        kandidat = AUSLASSUNG + sep + sep.join(teile[-anzahl:])
+        if messen(kandidat) <= breite:
+            return kandidat
+    letzter = teile[-1] if teile else pfad
+    for start in range(1, len(letzter)):
+        kandidat = AUSLASSUNG + letzter[start:]
+        if messen(kandidat) <= breite:
+            return kandidat
+    return AUSLASSUNG
 
 
 class VorschlagZeile(FolderWidget):
-    """Kompakte Vorschlagszeile (Name_label = Ordnername, path_label = Elternpfad)."""
+    """Kompakte Vorschlagszeile (name_label = Ordnername, path_label = voller Elternpfad)."""
 
     def __init__(self, folder_path, parent=None):
         self._name_voll = ""
@@ -83,22 +111,27 @@ class VorschlagZeile(FolderWidget):
         pass  # Prozentzahl setzt das Hauptfenster
 
     def set_anzeige(self, name: str, pfad: str):
-        """Setzt Ordnername und Elternpfad (ungekuerzt); Kuerzen passiert nach Breite."""
+        """Setzt Ordnername und Elternpfad (ungekuerzt); Kuerzen passiert nach Breite.
+
+        Der Name wird rechts gekuerzt, der Pfad von links in ganzen Ordnern.
+        """
         self._name_voll = name
         self._pfad_voll = pfad
         self.path_label.setVisible(bool(pfad))
         self._kuerzen()
 
     def _kuerzen(self):
-        for label, voll, modus in (
-            (self.name_label, self._name_voll, Qt.TextElideMode.ElideRight),
-            (self.path_label, self._pfad_voll, Qt.TextElideMode.ElideMiddle),
-        ):
-            text = voll
-            breite = label.width()
-            if self._geometrie_bekannt and breite > 1:
-                text = QFontMetrics(label.font()).elidedText(voll, modus, breite)
-            label.setText(text)
+        name, pfad = self._name_voll, self._pfad_voll
+        if self._geometrie_bekannt:
+            breite = self.name_label.width()
+            if breite > 1:
+                name = QFontMetrics(self.name_label.font()).elidedText(
+                    name, Qt.TextElideMode.ElideRight, breite)
+            breite = self.path_label.width()
+            if breite > 1:
+                pfad = pfad_kuerzen(pfad, QFontMetrics(self.path_label.font()).horizontalAdvance, breite)
+        self.name_label.setText(name)
+        self.path_label.setText(pfad)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -205,7 +238,10 @@ class VorschlagListe(QScrollArea):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.inhalt = _Inhalt(self)
-        self.inhalt.setStyleSheet("background: transparent;")
+        # Nur dieses Widget: ein Stylesheet ohne Selektor erben auch die Tooltips
+        # der Zeilen - transparent wird unter Windows zu schwarzen Tooltips
+        self.inhalt.setObjectName("vorschlagInhalt")
+        self.inhalt.setStyleSheet("QWidget#vorschlagInhalt { background: transparent; }")
         self.viewport().setAutoFillBackground(False)
         self.spalten = SpaltenLayout(self.inhalt)
         self.setWidget(self.inhalt)

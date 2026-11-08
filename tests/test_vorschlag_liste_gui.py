@@ -94,7 +94,7 @@ def test_langer_pfad_gekuerzt_tooltip_voll(qtbot, tmp_path):
     z = fake.suggestion_widgets[0]
     assert z.name_label.text() == "Ziel"
     assert z.path_label.text() != z._pfad_voll and "…" in z.path_label.text()
-    assert lang in z.toolTip()
+    assert str(tmp_path / Path(lang)) in z.toolTip()  # voller Pfad samt Laufwerk
 
 
 def test_regenbogen_und_neu(qtbot, tmp_path):

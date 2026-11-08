@@ -2712,17 +2712,23 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             if is_new:
                 widget.set_neu(True)
 
-            # Name = letzter Pfadteil (fett), darunter der Elternpfad relativ zur Zielordner-Wurzel
+            # Name = letzter Pfadteil (fett), darunter grau der volle Pfad des Elternordners.
+            # Passt er nicht, faellt er von links in ganzen Ordnern weg (Live-Test 08.11.2026)
             rel = (suggestion.relative_path or suggestion.folder_name).replace("\\", "/")
             elternpfad, _, name = rel.rpartition("/")
             if not name:
                 name = suggestion.folder_name
+            ordner = Path(suggestion.folder_path) if suggestion.folder_path else None
+            if ordner is not None and ordner.is_absolute():
+                elternpfad = str(ordner.parent)
             if is_new:
                 name = f"➕ neu: {name}"
             widget.set_anzeige(name, elternpfad)
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
-            tooltip = f"Pfad: {suggestion.relative_path or suggestion.folder_name}\n"
+            voller_pfad = str(ordner) if ordner is not None and ordner.is_absolute() else (
+                suggestion.relative_path or suggestion.folder_name)
+            tooltip = f"Pfad: {voller_pfad}\n"
             tooltip += f"{suggestion.reason}\n"
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
             if is_new:

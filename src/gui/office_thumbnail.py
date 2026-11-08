@@ -186,9 +186,11 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self._ist_bild = ist_bild_datei(pfad)
         farbe = self.BILD_ETIKETT if self._ist_bild else self.OFFICE_ETIKETT
         self.typ_label = QLabel(pfad.suffix.upper().lstrip("."), self.thumbnail_label)
+        # Mit Selektor: sonst erbt der Tooltip des Etiketts Farbe und Mini-Schrift
+        self.typ_label.setObjectName("typEtikett")
         self.typ_label.setStyleSheet(
-            f"background-color: {farbe}; color: white; font-size: 9px; font-weight: bold; "
-            "border: none; border-radius: 3px; padding: 1px 4px;"
+            f"QLabel#typEtikett {{ background-color: {farbe}; color: white; font-size: 9px; "
+            "font-weight: bold; border: none; border-radius: 3px; padding: 1px 4px; }"
         )
         self.typ_label.setToolTip(
             "Bild" if self._ist_bild
