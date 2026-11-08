@@ -1236,7 +1236,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
             widget = self._pdf_widget_for(erzeugt[0])
             if widget is not None:
                 self.on_pdf_clicked(erzeugt[0])
-                self.pdf_scroll_area.ensureWidgetVisible(widget)
+                self.zur_kachel_scrollen(erzeugt[0])
         if fehler:
             QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
         elif hinweise:
@@ -4461,8 +4461,48 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, QMainWindow):
         # Ein Klick auf das bereits ausgewaehlte PDF hebt die Auswahl auf - das nicht
         if self.selected_pdf != widget.pdf_path or self.selected_pdfs:
             self.on_pdf_clicked(widget.pdf_path)
-        QTimer.singleShot(0, lambda: self.pdf_scroll_area.ensureWidgetVisible(widget))
+        self.zur_kachel_scrollen(widget.pdf_path)
         self.statusbar.showMessage(f"Im Ordner angezeigt: {pfad.name}", 4000)
+
+    def zur_kachel_scrollen(self, pfad: Path) -> None:
+        """Scrollt die Liste "PDFs" so, dass die Kachel von ``pfad`` sichtbar ist.
+
+        Direkt nach ``load_pdfs`` hat die Liste ihre Hoehe noch nicht - das Layout
+        rechnet erst einige hundert Millisekunden spaeter (offscreen gemessen). Ein
+        sofortiges ``ensureWidgetVisible`` blieb wirkungslos (Live-Test: das aus einer
+        docx erzeugte PDF stand ausgewaehlt, aber unsichtbar ganz unten). Deshalb
+        wird gleich, nach dem naechsten Ereignisdurchlauf und bei jeder Aenderung
+        des Scrollbereichs (``rangeChanged``) gescrollt, bis die Liste fertig ist.
+        """
+        leiste = self.pdf_scroll_area.verticalScrollBar()
+        alte = getattr(self, "_kachel_scroll_slot", None)
+        if alte is not None:
+            try:
+                leiste.rangeChanged.disconnect(alte)
+            except (TypeError, RuntimeError):
+                pass
+
+        def scrollen(*_):
+            try:
+                widget = self._pdf_widget_for(pfad)
+                if widget is not None:
+                    self.pdf_scroll_area.ensureWidgetVisible(widget)
+            except RuntimeError:
+                pass  # Fenster bzw. Kachel inzwischen geschlossen
+
+        def beenden():
+            if getattr(self, "_kachel_scroll_slot", None) is scrollen:
+                self._kachel_scroll_slot = None
+                try:
+                    leiste.rangeChanged.disconnect(scrollen)
+                except (TypeError, RuntimeError):
+                    pass
+
+        self._kachel_scroll_slot = scrollen
+        leiste.rangeChanged.connect(scrollen)
+        scrollen()
+        QTimer.singleShot(0, scrollen)
+        QTimer.singleShot(2000, beenden)
 
     def _select_pdf_and_open_rename(self, pdf_path: Path):
         """

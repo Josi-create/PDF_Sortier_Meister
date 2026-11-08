@@ -109,5 +109,5 @@ class BildAktionenMixin:
         widget = self._pdf_widget_for(pdf)
         if widget is not None:
             self.on_pdf_clicked(pdf)
-            self.pdf_scroll_area.ensureWidgetVisible(widget)
+            self.zur_kachel_scrollen(pdf)
 
