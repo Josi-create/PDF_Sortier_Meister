@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, F
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import StaticPool
 
+from src.core.metadata_choices import clean_category
 from src.utils.config import get_config
 
 Base = declarative_base()
@@ -567,6 +568,15 @@ class Database:
             try:
                 cursor = conn.cursor()
                 pdfs_row = self._get_pdf_row_by_path(cursor, old_path)
+                ziel_row = self._get_pdf_row_by_path(cursor, new_path) if new_path != old_path else None
+                if ziel_row is not None:
+                    if pdfs_row is None:
+                        pdfs_row = ziel_row  # schon unter dem neuen Pfad bekannt
+                    elif ziel_row[0] != pdfs_row[0]:
+                        # Eintrag einer frueheren Datei am Ziel (ueberschrieben oder veraltet):
+                        # weg damit, sonst scheitert das Umtragen an UNIQUE(file_path) - wie
+                        # datei_verschoben im Suchindex
+                        cursor.execute("DELETE FROM pdfs WHERE pdf_id = ?", (ziel_row[0],))
                 now_iso = datetime.utcnow().isoformat()
                 pdf_id = self._ensure_pdf_id(
                     cursor, old_path, new_filename or Path(new_path).name, pdfs_row, now_iso
@@ -1110,7 +1120,7 @@ class Database:
                 entry.mwst_satz = metadata.get("mwst_satz")
                 entry.steuerjahr = metadata.get("steuerjahr")
                 entry.steuerlich_absetzbar = metadata.get("steuerlich_absetzbar")
-                entry.kategorie = metadata.get("subject")
+                entry.kategorie = clean_category(metadata.get("subject")) or None
                 entry.zusammenfassung = metadata.get("description")
 
             session.add(entry)
@@ -1631,10 +1641,11 @@ class Database:
         try:
             existing = self._gelernte_zeile(session, korrespondent)
 
+            # Nur eine echte Kategorie lernen - keine abgeschriebene KI-Auswahlliste
+            kategorie = clean_category(metadata.get("subject"))
             if existing:
-                # Bestehenden Eintrag aktualisieren
-                if metadata.get("subject"):
-                    existing.kategorie = metadata["subject"]
+                # Bestehenden Eintrag aktualisieren (alte kaputte Kategorie dabei bereinigen)
+                existing.kategorie = kategorie or clean_category(existing.kategorie) or None
                 if metadata.get("waehrung"):
                     existing.waehrung = metadata["waehrung"]
                 if metadata.get("mwst_satz"):
@@ -1647,7 +1658,7 @@ class Database:
                 # Neuen Eintrag erstellen
                 entry = KorrespondentMetadata(
                     korrespondent=korrespondent,
-                    kategorie=metadata.get("subject"),
+                    kategorie=kategorie or None,
                     waehrung=metadata.get("waehrung"),
                     mwst_satz=metadata.get("mwst_satz"),
                     steuerlich_absetzbar=metadata.get("steuerlich_absetzbar"),
@@ -1690,8 +1701,9 @@ class Database:
                 return None
 
             result = {}
-            if entry.kategorie:
-                result["subject"] = entry.kategorie
+            kategorie = clean_category(entry.kategorie)
+            if kategorie:
+                result["subject"] = kategorie
             if entry.waehrung:
                 result["waehrung"] = entry.waehrung
             if entry.mwst_satz:
@@ -1749,11 +1761,12 @@ class Database:
             # Aggregieren nach (steuerjahr, kategorie)
             agg: dict[tuple, dict] = {}
             for e in entries:
-                key = (e.steuerjahr or "", e.kategorie or "Sonstiges")
+                kategorie = clean_category(e.kategorie) or "Sonstiges"
+                key = (e.steuerjahr or "", kategorie)
                 if key not in agg:
                     agg[key] = {
                         "steuerjahr": e.steuerjahr,
-                        "kategorie": e.kategorie or "Sonstiges",
+                        "kategorie": kategorie,
                         "anzahl": 0,
                         "summe_brutto": 0.0,
                         "summe_netto": 0.0,

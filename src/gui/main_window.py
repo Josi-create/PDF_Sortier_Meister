@@ -3210,7 +3210,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     ):
         """Schreibt Metadaten in die PDF-Datei (XMP + Info Dictionary)."""
         try:
-            from src.core.pdf_metadata import PDFMetadata, write_metadata
+            from src.core.metadata_choices import clean_category
+            from src.core.pdf_metadata import PDFMetadata, ist_pdf, write_metadata
+
+            if not ist_pdf(pdf_path):
+                return  # Word/Excel/Bilder: keine XMP-Metadaten
 
             metadata = PDFMetadata()
 
@@ -3247,11 +3251,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 if dialog_metadata.get("description"):
                     metadata.description = dialog_metadata["description"]
 
+            # Eine Kategorie, keine abgeschriebene KI-Auswahlliste - auch fuer den Suchindex
+            metadata.subject = clean_category(metadata.subject) or None
+
             if metadata.has_any_data():
                 success = write_metadata(pdf_path, metadata)
                 if success:
-                    print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
+                    # Erst der Index, dann die Ausgabe: ein Konsolenfehler beim Drucken
+                    # (Zeichensatz) darf die Index-Meldung nicht verhindern
                     self._metadaten_an_index(pdf_path, metadata)
+                    print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
                 else:
                     print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
 

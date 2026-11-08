@@ -100,6 +100,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Stapeln wie bei Papier** (#190): Die gezogene PDF wird Seite 1, die
   darunterliegende folgt (bisher umgekehrt). Mehrere gezogene PDFs kommen in
   ihrer Reihenfolge alle davor. Namen und Ablageort behält die Ziel-PDF.
+- **Kategorie ist genau ein Wert**: Die KI schrieb gelegentlich die
+  Auswahlliste aus dem Prompt ab („Rechnung/Vertrag/Steuer/…“), ältere PDFs
+  trugen „{'Sonstiges'}“. Solche Werte landen nicht mehr in PDF, Suchindex,
+  Dateinamen und gelernten Korrespondenten-Daten; schon gespeicherte heilen
+  beim nächsten Lernen. Der Prompt verlangt ausdrücklich genau eine Kategorie.
+- **Verschieben auf einen Pfad mit altem Eintrag**: „UNIQUE constraint failed:
+  pdfs.file_path“ brach das Umtragen ab – dabei bekam auch der Suchindex das
+  Verschieben nicht mit. Der veraltete Eintrag am Ziel wird jetzt entfernt.
+- **Word/Excel ohne PDF-Metadaten-Versuch**: Für .docx/.xlsx (und Bilder) wird
+  nicht mehr versucht, PDF-Metadaten zu lesen oder zu schreiben (Meldung
+  „unable to find trailer dictionary“). Nach dem Schreiben in eine PDF geht die
+  Meldung an den Suchindex vor der Konsolenausgabe raus.
 
 ### Verbessert
 - **Chat findet verknüpfte Dokumente über Kennungen** (#166, #167): Mit
