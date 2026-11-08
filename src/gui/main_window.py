@@ -2611,7 +2611,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
             if is_new:
                 tooltip += ("Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach "
-                            "einer Rückfrage an und verschiebt die ausgewählte Datei dorthin.")
+                            "einer Rückfrage an und verschiebt die ausgewählte Datei dorthin "
+                            "(Rechtsklick: hierhin kopieren).")
             else:
                 tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
             widget.setToolTip(tooltip)
@@ -2624,12 +2625,13 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
             widget.clicked.connect(self.on_suggestion_clicked)
             if not is_new:
-                # Neuer Ordner: nur per Klick (kein Doppelklick-Navigieren, kein Drop)
+                # Neuer Ordner: Verschieben nur per Klick (kein Doppelklick-Navigieren, kein Drop)
                 widget.double_clicked.connect(self.on_folder_double_clicked)
                 # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
                 # auf den Baum (vorher stilles No-op, weil nie verbunden)
                 widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
-                self.verbinde_hierhin_kopieren(widget)  # Issue #179
+            # Issue #179: Kopieren (Menue, Strg-Drop) auch in einen neuen Ordner; er wird angelegt
+            self.verbinde_hierhin_kopieren(widget)
 
             # Issue #32: nur der erste bestehende (beste) Vorschlag, nur bei hoher
             # Konfidenz - nie ein neuer Ordner (Issue #116)

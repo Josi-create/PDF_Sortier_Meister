@@ -260,10 +260,9 @@ class FolderWidget(QFrame):
         menu = QMenu(self)
 
         # Issue #179: ausgewaehlte Datei hierhin kopieren statt verschieben
-        # (nicht bei einem neuen Ordner, den es noch nicht gibt - Issue #116)
-        if not self._neu:
-            kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path))
-            menu.addSeparator()
+        # (auch bei einem neuen Ordner, den es noch nicht gibt: er wird dabei angelegt)
+        kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path))
+        menu.addSeparator()
 
         # Im Dateimanager öffnen (nicht bei einem Ordner, den es noch nicht gibt)
         if not self._neu:

@@ -304,6 +304,28 @@ class HierhinKopierenMixin:
         """
         relative_path = self.folder_tree.get_relative_path(folder_path)
         mit_panel = len(dateien) == 1 and dateien[0] == self.selected_pdf
+
+        # Neuer Ordner (Issue #116): wie beim Verschieben nach Rueckfrage anlegen
+        angelegt: list[Path] = []
+        if not folder_path.exists():
+            from src.core import neuer_ordner
+
+            wer = f"{len(dateien)} Dateien" if len(dateien) > 1 else "Datei"
+            antwort = QMessageBox.question(
+                self, "Neuen Ordner anlegen",
+                f"Ordner '{relative_path}' anlegen und {wer} dorthin kopieren?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if antwort != QMessageBox.StandardButton.Yes:
+                return []
+            try:
+                angelegt = neuer_ordner.anlegen(folder_path)
+            except OSError as e:
+                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{e}")
+                return []
+            self._invalidate_folder_caches()
+
         kopien: list[tuple[Path, Path]] = []
         fehler: list[str] = []
 
@@ -324,6 +346,11 @@ class HierhinKopierenMixin:
                 "Einige Dateien konnten nicht kopiert werden:\n" + "\n".join(fehler),
             )
         if not kopien:
+            if angelegt:  # nichts kopiert: den neuen Ordner nicht leer liegen lassen
+                from src.core import neuer_ordner
+
+                neuer_ordner.leere_wegraeumen(angelegt)
+                self._invalidate_folder_caches()
             return []
 
         self.training_label.setText(f"Gelernt: {self.classifier.get_training_count()}")
