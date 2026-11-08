@@ -1,4 +1,4 @@
-"""Word-/Excel-Dateien in PDF umwandeln (Issue #9) - Qt-frei.
+"""Word-/Excel-Dateien (.docx, .odt, .xlsx) in PDF umwandeln (Issue #9) - Qt-frei.
 
 Die Originaldatei bleibt unveraendert; das PDF entsteht daneben.
 
@@ -13,6 +13,18 @@ Feldschalters (``\\@ "dddd, d. MMMM yyyy"``), deutsch ausgeschrieben. Fehlt
 ``lastPrinted``, gilt ersatzweise ``modified``, dann ``created``, zuletzt die
 Aenderungszeit der Datei. Die Quelle steht im Ergebnis (``datum_quelle``).
 Andere Felder (SEITE, SEQ, HYPERLINK, SAVEDATE, CREATEDATE ...) bleiben.
+
+OpenDocument-Text (.odt) wird wie .docx behandelt. Gegenstueck zu den Word-Feldern
+sind die ODF-Felder ``text:date``, ``text:time``, ``text:print-date`` und
+``text:print-time`` in ``content.xml`` und ``styles.xml`` (Kopf-/Fusszeilen), soweit
+sie nicht ``text:fixed="true"`` tragen. Sie werden in der temporaeren Kopie durch
+festen Text ersetzt. Datum aus ``meta.xml``: ``meta:print-date`` (als "lastPrinted"
+gemeldet), sonst ``dc:date`` ("modified"), ``meta:creation-date`` ("created"),
+zuletzt die Dateizeit. Das Anzeigeformat leitet sich aus dem Datenstil des Felds
+(``number:date-style`` / ``number:time-style``) ab; fehlt er, gilt ``dd.MM.yyyy``
+bzw. ``HH:mm:ss``. Die Namen kommen wie bei .docx deutsch ausgeschrieben.
+Bewusst nicht angefasst: ``text:modification-date``, ``text:creation-date`` und
+Verwandte - sie zeigen feste Metadaten, kein "jetzt".
 
 Umwandlung
 ----------
@@ -45,7 +57,7 @@ from typing import Optional
 from xml.sax.saxutils import escape as _xml_escape
 from xml.sax.saxutils import unescape as _xml_unescape
 
-WORD_ENDUNGEN = (".docx",)
+WORD_ENDUNGEN = (".docx", ".odt")  # .odt (OpenDocument-Text) wird wie .docx behandelt
 EXCEL_ENDUNGEN = (".xlsx",)
 OFFICE_ENDUNGEN = WORD_ENDUNGEN + EXCEL_ENDUNGEN
 
@@ -77,7 +89,7 @@ class KeinUmwandlerGefunden(UmwandlungFehler):
 class UmwandlungsErgebnis:
     pdf: Path
     werkzeug: str  # "Word", "Excel" oder "LibreOffice"
-    datum: Optional[datetime] = None  # nur .docx: eingesetztes Datum der Datumsfelder
+    datum: Optional[datetime] = None  # nur .docx/.odt: eingesetztes Datum der Datumsfelder
     datum_quelle: Optional[str] = None  # "lastPrinted", "modified", "created" oder "Dateizeit"
     ersetzte_felder: int = 0
     pdfa: bool = False  # PDF/A tatsaechlich erzeugt
@@ -85,7 +97,7 @@ class UmwandlungsErgebnis:
 
 
 def ist_office_datei(pfad: Path | str) -> bool:
-    """Sortierbare Nicht-PDF-Datei: .docx/.xlsx und seit Issue #184 auch Bilder.
+    """Sortierbare Nicht-PDF-Datei: .docx/.odt/.xlsx und seit Issue #184 auch Bilder.
 
     Sie erscheinen als eigene Kachel, tragen keine PDF-Metadaten und lassen
     sich in PDF umwandeln (Bilder: ``bild_convert``).
@@ -131,8 +143,13 @@ def _parse_iso(text: str) -> Optional[datetime]:
 
 
 def druckdatum(docx: Path | str) -> tuple[datetime, str]:
-    """Datum fuer die Datumsfelder: lastPrinted, sonst modified, created, Dateizeit."""
+    """Datum fuer die Datumsfelder: lastPrinted, sonst modified, created, Dateizeit.
+
+    Bei .odt aus ``meta.xml`` (print-date, dc:date, creation-date), gleiche Quellennamen.
+    """
     docx = Path(docx)
+    if docx.suffix.lower() == ".odt":
+        return _odt_druckdatum(docx)
     core = ""
     try:
         with zipfile.ZipFile(docx) as z:
@@ -319,7 +336,9 @@ def datumsfelder_ersetzen(xml: str, dt: datetime) -> tuple[str, int]:
 
 
 def hat_datumsfelder(docx: Path | str) -> bool:
-    """True, wenn die .docx PRINTDATE-/DATE-/TIME-Felder enthaelt (Datum aendert sich beim Drucken)."""
+    """True, wenn die .docx/.odt Datumsfelder enthaelt (Datum aendert sich beim Drucken)."""
+    if Path(docx).suffix.lower() == ".odt":
+        return _odt_hat_datumsfelder(docx)
     try:
         with zipfile.ZipFile(docx) as z:
             for info in z.infolist():
@@ -351,6 +370,162 @@ def docx_mit_festem_datum(quelle: Path | str, ziel: Path | str) -> tuple[datetim
                     gesamt += n
             zout.writestr(info, daten, compress_type=info.compress_type)
     return dt, quelle_name, gesamt
+
+
+# --- OpenDocument-Text (.odt) -----------------------------------------------
+
+_ODT_TEILE = re.compile(r"^(content|styles)\.xml$")
+_ODF_FELD = re.compile(
+    r"<text:(date|time|print-date|print-time)(?=[\s/>])([^>]*?)(?:/>|>.*?</text:\1>)", re.DOTALL
+)
+_ODF_STILNAME = re.compile(r'\bstyle:data-style-name="([^"]*)"')
+_ODF_NS_NUMBER = "{urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0}"
+_ODF_NS_STYLE = "{urn:oasis:names:tc:opendocument:xmlns:style:1.0}"
+STANDARD_ODT_DATUM = "dd.MM.yyyy"
+STANDARD_ODT_ZEIT = "HH:mm:ss"
+
+
+def _odt_druckdatum(odt: Path) -> tuple[datetime, str]:
+    meta = ""
+    try:
+        with zipfile.ZipFile(odt) as z:
+            info = z.getinfo("meta.xml")
+            if info.file_size < MAX_TEIL:
+                meta = z.read(info).decode("utf-8", "replace")
+    except (KeyError, zipfile.BadZipFile, OSError):
+        pass
+    for tag, name in (
+        ("meta:print-date", "lastPrinted"),
+        ("dc:date", "modified"),
+        ("meta:creation-date", "created"),
+    ):
+        m = re.search(rf"<{tag}\b[^>]*>([^<]*)</{tag}>", meta)
+        if m:
+            dt = _parse_iso(m.group(1))
+            if dt and dt.year > 1900:
+                return dt, name
+    return datetime.fromtimestamp(odt.stat().st_mtime), "Dateizeit"
+
+
+def _odf_bild(stil) -> str:
+    """Word-artiges Datumsbild aus einem number:date-style/number:time-style-Element."""
+    teile: list[str] = []
+    mit_ampm = any(k.tag == _ODF_NS_NUMBER + "am-pm" for k in stil)
+    for k in stil:
+        art = k.tag.removeprefix(_ODF_NS_NUMBER)
+        lang = k.get(_ODF_NS_NUMBER + "style") == "long"
+        if art == "day":
+            teile.append("dd" if lang else "d")
+        elif art == "month":
+            if k.get(_ODF_NS_NUMBER + "textual") == "true":
+                teile.append("MMMM" if lang else "MMM")
+            else:
+                teile.append("MM" if lang else "M")
+        elif art == "year":
+            teile.append("yyyy" if lang else "yy")
+        elif art == "day-of-week":
+            teile.append("dddd" if lang else "ddd")
+        elif art == "hours":
+            teile.append(("hh" if lang else "h") if mit_ampm else ("HH" if lang else "H"))
+        elif art == "minutes":
+            teile.append("mm" if lang else "m")
+        elif art == "seconds":
+            teile.append("ss" if lang else "s")
+        elif art == "am-pm":
+            teile.append("AM/PM")
+        elif art == "text":
+            teile.append("".join("\\" + c for c in (k.text or "")))  # Literal: jedes Zeichen maskiert
+    return "".join(teile)
+
+
+def _odf_stile(teile_xml: list[str]) -> dict[str, str]:
+    """Name -> Datumsbild aller Datums-/Zeitstile in content.xml und styles.xml."""
+    import xml.etree.ElementTree as ET
+
+    stile: dict[str, str] = {}
+    for xml in teile_xml:
+        try:
+            wurzel = ET.fromstring(xml)
+        except ET.ParseError:
+            continue
+        for art in ("date-style", "time-style"):
+            for e in wurzel.iter(_ODF_NS_NUMBER + art):
+                name = e.get(_ODF_NS_STYLE + "name")
+                bild = _odf_bild(e)
+                if name and bild:
+                    stile[name] = bild
+    return stile
+
+
+def odt_datumsfelder_ersetzen(xml: str, dt: datetime, stile: dict[str, str]) -> tuple[str, int]:
+    """Ersetzt nicht fixierte ODF-Datumsfelder in einem XML-Teil durch festen Text.
+
+    Rueckgabe: (neues XML, Anzahl ersetzter Felder).
+    """
+    anzahl = 0
+
+    def sub(m):
+        nonlocal anzahl
+        attribute = m.group(2)
+        if 'text:fixed="true"' in attribute:
+            return m.group(0)
+        anzahl += 1
+        n = _ODF_STILNAME.search(attribute)
+        bild = stile.get(_xml_unescape(n.group(1))) if n else None
+        if not bild:
+            bild = STANDARD_ODT_ZEIT if m.group(1).endswith("time") else STANDARD_ODT_DATUM
+        return _xml_escape(formatiere_datum(dt, bild))
+
+    return _ODF_FELD.sub(sub, xml), anzahl
+
+
+def _odt_teile(z: zipfile.ZipFile) -> dict[str, str]:
+    return {
+        i.filename: z.read(i).decode("utf-8", "replace")
+        for i in z.infolist() if _ODT_TEILE.match(i.filename) and i.file_size < MAX_TEIL
+    }
+
+
+def _odt_hat_datumsfelder(odt: Path | str) -> bool:
+    try:
+        with zipfile.ZipFile(odt) as z:
+            return any(
+                'text:fixed="true"' not in m.group(2)
+                for xml in _odt_teile(z).values() for m in _ODF_FELD.finditer(xml)
+            )
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def odt_mit_festem_datum(quelle: Path | str, ziel: Path | str) -> tuple[datetime, str, int]:
+    """Schreibt eine Kopie der .odt mit festen Datumsfeldern nach ``ziel`` (Quelle unveraendert).
+
+    ``mimetype`` steht als erster Eintrag und unkomprimiert (ODF-Vorschrift).
+    Rueckgabe: (Datum, Quelle des Datums, Anzahl Felder).
+    """
+    dt, quelle_name = druckdatum(quelle)
+    gesamt = 0
+    with zipfile.ZipFile(quelle) as zin, zipfile.ZipFile(ziel, "w") as zout:
+        teile = _odt_teile(zin)
+        stile = _odf_stile(list(teile.values()))
+        infos = sorted(zin.infolist(), key=lambda i: i.filename != "mimetype")  # stabil: mimetype zuerst
+        for info in infos:
+            daten = zin.read(info)
+            if info.filename in teile:
+                xml, n = odt_datumsfelder_ersetzen(teile[info.filename], dt, stile)
+                if n:
+                    daten = xml.encode("utf-8")
+                    gesamt += n
+            art = zipfile.ZIP_STORED if info.filename == "mimetype" else info.compress_type
+            zout.writestr(info, daten, compress_type=art)
+    return dt, quelle_name, gesamt
+
+
+def mit_festem_datum(quelle: Path | str, ziel: Path | str) -> tuple[datetime, str, int]:
+    """.docx oder .odt mit festen Datumsfeldern nach ``ziel`` schreiben."""
+    if Path(quelle).suffix.lower() == ".odt":
+        return odt_mit_festem_datum(quelle, ziel)
+    return docx_mit_festem_datum(quelle, ziel)
 
 
 # --- Umwandler ----------------------------------------------------------------
@@ -408,7 +583,7 @@ def finde_libreoffice() -> Optional[str]:
 
 
 def umwandler_verfuegbar(endung: str) -> bool:
-    """Gibt es fuer diese Dateiendung (.docx/.xlsx) irgendeinen Umwandler?"""
+    """Gibt es fuer diese Dateiendung (.docx/.odt/.xlsx) irgendeinen Umwandler?"""
     com = word_com_verfuegbar() if endung.lower() in WORD_ENDUNGEN else excel_com_verfuegbar()
     return com or finde_libreoffice() is not None
 
@@ -531,10 +706,10 @@ def _freier_pfad(pfad: Path) -> Path:
 
 
 def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = False) -> UmwandlungsErgebnis:
-    """Wandelt eine .docx/.xlsx in PDF um; die Quelle bleibt unveraendert.
+    """Wandelt eine .docx/.odt/.xlsx in PDF um; die Quelle bleibt unveraendert.
 
     Args:
-        quelle: .docx oder .xlsx
+        quelle: .docx, .odt oder .xlsx
         ziel: gewuenschter PDF-Pfad; Standard: gleicher Ordner, gleicher Name, ``.pdf``.
             Existiert er schon, wird ``Name (1).pdf`` verwendet (nichts wird ueberschrieben).
         pdfa: PDF/A erzeugen, wenn der Umwandler es kann.
@@ -573,7 +748,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
     try:
         kopie = arbeit / quelle.name  # nur die Kopie wird geoeffnet, nie das Original
         if ist_word:
-            ergebnis.datum, ergebnis.datum_quelle, ergebnis.ersetzte_felder = docx_mit_festem_datum(quelle, kopie)
+            ergebnis.datum, ergebnis.datum_quelle, ergebnis.ersetzte_felder = mit_festem_datum(quelle, kopie)
             if ergebnis.datum_quelle != "lastPrinted":
                 ergebnis.hinweise.append(
                     f"Kein Druckdatum im Dokument - Datumsfelder zeigen ersatzweise "

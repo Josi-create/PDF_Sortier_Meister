@@ -8,6 +8,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **OpenDocument-Text (.odt) wie .docx**: .odt-Dateien erscheinen als Kachel
+  (Etikett „ODT“) mit Vorschau, fließen in die Ordner-Vorschläge ein, behalten
+  beim Verschieben/Umbenennen/Hierhin-Kopieren ihre Endung und lassen sich per
+  Rechtsklick (auch mehrere) in PDF bzw. PDF/A umwandeln – mit Word oder
+  LibreOffice. Datumsfelder (`text:date`, `text:time`, `text:print-date`,
+  `text:print-time`) werden vor dem Umwandeln auf das Druckdatum aus `meta.xml`
+  festgesetzt, damit ein alter Brief nicht das heutige Datum bekommt.
 - **Korrespondenten neu gedacht** (#160): Der Korrespondent ist jetzt immer
   die Gegenpartei aus Sicht des Nutzers – bei fremder Post der Absender, bei
   eigenen Schreiben der Empfänger bzw. die andere Vertragspartei (Mietvertrag →

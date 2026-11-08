@@ -198,7 +198,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         )
         self.typ_label.setToolTip(
             "Bild" if self._ist_bild
-            else ("Word-Dokument" if pfad.suffix.lower() in WORD_ENDUNGEN else "Excel-Tabelle")
+            else ("OpenDocument-Text" if pfad.suffix.lower() == ".odt"
+                  else "Word-Dokument" if pfad.suffix.lower() in WORD_ENDUNGEN else "Excel-Tabelle")
         )
         self.typ_label.adjustSize()
         self.typ_label.move(3, 3)
