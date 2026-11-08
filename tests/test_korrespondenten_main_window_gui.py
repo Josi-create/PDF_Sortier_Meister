@@ -68,25 +68,21 @@ def test_dokument_aus_reiter_in_der_mitte_und_zurueck(main_window, fresh_singlet
     archiv = _index_dok(main_window, tmp / "Ablage" / "Miete" / "vertrag.pdf", "Max Mieter")
     scan = _make_scan_folder(tmp, ["scan.pdf"])
     main_window._navigate_to_folder(scan)
-    _prime_cache(main_window, [scan / "scan.pdf"])
+    _prime_cache(main_window, [scan / "scan.pdf", archiv])
     main_window.on_pdf_clicked(scan / "scan.pdf")
     assert main_window.detail_panel.get_current_pdf() == scan / "scan.pdf"
 
     main_window.show_korrespondent("Max Mieter")
     view = main_window.korrespondenten_view
-    item = view.dokumente.topLevelItem(0)
-    view.dokumente.itemClicked.emit(item, 0)
+    view.dokumente.topLevelItem(0).setSelected(True)
 
-    panel = main_window.detail_panel
-    assert panel.zeigt_ansicht()
-    assert panel.detail_container.isHidden()
-    assert "vertrag.pdf" in panel.ansicht_label.text() and "Max Mieter" in panel.ansicht_label.text()
-    panel.apply_preview_text("korrespondent", "Falsch")  # Vorschau zeigt ein anderes Dokument: nichts uebernehmen
-    assert panel._metadata_inputs["korrespondent"].text() != "Falsch"
+    panel = main_window.detail_panel  # volle Ansicht wie unter "PDFs": Felder und Vorschau
+    assert panel.get_current_pdf() == archiv and main_window.selected_pdf == archiv
+    assert not panel.detail_container.isHidden()
 
     main_window.left_tabs.setCurrentIndex(0)  # zurueck zu den PDFs: die Auswahl ist wieder da
-    assert not panel.zeigt_ansicht()
     assert panel.get_current_pdf() == scan / "scan.pdf"
+    assert main_window.selected_pdf == scan / "scan.pdf"
     assert not panel.detail_container.isHidden()
 
     # "Ordner links öffnen" zeigt den Ablageort in der Liste "PDFs"

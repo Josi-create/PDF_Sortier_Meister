@@ -52,7 +52,7 @@ from src.utils.pdf_open import OPEN_MODE_INTEGRATED, normalize_open_mode, open_p
 from src.gui.pdf_preview_window import PdfPreviewWindow
 from src.gui.settings_dialog import SettingsDialog
 from src.gui.setup_wizard import SetupWizard
-from src.gui.korrespondenten_view import KorrespondentenView
+from src.gui.korrespondenten_view import KorrespondentenView, dokument_pfad
 from src.core.backup_reminder import is_question_due, macrium_last_backup, parse_date
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import coerce_date
@@ -81,7 +81,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.core import office_vorschau
-from src.core.office_convert import endung_tauschen, ist_office_datei
+from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -209,6 +209,10 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self.selected_pdf_keywords: Optional[list[str]] = None
         self.selected_pdf_dates: Optional[list] = None
         self.selected_pdfs: list[Path] = []  # Mehrfachauswahl
+        # Auswahl im Reiter "Korrespondenten" (#160): sie ersetzt selected_pdf(s), solange sie aktiv ist;
+        # die Auswahl der Liste "PDFs" wird derweil hier gemerkt (selected_pdf, selected_pdfs)
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt: Optional[tuple] = None
         # Angezeigte Ordnervorschlaege der Auswahl (fuer den Chat, Issue #148)
         self._shown_suggestions: list = []
 
@@ -333,7 +337,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             self.db, self.config, self.hybrid_classifier,
             wurzeln=lambda: list(self.folder_manager.target_folders),
         )
-        self.korrespondenten_view.dokument_gewaehlt.connect(self._on_korrespondent_dokument)
+        self.korrespondenten_view.dokumente_gewaehlt.connect(self._on_korrespondent_dokumente)
         self.korrespondenten_view.dokument_oeffnen.connect(self.open_pdf_external)
         self.korrespondenten_view.ordner_oeffnen.connect(self._on_korrespondent_ordner)
         self.korrespondenten_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
@@ -404,8 +408,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         widget = self.left_tabs.widget(index)
         if widget is self.korrespondenten_view:
             self.korrespondenten_view.refresh()
-        elif self.detail_panel.zeigt_ansicht():
-            self._detail_panel_zuruecksetzen()  # Ansicht aus dem Reiter "Korrespondenten" beenden (#160)
+        elif self._korr_aktiv:
+            self._korr_auswahl_beenden()  # die Auswahl der Liste "PDFs" gilt wieder (#160)
         if widget is self.chat_view:
             self.chat_view.set_bezug(self._chat_bezug_pfad())
             self.chat_view.refresh_llm_status()
@@ -415,26 +419,92 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self.left_tabs.setCurrentWidget(self.korrespondenten_view)
         self.korrespondenten_view.waehlen(name)
 
-    def _on_korrespondent_dokument(self, dok: dict) -> None:
-        """Dokument aus dem Reiter "Korrespondenten" in der Mitte zeigen (Vorschau, ohne Felder)."""
-        pfad = Path(dok.get("datei") or dok.get("pfad") or "")
-        zeilen = [pfad.name]
-        angaben = [str(dok.get(k) or "") for k in ("korrespondent", "kategorie", "buchungsdatum")]
-        if any(angaben):
-            zeilen.append(" · ".join(a for a in angaben if a))
-        zeilen.append(str(pfad.parent))
-        self.detail_panel.zeige_ansicht(pfad, "\n".join(zeilen))
+    def _on_korrespondent_dokumente(self, doks: list) -> None:
+        """Markierte Dokumente des Reiters "Korrespondenten" wie eine Auswahl unter "PDFs" behandeln.
+
+        Sie laufen ueber den normalen Weg (selected_pdf/selected_pdfs, Analyse bzw. Cache,
+        Ordnervorschlaege, Felder, Vorschau): Verschieben, Kopieren, Umbenennen, Lernen und
+        Rueckgaengig sind dieselben wie fuer eine PDF im Eingangsordner.
+        """
+        pfade = [p for p in (dokument_pfad(d) for d in doks) if p.is_file() and ist_sortierbar(p)]
+        if not pfade:
+            if doks:
+                self.statusbar.showMessage("Diese Dokumente lassen sich hier nicht bearbeiten (Mail oder Datei fehlt)", 4000)
+            if self._korr_aktiv:
+                self._korr_auswahl_leeren()
+            return
+        if not self._korr_aktiv:
+            self._pdf_auswahl_gemerkt = (self.selected_pdf, list(self.selected_pdfs))
+            self._korr_aktiv = True
+        self._end_analysis_wait()
+        self.selected_pdfs = pfade if len(pfade) > 1 else []
+        self.selected_pdf = pfade[-1]  # wie unter "PDFs": die letzte ist die "aktive"
+        self._auswahl_anzeigen()
+        if len(pfade) > 1:
+            self.statusbar.showMessage(f"{len(pfade)} Dokumente ausgewählt")
+        else:
+            self.statusbar.showMessage(f"Ausgewählt: {pfade[0].name}")
+
+    def _auswahl_anzeigen(self) -> None:
+        """Felder, Vorschau und Vorschlaege fuer ``selected_pdf`` zeigen.
+
+        Ist die Analyse noch nicht da, wird die Anzeige vorher geleert: Das Detailfeld darf
+        nie Felder eines anderen Dokuments zeigen, sonst gingen Namen und Metadaten beim
+        Speichern oder Verschieben an die falsche Datei.
+        """
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdf_dates = None
+        if self.pdf_cache.get(self.selected_pdf) is None:
+            self.detail_panel.clear()
+            self.clear_suggestions()
+        self.update_suggestions_for_pdf(self.selected_pdf)
+
+    def _korr_auswahl_leeren(self) -> None:
+        """Nichts mehr ausgewaehlt (Korrespondenten-Reiter bleibt aktiv, die gemerkte Auswahl auch)."""
+        self._end_analysis_wait()
+        self.selected_pdf = None
+        self.selected_pdfs = []
+        self.selected_pdf_text = None
+        self.selected_pdf_keywords = None
+        self.selected_pdf_dates = None
+        self.clear_suggestions()
+        self.detail_panel.clear()
+        self.korrespondenten_view.auswahl_aufheben()
+
+    def _korr_auswahl_beenden(self) -> None:
+        """Zurueck zu "PDFs" (oder Chat): deren Auswahl gilt wieder."""
+        pdf, pdfs = self._pdf_auswahl_gemerkt or (None, [])
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt = None
+        self._end_analysis_wait()
+        self.korrespondenten_view.auswahl_aufheben()
+        self.selected_pdf = Path(pdf) if pdf is not None and Path(pdf).exists() else None
+        self.selected_pdfs = [Path(p) for p in pdfs if Path(p).exists()]
+        self._detail_panel_zuruecksetzen()
+
+    def _korr_auswahl_verwerfen(self) -> None:
+        """Auswahl ganz aufheben, auch die gemerkte (Wechsel in einen anderen Ordner)."""
+        self._korr_aktiv = False
+        self._pdf_auswahl_gemerkt = None
+        self.korrespondenten_view.auswahl_aufheben()
+        self._clear_selection()
 
     def _on_korrespondent_ordner(self, ordner: Path) -> None:
         """Kontextmenue "Ordner links öffnen": Ordner in der Liste "PDFs" zeigen."""
+        self._korr_auswahl_verwerfen()
         self._navigate_to_folder(Path(ordner))
         self.left_tabs.setCurrentIndex(0)
 
     def _detail_panel_zuruecksetzen(self) -> None:
         """Detailbereich wieder fuer die ausgewaehlte PDF fuellen (oder leeren)."""
         if self.selected_pdf is not None and Path(self.selected_pdf).exists():
-            self.update_suggestions_for_pdf(self.selected_pdf)
+            self._auswahl_anzeigen()
         else:
+            self.selected_pdf = None
+            self.selected_pdf_text = None
+            self.selected_pdf_keywords = None
+            self.clear_suggestions()
             self.detail_panel.clear()
 
     def show_chat_tab(self) -> None:
@@ -1486,7 +1556,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         Vorschläge und Ordner-Highlights wie bei einem echten Klick aktualisiert
         werden. Gibt True zurück, wenn eine Folge-PDF automatisch ausgewählt wurde.
         """
-        was_selected = self.selected_pdf == pdf_path
+        # Im Reiter "Korrespondenten" gibt es keine "naechste PDF" der Liste (#160)
+        was_selected = self.selected_pdf == pdf_path and not self._korr_aktiv
         index = self.remove_pdf_widget(pdf_path)
         if was_selected and index is not None and self.pdf_widgets:
             next_index = min(index, len(self.pdf_widgets) - 1)
@@ -2526,8 +2597,6 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
     def _populate_detail_panel(self, pdf_path: Path, result: PDFAnalysisResult, detected_date: str = None):
         """Befüllt das Detail-Panel mit Umbenennungsvorschlägen und Metadaten."""
-        if self.detail_panel.zeigt_ansicht() and self.left_tabs.currentWidget() is self.korrespondenten_view:
-            return  # Mitte zeigt ein Dokument aus "Korrespondenten"; beim Reiterwechsel wird nachgezogen
         try:
             # Rename-Suggestions generieren (gleiche Logik wie on_pdf_rename)
             rename_suggestions = generate_rename_suggestions(
@@ -2807,6 +2876,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
             self.config.add_to_last_used(folder_path)
             if not self._remove_pdf_widget_and_select_next(pdf_path):
                 self.detail_panel.clear()
+            if self._korr_aktiv:
+                self._korr_auswahl_leeren()  # Dokument aus dem Reiter "Korrespondenten" ist abgelegt
             timer.step("ui")
             self._refresh_after_move(folder_path, pdf_path.parent)
             timer.step("tree")
@@ -2976,7 +3047,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Auswahl zurücksetzen
         self.selected_pdfs = []
         auto_selected = False
-        if selected_removed_index is not None and self.pdf_widgets:
+        if selected_removed_index is not None and self.pdf_widgets and not self._korr_aktiv:
             next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
             next_path = self.pdf_widgets[next_index].pdf_path
             self.on_pdf_clicked(next_path)
@@ -2995,6 +3066,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Vorschläge leeren (nur wenn keine Folge-PDF automatisch ausgewählt wurde)
         if not auto_selected:
             self.clear_suggestions()
+        if self._korr_aktiv:
+            self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Doppelklick auf ein Thumbnail: PDF öffnen (Vorschau oder extern)."""
@@ -3879,6 +3952,13 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
     def _push_undo(self, entry: dict):
         """Fügt einen Eintrag zum Undo-Stack hinzu."""
         self._undo_stack.append(entry)
+        # Der Reiter "Korrespondenten" zeigt neue Pfade sofort (der Suchindex zieht per Warteschlange nach)
+        paare = list(entry.get("moves") or [])
+        if entry.get("type") == "rename":
+            paare.append((entry["old_path"], entry["new_path"]))
+        view = getattr(self, "korrespondenten_view", None)
+        if paare and view is not None:
+            view.pfade_aktualisieren(paare)
         # Maximal 20 Einträge behalten
         if len(self._undo_stack) > 20:
             self._undo_stack.pop(0)
@@ -4006,6 +4086,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
             # Widget-Namen aktualisieren
             self._update_pdf_widget_path(new_path, restored_path)
+            self.korrespondenten_view.pfade_aktualisieren([(new_path, restored_path)])
 
         except Exception as e:
             QMessageBox.critical(
@@ -4055,6 +4136,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         import shutil
         restored = 0
         errors = []
+        zurueck = []
 
         for source_orig, dest_path in moves:
             try:
@@ -4065,6 +4147,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
                 restored_path = target_dir / dest_path.name
                 shutil.move(str(dest_path), str(restored_path))
                 index_melden("datei_verschoben", str(dest_path), str(restored_path))
+                zurueck.append((dest_path, restored_path))
                 restored += 1
             except Exception as e:
                 errors.append(f"{dest_path.name}: {e}")
@@ -4072,6 +4155,7 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         # Undo-Eintrag entfernen
         self._undo_stack.pop()
         self._update_undo_ui()
+        self.korrespondenten_view.pfade_aktualisieren(zurueck)
 
         # Issue #116: beim Verschieben neu angelegte Ordner wieder wegraeumen -
         # nur die aus diesem Schritt und nur, wenn sie jetzt leer sind
@@ -4546,6 +4630,11 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
         """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""
+        # Ein Drop mehrerer Dateien ruft diese Methode je Datei auf; die erste verschiebt schon
+        # die ganze Mehrfachauswahl, die folgenden duerfen dann nicht mehr meckern
+        if pdf_path in self.__dict__.get("_drop_erledigt", ()):
+            return
+
         # Relativen Pfad für die Baumansicht berechnen
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
@@ -4553,6 +4642,9 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         pdfs_to_move = []
         if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
             pdfs_to_move = list(self.selected_pdfs)
+            erledigt = self.__dict__.setdefault("_drop_erledigt", set())
+            erledigt.update(pdfs_to_move)
+            QTimer.singleShot(0, erledigt.clear)  # gilt nur fuer diesen einen Drop
         else:
             pdfs_to_move = [pdf_path]
 
@@ -4616,6 +4708,8 @@ class MainWindow(HierhinKopierenMixin, QMainWindow):
         self.selected_pdf_text = None
         self.selected_pdf_keywords = None
         self.selected_pdfs = []
+        if self._korr_aktiv:
+            self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt
 
         # Zuletzt verwendet aktualisieren
         self.config.add_to_last_used(folder_path)

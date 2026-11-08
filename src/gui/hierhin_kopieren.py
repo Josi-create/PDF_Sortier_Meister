@@ -121,8 +121,13 @@ class HierhinKopierenMixin:
         """Name und Metadaten aus dem Detail-Panel (und ggf. Ordner-Namensschema, Issue #42)."""
         from src.gui.main_window import _iso_to_date
 
-        new_name = self.detail_panel.get_new_name()
-        metadata = self.detail_panel.get_metadata()
+        # Namen und Metadaten nur aus dem Panel, wenn es DIESE Datei zeigt (Reiterwechsel, noch
+        # laufende Analyse): sonst gingen die Felder eines anderen Dokuments an die falsche Datei
+        if self.detail_panel.get_current_pdf() == pdf_path:
+            new_name = self.detail_panel.get_new_name()
+            metadata = self.detail_panel.get_metadata()
+        else:
+            new_name, metadata = None, {}
         # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
         office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
         if office_ext and new_name:

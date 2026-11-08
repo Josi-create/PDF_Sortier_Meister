@@ -4,9 +4,10 @@ Oben ein Suchfeld und die Liste aller Korrespondenten aus dem Suchindex
 (gleichwertige Schreibweisen und gespeicherte Aliasse zusammengefasst,
 haeufigste zuerst). Ein Klick zeigt darunter alle Dokumente dieses
 Korrespondenten (Datum, Dateiname, Ablageort, Kategorie; neueste zuerst).
-Ein Klick auf ein Dokument zeigt es in der Vorschau der Mitte
-(``dokument_gewaehlt``), ein Doppelklick oeffnet es extern, das
-Kontextmenue bietet "Im Explorer anzeigen" und "Ordner links öffnen".
+Ein Klick auf ein Dokument waehlt es wie ein PDF unter "PDFs" (Felder, Vorschau,
+Ordnervorschlaege; ``dokumente_gewaehlt``), mit Strg/Umschalt auch mehrere. Sie lassen
+sich verschieben, kopieren und auf einen Ordner ziehen. Ein Doppelklick oeffnet das
+Dokument extern, das Kontextmenue bietet "Im Explorer anzeigen" und "Ordner links öffnen".
 
 Keine Handpflege: Unsichere Schreibweisen ("Stadtwerke GÖ" / "Stadtwerke
 Göttingen") gleicht die KI einmal je Sitzung im Hintergrund ab und speichert
@@ -26,8 +27,8 @@ from datetime import datetime
 from pathlib import Path
 
 from PyQt6 import sip
-from PyQt6.QtCore import QPoint, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QMimeData, QPoint, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QColor, QDrag
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -179,11 +180,39 @@ class _Aufraeumen(QThread):
         return neu, geschrieben
 
 
+def dokument_pfad(d: dict) -> Path:
+    """Pfad der Datei eines Index-Eintrags (bei Mails aus einer mbox deren Datei)."""
+    return Path(d.get("datei") or d.get("pfad") or "")
+
+
+class _DokumentListe(QTreeWidget):
+    """Dokumentliste: mehrere markierbar, Ziehen auf einen Ordner (Strg = kopieren)."""
+
+    def mimeData(self, items):  # noqa: N802 - Qt-Signatur
+        mime = QMimeData()
+        pfade = []
+        for item in items:
+            d = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(d, dict):
+                pfade.append(dokument_pfad(d))
+        mime.setUrls([QUrl.fromLocalFile(str(p)) for p in pfade])
+        mime.setText(str(pfade[0]) if len(pfade) == 1 else f"{len(pfade)} Dokumente")
+        return mime
+
+    def startDrag(self, supportedActions):  # noqa: N802 - Qt-Signatur
+        items = self.selectedItems()
+        if not items:
+            return
+        drag = QDrag(self)
+        drag.setMimeData(self.mimeData(items))
+        drag.exec(Qt.DropAction.MoveAction | Qt.DropAction.CopyAction, Qt.DropAction.MoveAction)
+
+
 class KorrespondentenView(QWidget):
     """Inhalt des Reiters "Korrespondenten".
 
     Signale:
-        dokument_gewaehlt(dict): Dokument (Zeile des Suchindex) in der Vorschau der Mitte zeigen
+        dokumente_gewaehlt(list): markierte Dokumente (Zeilen des Suchindex; leer = nichts markiert)
         dokument_oeffnen(Path): Doppelklick - extern oeffnen
         ordner_oeffnen(Path): Kontextmenue "Ordner links öffnen"
         einrichten_requested: Knopf im Hinweis (Einstellungen > Suche)
@@ -191,7 +220,7 @@ class KorrespondentenView(QWidget):
         abgleich_fertig(int): Anzahl der von der KI zusammengefuehrten Paare (auch fuer Tests)
     """
 
-    dokument_gewaehlt = pyqtSignal(dict)
+    dokumente_gewaehlt = pyqtSignal(list)
     dokument_oeffnen = pyqtSignal(Path)
     ordner_oeffnen = pyqtSignal(Path)
     einrichten_requested = pyqtSignal()
@@ -292,15 +321,19 @@ class KorrespondentenView(QWidget):
         self.dokumente_label.setWordWrap(True)
         self.dokumente_label.setStyleSheet("font-weight: bold; padding: 2px;")
         u.addWidget(self.dokumente_label)
-        self.dokumente = QTreeWidget()
+        self.dokumente = _DokumentListe()
         self.dokumente.setHeaderLabels(["Datum", "Dateiname", "Ablageort", "Kategorie"])
         self.dokumente.setRootIsDecorated(False)
         self.dokumente.setAlternatingRowColors(True)
-        self.dokumente.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.dokumente.setToolTip("Klick: Vorschau in der Mitte · Doppelklick: öffnen · Rechtsklick: weitere Aktionen")
+        self.dokumente.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.dokumente.setDragEnabled(True)
+        self.dokumente.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self.dokumente.setToolTip(
+            "Klick: Dokument wie unter „PDFs“ bearbeiten · Strg/Umschalt: mehrere markieren · "
+            "auf einen Ordner ziehen (Strg: kopieren) · Doppelklick: öffnen · Rechtsklick: weitere Aktionen")
         self.dokumente.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.dokumente.customContextMenuRequested.connect(self._dokument_menue_zeigen)
-        self.dokumente.itemClicked.connect(lambda item, _s: self._dokument_angeklickt(item))
+        self.dokumente.itemSelectionChanged.connect(self._auswahl_geaendert)
         self.dokumente.itemDoubleClicked.connect(lambda item, _s: self._dokument_doppelklick(item))
         u.addWidget(self.dokumente, 1)
         self.splitter.addWidget(unten)
@@ -439,6 +472,14 @@ class KorrespondentenView(QWidget):
 
     def _dokumente_zeigen(self, gruppe: kr.Gruppe | None) -> None:
         self._aktuelle = gruppe
+        self.dokumente.blockSignals(True)  # Neuaufbau ist keine Auswahl des Nutzers
+        try:
+            self._dokumente_fuellen(gruppe)
+        finally:
+            self.dokumente.blockSignals(False)
+        self.dokumente_gewaehlt.emit([])  # die Markierung ist mit der Liste verschwunden
+
+    def _dokumente_fuellen(self, gruppe: kr.Gruppe | None) -> None:
         self.dokumente.clear()
         if gruppe is None:
             self.dokumente_label.setText("Korrespondent anklicken, um seine Dokumente zu sehen.")
@@ -470,16 +511,50 @@ class KorrespondentenView(QWidget):
         d = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
         return d if isinstance(d, dict) else None
 
-    def _dokument_angeklickt(self, item) -> None:
-        d = self._dok(item)
-        if d is not None:
-            self.dokument_gewaehlt.emit(d)
+    def markierte_dokumente(self) -> list[dict]:
+        """Die markierten Dokumente in Listenreihenfolge."""
+        return [d for d in (self._dok(self.dokumente.topLevelItem(i))
+                            for i in range(self.dokumente.topLevelItemCount())
+                            if self.dokumente.topLevelItem(i).isSelected()) if d is not None]
+
+    def auswahl_aufheben(self) -> None:
+        """Markierung aufheben, ohne ``dokumente_gewaehlt`` zu senden (das Hauptfenster hat sie schon verworfen)."""
+        self.dokumente.blockSignals(True)
+        try:
+            self.dokumente.clearSelection()
+        finally:
+            self.dokumente.blockSignals(False)
+
+    def _auswahl_geaendert(self) -> None:
+        self.dokumente_gewaehlt.emit(self.markierte_dokumente())
+
+    def pfade_aktualisieren(self, paare) -> None:
+        """Verschobene bzw. umbenannte Dateien (alt, neu) in der Liste nachziehen, ohne den Index abzuwarten.
+
+        Der Suchindex erfaehrt von Verschieben und Umbenennen ueber eine Warteschlange; bis dahin
+        zeigt die Liste sonst noch den alten Ablageort.
+        """
+        neu_von = {Path(alt): Path(neu) for alt, neu in paare}
+        if not neu_von:
+            return
+        wurzeln = [str(w) for w in self._wurzeln() or []]
+        for i in range(self.dokumente.topLevelItemCount()):
+            item = self.dokumente.topLevelItem(i)
+            d = self._dok(item)
+            if d is None or dokument_pfad(d) not in neu_von:
+                continue
+            neu = neu_von[dokument_pfad(d)]
+            d = {**d, "pfad": str(neu), "datei": str(neu), "name": neu.name, "ordner": str(neu.parent)}
+            item.setData(0, Qt.ItemDataRole.UserRole, d)
+            item.setText(1, neu.name)
+            item.setText(2, kr.relativer_ordner(str(neu.parent), wurzeln))
+            item.setToolTip(1, str(neu))
 
     def _dokument_doppelklick(self, item) -> None:
         d = self._dok(item)
         if d is None:
             return
-        pfad = Path(d.get("datei") or d.get("pfad") or "")
+        pfad = dokument_pfad(d)
         if not pfad.exists():
             self._meldung(f"Die Datei gibt es nicht mehr: {pfad}")
             return
@@ -490,7 +565,7 @@ class KorrespondentenView(QWidget):
         from src.gui.pfad_aktionen import im_dateimanager_zeigen, zeigen_text
 
         menue = QMenu(self)
-        pfad = Path(d.get("datei") or d.get("pfad") or "")
+        pfad = dokument_pfad(d)
         ordner = Path(d.get("ordner") or pfad.parent)
         zeigen = menue.addAction(zeigen_text())
         zeigen.setEnabled(pfad.exists())

@@ -141,9 +141,9 @@ def test_klick_zeigt_dokumente_neueste_zuerst_und_aktionen(umgebung, view_bauen,
     assert baum.topLevelItem(1).text(1) == "alt.pdf"
     assert "Stadtwerke" in view.dokumente_label.text() and "(2)" in view.dokumente_label.text()
 
-    with qtbot.waitSignal(view.dokument_gewaehlt, timeout=1000) as sig:
-        baum.itemClicked.emit(erste, 1)
-    assert Path(sig.args[0]["datei"]) == neu
+    with qtbot.waitSignal(view.dokumente_gewaehlt, timeout=1000) as sig:
+        erste.setSelected(True)
+    assert [Path(d["datei"]) for d in sig.args[0]] == [neu]
     with qtbot.waitSignal(view.dokument_oeffnen, timeout=1000) as sig:
         baum.itemDoubleClicked.emit(baum.topLevelItem(1), 1)
     assert sig.args[0] == alt

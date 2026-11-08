@@ -196,8 +196,6 @@ class DetailPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
-        # Dokument aus dem Reiter "Korrespondenten", das nur angesehen wird (Issue #160)
-        self._ansicht_pfad: Optional[Path] = None
         self._suggestions: list[RenameSuggestion] = []
         # Tatsaechlich angezeigte Liste (#99/#106): _suggestions + ein
         # Muster-Vorschlag je Vorlage, sortiert nach der gemerkten Rangfolge;
@@ -581,17 +579,6 @@ class DetailPanel(QWidget):
         self.search_container.hide()
         layout.addWidget(self.search_container)
 
-        # Nur-Ansicht eines Dokuments aus dem Reiter "Korrespondenten" (Issue #160):
-        # Kopfzeile mit den Angaben, darunter die Vorschau; keine Felder
-        self.ansicht_label = QLabel()
-        self.ansicht_label.setWordWrap(True)
-        self.ansicht_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.ansicht_label.setStyleSheet(
-            "font-size: 11px; color: #444; padding: 6px; background-color: #f5f5f5; border-radius: 3px;"
-        )
-        self.ansicht_label.hide()
-        layout.addWidget(self.ansicht_label)
-
         scroll.setWidget(container)
 
         # PDF-Vorschau unten (Issue #74): vertikaler Splitter, oben die
@@ -629,7 +616,6 @@ class DetailPanel(QWidget):
         detected_date: str = None,
     ):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
-        self._ansicht_beenden()
         self._current_pdf = pdf_path
         self._suggestions = suggestions or []
         self._detected_date = detected_date
@@ -730,7 +716,6 @@ class DetailPanel(QWidget):
 
     def show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse an."""
-        self._ansicht_beenden()
         self.placeholder.hide()
         self.detail_container.hide()
         self.search_container.show()
@@ -810,38 +795,8 @@ class DetailPanel(QWidget):
             return
         self.open_pdf_requested.emit(path)
 
-    def zeige_ansicht(self, pfad: Path, details: str = "") -> None:
-        """Ein Dokument aus dem Reiter "Korrespondenten" nur ansehen (Issue #160).
-
-        Die Felder der ausgewaehlten Scan-PDF verschwinden, oben stehen
-        ``details`` (Name, Datum, Ablageort ...), unten die Vorschau. Die
-        naechste Auswahl links (``set_pdf``) oder ``clear`` beendet die Ansicht.
-        """
-        pfad = Path(pfad)
-        self._ansicht_pfad = pfad
-        self.placeholder.hide()
-        self.detail_container.hide()
-        self.search_container.hide()
-        self.ansicht_label.setText(details or pfad.name)
-        self.ansicht_label.show()
-        if not pfad.exists():
-            self.preview.show_message(f"Die Datei gibt es nicht mehr:\n{pfad}")
-        elif pfad.suffix.lower() != ".pdf":
-            self.preview.show_message("Keine Vorschau für diesen Dateityp –\nDoppelklick öffnet die Datei.")
-        else:
-            self.preview.load_pdf(pfad)
-
-    def zeigt_ansicht(self) -> bool:
-        """Zeigt das Panel gerade ein Dokument nur zur Ansicht (statt der ausgewaehlten PDF)?"""
-        return self._ansicht_pfad is not None
-
-    def _ansicht_beenden(self) -> None:
-        self._ansicht_pfad = None
-        self.ansicht_label.hide()
-
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
-        self._ansicht_beenden()
         self._current_pdf = None
         self._suggestions = []
         self._metadata = {}
@@ -1400,8 +1355,6 @@ class DetailPanel(QWidget):
         """Markierter Text aus der Vorschau -> Metadaten-Feld; Korrespondent wird gelernt."""
         from src.core.metadata_choices import normalize_for_field
 
-        if self._ansicht_pfad is not None:
-            return  # die Vorschau zeigt ein anderes Dokument als die Felder (Issue #160)
         text = normalize_for_field(field_key, text)
         widget = self._metadata_inputs.get(field_key)
         if widget is None or not text:
