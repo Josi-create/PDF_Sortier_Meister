@@ -17,6 +17,7 @@ MainWindow (``provider_geaendert()`` nach geaenderten Einstellungen).
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
+import re
 from html import escape
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -24,7 +25,7 @@ from typing import Any, Callable, Optional
 import time
 
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QKeyEvent
+from PyQt6.QtGui import QFont, QKeyEvent, QTextDocument
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -50,7 +51,7 @@ from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController
 # Stylesheet-Schnipsel fuer die verschiedenen Bubble-Rollen.
 _BUBBLE_STYLES = {
     "user": "background-color: #d6eaff; border-radius: 8px; padding: 8px;",
-    "assistant": "background-color: #ececec; border-radius: 8px; padding: 8px;",
+    "assistant": "background-color: #ececec; border-radius: 8px; padding: 8px; color: #202020;",
     "error": "background-color: #ffd6d6; border-radius: 8px; padding: 8px; color: #8a1f1f;",
     "system": "background-color: #f0f0f0; border-radius: 8px; padding: 6px; color: #555555;",
 }
@@ -379,8 +380,12 @@ class ChatView(QWidget):
         )
         self._bubble_breite(bubble)
 
+        if role == "assistant":
+            # Issue #199: KI-Antworten sind Markdown; user/system/error bleiben Text
+            bubble.setText(_markdown_zu_html(text, citations or ()))
         if citations:
-            bubble.setText(self._render_citations(text, citations))
+            if role != "assistant":
+                bubble.setText(self._render_citations(text, citations))
             # Phase 3 (Issue #25): Mapping index -> {"file_path", "pdf_id"}.
             # Aelterer Aufrufer (nur file_path als String) wird in
             # ``_on_citation_link`` defensiv gehandhabt.
@@ -394,7 +399,7 @@ class ChatView(QWidget):
             bubble.linkActivated.connect(
                 lambda href, m=cite_map: self._on_citation_link(href, m)
             )
-        else:
+        elif role != "assistant":
             bubble.setText(escape(text).replace("\n", "<br>"))
 
         # Ausrichtung ueber eine Zeile mit Stretch
@@ -1273,6 +1278,76 @@ class ChatView(QWidget):
 # ---------------------------------------------------------------------- #
 # Modul-Helfer (Issue #166/#167)                                         #
 # ---------------------------------------------------------------------- #
+
+
+_CODE_SPAN = re.compile(r"(`+)(?:(?!\1).)+?\1")
+_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+_LINK_HTML = re.compile(r'<a href="([^"]*)">(.*?)</a>', re.S)
+_UEBERSCHRIFT = re.compile(r"(<h[1-6][^>]*>)(.*?)(</h[1-6]>)", re.S)
+
+
+def _ausserhalb_code(text: str, func) -> str:
+    """Wendet ``func`` auf Text an, der nicht in Codebloecken oder Inline-Code steht."""
+    zeilen = []
+    im_block = False
+    for zeile in text.split("\n"):
+        if _FENCE.match(zeile):
+            im_block = not im_block
+            zeilen.append(zeile)
+        elif im_block:
+            zeilen.append(zeile)
+        else:
+            teile, pos = [], 0
+            for m in _CODE_SPAN.finditer(zeile):
+                teile.append(func(zeile[pos:m.start()]))
+                teile.append(m.group(0))
+                pos = m.end()
+            teile.append(func(zeile[pos:]))
+            zeilen.append("".join(teile))
+    return "\n".join(zeilen)
+
+
+def _markdown_zu_html(text: str, citations) -> str:
+    """Wandelt eine Markdown-Antwort der KI in HTML fuer die Chat-Blase (Issue #199).
+
+    Nur Qt-Bordmittel (``QTextDocument.setMarkdown``). Roh-HTML wird maskiert
+    (``<`` ausserhalb von Code), sonst uebernimmt Qt es als Formatierung.
+    Gueltige Quellenmarker ``[N]``/``[DN]`` werden zu Links ``href="N"``; alle
+    anderen Links verlieren ihr Ziel (keine fremden URLs). Ueberschriften
+    bleiben in Textgroesse.
+    """
+    gueltig = {str(c.index) for c in citations if c.valid}
+
+    def marker(m):
+        return f"[\\[{m.group(0)[1:-1]}\\]]({m.group(1)})" if m.group(1) in gueltig else m.group(0)
+
+    def vorbereiten(stueck: str) -> str:
+        stueck = stueck.replace("<", "&lt;")
+        return re.sub(r"\[[Dd]?(\d+)\]", marker, stueck)
+
+    dok = QTextDocument()
+    dok.setMarkdown(_ausserhalb_code(text, vorbereiten))
+    html = dok.toHtml()
+    html = html[html.find("<body"):]
+    html = re.sub(r"^<body[^>]*>", "<div>", html).replace("</body></html>", "</div>")
+
+    def link(m):
+        href, inhalt = m.group(1), m.group(2)
+        inhalt = inhalt.replace("color:#0000ff;", "")
+        if href in gueltig:
+            return (
+                f'<a href="{href}" style="text-decoration:none;color:#1a5fb4;'
+                f'font-weight:bold;">{inhalt}</a>'
+            )
+        return inhalt
+
+    html = _LINK_HTML.sub(link, html)
+    # Ueberschriften nur fett, in Textgroesse
+    html = _UEBERSCHRIFT.sub(
+        lambda m: m.group(1) + re.sub(r"font-size:[^;\"]+;", "", m.group(2)) + m.group(3),
+        html,
+    )
+    return html
 
 
 def _doc_status(doc) -> str:
