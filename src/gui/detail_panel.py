@@ -1694,6 +1694,14 @@ class DetailPanel(QWidget):
 
     LLM_BTN_TEXT = "KI-Metadaten neu generieren"
 
+    def ki_metadaten_neu_generieren(self) -> bool:
+        """Wie ein Klick auf "KI-Metadaten neu generieren" (z. B. nach "Als Text übernehmen").
+
+        Gibt zurueck, ob danach ein KI-Aufruf laeuft (False: kein PDF, keine KI eingerichtet).
+        """
+        self._request_llm_metadata()
+        return self._llm_worker is not None and self._llm_worker.isRunning()
+
     def _request_llm_metadata(self):
         """Startet den KI-Aufruf fuer Metadaten im Hintergrund (Issue #68)."""
         if not self._current_pdf:
