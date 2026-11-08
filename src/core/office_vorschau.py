@@ -1,4 +1,4 @@
-"""Vorschau fuer .docx/.xlsx (Issue #9) - Qt-frei.
+"""Vorschau fuer .docx/.odt/.xlsx (Issue #9) - Qt-frei.
 
 Kachelbild (schnell, ohne Word zu starten), in dieser Reihenfolge:
 1. eingebettetes ``docProps/thumbnail.*`` der Datei (``eingebettetes_bild``)
@@ -25,7 +25,8 @@ from src.core.bild_convert import bilder_in_pdf, ist_bild_datei
 from src.core.office_convert import umwandeln
 
 MAX_CACHE_DATEIEN = 40
-_THUMB_NAMEN = ("docProps/thumbnail.jpeg", "docProps/thumbnail.jpg", "docProps/thumbnail.png")
+_THUMB_NAMEN = ("docProps/thumbnail.jpeg", "docProps/thumbnail.jpg", "docProps/thumbnail.png",
+                "Thumbnails/thumbnail.png")  # letzteres: OpenDocument
 
 
 def eingebettetes_bild(pfad: Path | str) -> Optional[bytes]:
@@ -47,7 +48,7 @@ def eingebettetes_bild(pfad: Path | str) -> Optional[bytes]:
 
 
 def erste_zeilen(pfad: Path | str, anzahl: int = 14, breite: int = 60) -> list[str]:
-    """Die ersten nichtleeren Textzeilen (docx: Dokument, xlsx: erstes Blatt)."""
+    """Die ersten nichtleeren Textzeilen (docx/odt: Dokument, xlsx: erstes Blatt)."""
     from src.search.office import office_text
 
     pfad = Path(pfad)
