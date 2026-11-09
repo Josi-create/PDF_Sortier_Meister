@@ -283,8 +283,8 @@ def test_verschieben_per_vorschlag_behaelt_endung_lernt_und_undo(main_window, fr
     assert main_window.classifier.get_training_count() > vorher  # Lern-Eintrag
     assert docx not in [w.pdf_path for w in main_window.pdf_widgets]
 
-    main_window.undo_last_action()  # wie bei PDFs: zurueck in den Scan-Ordner, mit dem neuen Namen
-    assert (scan / "2026-05-12_Strom_Stadtwerke.docx").exists() and not list(ziel.glob("*"))
+    main_window.undo_last_action()  # wie bei PDFs: zurueck in den Scan-Ordner, mit dem alten Namen (#218)
+    assert docx.exists() and not list(ziel.glob("*"))
 
 
 def test_verschieben_per_baumklick_ohne_umbenennen(main_window, fresh_singletons, monkeypatch):
@@ -343,6 +343,9 @@ def test_mehrfachauswahl_pdf_und_office_wird_verschoben(main_window, fresh_singl
     ziel.mkdir()
     main_window._navigate_to_folder(scan)
     _ja(monkeypatch)
+    from src.gui import stapel_rueckfrage
+
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *a, **k: stapel_rueckfrage.NUR_VERSCHIEBEN)  # Namen: Issue #218, eigene Tests
     main_window.selected_pdfs = [scan / "a.pdf", scan / "Brief.docx"]
 
     main_window.on_suggestion_clicked(ziel)

@@ -109,7 +109,7 @@ def test_regenbogen_und_neu(qtbot, tmp_path):
     z.is_suggestion = True
     z.set_neu(True)
     assert z.neu and "dashed" in z.styleSheet()
-    assert not z.acceptDrops()
+    assert z.acceptDrops()  # Ablegen legt den Ordner an (Issue #218)
 
 
 def test_klick_doppelklick_drop_menue(qtbot, tmp_path):

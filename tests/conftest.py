@@ -169,6 +169,16 @@ def original_dialog_und_ocr_aus(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def stapel_rueckfrage_ja(monkeypatch):
+    """Kein Test blockiert in der Rueckfrage "Mehrere Dateien verschieben/umbenennen" (Issue #218):
+    Standard ist der erste Knopf ("Verschieben und umbenennen" bzw. "Umbenennen und speichern").
+    Tests dazu patchen ``stapel_rueckfrage.frage`` selbst und gewinnen damit."""
+    from src.gui import stapel_rueckfrage
+
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *args, **kwargs: stapel_rueckfrage.UMBENENNEN)
+
+
+@pytest.fixture(autouse=True)
 def keine_echten_ki_assistenten(monkeypatch):
     """Kein Test fragt das echte Claude Code (``claude mcp ...``) oder liest bzw. schreibt die echte
     Konfiguration von Claude Desktop (Einstellungen › Suche › KI-Assistenten, Baustein 3 aus

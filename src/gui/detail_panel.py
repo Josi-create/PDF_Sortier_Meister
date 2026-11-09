@@ -624,12 +624,7 @@ class DetailPanel(QWidget):
         # Header
         self.header_label.setText(f"Original: {pdf_path.name}")
 
-        # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
-        if ist_office_datei(pdf_path):
-            self.preview.show_message("Vorschau wird erstellt …")
-            self.office_preview_requested.emit(pdf_path)
-        else:
-            self.preview.load_pdf(pdf_path)
+        self._vorschau_laden(pdf_path)
 
         # Metadaten vorbefüllen
         self._metadata = {}
@@ -865,6 +860,14 @@ class DetailPanel(QWidget):
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
+
+    def _vorschau_laden(self, pdf_path: Path):
+        """Vorschau unten nachladen (Issue #74) - liest im Hintergrund."""
+        if ist_office_datei(pdf_path):
+            self.preview.show_message("Vorschau wird erstellt …")
+            self.office_preview_requested.emit(pdf_path)
+        else:
+            self.preview.load_pdf(pdf_path)
 
     def _start_metadata_reader(self, pdf_path: Path):
         """Startet das Hintergrund-Lesen der XMP-Metadaten fuer pdf_path."""

@@ -8,6 +8,23 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Mehrere Dateien auf einmal umbenennen und ablegen** (#218): Beim Verschieben mehrerer
+  markierter Dateien – Klick auf einen Ordner oder Ziehen – bekommt jetzt jede den Namen und
+  die Metadaten, die ihr das Detail-Panel vorschlagen würde (für die angezeigte Datei gilt,
+  was im Panel steht). Eine Rückfrage zeigt vorher die Liste „Bisher → Neu“ mit „Verschieben
+  und umbenennen“, „Nur verschieben“ und „Abbrechen“. „Umbenennen + Metadaten speichern“ wirkt
+  bei Mehrfachauswahl auf alle markierten PDFs. Fehlen KI-Vorschläge noch (z. B. frisch
+  umgewandelt), werden sie vorher abgerufen, mit Fortschritt und „Nicht mehr warten“. Auch
+  eine einzeln gezogene Datei wird umbenannt, und auf einen vorgeschlagenen neuen Ordner
+  („➕ neu: …“) lässt sich jetzt ziehen – er wird dabei angelegt.
+- **Strg+A im ganzen Fenster**: markiert alle Kacheln im Reiter „PDFs“, egal wo zuletzt
+  geklickt wurde; in Textfeldern und Listen mit Mehrfachauswahl markiert es wie gewohnt dort.
+
+### Behoben
+- **Ziehen einer Mehrfachauswahl** nahm nur die angefasste Datei mit: schon das Drücken auf
+  die Kachel hob die Auswahl auf. Jetzt wirkt der Klick erst beim Loslassen ohne Ziehen.
+- **Rückgängig nach dem Verschieben** stellt auch den alten Dateinamen wieder her.
+- Beim Verschieben mehrerer Dateien wurde der Suchindex nicht nachgeführt.
 - **KI-Assistenten können mehr (MCP)**: Claude Desktop, Claude Code und andere MCP-Programme
   bekommen über `pdfsm-dienst mcp` dieselben Werkzeuge wie der Chat im Programm.
   `ordner_vorschlag` beantwortet „In welchen Ordner gehört dieses Dokument?“ mit ähnlichen,

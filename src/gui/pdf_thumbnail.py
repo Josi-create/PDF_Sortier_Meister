@@ -132,6 +132,9 @@ class PDFThumbnailWidget(QFrame):
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
+        # Klick auf eine Kachel der Mehrfachauswahl: erst beim Loslassen auswerten,
+        # sonst hebt schon das Druecken zum Ziehen die Auswahl auf (Issue #218)
+        self._klick_beim_loslassen = False
         # Original-Thumbnail (140x160-Render); die Kachel zeigt je nach
         # Ansicht eine verkleinerte Kopie, die Hover-Vorschau das Original
         self._original_pixmap: Optional[QPixmap] = None
@@ -499,9 +502,23 @@ class PDFThumbnailWidget(QFrame):
             # Ctrl+Klick für Mehrfachauswahl
             elif event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 self.ctrl_clicked.emit(self.pdf_path)
+            elif self._in_mehrfachauswahl():
+                self._klick_beim_loslassen = True  # vielleicht wird die ganze Auswahl gezogen
             else:
                 self.clicked.emit(self.pdf_path)
         super().mousePressEvent(event)
+
+    def _in_mehrfachauswahl(self) -> bool:
+        main_window = self.window()
+        auswahl = getattr(main_window, "selected_pdfs", None) or []
+        return len(auswahl) > 1 and self.pdf_path in auswahl
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        """Ein nicht gezogener Klick in die Mehrfachauswahl waehlt wie gewohnt nur diese Kachel."""
+        if event.button() == Qt.MouseButton.LeftButton and self._klick_beim_loslassen:
+            self._klick_beim_loslassen = False
+            self.clicked.emit(self.pdf_path)
+        super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         """Behandelt Mausbewegungen und startet Drag & Drop."""
@@ -516,7 +533,8 @@ class PDFThumbnailWidget(QFrame):
         if distance < QApplication.startDragDistance():
             return
 
-        # Drag starten
+        # Drag starten (die Mehrfachauswahl bleibt dabei bestehen)
+        self._klick_beim_loslassen = False
         self._start_drag()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):

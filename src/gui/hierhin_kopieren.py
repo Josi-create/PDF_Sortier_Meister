@@ -131,8 +131,22 @@ class HierhinKopierenMixin:
 
     # --- gemeinsamer Kern (auch von _move_rename_and_learn genutzt) ----------
 
-    def _ablage_namen(self, pdf_path: Path, folder_path: Path, relative_path: str) -> AblageNamen:
-        """Name und Metadaten aus dem Detail-Panel (und ggf. Ordner-Namensschema, Issue #42)."""
+    def _ablage_namen(
+        self,
+        pdf_path: Path,
+        folder_path: Optional[Path],
+        relative_path: str,
+        vorbelegung: Optional[tuple[Optional[str], dict]] = None,
+        dates: Optional[list] = None,
+    ) -> AblageNamen:
+        """Name und Metadaten aus dem Detail-Panel (und ggf. Ordner-Namensschema, Issue #42).
+
+        ``vorbelegung`` (Stapel-Ablage, Issue #218): (Name, Metadaten), die das Panel
+        dieser Datei vorbelegen wuerde, mit ``dates`` = erkannte Daten dieser Datei.
+        Gilt nur, wenn das Panel gerade eine andere Datei zeigt - was dort steht (auch
+        von Hand geaendert), hat Vorrang. Ohne ``folder_path`` (Umbenennen am Platz)
+        bleibt das Ordner-Namensschema aus.
+        """
         from src.gui.main_window import _iso_to_date
 
         # Namen und Metadaten nur aus dem Panel, wenn es DIESE Datei zeigt (Reiterwechsel, noch
@@ -140,8 +154,12 @@ class HierhinKopierenMixin:
         if self.detail_panel.get_current_pdf() == pdf_path:
             new_name = self.detail_panel.get_new_name()
             metadata = self.detail_panel.get_metadata()
+            dates = self.selected_pdf_dates
+        elif vorbelegung is not None:
+            new_name, metadata = vorbelegung[0], dict(vorbelegung[1] or {})
         else:
             new_name, metadata = None, {}
+            dates = self.selected_pdf_dates
         # .docx/.xlsx behalten beim Umbenennen ihre Endung (der Name kommt mit ".pdf")
         office_ext = pdf_path.suffix.lower() if ist_office_datei(pdf_path) else None
         if office_ext and new_name:
@@ -155,13 +173,13 @@ class HierhinKopierenMixin:
         folder_naming_applied = False
 
         # Dateiname aus Ordnerstruktur aufbauen (Issue #42, Opt-in)
-        if self.config.get("folder_naming_enabled", False):
+        if folder_path is not None and self.config.get("folder_naming_enabled", False):
             folder_naming_applied = True
             # Datum aus dem Feld "Datum" des Detail-Panels (Issue #132),
             # sonst das erkannte Datum der Analyse
             fallback_date = _iso_to_date(metadata.get("buchungsdatum") if metadata else None)
-            if fallback_date is None and self.selected_pdf_dates:
-                fallback_date = coerce_date(self.selected_pdf_dates[0])
+            if fallback_date is None and dates:
+                fallback_date = coerce_date(dates[0])
             basis_name = new_name or pdf_path.name
             if office_ext:
                 basis_name = basis_name[: -len(office_ext)] if basis_name.lower().endswith(office_ext) else basis_name
