@@ -276,5 +276,11 @@ if IS_MAC:
             "CFBundleShortVersionString": APP_VERSION,
             "NSHighResolutionCapable": True,
             "LSApplicationCategoryType": "public.app-category.productivity",
+            # Word/Excel/Pages per AppleScript (docx/xlsx -> PDF); ohne diesen
+            # Text lehnt macOS die Steuerung stillschweigend ab
+            "NSAppleEventsUsageDescription": (
+                "PDF Sortier Meister steuert Microsoft Word/Excel oder Pages/Numbers, um Word- "
+                "und Excel-Dateien in PDF umzuwandeln und in der Vorschau zu zeigen."
+            ),
         },
     )

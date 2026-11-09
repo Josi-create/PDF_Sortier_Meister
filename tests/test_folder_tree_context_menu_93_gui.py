@@ -308,12 +308,6 @@ def test_wurzel_ansicht_faellt_zurueck_wenn_ordner_fehlt(qtbot, tmp_path):
     assert w.view_root() is None and w.has_folder(root)
 
 
-def test_doppelklick_bleibt_navigation(qtbot, tmp_path):
-    # Doppelklick oeffnet links (Issue #23/#26); Qt klappt dabei zusaetzlich auf/zu
-    w, root = _tree(qtbot, tmp_path, "Bank")
-    assert w.tree.expandsOnDoubleClick()
-
-
 # --- MainWindow-Anbindung ---
 
 def test_mainwindow_hierhin_verschieben_nutzt_drop_weg(main_window, tmp_path, monkeypatch):

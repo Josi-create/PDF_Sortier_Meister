@@ -579,9 +579,22 @@ class SettingsDialog(QDialog):
         move_group = QGroupBox("Beim Verschieben in einen Ordner")
         move_layout = QVBoxLayout(move_group)
 
-        self.folder_naming_keep_radio = QRadioButton("Dateinamen beibehalten")
+        # Beide Optionen gehen vom Namen im Feld "Neuer Dateiname" aus (KI-Vorschlag
+        # oder eigene Eingabe); "beibehalten" wurde als "KI-Vorschlag verwerfen" gelesen.
+        self.folder_naming_keep_radio = QRadioButton(
+            "Nichts ergänzen – Name wie vorgeschlagen bzw. eingegeben"
+        )
+        self.folder_naming_keep_radio.setToolTip(
+            "Die Datei bekommt genau den Namen aus dem Feld „Neuer Dateiname“\n"
+            "(KI-Vorschlag oder Ihre Änderung)."
+        )
         self.folder_naming_prefix_radio = QRadioButton(
-            "Ordnernummer aus dem Zielordner voranstellen"
+            "Nach Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)"
+        )
+        self.folder_naming_prefix_radio.setToolTip(
+            "Der Name aus dem Feld „Neuer Dateiname“ wird nach der Vorlage unten\n"
+            "ergänzt ({text} steht für diesen Namen). Gleiche Einstellung wie\n"
+            "der Schalter „Ordnerstruktur im Namen“ über den Vorschlägen."
         )
         self.folder_naming_keep_radio.setChecked(True)
         move_layout.addWidget(self.folder_naming_keep_radio)
@@ -596,7 +609,7 @@ class SettingsDialog(QDialog):
             "Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem "
             "Zielordner-Namen, z.B. 069-03-05), {ordnerpfad} (Ordnernamen mit - "
             "verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), "
-            "{text} (bisheriger Name ohne Datum)"
+            "{text} (Name aus dem Feld „Neuer Dateiname“ ohne Datum)"
         )
         move_form.addRow("Vorlage:", self.folder_naming_template_input)
 

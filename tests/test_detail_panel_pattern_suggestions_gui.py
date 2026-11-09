@@ -67,7 +67,11 @@ def _rows(panel):
 
 
 def _reasons(panel):
-    return [row.split("  [")[1].rstrip("]") for row in _rows(panel)]
+    """Begruendungen der Vorschlagszeilen (ohne die feste letzte Zeile "Aktuellen Namen behalten")."""
+    return [
+        r for r in (row.split("  [")[1].rstrip("]") for row in _rows(panel))
+        if r != "Aktuellen Namen behalten"
+    ]
 
 
 def _select(panel, tmp_path, suggestions, detected_date="2024-01-31"):

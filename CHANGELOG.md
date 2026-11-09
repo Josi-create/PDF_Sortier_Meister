@@ -7,6 +7,61 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Apple Pages (.docx) und Numbers (.xlsx) als Umwandler auf dem Mac:** Ist
+  weder Word/Excel noch LibreOffice installiert (oder scheitern beide), wandeln
+  Pages bzw. Numbers in PDF um und liefern die Vorschau. Reihenfolge: Word/Excel
+  → LibreOffice → Pages/Numbers. Kein PDF/A (dann normales PDF mit Hinweis),
+  .odt nur mit Word oder LibreOffice.
+- **„Aktuellen Namen behalten“ in der Vorschlagsliste:** Die letzte Zeile der
+  Dateinamen-Vorschläge übernimmt per Klick den bisherigen Dateinamen ins Feld
+  „Neuer Dateiname“ – für Fälle, in denen er besser ist als der KI-Vorschlag.
+  Die Zeile zählt nicht als Vorschlag und rückt nie nach oben; beim nächsten
+  Dokument steht wieder der gewohnte Vorschlag im Feld.
+
+### Geändert
+- **Doppelklick im Zielordner-Baum klappt den Ordner rechts auf bzw. zu**,
+  statt ihn links als Scan-Ordner zu öffnen. Das funktioniert jetzt auch bei
+  tief verschachtelten Ordnern, deren Unterordner erst beim Aufklappen
+  nachgeladen werden (typisch für große OneDrive-Bäume) – dort hat der
+  Doppelklick bisher nichts aufgeklappt. Ordner ohne bekannte Unterordner
+  werden frisch gelesen, sodass auch inzwischen angelegte oder synchronisierte
+  Unterordner erscheinen; hat ein Ordner keine, sagt das die Statusleiste.
+  Links öffnen geht weiter per Rechtsklick › „Ordner links öffnen“.
+
+### Behoben
+- **Word- und Excel-Dateien lassen sich auf dem Mac mit Microsoft Word bzw.
+  Excel in PDF umwandeln und in der Vorschau zeigen.** Bisher ging das nur
+  unter Windows; auf dem Mac kam „Microsoft Word (nur Windows) oder
+  LibreOffice benötigt“, obwohl Word installiert war. Jetzt steuert die App
+  Word/Excel per AppleScript. Ein offenes Word bleibt dabei offen, Ihre
+  Dokumente bleiben unberührt; war es zu, startet es unsichtbar und schließt
+  sich danach wieder. Beim ersten Mal fragt macOS, ob PDF Sortier Meister
+  Word/Excel steuern darf. PDF/A kann Office auf dem Mac nicht – dafür wird
+  LibreOffice genommen, falls installiert, sonst gibt es ein normales PDF mit
+  Hinweis.
+- **Ordnersuche (über dem Zielordner-Baum und in der Pfadzeile) hing auf dem
+  Mac mit OneDrive minutenlang.** Dort dauert das Auflisten eines Ordners rund
+  0,1 s, und die Suche las bei jeder Eingabe den ganzen Baum neu. Jetzt werden
+  die Ordner einmal im Hintergrund eingelesen (Start, sobald das Suchfeld den
+  Fokus bekommt); jede Eingabe filtert danach in Millisekunden. Während des
+  Einlesens erscheinen schon die bisherigen Treffer, darunter der Hinweis
+  „… Ordner werden noch eingelesen“. In der App angelegte, umbenannte oder
+  verschobene Ordner sind sofort findbar; außerhalb angelegte nach 🔄 oder
+  spätestens nach einer Stunde.
+- **Ordnersuche findet Namen mit Umlauten auch auf dem Mac** (macOS speichert
+  „ö“ teils zerlegt; „Börse“ fand dort nichts).
+- **Angehakte Checkboxen zeigen wieder ein Häkchen.** Sie waren nur blau
+  gefüllt und wurden leicht als „aus“ gelesen – z. B. „Ordnerstruktur im
+  Namen“, wodurch beim Verschieben unerwartet die Initialen vor dem
+  Dateinamen standen.
+- **Einstellungen › Dateinamen › „Beim Verschieben in einen Ordner“ klarer
+  beschriftet:** statt „Dateinamen beibehalten“ heißt es jetzt „Nichts
+  ergänzen – Name wie vorgeschlagen bzw. eingegeben“, die zweite Option „Nach
+  Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)“. Beide
+  gehen vom Namen im Feld „Neuer Dateiname“ aus (KI-Vorschlag oder eigene
+  Eingabe) – der alte Text klang, als würde der KI-Vorschlag verworfen.
+
 ## [0.26.0] - 2026-11-08
 
 ### Neu

@@ -76,8 +76,8 @@ def test_zaehler_stimmt(qtbot, monkeypatch, tmp_path):
     assert panel.suggestions_toggle.text() == "Vorschläge (0)"
 
     _select(panel, tmp_path, [_ki_suggestion()] + _analysis_suggestions())
-    n = panel.suggestions_list.count()
-    assert n == len(_reasons(panel)) > 1
+    n = len(_reasons(panel))
+    assert panel.suggestions_list.count() == n + 1 > 2  # + "Aktuellen Namen behalten"
     assert panel.suggestions_toggle.text() == f"Vorschläge ({n})"
 
     panel.clear()
@@ -95,7 +95,7 @@ def test_zaehler_waechst_wenn_ki_vorschlag_eintrifft(qtbot, monkeypatch, tmp_pat
     # KI-Zeile plus Muster-Zeilen aus den KI-Metadaten
     nachher = panel.suggestions_list.count()
     assert nachher > vorher
-    assert panel.suggestions_toggle.text() == f"Vorschläge ({nachher})"
+    assert panel.suggestions_toggle.text() == f"Vorschläge ({nachher - 1})"  # ohne "behalten"
     assert not panel.suggestions_expanded  # bleibt eingeklappt
 
 
