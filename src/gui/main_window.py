@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -58,6 +58,7 @@ from src.core.backup_reminder import is_question_due, macrium_last_backup, parse
 from src.core.file_manager import FileManager, FolderManager, PapierkorbNichtVerfuegbar
 from src.core.folder_naming import coerce_date
 from src.gui.hierhin_kopieren import HierhinKopierenMixin
+from src.gui.stapel_ablage import StapelAblageMixin, erkanntes_datum
 from src.gui.ordner_verschieben_gui import OrdnerVerschiebenMixin
 
 
@@ -178,7 +179,8 @@ class _UpdateCheckThread(QThread):
         self.result_ready.emit(info, "")
 
 
-class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, QMainWindow):
+class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
+                 QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -1954,14 +1956,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         deselect_action.triggered.connect(self._clear_selection)
         edit_menu.addAction(deselect_action)
 
-        # Strg+A nur in der Kachelansicht: in Textfeldern markiert es weiter den Text
+        # Strg+A im ganzen Fenster: in Textfeldern und Listen markiert es dort alles,
+        # sonst alle Kacheln im Reiter "PDFs" - egal, wo zuletzt geklickt wurde
         self.select_all_action = QAction("Alle markieren", self)
         self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
-        self.select_all_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.select_all_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.select_all_action.setToolTip("Alle Kacheln im Bereich PDFs markieren (Strg+A)")
-        self.select_all_action.triggered.connect(self.alle_markieren)
-        self.pdf_scroll_area.addAction(self.select_all_action)
+        self.select_all_action.triggered.connect(self._strg_a)
+        self.addAction(self.select_all_action)
         edit_menu.addAction(self.select_all_action)
+        # Listen ohne Mehrfachauswahl (z. B. der Zielordner-Baum) schnappen sich Strg+A sonst selbst
+        QApplication.instance().installEventFilter(self)
 
         # Ansicht-Menü
         view_menu = menubar.addMenu("Ansicht")
@@ -2225,6 +2230,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
         """Wird beim Schließen des Fensters aufgerufen."""
         self.save_settings()
 
@@ -2500,6 +2508,38 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Statusbar aktualisieren
         self._update_selection_status()
 
+    def eventFilter(self, obj, event):
+        """Strg+A in Listen, in denen man nichts mehrfach markieren kann, geht ans Fenster."""
+        if event.type() == QEvent.Type.ShortcutOverride:
+            from PyQt6.QtWidgets import QAbstractItemView
+
+            if (isinstance(obj, QAbstractItemView) and event.matches(QKeySequence.StandardKey.SelectAll)
+                    and obj.window() is self
+                    and obj.selectionMode() not in (QAbstractItemView.SelectionMode.ExtendedSelection,
+                                                    QAbstractItemView.SelectionMode.MultiSelection)):
+                event.ignore()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _strg_a(self):
+        """Strg+A: Text bzw. Listeneintraege im fokussierten Feld, sonst alle Kacheln."""
+        from PyQt6.QtWidgets import QAbstractItemView, QAbstractSpinBox, QLineEdit, QPlainTextEdit, QTextEdit
+
+        fokus = QApplication.focusWidget()
+        if isinstance(fokus, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+            fokus.selectAll()
+            return
+        if isinstance(fokus, QComboBox) and fokus.isEditable() and fokus.lineEdit():
+            fokus.lineEdit().selectAll()
+            return
+        if (isinstance(fokus, QAbstractItemView) and not self.pdf_scroll_area.isAncestorOf(fokus)
+                and fokus.selectionMode() in (QAbstractItemView.SelectionMode.ExtendedSelection,
+                                              QAbstractItemView.SelectionMode.MultiSelection)):
+            fokus.selectAll()  # z. B. die Dokumentliste im Reiter "Korrespondenten"
+            return
+        if self.left_tabs.currentIndex() == 0:
+            self.alle_markieren()
+
     def alle_markieren(self):
         """Strg+A in der Kachelansicht: alle Kacheln markieren (Live-Test 08.11.2026).
 
@@ -2664,13 +2704,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.selected_pdf_dates = result.dates
 
             # Erkanntes Datum für Jahr-Erkennung
-            detected_date = None
-            if self.selected_pdf_dates and len(self.selected_pdf_dates) > 0:
-                first_date = self.selected_pdf_dates[0]
-                if hasattr(first_date, 'strftime'):
-                    detected_date = first_date.strftime("%Y-%m-%d")
-                else:
-                    detected_date = str(first_date)
+            detected_date = erkanntes_datum(self.selected_pdf_dates)
 
             timer = getattr(self, "_click_timer", None) or StepTimer("Vorschlaege")
             # Vorschläge mit hierarchischen Pfaden holen
@@ -2718,38 +2752,43 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.folder_tree.clear_suggestions()
             self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}", 3000)
 
+    def _namens_vorschlaege(self, pdf_path: Path, result: PDFAnalysisResult) -> list[RenameSuggestion]:
+        """Umbenennungsvorschlaege einer Datei fuers Detail-Panel (auch fuer die Stapel-Ablage, #218)."""
+        # Rename-Suggestions generieren (gleiche Logik wie on_pdf_rename)
+        rename_suggestions = generate_rename_suggestions(
+            pdf_path=pdf_path,
+            extracted_text=result.extracted_text,
+            keywords=result.keywords,
+            dates=result.dates,
+        )
+
+        # Gelernte Muster aus DB
+        if result.keywords:
+            from src.utils.database import get_database
+            rename_history = get_database().get_rename_suggestions_by_keywords(result.keywords, limit=3)
+            for entry in rename_history:
+                rename_suggestions.append(RenameSuggestion(
+                    name=entry.new_filename,
+                    reason=f"Gelernt: ähnlich zu {entry.original_filename}",
+                    confidence=0.7,
+                ))
+
+        # Gecachte LLM-Vorschläge hinzufügen
+        cached_llm = self.pdf_cache.get_llm_suggestions(pdf_path)
+        if cached_llm:
+            for llm_s in cached_llm:
+                rename_suggestions.insert(0, RenameSuggestion(
+                    name=llm_s.filename,
+                    reason="KI-Vorschlag",
+                    confidence=llm_s.confidence,
+                    metadata=getattr(llm_s, 'metadata', None),
+                ))
+        return rename_suggestions
+
     def _populate_detail_panel(self, pdf_path: Path, result: PDFAnalysisResult, detected_date: str = None):
         """Befüllt das Detail-Panel mit Umbenennungsvorschlägen und Metadaten."""
         try:
-            # Rename-Suggestions generieren (gleiche Logik wie on_pdf_rename)
-            rename_suggestions = generate_rename_suggestions(
-                pdf_path=pdf_path,
-                extracted_text=result.extracted_text,
-                keywords=result.keywords,
-                dates=result.dates,
-            )
-
-            # Gelernte Muster aus DB
-            if result.keywords:
-                from src.utils.database import get_database
-                rename_history = get_database().get_rename_suggestions_by_keywords(result.keywords, limit=3)
-                for entry in rename_history:
-                    rename_suggestions.append(RenameSuggestion(
-                        name=entry.new_filename,
-                        reason=f"Gelernt: ähnlich zu {entry.original_filename}",
-                        confidence=0.7,
-                    ))
-
-            # Gecachte LLM-Vorschläge hinzufügen
-            cached_llm = self.pdf_cache.get_llm_suggestions(pdf_path)
-            if cached_llm:
-                for llm_s in cached_llm:
-                    rename_suggestions.insert(0, RenameSuggestion(
-                        name=llm_s.filename,
-                        reason="KI-Vorschlag",
-                        confidence=llm_s.confidence,
-                        metadata=getattr(llm_s, 'metadata', None),
-                    ))
+            rename_suggestions = self._namens_vorschlaege(pdf_path, result)
 
             # Detail-Panel befüllen
             self.detail_panel.set_pdf(
@@ -3092,110 +3131,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
     def move_multiple_pdfs_to_folder(self, pdf_paths: list[Path], folder_path: Path):
-        """Verschiebt mehrere PDFs in einen Zielordner."""
-        relative_path = self.folder_tree.get_relative_path(folder_path)
-
-        # Bestätigung
-        reply = QMessageBox.question(
-            self,
-            "Mehrere PDFs verschieben",
-            f"{len(pdf_paths)} PDFs nach '{relative_path}' verschieben?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
-        )
-
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        moved_count = 0
-        moved_pdfs = []
-        move_pairs = []  # (source, dest) für Undo
-        errors = []
-        original_selected = self.selected_pdf
-
-        for pdf_path in pdf_paths:
-            try:
-                # Datei verschieben
-                new_path = self.file_manager.move_file(pdf_path, folder_path)
-
-                # Cache-Eintrag migrieren
-                self.pdf_cache.migrate_cache_entry(pdf_path, new_path)
-
-                moved_count += 1
-                moved_pdfs.append(pdf_path)
-                move_pairs.append((pdf_path, new_path))
-
-                # Versuchen zu lernen (wenn PDF analysiert wurde)
-                cached_result = self.pdf_cache.get(new_path)
-                if cached_result and cached_result.extracted_text:
-                    self.classifier.learn(
-                        pdf_path=pdf_path,
-                        target_folder=folder_path,
-                        extracted_text=cached_result.extracted_text,
-                        keywords=cached_result.keywords,
-                        relative_path=relative_path,
-                    )
-
-            except Exception as e:
-                errors.append(f"{pdf_path.name}: {e}")
-
-        # Status aktualisieren
-        training_count = self.classifier.get_training_count()
-        self.training_label.setText(f"Gelernt: {training_count}")
-
-        if moved_count > 0:
-            self.statusbar.showMessage(
-                f"{moved_count} PDFs nach '{relative_path}' verschoben", 3000
-            )
-
-        # Fehler anzeigen
-        if errors:
-            QMessageBox.warning(
-                self,
-                "Teilweise fehlgeschlagen",
-                f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
-            )
-
-        # Undo-Eintrag erstellen (nur wenn Dateien verschoben wurden)
-        if move_pairs:
-            if moved_count == 1:
-                desc = f"{move_pairs[0][0].name} → {relative_path}"
-            else:
-                desc = f"{moved_count} PDFs → {relative_path}"
-            self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
-
-        # Verschobene PDF-Widgets entfernen; Position der zuvor ausgewählten
-        # PDF merken, um danach die nächste automatisch auszuwählen (Issue #75)
-        selected_removed_index = None
-        for moved_pdf in moved_pdfs:
-            index = self.remove_pdf_widget(moved_pdf)
-            if moved_pdf == original_selected:
-                selected_removed_index = index
-
-        # Auswahl zurücksetzen
-        self.selected_pdfs = []
-        auto_selected = False
-        if selected_removed_index is not None and self.pdf_widgets and not self._korr_aktiv:
-            next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
-            next_path = self.pdf_widgets[next_index].pdf_path
-            self.on_pdf_clicked(next_path)
-            auto_selected = True
-        else:
-            self.selected_pdf = None
-            self.selected_pdf_text = None
-            self.selected_pdf_keywords = None
-
-        # Zuletzt verwendet aktualisieren
-        self.config.add_to_last_used(folder_path)
-
-        # Ordneransicht aktualisieren
-        self._refresh_after_move(folder_path, *{p.parent for p in pdf_paths})
-
-        # Vorschläge leeren (nur wenn keine Folge-PDF automatisch ausgewählt wurde)
-        if not auto_selected:
-            self.clear_suggestions()
-        if self._korr_aktiv:
-            self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt
+        """Verschiebt mehrere PDFs in einen Zielordner - jede mit ihrem Namen (Issue #218)."""
+        self.stapel_verschieben(pdf_paths, folder_path)
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Doppelklick auf ein Thumbnail: PDF öffnen (Vorschau oder extern)."""
@@ -3319,8 +3256,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
 
     def _on_rename_and_save_metadata(self):
-        """Benennt die PDF um (Dateiname aus Detail-Panel) und speichert Metadaten in-place."""
+        """Benennt die PDF um (Dateiname aus Detail-Panel) und speichert Metadaten in-place.
+
+        Bei Mehrfachauswahl gilt es fuer alle markierten PDFs (Issue #218).
+        """
         pdf_path = self.detail_panel.get_current_pdf()
+        if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
+            self.stapel_umbenennen_speichern(list(self.selected_pdfs))
+            return
         if not pdf_path or not pdf_path.exists():
             self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
             return
@@ -4131,6 +4074,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         if entry_type == "rename":
             self._undo_rename(entry)
+        elif entry_type == "renames":
+            self._undo_renames(entry)  # Stapel-Umbenennung (Issue #218)
         elif entry_type == "stack":
             self._undo_stack_pdfs(entry)
         elif entry_type == "rotate":
@@ -4287,8 +4232,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 target_dir = source_orig.parent
                 if not target_dir.exists():
                     target_dir.mkdir(parents=True, exist_ok=True)
-                restored_path = target_dir / dest_path.name
+                # Mit dem alten Namen zurueck (beim Verschieben ggf. umbenannt, Issue #218);
+                # ist der inzwischen wieder vergeben, mit Zusatz "(1)"
+                restored_path = self.file_manager._get_unique_path(target_dir / source_orig.name)
                 shutil.move(str(dest_path), str(restored_path))
+                self.pdf_cache.migrate_cache_entry(dest_path, restored_path)
                 index_melden("datei_verschoben", str(dest_path), str(restored_path))
                 zurueck.append((dest_path, restored_path))
                 restored += 1
@@ -4853,15 +4801,26 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Relativen Pfad für die Baumansicht berechnen
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
-        # Prüfen ob mehrere PDFs gedroppt wurden (durch Mehrfachauswahl)
-        pdfs_to_move = []
+        # Mehrfachauswahl: die ganze Auswahl, jede Datei mit ihrem Namen (Issue #218)
         if len(self.selected_pdfs) > 1 and pdf_path in self.selected_pdfs:
             pdfs_to_move = list(self.selected_pdfs)
             erledigt = self.__dict__.setdefault("_drop_erledigt", set())
             erledigt.update(pdfs_to_move)
-            QTimer.singleShot(0, erledigt.clear)  # gilt nur fuer diesen einen Drop
-        else:
-            pdfs_to_move = [pdf_path]
+            try:
+                self.stapel_verschieben(pdfs_to_move, folder_path)
+            finally:
+                # Erst danach: die Rueckfrage hat eine eigene Ereignisschleife, ein frueher
+                # eingeplantes Leeren liefe darin ab, bevor die uebrigen Dateien dieses
+                # Drops hier ankommen - die wuerden dann einzeln (und vergeblich) verschoben
+                QTimer.singleShot(0, erledigt.clear)  # gilt nur fuer diesen einen Drop
+            return
+        # Die ausgewaehlte Datei bekommt wie beim Klick auf einen Ordner ihren Namen (Issue #218);
+        # Dateien von aussen (Explorer) werden wie bisher nur verschoben
+        # Auf einen vorgeschlagenen, noch nicht angelegten Ordner: dort wird er angelegt
+        if (pdf_path == self.selected_pdf and not self.selected_pdfs) or not Path(folder_path).exists():
+            self.stapel_verschieben([pdf_path], folder_path)
+            return
+        pdfs_to_move = [pdf_path]
 
         moved_count = 0
         moved_pdfs = []

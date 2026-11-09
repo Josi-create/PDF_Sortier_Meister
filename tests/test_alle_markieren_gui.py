@@ -86,3 +86,26 @@ def test_menue_eintrag_und_einzelne_kachel(qtbot, main_window, fresh_singletons,
     assert main_window.selected_pdf == scan / "nur.pdf" and main_window.selected_pdfs == []
     aktion.trigger()  # nochmal: bleibt markiert (kein Umschalten wie beim Klick)
     assert main_window.selected_pdf == scan / "nur.pdf"
+
+
+def test_strg_a_wirkt_auch_wenn_der_fokus_woanders_liegt(qtbot, main_window, fresh_singletons, monkeypatch):
+    """Live-Test 09.11.2026: vorher zuletzt in den Zielordner-Baum geklickt -> Strg+A tat nichts.
+
+    Ohne aktives Fenster loest Qt keine Tastenkuerzel aus; deshalb wird hier geprueft, dass der Baum
+    Strg+A nicht mehr fuer sich beansprucht (ShortcutOverride) und das Kuerzel dann alle Kacheln markiert.
+    """
+    from PyQt6.QtCore import QEvent
+    from PyQt6.QtGui import QKeyEvent
+
+    scan = _ordner(fresh_singletons)
+    _sichtbar(qtbot, main_window, monkeypatch, scan)
+    baum = main_window.folder_tree.tree
+    baum.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is baum, timeout=2000)
+
+    anfrage = QKeyEvent(QEvent.Type.ShortcutOverride, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier, "a")
+    QApplication.sendEvent(baum, anfrage)
+    assert not anfrage.isAccepted()  # das Fenster-Kuerzel darf greifen
+
+    main_window.select_all_action.trigger()
+    assert len(main_window.selected_pdfs) == 5 and all(w.selected for w in main_window.pdf_widgets)
