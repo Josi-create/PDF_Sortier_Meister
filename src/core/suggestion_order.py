@@ -22,6 +22,9 @@ KIND_DATE_CATEGORY = "date_category"
 KIND_CATEGORY_NUMBER = "category_number"
 KIND_DATE = "date"
 KIND_OTHER = "other"
+# "Aktuellen Namen behalten": immer letzte Zeile, wird nie nach oben gereiht
+# (sonst bekaeme jedes weitere Dokument stillschweigend seinen alten Namen)
+KIND_KEEP = "keep"
 PATTERN_PREFIX = "pattern:"
 
 T = TypeVar("T")

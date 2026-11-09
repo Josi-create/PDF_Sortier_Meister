@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **„Aktuellen Namen behalten“ in der Vorschlagsliste:** Die letzte Zeile der
+  Dateinamen-Vorschläge übernimmt per Klick den bisherigen Dateinamen ins Feld
+  „Neuer Dateiname“ – für Fälle, in denen er besser ist als der KI-Vorschlag.
+  Die Zeile zählt nicht als Vorschlag und rückt nie nach oben; beim nächsten
+  Dokument steht wieder der gewohnte Vorschlag im Feld.
+
 ### Geändert
 - **Doppelklick im Zielordner-Baum klappt den Ordner rechts auf bzw. zu**,
   statt ihn links als Scan-Ordner zu öffnen. Das funktioniert jetzt auch bei
