@@ -90,3 +90,20 @@ def test_umwandler_verfuegbar_kennt_mac_office(monkeypatch):
     monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "word")
     assert oc.umwandler_verfuegbar(".docx") and oc.umwandler_verfuegbar(".odt")
     assert not oc.umwandler_verfuegbar(".xlsx")
+
+
+def test_skript_wartet_wirklich_auf_das_dokument():
+    """Word liefert fuer ein unbekanntes Dokument "missing value" statt eines Fehlers;
+    ``delay`` innerhalb von ``tell`` wartet nicht. Beides liess die Schleife sofort enden."""
+    for art in ("word", "excel"):
+        skript = oc._MAC_SKRIPT[art]
+        schleife = skript.split("repeat {versuche} times")[1].split("end repeat")[0]
+        assert "if doc is not missing value then exit repeat" in schleife
+        assert "delay" in schleife.split("end try")[-1]  # ausserhalb des tell-Blocks
+        assert "tell application" not in schleife.split("end try")[-1]
+
+
+def test_fehlertext_ohne_applescript_technik():
+    roh = "418:454: execution error: Microsoft Word hat die Datei nicht geöffnet (vielleicht ...). (9001)"
+    assert oc._mac_fehlertext("Microsoft Word", roh) == "Microsoft Word hat die Datei nicht geöffnet (vielleicht ...)."
+    assert "Automation" in oc._mac_fehlertext("Microsoft Word", "x (-1743)")

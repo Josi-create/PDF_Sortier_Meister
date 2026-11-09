@@ -605,27 +605,31 @@ _MAC_APPS = {
     "excel": ("Microsoft Excel", "com.microsoft.Excel"),
 }
 
-# Oeffnen liefert auf dem Mac keinen Verweis zurueck (asynchron): per Namen warten.
-_MAC_SKRIPT = {
-    "word": """
+# Oeffnen liefert auf dem Mac keinen Verweis zurueck (asynchron): per (eindeutigem)
+# Namen warten, bis das Dokument da ist (nicht nur, bis kein Fehler kommt). ``delay`` steht bewusst ausserhalb von ``tell``: darin wird es an
+# Word/Excel geschickt und kehrt sofort zurueck - dann wartete die Schleife gar nicht.
+_MAC_SKRIPT_VORLAGE = """
 on run argv
   set dname to item 1 of argv
   set quelle to item 2 of argv
   set ziel to item 3 of argv
   with timeout of {timeout} seconds
-    tell application "Microsoft Word"
-      open (POSIX file quelle)
-      set doc to missing value
-      repeat 150 times
-        try
-          set doc to document dname
-          exit repeat
-        end try
-        delay 0.2
-      end repeat
-      if doc is missing value then error "Word hat die Datei nicht geöffnet." number 9001
+    tell application "{app}" to open (POSIX file quelle)
+    set doc to missing value
+    repeat {versuche} times
       try
-        save as doc file name ziel file format format PDF
+        tell application "{app}" to set doc to {objekt} dname
+      on error
+        set doc to missing value
+      end try
+      -- Word liefert fuer ein (noch) unbekanntes Dokument "missing value" statt eines Fehlers
+      if doc is not missing value then exit repeat
+      delay 0.2
+    end repeat
+    if doc is missing value then error "{app} hat die Datei nicht geöffnet (vielleicht ist dort gerade ein Dialog offen)." number 9001
+    tell application "{app}"
+      try
+        {speichern}
       on error m number n
         close doc saving no
         error m number n
@@ -634,35 +638,13 @@ on run argv
     end tell
   end timeout
 end run
-""",
-    "excel": """
-on run argv
-  set wname to item 1 of argv
-  set quelle to item 2 of argv
-  set ziel to item 3 of argv
-  with timeout of {timeout} seconds
-    tell application "Microsoft Excel"
-      open (POSIX file quelle)
-      set wb to missing value
-      repeat 150 times
-        try
-          set wb to workbook wname
-          exit repeat
-        end try
-        delay 0.2
-      end repeat
-      if wb is missing value then error "Excel hat die Datei nicht geöffnet." number 9001
-      try
-        save workbook as wb filename ziel file format PDF file format
-      on error m number n
-        close wb saving no
-        error m number n
-      end try
-      close wb saving no
-    end tell
-  end timeout
-end run
-""",
+"""
+_MAC_OEFFNEN_WARTEN_S = 30
+_MAC_SKRIPT = {
+    "word": _MAC_SKRIPT_VORLAGE.replace("{app}", "Microsoft Word").replace("{objekt}", "document").replace(
+        "{speichern}", "save as doc file name ziel file format format PDF"),
+    "excel": _MAC_SKRIPT_VORLAGE.replace("{app}", "Microsoft Excel").replace("{objekt}", "workbook").replace(
+        "{speichern}", "save workbook as doc filename ziel file format PDF file format"),
 }
 
 
@@ -699,6 +681,12 @@ def _mac_fehlertext(programm: str, stderr: str) -> str:
             "Systemeinstellungen › Datenschutz & Sicherheit › Automation "
             f"„{programm}“ für PDF Sortier Meister erlauben."
         )
+    # "418:454: execution error: <Meldung> (9001)" -> "<Meldung>"
+    treffer = re.search(r"execution error:\s*(.*?)\s*\(-?\d+\)\s*$", text, re.DOTALL)
+    if treffer:
+        text = treffer.group(1)
+    if text.startswith(programm):  # eigene Meldung des Skripts nennt das Programm schon
+        return text[:300]
     return f"{programm} konnte nicht umwandeln: {text[:300]}"
 
 
@@ -719,7 +707,8 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
         shutil.copy2(quelle, kopie)
         if not war_offen:  # versteckt und im Hintergrund starten
             subprocess.run(["open", "-g", "-j", "-a", programm], capture_output=True, timeout=60)
-        skript = _MAC_SKRIPT[art].replace("{timeout}", str(MAC_OFFICE_TIMEOUT_S))
+        skript = _MAC_SKRIPT[art].replace("{timeout}", str(MAC_OFFICE_TIMEOUT_S)).replace(
+            "{versuche}", str(_MAC_OEFFNEN_WARTEN_S * 5))
         try:
             lauf = subprocess.run(
                 ["osascript", "-", name, str(kopie), str(ziel)],
