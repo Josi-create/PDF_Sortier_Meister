@@ -1,18 +1,30 @@
 # PDF Sortier Meister - Entwicklungsstand
 
-**Datum:** 07.11.2026
+**Datum:** 09.11.2026
 **Aktuelle Version:** 0.25.0
 
 > **Was ist neu?** Siehe [CHANGELOG.md](CHANGELOG.md). Dieses Dokument fuehrt seit v0.15.0 nur noch
 > die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
-### Chat und MCP - Ausbau in vier Bausteinen (geplant, 2026-11-09)
+### Chat und MCP - Ausbau in vier Bausteinen (Plan 2026-11-09, Baustein 1 umgesetzt)
 Plan und Entscheidungen: `docs/CHAT_MCP_PLAN.md`; Arbeitsauftraege fuer Claude Code je
 Baustein: `docs/CHAT_MCP_PROMPT.md`. Reihenfolge 1 (MCP-Server auf den Stand des
 Chat-Werkzeugkastens, sqlite3-Leser im Dienst) -> 3 (Einstellungen fuer Claude Desktop/
 Claude Code) -> 2 (Vorschlags-Werkzeuge im Chat, nur Klick fuehrt aus) -> 4 (Schreiben nur
 per MCP, planen und dann ausfuehren, Protokoll und Rueckgaengig).
+- Baustein 1 (2026-11-09, Branch `feat/mcp-werkzeugkasten`): MCP-Server auf dem Stand des
+  Chat-Werkzeugkastens - Protokoll `ChatDaten` (`src/rag/daten.py`), Leser `PdfsmDaten`
+  (`src/search/pdfsm_daten.py`, Historie und Korrespondenten per sqlite3 `mode=ro`, gemeinsame
+  Such-Fassade mit `Database`), Kernlogik `src/rag/werkzeug_kern.py` (such_argumente,
+  ordner_vorschlag, korrespondent_info, sql_pruefen/sql_abfrage; `Werkzeugkasten` ist nur noch
+  Huelle mit D-Nummern), MCP-Werkzeuge `ordner_vorschlag(dok_id)`, `korrespondent_info(name)`,
+  `sql_abfrage(sql)` (nur mit `chat.sql_erlaubt`), Typ-Aliase in `suche`, alle mit
+  `readOnlyHint`; Umgebung (history.db, Zielordner, Scan-Eingang) aus der config.json,
+  `--config` wird durchgereicht; Dienst-Build schliesst `src.utils.database` und
+  `src.ml.classifier` aus. Handshake `python -m src.search.dienst mcp` unveraendert (Median
+  1,46 s vorher, 1,42 s nachher). Neue Tests: test_rag_daten, test_werkzeug_kern,
+  test_suche_mcp, test_suche_qtfrei erweitert.
 
 ---
 ### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)

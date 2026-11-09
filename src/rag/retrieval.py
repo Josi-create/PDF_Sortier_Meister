@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from src.rag.bezug import Kennung, gleicher_pfad, kennungs_abfrage
+from src.rag.daten import ChatDaten
 from src.utils.config import ChatConfig
 
 
@@ -162,12 +163,14 @@ class RetrievalService:
     ``Database.search_documents`` auf und produziert ``RetrievedDoc``s.
 
     Args:
-        db: Eine Instanz von :class:`src.utils.database.Database`.
+        db: Datenquelle (:class:`~src.rag.daten.ChatDaten`), z.B.
+            :class:`src.utils.database.Database` oder im Dienst
+            :class:`src.search.pdfsm_daten.PdfsmDaten`.
         chat_config: Optionale :class:`ChatConfig`. Fallback auf
             :class:`ChatConfig` mit Defaults.
     """
 
-    def __init__(self, db, chat_config: Optional[ChatConfig] = None):
+    def __init__(self, db: Optional[ChatDaten], chat_config: Optional[ChatConfig] = None):
         self.db = db
         self.chat_config = chat_config or ChatConfig()
 

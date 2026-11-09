@@ -15,6 +15,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import StaticPool
 
 from src.core.metadata_choices import clean_category
+from src.search.pdfsm_daten import (  # gemeinsame Fassade mit dem Dienst (Baustein 1)
+    aliase_lesen,
+    dokumente_kurz,
+    dokumente_suchen,
+)
 from src.utils.config import get_config
 
 Base = declarative_base()
@@ -222,34 +227,6 @@ class PDFMaster(Base):
     last_seen_at = Column(DateTime, default=datetime.utcnow)
     size_bytes = Column(Integer, nullable=True)
     page_count = Column(Integer, nullable=True)
-
-
-
-
-# Maximale Laenge des Volltexts je Treffer in ``search_documents`` (RAG-Chat /
-# Phase 19 / Architektur-Entscheidung Q3): mehr liest der Kontextblock nicht.
-MAX_EXTRACTED_TEXT_LENGTH = 5000
-
-
-def _betrag_text(wert) -> str:
-    """REAL aus dem Suchindex als Text wie frueher in ``document_search`` ("59.99")."""
-    if wert is None or wert == "":
-        return ""
-    try:
-        return f"{float(wert):.2f}"
-    except (TypeError, ValueError):
-        return str(wert)
-
-
-def _ausschnitt(stellen: list) -> str:
-    """Fundstellen (``\x02``/``\x03``-Marker) als Ausschnitt mit den bisherigen Markern ``>>>``/``<<<``."""
-    teile = []
-    for s in stellen or []:
-        text = " ".join((s.get("text") or "").split())
-        teile.append(text.replace("\x02", ">>>").replace("\x03", "<<<"))
-    return " … ".join(t for t in teile if t)
-
-
 
 
 class Database:
@@ -897,83 +874,16 @@ class Database:
         ``groesse``, ``datum`` (Unix-Zeit), ``rang`` (bm25, kleiner = besser)
         und ``extracted_text`` (Volltext, gekappt).
         """
-        has_text = bool(query and query.strip())
-        has_filter = any([
-            steuerjahr, kategorie, korrespondent,
-            datum_von, datum_bis,
-            betrag_von > 0, betrag_bis > 0,
-            pdf_id, typ,
-            ordner, von, bis,
-        ])
-        if not has_text and not has_filter:
-            return []
+        return dokumente_suchen(
+            self.suchindex, query, limit, steuerjahr, kategorie, korrespondent, datum_von, datum_bis,
+            betrag_von, betrag_bis, pdf_id, typ, ordner, von, bis, sortierung,
+            pdf_id_zu_pfad=self._pdf_id_zu_pfad,
+        )
 
-        q = ""
-        if has_text:
-            q = query.strip()
-            # Ohne FTS5-Operatoren: Woerter als Wortanfaenge, alle muessen vorkommen (bisheriges Verhalten)
-            if not any(op in q for op in (" OR ", " AND ", " NEAR ", " NOT ", '"', "*")):
-                q = " AND ".join(f'"{t}"*' for t in q.split() if t)
-
-        # Issue #166/#167: Filter der Chat-Werkzeuge nur mitgeben, wenn gesetzt
-        zusatz: dict = {}
-        if ordner:
-            zusatz["ordner"] = ordner
-        if von:
-            zusatz["von"] = von
-        if bis:
-            zusatz["bis"] = bis
-        if sortierung:
-            zusatz["sortierung"] = sortierung
-
-        try:
-            erg = self.suchindex.suche(
-                q,
-                steuerjahr=steuerjahr or None,
-                kategorie=kategorie or None,
-                korrespondent=korrespondent or None,
-                steuerjahr_von=datum_von or None,
-                steuerjahr_bis=datum_bis or None,
-                betrag_von=betrag_von if betrag_von and betrag_von > 0 else None,
-                betrag_bis=betrag_bis if betrag_bis and betrag_bis > 0 else None,
-                pdf_id=pdf_id or None,
-                typ=typ or None,
-                anzahl=int(limit),
-                **zusatz,
-            )
-        except Exception as e:
-            print(f"Suchindex-Suche Fehler: {e}")
-            return []
-
-        results = []
-        for d in erg.get("treffer") or []:
-            pid = d.get("pdf_id") or ""
-            if not pid:
-                master = self.get_pdf_by_path(d.get("pfad") or "")
-                pid = master["pdf_id"] if master else ""
-            stellen = d.get("stellen") or []
-            results.append({
-                "pdf_id": pid,
-                "file_path": d.get("pfad") or "",
-                "filename": d.get("name") or "",
-                "text_snippet": _ausschnitt(stellen),
-                "keywords": d.get("schlagwoerter") or "",
-                "korrespondent": d.get("korrespondent") or "",
-                "kategorie": d.get("kategorie") or "",
-                "steuerjahr": d.get("steuerjahr") or "",
-                "betrag": _betrag_text(d.get("betrag")),
-                "zusammenfassung": d.get("zusammenfassung") or "",
-                "target_folder": d.get("ordner") or "",
-                "dok_id": d.get("id"),
-                "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
-                "typ": d.get("typ") or "",
-                "format": d.get("format") or "",
-                "groesse": d.get("groesse"),
-                "datum": d.get("datum"),
-                "rang": d.get("rang"),
-                "extracted_text": self.suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
-            })
-        return results
+    def _pdf_id_zu_pfad(self, file_path: str) -> str:
+        """``pdf_id`` des pdfs-Master-Eintrags fuer ``file_path``; leer, wenn es keinen gibt."""
+        master = self.get_pdf_by_path(file_path)
+        return master["pdf_id"] if master else ""
 
     def get_distinct_steuerjahre(self) -> list[str]:
         """Gibt sortierte Liste eindeutiger Steuerjahre zurück (neueste zuerst)."""
@@ -1000,11 +910,7 @@ class Database:
 
     def get_indexed_documents_brief(self, limit: int = 20000) -> list[dict]:
         """Indizierte PDFs ohne Volltext (fuer die Aehnlichkeitssuche)."""
-        try:
-            return self.suchindex.dokumente_kurz(typ="pdf", limit=limit)
-        except Exception as e:
-            print(f"Suchindex lesen fehlgeschlagen: {e}")
-            return []
+        return dokumente_kurz(self.suchindex, limit)
 
     def bulk_index_directory(
         self,
@@ -2201,20 +2107,10 @@ class Database:
     def _deserialize_aliases(value) -> list[str]:
         """Deserialisiert einen Alias-JSON-String in eine Python-Liste.
 
-        Robust gegen kaputte/leere Werte.
+        Robust gegen kaputte/leere Werte (gemeinsam mit dem Dienst:
+        :func:`src.search.pdfsm_daten.aliase_lesen`).
         """
-        if not value:
-            return []
-        if isinstance(value, (list, tuple)):
-            return [str(a) for a in value]
-        try:
-            parsed = json.loads(value)
-            if isinstance(parsed, list):
-                return [str(a) for a in parsed]
-            return [str(parsed)]
-        except (ValueError, TypeError):
-            # Fallback: versuch als Komma-getrennte Liste zu interpretieren
-            return [a.strip() for a in str(value).split(",") if a.strip()]
+        return aliase_lesen(value)
 
     @staticmethod
     def _korrespondent_to_dict(entry: Optional[Korrespondent]) -> Optional[dict]:

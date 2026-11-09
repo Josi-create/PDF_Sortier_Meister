@@ -147,8 +147,22 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 
 Neben dem Programm liegt `pdfsm-dienst` (Windows: `pdfsm-dienst.exe` im Installationsordner,
 standardmäßig `%LOCALAPPDATA%\Programs\PDF Sortier Meister`; macOS:
-`/Applications/PDF Sortier Meister.app/Contents/MacOS/pdfsm-dienst`). Als MCP-Server gibt er drei
-Werkzeuge frei: `suche`, `dokument_lesen` und `index_status`. Einrichten für **Claude Code**:
+`/Applications/PDF Sortier Meister.app/Contents/MacOS/pdfsm-dienst`). Als MCP-Server gibt er dem
+Assistenten dieselben Werkzeuge wie dem Chat im Programm:
+
+| Werkzeug | Was es tut |
+|---|---|
+| `suche` | Volltextsuche mit Filtern (Typ – auch „excel“, „word“, „e-mail“ –, Ordner, Zeitraum, Steuerjahr, Kategorie, Korrespondent); Treffer mit Index-ID |
+| `dokument_lesen` | Volltext eines Treffers, auch seitenweise |
+| `index_status` | Stand des Index (Dokumente, OCR-Fortschritt, letzter Lauf) |
+| `ordner_vorschlag` | In welchen Ordner gehört ein Dokument? Ähnliche, schon einsortierte Dokumente mit Ordner und Jahr, Zielordner, und ob es noch unsortiert im Scan-Eingang liegt |
+| `korrespondent_info` | Was PDFSM über einen Absender gelernt hat: Schreibweisen, Kategorie, MwSt-Satz, Währung |
+| `sql_abfrage` | nur wenn unter Einstellungen › Chat „SQL-Abfragen auf der Suchdatenbank erlauben“ an ist: lesende SQL-Auswertungen auf der Suchdatenbank (Summen, Zählungen), mit Zeitlimit |
+
+Alle Werkzeuge sind als *nur lesend* gekennzeichnet; keines verschiebt, benennt um oder ändert etwas.
+Eine typische Frage an Claude Desktop: „In welchen Ordner gehört die Stadtwerke-Rechnung im
+Scan-Eingang?“ – der Assistent sucht sie, ruft `ordner_vorschlag` auf und begründet seine Antwort.
+Einrichten für **Claude Code**:
 
 ```bash
 claude mcp add pdfsuche --scope user -- "<Installationsordner>\pdfsm-dienst.exe" mcp
@@ -160,7 +174,10 @@ Für **Claude Desktop** in `claude_desktop_config.json` unter `mcpServers`:
 "pdfsuche": { "command": "<Installationsordner>\\pdfsm-dienst.exe", "args": ["mcp"] }
 ```
 
-Der Server liest den Index nur; er läuft, solange der Assistent ihn braucht. Weitere Befehle für die
+Der Server liest den Index und – für Ordnervorschlag und Korrespondenten – die Lernhistorie von PDFSM,
+beides nur lesend; er läuft, solange der Assistent ihn braucht. Zielordner, Scan-Eingang und den Schalter
+für SQL-Abfragen liest er beim Start aus den Einstellungen (nach einer Änderung den Assistenten neu
+starten). Weitere Befehle für die
 Kommandozeile: `pdfsm-dienst suche "Abfrage"`, `lesen`, `status`, `index`, `web`, `zeitplan --status`
 (`pdfsm-dienst --help`). Aufbau der Datenbank für eigene Auswertungen:
 [docs/SUCHE_SCHEMA.md](docs/SUCHE_SCHEMA.md).
@@ -178,7 +195,8 @@ Das ist ein Desktop-Programm. Ohne konfigurierten Cloud-Anbieter verlässt **nic
 | **Ollama** (lokal) | nichts — das Modell läuft auf deinem PC |
 | Cloud-Anbieter (Ollama Cloud, OpenRouter, Claude, OpenAI, Poe) | ein **Textauszug** der PDF (einstellbar 500–5000 Zeichen, Standard 1500) — *nur* nach ausdrücklicher Einwilligung in den Einstellungen; die PDF-Datei selbst wird nie hochgeladen |
 | Dokumentensuche, Browser-Oberfläche | nichts — Index und Oberfläche bleiben auf dem Rechner (`localhost`) |
-| KI-Assistent per MCP (z. B. Claude) | was der Assistent über die Werkzeuge abfragt (Treffer, gelesener Text), geht an dessen Anbieter — so, wie du es selbst einrichtest |
+| KI-Assistent per MCP (z. B. Claude) | was der Assistent über die Werkzeuge abfragt (Treffer, gelesener Text, Ordnervorschläge mit Dateinamen ähnlicher Dokumente, Angaben zu Korrespondenten), geht an dessen Anbieter — so, wie du es selbst einrichtest |
+| SQL-Abfragen per MCP (nur wenn „SQL-Abfragen auf der Suchdatenbank erlauben“ an ist) | zusätzlich die Ergebnisse der Abfragen, die der Assistent stellt — bis zu 200 Zeilen aus der Suchdatenbank (Pfade, Metadaten, Text) |
 
 Alle Daten (Konfiguration, Lernhistorie, Suchindex, Logs) liegen unter `%APPDATA%\PDF_Sortier_Meister\`.
 Es gibt keine Telemetrie und keinen Auto-Update-Mechanismus.

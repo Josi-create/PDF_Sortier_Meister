@@ -23,6 +23,12 @@ Werkzeuge:
   Suchdatenbank (Nur-Lese-Verbindung, ``query_only``, Schluesselwort-Pruefung,
   Zeitlimit, Zeilen- und Zeichenkappung).
 
+Die nummerierungsfreie Logik (Argumente der Suche, Ordnervorschlag,
+Korrespondent, SQL) liegt in :mod:`src.rag.werkzeug_kern` und wird auch vom
+MCP-Server genutzt (Baustein 1, ``docs/CHAT_MCP_PLAN.md``); der
+Werkzeugkasten ist die Huelle mit Registrierung, D-Nummern, Protokoll und
+Fehlertexten.
+
 Qt-frei. Werkzeuge werfen keine Exceptions nach aussen: Fehler kommen als
 Text (``"Fehler: ..."``) zurueck und stehen mit jedem Aufruf als
 :class:`Schritt` im ``protokoll``.
@@ -35,35 +41,51 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
-import sqlite3
-import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
-from src.core.similar_documents import find_similar_documents
 from src.ml.llm_provider import Werkzeug, WerkzeugAufruf
-from src.rag.bezug import Bezug, ablageort, gleicher_pfad
+from src.rag.bezug import Bezug, gleicher_pfad
+from src.rag.daten import ChatDaten
 from src.rag.retrieval import RetrievalService, RetrievedDoc
+from src.rag.werkzeug_kern import (  # noqa: F401 - Konstanten auch hier importierbar (Tests, Aufrufer)
+    AEHNLICHE_MAX,
+    AEHNLICHKEIT_TEXT_ZEICHEN,
+    SORTIERUNGEN,
+    SQL_MAX_ZEICHEN,
+    SQL_MAX_ZEILEN,
+    SQL_VERBOTEN,
+    SQL_ZELLE_MAX_ZEICHEN,
+    SUCHE_ANZAHL_MAX,
+    SUCHE_ANZAHL_STANDARD,
+    TYP_ALIASE,
+    TYPEN,
+    Dokument,
+    WerkzeugFehler,
+    datum_pruefen,
+    korrespondent_info,
+    korrespondent_text,
+    korrespondenten_suchen,
+    liegt_in,
+    ordner_vorschlag,
+    sql_abfrage,
+    sql_beschreibung,
+    sql_pruefen,
+    sql_tabelle,
+    such_argumente,
+    such_filter,
+    such_kennung,
+    text_argument,
+    zahl_argument,
+)
 from src.search import ausgabe
 from src.search.db import fts_abfrage
 from src.utils.config import ChatConfig
 
-# Suche: Treffer je Aufruf und Kappung der Ausgabe
-SUCHE_ANZAHL_STANDARD = 8
-SUCHE_ANZAHL_MAX = 20
+# Suche: Kappung der Ausgabe
 SUCHE_MAX_ZEICHEN = 6000
 FUNDSTELLEN_MAX_ZEICHEN = 600
-TYPEN = ("pdf", "office", "md", "mail")
-TYP_ALIASE = {
-    "excel": "office", "xlsx": "office", "xls": "office", "word": "office", "docx": "office", "doc": "office",
-    "odt": "office", "tabelle": "office", "tabellen": "office",
-    "e-mail": "mail", "email": "mail", "mails": "mail", "e-mails": "mail", "emails": "mail", "nachricht": "mail",
-    "markdown": "md", "pdfs": "pdf",
-}
-SORTIERUNGEN = ("relevanz", "neu", "alt")
 # Erfundene Werkzeugnamen, die eindeutig ein echtes Werkzeug meinen
 WERKZEUG_ALIASE = {
     "abfrage": "suche", "suchen": "suche", "search": "suche", "volltextsuche": "suche", "finde": "suche",
@@ -77,21 +99,10 @@ WERKZEUG_ALIASE = {
 # Lesen
 LESEN_ZEICHEN_STANDARD = 12000
 LESEN_ZEICHEN_MAX = 40000
-# Volltext fuer die Aehnlichkeitssuche (mehr liest der Scorer ohnehin nicht)
-AEHNLICHKEIT_TEXT_ZEICHEN = 20000
-AEHNLICHE_MAX = 8
-
-# SQL
-SQL_MAX_ZEILEN = 200
-SQL_MAX_ZEICHEN = 20000
-SQL_ZELLE_MAX_ZEICHEN = 300
-SQL_VERBOTEN = ("ATTACH", "DETACH", "PRAGMA", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER",
-                "CREATE", "REPLACE", "VACUUM", "REINDEX")
 
 # Status eines Dokuments im Chat: zitiert schlaegt gelesen schlaegt gefunden
 STATUS_RANG = {"gefunden": 0, "gelesen": 1, "zitiert": 2}
 
-_DATUM_RE = re.compile(r"^(?:\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4}|\d{4})$")
 _SEITEN_RE = re.compile(r"^(\d+)(?:\s*-\s*(\d+))?$")
 _INDEX_ID_RE = re.compile(r"^id\s*:\s*(\d+)$", re.IGNORECASE)
 _D_NUMMER_RE = re.compile(r"^\[?\s*[dD]?\s*(\d+)\s*\]?$")
@@ -117,8 +128,8 @@ class Schritt:
     fehler: str = ""
 
 
-class _WerkzeugFehler(Exception):
-    """Fehler, den das Modell als Text bekommt (fehlende Argumente, unbekanntes Dokument ...)."""
+# Fehler, den das Modell als Text bekommt (gemeinsam mit dem Kern und dem MCP-Server)
+_WerkzeugFehler = WerkzeugFehler
 
 
 def _betrag(wert) -> str:
@@ -131,49 +142,23 @@ def _betrag(wert) -> str:
         return str(wert)
 
 
-def _text(argumente: dict, name: str) -> str:
-    wert = argumente.get(name)
-    if wert is None:
-        return ""
-    return str(wert).strip()
-
-
-def _zahl(argumente: dict, name: str, standard: int, minimum: int, maximum: int) -> int:
-    wert = argumente.get(name)
-    if wert in (None, ""):
-        return standard
-    try:
-        zahl = int(float(str(wert).strip()))
-    except (TypeError, ValueError):
-        raise _WerkzeugFehler(f"Argument „{name}“ muss eine ganze Zahl sein, nicht „{wert}“.") from None
-    return max(minimum, min(maximum, zahl))
+_text = text_argument
+_zahl = zahl_argument
 
 
 def _param(typ: str, beschreibung: str, **mehr) -> dict:
     return {"type": typ, "description": beschreibung, **mehr}
 
 
-def _datum_pruefen(wert: str, name: str) -> str:
-    """Datum eines Suchfilters pruefen (Format UND Kalender) und als JJJJ-MM-TT liefern.
-
-    Angenommen werden JJJJ-MM-TT, TT.MM.JJJJ und JJJJ (wie ``src.search.db._zeit``).
-    Ein kalendarisch unmoegliches Datum wie 2025-02-30 liesse der Index sonst
-    still als "keine Treffer" durchgehen.
-    """
-    wert = str(wert).strip()
-    for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%Y"):
-        try:
-            return datetime.strptime(wert, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    raise _WerkzeugFehler(f"Argument „{name}“ muss ein gültiges Datum im Format JJJJ-MM-TT sein, nicht „{wert}“.")
+_datum_pruefen = datum_pruefen
 
 
 class Werkzeugkasten:
     """Werkzeuge des Chats ueber dem Suchindex mit chat-lokalen Dokumentnummern.
 
     Args:
-        db: :class:`~src.utils.database.Database`; ``db.suchindex`` ist der
+        db: Datenquelle (:class:`~src.rag.daten.ChatDaten`), in der Oberflaeche
+            :class:`~src.utils.database.Database`; ``db.suchindex`` ist der
             :class:`~src.search.suchindex.Suchindex`. Fehlt er (Tests, fremde
             DB), melden die Werkzeuge "Suchindex nicht verfügbar".
         chat_config: :class:`ChatConfig` (Auszugslaenge, Top-K).
@@ -194,11 +179,11 @@ class Werkzeugkasten:
 
     # Alle so viele VM-Schritte prueft der Fortschritts-Handler das SQL-Zeitlimit
     # (Klassenattribut, damit Tests den Timer-Weg allein pruefen koennen)
-    SQL_HANDLER_SCHRITTE = 200
+    SQL_HANDLER_SCHRITTE = 200  # wie src.rag.werkzeug_kern.SQL_HANDLER_SCHRITTE
 
     def __init__(
         self,
-        db,
+        db: ChatDaten | None,
         chat_config: ChatConfig | None = None,
         *,
         bezug: Bezug | None = None,
@@ -415,32 +400,9 @@ class Werkzeugkasten:
         return werkzeuge
 
     def _sql_beschreibung(self) -> str:
-        # Kompakte Fassung von docs/SUCHE_SCHEMA.md
-        return (
-            "Nur lesende SQL-Abfrage (SQLite) auf der Suchdatenbank - für Auswertungen, die die Suche nicht "
-            "leistet: Summen, Zählungen, Gruppierungen, Listen nach Datum oder Betrag. Genau eine SELECT- oder "
-            f"WITH-Anweisung; höchstens {SQL_MAX_ZEILEN} Zeilen, Zeitlimit {self.sql_zeitlimit_s:g} s - mit WHERE "
-            "und LIMIT eingrenzen. SQLite-Fehler kommen als Text zurück: Abfrage korrigieren und erneut versuchen.\n"
-            "Schema:\n"
-            "- dokumente: ein Datensatz je Datei bzw. Mail - id, pfad, name (Dateiname bzw. Mail-Betreff), ordner, "
-            "typ ('pdf','office','md','mail'), format, datum (Unix-Zeit: Mail- bzw. Dateidatum; "
-            "date(datum,'unixepoch') ergibt JJJJ-MM-TT), seiten, textstatus, pdf_id, korrespondent, kategorie, "
-            "steuerjahr (Text, z. B. '2024'), betrag (REAL, brutto), buchungsdatum (JJJJ-MM-TT), zusammenfassung, "
-            "schlagwoerter, mail_von, mail_an, mail_datum, mail_betreff. Die PDFSM-Metadaten (korrespondent bis "
-            "schlagwoerter) sind nur bei sortierten PDFs gefüllt.\n"
-            "- seiten: dok_id (-> dokumente.id), seite, quelle ('text','ocr'), text - der Text je Seite.\n"
-            "- Sicht v_dokument_text: pfad, volltext - der ganze Text eines Dokuments.\n"
-            "- Volltextindex (FTS5, mit MATCH abfragen, Umlaute egal): seiten_fts über seiten.text "
-            "(rowid = seiten.id), dokumente_fts über name und ordner (rowid = dokumente.id), metadaten_fts über "
-            "korrespondent, kategorie, zusammenfassung, schlagwoerter (rowid = dokumente.id).\n"
-            "Beispiele:\n"
-            "SELECT d.id, d.pfad, s.seite, snippet(seiten_fts, 0, '[', ']', ' … ', 20) AS ausschnitt "
-            "FROM seiten_fts JOIN seiten s ON s.id = seiten_fts.rowid JOIN dokumente d ON d.id = s.dok_id "
-            "WHERE seiten_fts MATCH 'Unterhalt 2019' ORDER BY bm25(seiten_fts) LIMIT 50\n"
-            "SELECT count(*), sum(betrag) FROM dokumente WHERE korrespondent = 'Stadtwerke Musterstadt' "
-            "AND kategorie = 'Rechnung' AND steuerjahr = '2025'\n"
-            "SELECT volltext FROM v_dokument_text WHERE pfad = '<Pfad der Datei>'\n"
-            "Ein Dokument aus dem Ergebnis liest du mit dokument_lesen und dokument = \"id:<dokumente.id>\"."
+        return sql_beschreibung(
+            self.sql_zeitlimit_s,
+            "Ein Dokument aus dem Ergebnis liest du mit dokument_lesen und dokument = \"id:<dokumente.id>\".",
         )
 
     # ------------------------------------------------------------------ #
@@ -513,39 +475,13 @@ class Werkzeugkasten:
             raise _WerkzeugFehler("Argument „abfrage“ fehlt.")
         self._suchindex()
 
-        typ = _text(argumente, "typ").lower()
-        if typ:
-            # Modelle schreiben gern "excel" oder "e-mail": gaengige Schreibweisen abbilden
-            typen = [TYP_ALIASE.get(t.strip(), t.strip()) for t in typ.split(",") if t.strip()]
-            typen = list(dict.fromkeys(typen))
-            unbekannt = [t for t in typen if t not in TYPEN]
-            if unbekannt:
-                raise _WerkzeugFehler(f"Unbekannter typ „{unbekannt[0]}“ - erlaubt: "
-                                      f"{', '.join(TYPEN)} (auch Kombination 'pdf,office').")
-            typ = ",".join(typen)
-        sortierung = _text(argumente, "sortierung").lower() or "relevanz"
-        if sortierung not in SORTIERUNGEN:
-            raise _WerkzeugFehler(f"Unbekannte sortierung „{sortierung}“ - erlaubt: {', '.join(SORTIERUNGEN)}.")
-        anzahl = _zahl(argumente, "anzahl", SUCHE_ANZAHL_STANDARD, 1, SUCHE_ANZAHL_MAX)
-        filter: dict[str, str] = {}
-        for name in ("ordner", "von", "bis", "steuerjahr", "kategorie", "korrespondent"):
-            wert = _text(argumente, name)
-            if wert:
-                filter[name] = wert
-        for name in ("von", "bis"):
-            if name in filter:
-                filter[name] = _datum_pruefen(filter[name], name)
-
-        beschreibung = ", ".join(
-            f"{k}={v}" for k, v in (("typ", typ), ("sortierung", sortierung if sortierung != "relevanz" else ""),
-                                    *filter.items()) if v
-        )
-        kennung = f"„{abfrage}“" + (f" ({beschreibung})" if beschreibung else "")
-
+        args = such_argumente(argumente)
+        kennung = such_kennung(args)
+        sortierung = args["sortierung"]
         try:
             rohe = list(self.db.search_documents(
-                query=fts_abfrage(abfrage), limit=anzahl, typ=typ,
-                sortierung=sortierung if sortierung != "relevanz" else "", **filter,
+                query=fts_abfrage(args["abfrage"]), limit=args["anzahl"], typ=args["typ"],
+                sortierung=sortierung if sortierung != "relevanz" else "", **such_filter(args),
             ) or [])
         except Exception as e:  # noqa: BLE001 - Fehler als Text
             raise _WerkzeugFehler(f"Suche fehlgeschlagen: {e}") from e
@@ -753,32 +689,26 @@ class Werkzeugkasten:
             doc = self._dokument_aus_kennung(kennung)
         ist_bezug = self._ist_bezug(doc)
 
-        zeilen = [f"Ordnervorschlag für [D{doc.index}] {doc.filename}:"]
-        if self.wurzeln:
-            zeilen.append("Zielordner: " + ", ".join(w.name for w in self.wurzeln))
+        # Vorschlaege der Sortierlogik liegen nur fuer das Bezugsdokument vor
+        v = ordner_vorschlag(
+            Dokument(doc.file_path, doc.filename, self._volltext_fuer(doc, AEHNLICHKEIT_TEXT_ZEICHEN)),
+            self.db, self.wurzeln, self.scan_ordner,
+            self.sortier_vorschlaege if ist_bezug else None,
+            im_scan_eingang=self._im_scan_eingang(doc.file_path),
+        )
 
-        # (a) Vorschlaege der Sortierlogik (liegen nur fuer das Bezugsdokument vor)
-        if ist_bezug:
-            vorschlaege = self.sortier_vorschlaege
-            zeilen.append("Vorschläge der Sortierlogik (bester zuerst): " + ("; ".join(vorschlaege) or "keiner"))
+        zeilen = [f"Ordnervorschlag für [D{doc.index}] {doc.filename}:"]
+        if v.wurzeln:
+            zeilen.append("Zielordner: " + ", ".join(w.name for w in v.wurzeln))
+        if v.sortier_vorschlaege is not None:
+            zeilen.append("Vorschläge der Sortierlogik (bester zuerst): "
+                          + ("; ".join(v.sortier_vorschlaege) or "keiner"))
         else:
-            vorschlaege = []
             zeilen.append("Vorschläge der Sortierlogik: keiner (liegen nur für das Bezugsdokument vor)")
 
-        # (b) aehnliche, bereits einsortierte Dokumente
-        text = self._volltext_fuer(doc, AEHNLICHKEIT_TEXT_ZEICHEN)
-        aehnliche = []
-        if text.strip():
-            try:
-                aehnliche = list(find_similar_documents(text, None, self.wurzeln, db=self.db, limit=AEHNLICHE_MAX))
-            except Exception:  # noqa: BLE001 - Kontext ist optional
-                aehnliche = []
-            # Das Dokument selbst ist kein aehnliches Dokument
-            eigener = (doc.filename or "").casefold()
-            aehnliche = [s for s in aehnliche if (s.filename or "").casefold() != eigener]
-        if aehnliche:
+        if v.aehnliche:
             zeilen.append("Ähnliche, bereits einsortierte Dokumente (Ordner relativ zum Zielordner):")
-            for s in aehnliche:
+            for s in v.aehnliche:
                 zeilen.append(f"- {s.filename} - Ordner: {s.folder}" + (f" - Jahr: {s.year}" if s.year else ""))
             zeilen.append("Hinweis: Das Dokument gehört in den Ordner seines eigenen Jahres, nicht in den eines "
                           "ähnlichen Dokuments aus einem anderen Jahr.")
@@ -787,15 +717,14 @@ class Werkzeugkasten:
 
         # Scan-Eingang bzw. aktueller Ablageort
         wer = "Das Bezugsdokument" if ist_bezug else "Das Dokument"
-        if self._im_scan_eingang(doc.file_path):
+        if v.im_scan_eingang:
             zeilen.append(f"{wer} liegt noch unsortiert im Scan-Eingang (noch kein Ablageort).")
-        else:
-            ort = ablageort(doc.file_path, self.wurzeln)
-            if ort:
-                zeilen.append(f"{wer} liegt nicht im Scan-Eingang; aktueller Ablageort: {ort}")
+        elif v.ablageort:
+            zeilen.append(f"{wer} liegt nicht im Scan-Eingang; aktueller Ablageort: {v.ablageort}")
 
-        zusammenfassung = (f"Ordnervorschlag für D{doc.index}: {len(vorschlaege)} Vorschläge, "
-                           f"{len(aehnliche)} ähnliche Dokumente")
+        anzahl_vorschlaege = len(v.sortier_vorschlaege or [])
+        zusammenfassung = (f"Ordnervorschlag für D{doc.index}: {anzahl_vorschlaege} Vorschläge, "
+                           f"{len(v.aehnliche)} ähnliche Dokumente")
         return "\n".join(zeilen), zusammenfassung, [doc.index]
 
     def _bezug_doc(self) -> RetrievedDoc | None:
@@ -817,13 +746,7 @@ class Werkzeugkasten:
     def _im_scan_eingang(self, pfad: str) -> bool:
         if self.bezug is not None and self.bezug.scan_ordner and gleicher_pfad(pfad, self.bezug.pfad):
             return self.bezug.im_scan_ordner()
-        if not self.scan_ordner or not pfad:
-            return False
-        try:
-            Path(pfad).resolve().relative_to(Path(self.scan_ordner).resolve())
-            return True
-        except (ValueError, OSError):
-            return False
+        return liegt_in(pfad, self.scan_ordner)
 
     def _volltext_fuer(self, doc: RetrievedDoc, max_zeichen: int) -> str:
         """Text eines Dokuments fuer die Aehnlichkeitssuche: Kontext, Suchindex, Bezug, Auszug."""
@@ -847,67 +770,14 @@ class Werkzeugkasten:
     # ------------------------------------------------------------------ #
 
     def _korrespondent_info(self, argumente: dict) -> tuple[str, str, list[int]]:
-        name = _text(argumente, "name")
-        if not name:
-            raise _WerkzeugFehler("Argument „name“ fehlt.")
-        eintrag = None
-        try:
-            eintrag = self.db.get_korrespondent(name)
-        except Exception:  # noqa: BLE001 - Verwaltung ist optional
-            eintrag = None
-        weitere: list[dict] = []
-        if eintrag is None:
-            treffer = self._korrespondenten_suchen(name)
-            if treffer:
-                eintrag, weitere = treffer[0], treffer[1:]
-        anzeigename = (eintrag or {}).get("name") or name
-        gelernt = None
-        try:
-            gelernt = self.db.get_korrespondent_metadata(anzeigename) or None
-        except Exception:  # noqa: BLE001
-            gelernt = None
-        if eintrag is None and not gelernt:
-            return f"Kein Korrespondent „{name}“ bekannt.", f"Korrespondent „{name}“: unbekannt", []
-
-        zeilen = [f"Korrespondent: {anzeigename}"]
-        if eintrag:
-            aliase = [str(a) for a in (eintrag.get("aliases") or []) if a]
-            zeilen.append("Aliase (andere Schreibweisen): " + (", ".join(aliase) if aliase else "keine"))
-            zeilen.append(f"Kategorie: {eintrag.get('kategorie') or 'unbekannt'}")
-            if eintrag.get("notizen"):
-                zeilen.append(f"Notizen: {eintrag['notizen']}")
-        if gelernt:
-            if gelernt.get("subject") and not (eintrag and eintrag.get("kategorie")):
-                zeilen.append(f"Kategorie (gelernt): {gelernt['subject']}")
-            if gelernt.get("mwst_satz"):
-                zeilen.append(f"MwSt-Satz: {gelernt['mwst_satz']}")
-            if gelernt.get("steuerlich_absetzbar"):
-                zeilen.append(f"Steuerlich absetzbar: {gelernt['steuerlich_absetzbar']}")
-            if gelernt.get("waehrung"):
-                zeilen.append(f"Währung: {gelernt['waehrung']}")
-        if eintrag:
-            zeilen.append(f"Verwendet: {int(eintrag.get('usage_count') or 0)}-mal")
-        if weitere:
-            zeilen.append("Weitere passende Korrespondenten: " + ", ".join(
-                str(w.get("name") or "") for w in weitere[:5] if w.get("name")))
-        return "\n".join(zeilen), f"Korrespondent „{name}“: {anzeigename}", []
+        info = korrespondent_info(_text(argumente, "name"), self.db)
+        if not info.bekannt:
+            return korrespondent_text(info), f"Korrespondent „{info.gesucht}“: unbekannt", []
+        return korrespondent_text(info), f"Korrespondent „{info.gesucht}“: {info.name}", []
 
     def _korrespondenten_suchen(self, name: str) -> list[dict]:
         """Korrespondenten, deren Name oder Alias den Suchbegriff enthaelt; exakte Alias-Treffer zuerst."""
-        needle = name.casefold()
-        try:
-            alle = list(self.db.list_korrespondenten() or [])
-        except Exception:  # noqa: BLE001
-            return []
-        exakt, teil = [], []
-        for k in alle:
-            kname = str(k.get("name") or "").casefold()
-            aliase = [str(a).casefold() for a in (k.get("aliases") or []) if a]
-            if needle == kname or needle in aliase:
-                exakt.append(k)
-            elif needle in kname or any(needle in a for a in aliase):
-                teil.append(k)
-        return exakt + teil
+        return korrespondenten_suchen(name, self.db)
 
     # ------------------------------------------------------------------ #
     # sql_abfrage                                                        #
@@ -919,100 +789,12 @@ class Werkzeugkasten:
             raise _WerkzeugFehler("Argument „sql“ fehlt.")
         sql = self._sql_pruefen(sql)
         suchindex = self._suchindex()
-        db_datei = Path(getattr(suchindex, "db_datei", "") or "")
-        if not str(db_datei) or not db_datei.is_file():
-            raise _WerkzeugFehler("Suchdatenbank noch nicht vorhanden (der erste Indexlauf steht aus).")
-
-        zeitlimit = self.sql_zeitlimit_s
-        try:
-            con = sqlite3.connect(db_datei.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
-        except sqlite3.Error as e:
-            raise _WerkzeugFehler(f"Suchdatenbank nicht lesbar: {e}") from e
-        # Zeitlimit doppelt: der Fortschritts-Handler prueft alle 200 VM-Schritte,
-        # ein Timer-Thread ruft zusaetzlich con.interrupt() (greift auch in langen
-        # Einzelschritten wie grossen Sortierungen, die der Handler nicht sieht).
-        wecker = threading.Timer(zeitlimit, con.interrupt)
-        wecker.daemon = True
-        try:
-            con.execute("PRAGMA query_only=1")
-            con.execute("PRAGMA busy_timeout=30000")
-            start = time.monotonic()
-
-            def wache() -> int:
-                # 1 = abbrechen -> sqlite3.OperationalError("interrupted")
-                return 1 if time.monotonic() - start > zeitlimit else 0
-
-            con.set_progress_handler(wache, self.SQL_HANDLER_SCHRITTE)
-            wecker.start()
-            try:
-                cursor = con.execute(sql)
-                spalten = [d[0] for d in (cursor.description or [])]
-                zeilen = cursor.fetchmany(SQL_MAX_ZEILEN + 1)
-            except sqlite3.OperationalError as e:
-                if "interrupt" in str(e).lower():
-                    raise _WerkzeugFehler(f"Zeitlimit von {zeitlimit:g} s überschritten - "
-                                          "Abfrage mit WHERE und LIMIT eingrenzen.") from None
-                raise _WerkzeugFehler(f"SQLite: {e}") from e
-            except (sqlite3.Error, sqlite3.Warning) as e:
-                raise _WerkzeugFehler(f"SQLite: {e}") from e
-        finally:
-            wecker.cancel()
-            con.close()
-
-        gekappt = len(zeilen) > SQL_MAX_ZEILEN
-        zeilen = zeilen[:SQL_MAX_ZEILEN]
-        text = self._sql_tabelle(spalten, zeilen, gekappt)
-        zusammenfassung = f"SQL: {len(zeilen)} Zeilen" + (" (gekappt)" if gekappt else "")
-        return text, zusammenfassung, []
+        erg = sql_abfrage(getattr(suchindex, "db_datei", None), sql, self.sql_zeitlimit_s,
+                          handler_schritte=self.SQL_HANDLER_SCHRITTE, geprueft=True)
+        zusammenfassung = f"SQL: {len(erg.zeilen)} Zeilen" + (" (gekappt)" if erg.gekappt else "")
+        return sql_tabelle(erg), zusammenfassung, []
 
     @staticmethod
     def _sql_pruefen(sql: str) -> str:
         """Genau eine lesende Anweisung (SELECT/WITH) ohne verbotene Schluesselwoerter; sonst Fehler."""
-        s = sql.strip()
-        if s.endswith(";"):
-            s = s[:-1].rstrip()
-        if not s:
-            raise _WerkzeugFehler("Leere SQL-Anweisung.")
-        # Literale, Bezeichner in Anfuehrungszeichen und Kommentare fuer die Pruefung ausblenden
-        ohne = re.sub(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|\[[^\]]*\]", " ", s)
-        ohne = re.sub(r"--[^\n]*", " ", ohne)
-        ohne = re.sub(r"/\*.*?\*/", " ", ohne, flags=re.S)
-        if ";" in ohne:
-            raise _WerkzeugFehler("Nur eine einzelne Anweisung erlaubt (kein ';' mitten in der Abfrage).")
-        # Zeilenumbruch vor dem ';', damit ein Zeilenkommentar am Ende es nicht schluckt
-        if not sqlite3.complete_statement(s + "\n;"):
-            raise _WerkzeugFehler("Unvollständige Anweisung (fehlendes Anführungszeichen oder Klammer?).")
-        m = re.match(r"\s*([A-Za-z]+)", ohne)
-        erstes = m.group(1).upper() if m else ""
-        if erstes not in ("SELECT", "WITH"):
-            raise _WerkzeugFehler("Nur lesende Abfragen: die Anweisung muss mit SELECT oder WITH beginnen.")
-        for wort in SQL_VERBOTEN:
-            # replace(x, y, z) ist eine Funktion und erlaubt; REPLACE INTO nicht
-            muster = r"\b" + wort + r"\b" + (r"(?!\s*\()" if wort == "REPLACE" else "")
-            if re.search(muster, ohne, re.IGNORECASE):
-                raise _WerkzeugFehler(f"Schlüsselwort {wort} ist nicht erlaubt (nur lesende SELECT-/WITH-Abfragen).")
-        return s
-
-    @staticmethod
-    def _sql_tabelle(spalten: list[str], zeilen: list, gekappt: bool) -> str:
-        """Texttabelle: Spaltennamen, Zeilen mit " | ", Zeilenzahl, Hinweis bei Kappung."""
-        def zelle(wert) -> str:
-            if wert is None:
-                return "NULL"
-            if isinstance(wert, bytes):
-                return f"<{len(wert)} Bytes>"
-            t = " ".join(str(wert).split())
-            if len(t) > SQL_ZELLE_MAX_ZEICHEN:
-                t = t[:SQL_ZELLE_MAX_ZEICHEN].rstrip() + "…"
-            return t
-
-        teile = [" | ".join(spalten)] if spalten else []
-        for z in zeilen:
-            teile.append(" | ".join(zelle(w) for w in z))
-        koerper = "\n".join(teile)
-        if len(koerper) > SQL_MAX_ZEICHEN:
-            koerper = koerper[:SQL_MAX_ZEICHEN] + f"\n[… Ausgabe bei {SQL_MAX_ZEICHEN} Zeichen gekappt]"
-        schluss = f"{len(zeilen)} Zeile(n)"
-        if gekappt:
-            schluss += f" - gekappt bei {SQL_MAX_ZEILEN}, mit WHERE und LIMIT eingrenzen"
-        return f"{koerper}\n{schluss}" if koerper else schluss
+        return sql_pruefen(sql)
