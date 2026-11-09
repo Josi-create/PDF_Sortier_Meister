@@ -389,6 +389,32 @@ Repository (`feat(mcp): …`, `feat(chat): …`, deutsch, ohne Umlaute in der Be
     `src.ml.classifier`, die nur ueber verzoegerte Importe erreichbar sind.
   - `tests/test_suche_dienst.py::test_mcp_werkzeuge`: erwartete Werkzeugliste um
     `ordner_vorschlag` und `korrespondent_info` ergaenzt (Folge von 3.1 Schritt 4).
+- Abweichungen in Baustein 3 (09.11.2026), vom Code bzw. vom System erzwungen:
+  - **Konfiguration von Claude Desktop unter Windows an drei Orten.** Die Store-Fassung
+    (MSIX, auf dem Entwicklungsrechner 4.23118) legt sie unter
+    `%LOCALAPPDATA%\Claude-Data\claude_<id>\claude_desktop_config.json` ab; `%APPDATA%\Claude`
+    gibt es dort nicht. Aeltere Store-Fassungen nutzen den Paketordner
+    (`%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`, nach dem Umzug nur noch
+    eine Markierungsdatei `.user-data-left.*`), der klassische Installer `%APPDATA%\Claude`.
+    `claude_desktop_konfig()` nimmt die erste vorhandene Datei, sonst den ersten vorhandenen
+    Ordner, sonst „nicht gefunden“.
+  - **Entwicklungsmodus:** `python packaging/pdfsm_dienst.py mcp` mit `PYTHONPATH` auf den
+    Quellbaum statt `python -m src.search.dienst mcp` - bei `-m` steht das Arbeitsverzeichnis
+    vorn im Suchpfad, und Claude Code startet den Server im jeweiligen Projektordner.
+    `dienst_pfad()` liefert dort die ganze Befehlszeile; `dienst_aufruf()` liefert Programm,
+    Argumente und Umgebung fuer beide Clients.
+  - **Zustaende:** zusaetzlich zu `nicht_gefunden | installiert | eingerichtet` gibt es
+    `anderer_pfad` (eingetragen, startet aber ein anderes Programm, z. B. eine andere
+    Installation oder den Entwicklungsstand) und `fehler` (Konfiguration kein gueltiges JSON,
+    `claude` haengt). Bei `eingerichtet`/`anderer_pfad` heisst der Knopf fuer Claude Code
+    „Neu einrichten“ und fuehrt vorher `claude mcp remove pdfsuche -s user` aus, weil
+    `claude mcp add` einen vorhandenen Namen ablehnt.
+  - **„Eintrag kopieren“** legt vollstaendiges JSON `{"mcpServers": {"pdfsuche": {...}}}` in die
+    Zwischenablage (gueltig fuer sich, so auch als ganze Datei verwendbar).
+  - **Pruefung erst beim Oeffnen des Reiters „Suche“**, Claude Code im Hintergrund:
+    `claude mcp get` startet den Server zur Probe (rund 2 s). `tests/conftest.py` setzt fuer alle
+    Tests `claude_programm` und `claude_desktop_konfig` auf „nicht gefunden“, damit kein Test das
+    echte Claude Code startet oder die echte Konfiguration liest.
 - Claude-Desktop-Konfigurationspfad unter Linux (`~/.config/Claude/`) nur aufnehmen,
   wenn Linux-Builds kommen.
 - Metadaten-Schreiben ueber MCP (Korrespondent, Kategorie, Steuerjahr in PDF und Index)

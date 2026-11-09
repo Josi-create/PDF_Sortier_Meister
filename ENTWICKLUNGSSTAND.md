@@ -7,7 +7,7 @@
 > die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
-### Chat und MCP - Ausbau in vier Bausteinen (Plan 2026-11-09, Baustein 1 umgesetzt)
+### Chat und MCP - Ausbau in vier Bausteinen (Plan 2026-11-09, Bausteine 1 und 3 umgesetzt)
 Plan und Entscheidungen: `docs/CHAT_MCP_PLAN.md`; Arbeitsauftraege fuer Claude Code je
 Baustein: `docs/CHAT_MCP_PROMPT.md`. Reihenfolge 1 (MCP-Server auf den Stand des
 Chat-Werkzeugkastens, sqlite3-Leser im Dienst) -> 3 (Einstellungen fuer Claude Desktop/
@@ -24,7 +24,17 @@ per MCP, planen und dann ausfuehren, Protokoll und Rueckgaengig).
   `--config` wird durchgereicht; Dienst-Build schliesst `src.utils.database` und
   `src.ml.classifier` aus. Handshake `python -m src.search.dienst mcp` unveraendert (Median
   1,46 s vorher, 1,42 s nachher). Neue Tests: test_rag_daten, test_werkzeug_kern,
-  test_suche_mcp, test_suche_qtfrei erweitert.
+  test_suche_mcp, test_suche_qtfrei erweitert. Gemergt als PR #215.
+- Baustein 3 (2026-11-09, Branch `feat/mcp-einrichtung`): Einstellungen fuehren zu Claude
+  Desktop und Claude Code - Qt-freie Logik `src/search/mcp_einrichtung.py` (Dienstaufruf gebaut
+  bzw. in der Entwicklung `python packaging/pdfsm_dienst.py mcp` mit PYTHONPATH; Status und
+  Einrichten fuer Claude Code ueber `claude mcp get/add`, fuer Claude Desktop ueber
+  `claude_desktop_config.json` mit Sicherungskopie; Konfiguration auch bei der Store-Fassung unter
+  `%LOCALAPPDATA%\Claude-Data\claude_<id>`), Gruppe „KI-Assistenten (MCP)“ im Reiter „Suche“
+  (Dienstpfad, Werkzeugliste, SQL-Schalter = `chat.sql_erlaubt`, Knoepfe mit Rueckfrage, Claude
+  Code im Hintergrund, Pruefung erst beim Oeffnen des Reiters). `tests/conftest.py` sperrt das
+  echte Claude Code und die echte Claude-Desktop-Konfiguration fuer alle Tests. Neue Tests:
+  test_mcp_einrichtung, test_settings_mcp_gui.
 
 ---
 ### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)
