@@ -128,8 +128,11 @@ def test_claude_code_installiert_ohne_eintrag(claude):
 
 
 def test_claude_code_eingerichtet_und_anderer_pfad(claude):
-    claude["antworten"][("mcp", "get")] = (0, _get_ausgabe(GEBAUT.programm.lower()), "")
+    claude["antworten"][("mcp", "get")] = (0, _get_ausgabe(GEBAUT.programm), "")
     assert me.claude_code_status(GEBAUT).zustand == me.EINGERICHTET
+    if sys.platform == "win32":   # nur Windows ignoriert Gross-/Kleinschreibung in Pfaden
+        claude["antworten"][("mcp", "get")] = (0, _get_ausgabe(GEBAUT.programm.lower()), "")
+        assert me.claude_code_status(GEBAUT).zustand == me.EINGERICHTET
     claude["antworten"][("mcp", "get")] = (0, _get_ausgabe(r"D:\Alt\pdfsm-dienst.exe"), "")
     status = me.claude_code_status(GEBAUT)
     assert status.zustand == me.ANDERER_PFAD and r"D:\Alt\pdfsm-dienst.exe" in status.text
