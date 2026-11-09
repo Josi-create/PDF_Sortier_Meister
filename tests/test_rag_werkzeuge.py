@@ -125,7 +125,9 @@ def test_registriere_vergibt_nummern_dedupe_und_status(tmp_path):
 def test_definitionen_mit_und_ohne_sql(sammlung):
     db, bezug = sammlung
     ohne = Werkzeugkasten(db, ChatConfig(), bezug=bezug)
-    assert [w.name for w in ohne.definitionen()] == ["suche", "dokument_lesen", "ordner_vorschlag", "korrespondent_info"]
+    assert [w.name for w in ohne.definitionen()] == ["suche", "dokument_lesen", "ordner_vorschlag", "korrespondent_info",
+                                                    "vorschlag_verschieben", "vorschlag_umbenennen",
+                                                    "vorschlag_metadaten"]
     mit = Werkzeugkasten(db, ChatConfig(), bezug=bezug, sql_erlaubt=True, sql_zeitlimit_s=7)
     namen = [w.name for w in mit.definitionen()]
     assert namen[-1] == "sql_abfrage"
@@ -511,7 +513,7 @@ def test_ausfuehren_unbekanntes_werkzeug_und_argumente_als_json(sammlung):
     kasten = _kasten(sammlung)
     text = kasten.ausfuehren(WerkzeugAufruf("zaubern", {"a": 1}, id="x1"))
     assert text == ("Fehler: Unbekanntes Werkzeug „zaubern“. Verfügbar: suche, dokument_lesen, ordner_vorschlag, "
-                    "korrespondent_info.")
+                    "korrespondent_info, vorschlag_verschieben, vorschlag_umbenennen, vorschlag_metadaten.")
     assert kasten.protokoll[-1].werkzeug == "zaubern" and kasten.protokoll[-1].argumente == {"a": 1}
 
     # Argumente als JSON-Text (manche Provider liefern sie so) und kaputte Argumente

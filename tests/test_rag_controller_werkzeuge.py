@@ -28,7 +28,8 @@ JAHRESABRECHNUNG = "Stadtwerke_Jahresabrechnung_Strom_2024.pdf"
 STAMMDATEN = "Stadtwerke_Stammdaten.pdf"
 TELEKOM = "Telekom_Rechnung_Internet.pdf"
 FRAGE = "Zu welcher Abnahmestelle gehört dieses Dokument?"
-OHNE_WERKZEUGE = ["suche", "dokument_lesen", "ordner_vorschlag", "korrespondent_info"]
+OHNE_WERKZEUGE = ["suche", "dokument_lesen", "ordner_vorschlag", "korrespondent_info",
+                  "vorschlag_verschieben", "vorschlag_umbenennen", "vorschlag_metadaten"]
 
 
 class _WerkzeugLLM:

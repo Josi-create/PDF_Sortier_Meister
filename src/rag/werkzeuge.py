@@ -19,6 +19,11 @@ Werkzeuge:
 * ``ordner_vorschlag`` - Vorschlaege der Sortierlogik und aehnliche, schon
   einsortierte Dokumente (:func:`src.core.similar_documents.find_similar_documents`).
 * ``korrespondent_info`` - Gelerntes ueber einen Korrespondenten.
+* ``vorschlag_verschieben``, ``vorschlag_umbenennen``, ``vorschlag_metadaten`` -
+  gepruefte Aktionsvorschlaege (Baustein 2, ``docs/CHAT_MCP_PLAN.md`` 5.1). Sie
+  fuehren nichts aus: der Vorschlag landet in ``vorschlaege``, die Oberflaeche
+  zeigt ihn als Knopf, erst der Klick des Nutzers handelt. Hoechstens einer je
+  Art und Dokument (ein spaeterer ersetzt den frueheren).
 * ``sql_abfrage`` - nur wenn freigegeben: lesende SQL-Abfrage auf der
   Suchdatenbank (Nur-Lese-Verbindung, ``query_only``, Schluesselwort-Pruefung,
   Zeitlimit, Zeilen- und Zeichenkappung).
@@ -62,13 +67,18 @@ from src.rag.werkzeug_kern import (  # noqa: F401 - Konstanten auch hier importi
     TYP_ALIASE,
     TYPEN,
     Dokument,
+    Vorschlag,
     WerkzeugFehler,
+    begruendung_kuerzen,
     datum_pruefen,
     korrespondent_info,
     korrespondent_text,
     korrespondenten_suchen,
     liegt_in,
+    metadaten_pruefen,
+    neuer_name_pruefen,
     ordner_vorschlag,
+    quelle_pruefen,
     sql_abfrage,
     sql_beschreibung,
     sql_pruefen,
@@ -77,6 +87,8 @@ from src.rag.werkzeug_kern import (  # noqa: F401 - Konstanten auch hier importi
     such_filter,
     such_kennung,
     text_argument,
+    verschieben_pruefen,
+    vorschlag_aufnehmen,
     zahl_argument,
 )
 from src.search import ausgabe
@@ -94,6 +106,9 @@ WERKZEUG_ALIASE = {
     "ordner": "ordner_vorschlag", "ordnervorschlag": "ordner_vorschlag", "folder_suggestion": "ordner_vorschlag",
     "korrespondent": "korrespondent_info", "korrespondenten_info": "korrespondent_info",
     "sql": "sql_abfrage", "sql_query": "sql_abfrage", "abfrage_sql": "sql_abfrage",
+    "verschieben": "vorschlag_verschieben", "verschieben_vorschlag": "vorschlag_verschieben",
+    "umbenennen": "vorschlag_umbenennen", "umbenennen_vorschlag": "vorschlag_umbenennen",
+    "metadaten": "vorschlag_metadaten", "metadaten_vorschlag": "vorschlag_metadaten",
 }
 
 # Lesen
@@ -175,6 +190,9 @@ class Werkzeugkasten:
 
     Attributes:
         protokoll: Alle Aufrufe als :class:`Schritt`, auch fehlgeschlagene.
+        vorschlaege: Gepruefte Vorschlaege der Vorschlags-Werkzeuge
+            (:class:`~src.rag.werkzeug_kern.Vorschlag`), hoechstens einer je
+            Art und Dokument.
     """
 
     # Alle so viele VM-Schritte prueft der Fortschritts-Handler das SQL-Zeitlimit
@@ -211,6 +229,7 @@ class Werkzeugkasten:
         self.sql_zeitlimit_s = float(sql_zeitlimit_s)
         self.retrieval = retrieval or RetrievalService(db, self.chat_config)
         self.protokoll: list[Schritt] = []
+        self.vorschlaege: list[Vorschlag] = []
         self._dokumente: list[RetrievedDoc] = []
 
     # ------------------------------------------------------------------ #
@@ -384,6 +403,67 @@ class Werkzeugkasten:
                     "required": ["name"],
                 },
             ),
+            Werkzeug(
+                name="vorschlag_verschieben",
+                beschreibung=(
+                    "Dem Nutzer vorschlagen, ein Dokument in einen Ordner zu verschieben (einsortieren). Du führst "
+                    "nichts aus: Der Vorschlag erscheint als Knopf, erst der Klick des Nutzers verschiebt. Nimm "
+                    "nur Ordner aus ordner_vorschlag, aus Suchtreffern oder aus der Liste der Zielordner - erfinde "
+                    "keine. Ein späterer Vorschlag für dasselbe Dokument ersetzt den früheren."
+                ),
+                parameter={
+                    "type": "object",
+                    "properties": {
+                        "dokument": _param("string", "Nummer des Dokuments, z. B. \"D3\"; Standard D1 (Bezugsdokument)."),
+                        "zielordner": _param("string", "Ordner wie in ordner_vorschlag relativ zum Zielordner "
+                                                       "(z. B. 'Ablage/Energie/2024') oder als absoluter Pfad."),
+                        "begruendung": _param("string", "Ein kurzer Satz, warum dieser Ordner passt."),
+                    },
+                    "required": ["zielordner", "begruendung"],
+                },
+            ),
+            Werkzeug(
+                name="vorschlag_umbenennen",
+                beschreibung=(
+                    "Dem Nutzer einen neuen Dateinamen für ein Dokument vorschlagen. Du führst nichts aus: Der "
+                    "Vorschlag erscheint als Knopf, erst der Klick des Nutzers benennt um. Nur der Dateiname, "
+                    "ohne Ordner; die Endung bleibt. Unzulässige Zeichen werden ersetzt. Ein späterer Vorschlag "
+                    "für dasselbe Dokument ersetzt den früheren."
+                ),
+                parameter={
+                    "type": "object",
+                    "properties": {
+                        "dokument": _param("string", "Nummer des Dokuments, z. B. \"D3\"; Standard D1 (Bezugsdokument)."),
+                        "name": _param("string", "Neuer Dateiname, z. B. '2024-03-01 Stadtwerke Jahresabrechnung "
+                                                 "Strom'."),
+                        "begruendung": _param("string", "Ein kurzer Satz, warum dieser Name passt."),
+                    },
+                    "required": ["name", "begruendung"],
+                },
+            ),
+            Werkzeug(
+                name="vorschlag_metadaten",
+                beschreibung=(
+                    "Dem Nutzer Metadaten für ein PDF vorschlagen (Korrespondent, Kategorie, Steuerjahr, Betrag, "
+                    "Datum). Du führst nichts aus: Der Vorschlag erscheint als Knopf, erst der Klick des Nutzers "
+                    "speichert ihn im PDF. Nur Felder angeben, die im Dokument belegt sind. Ein späterer "
+                    "Vorschlag für dasselbe Dokument ersetzt den früheren."
+                ),
+                parameter={
+                    "type": "object",
+                    "properties": {
+                        "dokument": _param("string", "Nummer des Dokuments, z. B. \"D3\"; Standard D1 (Bezugsdokument)."),
+                        "korrespondent": _param("string", "Gegenpartei (Person, Firma, Behörde), Schreibweise wie "
+                                                          "in korrespondent_info, falls bekannt."),
+                        "kategorie": _param("string", "Genau eine Kategorie, z. B. 'Rechnung' oder 'Vertrag'."),
+                        "steuerjahr": _param("string", "Vierstellig, z. B. '2024'."),
+                        "betrag": _param("string", "Bruttobetrag als Zahl, z. B. '480.00'."),
+                        "datum": _param("string", "Datum des Dokuments im Format JJJJ-MM-TT."),
+                        "begruendung": _param("string", "Ein kurzer Satz, woher die Werte stammen."),
+                    },
+                    "required": ["begruendung"],
+                },
+            ),
         ]
         if self.sql_erlaubt:
             werkzeuge.append(Werkzeug(
@@ -423,6 +503,9 @@ class Werkzeugkasten:
             "dokument_lesen": self._dokument_lesen,
             "ordner_vorschlag": self._ordner_vorschlag,
             "korrespondent_info": self._korrespondent_info,
+            "vorschlag_verschieben": self._vorschlag_verschieben,
+            "vorschlag_umbenennen": self._vorschlag_umbenennen,
+            "vorschlag_metadaten": self._vorschlag_metadaten,
             "sql_abfrage": self._sql_abfrage,
         }
         try:
@@ -778,6 +861,50 @@ class Werkzeugkasten:
     def _korrespondenten_suchen(self, name: str) -> list[dict]:
         """Korrespondenten, deren Name oder Alias den Suchbegriff enthaelt; exakte Alias-Treffer zuerst."""
         return korrespondenten_suchen(name, self.db)
+
+    # ------------------------------------------------------------------ #
+    # Vorschlaege: pruefen und merken, nichts ausfuehren (Baustein 2)    #
+    # ------------------------------------------------------------------ #
+
+    def _vorschlag_dokument(self, argumente: dict) -> tuple[RetrievedDoc, Path]:
+        """Dokument eines Vorschlags (Standard: Bezugsdokument) und sein gepruefter Pfad."""
+        kennung = argumente.get("dokument")
+        if kennung in (None, ""):
+            doc = self._bezug_doc()
+            if doc is None or not self._ist_bezug(doc):
+                raise _WerkzeugFehler("Kein Bezugsdokument im Chat - Argument „dokument“ angeben (z. B. \"D3\").")
+        else:
+            doc = self._dokument_aus_kennung(kennung)
+        quelle = quelle_pruefen(doc.file_path, self.wurzeln, self.scan_ordner, ist_bezug=self._ist_bezug(doc))
+        return doc, quelle
+
+    def _vorschlag_merken(self, doc: RetrievedDoc, vorschlag: Vorschlag, was: str) -> tuple[str, str, list[int]]:
+        vorschlag_aufnehmen(self.vorschlaege, vorschlag)
+        text = (f"Vorschlag notiert: [D{doc.index}] {was}. Es wurde nichts ausgeführt - der Nutzer sieht einen "
+                "Knopf und entscheidet selbst. Erwähne den Vorschlag in deiner Antwort kurz.")
+        return text, f"Vorschlag für D{doc.index}: {was}", [doc.index]
+
+    def _vorschlag_verschieben(self, argumente: dict) -> tuple[str, str, list[int]]:
+        doc, quelle = self._vorschlag_dokument(argumente)
+        ziel, anzeige = verschieben_pruefen(quelle, _text(argumente, "zielordner"), self.wurzeln)
+        vorschlag = Vorschlag("verschieben", str(quelle), ziel=str(ziel), anzeige=anzeige,
+                              begruendung=begruendung_kuerzen(_text(argumente, "begruendung")))
+        return self._vorschlag_merken(doc, vorschlag, f"{quelle.name} nach {anzeige} verschieben")
+
+    def _vorschlag_umbenennen(self, argumente: dict) -> tuple[str, str, list[int]]:
+        doc, quelle = self._vorschlag_dokument(argumente)
+        name = neuer_name_pruefen(quelle, _text(argumente, "name"))
+        vorschlag = Vorschlag("umbenennen", str(quelle), name=name,
+                              begruendung=begruendung_kuerzen(_text(argumente, "begruendung")))
+        return self._vorschlag_merken(doc, vorschlag, f"{quelle.name} umbenennen in {name}")
+
+    def _vorschlag_metadaten(self, argumente: dict) -> tuple[str, str, list[int]]:
+        doc, quelle = self._vorschlag_dokument(argumente)
+        if quelle.suffix.lower() != ".pdf":
+            raise _WerkzeugFehler(f"Metadaten lassen sich nur in PDFs speichern, nicht in „{quelle.name}“.")
+        vorschlag = Vorschlag("metadaten", str(quelle), felder=metadaten_pruefen(argumente),
+                              begruendung=begruendung_kuerzen(_text(argumente, "begruendung")))
+        return self._vorschlag_merken(doc, vorschlag, f"Metadaten für {quelle.name}: {vorschlag.felder_text()}")
 
     # ------------------------------------------------------------------ #
     # sql_abfrage                                                        #
