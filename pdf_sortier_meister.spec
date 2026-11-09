@@ -159,6 +159,11 @@ a_dienst = Analysis(
         "sklearn",
         "scipy",
         "sqlalchemy",
+        # Chat-Werkzeuge im MCP-Server (Baustein 1, docs/CHAT_MCP_PLAN.md): src.rag und
+        # src.core.similar_documents erreichen diese Module nur ueber verzoegerte Importe,
+        # die der Dienst nie ausfuehrt (Historie liest src/search/pdfsm_daten.py per sqlite3).
+        "src.utils.database",
+        "src.ml.classifier",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
