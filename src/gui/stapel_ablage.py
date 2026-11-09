@@ -19,13 +19,15 @@ GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import logging
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import QEventLoop, Qt, QTimer
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 
+from src.core import namen_unterscheiden
 from src.core.office_convert import ist_office_datei
 from src.core.pdf_cache import PDFAnalysisResult
 from src.gui import stapel_rueckfrage
@@ -187,11 +189,81 @@ class StapelAblageMixin:
             namen = self._ablage_namen(pfad, folder_path, relative_path,
                                        vorbelegung=vorbelegung, dates=result.dates)
             eintraege.append(StapelEintrag(pfad, namen, text, keywords, dates))
+        self._stapel_unterscheiden(eintraege)
         return eintraege
+
+    def _stapel_unterscheiden(self, eintraege: list[StapelEintrag]) -> None:
+        """Gleiche Namen im Stapel per KI unterscheiden (Issue #221), sonst bleibt es dabei.
+
+        Je Gruppe gleicher Namen ein KI-Aufruf im Hintergrund; das Wort kommt vor die
+        Endung. Ohne KI, bei Fehlern oder "Nicht mehr warten" behalten die Dateien
+        ihre Namen (beim Umbenennen haengt der Dateimanager dann " (1)" usw. an).
+        """
+        gruppen = namen_unterscheiden.doppelte_gruppen([e.namen.new_name for e in eintraege])
+        if not gruppen:
+            return
+        hc = self.hybrid_classifier
+        provider = getattr(hc, "llm_provider", None)
+        try:
+            mit_ki = provider is not None and bool(hc.is_llm_available())
+        except Exception:  # noqa: BLE001 - ohne KI bleiben die Namen
+            mit_ki = False
+        if not mit_ki:
+            return
+        auftraege = [(eintraege[g[0]].namen.new_name, [eintraege[i].text or "" for i in g], tuple(g))
+                     for g in gruppen]
+        ergebnis: dict[tuple, list[str]] = {}
+        fehler: list[str] = []
+
+        def arbeit():
+            for name, texte, gruppe in auftraege:
+                try:
+                    ergebnis[gruppe] = namen_unterscheiden.unterscheiden(provider, name, texte)
+                except Exception as ex:  # noqa: BLE001 - die anderen Gruppen trotzdem
+                    fehler.append(str(ex))
+
+        thread = threading.Thread(target=arbeit, name="namen-unterscheiden", daemon=True)
+        thread.start()
+        thread.join(0.2)
+        if thread.is_alive():
+            anzahl = sum(len(g) for g in gruppen)
+            fortschritt = QProgressDialog(
+                f"Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …",
+                "Nicht mehr warten", 0, 0, self)
+            fortschritt.setWindowTitle("Namensvorschläge")
+            fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
+            fortschritt.setMinimumDuration(0)
+            schleife = QEventLoop()
+            takt = QTimer()
+            takt.setInterval(150)
+            takt.timeout.connect(lambda: (not thread.is_alive() or fortschritt.wasCanceled()) and schleife.quit())
+            fortschritt.canceled.connect(schleife.quit)
+            takt.start()
+            if thread.is_alive():
+                schleife.exec()
+            takt.stop()
+            fortschritt.close()
+            fortschritt.deleteLater()
+
+        for gruppe, woerter in dict(ergebnis).items():
+            for i, wort in zip(gruppe, woerter):
+                n = eintraege[i].namen
+                eintraege[i].namen = replace(
+                    n,
+                    new_name=namen_unterscheiden.wort_einfuegen(n.new_name, wort),
+                    learned_name=(namen_unterscheiden.wort_einfuegen(n.learned_name, wort)
+                                  if n.learned_name else n.learned_name),
+                )
+        if fehler:
+            logger.info("Namen unterscheiden: %s", "; ".join(fehler))
+            self.statusbar.showMessage(f"Gleiche Namen nicht unterschieden: {fehler[0]}", 6000)
 
     def _stapel_rueckfrage(self, titel: str, frage: str, eintraege: list[StapelEintrag],
                            ja_text: str, ja_ohne_namen: str, nur_text: Optional[str]) -> Optional[str]:
         zeilen = [(e.pfad.name, e.namen.new_name if e.namen.name_changed else None) for e in eintraege]
+        if namen_unterscheiden.doppelte_gruppen([neu for _alt, neu in zeilen]):
+            frage += ("\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird "
+                      "„ (1)“, „ (2)“ … angehängt.")
         if any(neu for _alt, neu in zeilen):
             return stapel_rueckfrage.frage(self, titel, frage, zeilen, ja_text, nur_text)
         # Kein Name aendert sich: "Nur verschieben" waere dasselbe
