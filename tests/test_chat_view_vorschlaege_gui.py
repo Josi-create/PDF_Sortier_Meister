@@ -79,7 +79,7 @@ def test_knoepfe_fuer_den_bezug_mit_text_tooltip_und_signal(qtbot, tmp_path):
 
     with qtbot.waitSignal(view.verschieben_requested, timeout=1000) as blocker:
         _knopf(view, "verschieben").click()
-    assert blocker.args == [ordner]
+    assert blocker.args == [ordner, str(bezug)]
     with qtbot.waitSignal(view.umbenennen_requested, timeout=1000) as blocker:
         umbenennen.click()
     assert blocker.args == [str(bezug), "2024 Strom.pdf"]
@@ -88,7 +88,7 @@ def test_knoepfe_fuer_den_bezug_mit_text_tooltip_und_signal(qtbot, tmp_path):
     assert blocker.args == [str(bezug), {"steuerjahr": "2024"}]
 
 
-def test_anderes_dokument_traegt_seinen_namen_und_eigenes_signal(qtbot, tmp_path):
+def test_anderes_dokument_traegt_seinen_namen_und_seinen_pfad_im_signal(qtbot, tmp_path):
     view = _view(qtbot)
     view.set_bezug(tmp_path / "Scan" / "Neu.pdf")
     alt = str(tmp_path / "Ablage" / "Alt.pdf")
@@ -99,11 +99,9 @@ def test_anderes_dokument_traegt_seinen_namen_und_eigenes_signal(qtbot, tmp_path
     knopf = _knopf(view, "verschieben", alt)
     assert knopf.text() == "📁 Alt.pdf: Nach Ablage/Telekom verschieben"
     assert alt in knopf.toolTip() and ziel in knopf.toolTip() and "Telekom-Rechnung" in knopf.toolTip()
-    bezug_signale = []
-    view.verschieben_requested.connect(bezug_signale.append)
-    with qtbot.waitSignal(view.verschieben_dokument_requested, timeout=1000) as blocker:
+    with qtbot.waitSignal(view.verschieben_requested, timeout=1000) as blocker:
         knopf.click()
-    assert blocker.args == [alt, ziel] and bezug_signale == []
+    assert blocker.args == [ziel, alt]
 
 
 def test_ohne_bezug_kein_bezug_knopf_aber_vorschlaege(qtbot, tmp_path):
@@ -248,6 +246,23 @@ def test_verschieben_eines_anderen_dokuments_behaelt_die_auswahl(main_window, fr
     assert main_window.chat_view.bezug == scan / "a.pdf"
     assert not _knopf(main_window.chat_view, "verschieben").isEnabled()
     assert main_window._undo_stack[-1]["type"] == "move"
+
+
+def test_verschieben_signal_ohne_quelle_meint_den_bezug(main_window, fresh_singletons):
+    """Leere Quelle (wie bisher nur der Ordner): das Bezugsdokument wird verschoben."""
+    tmp_path = fresh_singletons["tmp_path"]
+    scan = _make_scan_folder(tmp_path, ["a.pdf", "b.pdf"])
+    ziel = tmp_path / "Ablage" / "Energie"
+    ziel.mkdir(parents=True)
+    main_window.folder_manager.add_folder(tmp_path / "Ablage")
+    main_window._navigate_to_folder(scan)
+    _prime_cache(main_window, [scan / "a.pdf", scan / "b.pdf"])
+    main_window.on_pdf_clicked(scan / "a.pdf")
+    main_window.show_chat_tab()
+
+    main_window.chat_view.verschieben_requested.emit(str(ziel), "")
+
+    assert (ziel / "a.pdf").exists() and main_window.chat_view.bezug is None
 
 
 def test_quelle_im_ordner_anzeigen_aus_dem_chat(main_window, fresh_singletons):

@@ -117,7 +117,7 @@ def test_verschieben_knopf_und_ordner_belegt_signal(qtbot, tmp_path):
     assert belegt == [(ordner, "belegt durch [2]")]
     with qtbot.waitSignal(view.verschieben_requested, timeout=1000) as blocker:
         knoepfe[0].click()
-    assert blocker.args == [ordner]
+    assert blocker.args == [ordner, str(tmp_path / "Scan" / "Neu.pdf")]
 
 
 def test_kein_knopf_ohne_bezug_oder_ohne_ordner(qtbot, tmp_path):

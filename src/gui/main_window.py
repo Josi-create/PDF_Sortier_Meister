@@ -338,7 +338,6 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.chat_view.verschieben_requested.connect(self._on_chat_verschieben)
         self.chat_view.ordner_belegt.connect(self._on_chat_ordner_belegt)
         # Baustein 2: weitere Vorschlaege des Chats und "Im Ordner anzeigen" fuer Quellen
-        self.chat_view.verschieben_dokument_requested.connect(self._on_chat_vorschlag_verschieben)
         self.chat_view.umbenennen_requested.connect(self._on_chat_umbenennen)
         self.chat_view.metadaten_requested.connect(self._on_chat_metadaten)
         self.chat_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
@@ -539,15 +538,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Wechselt in der linken Spalte auf den Chat."""
         self.left_tabs.setCurrentWidget(self.chat_view)
 
-    def _on_chat_verschieben(self, ordner_pfad: str) -> None:
-        """Knopf "Nach … verschieben" im Chat (Phase 3): das Bezugsdokument in den Ordner verschieben.
+    def _on_chat_verschieben(self, ordner_pfad: str, quelle: str = "") -> None:
+        """Knopf "Nach … verschieben" im Chat: ``quelle`` (Standard: Bezug) in den Ordner verschieben.
 
-        Laeuft ueber denselben Weg wie ein Klick auf den Zielordner (Rueckfrage,
-        Lernen, Rueckgaengig). Danach zeigt die linke Spalte wieder die PDFs;
-        der Chat bleibt mit seinem Verlauf im Hintergrund, nur der Bezug ist
-        weg (die Datei liegt nicht mehr im Scan-Ordner).
+        Das Bezugsdokument (Phase 3) laeuft ueber denselben Weg wie ein Klick auf
+        den Zielordner (Rueckfrage, Lernen, Rueckgaengig). Danach zeigt die linke
+        Spalte wieder die PDFs; der Chat bleibt mit seinem Verlauf im
+        Hintergrund, nur der Bezug ist weg (die Datei liegt nicht mehr im
+        Scan-Ordner). Ein anderes Dokument (Baustein 2) geht ueber
+        :meth:`_chat_datei_verschieben`.
         """
         bezug = self.chat_view.bezug
+        if quelle and not (bezug and Path(bezug) == Path(quelle)):
+            if ordner_pfad:
+                self._chat_datei_verschieben(Path(quelle), Path(ordner_pfad))
+            return
         if not bezug or not ordner_pfad:
             return
         bezug = Path(bezug)
@@ -565,14 +570,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     _CHAT_METADATEN = {"korrespondent": "korrespondent", "kategorie": "subject", "steuerjahr": "steuerjahr",
                        "betrag": "betrag_brutto", "datum": "buchungsdatum"}
 
-    def _on_chat_vorschlag_verschieben(self, quelle: str, ordner_pfad: str) -> None:
+    def _chat_datei_verschieben(self, pfad: Path, ziel: Path) -> None:
         """Vorschlag „Nach … verschieben“ fuer ein anderes Dokument als den Bezug (Baustein 2).
 
         Die ausgewaehlte PDF geht ueber den Weg des Zielordner-Klicks, jede andere
         Datei ueber das Verschieben mehrerer Dateien (Rueckfrage, Lernen aus dem
         gecachten Text, Rueckgaengig) - ohne die Auswahl aufzuheben.
         """
-        pfad, ziel = Path(quelle), Path(ordner_pfad)
         if not pfad.is_file():
             self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
             return
@@ -585,7 +589,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.move_multiple_pdfs_to_folder([pfad], ziel, auswahl_behalten=True)
         if not pfad.exists():
             neu = ziel / pfad.name
-            self.chat_view.vorschlag_erledigt("verschieben", quelle, str(neu) if neu.exists() else "")
+            self.chat_view.vorschlag_erledigt("verschieben", str(pfad), str(neu) if neu.exists() else "")
 
     def _on_chat_umbenennen(self, quelle: str, name: str) -> None:
         """Vorschlag „Umbenennen in …“ aus dem Chat (Baustein 2).

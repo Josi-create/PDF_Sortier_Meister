@@ -146,14 +146,12 @@ class ChatView(QWidget):
     # Phase 5 (PDFsuche-Integration): PDF direkt auf der Seite der Fundstelle oeffnen
     open_pdf_page_requested = pyqtSignal(str, int)
     # Phase 3 (Issue #166/#167): "Nach … verschieben" unter einer Antwort, deren
-    # Belege in einem Zielordner liegen (absoluter Ordnerpfad); und derselbe
-    # Ordner als Vorschlag fuer das Detail-Panel (Pfad, Begruendung)
-    verschieben_requested = pyqtSignal(str)
+    # Belege in einem Zielordner liegen; seit Baustein 2 mit dem Quellpfad
+    # (absoluter Ordner, Datei - der Bezug oder ein anderes Dokument). Dazu
+    # derselbe Ordner als Vorschlag fuer das Detail-Panel (Pfad, Begruendung)
+    verschieben_requested = pyqtSignal(str, str)
     ordner_belegt = pyqtSignal(str, str)
-    # Baustein 2: Vorschlaege des Modells, ausgeloest erst per Klick. Das
-    # Bezugsdokument verschiebt weiter verschieben_requested (Ordner); andere
-    # Dokumente verschieben_dokument_requested (Quelle, Ordner)
-    verschieben_dokument_requested = pyqtSignal(str, str)
+    # Baustein 2: weitere Vorschlaege des Modells, ausgeloest erst per Klick
     umbenennen_requested = pyqtSignal(str, str)   # Quelle, neuer Dateiname
     metadaten_requested = pyqtSignal(str, dict)   # Quelle, Felder (korrespondent, kategorie, ...)
     # „Im Ordner anzeigen“ fuer eine Quelle - wie im Reiter Suche
@@ -1102,11 +1100,7 @@ class ChatView(QWidget):
         art = knopf.property("vorschlag_art")
         quelle = str(knopf.property("vorschlag_quelle") or "")
         if art == "verschieben":
-            ziel = str(knopf.property("ordner_pfad") or "")
-            if self._ist_bezug(quelle):
-                self.verschieben_requested.emit(ziel)
-            else:
-                self.verschieben_dokument_requested.emit(quelle, ziel)
+            self.verschieben_requested.emit(str(knopf.property("ordner_pfad") or ""), quelle)
         elif art == "umbenennen":
             self.umbenennen_requested.emit(quelle, str(knopf.property("neuer_name") or ""))
         elif art == "metadaten":
