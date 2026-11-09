@@ -22,6 +22,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   gefüllt und wurden leicht als „aus“ gelesen – z. B. „Ordnerstruktur im
   Namen“, wodurch beim Verschieben unerwartet die Initialen vor dem
   Dateinamen standen.
+- **Einstellungen › Dateinamen › „Beim Verschieben in einen Ordner“ klarer
+  beschriftet:** statt „Dateinamen beibehalten“ heißt es jetzt „Nichts
+  ergänzen – Name wie vorgeschlagen bzw. eingegeben“, die zweite Option „Nach
+  Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)“. Beide
+  gehen vom Namen im Feld „Neuer Dateiname“ aus (KI-Vorschlag oder eigene
+  Eingabe) – der alte Text klang, als würde der KI-Vorschlag verworfen.
 
 ## [0.26.0] - 2026-11-08
 
