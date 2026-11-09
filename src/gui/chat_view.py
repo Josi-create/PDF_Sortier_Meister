@@ -14,6 +14,12 @@ Dokumente nach ``extra["status"]`` (Zitiert / Gelesen / Gefunden), und
 ein eigenes Chat-Modell kommt ueber ``chat_provider_quelle`` vom
 MainWindow (``provider_geaendert()`` nach geaenderten Einstellungen).
 
+Baustein 2 (``docs/CHAT_MCP_PLAN.md``): Vorschlaege des Modells
+(``RAGResponse.vorschlaege``) erscheinen als Knoepfe unter der Antwort -
+verschieben, umbenennen, Metadaten uebernehmen. Erst der Klick loest ein
+Signal aus; das MainWindow fuehrt ueber die vorhandenen Ablaeufe aus und
+meldet mit :meth:`ChatView.vorschlag_erledigt` zurueck.
+
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
@@ -41,6 +47,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
     QToolButton,
+    QMenu,
 )
 
 from src.gui.chat_worker import ChatWorker
@@ -72,6 +79,11 @@ _WERKZEUG_SYMBOLE = {
     "sql_abfrage": "🗄",
 }
 _SCHRITT_SYMBOL_STANDARD = "🔧"
+
+# Vorschlags-Knoepfe (Baustein 2): Text hoechstens so lang - die kompakte Spalte
+# ist schmal; der volle Text steht im Tooltip
+_VORSCHLAG_TEXT_MAX = 60
+_VORSCHLAG_ERLEDIGT = "✓ "
 
 # Quellen-Panel: Gruppen nach extra["status"] der Dokumente (Issue #166/#167),
 # in dieser Reihenfolge; Dokumente ohne bekannten Status zaehlen als "gefunden".
@@ -138,6 +150,14 @@ class ChatView(QWidget):
     # Ordner als Vorschlag fuer das Detail-Panel (Pfad, Begruendung)
     verschieben_requested = pyqtSignal(str)
     ordner_belegt = pyqtSignal(str, str)
+    # Baustein 2: Vorschlaege des Modells, ausgeloest erst per Klick. Das
+    # Bezugsdokument verschiebt weiter verschieben_requested (Ordner); andere
+    # Dokumente verschieben_dokument_requested (Quelle, Ordner)
+    verschieben_dokument_requested = pyqtSignal(str, str)
+    umbenennen_requested = pyqtSignal(str, str)   # Quelle, neuer Dateiname
+    metadaten_requested = pyqtSignal(str, dict)   # Quelle, Felder (korrespondent, kategorie, ...)
+    # „Im Ordner anzeigen“ fuer eine Quelle - wie im Reiter Suche
+    im_ordner_anzeigen_requested = pyqtSignal(Path)
 
     def __init__(self, db, hybrid_classifier, chat_config, parent=None, kompakt: bool = False):
         """
@@ -250,6 +270,8 @@ class ChatView(QWidget):
 
         self.sources_list = QListWidget()
         self.sources_list.itemClicked.connect(self._on_source_clicked)
+        self.sources_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.sources_list.customContextMenuRequested.connect(self._quellen_menue_zeigen)
         sources_layout.addWidget(self.sources_list, 1)
 
         self.split.addWidget(self.sources_panel)
@@ -579,7 +601,7 @@ class ChatView(QWidget):
                 "assistant",
                 citations=response.citations,
             )
-            self._zeige_ordner_vorschlag(response)
+            self._zeige_vorschlaege(response)
             if getattr(response, "has_hallucinated_citations", False):
                 self._add_bubble(
                     "⚠ Einige Quellenangaben konnten nicht verifiziert "
@@ -966,38 +988,151 @@ class ChatView(QWidget):
             bubble.setMaximumWidth(720)
 
     # ------------------------------------------------------------------ #
-    # Zielordner der Belege (Phase 3)                                    #
+    # Vorschlaege unter der Antwort (Phase 3, Baustein 2)                #
     # ------------------------------------------------------------------ #
 
-    def _zeige_ordner_vorschlag(self, response) -> None:
-        """Knopf "Nach … verschieben" unter einer Antwort, deren Belege in einem Zielordner liegen.
+    def _zeige_vorschlaege(self, response) -> None:
+        """Knoepfe fuer die Vorschlaege einer Antwort; erst der Klick loest etwas aus.
 
-        Gleichzeitig geht ``ordner_belegt`` ans Hauptfenster, damit der Ordner
-        im Detail-Panel als Vorschlag erscheint. Nur mit Bezugsdokument - der
-        Knopf verschiebt genau dieses.
+        * Bezugsdokument verschieben (Phase 3): „📁 Nach <Ordner> verschieben“
+          aus ``ordner_vorschlag`` - dem Verschiebe-Vorschlag des Modells oder
+          dem Ordner der Belege. Dazu geht ``ordner_belegt`` ans Hauptfenster
+          (Vorschlag im Detail-Panel). Nur mit Bezugsdokument.
+        * Je weiterem Vorschlag aus ``response.vorschlaege`` ein Knopf:
+          verschieben (anderes Dokument), „✏️ Umbenennen in <Name>“,
+          „🏷️ Metadaten übernehmen: <Felder>“. Bei einem anderen Dokument als
+          dem Bezug steht dessen Name davor.
+
+        Tooltip: voller Pfad und Begruendung. Die Knoepfe tragen Art und
+        Quelle als Property; :meth:`vorschlag_erledigt` sperrt sie danach.
         """
-        pfad = str(getattr(response, "ordner_vorschlag", "") or "")
-        if not pfad or self._bezug is None:
+        knoepfe: list[QPushButton] = []
+        ordner = str(getattr(response, "ordner_vorschlag", "") or "")
+        if ordner and self._bezug is not None:
+            anzeige = str(getattr(response, "ordner_anzeige", "") or "") or Path(ordner).name
+            begruendung = str(getattr(response, "ordner_begruendung", "") or "")
+            self.ordner_belegt.emit(ordner, begruendung)
+            knopf = self._vorschlag_knopf(
+                f"📁 Nach {anzeige} verschieben", f"{self._bezug.name} nach {ordner} verschieben",
+                begruendung, art="verschieben", quelle=str(self._bezug),
+            )
+            knopf.setProperty("ordner_pfad", ordner)
+            knoepfe.append(knopf)
+        for vorschlag in list(getattr(response, "vorschlaege", None) or []):
+            knopf = self._knopf_fuer_vorschlag(vorschlag, bezug_ordner=ordner)
+            if knopf is not None:
+                knoepfe.append(knopf)
+        if not knoepfe:
             return
-        anzeige = str(getattr(response, "ordner_anzeige", "") or "") or Path(pfad).name
-        begruendung = str(getattr(response, "ordner_begruendung", "") or "")
-        self.ordner_belegt.emit(pfad, begruendung)
-
-        knopf = QPushButton(f"📁 Nach {anzeige} verschieben")
-        knopf.setProperty("ordner_pfad", pfad)
-        knopf.setToolTip(f"{self._bezug.name} nach {pfad} verschieben"
-                         + (f"\n{begruendung}" if begruendung else ""))
-        knopf.setStyleSheet("QPushButton { padding: 4px 10px; }")
-        knopf.clicked.connect(lambda _checked=False, p=pfad: self.verschieben_requested.emit(p))
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(knopf)
-        row.addStretch(1)
+        spalte = QVBoxLayout()
+        spalte.setContentsMargins(0, 0, 0, 0)
+        spalte.setSpacing(4)
+        for knopf in knoepfe:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(knopf)
+            row.addStretch(1)
+            spalte.addLayout(row)
         wrapper = QWidget()
-        wrapper.setProperty("ordner_vorschlag", True)
-        wrapper.setLayout(row)
+        wrapper.setProperty("vorschlaege", True)
+        wrapper.setProperty("ordner_vorschlag", bool(ordner and self._bezug is not None))
+        wrapper.setLayout(spalte)
         self.history_layout.insertWidget(self.history_layout.count() - 1, wrapper)
         self._scroll_to_bottom()
+
+    def _ist_bezug(self, pfad) -> bool:
+        from src.rag.bezug import gleicher_pfad
+        return self._bezug is not None and gleicher_pfad(pfad, self._bezug)
+
+    def _knopf_fuer_vorschlag(self, vorschlag, bezug_ordner: str = "") -> Optional[QPushButton]:
+        """Knopf fuer einen :class:`~src.rag.werkzeug_kern.Vorschlag`; None fuer bereits gezeigte oder unbekannte."""
+        from src.rag.bezug import gleicher_pfad
+
+        art = str(getattr(vorschlag, "art", "") or "")
+        quelle = str(getattr(vorschlag, "quelle", "") or "")
+        if not quelle:
+            return None
+        begruendung = str(getattr(vorschlag, "begruendung", "") or "")
+        ist_bezug = self._ist_bezug(quelle)
+        datei = Path(quelle).name
+        vor = "" if ist_bezug else f"{datei}: "
+        if art == "verschieben":
+            ziel = str(getattr(vorschlag, "ziel", "") or "")
+            if not ziel or (ist_bezug and bezug_ordner and gleicher_pfad(ziel, bezug_ordner)):
+                return None  # der Bezug-Knopf oben zeigt ihn schon
+            anzeige = str(getattr(vorschlag, "anzeige", "") or "") or Path(ziel).name
+            knopf = self._vorschlag_knopf(f"📁 {vor}Nach {anzeige} verschieben", f"{quelle} nach {ziel} verschieben",
+                                          begruendung,
+                                          art=art, quelle=quelle)
+            knopf.setProperty("ordner_pfad", ziel)
+            return knopf
+        if art == "umbenennen":
+            name = str(getattr(vorschlag, "name", "") or "")
+            if not name:
+                return None
+            knopf = self._vorschlag_knopf(f"✏️ {vor}Umbenennen in {name}", f"{quelle} umbenennen in {name}",
+                                          begruendung, art=art, quelle=quelle)
+            knopf.setProperty("neuer_name", name)
+            return knopf
+        if art == "metadaten":
+            felder = dict(getattr(vorschlag, "felder", None) or {})
+            if not felder:
+                return None
+            felder_text = vorschlag.felder_text() if hasattr(vorschlag, "felder_text") else ", ".join(
+                f"{k} {v}" for k, v in felder.items())
+            knopf = self._vorschlag_knopf(f"🏷️ {vor}Metadaten übernehmen: {felder_text}",
+                                          f"In {quelle} speichern:\n{felder_text}", begruendung,
+                                          art=art, quelle=quelle)
+            knopf.setProperty("felder", felder)
+            return knopf
+        return None
+
+    def _vorschlag_knopf(self, text: str, was: str, begruendung: str, *, art: str, quelle: str) -> QPushButton:
+        kurz = text if len(text) <= _VORSCHLAG_TEXT_MAX else text[:_VORSCHLAG_TEXT_MAX - 1] + "…"
+        knopf = QPushButton(kurz)
+        knopf.setToolTip(was + (f"\n{begruendung}" if begruendung else ""))
+        knopf.setStyleSheet("QPushButton { padding: 4px 10px; }")
+        knopf.setProperty("vorschlag_art", art)
+        knopf.setProperty("vorschlag_quelle", quelle)
+        knopf.clicked.connect(lambda _checked=False, k=knopf: self._vorschlag_ausloesen(k))
+        return knopf
+
+    def _vorschlag_ausloesen(self, knopf: QPushButton) -> None:
+        """Klick auf einen Vorschlag: das passende Signal mit den aktuellen Werten des Knopfs."""
+        art = knopf.property("vorschlag_art")
+        quelle = str(knopf.property("vorschlag_quelle") or "")
+        if art == "verschieben":
+            ziel = str(knopf.property("ordner_pfad") or "")
+            if self._ist_bezug(quelle):
+                self.verschieben_requested.emit(ziel)
+            else:
+                self.verschieben_dokument_requested.emit(quelle, ziel)
+        elif art == "umbenennen":
+            self.umbenennen_requested.emit(quelle, str(knopf.property("neuer_name") or ""))
+        elif art == "metadaten":
+            self.metadaten_requested.emit(quelle, dict(knopf.property("felder") or {}))
+
+    def vorschlag_knoepfe(self) -> list[QPushButton]:
+        """Alle Vorschlags-Knoepfe im Verlauf (fuer MainWindow und Tests)."""
+        return [k for k in self.findChildren(QPushButton) if k.property("vorschlag_art")]
+
+    def vorschlag_erledigt(self, art: str, quelle: str, neuer_pfad: str = "") -> None:
+        """Nach der Ausfuehrung: passende Knoepfe sperren; nach Umbenennen/Verschieben die Quelle nachziehen.
+
+        Die anderen Vorschlaege fuer dieselbe Datei zeigen danach auf ``neuer_pfad``.
+        """
+        from src.rag.bezug import gleicher_pfad
+
+        for knopf in self.vorschlag_knoepfe():
+            if not gleicher_pfad(knopf.property("vorschlag_quelle"), quelle):
+                continue
+            if knopf.property("vorschlag_art") == art:
+                knopf.setEnabled(False)
+                if not knopf.text().startswith(_VORSCHLAG_ERLEDIGT):
+                    knopf.setText(_VORSCHLAG_ERLEDIGT + knopf.text())
+                knopf.setToolTip(knopf.toolTip() + "\n(erledigt)")
+            elif neuer_pfad:
+                knopf.setProperty("vorschlag_quelle", str(neuer_pfad))
 
     def _bezug_fuer_frage(self) -> Optional[Bezug]:
         """Bezug fuer den naechsten Aufruf, mit den Daten aus der GUI (falls bekannt)."""
@@ -1072,6 +1207,33 @@ class ChatView(QWidget):
             )
         item.setToolTip(tooltip)
         return item
+
+    def quellen_menue(self, item: Optional[QListWidgetItem]) -> Optional[QMenu]:
+        """Kontextmenue einer Quelle (ohne exec, auch fuer Tests); None fuer Kopfzeilen.
+
+        „Öffnen“ wie ein Klick; „📂 Im Ordner anzeigen“ (Ordner in „PDFs“
+        oeffnen, Datei auswaehlen) fuer vorhandene PDFs, Word-, Excel- und
+        Bilddateien - wie im Reiter Suche.
+        """
+        if item is None or item.data(_ROLLE_KOPFZEILE):
+            return None
+        pfad = self._resolve_file_path(item.data(Qt.ItemDataRole.UserRole) or "",
+                                       item.data(Qt.ItemDataRole.UserRole + 1) or "")
+        menue = QMenu(self)
+        menue.addAction("Öffnen", lambda: self._on_source_clicked(item))
+        try:
+            from src.core.office_convert import ist_sortierbar
+            sortierbar = bool(pfad) and ist_sortierbar(pfad) and Path(pfad).is_file()
+        except Exception:  # noqa: BLE001 - nur ein Menuepunkt weniger
+            sortierbar = False
+        if sortierbar:
+            menue.addAction("📂 Im Ordner anzeigen", lambda: self.im_ordner_anzeigen_requested.emit(Path(pfad)))
+        return menue
+
+    def _quellen_menue_zeigen(self, pos) -> None:
+        menue = self.quellen_menue(self.sources_list.itemAt(pos))
+        if menue is not None:
+            menue.exec(self.sources_list.viewport().mapToGlobal(pos))
 
     def _on_source_clicked(self, item: QListWidgetItem) -> None:
         """Oeffnet die zum Quellen-Eintrag gehoerende PDF.
