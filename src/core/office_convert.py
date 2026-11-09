@@ -603,11 +603,14 @@ def umwandler_verfuegbar(endung: str) -> bool:
 
 # --------------------------------------------------------------- macOS: Word/Excel
 MAC_OFFICE_TIMEOUT_S = 180
+# Art -> (Anzeigename, Bundle-IDs). Gesucht und gesteuert wird ueber die Bundle-ID,
+# nicht ueber den Namen: Pages/Numbers heissen seit 15.x "Pages Creator Studio"
+# usw. und haben neue IDs (vorher com.apple.iWork.*).
 _MAC_APPS = {
-    "word": ("Microsoft Word", "com.microsoft.Word"),
-    "excel": ("Microsoft Excel", "com.microsoft.Excel"),
-    "pages": ("Pages", "com.apple.iWork.Pages"),
-    "numbers": ("Numbers", "com.apple.iWork.Numbers"),
+    "word": ("Microsoft Word", ("com.microsoft.Word",)),
+    "excel": ("Microsoft Excel", ("com.microsoft.Excel",)),
+    "pages": ("Pages", ("com.apple.Pages", "com.apple.iWork.Pages")),
+    "numbers": ("Numbers", ("com.apple.Numbers", "com.apple.iWork.Numbers")),
 }
 PAGES_ENDUNGEN = (".docx",)  # Pages oeffnet kein .odt
 NUMBERS_ENDUNGEN = (".xlsx",)
@@ -628,11 +631,11 @@ on run argv
   set quelle to item 2 of argv
   set ziel to item 3 of argv
   with timeout of {timeout} seconds
-    tell application "{app}" to open (POSIX file quelle)
+    tell application id "{bid}" to open (POSIX file quelle)
     set doc to missing value
     repeat {versuche} times
       try
-        tell application "{app}" to set doc to {objekt} dname
+        tell application id "{bid}" to set doc to {objekt} dname
       on error
         set doc to missing value
       end try
@@ -641,7 +644,7 @@ on run argv
       delay 0.2
     end repeat
     if doc is missing value then error "{app} hat die Datei nicht geöffnet (vielleicht ist dort gerade ein Dialog offen)." number 9001
-    tell application "{app}"
+    tell application id "{bid}"
       try
         {speichern}
       on error m number n
@@ -663,23 +666,24 @@ on run argv
   set quelle to item 2 of argv
   set ziel to item 3 of argv
   with timeout of {timeout} seconds
-    set doc to missing value
-    try
-      tell application "{app}" to set doc to open (POSIX file quelle)
-    end try
-    repeat {versuche} times
-      if doc is not missing value then exit repeat
+    -- alles in einem tell-Block: Numbers scheitert, wenn das Dokument ausserhalb
+    -- mit "missing value" verglichen wird ("... kann nicht in Typ specifier umgewandelt werden")
+    tell application id "{bid}"
+      set doc to missing value
       try
-        tell application "{app}"
+        set doc to open (POSIX file quelle)
+      end try
+      set versuche to 0
+      repeat while doc is missing value and versuche < {versuche}
+        set versuche to versuche + 1
+        try
           repeat with d in documents
             if name of d starts with dstamm then set doc to contents of d
           end repeat
-        end tell
-      end try
-      if doc is missing value then delay 0.2
-    end repeat
-    if doc is missing value then error "{app} hat die Datei nicht geöffnet (vielleicht ist dort gerade ein Dialog offen)." number 9001
-    tell application "{app}"
+        end try
+        if doc is missing value then tell current application to delay 0.2
+      end repeat
+      if doc is missing value then error "{app} hat die Datei nicht geöffnet (vielleicht ist dort gerade ein Dialog offen)." number 9001
       try
         export doc to (POSIX file ziel) as PDF
       on error m number n
@@ -701,24 +705,55 @@ _MAC_SKRIPT = {
 }
 
 
-def _mac_app_pfad(name: str) -> Optional[Path]:
-    for basis in (Path("/Applications"), Path.home() / "Applications"):
-        pfad = basis / f"{name}.app"
-        if pfad.exists():
-            return pfad
-    return None
+_BUNDLE_CACHE: dict[str, tuple[float, Optional[str]]] = {}
+_BUNDLE_CACHE_S = 60.0  # Installation waehrend des Laufs wird nach spaetestens einer Minute erkannt
+
+
+def _installierte_bundle_ids(basen: Optional[list[Path]] = None) -> dict[str, Path]:
+    """Bundle-ID -> .app in /Applications und ~/Applications (eine Ebene tief)."""
+    import plistlib
+
+    gefunden: dict[str, Path] = {}
+    for basis in basen or (Path("/Applications"), Path.home() / "Applications"):
+        try:
+            apps = list(basis.glob("*.app"))
+        except OSError:
+            continue
+        for app in apps:
+            try:
+                with open(app / "Contents" / "Info.plist", "rb") as f:
+                    bid = plistlib.load(f).get("CFBundleIdentifier")
+            except Exception:  # noqa: BLE001 - fremde, kaputte Info.plist (z.B. ExpatError): ueberspringen
+                continue
+            if bid:
+                gefunden.setdefault(bid, app)
+    return gefunden
+
+
+def _mac_bundle_id(art: str) -> Optional[str]:
+    """Bundle-ID des installierten Programms (Word, Excel, Pages, Numbers) oder None."""
+    import time
+
+    jetzt = time.monotonic()
+    zwischen = _BUNDLE_CACHE.get(art)
+    if zwischen and jetzt - zwischen[0] < _BUNDLE_CACHE_S:
+        return zwischen[1]
+    installiert = _installierte_bundle_ids()
+    bid = next((b for b in _MAC_APPS[art][1] if b in installiert), None)
+    _BUNDLE_CACHE[art] = (jetzt, bid)
+    return bid
 
 
 def mac_office_verfuegbar(art: str) -> bool:
-    """Word (``art="word"``) bzw. Excel (``"excel"``) auf dem Mac installiert?"""
-    return sys.platform == "darwin" and _mac_app_pfad(_MAC_APPS[art][0]) is not None
+    """Word/Excel/Pages/Numbers (``art``) auf dem Mac installiert?"""
+    return sys.platform == "darwin" and _mac_bundle_id(art) is not None
 
 
-def _mac_app_laeuft(name: str) -> bool:
+def _mac_app_laeuft(bid: str) -> bool:
     """Laeuft das Programm schon? (``is running`` startet es nicht.)"""
     try:
         r = subprocess.run(
-            ["osascript", "-e", f'application "{name}" is running'],
+            ["osascript", "-e", f'application id "{bid}" is running'],
             capture_output=True, text=True, timeout=15,
         )
         return r.stdout.strip() == "true"
@@ -747,7 +782,10 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
     """Word/Excel auf dem Mac per AppleScript; Arbeitskopie im Container des Programms."""
     import uuid
 
-    programm, bundle = _MAC_APPS[art]
+    programm = _MAC_APPS[art][0]
+    bundle = _mac_bundle_id(art)
+    if not bundle:
+        raise UmwandlungFehler(f"{programm} ist nicht (mehr) installiert.")
     container_tmp = Path.home() / "Library" / "Containers" / bundle / "Data" / "tmp"
     container_tmp.mkdir(parents=True, exist_ok=True)
     arbeit = Path(tempfile.mkdtemp(prefix="pdfsm-", dir=container_tmp))
@@ -755,13 +793,13 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
     name = f"pdfsm-{uuid.uuid4().hex[:12]}{quelle.suffix.lower()}"
     kopie = arbeit / name
     ziel = arbeit / (Path(name).stem + ".pdf")
-    war_offen = _mac_app_laeuft(programm)
+    war_offen = _mac_app_laeuft(bundle)
     try:
         shutil.copy2(quelle, kopie)
         if not war_offen:  # versteckt und im Hintergrund starten
-            subprocess.run(["open", "-g", "-j", "-a", programm], capture_output=True, timeout=60)
-        skript = _MAC_SKRIPT[art].replace("{timeout}", str(MAC_OFFICE_TIMEOUT_S)).replace(
-            "{versuche}", str(_MAC_OEFFNEN_WARTEN_S * 5))
+            subprocess.run(["open", "-g", "-j", "-b", bundle], capture_output=True, timeout=60)
+        skript = (_MAC_SKRIPT[art].replace("{timeout}", str(MAC_OFFICE_TIMEOUT_S))
+                  .replace("{versuche}", str(_MAC_OEFFNEN_WARTEN_S * 5)).replace("{bid}", bundle))
         try:
             lauf = subprocess.run(
                 ["osascript", "-", Path(name).stem if art in ("pages", "numbers") else name, str(kopie), str(ziel)],
@@ -777,7 +815,7 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
     finally:
         if not war_offen:
             subprocess.run(
-                ["osascript", "-e", f'tell application "{programm}" to quit saving no'],
+                ["osascript", "-e", f'tell application id "{bundle}" to quit saving no'],
                 capture_output=True, timeout=60,
             )
         shutil.rmtree(arbeit, ignore_errors=True)

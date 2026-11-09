@@ -13,6 +13,7 @@ def mac(tmp_path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setattr(oc.Path, "home", classmethod(lambda cls: home))
     monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: True)
+    monkeypatch.setattr(oc, "_mac_bundle_id", lambda art: oc._MAC_APPS[art][1][0])
     monkeypatch.setattr(oc, "word_com_verfuegbar", lambda: False)
     monkeypatch.setattr(oc, "excel_com_verfuegbar", lambda: False)
     monkeypatch.setattr(oc, "finde_libreoffice", lambda: None)
@@ -58,7 +59,7 @@ def test_nicht_laufendes_programm_startet_versteckt_und_endet(tmp_path, mac):
     from tests.test_office_convert import docx_bauen  # noqa: F401
     erg = oc.umwandeln(_docx(tmp_path))
     assert erg.werkzeug == "Word"
-    assert ["open", "-g", "-j", "-a", "Microsoft Word"] in mac.aufrufe
+    assert ["open", "-g", "-j", "-b", "com.microsoft.Word"] in mac.aufrufe
     assert any("quit saving no" in " ".join(c) for c in mac.aufrufe)
 
 
@@ -115,7 +116,7 @@ def test_pages_wenn_weder_word_noch_libreoffice(tmp_path, mac, monkeypatch):
     erg = oc.umwandeln(_docx(tmp_path))
     assert erg.werkzeug == "Pages"
     stamm, kopie = mac.kopien[0]
-    assert "com.apple.iWork.Pages" in kopie
+    assert "com.apple.Pages" in kopie
     assert stamm.startswith("pdfsm-") and "." not in stamm  # Pages zeigt Namen teils ohne Endung
 
 
@@ -153,10 +154,10 @@ def test_numbers_fuer_xlsx(tmp_path, mac, monkeypatch):
     xlsx.write_bytes(b"PK")
     erg = oc.umwandeln(xlsx, pdfa=True)
     assert erg.werkzeug == "Numbers" and not erg.pdfa
-    assert "com.apple.iWork.Numbers" in mac.kopien[0][1]
+    assert "com.apple.Numbers" in mac.kopien[0][1]
     assert any("Numbers kann kein PDF/A" in h for h in erg.hinweise)
-    assert 'tell application "Numbers"' in oc._MAC_SKRIPT["numbers"]
-    assert "Pages" not in oc._MAC_SKRIPT["numbers"]
+    assert 'tell application id "{bid}"' in oc._MAC_SKRIPT["numbers"]
+    assert "Numbers hat die Datei" in oc._MAC_SKRIPT["numbers"] and "Pages" not in oc._MAC_SKRIPT["numbers"]
 
 
 def test_pages_nicht_fuer_odt_und_xlsx(tmp_path, mac, monkeypatch):
@@ -177,3 +178,26 @@ def test_pages_skript_ist_vollstaendig():
     skript = oc._MAC_SKRIPT["pages"]
     assert "export doc to (POSIX file ziel) as PDF" in skript
     assert "close doc saving no" in skript
+
+
+def test_programme_werden_per_bundle_id_gefunden(tmp_path, monkeypatch):
+    """Pages 15 heisst "Pages Creator Studio" und hat die ID com.apple.Pages (vorher com.apple.iWork.Pages);
+    eine kaputte Info.plist einer fremden App darf die Suche nicht abbrechen."""
+    import plistlib
+    apps = tmp_path / "Applications"
+    for ordner, bid in (("Pages Creator Studio.app", "com.apple.Pages"), ("Kaputt.app", None),
+                        ("Numbers alt.app", "com.apple.iWork.Numbers")):
+        inhalt = apps / ordner / "Contents"
+        inhalt.mkdir(parents=True)
+        if bid:
+            (inhalt / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": bid}))
+        else:
+            (inhalt / "Info.plist").write_text("<plist><dict><key>x</key>&kaputt;</dict></plist>")
+    gefunden = oc._installierte_bundle_ids([apps])
+    assert set(gefunden) == {"com.apple.Pages", "com.apple.iWork.Numbers"}
+
+    monkeypatch.setattr(oc, "_BUNDLE_CACHE", {})
+    monkeypatch.setattr(oc, "_installierte_bundle_ids", lambda: gefunden)
+    assert oc._mac_bundle_id("pages") == "com.apple.Pages"
+    assert oc._mac_bundle_id("numbers") == "com.apple.iWork.Numbers"  # alte ID wird auch erkannt
+    assert oc._mac_bundle_id("word") is None
