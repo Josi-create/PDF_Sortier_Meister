@@ -1441,10 +1441,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         in dem die PDF schon liegt, wird nie vorgeschlagen (Verschieben waere wirkungslos).
         """
         from src.core import neuer_ordner
-        from src.rag.bezug import gleicher_pfad
+        from src.rag.bezug import selber_ordner
         eigener = Path(pdf_path).parent if pdf_path else None
+        # selber_ordner: auch ueber eine Junction (Documents -> OneDrive) derselbe Ordner
         rest = [s for s in suggestions
-                if not (eigener and not neuer_ordner.ist_neu(s) and gleicher_pfad(s.folder_path, eigener))]
+                if not (eigener and not neuer_ordner.ist_neu(s) and selber_ordner(s.folder_path, eigener))]
         rest.sort(key=lambda s: (not neuer_ordner.ist_neu(s), -float(s.confidence)))
         return rest
 

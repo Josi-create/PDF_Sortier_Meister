@@ -23,6 +23,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -163,6 +164,23 @@ def gleicher_pfad(a, b) -> bool:
     # Windows-Trenner stehen (CI-Fehler auf macOS)
     return (str(a).replace("\\", "/").casefold()
             == str(b).replace("\\", "/").casefold())
+
+
+def selber_ordner(a, b) -> bool:
+    """Wie :func:`gleicher_pfad`, erkennt aber auch denselben Ordner unter zwei Pfaden.
+
+    Beispiel: ``C:\\Users\\x\\Documents`` ist eine Junction auf den OneDrive-Ordner
+    auf ``E:``. Der Vergleich ueber das Dateisystem (``samefile``) erkennt beide als
+    denselben Ordner; fehlt einer der Pfade, zaehlt nur der Textvergleich.
+    """
+    if gleicher_pfad(a, b):
+        return True
+    if not a or not b:
+        return False
+    try:
+        return os.path.samefile(a, b)
+    except (OSError, ValueError):
+        return False
 
 
 def ablageort(datei_pfad, wurzeln: Sequence[Path]) -> str:
