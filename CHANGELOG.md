@@ -17,6 +17,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   umgewandelt), werden sie vorher abgerufen, mit Fortschritt und „Nicht mehr warten“. Auch
   eine einzeln gezogene Datei wird umbenannt, und auf einen vorgeschlagenen neuen Ordner
   („➕ neu: …“) lässt sich jetzt ziehen – er wird dabei angelegt.
+- **Gleiche Namen im Stapel unterscheidet die KI** (#221): Bekämen mehrere markierte Dateien
+  denselben Namen (z. B. ähnliche Monatsabrechnungen eines Absenders), schaut die KI vorher
+  nach, was die Dokumente unterscheidet, und hängt je ein kurzes Wort an
+  (`…_Hinterhaus.pdf`). Ohne KI oder bei einem Fehler bleibt es beim Anhängen von „ (1)“,
+  „ (2)“; die Rückfrage weist darauf hin.
 - **Strg+A im ganzen Fenster**: markiert alle Kacheln im Reiter „PDFs“, egal wo zuletzt
   geklickt wurde; in Textfeldern und Listen mit Mehrfachauswahl markiert es wie gewohnt dort.
 
