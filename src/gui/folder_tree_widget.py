@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 
 from src.core.office_convert import ist_sortierbar
+from src.core.ordnersuche import index_ordner_neu, indizes_veraltet
 from src.core.ordner_verschieben import pruefe as ordner_pruefen
 from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, ordner_aus_mime
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
@@ -176,7 +177,7 @@ class FolderTreeWidget(QWidget):
         self.refresh_btn = QPushButton("🔄")
         self.refresh_btn.setFixedSize(24, 24)
         self.refresh_btn.setToolTip("Ordnerstruktur aktualisieren")
-        self.refresh_btn.clicked.connect(self.refresh_tree)
+        self.refresh_btn.clicked.connect(self._aktualisieren_geklickt)
         header_layout.addWidget(self.refresh_btn)
 
         layout.addLayout(header_layout)
@@ -299,6 +300,11 @@ class FolderTreeWidget(QWidget):
         """Entfernt alle Vorschlag-Markierungen."""
         self._suggestion_folders = []
         self._update_item_styles()
+
+    def _aktualisieren_geklickt(self):
+        """Knopf 🔄: Baum neu aufbauen und die Ordnersuche neu einlesen lassen."""
+        indizes_veraltet()
+        self.refresh_tree()
 
     def refresh_tree(self):
         """Baut den Baum neu auf - das Verzeichnis-Listing laeuft im Hintergrund."""
@@ -429,6 +435,7 @@ class FolderTreeWidget(QWidget):
     def add_folder_incremental(self, folder_path: Path) -> bool:
         """Fuegt einen einzelnen Ordner unter seinem (vorhandenen) Elternteil ein."""
         folder_path = Path(folder_path)
+        index_ordner_neu(folder_path)  # Ordnersuche findet ihn sofort
         if folder_path in self._items:
             return True
         parent_item = self._items.get(folder_path.parent)

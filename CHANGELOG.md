@@ -18,6 +18,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Links öffnen geht weiter per Rechtsklick › „Ordner links öffnen“.
 
 ### Behoben
+- **Ordnersuche (über dem Zielordner-Baum und in der Pfadzeile) hing auf dem
+  Mac mit OneDrive minutenlang.** Dort dauert das Auflisten eines Ordners rund
+  0,1 s, und die Suche las bei jeder Eingabe den ganzen Baum neu. Jetzt werden
+  die Ordner einmal im Hintergrund eingelesen (Start, sobald das Suchfeld den
+  Fokus bekommt); jede Eingabe filtert danach in Millisekunden. Während des
+  Einlesens erscheinen schon die bisherigen Treffer, darunter der Hinweis
+  „… Ordner werden noch eingelesen“. In der App angelegte, umbenannte oder
+  verschobene Ordner sind sofort findbar; außerhalb angelegte nach 🔄 oder
+  spätestens nach einer Stunde.
+- **Ordnersuche findet Namen mit Umlauten auch auf dem Mac** (macOS speichert
+  „ö“ teils zerlegt; „Börse“ fand dort nichts).
 - **Angehakte Checkboxen zeigen wieder ein Häkchen.** Sie waren nur blau
   gefüllt und wurden leicht als „aus“ gelesen – z. B. „Ordnerstruktur im
   Namen“, wodurch beim Verschieben unerwartet die Initialen vor dem

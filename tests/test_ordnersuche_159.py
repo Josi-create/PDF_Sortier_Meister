@@ -3,7 +3,19 @@ import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
 
-from src.core.ordnersuche import MAX_TREFFER, muster_zu_regex, suche_ordner
+import threading
+
+from src.core import ordnersuche
+from src.core.ordnersuche import (
+    MAX_TREFFER,
+    index_fuer,
+    index_ordner_neu,
+    index_ordner_umbenannt,
+    indizes_veraltet,
+    muster_zu_regex,
+    suche_im_index,
+    suche_ordner,
+)
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from tests.test_main_window_gui import fresh_singletons, main_window  # noqa: F401 - Fixtures
@@ -68,6 +80,91 @@ def test_ueberlappende_wurzeln_ohne_doppelte(baum):
     assert len(treffer) == len({t.pfad for t in treffer}) == 2
 
 
+def test_umlaute_nfd_auf_dem_mac(tmp_path):
+    """macOS liefert Namen teils zerlegt (NFD), getippt wird NFC."""
+    import unicodedata
+    (tmp_path / "R" / unicodedata.normalize("NFD", "Börse")).mkdir(parents=True)
+    assert len(suche_ordner([tmp_path / "R"], "Börse")) == 1
+    assert len(_index_suche([tmp_path / "R"], "börse")) == 1
+
+
+# ------------------------------------------------------------ Ordner-Index
+def _index_suche(wurzeln, text):
+    """Wartet, bis alle Indizes eingelesen sind, und liefert die Treffer."""
+    for _ in range(500):
+        treffer, fertig, _n = suche_im_index(wurzeln, text)
+        if fertig:
+            return treffer
+        threading.Event().wait(0.01)
+    raise AssertionError("Index wurde nicht fertig")
+
+
+def test_index_findet_wie_die_direkte_suche(baum):
+    assert _namen(_index_suche([baum], "zeugn")) == _namen(suche_ordner([baum], "zeugn"))
+    assert _namen(_index_suche([baum], "202?")) == ["2024"]
+    assert _index_suche([baum], "   ") == []
+    treffer = _index_suche([baum / "Anton", baum], "zeugn")
+    assert len(treffer) == len({t.pfad for t in treffer}) == 2
+
+
+def test_index_liest_einmal_und_filtert_dann_im_speicher(baum, monkeypatch):
+    _index_suche([baum], "zeugn")
+    gelesen = []
+    echt = ordnersuche._unterordner
+    monkeypatch.setattr(ordnersuche, "_unterordner", lambda o, a=None: gelesen.append(o) or echt(o, a))
+    for text in ("z", "ze", "zeu", "steuer"):
+        _index_suche([baum], text)
+    assert gelesen == []  # kein einziger Ordner neu gelesen
+
+
+def test_teilergebnisse_waehrend_des_einlesens(tmp_path, monkeypatch):
+    root = tmp_path / "Langsam"
+    for name in ("Akte A", "Akte B", "Akte C"):
+        (root / name).mkdir(parents=True)
+    weiter = threading.Event()
+    echt = ordnersuche._unterordner
+
+    def langsam(ordner, abgebrochen=None):
+        if ordner != root:
+            weiter.wait(5)  # OneDrive: jeder Unterordner dauert
+        return echt(ordner, abgebrochen)
+
+    monkeypatch.setattr(ordnersuche, "_unterordner", langsam)
+    for _ in range(500):
+        treffer, fertig, _n = suche_im_index([root], "akte")
+        if len(treffer) == 3:
+            break
+        threading.Event().wait(0.01)
+    assert _namen(treffer) == ["Akte A", "Akte B", "Akte C"] and not fertig
+    weiter.set()
+    assert len(_index_suche([root], "akte")) == 3
+
+
+def test_neu_angelegt_und_umbenannt_sofort_findbar(baum):
+    _index_suche([baum], "x")
+    (baum / "Rest" / "Frisch").mkdir()
+    index_ordner_neu(baum / "Rest" / "Frisch")
+    assert _namen(_index_suche([baum], "frisch")) == ["Frisch"]
+
+    (baum / "Steuer").rename(baum / "Finanzamt")
+    index_ordner_umbenannt(baum / "Steuer", baum / "Finanzamt")
+    assert _index_suche([baum], "steuer") == []
+    assert [t.pfad for t in _index_suche([baum], "2024")] == [baum / "Finanzamt" / "2024"]
+
+
+def test_aktualisieren_liest_neu_ein(baum):
+    _index_suche([baum], "x")
+    (baum / "Von aussen").mkdir()  # z.B. im Finder angelegt
+    assert _index_suche([baum], "aussen") == []  # Index kennt ihn noch nicht
+    indizes_veraltet()
+    for _ in range(500):
+        if _index_suche([baum], "aussen"):
+            break
+        threading.Event().wait(0.01)
+    assert _namen(_index_suche([baum], "aussen")) == ["Von aussen"]
+    assert index_fuer(baum) is index_fuer(baum)
+
+
 # ----------------------------------------------------------- Suchfeld
 def _feld(qtbot, wurzeln):
     f = OrdnerSuchfeld(lambda: wurzeln)
@@ -78,7 +175,9 @@ def _feld(qtbot, wurzeln):
 
 
 def _fertig(f, anzahl):
-    return lambda: f.liste.count() == anzahl and f.liste.item(0).text() != "Suche …"
+    return lambda: (
+        f.vollstaendig and f.liste.count() == anzahl and f.liste.item(0).text() != "Suche …"
+    )
 
 
 def test_suchfeld_zeigt_hinweis_treffer_und_kein_treffer(qtbot, baum):
@@ -91,16 +190,12 @@ def test_suchfeld_zeigt_hinweis_treffer_und_kein_treffer(qtbot, baum):
     qtbot.waitUntil(lambda: f.liste.item(0).text() == "Kein Ordner gefunden", timeout=5000)
 
 
-def test_neue_eingabe_verwirft_alte_ergebnisse(qtbot, baum):
+def test_neue_eingabe_zeigt_nur_neue_ergebnisse(qtbot, baum):
     f = _feld(qtbot, [baum])
     f.eingabe.setText("zeugn")
-    f._timer.stop()
-    f._suche_starten()
-    alte_generation = f._generation
-    f.eingabe.setText("steuer")  # bricht die laufende Suche ab
-    assert f._generation > alte_generation
-    f._on_fertig(alte_generation, [])  # spaetes Ergebnis der alten Suche
-    assert f.liste.item(0).text() == "Suche …"
+    qtbot.waitUntil(_fertig(f, 2), timeout=5000)
+    f.eingabe.setText("steuer")
+    assert f.liste.item(0).text() == "Suche …" and f._treffer == []
     qtbot.waitUntil(lambda: f.liste.item(0).text().startswith("Steuer"), timeout=5000)
 
 
