@@ -171,7 +171,13 @@ src/search/
   zeitplan.py      Hintergrundindexierung ein/aus: Windows-Aufgabenplanung,
                    macOS-LaunchAgent; Zustand abfragen
   dienst.py        Konsolenprogramm pdfsm-dienst (argparse), freeze_support()
-  mcp_server.py    MCP-Werkzeuge suche, dokument_lesen, index_status
+  mcp_server.py    MCP-Werkzeuge suche, dokument_lesen, index_status, ordner_vorschlag,
+                   korrespondent_info, sql_abfrage (nur mit chat.sql_erlaubt); Logik
+                   aus src/rag/werkzeug_kern.py, Umgebung (history.db, Zielordner,
+                   Scan-Eingang) aus der config.json (Baustein 1, docs/CHAT_MCP_PLAN.md)
+  pdfsm_daten.py   PdfsmDaten: Datenquelle der Chat-Werkzeuge ohne SQLAlchemy -
+                   Suche ueber den Index (gemeinsame Fassade dokumente_suchen mit
+                   Database), Historie und Korrespondenten per sqlite3 (mode=ro)
   web.py           Flask-App (optionales Extra), static/index.html
   ausgabe.py       Textausgabe fuer CLI und MCP
   textebene.py     unsichtbare OCR-Textebene in Scans: Auflegen, Pruefen,
@@ -180,6 +186,12 @@ src/search/
 
 src/utils/tesseract.py   find_tesseract() + Sprachdaten-Ordner, Qt-frei
                          (pdf_analyzer.py re-exportiert die Funktion)
+
+src/rag/daten.py         Protokoll ChatDaten (sechs Methoden + suchindex), erfuellt von
+                         Database (GUI) und PdfsmDaten (Dienst)
+src/rag/werkzeug_kern.py nummerierungsfreie Kernlogik der Werkzeuge fuer Chat und MCP:
+                         such_argumente, ordner_vorschlag, korrespondent_info,
+                         sql_pruefen, sql_abfrage
 
 src/gui/
   search_view.py     Reiter „Suche“: Suchfeld, Filter, Trefferliste, Vorschau, Status
@@ -746,7 +758,7 @@ ausrichten (schief gescannt)“, auch fuer mehrere markierte PDFs):
 | **Indexlauf** | `pdfsm-dienst index` (eigener Prozess, gestartet von Aufgabenplanung/LaunchAgent, GUI oder Web) | Schreibverbindung, Sperrdatei `indexer.lock` neben der Datenbank verhindert einen zweiten Lauf |
 | **GUI-Meldungen** | PDFSM-Oberflaeche ueber `Suchindex.datei_*`, `ocr_eintragen`, `metadaten_*` | kurze Schreibtransaktionen (einzelne Zeilen), nie im GUI-Thread |
 | GUI-Suche | `search_worker.py` (QThread) | eine Nur-Lese-Verbindung je Thread |
-| MCP | `pdfsm-dienst mcp` | nur lesend, Verbindung je Aufruf |
+| MCP | `pdfsm-dienst mcp` | nur lesend, Verbindung je Aufruf; `sql_abfrage` (nur mit `chat.sql_erlaubt`) ueber eine eigene Nur-Lese-Verbindung mit `query_only` und Zeitlimit. Historie und Korrespondenten fuer `ordner_vorschlag`/`korrespondent_info` liest er aus `history.db` per `sqlite3` (URI `mode=ro`, `src/search/pdfsm_daten.py`); in die Hauptdatenbank schreibt der Dienst nie |
 | Web | `pdfsm-dienst web` | nur lesend (thread-lokale Verbindung); „Jetzt indizieren“ startet einen eigenen Dienstprozess |
 | CLI | `pdfsm-dienst suche/lesen/status` | nur lesend |
 

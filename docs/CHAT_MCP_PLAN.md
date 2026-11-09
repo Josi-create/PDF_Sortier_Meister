@@ -357,10 +357,38 @@ Repository (`feat(mcp): …`, `feat(chat): …`, deutsch, ohne Umlaute in der Be
 
 ## 8. Offene Punkte
 
-- Annotationen: Vorhandensein von `mcp.types.ToolAnnotations` und des Parameters
-  `annotations` in `server.tool()` der installierten `mcp`-Version pruefen; sonst ohne.
-- Startzeit des Dienstes nach Baustein 1 messen; wird der Handshake spuerbar langsamer,
-  die neuen Importe in die Werkzeugfunktionen verlegen (lazy).
+- ~~Annotationen pruefen~~ (erledigt in Baustein 1, 09.11.2026): `mcp` 2.3.0 kennt
+  `ToolAnnotations` und `server.tool(annotations=...)`. Gesetzt sind `readOnlyHint=True` und
+  zusaetzlich `openWorldHint=False` (nur lokale Daten); `_werkzeug()` registriert ohne
+  Annotation, falls eine aeltere Version den Parameter nicht kennt.
+- ~~Startzeit messen~~ (erledigt in Baustein 1): Handshake `python -m src.search.dienst mcp`
+  bis zur Antwort auf `initialize` im Median 1,46 s vorher, 1,42 s nachher (je 5 bzw. 7
+  Starts) - keine verzoegerten Importe noetig.
+- Abweichungen in Baustein 1, vom Code erzwungen oder zur Sicherheit:
+  - `ChatDaten` hat neben den sechs Methoden das Attribut `suchindex`: der Werkzeugkasten
+    liest damit Volltext, Seiten und die SQL-Datenbank (`db.suchindex`).
+  - `ordner_vorschlag(doc, daten, wurzeln, scan_ordner, sortier_vorschlaege)` bekommt als
+    `doc` eine kleine Datenklasse `Dokument(pfad, name, text)`; den Volltext besorgt der
+    Aufrufer (Chat: Kontext, Index oder Bezug; MCP: Index). `sortier_vorschlaege=None` heisst
+    "liegen nicht vor"; `im_scan_eingang` kann der Chat vorgeben (Sonderfall Bezug).
+  - Der MCP-Server liefert beim Ordnervorschlag **keine Vorschlaege der Sortierlogik**: die
+    entstehen im Klassifikator (sklearn) der Oberflaeche, der nicht im Dienst ist. Er
+    stuetzt sich auf aehnliche Dokumente (Historie und Index), Zielordner und Lage.
+  - `erstelle_server(konfig, umgebung=None)`: Hauptdatenbank, Zielordner, Scan-Eingang und
+    SQL-Schalter kommen als `Umgebung` herein; `main()` laedt sie mit `lade_umgebung()`
+    (gleiche `config.json` wie `konfig.lade`, `--config` wird durchgereicht). So lesen Tests
+    nie die echte Konfiguration. Aenderungen in den Einstellungen wirken nach Neustart des
+    Assistenten.
+  - `such_argumente(..., abfrage_pflicht=False)` fuer MCP: dort war eine Suche nur mit
+    Filtern schon bisher moeglich. Ungueltige Argumente kommen beim MCP wie im Chat als Text
+    `"Fehler: ..."` zurueck (nicht als MCP-Fehler).
+  - Gemeinsame Textform nur ohne Dokumentnummern: `korrespondent_text`, `sql_tabelle`,
+    `sql_beschreibung` (mit eigenem Schlusssatz je Aufrufer).
+  - Build: PyInstaller findet die neuen Module selbst (modulegraph geprueft), keine
+    `hiddenimports`. Neu ausgeschlossen im Dienst: `src.utils.database` und
+    `src.ml.classifier`, die nur ueber verzoegerte Importe erreichbar sind.
+  - `tests/test_suche_dienst.py::test_mcp_werkzeuge`: erwartete Werkzeugliste um
+    `ordner_vorschlag` und `korrespondent_info` ergaenzt (Folge von 3.1 Schritt 4).
 - Claude-Desktop-Konfigurationspfad unter Linux (`~/.config/Claude/`) nur aufnehmen,
   wenn Linux-Builds kommen.
 - Metadaten-Schreiben ueber MCP (Korrespondent, Kategorie, Steuerjahr in PDF und Index)

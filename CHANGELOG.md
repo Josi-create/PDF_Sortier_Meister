@@ -7,6 +7,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **KI-Assistenten können mehr (MCP)**: Claude Desktop, Claude Code und andere MCP-Programme
+  bekommen über `pdfsm-dienst mcp` dieselben Werkzeuge wie der Chat im Programm.
+  `ordner_vorschlag` beantwortet „In welchen Ordner gehört dieses Dokument?“ mit ähnlichen,
+  schon einsortierten Dokumenten samt Ordner und Jahr, den Zielordnern und dem Hinweis, ob
+  es noch im Scan-Eingang liegt; `korrespondent_info` nennt Schreibweisen, Kategorie und
+  MwSt-Satz eines Absenders; `sql_abfrage` erlaubt Auswertungen auf der Suchdatenbank, aber
+  nur, wenn „SQL-Abfragen auf der Suchdatenbank erlauben“ (Einstellungen › Chat) an ist.
+  `suche` versteht jetzt auch „excel“, „word“ oder „e-mail“ als Typ und meldet ein
+  unmögliches Datum, statt still nichts zu finden. Alle Werkzeuge sind als nur lesend
+  gekennzeichnet; der Dienst liest die Lernhistorie schreibgeschützt und ändert nichts.
+
+### Intern
+- Chat und MCP-Server teilen sich die Logik der Werkzeuge (`src/rag/werkzeug_kern.py`);
+  die Datenquelle ist das Protokoll `ChatDaten` (`src/rag/daten.py`), im Dienst erfüllt von
+  `PdfsmDaten` (`src/search/pdfsm_daten.py`, `sqlite3` statt SQLAlchemy). Die Suche der
+  Oberfläche (`Database.search_documents`) nutzt dieselbe Fassade. Plan:
+  `docs/CHAT_MCP_PLAN.md`, Baustein 1.
+
 ## [0.26.0] - 2026-11-08
 
 ### Neu
