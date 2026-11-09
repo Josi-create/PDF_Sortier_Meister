@@ -29,7 +29,7 @@ import sqlite3
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger("pdf_sortier_meister.suche")
 
@@ -292,11 +292,11 @@ class PdfsmDaten:
             f"SELECT {', '.join(_HISTORIE_SPALTEN)} FROM sorting_history ORDER BY id DESC LIMIT ?",
             (int(limit),),
         )
-        return [dict(zip(_HISTORIE_SPALTEN, z)) for z in zeilen]
+        return [dict(zip(_HISTORIE_SPALTEN, z, strict=True)) for z in zeilen]
 
     @staticmethod
     def _korrespondent_dict(zeile: tuple) -> dict:
-        d = dict(zip(_KORRESPONDENT_SPALTEN, zeile))
+        d = dict(zip(_KORRESPONDENT_SPALTEN, zeile, strict=True))
         return {
             "id": d["id"],
             "name": d["name"],
@@ -318,7 +318,7 @@ class PdfsmDaten:
         )
         return [self._korrespondent_dict(z) for z in zeilen]
 
-    def get_korrespondent(self, name: str) -> Optional[dict]:
+    def get_korrespondent(self, name: str) -> dict | None:
         """Ein Korrespondent per exaktem Namen (Gross-/Kleinschreibung zaehlt), sonst ``None``."""
         if not name or not name.strip():
             return None
@@ -328,7 +328,7 @@ class PdfsmDaten:
         )
         return self._korrespondent_dict(zeilen[0]) if zeilen else None
 
-    def get_korrespondent_metadata(self, korrespondent: str) -> Optional[dict]:
+    def get_korrespondent_metadata(self, korrespondent: str) -> dict | None:
         """Gelernte Metadaten wie ``Database.get_korrespondent_metadata``.
 
         Reihenfolge: kanonische Schreibweise der Verwaltung, genau dieser Name,
@@ -342,7 +342,7 @@ class PdfsmDaten:
             return None
         korrespondent = kanonisch(korrespondent, self.list_korrespondenten())
         spalten = ("korrespondent", "kategorie", "waehrung", "mwst_satz", "steuerlich_absetzbar")
-        zeilen = [dict(zip(spalten, z)) for z in self._abfrage(
+        zeilen = [dict(zip(spalten, z, strict=True)) for z in self._abfrage(
             f"SELECT {', '.join(spalten)} FROM korrespondent_metadata ORDER BY id")]
 
         eintrag = next((z for z in zeilen if z["korrespondent"] == korrespondent), None)

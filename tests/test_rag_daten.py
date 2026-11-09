@@ -72,13 +72,13 @@ def test_beide_erfuellen_das_protokoll(beide):
 def test_suche_gleich(beide):
     db, daten = beide
     faelle = [
-        dict(query="226541"),
-        dict(query="Rechnung", ordner="Telekom"),
-        dict(query="", korrespondent="Stadtwerke Musterstadt"),
-        dict(query="", steuerjahr="2024", sortierung="alt"),
-        dict(query="Stadtwerke OR Telekom", typ="pdf", sortierung="neu", limit=1),
-        dict(query="gibtsnicht"),
-        dict(query=""),
+        {"query": "226541"},
+        {"query": "Rechnung", "ordner": "Telekom"},
+        {"query": "", "korrespondent": "Stadtwerke Musterstadt"},
+        {"query": "", "steuerjahr": "2024", "sortierung": "alt"},
+        {"query": "Stadtwerke OR Telekom", "typ": "pdf", "sortierung": "neu", "limit": 1},
+        {"query": "gibtsnicht"},
+        {"query": ""},
     ]
     for argumente in faelle:
         erwartet = db.search_documents(**argumente)

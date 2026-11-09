@@ -19,7 +19,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 
 from __future__ import annotations
 
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -68,11 +68,11 @@ class ChatDaten(Protocol):
         """
         ...
 
-    def get_korrespondent(self, name: str) -> Optional[dict]:
+    def get_korrespondent(self, name: str) -> dict | None:
         """Ein Korrespondent der Verwaltung per exaktem Namen, sonst ``None``."""
         ...
 
-    def get_korrespondent_metadata(self, korrespondent: str) -> Optional[dict]:
+    def get_korrespondent_metadata(self, korrespondent: str) -> dict | None:
         """Gelernte Metadaten (``subject``, ``waehrung``, ``mwst_satz``, ``steuerlich_absetzbar``) oder ``None``."""
         ...
 
