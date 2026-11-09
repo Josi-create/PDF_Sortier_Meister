@@ -517,6 +517,12 @@ class OrdnerVerschiebenMixin:
             alt, neu, self.config, self.db, self.pdf_cache, paare=paare, nur_dateien=nur_dateien,
             index_melden_paare=umbenannt,
         )
+        # Ordnersuche: neuer Pfad sofort findbar (Einlesen dauert auf OneDrive Minuten)
+        from src.core.ordnersuche import index_ordner_neu, index_ordner_umbenannt
+        if nur_dateien:  # Quelle bleibt stehen, Ziel ist (evtl.) neu
+            index_ordner_neu(neu)
+        else:
+            index_ordner_umbenannt(alt, neu)
         for a, n in ergebnis["ziele"]:
             self.folder_manager.remove_folder(a)
             try:

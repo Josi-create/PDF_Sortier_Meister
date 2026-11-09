@@ -1181,7 +1181,7 @@ class DetailPanel(QWidget):
         zuletzt angeklickte Art zuoberst.
         """
         from src.core.suggestion_order import (
-            KIND_DATE, KIND_KI, KIND_LEARNED, kind_from_reason, sort_by_kind,
+            KIND_DATE, KIND_KEEP, KIND_KI, KIND_LEARNED, kind_from_reason, sort_by_kind,
         )
 
         from src.core.llm_name_adapt import adapt_llm_filename
@@ -1218,6 +1218,15 @@ class DetailPanel(QWidget):
                 continue
             seen.add(key)
             displayed.append((s, kind))
+        # Immer als letzte Zeile: den bisherigen Namen behalten (manchmal besser als die KI)
+        keep_row = None
+        if displayed and self._current_pdf is not None:
+            stem = Path(self._current_pdf.name).stem
+            if stem and f"{stem}.pdf".lower() not in seen and stem.lower() not in seen:
+                keep_row = RenameSuggestion(
+                    name=f"{stem}.pdf", reason="Aktuellen Namen behalten", confidence=1.0
+                )
+                displayed.append((keep_row, KIND_KEEP))
         self._displayed_suggestions = [s for s, _k in displayed]
         self._displayed_kinds = [k for _s, k in displayed]
 
@@ -1239,7 +1248,13 @@ class DetailPanel(QWidget):
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion.name)
 
-            if id(suggestion) in pattern_rows:
+            if suggestion is keep_row:
+                item.setToolTip(
+                    "Die Datei behält ihren bisherigen Namen.\n"
+                    "Anklicken übernimmt ihn ins Feld „Neuer Dateiname“."
+                )
+                item.setForeground(QColor(90, 90, 90))
+            elif id(suggestion) in pattern_rows:
                 item.setToolTip(
                     "Nach diesem Dateinamen-Muster aus den Metadaten dieses "
                     "Dokuments gebildet. Anklicken übernimmt den Namen."
@@ -1255,7 +1270,8 @@ class DetailPanel(QWidget):
                     item.setBackground(Qt.GlobalColor.yellow)
 
             self.suggestions_list.addItem(item)
-        self._set_suggestion_count(len(displayed))
+        # "Aktuellen Namen behalten" ist kein Vorschlag und zaehlt nicht mit
+        self._set_suggestion_count(len(displayed) - (1 if keep_row is not None else 0))
         self._fit_suggestions_height()
 
     def _apply_top_suggestion(self):
@@ -1460,9 +1476,9 @@ class DetailPanel(QWidget):
 
     def _remember_kind(self, kind: str):
         """Die angeklickte Art wird beim naechsten Dokument zuoberst gereiht."""
-        from src.core.suggestion_order import CONFIG_KEY, KIND_OTHER, promote
+        from src.core.suggestion_order import CONFIG_KEY, KIND_KEEP, KIND_OTHER, promote
 
-        if not kind or kind == KIND_OTHER:
+        if not kind or kind in (KIND_OTHER, KIND_KEEP):
             return
         try:
             from src.utils.config import get_config

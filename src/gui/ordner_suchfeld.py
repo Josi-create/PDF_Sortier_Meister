@@ -3,9 +3,10 @@ Suchfeld fuer Ordner mit Trefferliste (Issue #159)
 
 Wiederverwendbar fuer den Zielordner-Baum (Liste unter dem Feld, schiebt den
 Baum nach unten) und die Pfadzeile der PDF-Ansicht (Liste schwebt ueber dem
-Inhalt, die Zeile bleibt 20 px hoch). Die Suche (src/core/ordnersuche.py)
-laeuft nach ca. 300 ms Tipp-Pause in einem Hintergrund-Thread und wird bei
-neuer Eingabe abgebrochen.
+Inhalt, die Zeile bleibt 20 px hoch). Gesucht wird nach ca. 300 ms
+Tipp-Pause im Ordner-Index (src/core/ordnersuche.py), der jede Wurzel einmal
+im Hintergrund einliest. Solange das laeuft (OneDrive auf dem Mac: Minuten),
+zeigt die Liste die bisherigen Treffer und wird alle 500 ms aufgefrischt.
 
 Signale: ``treffer_gewaehlt(Path)`` bei Klick oder Enter, ``beendet`` bei Esc,
 Fokusverlust oder nach der Auswahl.
@@ -13,39 +14,15 @@ Fokusverlust oder nach der Auswahl.
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
-import threading
 from pathlib import Path
 from typing import Callable
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QSizePolicy, QVBoxLayout, QWidget
 
-from src.core.ordnersuche import Treffer, suche_ordner
-
-# Laufende Suchthreads: so lange festhalten, bis sie fertig sind (ein
-# zerstoerter, noch laufender QThread wuerde das Programm abstuerzen lassen).
-_LAUFENDE_THREADS: set["_SucheThread"] = set()
+from src.core.ordnersuche import Treffer, indizes_vorwaermen, suche_im_index
 
 _ROLLE_PFAD = Qt.ItemDataRole.UserRole
-
-
-class _SucheThread(QThread):
-    fertig = pyqtSignal(int, list)  # (Generation, Treffer)
-
-    def __init__(self, generation: int, wurzeln: list[Path], text: str):
-        super().__init__()
-        self._generation = generation
-        self._wurzeln = wurzeln
-        self._text = text
-        self._stopp = threading.Event()
-
-    def abbrechen(self):
-        self._stopp.set()
-
-    def run(self):
-        treffer = suche_ordner(self._wurzeln, self._text, abgebrochen=self._stopp.is_set)
-        if not self._stopp.is_set():
-            self.fertig.emit(self._generation, treffer)
 
 
 class OrdnerSuchfeld(QWidget):
@@ -55,6 +32,7 @@ class OrdnerSuchfeld(QWidget):
     beendet = pyqtSignal()
 
     VERZOEGERUNG_MS = 300
+    NACHLAUF_MS = 500  # Liste auffrischen, solange der Index noch einliest
     ZEILEN_MAX = 6
 
     def __init__(
@@ -67,9 +45,8 @@ class OrdnerSuchfeld(QWidget):
         super().__init__(parent)
         self._wurzeln = wurzeln
         self._schwebend = schwebend
-        self._generation = 0
-        self._thread = None
         self._treffer: list[Treffer] = []
+        self.vollstaendig = True  # False: Index liest noch ein, Liste kann wachsen
         self._enter_vorgemerkt = False  # Enter vor dem Ergebnis: ersten Treffer nehmen
 
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
@@ -98,56 +75,59 @@ class OrdnerSuchfeld(QWidget):
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(self.VERZOEGERUNG_MS)
-        self._timer.timeout.connect(self._suche_starten)
+        self._timer.timeout.connect(self._suchen)
+        self._nachlauf = QTimer(self)
+        self._nachlauf.setSingleShot(True)
+        self._nachlauf.setInterval(self.NACHLAUF_MS)
+        self._nachlauf.timeout.connect(self._suchen)
         self.eingabe.textChanged.connect(self._on_text_geaendert)
 
     # ----------------------------------------------------------------- Suche
     def _on_text_geaendert(self, text: str):
         self._abbrechen()
+        self._treffer = []  # gehoeren zum alten Text
         if not text.strip():
             self._timer.stop()
-            self._treffer = []
             self.liste.setVisible(False)
             return
         self._zeige_hinweis("Suche …")
         self._timer.start()
 
-    def _suche_starten(self):
-        text = self.eingabe.text()
-        if not text.strip():
-            return
-        self._abbrechen()
-        thread = _SucheThread(self._generation, list(self._wurzeln()), text)
-        thread.fertig.connect(self._on_fertig)
-        _LAUFENDE_THREADS.add(thread)
-        thread.finished.connect(lambda t=thread: _LAUFENDE_THREADS.discard(t))
-        self._thread = thread
-        thread.start()
-
     def _abbrechen(self):
         """Verwirft die laufende Suche (neue Eingabe, Esc)."""
         self._enter_vorgemerkt = False
-        self._generation += 1
-        if self._thread is not None:
-            self._thread.abbrechen()
-            self._thread = None
+        self.vollstaendig = True
+        self._nachlauf.stop()
 
-    def _on_fertig(self, generation: int, treffer: list):
-        if generation != self._generation:
+    def _suchen(self):
+        """Filtert den Ordner-Index (im Speicher, schnell); liest er noch ein: gleich nochmal."""
+        text = self.eingabe.text()
+        if not text.strip():
             return
-        self._thread = None
+        treffer, self.vollstaendig, gelesen = suche_im_index(self._wurzeln(), text)
+        zeile = max(self.liste.currentRow(), 0) if self._treffer else 0
         self._treffer = treffer
-        self.liste.clear()
+        if not self.vollstaendig:
+            self._nachlauf.start()
         if not treffer:
-            self._zeige_hinweis("Kein Ordner gefunden")
+            if self.vollstaendig:
+                self._zeige_hinweis("Kein Ordner gefunden")
+            else:
+                self._zeige_hinweis("Suche …")
+                self.liste.item(0).setToolTip(f"Bisher {gelesen} Ordner gelesen")
             return
+        self.liste.clear()
         for t in treffer:
             text = t.name if not t.relativ else f"{t.name} — {t.relativ}"
             item = QListWidgetItem(text)
             item.setData(_ROLLE_PFAD, str(t.pfad))
             item.setToolTip(str(t.pfad))
             self.liste.addItem(item)
-        self.liste.setCurrentRow(0)
+        if not self.vollstaendig:
+            hinweis = QListWidgetItem(f"… Ordner werden noch eingelesen ({gelesen} bisher)")
+            hinweis.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.liste.addItem(hinweis)
+        self.liste.setCurrentRow(min(zeile, len(treffer) - 1))
         self._liste_zeigen()
         if self._enter_vorgemerkt:
             self._waehlen(treffer[0].pfad)
@@ -193,13 +173,17 @@ class OrdnerSuchfeld(QWidget):
         self.liste.setVisible(False)
 
     def fokus_setzen(self):
+        indizes_vorwaermen(self._wurzeln())
         self.eingabe.setFocus()
         self.eingabe.selectAll()
 
     # --------------------------------------------------------- Tastatur/Fokus
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self.eingabe:
-            if event.type() == QEvent.Type.KeyPress:
+            if event.type() == QEvent.Type.FocusIn:
+                # Ordner schon einlesen, waehrend getippt wird
+                indizes_vorwaermen(self._wurzeln())
+            elif event.type() == QEvent.Type.KeyPress:
                 taste = event.key()
                 if taste == Qt.Key.Key_Escape:
                     self.zuruecksetzen()
@@ -210,7 +194,7 @@ class OrdnerSuchfeld(QWidget):
                     return True
                 if taste in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self._treffer:
                     zeile = self.liste.currentRow() + (1 if taste == Qt.Key.Key_Down else -1)
-                    self.liste.setCurrentRow(max(0, min(zeile, self.liste.count() - 1)))
+                    self.liste.setCurrentRow(max(0, min(zeile, len(self._treffer) - 1)))
                     return True
             elif event.type() == QEvent.Type.FocusOut and self._schwebend:
                 if event.reason() not in (
@@ -222,15 +206,12 @@ class OrdnerSuchfeld(QWidget):
         return super().eventFilter(obj, event)
 
     def _enter(self):
-        """Enter: markierter Treffer (sonst der erste); Suche noch offen -> sofort."""
-        if self._timer.isActive() or self._thread is not None:
-            # Ergebnis liegt noch nicht vor: ersten Treffer nehmen, sobald er da ist
-            if self._timer.isActive():
-                self._timer.stop()
-                self._suche_starten()
-            self._enter_vorgemerkt = True
-            return
-        if not self._treffer:
-            return
-        zeile = max(self.liste.currentRow(), 0)
-        self._waehlen(self._treffer[zeile].pfad)
+        """Enter: markierter Treffer (sonst der erste); noch kein Ergebnis -> sobald eins da ist."""
+        if self._timer.isActive():
+            self._timer.stop()
+            self._suchen()
+        if self._treffer:
+            zeile = max(self.liste.currentRow(), 0)
+            self._waehlen(self._treffer[min(zeile, len(self._treffer) - 1)].pfad)
+        elif not self.vollstaendig:
+            self._enter_vorgemerkt = True  # Index liest noch ein: ersten Treffer nehmen
