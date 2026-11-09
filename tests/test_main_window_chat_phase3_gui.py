@@ -29,7 +29,7 @@ def test_chat_sitzt_kompakt_in_der_linken_spalte(main_window):
     assert main_window.left_tabs.widget(0) is not main_window.chat_view
     assert main_window.left_tabs.widget(1) is main_window.chat_view
     assert main_window.chat_view.schnellfragen_toggle is not None
-    assert len(main_window.chat_view.schnellfragen_btns) == 4
+    assert len(main_window.chat_view.schnellfragen_btns) == 6
 
 
 def test_wechsel_in_den_chat_setzt_den_bezug(main_window, fresh_singletons):

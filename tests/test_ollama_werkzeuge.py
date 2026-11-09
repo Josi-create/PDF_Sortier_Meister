@@ -430,3 +430,27 @@ def test_cloud_provider_nutzt_ollama_com_und_bearer(server):
     for _url, headers, payload, _t in srv.requests:
         assert headers["Authorization"] == "Bearer sk-test"
         assert payload["model"] == "gpt-oss:120b"
+
+
+# --------------------------------------------------------------------- #
+# Vorschlags-Werkzeuge des Chats (Baustein 2)
+# --------------------------------------------------------------------- #
+
+
+def test_vorschlags_werkzeuge_im_payload(server):
+    """Die Definitionen des Werkzeugkastens gehen unveraendert als function-Tools raus."""
+    from src.rag.werkzeuge import Werkzeugkasten
+    from src.utils.config import ChatConfig
+
+    werkzeuge = Werkzeugkasten(None, ChatConfig()).definitionen()
+    srv = server({"chat": [(200, _antwort("", [_aufruf(
+        name="vorschlag_verschieben", arguments={"zielordner": "Ablage/Energie", "begruendung": "Stadtwerke"})]))]})
+    antwort = _provider().chat_mit_werkzeugen(NACHRICHTEN, werkzeuge)
+
+    tools = {t["function"]["name"]: t for t in srv.payloads()[0]["tools"]}
+    for name in ("vorschlag_verschieben", "vorschlag_umbenennen", "vorschlag_metadaten"):
+        w = next(w for w in werkzeuge if w.name == name)
+        assert tools[name] == {"type": "function", "function": {
+            "name": name, "description": w.beschreibung, "parameters": w.parameter}}
+    assert [(a.name, a.argumente) for a in antwort.aufrufe] == [
+        ("vorschlag_verschieben", {"zielordner": "Ablage/Energie", "begruendung": "Stadtwerke"})]

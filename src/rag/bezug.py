@@ -44,6 +44,9 @@ SCHNELLFRAGEN = (
     "Zeig mir ähnliche Rechnungen",
     "Gibt es schon einen Ordner mit ähnlichen Dokumenten?",
     "In welchen Ordner gehört dieses PDF?",
+    # Baustein 2 (docs/CHAT_MCP_PLAN.md): fuehren zu Vorschlaegen mit Knopf
+    "Schlag mir einen Dateinamen vor",
+    "Welche Metadaten erkennst du?",
 )
 
 # Hoechstzahl eigener Schnellfragen (Phase 3, Issue #166)
