@@ -28,15 +28,23 @@ Verwandte - sie zeigen feste Metadaten, kein "jetzt".
 
 Umwandlung
 ----------
-1. Microsoft Word bzw. Excel per COM (pywin32, nur Windows), in einer eigenen
-   unsichtbaren Programminstanz - ein offenes Word des Nutzers bleibt unberuehrt.
+1. Microsoft Word bzw. Excel
+   - Windows: per COM (pywin32), in einer eigenen unsichtbaren Programminstanz -
+     ein offenes Word des Nutzers bleibt unberuehrt.
+   - macOS: per AppleScript (``osascript``). Word/Excel sind dort sandboxed und
+     duerfen nur ihren eigenen Container frei lesen/schreiben; die Kopie liegt
+     darum unter ``~/Library/Containers/com.microsoft.<App>/Data/tmp`` und
+     traegt einen eindeutigen Namen, damit nie ein gleichnamiges, vom Nutzer
+     geoeffnetes Dokument getroffen wird. War das Programm vorher nicht offen,
+     startet es versteckt und wird danach wieder beendet. Beim ersten Mal
+     fragt macOS, ob PDF Sortier Meister Word/Excel steuern darf.
 2. Rueckfall: LibreOffice headless (``soffice``).
 3. Ist keines von beiden da, gibt es ``KeinUmwandlerGefunden`` mit klarer Meldung.
 
 PDF/A: Word per ``ExportAsFixedFormat(UseISO19005_1=True)`` (Stufe B),
-LibreOffice per ``SelectPdfVersion`` (PDF/A-2b). Excel kann das per COM nicht;
-dort wird bei PDF/A LibreOffice bevorzugt, sonst gibt es ein normales PDF
-samt Hinweis.
+LibreOffice per ``SelectPdfVersion`` (PDF/A-2b). Excel (COM) und Word/Excel auf
+dem Mac koennen das nicht; dort wird bei PDF/A LibreOffice bevorzugt, sonst
+gibt es ein normales PDF samt Hinweis.
 
 GPL-3.0-or-later - Copyright (c) 2026
 """
@@ -584,8 +592,153 @@ def finde_libreoffice() -> Optional[str]:
 
 def umwandler_verfuegbar(endung: str) -> bool:
     """Gibt es fuer diese Dateiendung (.docx/.odt/.xlsx) irgendeinen Umwandler?"""
-    com = word_com_verfuegbar() if endung.lower() in WORD_ENDUNGEN else excel_com_verfuegbar()
-    return com or finde_libreoffice() is not None
+    ist_word = endung.lower() in WORD_ENDUNGEN
+    com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
+    mac = mac_office_verfuegbar("word" if ist_word else "excel")
+    return com or mac or finde_libreoffice() is not None
+
+
+# --------------------------------------------------------------- macOS: Word/Excel
+MAC_OFFICE_TIMEOUT_S = 180
+_MAC_APPS = {
+    "word": ("Microsoft Word", "com.microsoft.Word"),
+    "excel": ("Microsoft Excel", "com.microsoft.Excel"),
+}
+
+# Oeffnen liefert auf dem Mac keinen Verweis zurueck (asynchron): per Namen warten.
+_MAC_SKRIPT = {
+    "word": """
+on run argv
+  set dname to item 1 of argv
+  set quelle to item 2 of argv
+  set ziel to item 3 of argv
+  with timeout of {timeout} seconds
+    tell application "Microsoft Word"
+      open (POSIX file quelle)
+      set doc to missing value
+      repeat 150 times
+        try
+          set doc to document dname
+          exit repeat
+        end try
+        delay 0.2
+      end repeat
+      if doc is missing value then error "Word hat die Datei nicht geöffnet." number 9001
+      try
+        save as doc file name ziel file format format PDF
+      on error m number n
+        close doc saving no
+        error m number n
+      end try
+      close doc saving no
+    end tell
+  end timeout
+end run
+""",
+    "excel": """
+on run argv
+  set wname to item 1 of argv
+  set quelle to item 2 of argv
+  set ziel to item 3 of argv
+  with timeout of {timeout} seconds
+    tell application "Microsoft Excel"
+      open (POSIX file quelle)
+      set wb to missing value
+      repeat 150 times
+        try
+          set wb to workbook wname
+          exit repeat
+        end try
+        delay 0.2
+      end repeat
+      if wb is missing value then error "Excel hat die Datei nicht geöffnet." number 9001
+      try
+        save workbook as wb filename ziel file format PDF file format
+      on error m number n
+        close wb saving no
+        error m number n
+      end try
+      close wb saving no
+    end tell
+  end timeout
+end run
+""",
+}
+
+
+def _mac_app_pfad(name: str) -> Optional[Path]:
+    for basis in (Path("/Applications"), Path.home() / "Applications"):
+        pfad = basis / f"{name}.app"
+        if pfad.exists():
+            return pfad
+    return None
+
+
+def mac_office_verfuegbar(art: str) -> bool:
+    """Word (``art="word"``) bzw. Excel (``"excel"``) auf dem Mac installiert?"""
+    return sys.platform == "darwin" and _mac_app_pfad(_MAC_APPS[art][0]) is not None
+
+
+def _mac_app_laeuft(name: str) -> bool:
+    """Laeuft das Programm schon? (``is running`` startet es nicht.)"""
+    try:
+        r = subprocess.run(
+            ["osascript", "-e", f'application "{name}" is running'],
+            capture_output=True, text=True, timeout=15,
+        )
+        return r.stdout.strip() == "true"
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _mac_fehlertext(programm: str, stderr: str) -> str:
+    text = (stderr or "").strip()
+    if "-1743" in text:
+        return (
+            f"PDF Sortier Meister darf {programm} nicht steuern. Bitte unter "
+            "Systemeinstellungen › Datenschutz & Sicherheit › Automation "
+            f"„{programm}“ für PDF Sortier Meister erlauben."
+        )
+    return f"{programm} konnte nicht umwandeln: {text[:300]}"
+
+
+def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
+    """Word/Excel auf dem Mac per AppleScript; Arbeitskopie im Container des Programms."""
+    import uuid
+
+    programm, bundle = _MAC_APPS[art]
+    container_tmp = Path.home() / "Library" / "Containers" / bundle / "Data" / "tmp"
+    container_tmp.mkdir(parents=True, exist_ok=True)
+    arbeit = Path(tempfile.mkdtemp(prefix="pdfsm-", dir=container_tmp))
+    # eindeutiger Name: nie ein gleichnamiges offenes Dokument des Nutzers treffen
+    name = f"pdfsm-{uuid.uuid4().hex[:12]}{quelle.suffix.lower()}"
+    kopie = arbeit / name
+    ziel = arbeit / (Path(name).stem + ".pdf")
+    war_offen = _mac_app_laeuft(programm)
+    try:
+        shutil.copy2(quelle, kopie)
+        if not war_offen:  # versteckt und im Hintergrund starten
+            subprocess.run(["open", "-g", "-j", "-a", programm], capture_output=True, timeout=60)
+        skript = _MAC_SKRIPT[art].replace("{timeout}", str(MAC_OFFICE_TIMEOUT_S))
+        try:
+            lauf = subprocess.run(
+                ["osascript", "-", name, str(kopie), str(ziel)],
+                input=skript, capture_output=True, text=True, timeout=MAC_OFFICE_TIMEOUT_S + 30,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise UmwandlungFehler(f"{programm} hat nicht rechtzeitig geantwortet.") from e
+        if lauf.returncode != 0:
+            raise UmwandlungFehler(_mac_fehlertext(programm, lauf.stderr))
+        if not ziel.exists() or ziel.stat().st_size == 0:
+            raise UmwandlungFehler(f"{programm} hat kein PDF erzeugt.")
+        shutil.move(str(ziel), str(pdf))
+    finally:
+        if not war_offen:
+            subprocess.run(
+                ["osascript", "-e", f'tell application "{programm}" to quit saving no'],
+                capture_output=True, timeout=60,
+            )
+        shutil.rmtree(arbeit, ignore_errors=True)
 
 
 def _mit_word(docx: Path, pdf: Path, pdfa: bool) -> None:
@@ -728,8 +881,9 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
     ziel = _freier_pfad(Path(ziel) if ziel else quelle.with_suffix(".pdf"))
 
     com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
+    mac = not com and mac_office_verfuegbar("word" if ist_word else "excel")
     soffice = finde_libreoffice()
-    if not com and not soffice:
+    if not com and not mac and not soffice:
         programm = "Microsoft Word" if ist_word else "Microsoft Excel"
         prog_id = "Word.Application" if ist_word else "Excel.Application"
         if _com_klasse_registriert(prog_id) and not pywin32_verfuegbar():
@@ -739,7 +893,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
                 "Bitte im Programmordner ausführen: python -m pip install -r requirements.txt"
             )
         raise KeinUmwandlerGefunden(
-            f"Zum Umwandeln wird {programm} (nur Windows) oder LibreOffice benötigt. "
+            f"Zum Umwandeln wird {programm} oder LibreOffice benötigt. "
             "Beides wurde nicht gefunden."
         )
 
@@ -758,11 +912,23 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
             shutil.copy2(quelle, kopie)
         pdf_tmp = arbeit / "ergebnis.pdf"
 
-        # Excel kann per COM kein PDF/A -> dann lieber LibreOffice, falls da
-        if pdfa and not ist_word and soffice:
-            com = False
+        # Excel (COM) und Word/Excel auf dem Mac koennen kein PDF/A -> dann lieber LibreOffice
+        if pdfa and soffice and (mac or not ist_word):
+            com = mac = False
         fehler: Optional[Exception] = None
-        if com:
+        if mac:
+            try:
+                _mit_office_mac("word" if ist_word else "excel", kopie, pdf_tmp)
+                if pdfa:
+                    ergebnis.hinweise.append(
+                        f"{'Word' if ist_word else 'Excel'} kann auf dem Mac kein PDF/A erzeugen "
+                        "- normales PDF erstellt."
+                    )
+                ergebnis.werkzeug = "Word" if ist_word else "Excel"
+            except UmwandlungFehler as e:
+                fehler = e
+                pdf_tmp.unlink(missing_ok=True)
+        elif com:
             try:
                 if ist_word:
                     _mit_word(kopie, pdf_tmp, pdfa)

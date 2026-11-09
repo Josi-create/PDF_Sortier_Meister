@@ -25,6 +25,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Links öffnen geht weiter per Rechtsklick › „Ordner links öffnen“.
 
 ### Behoben
+- **Word- und Excel-Dateien lassen sich auf dem Mac mit Microsoft Word bzw.
+  Excel in PDF umwandeln und in der Vorschau zeigen.** Bisher ging das nur
+  unter Windows; auf dem Mac kam „Microsoft Word (nur Windows) oder
+  LibreOffice benötigt“, obwohl Word installiert war. Jetzt steuert die App
+  Word/Excel per AppleScript. Ein offenes Word bleibt dabei offen, Ihre
+  Dokumente bleiben unberührt; war es zu, startet es unsichtbar und schließt
+  sich danach wieder. Beim ersten Mal fragt macOS, ob PDF Sortier Meister
+  Word/Excel steuern darf. PDF/A kann Office auf dem Mac nicht – dafür wird
+  LibreOffice genommen, falls installiert, sonst gibt es ein normales PDF mit
+  Hinweis.
 - **Ordnersuche (über dem Zielordner-Baum und in der Pfadzeile) hing auf dem
   Mac mit OneDrive minutenlang.** Dort dauert das Auflisten eines Ordners rund
   0,1 s, und die Suche las bei jeder Eingabe den ganzen Baum neu. Jetzt werden

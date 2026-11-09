@@ -94,6 +94,18 @@ def suchprotokoll_im_temp(monkeypatch, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def kein_echtes_mac_office(monkeypatch):
+    """Kein Test steuert ein echtes Word/Excel auf dem Mac (AppleScript).
+
+    Sonst wuerden Tests, die nur LibreOffice simulieren, auf einem Mac mit
+    Office dessen echtes Word starten. Tests des Mac-Wegs patchen gezielt.
+    """
+    from src.core import office_convert
+
+    monkeypatch.setattr(office_convert, "mac_office_verfuegbar", lambda art: False)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster
