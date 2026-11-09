@@ -1441,10 +1441,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         in dem die PDF schon liegt, wird nie vorgeschlagen (Verschieben waere wirkungslos).
         """
         from src.core import neuer_ordner
-        from src.rag.bezug import gleicher_pfad
+        from src.rag.bezug import selber_ordner
         eigener = Path(pdf_path).parent if pdf_path else None
+        # selber_ordner: auch ueber eine Junction (Documents -> OneDrive) derselbe Ordner
         rest = [s for s in suggestions
-                if not (eigener and not neuer_ordner.ist_neu(s) and gleicher_pfad(s.folder_path, eigener))]
+                if not (eigener and not neuer_ordner.ist_neu(s) and selber_ordner(s.folder_path, eigener))]
         rest.sort(key=lambda s: (not neuer_ordner.ist_neu(s), -float(s.confidence)))
         return rest
 
@@ -2861,11 +2862,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             widget.clicked.connect(self.on_suggestion_clicked)
             if not is_new:
-                # Neuer Ordner: Verschieben nur per Klick (kein Doppelklick-Navigieren, kein Drop)
+                # Neuer Ordner: kein Doppelklick-Navigieren (es gibt ihn noch nicht)
                 widget.double_clicked.connect(self.on_folder_double_clicked)
-                # Drop auf eine gruene Vorschlagskachel verschiebt wie ein Drop
-                # auf den Baum (vorher stilles No-op, weil nie verbunden)
-                widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+            # Drop auf eine Vorschlagskachel verschiebt wie ein Drop auf den Baum; bei einem
+            # neuen Ordner legt stapel_verschieben ihn nach der Rueckfrage an (#218)
+            widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
             # Issue #179: Kopieren (Menue, Strg-Drop) auch in einen neuen Ordner; er wird angelegt
             self.verbinde_hierhin_kopieren(widget)
 

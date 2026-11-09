@@ -171,3 +171,22 @@ def test_ki_ordner_70_steht_nicht_vor_85(main_window, fresh_singletons, monkeypa
     bestaetigt = _sug(ordner, "Bestaetigt", 0.9)
     monkeypatch.setattr(main_window, "_with_existing_ki_folder", lambda p, s, d=None: [bestaetigt, *s])
     assert main_window._with_ki_folder(pdf, [kl])[0] is bestaetigt
+
+
+def test_ordnen_eigener_ordner_fehlt_auch_ueber_eine_verknuepfung(tmp_path):
+    """Live-Test: im Ordner C:\\...\\Documents\\...\\Nebenkosten 2026 (Junction auf OneDrive
+    unter E:) wurde E:\\...\\Nebenkosten 2026 als Ziel vorgeschlagen."""
+    import os
+    import subprocess
+    import sys
+    eigener = _sug(tmp_path, "OneDrive/Nebenkosten 2026", 0.9)
+    eigener.folder_path.mkdir(parents=True)
+    b = _sug(tmp_path, "B", 0.5)
+    link = tmp_path / "Documents"
+    if sys.platform == "win32":  # Junction braucht keine Admin-Rechte (wie Documents -> OneDrive)
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(tmp_path / "OneDrive")],
+                       check=True, capture_output=True)
+    else:
+        os.symlink(tmp_path / "OneDrive", link)
+    pdf = link / "Nebenkosten 2026" / "a.pdf"
+    assert _ordnen(pdf, [eigener, b]) == [b]
