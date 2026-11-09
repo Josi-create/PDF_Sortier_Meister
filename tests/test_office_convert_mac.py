@@ -107,3 +107,61 @@ def test_fehlertext_ohne_applescript_technik():
     roh = "418:454: execution error: Microsoft Word hat die Datei nicht geöffnet (vielleicht ...). (9001)"
     assert oc._mac_fehlertext("Microsoft Word", roh) == "Microsoft Word hat die Datei nicht geöffnet (vielleicht ...)."
     assert "Automation" in oc._mac_fehlertext("Microsoft Word", "x (-1743)")
+
+
+# ------------------------------------------------------------------- Pages
+def test_pages_wenn_weder_word_noch_libreoffice(tmp_path, mac, monkeypatch):
+    monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "pages")
+    erg = oc.umwandeln(_docx(tmp_path))
+    assert erg.werkzeug == "Pages"
+    stamm, kopie = mac.kopien[0]
+    assert "com.apple.iWork.Pages" in kopie
+    assert stamm.startswith("pdfsm-") and "." not in stamm  # Pages zeigt Namen teils ohne Endung
+
+
+def test_libreoffice_vor_pages(tmp_path, mac, monkeypatch):
+    monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "pages")
+    monkeypatch.setattr(oc, "finde_libreoffice", lambda: "/fake/soffice")
+    benutzt = []
+
+    def lo(soffice, quelle, pdf, pdfa):
+        benutzt.append("lo")
+        pdf.write_bytes(b"%PDF lo")
+
+    monkeypatch.setattr(oc, "_mit_libreoffice", lo)
+    assert oc.umwandeln(_docx(tmp_path)).werkzeug == "LibreOffice"
+    assert benutzt == ["lo"] and mac.kopien == []
+
+
+def test_pages_springt_ein_wenn_libreoffice_scheitert(tmp_path, mac, monkeypatch):
+    monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "pages")
+    monkeypatch.setattr(oc, "finde_libreoffice", lambda: "/fake/soffice")
+
+    def lo(*a):
+        raise oc.UmwandlungFehler("LibreOffice kaputt")
+
+    monkeypatch.setattr(oc, "_mit_libreoffice", lo)
+    erg = oc.umwandeln(_docx(tmp_path), pdfa=True)
+    assert erg.werkzeug == "Pages" and not erg.pdfa
+    assert any("LibreOffice ging nicht" in h for h in erg.hinweise)
+    assert any("Pages kann kein PDF/A" in h for h in erg.hinweise)
+
+
+def test_pages_nicht_fuer_odt_und_xlsx(tmp_path, mac, monkeypatch):
+    monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "pages")
+    monkeypatch.setattr(oc.sys, "platform", "darwin")
+    assert oc.umwandler_verfuegbar(".docx")
+    assert not oc.umwandler_verfuegbar(".odt") and not oc.umwandler_verfuegbar(".xlsx")
+    odt = tmp_path / "a.odt"
+    odt.write_bytes(b"PK")
+    with pytest.raises(oc.KeinUmwandlerGefunden):
+        oc.umwandeln(odt)
+    with pytest.raises(oc.KeinUmwandlerGefunden, match="Pages"):
+        monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: False)
+        oc.umwandeln(_docx(tmp_path))
+
+
+def test_pages_skript_ist_vollstaendig():
+    skript = oc._MAC_SKRIPT["pages"]
+    assert "export doc to (POSIX file ziel) as PDF" in skript
+    assert "close doc saving no" in skript

@@ -39,7 +39,9 @@ Umwandlung
      startet es versteckt und wird danach wieder beendet. Beim ersten Mal
      fragt macOS, ob PDF Sortier Meister Word/Excel steuern darf.
 2. Rueckfall: LibreOffice headless (``soffice``).
-3. Ist keines von beiden da, gibt es ``KeinUmwandlerGefunden`` mit klarer Meldung.
+3. Mac, nur .docx: Apple Pages (per AppleScript wie Word, Arbeitskopie im
+   Pages-Container). Zuletzt, weil Pages ein Fenster oeffnet und kein PDF/A kann.
+4. Ist nichts davon da, gibt es ``KeinUmwandlerGefunden`` mit klarer Meldung.
 
 PDF/A: Word per ``ExportAsFixedFormat(UseISO19005_1=True)`` (Stufe B),
 LibreOffice per ``SelectPdfVersion`` (PDF/A-2b). Excel (COM) und Word/Excel auf
@@ -96,7 +98,7 @@ class KeinUmwandlerGefunden(UmwandlungFehler):
 @dataclass
 class UmwandlungsErgebnis:
     pdf: Path
-    werkzeug: str  # "Word", "Excel" oder "LibreOffice"
+    werkzeug: str  # "Word", "Excel", "LibreOffice" oder "Pages"
     datum: Optional[datetime] = None  # nur .docx/.odt: eingesetztes Datum der Datumsfelder
     datum_quelle: Optional[str] = None  # "lastPrinted", "modified", "created" oder "Dateizeit"
     ersetzte_felder: int = 0
@@ -595,7 +597,8 @@ def umwandler_verfuegbar(endung: str) -> bool:
     ist_word = endung.lower() in WORD_ENDUNGEN
     com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
     mac = mac_office_verfuegbar("word" if ist_word else "excel")
-    return com or mac or finde_libreoffice() is not None
+    pages = endung.lower() in PAGES_ENDUNGEN and mac_office_verfuegbar("pages")
+    return com or mac or pages or finde_libreoffice() is not None
 
 
 # --------------------------------------------------------------- macOS: Word/Excel
@@ -603,7 +606,9 @@ MAC_OFFICE_TIMEOUT_S = 180
 _MAC_APPS = {
     "word": ("Microsoft Word", "com.microsoft.Word"),
     "excel": ("Microsoft Excel", "com.microsoft.Excel"),
+    "pages": ("Pages", "com.apple.iWork.Pages"),
 }
+PAGES_ENDUNGEN = (".docx",)  # Pages oeffnet kein .odt
 
 # Oeffnen liefert auf dem Mac keinen Verweis zurueck (asynchron): per (eindeutigem)
 # Namen warten, bis das Dokument da ist (nicht nur, bis kein Fehler kommt). ``delay`` steht bewusst ausserhalb von ``tell``: darin wird es an
@@ -640,11 +645,49 @@ on run argv
 end run
 """
 _MAC_OEFFNEN_WARTEN_S = 30
+
+# Pages: ``open`` liefert das Dokument meist direkt; sonst per Namensanfang suchen
+# (Pages zeigt importierte Dateien teils ohne Endung an).
+_PAGES_SKRIPT = """
+on run argv
+  set dstamm to item 1 of argv
+  set quelle to item 2 of argv
+  set ziel to item 3 of argv
+  with timeout of {timeout} seconds
+    set doc to missing value
+    try
+      tell application "Pages" to set doc to open (POSIX file quelle)
+    end try
+    repeat {versuche} times
+      if doc is not missing value then exit repeat
+      try
+        tell application "Pages"
+          repeat with d in documents
+            if name of d starts with dstamm then set doc to contents of d
+          end repeat
+        end tell
+      end try
+      if doc is missing value then delay 0.2
+    end repeat
+    if doc is missing value then error "Pages hat die Datei nicht geöffnet (vielleicht ist dort gerade ein Dialog offen)." number 9001
+    tell application "Pages"
+      try
+        export doc to (POSIX file ziel) as PDF
+      on error m number n
+        close doc saving no
+        error m number n
+      end try
+      close doc saving no
+    end tell
+  end timeout
+end run
+"""
 _MAC_SKRIPT = {
     "word": _MAC_SKRIPT_VORLAGE.replace("{app}", "Microsoft Word").replace("{objekt}", "document").replace(
         "{speichern}", "save as doc file name ziel file format format PDF"),
     "excel": _MAC_SKRIPT_VORLAGE.replace("{app}", "Microsoft Excel").replace("{objekt}", "workbook").replace(
         "{speichern}", "save workbook as doc filename ziel file format PDF file format"),
+    "pages": _PAGES_SKRIPT,
 }
 
 
@@ -711,7 +754,7 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
             "{versuche}", str(_MAC_OEFFNEN_WARTEN_S * 5))
         try:
             lauf = subprocess.run(
-                ["osascript", "-", name, str(kopie), str(ziel)],
+                ["osascript", "-", Path(name).stem if art == "pages" else name, str(kopie), str(ziel)],
                 input=skript, capture_output=True, text=True, timeout=MAC_OFFICE_TIMEOUT_S + 30,
             )
         except subprocess.TimeoutExpired as e:
@@ -872,7 +915,8 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
     com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
     mac = not com and mac_office_verfuegbar("word" if ist_word else "excel")
     soffice = finde_libreoffice()
-    if not com and not mac and not soffice:
+    pages = endung in PAGES_ENDUNGEN and mac_office_verfuegbar("pages")
+    if not com and not mac and not soffice and not pages:
         programm = "Microsoft Word" if ist_word else "Microsoft Excel"
         prog_id = "Word.Application" if ist_word else "Excel.Application"
         if _com_klasse_registriert(prog_id) and not pywin32_verfuegbar():
@@ -880,6 +924,11 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
                 f"{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister "
                 "läuft, fehlt das Paket \"pywin32\".\n"
                 "Bitte im Programmordner ausführen: python -m pip install -r requirements.txt"
+            )
+        if sys.platform == "darwin" and endung in PAGES_ENDUNGEN:
+            raise KeinUmwandlerGefunden(
+                f"Zum Umwandeln wird {programm}, LibreOffice oder Apple Pages benötigt. "
+                "Nichts davon wurde gefunden."
             )
         raise KeinUmwandlerGefunden(
             f"Zum Umwandeln wird {programm} oder LibreOffice benötigt. "
@@ -930,16 +979,30 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
             except Exception as e:  # noqa: BLE001 - COM wirft vielfaeltige Fehler; Rueckfall versuchen
                 fehler = e
                 pdf_tmp.unlink(missing_ok=True)
-        if not ergebnis.werkzeug:
-            if not soffice:
-                raise UmwandlungFehler(f"Umwandlung mit {'Word' if ist_word else 'Excel'} fehlgeschlagen: {fehler}")
+        office_name = "Word" if ist_word else "Excel"
+        if not ergebnis.werkzeug and soffice:
+            try:
+                lo_ziel = arbeit / (kopie.stem + ".pdf")
+                _mit_libreoffice(soffice, kopie, lo_ziel, pdfa)
+                lo_ziel.replace(pdf_tmp)
+                if fehler is not None:
+                    ergebnis.hinweise.append(f"{office_name} ging nicht ({fehler}) - LibreOffice verwendet.")
+                ergebnis.werkzeug = "LibreOffice"
+                ergebnis.pdfa = pdfa
+            except UmwandlungFehler as e:
+                if not pages:
+                    raise
+                fehler, office_name = e, "LibreOffice"
+                pdf_tmp.unlink(missing_ok=True)
+        if not ergebnis.werkzeug and pages:
+            _mit_office_mac("pages", kopie, pdf_tmp)
             if fehler is not None:
-                ergebnis.hinweise.append(f"{'Word' if ist_word else 'Excel'} ging nicht ({fehler}) - LibreOffice verwendet.")
-            lo_ziel = arbeit / (kopie.stem + ".pdf")
-            _mit_libreoffice(soffice, kopie, lo_ziel, pdfa)
-            lo_ziel.replace(pdf_tmp)
-            ergebnis.werkzeug = "LibreOffice"
-            ergebnis.pdfa = pdfa
+                ergebnis.hinweise.append(f"{office_name} ging nicht ({fehler}) - Pages verwendet.")
+            if pdfa:
+                ergebnis.hinweise.append("Pages kann kein PDF/A erzeugen - normales PDF erstellt.")
+            ergebnis.werkzeug = "Pages"
+        if not ergebnis.werkzeug:
+            raise UmwandlungFehler(f"Umwandlung mit {office_name} fehlgeschlagen: {fehler}")
         if not pdf_tmp.exists() or pdf_tmp.stat().st_size == 0:
             raise UmwandlungFehler("Die Umwandlung hat kein PDF erzeugt.")
         shutil.move(str(pdf_tmp), str(ziel))

@@ -8,6 +8,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Apple Pages als Umwandler für .docx auf dem Mac:** Ist weder Word noch
+  LibreOffice installiert (oder scheitern beide), wandelt Pages Word-Dateien in
+  PDF um und liefert die Vorschau. Reihenfolge: Word → LibreOffice → Pages.
+  Pages kann kein PDF/A (dann normales PDF mit Hinweis) und öffnet kein .odt.
 - **„Aktuellen Namen behalten“ in der Vorschlagsliste:** Die letzte Zeile der
   Dateinamen-Vorschläge übernimmt per Klick den bisherigen Dateinamen ins Feld
   „Neuer Dateiname“ – für Fälle, in denen er besser ist als der KI-Vorschlag.
