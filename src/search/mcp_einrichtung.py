@@ -58,6 +58,13 @@ def werkzeug_namen(sql_erlaubt: bool) -> list[str]:
 # --------------------------------------------------------------------------- Aufruf des Dienstes
 
 
+def befehlszeile(teile: list[str]) -> str:
+    """Argumentliste als eine Zeile zum Anzeigen und Kopieren (Windows- bzw. POSIX-Quotierung)."""
+    if sys.platform == "win32":
+        return subprocess.list2cmdline(teile)
+    return shlex.join(teile)
+
+
 @dataclass(frozen=True)
 class DienstAufruf:
     """Wie ein MCP-Client den Server startet: Programm, Argumente, zusaetzliche Umgebung."""
@@ -68,11 +75,8 @@ class DienstAufruf:
     gebaut: bool = True
 
     def befehlszeile(self) -> str:
-        """Zum Anzeigen und Kopieren (Windows- bzw. POSIX-Quotierung)."""
-        teile = [self.programm, *self.argumente]
-        if sys.platform == "win32":
-            return subprocess.list2cmdline(teile)
-        return shlex.join(teile)
+        """Programm und Argumente als eine Zeile (ohne die Umgebung)."""
+        return befehlszeile([self.programm, *self.argumente])
 
 
 def _ist_gebaut() -> bool:

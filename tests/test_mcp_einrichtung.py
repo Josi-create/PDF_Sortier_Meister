@@ -319,3 +319,14 @@ def test_conftest_sperrt_echte_clients():
     assert me.claude_programm() is None and me.claude_desktop_konfig() is None
     assert me.claude_code_status().zustand == me.NICHT_GEFUNDEN
     assert me.claude_desktop_status().zustand == me.NICHT_GEFUNDEN
+
+
+def test_laedt_ohne_qt():
+    """Qt-frei wie src/search: die Einstellungen nutzen das Modul, der Dienst koennte es auch."""
+    code = ("import sys; import src.search.mcp_einrichtung; "
+            "geladen = sorted(m for m in sys.modules if m.startswith(('PyQt6', 'sqlalchemy', 'src.gui'))); "
+            "assert not geladen, geladen; print('ok')")
+    r = subprocess.run([sys.executable, "-c", code], cwd=str(Path(__file__).resolve().parents[1]),
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "ok"
