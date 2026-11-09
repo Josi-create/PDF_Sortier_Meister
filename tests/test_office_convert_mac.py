@@ -147,6 +147,18 @@ def test_pages_springt_ein_wenn_libreoffice_scheitert(tmp_path, mac, monkeypatch
     assert any("Pages kann kein PDF/A" in h for h in erg.hinweise)
 
 
+def test_numbers_fuer_xlsx(tmp_path, mac, monkeypatch):
+    monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "numbers")
+    xlsx = tmp_path / "Tabelle.xlsx"
+    xlsx.write_bytes(b"PK")
+    erg = oc.umwandeln(xlsx, pdfa=True)
+    assert erg.werkzeug == "Numbers" and not erg.pdfa
+    assert "com.apple.iWork.Numbers" in mac.kopien[0][1]
+    assert any("Numbers kann kein PDF/A" in h for h in erg.hinweise)
+    assert 'tell application "Numbers"' in oc._MAC_SKRIPT["numbers"]
+    assert "Pages" not in oc._MAC_SKRIPT["numbers"]
+
+
 def test_pages_nicht_fuer_odt_und_xlsx(tmp_path, mac, monkeypatch):
     monkeypatch.setattr(oc, "mac_office_verfuegbar", lambda art: art == "pages")
     monkeypatch.setattr(oc.sys, "platform", "darwin")
