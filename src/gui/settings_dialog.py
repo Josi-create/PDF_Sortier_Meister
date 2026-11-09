@@ -13,16 +13,49 @@ from PyQt6.QtWidgets import (
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
     QButtonGroup, QPlainTextEdit, QScrollArea
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 
 import sys
+import threading
 
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
+from src.search import mcp_einrichtung
 from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
 from src.rag.bezug import SCHNELLFRAGEN, schnellfragen_aus_text
+
+
+class _Hintergrund(QObject):
+    """Fuehrt eine Funktion in einem Python-Thread aus und liefert das Ergebnis im GUI-Thread.
+
+    Fuer ``claude mcp get``/``add`` (Gruppe „KI-Assistenten (MCP)“), die einige Sekunden
+    brauchen. Ist der Dialog beim Ende schon geschlossen, verfaellt das Ergebnis.
+    """
+
+    _fertig = pyqtSignal(object, object)
+
+    def __init__(self, parent: QObject):
+        super().__init__(parent)
+        self._fertig.connect(self._ausliefern)
+
+    def starten(self, funktion, rueckruf) -> None:
+        def lauf():
+            try:
+                ergebnis = funktion()
+            except Exception as exc:  # noqa: BLE001 - Fehler als Ergebnis in den GUI-Thread
+                ergebnis = exc
+            try:
+                self._fertig.emit(rueckruf, ergebnis)
+            except RuntimeError:
+                pass  # Dialog (und damit dieses Objekt) ist schon geloescht
+
+        threading.Thread(target=lauf, daemon=True, name="pdfsm-mcp-einrichtung").start()
+
+    @pyqtSlot(object, object)
+    def _ausliefern(self, rueckruf, ergebnis) -> None:
+        rueckruf(ergebnis)
 
 
 class SettingsDialog(QDialog):
@@ -116,6 +149,9 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(tab_widget)
         self.tab_widget = tab_widget
+        # Claude Code/Desktop erst pruefen, wenn der Reiter „Suche“ sichtbar wird
+        self._search_tab = search_tab
+        tab_widget.currentChanged.connect(self._on_tab_changed_mcp)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -386,7 +422,8 @@ class SettingsDialog(QDialog):
         )
         self.chat_sql_check.setToolTip(
             "Das Modell darf lesende SQL-Abfragen auf der Suchdatenbank stellen\n"
-            "(z.B. Zählungen, Zeiträume). Kleine Modelle formulieren oft falsches SQL."
+            "(z.B. Zählungen, Zeiträume). Kleine Modelle formulieren oft falsches SQL.\n"
+            "Gilt auch für KI-Assistenten über MCP (Reiter „Suche“ › KI-Assistenten)."
         )
         layout.addWidget(self.chat_sql_check)
 
@@ -1411,6 +1448,9 @@ class SettingsDialog(QDialog):
         web_layout.addRow(web_hint)
         layout.addWidget(web_group)
 
+        # KI-Assistenten (MCP), Baustein 3 aus docs/CHAT_MCP_PLAN.md
+        layout.addWidget(self._create_mcp_group())
+
         # Leistung
         perf_group = QGroupBox("Leistung")
         perf_layout = QFormLayout(perf_group)
@@ -1528,6 +1568,213 @@ class SettingsDialog(QDialog):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(inner)
         return scroll
+
+    # KI-Assistenten (MCP) im Reiter „Suche“ (Baustein 3, docs/CHAT_MCP_PLAN.md)
+
+    _MCP_SYMBOL = {
+        mcp_einrichtung.EINGERICHTET: "✅",
+        mcp_einrichtung.ANDERER_PFAD: "⚠️",
+        mcp_einrichtung.FEHLER: "⚠️",
+        mcp_einrichtung.INSTALLIERT: "➖",
+        mcp_einrichtung.NICHT_GEFUNDEN: "➖",
+    }
+
+    def _create_mcp_group(self) -> QGroupBox:
+        """Gruppe „KI-Assistenten (MCP)“: Dienst, Werkzeuge, SQL-Schalter, Claude Code, Claude Desktop.
+
+        Die Logik liegt Qt-frei in ``src/search/mcp_einrichtung.py``. Der Status wird erst
+        geprueft, wenn der Reiter sichtbar wird (``_on_tab_changed_mcp``); Claude Code im
+        Hintergrund, weil ``claude mcp get`` den Server zur Probe startet. Eine Weiterleitung
+        des Chats an Claude Desktop gibt es bewusst nicht (Plan, Abschnitt 1.3).
+        """
+        from PyQt6.QtWidgets import QApplication
+
+        self._mcp_geprueft = False
+        self._mcp_code_status: mcp_einrichtung.Status | None = None
+        self._mcp_desktop_status: mcp_einrichtung.Status | None = None
+        self._mcp_hintergrund = _Hintergrund(self)
+
+        group = QGroupBox("KI-Assistenten (MCP)")
+        form = QFormLayout(group)
+
+        self.mcp_hint_label = QLabel(
+            "Claude Desktop, Claude Code und andere MCP-fähige Programme durchsuchen über den "
+            "Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst "
+            "liest den Index nur."
+        )
+        self.mcp_hint_label.setStyleSheet("color: gray;")
+        self.mcp_hint_label.setWordWrap(True)
+        form.addRow(self.mcp_hint_label)
+
+        aufruf = mcp_einrichtung.dienst_aufruf()
+        dienst_row = QHBoxLayout()
+        self.mcp_dienst_edit = QLineEdit(str(mcp_einrichtung.dienst_pfad()))
+        self.mcp_dienst_edit.setReadOnly(True)
+        self.mcp_dienst_edit.setCursorPosition(0)
+        tipp = "So startet ein KI-Assistent den Dienst (stdio)."
+        if aufruf.umgebung:
+            tipp += "\nEntwicklungsmodus, zusätzlich: " + ", ".join(f"{k}={v}" for k, v in aufruf.umgebung.items())
+        self.mcp_dienst_edit.setToolTip(tipp)
+        dienst_row.addWidget(self.mcp_dienst_edit, 1)
+        self.mcp_dienst_copy_button = QPushButton("Kopieren")
+        self.mcp_dienst_copy_button.clicked.connect(
+            lambda: QApplication.clipboard().setText(self.mcp_dienst_edit.text())
+        )
+        dienst_row.addWidget(self.mcp_dienst_copy_button)
+        form.addRow("Dienst:", dienst_row)
+
+        self.mcp_tools_label = QLabel("")
+        self.mcp_tools_label.setWordWrap(True)
+        self.mcp_tools_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Werkzeuge:", self.mcp_tools_label)
+
+        self.mcp_sql_check = QCheckBox("SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)")
+        self.mcp_sql_check.setToolTip(
+            "Gibt dem Assistenten zusätzlich das Werkzeug sql_abfrage (Summen, Zählungen).\n"
+            "Derselbe Schalter wie unter „KI-Assistent (LLM)“ › Chat; er gilt für beide.\n"
+            "Der Assistent sieht die Änderung nach seinem nächsten Neustart."
+        )
+        form.addRow(self.mcp_sql_check)
+        # Ein Wert an zwei Stellen: setChecked mit gleichem Wert sendet kein toggled (keine Schleife)
+        self.mcp_sql_check.toggled.connect(self.chat_sql_check.setChecked)
+        self.chat_sql_check.toggled.connect(self.mcp_sql_check.setChecked)
+        self.mcp_sql_check.toggled.connect(self._update_mcp_tools)
+
+        code_row = QHBoxLayout()
+        self.mcp_code_status_label = QLabel("–")
+        self.mcp_code_status_label.setWordWrap(True)
+        code_row.addWidget(self.mcp_code_status_label, 1)
+        self.mcp_code_button = QPushButton("Einrichten")
+        self.mcp_code_button.setEnabled(False)
+        self.mcp_code_button.setToolTip(
+            mcp_einrichtung.befehlszeile(mcp_einrichtung.claude_code_befehl(aufruf))
+        )
+        self.mcp_code_button.clicked.connect(self._mcp_code_einrichten)
+        code_row.addWidget(self.mcp_code_button)
+        form.addRow("Claude Code:", code_row)
+
+        desktop_row = QHBoxLayout()
+        self.mcp_desktop_status_label = QLabel("–")
+        self.mcp_desktop_status_label.setWordWrap(True)
+        desktop_row.addWidget(self.mcp_desktop_status_label, 1)
+        self.mcp_desktop_copy_button = QPushButton("Eintrag kopieren")
+        self.mcp_desktop_copy_button.setToolTip(
+            "Kopiert den Eintrag für claude_desktop_config.json (JSON) in die Zwischenablage."
+        )
+        self.mcp_desktop_copy_button.clicked.connect(self._mcp_desktop_kopieren)
+        desktop_row.addWidget(self.mcp_desktop_copy_button)
+        self.mcp_desktop_write_button = QPushButton("In Konfiguration eintragen")
+        self.mcp_desktop_write_button.setEnabled(False)
+        self.mcp_desktop_write_button.clicked.connect(self._mcp_desktop_eintragen)
+        desktop_row.addWidget(self.mcp_desktop_write_button)
+        form.addRow("Claude Desktop:", desktop_row)
+
+        self.mcp_meldung_label = QLabel(
+            "Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten."
+        )
+        self.mcp_meldung_label.setStyleSheet("color: gray;")
+        self.mcp_meldung_label.setWordWrap(True)
+        form.addRow(self.mcp_meldung_label)
+
+        self._update_mcp_tools()
+        return group
+
+    def _update_mcp_tools(self, *_):
+        self.mcp_tools_label.setText(", ".join(mcp_einrichtung.werkzeug_namen(self.mcp_sql_check.isChecked())))
+
+    def _on_tab_changed_mcp(self, index: int) -> None:
+        if self.tab_widget.widget(index) is self._search_tab and not self._mcp_geprueft:
+            self._mcp_status_pruefen()
+
+    def _mcp_status_pruefen(self) -> None:
+        """Claude Desktop sofort (Datei lesen), Claude Code im Hintergrund (``claude mcp get``)."""
+        self._mcp_geprueft = True
+        self._mcp_desktop_status_setzen(mcp_einrichtung.claude_desktop_status())
+        self.mcp_code_status_label.setText("wird geprüft …")
+        self.mcp_code_button.setEnabled(False)
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
+                                      self._mcp_code_status_setzen)
+
+    def _mcp_status_text(self, status) -> str:
+        return f"{self._MCP_SYMBOL.get(status.zustand, '')} {status.text}".strip()
+
+    def _mcp_code_status_setzen(self, status) -> None:
+        if isinstance(status, Exception):
+            status = mcp_einrichtung.Status(mcp_einrichtung.FEHLER, f"Prüfung gescheitert: {status}")
+        self._mcp_code_status = status
+        self.mcp_code_status_label.setText(self._mcp_status_text(status))
+        vorhanden = status.zustand in (mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        self.mcp_code_button.setText("Neu einrichten" if vorhanden else "Einrichten")
+        self.mcp_code_button.setEnabled(status.zustand != mcp_einrichtung.NICHT_GEFUNDEN)
+
+    def _mcp_code_einrichten(self) -> None:
+        status = self._mcp_code_status
+        ersetzen = status is not None and status.zustand in (
+            mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        befehl = mcp_einrichtung.befehlszeile(mcp_einrichtung.claude_code_befehl())
+        frage = ("Claude Code richtet den Server „pdfsuche“ für alle Projekte ein:\n\n"
+                 f"{befehl}\n\n")
+        if ersetzen:
+            frage += "Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n"
+        frage += "Fortfahren?"
+        antwort = QMessageBox.question(self, "Claude Code einrichten", frage)
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        self.mcp_code_button.setEnabled(False)
+        self.mcp_code_status_label.setText("wird eingerichtet …")
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_einrichten(ersetzen),
+                                      self._mcp_code_eingerichtet)
+
+    def _mcp_code_eingerichtet(self, text) -> None:
+        if isinstance(text, Exception):
+            text = f"Fehler: {text}"
+        if str(text).startswith("Fehler"):
+            QMessageBox.warning(self, "Claude Code", str(text))
+        else:
+            QMessageBox.information(self, "Claude Code", str(text))
+        self.mcp_code_status_label.setText("wird geprüft …")
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
+                                      self._mcp_code_status_setzen)
+
+    def _mcp_desktop_status_setzen(self, status) -> None:
+        self._mcp_desktop_status = status
+        text = self._mcp_status_text(status)
+        self.mcp_desktop_status_label.setText(text)
+        self.mcp_desktop_status_label.setToolTip(str(status.pfad) if status.pfad else "")
+        schreibbar = status.pfad is not None and status.zustand != mcp_einrichtung.FEHLER
+        self.mcp_desktop_write_button.setEnabled(schreibbar)
+        self.mcp_desktop_write_button.setToolTip(
+            f"Trägt „pdfsuche“ in {status.pfad} ein (mit Sicherungskopie)." if schreibbar
+            else "Keine beschreibbare Konfiguration von Claude Desktop gefunden – "
+                 "„Eintrag kopieren“ und von Hand einfügen."
+        )
+
+    def _mcp_desktop_kopieren(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(mcp_einrichtung.claude_desktop_eintrag_json())
+        self.mcp_meldung_label.setText(
+            "Eintrag kopiert. In claude_desktop_config.json unter „mcpServers“ einfügen "
+            "(Claude Desktop: Einstellungen › Entwickler › Konfiguration bearbeiten), "
+            "dann Claude Desktop neu starten."
+        )
+
+    def _mcp_desktop_eintragen(self) -> None:
+        status = self._mcp_desktop_status
+        if status is None or status.pfad is None:
+            return
+        frage = ("Den Server „pdfsuche“ in die Konfiguration von Claude Desktop eintragen?\n\n"
+                 f"{status.pfad}\n\n"
+                 "Andere Einträge bleiben erhalten; vorher entsteht eine Sicherungskopie.")
+        antwort = QMessageBox.question(self, "Claude Desktop einrichten", frage)
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        text = mcp_einrichtung.claude_desktop_eintragen(status.pfad)
+        if text.startswith("Fehler"):
+            QMessageBox.warning(self, "Claude Desktop", text)
+        else:
+            QMessageBox.information(self, "Claude Desktop", text)
+        self._mcp_desktop_status_setzen(mcp_einrichtung.claude_desktop_status(status.pfad))
 
     # Listen-Helfer der Registerkarte „Suche“
 

@@ -18,6 +18,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   `suche` versteht jetzt auch „excel“, „word“ oder „e-mail“ als Typ und meldet ein
   unmögliches Datum, statt still nichts zu finden. Alle Werkzeuge sind als nur lesend
   gekennzeichnet; der Dienst liest die Lernhistorie schreibgeschützt und ändert nichts.
+- **KI-Assistenten mit einem Klick einrichten**: Einstellungen › Suche › „KI-Assistenten (MCP)“
+  zeigt, ob Claude Code und Claude Desktop installiert sind und die Dokumentensuche kennen, und
+  richtet sie nach einer Rückfrage ein – Claude Code per `claude mcp add`, Claude Desktop durch
+  einen Eintrag in seiner Konfigurationsdatei (andere Einträge bleiben, vorher entsteht eine
+  Sicherungskopie). Gefunden wird die Datei auch bei der Store-Fassung von Claude Desktop unter
+  Windows. Dazu: Pfad des Dienstes zum Kopieren, die Liste der Werkzeuge und der Schalter für
+  SQL-Abfragen (derselbe wie im Chat).
 - **Apple Pages (.docx) und Numbers (.xlsx) als Umwandler auf dem Mac:** Ist
   weder Word/Excel noch LibreOffice installiert (oder scheitern beide), wandeln
   Pages bzw. Numbers in PDF um und liefern die Vorschau. Reihenfolge: Word/Excel

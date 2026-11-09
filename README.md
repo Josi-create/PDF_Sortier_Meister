@@ -157,12 +157,27 @@ Assistenten dieselben Werkzeuge wie dem Chat im Programm:
 | `index_status` | Stand des Index (Dokumente, OCR-Fortschritt, letzter Lauf) |
 | `ordner_vorschlag` | In welchen Ordner gehört ein Dokument? Ähnliche, schon einsortierte Dokumente mit Ordner und Jahr, Zielordner, und ob es noch unsortiert im Scan-Eingang liegt |
 | `korrespondent_info` | Was PDFSM über einen Absender gelernt hat: Schreibweisen, Kategorie, MwSt-Satz, Währung |
-| `sql_abfrage` | nur wenn unter Einstellungen › Chat „SQL-Abfragen auf der Suchdatenbank erlauben“ an ist: lesende SQL-Auswertungen auf der Suchdatenbank (Summen, Zählungen), mit Zeitlimit |
+| `sql_abfrage` | nur wenn „SQL-Abfragen auf der Suchdatenbank erlauben“ an ist (Einstellungen › Suche › KI-Assistenten oder › Chat, derselbe Schalter): lesende SQL-Auswertungen auf der Suchdatenbank (Summen, Zählungen), mit Zeitlimit |
 
 Alle Werkzeuge sind als *nur lesend* gekennzeichnet; keines verschiebt, benennt um oder ändert etwas.
 Eine typische Frage an Claude Desktop: „In welchen Ordner gehört die Stadtwerke-Rechnung im
 Scan-Eingang?“ – der Assistent sucht sie, ruft `ordner_vorschlag` auf und begründet seine Antwort.
-Einrichten für **Claude Code**:
+
+**Einrichten über die Einstellungen** (empfohlen): Einstellungen › Suche › „KI-Assistenten (MCP)“
+zeigt den Pfad des Dienstes, die Werkzeuge und den Schalter für SQL-Abfragen, und je Assistent, ob er
+installiert und eingerichtet ist:
+
+- **Claude Code**: „Einrichten“ führt nach einer Rückfrage `claude mcp add pdfsuche --scope user …`
+  aus (für alle Projekte); zeigt ein vorhandener Eintrag auf ein anderes Programm, heißt der Knopf
+  „Neu einrichten“ und ersetzt ihn.
+- **Claude Desktop**: „In Konfiguration eintragen“ schreibt nach einer Rückfrage den Eintrag
+  `pdfsuche` in `claude_desktop_config.json`. Andere Einträge bleiben erhalten, vorher entsteht eine
+  Sicherungskopie (`claude_desktop_config.json.bak-JJJJMMTT-HHMMSS`). Gefunden wird die Datei an allen
+  bekannten Orten: macOS `~/Library/Application Support/Claude/`, Windows bei der Store-Fassung
+  `%LOCALAPPDATA%\Claude-Data\claude_…\` (ältere Store-Fassungen im Paketordner), sonst
+  `%APPDATA%\Claude\`. „Eintrag kopieren“ legt das JSON in die Zwischenablage, zum Einfügen von Hand.
+
+Danach den Assistenten neu starten. Von Hand geht es so – für **Claude Code**:
 
 ```bash
 claude mcp add pdfsuche --scope user -- "<Installationsordner>\pdfsm-dienst.exe" mcp
