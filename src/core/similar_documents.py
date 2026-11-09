@@ -20,9 +20,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import TYPE_CHECKING, Iterable, Optional, Sequence
 
 from src.core.rename_examples import _TOKEN_RE, name_tokens
+
+if TYPE_CHECKING:  # nur fuer Annotationen: src.rag importiert dieses Modul
+    from src.rag.daten import ChatDaten
 
 _YEAR_RE = re.compile(r"(?<!\d)20\d{2}(?!\d)")
 
@@ -172,7 +175,7 @@ class _Scorer:
                 + KEYWORD_HIT_WEIGHT * keyword_hits)
 
 
-def _history_candidates(db, root_folders: Sequence[Path]) -> Iterable[dict]:
+def _history_candidates(db: ChatDaten, root_folders: Sequence[Path]) -> Iterable[dict]:
     """Sortierhistorie: neueste zuerst, ohne den Volltext.
 
     Der Ablageort kommt bevorzugt aus dem absoluten Zielordner (einheitliche
@@ -192,7 +195,7 @@ def _history_candidates(db, root_folders: Sequence[Path]) -> Iterable[dict]:
         }
 
 
-def _index_candidates(db, root_folders: Sequence[Path]) -> Iterable[dict]:
+def _index_candidates(db: ChatDaten, root_folders: Sequence[Path]) -> Iterable[dict]:
     """Suchindex (document_search): Dokumente, die bereits in Zielordnern liegen."""
     for row in db.get_indexed_documents_brief(limit=MAX_ROWS):
         file_path = row.get("file_path") or ""
@@ -213,7 +216,7 @@ def find_similar_documents(
     text: str,
     keywords,
     root_folders: Sequence[Path],
-    db=None,
+    db: Optional[ChatDaten] = None,
     limit: int = 5,
 ) -> list[SimilarDocument]:
     """Die aehnlichsten bereits einsortierten Dokumente, beste zuerst.

@@ -46,6 +46,7 @@ from pathlib import Path
 from src.core.similar_documents import find_similar_documents
 from src.ml.llm_provider import Werkzeug, WerkzeugAufruf
 from src.rag.bezug import Bezug, ablageort, gleicher_pfad
+from src.rag.daten import ChatDaten
 from src.rag.retrieval import RetrievalService, RetrievedDoc
 from src.search import ausgabe
 from src.search.db import fts_abfrage
@@ -173,7 +174,8 @@ class Werkzeugkasten:
     """Werkzeuge des Chats ueber dem Suchindex mit chat-lokalen Dokumentnummern.
 
     Args:
-        db: :class:`~src.utils.database.Database`; ``db.suchindex`` ist der
+        db: Datenquelle (:class:`~src.rag.daten.ChatDaten`), in der Oberflaeche
+            :class:`~src.utils.database.Database`; ``db.suchindex`` ist der
             :class:`~src.search.suchindex.Suchindex`. Fehlt er (Tests, fremde
             DB), melden die Werkzeuge "Suchindex nicht verfügbar".
         chat_config: :class:`ChatConfig` (Auszugslaenge, Top-K).
@@ -198,7 +200,7 @@ class Werkzeugkasten:
 
     def __init__(
         self,
-        db,
+        db: ChatDaten | None,
         chat_config: ChatConfig | None = None,
         *,
         bezug: Bezug | None = None,
