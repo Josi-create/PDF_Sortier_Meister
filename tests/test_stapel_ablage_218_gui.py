@@ -14,11 +14,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QMimeData, QPointF, Qt, QTimer, QUrl
+from PyQt6.QtGui import QDropEvent
 from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressDialog
 
 from src.core.pdf_cache import LLMSuggestion, LLMSuggestionWorker, PDFAnalysisResult
+from src.core import neuer_ordner
 from src.gui import stapel_rueckfrage
+from src.ml.classifier import Suggestion
 from tests.test_auto_next_after_move_gui import (  # noqa: F401 - Fixtures
     _make_scan_folder,
     fresh_singletons,
@@ -389,9 +392,16 @@ def test_ziehen_auf_einen_neuen_ordner_legt_ihn_an(stapel):
     neu = ziel / "Gebäudeverwaltung"
     erwartet = {_panel_vorbelegung(win, p)[0] for p in (a, b)}
     _markieren(win, a, b)
-
-    win.on_pdf_dropped_on_folder(a, neu)
-    win.on_pdf_dropped_on_folder(b, neu)
+    # Durch die echte Vorschlagskachel: vorher war ihr pdf_dropped bei neuen Ordnern nicht
+    # verbunden, der Drop verpuffte (Live-Test)
+    win.display_suggestions([Suggestion(neu, neu.name, 0.9, "neu", relative_path="Ziel/Gebäudeverwaltung",
+                                        new_source=neuer_ordner.QUELLE_JAHR)])
+    kachel, = win.suggestion_widgets
+    assert kachel.neu and kachel.folder_path == neu
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(a)), QUrl.fromLocalFile(str(b))])
+    kachel.dropEvent(QDropEvent(QPointF(5, 5), Qt.DropAction.MoveAction, mime,
+                                Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
 
     assert neu.is_dir() and {p.name for p in neu.iterdir()} == erwartet
     (_titel, text, _z, _ja, _nur), = stapel["fragen"]
