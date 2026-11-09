@@ -166,3 +166,15 @@ def original_dialog_und_ocr_aus(monkeypatch):
 
     monkeypatch.setattr(original_wegraeumen, "_frage", lambda parent, text: (False, False))
     monkeypatch.setattr(bild_convert, "ocr_einstellungen", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def keine_echten_ki_assistenten(monkeypatch):
+    """Kein Test fragt das echte Claude Code (``claude mcp ...``) oder liest bzw. schreibt die echte
+    Konfiguration von Claude Desktop (Einstellungen › Suche › KI-Assistenten, Baustein 3 aus
+    docs/CHAT_MCP_PLAN.md). Beide gelten als nicht gefunden; Tests dazu patchen
+    ``claude_programm`` bzw. ``claude_desktop_konfig`` selbst und gewinnen damit."""
+    from src.search import mcp_einrichtung
+
+    monkeypatch.setattr(mcp_einrichtung, "claude_programm", lambda: None)
+    monkeypatch.setattr(mcp_einrichtung, "claude_desktop_konfig", lambda *args, **kwargs: None)
