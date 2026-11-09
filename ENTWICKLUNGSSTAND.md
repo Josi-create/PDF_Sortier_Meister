@@ -7,6 +7,14 @@
 > die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
+### Chat und MCP - Ausbau in vier Bausteinen (geplant, 2026-11-09)
+Plan und Entscheidungen: `docs/CHAT_MCP_PLAN.md`; Arbeitsauftraege fuer Claude Code je
+Baustein: `docs/CHAT_MCP_PROMPT.md`. Reihenfolge 1 (MCP-Server auf den Stand des
+Chat-Werkzeugkastens, sqlite3-Leser im Dienst) -> 3 (Einstellungen fuer Claude Desktop/
+Claude Code) -> 2 (Vorschlags-Werkzeuge im Chat, nur Klick fuehrt aus) -> 4 (Schreiben nur
+per MCP, planen und dann ausfuehren, Protokoll und Rueckgaengig).
+
+---
 ### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)
 Entwurf, Entscheidungen und Phasenplan: `docs/SUCHE_ARCHITEKTUR.md`.
 - Phase 0 (2026-11-05): Analyse beider Codebasen und Architekturentwurf (PR #136)
