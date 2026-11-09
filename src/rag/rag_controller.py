@@ -62,6 +62,7 @@ from src.rag.prompts import (
     build_user_prompt,
 )
 from src.rag.retrieval import RetrievedDoc, RetrievalService
+from src.rag.werkzeug_kern import gleicher_ort
 from src.rag.werkzeuge import Werkzeugkasten
 
 # Volltext des Bezugsdokuments hoechstens so weit lesen (der Auszug nimmt
@@ -114,6 +115,11 @@ class RAGResponse:
     ordner_vorschlag: str = ""
     ordner_anzeige: str = ""
     ordner_begruendung: str = ""
+    # Baustein 2 (docs/CHAT_MCP_PLAN.md): gepruefte Aktionsvorschlaege des Modells
+    # (:class:`~src.rag.werkzeug_kern.Vorschlag`: verschieben, umbenennen,
+    # metadaten). Nichts davon ist ausgefuehrt; die Oberflaeche zeigt Knoepfe.
+    # Der erste Verschiebe-Vorschlag fuer den Bezug fuellt auch ordner_*.
+    vorschlaege: list = field(default_factory=list)
 
 
 class RAGController:
@@ -273,7 +279,8 @@ class RAGController:
                 hinweis=hinweis,
             )
 
-        # 4b) Phase 3: Zielordner der zitierten Belege (fuer "Nach … verschieben")
+        # 4b) Phase 3 / Baustein 2: Zielordner aus dem Verschiebe-Vorschlag des
+        # Modells, sonst aus den zitierten Belegen (fuer "Nach … verschieben")
         self._ordner_vorschlag_setzen(response, bezug)
 
         # 5) Turn in ChatSession protokollieren - nicht nach einem Abbruch
@@ -606,6 +613,7 @@ class RAGController:
             has_hallucinated_citations=bool(dropped),
             schritte=list(kasten.protokoll),
             werkzeuge_benutzt=True,
+            vorschlaege=list(kasten.vorschlaege),
         )
 
     def _werkzeug_schritt(self, nachrichten: list[dict], werkzeuge: list, max_tokens: int) -> WerkzeugAntwort:
@@ -642,12 +650,25 @@ class RAGController:
             used_llm=True,
             schritte=list(kasten.protokoll),
             werkzeuge_benutzt=True,
+            vorschlaege=list(kasten.vorschlaege),
         )
 
     @staticmethod
     def _ordner_vorschlag_setzen(response: RAGResponse, bezug: Optional[Bezug]) -> None:
-        """Traegt den Zielordner der zitierten Belege ein (Phase 3, nur mit Bezug und Zitaten)."""
-        if bezug is None or not response.used_llm or not response.citations:
+        """Traegt den Zielordner fuer "Nach … verschieben" ein (nur mit Bezug).
+
+        Zuerst der erste Verschiebe-Vorschlag des Modells fuer den Bezug
+        (Baustein 2), sonst der Zielordner der zitierten Belege (Phase 3).
+        """
+        if bezug is None or not response.used_llm:
+            return
+        for v in response.vorschlaege:
+            if getattr(v, "art", "") == "verschieben" and gleicher_ort(v.quelle, bezug.pfad):
+                response.ordner_vorschlag = v.ziel
+                response.ordner_anzeige = v.anzeige
+                response.ordner_begruendung = v.begruendung
+                return
+        if not response.citations:
             return
         try:
             from src.rag.verknuepfung import belegter_ordner
