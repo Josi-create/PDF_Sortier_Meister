@@ -17,6 +17,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Unterordner erscheinen; hat ein Ordner keine, sagt das die Statusleiste.
   Links öffnen geht weiter per Rechtsklick › „Ordner links öffnen“.
 
+### Behoben
+- **Angehakte Checkboxen zeigen wieder ein Häkchen.** Sie waren nur blau
+  gefüllt und wurden leicht als „aus“ gelesen – z. B. „Ordnerstruktur im
+  Namen“, wodurch beim Verschieben unerwartet die Initialen vor dem
+  Dateinamen standen.
+
 ## [0.26.0] - 2026-11-08
 
 ### Neu
