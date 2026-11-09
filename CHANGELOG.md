@@ -7,6 +7,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Doppelklick im Zielordner-Baum klappt den Ordner rechts auf bzw. zu**,
+  statt ihn links als Scan-Ordner zu öffnen. Das funktioniert jetzt auch bei
+  tief verschachtelten Ordnern, deren Unterordner erst beim Aufklappen
+  nachgeladen werden (typisch für große OneDrive-Bäume) – dort hat der
+  Doppelklick bisher nichts aufgeklappt. Ordner ohne bekannte Unterordner
+  werden frisch gelesen, sodass auch inzwischen angelegte oder synchronisierte
+  Unterordner erscheinen; hat ein Ordner keine, sagt das die Statusleiste.
+  Links öffnen geht weiter per Rechtsklick › „Ordner links öffnen“.
+
 ## [0.26.0] - 2026-11-08
 
 ### Neu

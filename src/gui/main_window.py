@@ -5541,8 +5541,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "Bedarf anpassen.\n"
             "3. Rechts: Auf einen Zielordner klicken - das PDF wird dorthin "
             "verschoben, umbenannt und die Metadaten werden gespeichert.\n\n"
-            "Doppelklick auf einen Ordner im Baum (rechts) oeffnet ihn nur "
-            "zur Ansicht links, ohne etwas zu verschieben."
+            "Doppelklick auf einen Ordner im Baum (rechts) klappt ihn auf, "
+            "ohne etwas zu verschieben. Rechtsklick > \"Ordner links öffnen\" "
+            "zeigt ihn links an."
         )
         dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
         dismiss.setChecked(self.config.get("first_steps_hint_dismissed", False))

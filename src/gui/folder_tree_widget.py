@@ -90,8 +90,7 @@ class FolderTreeWidget(QWidget):
     # Kern-Workflow, der sonst fuer neue Nutzer unsichtbar ist (Issue #51).
     _CLICK_HINT = (
         "\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\n"
-        "Doppelklick: als Scan-Ordner links oeffnen (Navigation).\n"
-        "Pfeil rechts klappt auf, * klappt alle Unterordner auf.\n"
+        "Doppelklick oder Pfeil rechts klappt auf, * klappt alle Unterordner auf.\n"
         "Rechtsklick: weitere Aktionen."
     )
 
@@ -149,7 +148,7 @@ class FolderTreeWidget(QWidget):
         self._drag_expand_timer.setInterval(self.DRAG_AUTO_EXPAND_MS)
         self._drag_expand_timer.timeout.connect(self._expand_drag_hover_item)
 
-        # Einfachklick verzoegert ausfuehren, damit ein Doppelklick (Navigation)
+        # Einfachklick verzoegert ausfuehren, damit ein Doppelklick (Aufklappen)
         # nicht vorher die selektierte PDF verschiebt (Issue #23/#26).
         self._pending_click_item: Optional[QTreeWidgetItem] = None
         self._click_timer = QTimer(self)
@@ -213,10 +212,14 @@ class FolderTreeWidget(QWidget):
         # Ordner nach kurzem Verweilen aufklappen - wie in PaperPort erreicht
         # man so jeden Ordner, ohne die Maus loszulassen.
         self.tree.setAutoScroll(True)
+        # Doppelklick klappt selbst auf/zu (_on_item_double_clicked): Qts eigene
+        # Variante greift nicht bei Ordnern, deren Unterordner erst nachgeladen
+        # werden (tiefe Ebenen, OneDrive), und wuerde sonst doppelt umschalten.
+        self.tree.setExpandsOnDoubleClick(False)
         self.tree.setToolTip(
             "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
-            "Doppelklick: Ordner links als Scan-Ordner oeffnen (Navigation).\n"
-            "Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\n"
+            "Doppelklick oder Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\n"
+            "Links oeffnen: Rechtsklick > \"Ordner links öffnen\".\n"
             "Rechtsklick: weitere Aktionen.\n"
             "PDFs koennen auch per Drag & Drop hierher gezogen werden.\n"
             "Links markierter Ordner: Klick (oder Ordnerzeile hierher ziehen) verschiebt "
@@ -580,11 +583,24 @@ class FolderTreeWidget(QWidget):
         self.folder_selected.emit(folder_path)
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
-        """Doppelklick = Ordner links oeffnen; der vorgemerkte Klick verfaellt."""
+        """Doppelklick = Ordner rechts auf-/zuklappen; der vorgemerkte Klick verfaellt.
+
+        Links oeffnen geht weiter ueber das Kontextmenue ("Ordner links öffnen").
+        """
         self._click_timer.stop()
         self._pending_click_item = None
+        if item.isExpanded():
+            item.setExpanded(False)
+            return
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
-        self.folder_double_clicked.emit(folder_path)
+        if item.childCount() == 0 and folder_path not in self._unloaded:
+            # Noch keine Unterordner bekannt (z.B. waehrend des ersten Scans
+            # oder auf OneDrive spaeter angelegt): eine Ebene frisch nachladen.
+            if not self._has_subfolders(folder_path):
+                self.status_message.emit(f"„{folder_path.name}“ hat keine Unterordner")
+                return
+            self._mark_unloaded(folder_path, item)
+        item.setExpanded(True)
 
     def _show_context_menu(self, position):
         """Zeigt das Kontextmenü an."""
