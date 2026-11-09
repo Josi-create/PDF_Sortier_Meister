@@ -120,6 +120,19 @@ def test_verschieben_eines_einsortierten_dokuments(welt):
     assert kasten.vorschlaege[0].quelle == str(welt["alt"])
 
 
+def test_nur_dateien_die_das_programm_ablegt(welt):
+    notiz = welt["ablage"] / "Telekom" / "Notiz.md"
+    notiz.write_text("# Notiz", encoding="utf-8")
+    kasten = welt["kasten"]
+    nummer = kasten.registriere(RetrievedDoc(index=0, file_path=str(notiz), filename=notiz.name,
+                                             text_snippet="", rank=4)).index
+    for werkzeug, argumente in (("vorschlag_verschieben", {"zielordner": "Ablage/Energie"}),
+                                ("vorschlag_umbenennen", {"name": "Notiz 2024"})):
+        text = _aufruf(kasten, werkzeug, dokument=f"D{nummer}", **argumente)
+        assert text.startswith("Fehler") and "nur für PDFs, Word-, Excel- und Bilddateien" in text
+    assert kasten.vorschlaege == []
+
+
 def test_ohne_zielordner_kein_verschiebe_vorschlag(tmp_path):
     neu = h.pdf_mit_text(tmp_path / "Neu.pdf", ["x"])
     kasten = Werkzeugkasten(None, ChatConfig(), bezug=Bezug(pfad=neu))

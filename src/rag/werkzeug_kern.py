@@ -661,8 +661,18 @@ def zielordner_pruefen(zielordner, wurzeln: Sequence[Path]) -> tuple[Path, str]:
     return ziel, relative_folder(ziel.resolve(), [w.resolve() for w in wurzeln]) or ziel.name
 
 
+def sortierbar_pruefen(quelle: Path) -> None:
+    """Verschieben und Umbenennen nur fuer Dateien, die PDF Sortier Meister ablegt (PDF, Word, Excel, Bild)."""
+    from src.core.office_convert import ist_sortierbar
+
+    if not ist_sortierbar(quelle):
+        raise WerkzeugFehler(f"„{quelle.name}“ legt PDF Sortier Meister nicht ab - Vorschläge zum Verschieben "
+                             "und Umbenennen gibt es nur für PDFs, Word-, Excel- und Bilddateien.")
+
+
 def verschieben_pruefen(quelle: Path, zielordner, wurzeln: Sequence[Path]) -> tuple[Path, str]:
-    """:func:`zielordner_pruefen` und: das Dokument liegt nicht schon dort."""
+    """:func:`sortierbar_pruefen`, :func:`zielordner_pruefen` und: das Dokument liegt nicht schon dort."""
+    sortierbar_pruefen(quelle)
     ziel, anzeige = zielordner_pruefen(zielordner, wurzeln)
     if gleicher_ort(quelle.parent, ziel):
         raise WerkzeugFehler(f"„{quelle.name}“ liegt bereits in {anzeige}.")
@@ -673,6 +683,7 @@ def neuer_name_pruefen(quelle: Path, name) -> str:
     """Neuer Dateiname: keine Pfadtrenner, bereinigt (``sanitize_filename``), Endung der Quelle bleibt."""
     from src.utils.filename_sanitizer import sanitize_filename
 
+    sortierbar_pruefen(quelle)
     roh = str(name or "").strip()
     if not roh:
         raise WerkzeugFehler("Argument „name“ fehlt.")
