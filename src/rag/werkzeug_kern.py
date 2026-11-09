@@ -133,6 +133,7 @@ def such_argumente(
     *,
     anzahl_standard: int = SUCHE_ANZAHL_STANDARD,
     anzahl_max: int = SUCHE_ANZAHL_MAX,
+    abfrage_pflicht: bool = True,
 ) -> dict:
     """Argumente der Suche pruefen und vereinheitlichen.
 
@@ -140,9 +141,11 @@ def such_argumente(
     alle), ``sortierung`` (``relevanz`` | ``neu`` | ``alt``), ``anzahl``
     (gekappt) und die gesetzten Filter aus :data:`SUCH_FILTER` (``von``/``bis``
     als JJJJ-MM-TT). Unbrauchbares wirft :class:`WerkzeugFehler`.
+    ``abfrage_pflicht=False`` laesst eine leere Abfrage zu (MCP: nur Filter,
+    der Index liefert dann alle passenden Dokumente).
     """
     abfrage = text_argument(argumente, "abfrage")
-    if not abfrage:
+    if not abfrage and abfrage_pflicht:
         raise WerkzeugFehler("Argument „abfrage“ fehlt.")
 
     typ = text_argument(argumente, "typ").lower()

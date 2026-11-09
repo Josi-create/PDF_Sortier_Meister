@@ -99,7 +99,8 @@ def test_mcp_werkzeuge(indiziert):
     pytest.importorskip("mcp")
     server = mcp_server.erstelle_server(indiziert)
     werkzeuge = {t.name: t for t in asyncio.run(server.list_tools())}
-    assert set(werkzeuge) == {"suche", "dokument_lesen", "index_status"}
+    # Baustein 1 (docs/CHAT_MCP_PLAN.md): dazu ordner_vorschlag und korrespondent_info; sql_abfrage nur mit Schalter
+    assert set(werkzeuge) == {"suche", "dokument_lesen", "index_status", "ordner_vorschlag", "korrespondent_info"}
     # Beschreibungen ohne Einrueckung des Docstrings (wie PDFsuche unter Python 3.14)
     for w in werkzeuge.values():
         zeilen = w.description.splitlines()

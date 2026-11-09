@@ -254,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.befehl == "mcp":
         from src.search import mcp_server
-        return mcp_server.main(konfig)
+        return mcp_server.main(konfig, a.config)
 
     if a.befehl == "textebene":
         return _textebene(a, konfig)
