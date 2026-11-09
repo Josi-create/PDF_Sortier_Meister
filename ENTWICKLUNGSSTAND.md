@@ -7,7 +7,7 @@
 > die grossen Vorhaben; die Versionen v0.16.0 bis v0.23.0 stehen allein im Changelog.
 
 ---
-### Chat und MCP - Ausbau in vier Bausteinen (Plan 2026-11-09, Bausteine 1 und 3 umgesetzt)
+### Chat und MCP - Ausbau in vier Bausteinen (Plan 2026-11-09, Bausteine 1, 3 und 2 umgesetzt)
 Plan und Entscheidungen: `docs/CHAT_MCP_PLAN.md`; Arbeitsauftraege fuer Claude Code je
 Baustein: `docs/CHAT_MCP_PROMPT.md`. Reihenfolge 1 (MCP-Server auf den Stand des
 Chat-Werkzeugkastens, sqlite3-Leser im Dienst) -> 3 (Einstellungen fuer Claude Desktop/
@@ -34,7 +34,32 @@ per MCP, planen und dann ausfuehren, Protokoll und Rueckgaengig).
   (Dienstpfad, Werkzeugliste, SQL-Schalter = `chat.sql_erlaubt`, Knoepfe mit Rueckfrage, Claude
   Code im Hintergrund, Pruefung erst beim Oeffnen des Reiters). `tests/conftest.py` sperrt das
   echte Claude Code und die echte Claude-Desktop-Konfiguration fuer alle Tests. Neue Tests:
-  test_mcp_einrichtung, test_settings_mcp_gui.
+  test_mcp_einrichtung, test_settings_mcp_gui. Gemergt als PR #216.
+- Baustein 2 (2026-11-09, Branch `feat/chat-vorschlaege`): Der Chat schlaegt vor, der Klick
+  fuehrt aus.
+  - Werkzeuge `vorschlag_verschieben`, `vorschlag_umbenennen` und `vorschlag_metadaten` im
+    `Werkzeugkasten`.
+  - Pruefung im Kern (`Vorschlag`, `quelle_pruefen`, `verschieben_pruefen`,
+    `neuer_name_pruefen`, `metadaten_pruefen`, `sortierbar_pruefen`):
+    - Ziel nur innerhalb der Zielordner, auch fremde Windows-Pfade und `..` werden abgewiesen;
+    - Name ueber `sanitize_filename`, die Endung der Quelle bleibt;
+    - Kategorie ueber `clean_category`;
+    - Steuerjahr vierstellig, Betrag numerisch normalisiert, Datum JJJJ-MM-TT;
+    - Verschieben und Umbenennen nur fuer PDF, Office und Bild;
+    - hoechstens ein Vorschlag je Art und Dokument.
+  - `RAGResponse.vorschlaege`; `ordner_*` folgt dem ersten Verschiebe-Vorschlag fuer den Bezug,
+    sonst den Belegen.
+  - Prompt-Abschnitt VORSCHLAEGE.
+  - `ChatView._zeige_vorschlaege` mit Knoepfen. Signale `verschieben_requested(ordner, quelle)`,
+    `umbenennen_requested`, `metadaten_requested`, `im_ordner_anzeigen_requested`
+    (Kontextmenue der Quellen). `vorschlag_erledigt` sperrt den Knopf.
+  - Das MainWindow fuehrt ueber die vorhandenen Ablaeufe aus (`move_pdf_to_folder_and_learn`
+    bzw. `move_multiple_pdfs_to_folder(auswahl_behalten=True)`, Umbenennen mit Rueckgaengig und
+    Lernen, `_write_pdf_metadata`).
+  - Zwei neue Schnellfragen.
+  - Die Vorschlags-Werkzeuge gibt es nur im Chat, nicht im MCP-Server.
+  - Neue Tests: test_rag_vorschlaege, test_rag_controller_vorschlaege,
+    test_chat_view_vorschlaege_gui; je ein Fall in den drei Provider-Tests.
 
 ---
 ### Dokumentensuche - Integration von PDFsuche (abgeschlossen mit v0.24.0, Phasen 0 bis 8)

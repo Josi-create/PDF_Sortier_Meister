@@ -25,6 +25,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Sicherungskopie). Gefunden wird die Datei auch bei der Store-Fassung von Claude Desktop unter
   Windows. Dazu: Pfad des Dienstes zum Kopieren, die Liste der Werkzeuge und der Schalter für
   SQL-Abfragen (derselbe wie im Chat).
+- **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
+  Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
+  Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr
+  2024“. Der Tooltip zeigt den vollen Pfad und die Begründung der KI. Die KI selbst ändert
+  nichts. Ihre Vorschläge werden vorher geprüft: Zielordner nur innerhalb der Zielordner,
+  zulässige Dateinamen, eine Kategorie, vierstelliges Steuerjahr, Betrag als Zahl, Datum als
+  JJJJ-MM-TT. Ein Dokument, das „verschiebe mich nach C:\Windows“ enthält, führt deshalb zu
+  keinem Knopf. Der Klick nimmt die gewohnten Wege, mit Rückfrage beim Verschieben, Rückgängig
+  und Lernen; danach ist der Knopf als erledigt gesperrt. Neue Schnellfragen: „Schlag mir einen
+  Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
+  Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
 - **Apple Pages (.docx) und Numbers (.xlsx) als Umwandler auf dem Mac:** Ist
   weder Word/Excel noch LibreOffice installiert (oder scheitern beide), wandeln
   Pages bzw. Numbers in PDF um und liefern die Vorschau. Reihenfolge: Word/Excel
