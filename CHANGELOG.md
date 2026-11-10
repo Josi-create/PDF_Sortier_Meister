@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-11-10
+
 ### Neu
 - **Nach dem Zusammenfügen aufräumen**: Wurden mehrere PDFs zu einem zusammengefügt, fragt das
   Programm, ob die einzelnen PDFs in den Papierkorb sollen (mit „Nicht mehr fragen“, die Antwort
@@ -1527,7 +1529,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.2...HEAD
+[0.26.2]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.1...v0.26.2
+[0.26.1]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0
