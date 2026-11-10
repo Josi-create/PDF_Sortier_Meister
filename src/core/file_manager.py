@@ -523,6 +523,56 @@ class FileManager:
 
         return output_paths
 
+    def split_pdf_teile(
+        self,
+        source: Path | str,
+        target_folder: Path | str,
+        teile: list[tuple[list[int], str]],
+    ) -> list[Path]:
+        """
+        Teilt ein PDF in mehrseitige Dokumente auf (KI-unterstütztes Trennen).
+
+        Args:
+            source: Quelldatei
+            target_folder: Ordner für die erzeugten PDFs
+            teile: je Dokument (1-basierte Seitenzahlen, Dateiname mit oder ohne .pdf)
+
+        Returns:
+            Liste der erzeugten PDF-Dateien
+        """
+        source = Path(source)
+        target_folder = Path(target_folder)
+
+        if not source.exists():
+            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+        if not target_folder.exists():
+            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+
+        with fitz.open(str(source)) as doc:
+            page_count = len(doc)
+        for seiten, _name in teile:
+            invalid_pages = [p for p in seiten if p < 1 or p > page_count]
+            if invalid_pages or not seiten:
+                raise ValueError(f"Ungültige Seitenzahlen: {invalid_pages or seiten}")
+
+        output_paths: list[Path] = []
+        for seiten, name in teile:
+            if not name.lower().endswith(".pdf"):
+                name += ".pdf"
+            output_path = self._get_unique_path(target_folder / name)
+            # Kopie des Originals auf die Seiten des Dokuments beschraenken: behaelt
+            # Textebene und Metadaten, ohne gemeinsame Objekte je Seite zu verdoppeln
+            teil_doc = fitz.open(str(source))
+            try:
+                teil_doc.select([p - 1 for p in seiten])
+                teil_doc.save(str(output_path), garbage=3, deflate=True)
+            finally:
+                teil_doc.close()
+            output_paths.append(output_path)
+            index_melden("datei_aufnehmen", str(output_path))
+
+        return output_paths
+
     def _get_unique_path(self, path: Path) -> Path:
         """
         Gibt einen einzigartigen Pfad zurück (fügt Nummer hinzu wenn nötig).
