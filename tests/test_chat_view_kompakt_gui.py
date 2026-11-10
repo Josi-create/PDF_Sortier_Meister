@@ -50,7 +50,7 @@ def test_kompakt_quellen_unter_dem_verlauf_und_schnellfragen_untereinander(qtbot
     # Breiter Reiter wie bisher: Raster, kein Dreieck
     breit = _view(qtbot, kompakt=False)
     assert breit.split.orientation() == Qt.Orientation.Horizontal
-    assert breit.schnellfragen_toggle is None and len(breit.schnellfragen_btns) == 4
+    assert breit.schnellfragen_toggle is None and len(breit.schnellfragen_btns) == 6
 
 
 def test_schnellfrage_knopf_sendet_und_ist_waehrend_des_aufrufs_gesperrt(qtbot, monkeypatch):
@@ -117,7 +117,7 @@ def test_verschieben_knopf_und_ordner_belegt_signal(qtbot, tmp_path):
     assert belegt == [(ordner, "belegt durch [2]")]
     with qtbot.waitSignal(view.verschieben_requested, timeout=1000) as blocker:
         knoepfe[0].click()
-    assert blocker.args == [ordner]
+    assert blocker.args == [ordner, str(tmp_path / "Scan" / "Neu.pdf")]
 
 
 def test_kein_knopf_ohne_bezug_oder_ohne_ordner(qtbot, tmp_path):

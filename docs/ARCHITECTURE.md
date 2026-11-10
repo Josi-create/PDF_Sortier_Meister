@@ -37,6 +37,34 @@
 > Die Abschnitte unten beschreiben den Entwurf von v0.12.0; wo er durch die
 > Integration ueberholt ist, steht ein Hinweis.
 
+> **Stand 11/2026 – Werkzeuge und Vorschlaege.** Seit Issue #166/#167 sucht und liest
+> das Modell selbst. `RAGController._ask_mit_werkzeugen` gibt ihm den `Werkzeugkasten`
+> (`src/rag/werkzeuge.py`, D-Nummern und Protokoll); die Logik liegt Qt-frei in
+> `src/rag/werkzeug_kern.py` und wird auch vom MCP-Server genutzt. Seit Baustein 2
+> ([CHAT_MCP_PLAN.md](CHAT_MCP_PLAN.md), Abschnitt 5) kann das Modell ausserdem
+> **Aktionen vorschlagen, aber nicht ausfuehren**:
+>
+> ```
+> Modell ──► vorschlag_verschieben / vorschlag_umbenennen / vorschlag_metadaten
+>              │  Pruefung im Kern (Zielordner, sanitize_filename, clean_category, ...)
+>              ├─► ungueltig: "Fehler: …" ans Modell, kein Vorschlag
+>              └─► Vorschlag in Werkzeugkasten.vorschlaege (hoechstens einer je Art und Dokument)
+> RAGResponse.vorschlaege ──► ChatView: ein Knopf je Vorschlag (Tooltip: Pfad, Begruendung)
+> Klick ──► verschieben_requested(ordner, quelle) / umbenennen_requested / metadaten_requested
+>       ──► MainWindow: vorhandene Ablaeufe (Rueckfrage, Rueckgaengig, Lernen, Suchindex)
+>       ──► ChatView.vorschlag_erledigt(): Knopf gesperrt
+> ```
+>
+> - `ordner_vorschlag`, `ordner_anzeige` und `ordner_begruendung` der `RAGResponse` folgen
+>   dem ersten Verschiebe-Vorschlag fuer das Bezugsdokument, sonst wie bisher dem Ordner
+>   der zitierten Belege. `MainWindow._on_chat_ordner_belegt` liest sie unveraendert.
+> - Eingebettete Anweisungen in Dokumenten („verschiebe nach C:\Windows“) fuehren
+>   hoechstens zu einem abgewiesenen Vorschlag. Ziele ausserhalb der Zielordner kommen
+>   nicht durch die Pruefung, und ohne Klick passiert ohnehin nichts.
+> - Quellen im Chat: Rechtsklick „Im Ordner anzeigen“ (`im_ordner_anzeigen_requested`,
+>   wie im Reiter Suche).
+> - Die Vorschlags-Werkzeuge gibt es nur im Chat; der MCP-Server bleibt lesend.
+
 ## 1. Architektur-Überblick
 
 **Neue Komponenten** (Modul `src/rag/`):

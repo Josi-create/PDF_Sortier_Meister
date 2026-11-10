@@ -409,3 +409,28 @@ def test_ohne_api_key_fehler(monkeypatch):
     assert antwort.aufrufe == []
     # Der fehlende Key ist keine Ablehnung durch das Modell
     assert p.unterstuetzt_werkzeuge() is True
+
+
+# --------------------------------------------------------------------------- #
+# Vorschlags-Werkzeuge des Chats (Baustein 2)
+# --------------------------------------------------------------------------- #
+
+def test_vorschlags_werkzeuge_im_drahtformat(monkeypatch):
+    """Die Definitionen des Werkzeugkastens gehen unveraendert als input_schema raus."""
+    from src.rag.werkzeuge import Werkzeugkasten
+    from src.utils.config import ChatConfig
+
+    werkzeuge = Werkzeugkasten(None, ChatConfig()).definitionen()
+    p = _make()
+    aufrufe = _patch_post(monkeypatch, p, [{"stop_reason": "tool_use", "content": [
+        {"type": "tool_use", "id": "toolu_9", "name": "vorschlag_metadaten",
+         "input": {"steuerjahr": "2024", "begruendung": "Briefkopf"}}]}])
+    antwort = p.chat_mit_werkzeugen(_frage(), werkzeuge)
+
+    tools = {t["name"]: t for t in aufrufe[0]["body"]["tools"]}
+    for name in ("vorschlag_verschieben", "vorschlag_umbenennen", "vorschlag_metadaten"):
+        w = next(w for w in werkzeuge if w.name == name)
+        assert tools[name] == {"name": name, "description": w.beschreibung, "input_schema": w.parameter}
+    json.dumps(aufrufe[0]["body"])
+    assert [(a.name, a.argumente, a.id) for a in antwort.aufrufe] == [
+        ("vorschlag_metadaten", {"steuerjahr": "2024", "begruendung": "Briefkopf"}, "toolu_9")]

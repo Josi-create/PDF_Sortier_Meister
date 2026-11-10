@@ -14,6 +14,9 @@ nummerierungsfrei:
 * :func:`sql_pruefen` und :func:`sql_abfrage` - lesende SQL-Abfrage auf der
   Suchdatenbank (Nur-Lese-Verbindung, ``query_only``, Schluesselwort-Pruefung,
   Zeitlimit, Zeilen- und Zeichenkappung).
+* :class:`Vorschlag` mit :func:`quelle_pruefen`, :func:`verschieben_pruefen`,
+  :func:`neuer_name_pruefen` und :func:`metadaten_pruefen` - gepruefte
+  Aktionsvorschlaege des Chats (Baustein 2); nur der Chat bietet sie an.
 
 Die Datenklassen tragen Daten, keinen fertigen Text; Werkzeugkasten und
 MCP-Server formatieren selbst. Nur wo keine Dokumentnummer vorkommt
@@ -28,6 +31,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import threading
@@ -35,7 +39,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING
 
 from src.core.similar_documents import SimilarDocument, find_similar_documents
@@ -545,3 +549,228 @@ def sql_tabelle(ergebnis: SqlErgebnis) -> str:
     if ergebnis.gekappt:
         schluss += f" - gekappt bei {SQL_MAX_ZEILEN}, mit WHERE und LIMIT eingrenzen"
     return f"{koerper}\n{schluss}" if koerper else schluss
+
+
+# --------------------------------------------------------------------------- Vorschlaege (Baustein 2)
+#
+# Der Chat bleibt lesend: Das Modell kann Aktionen nur VORSCHLAGEN. Ein Vorschlag ist
+# geprueft (Pfade gegen die Zielordner, Namen durch sanitize_filename, Kategorie durch
+# clean_category), fuehrt aber nichts aus; die Oberflaeche zeigt ihn als Knopf, und erst
+# der Klick des Nutzers loest die vorhandenen Ablaeufe aus (docs/CHAT_MCP_PLAN.md, 5.1).
+
+VORSCHLAG_ARTEN = ("verschieben", "umbenennen", "metadaten")
+METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "datum")
+METADATEN_NAMEN = {"korrespondent": "Korrespondent", "kategorie": "Kategorie", "steuerjahr": "Steuerjahr",
+                   "betrag": "Betrag", "datum": "Datum"}
+BEGRUENDUNG_MAX_ZEICHEN = 300
+KORRESPONDENT_MAX_ZEICHEN = 120
+NAME_MAX_ZEICHEN = 180
+_BETRAG_RE = re.compile(r"^-?\d+(?:\.\d{1,2})?$")
+
+
+@dataclass
+class Vorschlag:
+    """Eine vom Modell vorgeschlagene, gepruefte Aktion; ausgefuehrt wird sie erst per Klick.
+
+    Attributes:
+        art: ``"verschieben"``, ``"umbenennen"`` oder ``"metadaten"``.
+        quelle: Pfad des Dokuments.
+        ziel: verschieben - Zielordner (Pfad).
+        anzeige: verschieben - Zielordner relativ zum Zielordner (``"Ablage/Energie"``).
+        name: umbenennen - neuer, bereinigter Dateiname mit Endung.
+        felder: metadaten - gepruefte Werte (Schluessel aus ``METADATEN_FELDER``).
+        begruendung: Begruendung des Modells (gekuerzt), fuer den Tooltip.
+    """
+
+    art: str
+    quelle: str
+    ziel: str = ""
+    anzeige: str = ""
+    name: str = ""
+    felder: dict[str, str] = field(default_factory=dict)
+    begruendung: str = ""
+
+    def gleiche_aktion(self, anderer: Vorschlag) -> bool:
+        """Gleiche Art fuer dasselbe Dokument (ein spaeterer Vorschlag ersetzt den frueheren)."""
+        return self.art == anderer.art and gleicher_ort(self.quelle, anderer.quelle)
+
+    def felder_text(self) -> str:
+        """``"Korrespondent Telekom, Steuerjahr 2024"`` (Reihenfolge wie ``METADATEN_FELDER``)."""
+        return ", ".join(f"{METADATEN_NAMEN[k]} {self.felder[k]}" for k in METADATEN_FELDER if self.felder.get(k))
+
+
+def gleicher_ort(a, b) -> bool:
+    """Dieselbe Datei bzw. derselbe Ordner (aufgeloeste Pfade; Rueckfall: Textvergleich)."""
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except (OSError, ValueError):
+        return str(a) == str(b)
+
+
+def begruendung_kuerzen(text) -> str:
+    """Begruendung auf eine Zeile und ``BEGRUENDUNG_MAX_ZEICHEN`` kuerzen."""
+    text = " ".join(str(text or "").split())
+    if len(text) > BEGRUENDUNG_MAX_ZEICHEN:
+        text = text[:BEGRUENDUNG_MAX_ZEICHEN - 1] + "…"
+    return text
+
+
+def quelle_pruefen(pfad, wurzeln: Sequence[Path], scan_ordner, ist_bezug: bool = False) -> Path:
+    """Das Dokument eines Vorschlags: existiert und ist Bezug oder liegt im Scan-Eingang bzw. einem Zielordner."""
+    if not pfad:
+        raise WerkzeugFehler("Für das Dokument ist kein Dateipfad bekannt.")
+    quelle = Path(pfad)
+    if not quelle.is_file():
+        raise WerkzeugFehler(f"„{quelle.name}“ gibt es nicht als Datei unter {quelle.parent}.")
+    if not (ist_bezug or liegt_in(quelle, scan_ordner) or any(liegt_in(quelle, w) for w in wurzeln)):
+        raise WerkzeugFehler(f"„{quelle.name}“ liegt weder im Scan-Eingang noch in einem Zielordner - "
+                             "dafür sind keine Vorschläge möglich.")
+    return quelle
+
+
+def zielordner_pruefen(zielordner, wurzeln: Sequence[Path]) -> tuple[Path, str]:
+    """Zielordner relativ zu einem Zielordner (``"Ablage/Energie"`` oder ``"Energie"``) oder absolut.
+
+    Er muss existieren und innerhalb eines Zielordners liegen; ``..`` und Pfade
+    ausserhalb werden abgewiesen, auch Windows-Pfade auf anderen Systemen.
+    Liefert (Pfad, Anzeige relativ zum Zielordner wie ``"Ablage/Energie"``).
+    """
+    from src.core.similar_documents import relative_folder, resolve_relative_folder
+
+    wert = str(zielordner or "").strip().strip('"').strip()
+    if not wert:
+        raise WerkzeugFehler("Argument „zielordner“ fehlt.")
+    wurzeln = [Path(w) for w in wurzeln if w]
+    if not wurzeln:
+        raise WerkzeugFehler("Es sind keine Zielordner eingerichtet - Verschiebe-Vorschläge sind nicht möglich.")
+    if any(teil == ".." for teil in re.split(r"[\\/]+", wert)):
+        raise WerkzeugFehler(f"Zielordner „{wert}“ enthält „..“ - nur Ordner innerhalb der Zielordner sind erlaubt.")
+    kandidat = Path(wert)
+    if kandidat.is_absolute() or PureWindowsPath(wert).anchor:
+        ziel = kandidat
+    else:
+        ziel = resolve_relative_folder(wert, wurzeln)
+        if ziel is None:
+            raise WerkzeugFehler(f"Zielordner „{wert}“ gibt es nicht. Nimm einen Ordner aus ordner_vorschlag, "
+                                 "aus den Suchtreffern oder aus der Liste der Zielordner: "
+                                 + ", ".join(w.name for w in wurzeln) + ".")
+    if not any(liegt_in(ziel, w) for w in wurzeln):
+        raise WerkzeugFehler(f"„{wert}“ liegt in keinem Zielordner ({', '.join(str(w) for w in wurzeln)}).")
+    if not ziel.is_dir():
+        raise WerkzeugFehler(f"Zielordner „{ziel}“ gibt es nicht.")
+    return ziel, relative_folder(ziel.resolve(), [w.resolve() for w in wurzeln]) or ziel.name
+
+
+def sortierbar_pruefen(quelle: Path) -> None:
+    """Verschieben und Umbenennen nur fuer Dateien, die PDF Sortier Meister ablegt (PDF, Word, Excel, Bild)."""
+    from src.core.office_convert import ist_sortierbar
+
+    if not ist_sortierbar(quelle):
+        raise WerkzeugFehler(f"„{quelle.name}“ legt PDF Sortier Meister nicht ab - Vorschläge zum Verschieben "
+                             "und Umbenennen gibt es nur für PDFs, Word-, Excel- und Bilddateien.")
+
+
+def verschieben_pruefen(quelle: Path, zielordner, wurzeln: Sequence[Path]) -> tuple[Path, str]:
+    """:func:`sortierbar_pruefen`, :func:`zielordner_pruefen` und: das Dokument liegt nicht schon dort."""
+    sortierbar_pruefen(quelle)
+    ziel, anzeige = zielordner_pruefen(zielordner, wurzeln)
+    if gleicher_ort(quelle.parent, ziel):
+        raise WerkzeugFehler(f"„{quelle.name}“ liegt bereits in {anzeige}.")
+    return ziel, anzeige
+
+
+def neuer_name_pruefen(quelle: Path, name) -> str:
+    """Neuer Dateiname: keine Pfadtrenner, bereinigt (``sanitize_filename``), Endung der Quelle bleibt."""
+    from src.utils.filename_sanitizer import sanitize_filename
+
+    sortierbar_pruefen(quelle)
+    roh = str(name or "").strip()
+    if not roh:
+        raise WerkzeugFehler("Argument „name“ fehlt.")
+    if "/" in roh or "\\" in roh:
+        raise WerkzeugFehler(f"Der neue Name „{roh}“ enthält einen Pfadtrenner - nur ein Dateiname ist erlaubt; "
+                             "zum Verschieben vorschlag_verschieben benutzen.")
+    endung = quelle.suffix.lower() or ".pdf"
+    if endung == ".pdf":
+        neu = sanitize_filename(roh)
+    else:
+        stamm = roh[: -len(endung)] if roh.lower().endswith(endung) else roh
+        neu = sanitize_filename(stamm, ensure_pdf=False)
+        neu = f"{neu}{quelle.suffix}" if neu else ""
+    if not neu:
+        raise WerkzeugFehler(f"„{roh}“ ergibt keinen brauchbaren Dateinamen.")
+    if len(neu) > NAME_MAX_ZEICHEN:
+        raise WerkzeugFehler(f"Der neue Name ist zu lang ({len(neu)} Zeichen, höchstens {NAME_MAX_ZEICHEN}).")
+    if neu == quelle.name:
+        raise WerkzeugFehler(f"„{quelle.name}“ heißt bereits so.")
+    ziel = quelle.parent / neu
+    try:
+        belegt = ziel.exists() and not os.path.samefile(ziel, quelle)
+    except OSError:
+        belegt = False
+    if belegt:
+        raise WerkzeugFehler(f"Im selben Ordner gibt es schon eine Datei „{neu}“.")
+    return neu
+
+
+def betrag_pruefen(wert) -> str:
+    """``"1.234,56 €"``, ``"1,234.56"``, ``12.5`` -> ``"1234.56"``, ``"12.50"``; sonst Fehler."""
+    roh = str(wert).strip()
+    betrag = re.sub(r"(?i)\s|€|eur", "", roh)
+    if "," in betrag and "." in betrag:
+        # das letzte Trennzeichen ist das Dezimalzeichen
+        tausender = "." if betrag.rfind(",") > betrag.rfind(".") else ","
+        betrag = betrag.replace(tausender, "")
+    betrag = betrag.replace(",", ".")
+    if not _BETRAG_RE.match(betrag):
+        raise WerkzeugFehler(f"Betrag muss eine Zahl sein (z. B. 123.45), nicht „{roh}“.")
+    return f"{float(betrag):.2f}"
+
+
+def metadaten_pruefen(argumente: dict) -> dict[str, str]:
+    """Metadaten eines Vorschlags pruefen; leere Felder fallen weg, mindestens eines muss bleiben.
+
+    Kategorie ueber ``clean_category`` (eine Kategorie, keine Auswahlliste), Steuerjahr
+    vierstellig, Betrag numerisch (``"1.234,56"`` -> ``"1234.56"``), Datum JJJJ-MM-TT.
+    """
+    from src.core.metadata_choices import clean_category
+
+    felder: dict[str, str] = {}
+    korrespondent = " ".join(text_argument(argumente, "korrespondent").split())
+    if korrespondent:
+        if len(korrespondent) > KORRESPONDENT_MAX_ZEICHEN:
+            raise WerkzeugFehler(f"Korrespondent ist zu lang (höchstens {KORRESPONDENT_MAX_ZEICHEN} Zeichen).")
+        felder["korrespondent"] = korrespondent
+    kategorie = text_argument(argumente, "kategorie")
+    if kategorie:
+        sauber = clean_category(kategorie)
+        if not sauber:
+            raise WerkzeugFehler(f"„{kategorie}“ ist keine brauchbare Kategorie - genau eine Kategorie angeben.")
+        felder["kategorie"] = sauber
+    steuerjahr = text_argument(argumente, "steuerjahr")
+    if steuerjahr:
+        if not re.fullmatch(r"\d{4}", steuerjahr) or not 1900 <= int(steuerjahr) <= 2100:
+            raise WerkzeugFehler(f"Steuerjahr muss vierstellig sein (z. B. 2024), nicht „{steuerjahr}“.")
+        felder["steuerjahr"] = steuerjahr
+    betrag = text_argument(argumente, "betrag")
+    if betrag:
+        felder["betrag"] = betrag_pruefen(betrag)
+    datum = text_argument(argumente, "datum")
+    if datum:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", datum):
+            raise WerkzeugFehler(f"Datum muss im Format JJJJ-MM-TT sein, nicht „{datum}“.")
+        felder["datum"] = datum_pruefen(datum, "datum")
+    if not felder:
+        raise WerkzeugFehler("Keine Metadaten angegeben - mindestens eines von "
+                             + ", ".join(METADATEN_FELDER) + ".")
+    return felder
+
+
+def vorschlag_aufnehmen(liste: list[Vorschlag], neu: Vorschlag) -> list[Vorschlag]:
+    """Hoechstens ein Vorschlag je Art und Dokument: ein spaeterer ersetzt den frueheren (an dessen Stelle)."""
+    for i, alt in enumerate(liste):
+        if alt.gleiche_aktion(neu):
+            liste[i] = neu
+            return liste
+    liste.append(neu)
+    return liste

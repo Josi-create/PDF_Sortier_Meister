@@ -529,3 +529,29 @@ def test_antwort_parsen_inhaltsbloecke_und_unlesbar():
     assert ow.antwort_parsen(data, "X").text == "AB"
     assert ow.antwort_parsen("kaputt", "X").fehler
     assert ow.antwort_parsen({"choices": [{"message": "kein dict"}]}, "X").fehler
+
+
+# --------------------------------------------------------------------------- #
+# Vorschlags-Werkzeuge des Chats (Baustein 2)                                 #
+# --------------------------------------------------------------------------- #
+
+def test_vorschlags_werkzeuge_im_payload(provider, monkeypatch):
+    """Die Definitionen des Werkzeugkastens gehen unveraendert als function-Tools raus."""
+    from src.rag.werkzeuge import Werkzeugkasten
+    from src.utils.config import ChatConfig
+
+    werkzeuge = Werkzeugkasten(None, ChatConfig()).definitionen()
+    aufrufe = _patch_http(monkeypatch, provider, [(_antwort(content=None, tool_calls=[_tool_call(
+        id_="call_7", name="vorschlag_umbenennen", arguments='{"name": "2024 Strom", "begruendung": "Jahr"}')]),
+        None)])
+    a = provider.chat_mit_werkzeugen([{"role": "user", "content": "Wie soll die Datei heißen?"}], werkzeuge)
+
+    _url, body, _headers = aufrufe[0]
+    tools = {t["function"]["name"]: t for t in body["tools"]}
+    for name in ("vorschlag_verschieben", "vorschlag_umbenennen", "vorschlag_metadaten"):
+        w = next(w for w in werkzeuge if w.name == name)
+        assert tools[name] == {"type": "function", "function": {
+            "name": name, "description": w.beschreibung, "parameters": w.parameter}}
+    json.dumps(body)
+    assert [(x.name, x.argumente, x.id) for x in a.aufrufe] == [
+        ("vorschlag_umbenennen", {"name": "2024 Strom", "begruendung": "Jahr"}, "call_7")]

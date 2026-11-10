@@ -506,7 +506,7 @@ def test_bezug_chip_erscheint_und_verschwindet(chat_view, tmp_path):
     assert chat_view.bezug_label.text() == "Bezug: Stromrechnung.pdf"
     assert str(tmp_path / "Stromrechnung.pdf") in chat_view.bezug_chip.toolTip()
     assert [b.text() for b in chat_view.schnellfragen_btns] == list(SCHNELLFRAGEN)
-    assert len(SCHNELLFRAGEN) == 4
+    assert len(SCHNELLFRAGEN) == 6
 
     chat_view.set_bezug(None)
     assert chat_view.bezug is None and chat_view.bezug_box.isHidden()

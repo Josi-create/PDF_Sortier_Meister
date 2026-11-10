@@ -415,6 +415,55 @@ Repository (`feat(mcp): …`, `feat(chat): …`, deutsch, ohne Umlaute in der Be
     `claude mcp get` startet den Server zur Probe (rund 2 s). `tests/conftest.py` setzt fuer alle
     Tests `claude_programm` und `claude_desktop_konfig` auf „nicht gefunden“, damit kein Test das
     echte Claude Code startet oder die echte Konfiguration liest.
+- Ergaenzungen und Abweichungen in Baustein 2 (09.11.2026):
+  - **Vorschlag**:
+    - Neben `ziel` gibt es `anzeige` (Ordner relativ zum Zielordner, fuer den Knopftext).
+    - `begruendung` ist bei allen drei Arten gesetzt, gekuerzt auf 300 Zeichen.
+  - **Zusaetzliche Pruefungen**:
+    - Ein Windows-Pfad wie `C:\Windows` gilt auch unter macOS/Linux als absolut und wird
+      abgewiesen.
+    - `..` im Zielordner ist verboten.
+    - Das Dokument darf nicht schon im Zielordner liegen.
+    - Der neue Name darf im Ordner nicht schon vergeben sein.
+    - Verschieben und Umbenennen gibt es nur fuer PDF, Word, Excel und Bild (`ist_sortierbar`);
+      Markdown-Dateien und Mails legt das Programm nicht ab.
+    - Metadaten nur fuer PDFs (wie `_write_pdf_metadata`).
+    - Betraege wie „1.234,56 €“ oder „1,234.56“ werden zu `1234.56`.
+    - Ohne Bezugsdokument verlangen die Vorschlags-Werkzeuge ein `dokument`. Der Rueckfall des
+      Ordnervorschlags auf D1 waere hier ein beliebiger Suchtreffer.
+  - **Ordnervorschlag**: Gibt es keinen Verschiebe-Vorschlag fuer den Bezug, bleibt
+    `ordner_vorschlag` wie bisher der Ordner der zitierten Belege (`belegter_ordner`).
+    `RAGResponse.vorschlaege` tragen nur die Antworten mit Endtext oder Zwischenstand, nicht die
+    Fehler- und Abbruch-Antworten.
+  - **Knoepfe**:
+    - Bei einem anderen Dokument als dem Bezug steht dessen Dateiname vor dem Text
+      (z. B. „📁 Alt.pdf: Nach Ablage/Telekom verschieben“).
+    - Knopftexte sind auf 60 Zeichen gekuerzt, der Tooltip ist vollstaendig.
+    - Der Verschiebe-Knopf fuer den Bezug kommt aus `ordner_vorschlag` und erscheint nicht
+      doppelt.
+    - Erledigte Knoepfe tragen „✓ “. Nach Umbenennen oder Verschieben zeigen die uebrigen
+      Knoepfe derselben Datei auf den neuen Pfad (`ChatView.vorschlag_erledigt`).
+  - **`verschieben_requested(ordner, quelle)`**: Die Reihenfolge der Argumente bleibt, die
+    Quelle kommt dazu (5.2). Eine leere Quelle bedeutet den Bezug. Die drei `emit`-Aufrufe in
+    `tests/test_main_window_chat_phase3_gui.py` und die Signal-Argumente in
+    `tests/test_chat_view_kompakt_gui.py` tragen die Quelle jetzt mit.
+  - **Anderes Dokument verschieben**: Die ausgewaehlte PDF geht ueber
+    `move_pdf_to_folder_and_learn`. Jede andere Datei geht ueber
+    `move_multiple_pdfs_to_folder(..., auswahl_behalten=True)`, denn
+    `move_pdf_to_folder_and_learn` lernt aus dem Text der *ausgewaehlten* PDF. Der neue
+    Parameter (Standard aus) laesst Auswahl und Ordnervorschlaege stehen.
+  - **Umbenennen** ohne den Analyse-Dialog: Datei umbenennen, Cache mitnehmen,
+    Rueckgaengig, `rename_history` aus dem gecachten Text, Kachel und Bezug nachziehen.
+    Office-Dateien sind erlaubt (`rename_file` behaelt die Endung).
+  - **Metadaten**: `datum` wird zu `buchungsdatum`, `kategorie` zu `subject`, `betrag` zu
+    `betrag_brutto`. Es werden nur die vorgeschlagenen Felder geschrieben, keine
+    Schlagwoerter. Zeigt das Detail-Panel diese PDF ohne eigene Eingaben, liest es die Werte
+    neu.
+  - **Anpassungen an vorhandenen Tests**, als Folge des Plans: Die erwarteten Werkzeuglisten
+    (`tests/test_rag_werkzeuge.py`, `OHNE_WERKZEUGE` in
+    `tests/test_rag_controller_werkzeuge.py`) enthalten die drei neuen Werkzeuge. Die Anzahl
+    der Standard-Schnellfragen steigt von 4 auf 6 (`test_chat_view_gui`,
+    `test_chat_view_kompakt_gui`, `test_main_window_chat_phase3_gui`).
 - Claude-Desktop-Konfigurationspfad unter Linux (`~/.config/Claude/`) nur aufnehmen,
   wenn Linux-Builds kommen.
 - Metadaten-Schreiben ueber MCP (Korrespondent, Kategorie, Steuerjahr in PDF und Index)

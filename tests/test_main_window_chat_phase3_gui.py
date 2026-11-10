@@ -29,7 +29,7 @@ def test_chat_sitzt_kompakt_in_der_linken_spalte(main_window):
     assert main_window.left_tabs.widget(0) is not main_window.chat_view
     assert main_window.left_tabs.widget(1) is main_window.chat_view
     assert main_window.chat_view.schnellfragen_toggle is not None
-    assert len(main_window.chat_view.schnellfragen_btns) == 4
+    assert len(main_window.chat_view.schnellfragen_btns) == 6
 
 
 def test_wechsel_in_den_chat_setzt_den_bezug(main_window, fresh_singletons):
@@ -58,7 +58,7 @@ def test_verschieben_aus_dem_chat(main_window, fresh_singletons):
     main_window.show_chat_tab()
     assert main_window.chat_view.bezug == scan / "a.pdf"
 
-    main_window.chat_view.verschieben_requested.emit(str(ziel))
+    main_window.chat_view.verschieben_requested.emit(str(ziel), str(scan / "a.pdf"))
 
     assert (ziel / "a.pdf").exists() and not (scan / "a.pdf").exists()
     assert main_window.left_tabs.currentIndex() == 0  # zurueck zu den PDFs
@@ -102,10 +102,10 @@ def test_verschieben_ohne_bezug_oder_mit_verschwundener_datei_tut_nichts(main_wi
     scan = _make_scan_folder(tmp_path, ["a.pdf"])
     ziel = _ziel(main_window, tmp_path)
     main_window._navigate_to_folder(scan)
-    main_window.chat_view.verschieben_requested.emit(str(ziel))  # kein Bezug
+    main_window.chat_view.verschieben_requested.emit(str(ziel), "")  # kein Bezug
     assert (scan / "a.pdf").exists()
     main_window.chat_view.set_bezug(scan / "weg.pdf")
-    main_window.chat_view.verschieben_requested.emit(str(ziel))  # Datei gibt es nicht
+    main_window.chat_view.verschieben_requested.emit(str(ziel), str(scan / "weg.pdf"))  # Datei gibt es nicht
     assert not (ziel / "weg.pdf").exists()
 
 

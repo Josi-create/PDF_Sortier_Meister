@@ -271,8 +271,13 @@ class StapelAblageMixin:
 
     # --- Verschieben ----------------------------------------------------------
 
-    def stapel_verschieben(self, dateien: list[Path], folder_path: Path) -> None:
-        """Verschiebt mehrere Dateien nach ``folder_path``, jede mit ihrem Namen und ihren Metadaten."""
+    def stapel_verschieben(self, dateien: list[Path], folder_path: Path,
+                           auswahl_behalten: bool = False) -> None:
+        """Verschiebt mehrere Dateien nach ``folder_path``, jede mit ihrem Namen und ihren Metadaten.
+
+        ``auswahl_behalten`` (Vorschlag aus dem Chat): Auswahl und Ordnervorschlaege
+        bleiben, solange die ausgewaehlte PDF nicht selbst verschoben wurde.
+        """
         dateien = [Path(p) for p in dateien]
         folder_path = Path(folder_path)
         relative_path = self.folder_tree.get_relative_path(folder_path)
@@ -373,13 +378,18 @@ class StapelAblageMixin:
             index = self.remove_pdf_widget(alt)
             if alt == original_selected:
                 selected_removed_index = index
-        self.selected_pdfs = []
+        verschoben = {alt for alt, _neu in paare}
+        auswahl_bleibt = auswahl_behalten and original_selected not in verschoben
         auto_selected = False
-        if selected_removed_index is not None and self.pdf_widgets and not self._korr_aktiv:
+        if auswahl_bleibt:
+            self.selected_pdfs = [p for p in self.selected_pdfs if p not in verschoben]
+        elif selected_removed_index is not None and self.pdf_widgets and not self._korr_aktiv:
+            self.selected_pdfs = []
             next_index = min(selected_removed_index, len(self.pdf_widgets) - 1)
             self.on_pdf_clicked(self.pdf_widgets[next_index].pdf_path)
             auto_selected = True
         else:
+            self.selected_pdfs = []
             self.selected_pdf = None
             self.selected_pdf_text = None
             self.selected_pdf_keywords = None
@@ -387,7 +397,7 @@ class StapelAblageMixin:
         if paare:
             self.config.add_to_last_used(folder_path)
         self._refresh_after_move(folder_path, *{p.parent for p in dateien})
-        if not auto_selected:
+        if not auto_selected and not auswahl_bleibt:
             self.clear_suggestions()
         if self._korr_aktiv:
             self._korr_auswahl_leeren()  # Dokumente aus dem Reiter "Korrespondenten" sind abgelegt

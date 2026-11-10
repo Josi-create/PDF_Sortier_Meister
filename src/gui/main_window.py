@@ -340,6 +340,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Phase 3: "Nach … verschieben" und Ordner der Belege als Vorschlag
         self.chat_view.verschieben_requested.connect(self._on_chat_verschieben)
         self.chat_view.ordner_belegt.connect(self._on_chat_ordner_belegt)
+        # Baustein 2: weitere Vorschlaege des Chats und "Im Ordner anzeigen" fuer Quellen
+        self.chat_view.umbenennen_requested.connect(self._on_chat_umbenennen)
+        self.chat_view.metadaten_requested.connect(self._on_chat_metadaten)
+        self.chat_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
         self.left_tabs = QTabWidget()
         self.left_tabs.addTab(pdf_panel, "PDFs")
         self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
@@ -537,15 +541,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Wechselt in der linken Spalte auf den Chat."""
         self.left_tabs.setCurrentWidget(self.chat_view)
 
-    def _on_chat_verschieben(self, ordner_pfad: str) -> None:
-        """Knopf "Nach … verschieben" im Chat (Phase 3): das Bezugsdokument in den Ordner verschieben.
+    def _on_chat_verschieben(self, ordner_pfad: str, quelle: str = "") -> None:
+        """Knopf "Nach … verschieben" im Chat: ``quelle`` (Standard: Bezug) in den Ordner verschieben.
 
-        Laeuft ueber denselben Weg wie ein Klick auf den Zielordner (Rueckfrage,
-        Lernen, Rueckgaengig). Danach zeigt die linke Spalte wieder die PDFs;
-        der Chat bleibt mit seinem Verlauf im Hintergrund, nur der Bezug ist
-        weg (die Datei liegt nicht mehr im Scan-Ordner).
+        Das Bezugsdokument (Phase 3) laeuft ueber denselben Weg wie ein Klick auf
+        den Zielordner (Rueckfrage, Lernen, Rueckgaengig). Danach zeigt die linke
+        Spalte wieder die PDFs; der Chat bleibt mit seinem Verlauf im
+        Hintergrund, nur der Bezug ist weg (die Datei liegt nicht mehr im
+        Scan-Ordner). Ein anderes Dokument (Baustein 2) geht ueber
+        :meth:`_chat_datei_verschieben`.
         """
         bezug = self.chat_view.bezug
+        if quelle and not (bezug and Path(bezug) == Path(quelle)):
+            if ordner_pfad:
+                self._chat_datei_verschieben(Path(quelle), Path(ordner_pfad))
+            return
         if not bezug or not ordner_pfad:
             return
         bezug = Path(bezug)
@@ -554,8 +564,107 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
         self.move_pdf_to_folder_and_learn(bezug, Path(ordner_pfad))
         if not bezug.exists():
+            neu = Path(ordner_pfad) / bezug.name
+            self.chat_view.vorschlag_erledigt("verschieben", str(bezug), str(neu) if neu.exists() else "")
             self.chat_view.set_bezug(None)
             self.left_tabs.setCurrentIndex(0)
+
+    # Felder eines Metadaten-Vorschlags (src.rag.werkzeug_kern.METADATEN_FELDER) -> Felder des Detail-Panels
+    _CHAT_METADATEN = {"korrespondent": "korrespondent", "kategorie": "subject", "steuerjahr": "steuerjahr",
+                       "betrag": "betrag_brutto", "datum": "buchungsdatum"}
+
+    def _chat_datei_verschieben(self, pfad: Path, ziel: Path) -> None:
+        """Vorschlag „Nach … verschieben“ fuer ein anderes Dokument als den Bezug (Baustein 2).
+
+        Die ausgewaehlte PDF geht ueber den Weg des Zielordner-Klicks, jede andere
+        Datei ueber das Verschieben mehrerer Dateien (Rueckfrage, Lernen aus dem
+        gecachten Text, Rueckgaengig) - ohne die Auswahl aufzuheben.
+        """
+        if not pfad.is_file():
+            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            return
+        if not ziel.is_dir():
+            self.statusbar.showMessage(f"Den Ordner {ziel} gibt es nicht mehr", 5000)
+            return
+        if self.selected_pdf is not None and Path(self.selected_pdf) == pfad:
+            self.move_pdf_to_folder_and_learn(pfad, ziel)
+        else:
+            self.move_multiple_pdfs_to_folder([pfad], ziel, auswahl_behalten=True)
+        if not pfad.exists():
+            neu = ziel / pfad.name
+            self.chat_view.vorschlag_erledigt("verschieben", str(pfad), str(neu) if neu.exists() else "")
+
+    def _on_chat_umbenennen(self, quelle: str, name: str) -> None:
+        """Vorschlag „Umbenennen in …“ aus dem Chat (Baustein 2).
+
+        Wie die Umbenennung im Dialog: Cache mitnehmen, Rueckgaengig, aus der
+        Umbenennung lernen (mit dem gecachten Text), Kachel und Bezug nachziehen.
+        """
+        pfad = Path(quelle)
+        if not name or not pfad.is_file():
+            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            return
+        try:
+            neu = self.file_manager.rename_file(pfad, name)
+        except Exception as e:  # noqa: BLE001 - Meldung statt Absturz
+            QMessageBox.warning(self, "Fehler", f"Umbenennen fehlgeschlagen:\n{e}")
+            return
+        try:
+            self.pdf_cache.migrate_cache_entry(pfad, neu)
+        except Exception:  # noqa: BLE001 - der Cache ist Zusatz
+            pass
+        self._push_undo({
+            "type": "rename",
+            "old_path": pfad,
+            "new_path": neu,
+            "description": f"Umbenennung: {pfad.name} → {neu.name}",
+        })
+        try:
+            gecacht = self.pdf_cache.get(neu)
+            if gecacht is not None and gecacht.keywords:
+                self.db.add_rename_entry(
+                    original_filename=pfad.name,
+                    new_filename=neu.name,
+                    extracted_text=gecacht.extracted_text,
+                    keywords=gecacht.keywords,
+                    detected_date=None,
+                )
+        except Exception as e:  # noqa: BLE001 - Lernen ist Zusatz
+            logging.getLogger(__name__).debug(f"Umbenennung aus dem Chat nicht gelernt: {e}")
+        if self.detail_panel.get_current_pdf() == pfad:
+            self.detail_panel._current_pdf = neu
+            self.detail_panel.header_label.setText(f"Original: {neu.name}")
+        self._update_pdf_widget_path(pfad, neu)
+        bezug = self.chat_view.bezug
+        if bezug is not None and Path(bezug) == pfad:
+            self.chat_view.set_bezug(neu)
+        self.chat_view.vorschlag_erledigt("umbenennen", quelle, str(neu))
+        self.statusbar.showMessage(f"Umbenannt zu: {neu.name}", 4000)
+
+    def _on_chat_metadaten(self, quelle: str, felder: dict) -> None:
+        """Vorschlag „Metadaten übernehmen“ aus dem Chat (Baustein 2).
+
+        Wie „Metadaten speichern“ im Detail-Panel: in die PDF schreiben (nur die
+        vorgeschlagenen Felder), dem Suchindex melden, den Korrespondenten lernen.
+        Zeigt das Detail-Panel diese PDF ohne eigene Eingaben, liest es die Werte neu.
+        """
+        pfad = Path(quelle)
+        if not pfad.is_file():
+            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            return
+        if ist_office_datei(pfad) or pfad.suffix.lower() != ".pdf":
+            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            return
+        metadata = {ziel: str(felder[feld]) for feld, ziel in self._CHAT_METADATEN.items() if felder.get(feld)}
+        if not metadata:
+            return
+        self._write_pdf_metadata(pfad, pfad.name, None, metadata)
+        if metadata.get("korrespondent"):
+            self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
+        if self.detail_panel.get_current_pdf() == pfad and not self.detail_panel.has_user_edits():
+            self.detail_panel.load_metadata_from_pdf(pfad)
+        self.chat_view.vorschlag_erledigt("metadaten", quelle)
+        self.statusbar.showMessage(f"Metadaten in '{pfad.name}' gespeichert", 4000)
 
     def _on_chat_ordner_belegt(self, ordner_pfad: str, begruendung: str) -> None:
         """Der Chat hat einen Zielordner belegt (Phase 3): als Vorschlag ins Detail-Panel.
@@ -3149,9 +3258,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             except Exception as e:
                 QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
 
-    def move_multiple_pdfs_to_folder(self, pdf_paths: list[Path], folder_path: Path):
-        """Verschiebt mehrere PDFs in einen Zielordner - jede mit ihrem Namen (Issue #218)."""
-        self.stapel_verschieben(pdf_paths, folder_path)
+    def move_multiple_pdfs_to_folder(self, pdf_paths: list[Path], folder_path: Path,
+                                     auswahl_behalten: bool = False):
+        """Verschiebt mehrere PDFs in einen Zielordner - jede mit ihrem Namen (Issue #218).
+
+        ``auswahl_behalten`` (Vorschlag aus dem Chat, Baustein 2): die Auswahl und
+        ihre Ordnervorschlaege bleiben, solange die ausgewaehlte PDF nicht selbst
+        verschoben wurde.
+        """
+        self.stapel_verschieben(pdf_paths, folder_path, auswahl_behalten=auswahl_behalten)
 
     def on_pdf_double_clicked(self, pdf_path: Path):
         """Doppelklick auf ein Thumbnail: PDF öffnen (Vorschau oder extern)."""
