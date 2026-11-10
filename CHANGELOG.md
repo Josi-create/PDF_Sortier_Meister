@@ -7,7 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-11-10
+
 ### Neu
+- **KI-unterstütztes Trennen**: Ein PDF, das ein Stapel aus mehreren hintereinander gescannten
+  Schriftstücken ist, lässt sich jetzt an den Dokumentgrenzen trennen statt nur seitenweise
+  (Rechtsklick auf die PDF-Kachel › „KI-unterstütztes Trennen...“). Die KI liest den Text jeder
+  Seite (Bildseiten vorher per Texterkennung), erkennt, wo ein neues Schriftstück beginnt – etwa
+  ein Brief mit 3 Seiten, danach eine Stromrechnung mit 5 Seiten –, und schlägt je Dokument einen
+  Dateinamen vor. Eine Vorschau zeigt die Dokumente mit dem Bild der ersten Seite; Seitenbereiche
+  und Namen lassen sich ändern, bevor getrennt wird. Leere Seiten bleiben beim vorhergehenden
+  Dokument. Danach folgt wie beim Trennen von Hand die Frage nach dem Original.
 - **Mehrere Dateien auf einmal umbenennen und ablegen** (#218): Beim Verschieben mehrerer
   markierter Dateien – Klick auf einen Ordner oder Ziehen – bekommt jetzt jede den Namen und
   die Metadaten, die ihr das Detail-Panel vorschlagen würde (für die angezeigte Datei gilt,

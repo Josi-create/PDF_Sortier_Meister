@@ -99,6 +99,7 @@ class PDFThumbnailWidget(QFrame):
     copy_requested = pyqtSignal(Path)  # Kopie erstellen angefordert
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
+    ki_split_requested = pyqtSignal(Path)  # Stapel per KI in Dokumente trennen
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten davorlegen
     rotate_requested = pyqtSignal(Path, int)  # Drehen um Grad im Uhrzeigersinn (Issue #150)
@@ -588,6 +589,9 @@ class PDFThumbnailWidget(QFrame):
         # PDF trennen
         split_action = menu.addAction("PDF trennen...")
         split_action.triggered.connect(lambda: self.split_requested.emit(self.pdf_path))
+        ki_split_action = menu.addAction("KI-unterstütztes Trennen...")
+        ki_split_action.setToolTip("Scan-Stapel von der KI in einzelne Dokumente zerlegen lassen")
+        ki_split_action.triggered.connect(lambda: self.ki_split_requested.emit(self.pdf_path))
 
         # PDFs zusammenfügen wenn mehrere ausgewählt
         if selection_count > 1:

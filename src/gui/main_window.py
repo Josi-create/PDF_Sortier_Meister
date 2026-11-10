@@ -88,6 +88,7 @@ from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui.bild_aktionen import BildAktionenMixin
+from src.gui.ki_trennen_dialog import KiTrennenMixin
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
 from src.ml.classifier import get_classifier, Suggestion
@@ -180,7 +181,7 @@ class _UpdateCheckThread(QThread):
 
 
 class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
-                 QMainWindow):
+                 KiTrennenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -1107,6 +1108,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget.copy_requested.connect(self.on_pdf_copy)
             widget.batch_rename_requested.connect(self.on_batch_rename)
             widget.split_requested.connect(self.on_pdf_split)
+            widget.ki_split_requested.connect(self.on_pdf_ki_split)
             widget.merge_requested.connect(self.on_pdf_merge)
             widget.stack_requested.connect(self.on_pdf_stacked)
             widget.rotate_requested.connect(self.on_pdf_rotate)
