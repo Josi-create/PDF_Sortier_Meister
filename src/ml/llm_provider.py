@@ -353,6 +353,8 @@ class WerkzeugAntwort:
     aufrufe: list = field(default_factory=list)
     roh: Any = None
     fehler: str = ""
+    # Der Text endet am Token-Limit (finish_reason "length"), ist also unvollstaendig
+    abgeschnitten: bool = False
 
 
 class LLMProvider(ABC):

@@ -435,7 +435,7 @@ def test_einstellungen_zeigen_und_speichern_antworten(qtbot, fresh_config_dialog
     d.original_combos["umwandeln"].setCurrentIndex(d.original_combos["umwandeln"].findData(False))
     d.original_combos["trennen"].setCurrentIndex(d.original_combos["trennen"].findData(True))
     d._save_settings()
-    assert d.config.get("original_wegraeumen") == {"umwandeln": False, "trennen": True}
+    assert d.config.get("original_wegraeumen") == {"umwandeln": False, "trennen": True, "zusammenfuegen": None}
 
 
 @pytest.fixture

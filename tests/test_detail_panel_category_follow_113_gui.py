@@ -94,3 +94,30 @@ def test_clear_resets_coupling(qtbot, monkeypatch, tmp_path):
 def test_prompt_contains_rule_against_meaningless_names(provider):  # noqa: F811
     prompt = provider._build_filename_prompt(text="text", current_filename="scan.pdf")
     assert "Sonstiges" in prompt and "nie im Dateinamen" in prompt
+
+
+def test_date_edit_updates_leading_date_of_ki_name(qtbot, monkeypatch, tmp_path):
+    """Datum von Hand korrigiert (OCR hat es nicht gelesen): der Namensvorschlag zieht nach."""
+    panel, _ = _panel(qtbot, monkeypatch, tmp_path)
+    _select(panel, tmp_path, [_ki_sonstiges()])
+    assert panel.name_input.text() == "2024-01-31_Sonstiges_Noten"
+
+    datum = panel._metadata_inputs["buchungsdatum"]
+    datum.setText("")
+    QTest.keyClicks(datum, "9.4.2009")
+
+    assert _rows(panel)[0].startswith("2009-04-09_Sonstiges_Noten.pdf")
+    assert panel.name_input.text() == "2009-04-09_Sonstiges_Noten"
+
+
+def test_date_edit_leaves_typed_name_alone(qtbot, monkeypatch, tmp_path):
+    panel, _ = _panel(qtbot, monkeypatch, tmp_path)
+    _select(panel, tmp_path, [_ki_sonstiges()])
+    panel.name_input.clear()
+    QTest.keyClicks(panel.name_input, "2024-01-31 Mein Name")
+
+    datum = panel._metadata_inputs["buchungsdatum"]
+    datum.setText("")
+    QTest.keyClicks(datum, "2009-04-09")
+
+    assert panel.name_input.text() == "2024-01-31 Mein Name"

@@ -22,6 +22,20 @@ from src.gui.entzerren_dialog import EntzerrenDialog
 from src.search.meldungen import melden as index_melden
 
 
+def _seiten_summe(pdfs: list[Path]) -> int:
+    """Seiten aller PDFs zusammen; nicht lesbare zaehlen als sehr viele (dann wird nichts weggeraeumt)."""
+    import pymupdf
+
+    summe = 0
+    for pdf in pdfs:
+        try:
+            with pymupdf.open(str(pdf)) as doc:
+                summe += doc.page_count
+        except Exception:  # noqa: BLE001
+            return 10**9
+    return summe
+
+
 def _namen(pfade: list[Path], maximal: int = 3) -> str:
     namen = [p.name for p in pfade[:maximal]]
     if len(pfade) > maximal:
@@ -212,6 +226,16 @@ class BildAktionenMixin:
                 "Original in den Papierkorb verschieben?")
         return ow.original_wegraeumen(self, [original], "trennen", text,
                                       f"Original nach dem Trennen weggeräumt: {original.name}")
+
+    def originale_nach_zusammenfuegen(self, quellen: list[Path], ziel: Path) -> list[Path]:
+        """Wie ``original_nach_trennen``: die Einzel-PDFs nach dem Zusammenfügen wegräumen."""
+        quellen = [q for q in quellen if q != ziel]
+        if not quellen or not pdf_lesbar(ziel, _seiten_summe(quellen)):
+            return []  # nur wenn das zusammengefügte PDF wirklich alle Seiten hat
+        text = (f"{len(quellen)} PDFs wurden zu '{ziel.name}' zusammengefügt.\n\n"
+                f"Die {len(quellen)} einzelnen PDFs in den Papierkorb verschieben?\n{_namen(quellen)}")
+        return ow.original_wegraeumen(self, quellen, "zusammenfuegen", text,
+                                      f"Einzel-PDFs nach dem Zusammenfügen weggeräumt: {_namen(quellen)}")
 
     def original_entfernt(self, pfad: Path):
         """Kachel, Analyse und Detailansicht eines weggeraeumten Originals aufraeumen."""

@@ -7,6 +7,34 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Nach dem Zusammenfügen aufräumen**: Wurden mehrere PDFs zu einem zusammengefügt, fragt das
+  Programm, ob die einzelnen PDFs in den Papierkorb sollen (mit „Nicht mehr fragen“, die Antwort
+  lässt sich in den Einstellungen ändern). Weggeräumt wird nur, wenn das zusammengefügte PDF
+  alle Seiten enthält; Strg+Z holt die Einzel-PDFs zurück.
+- **Eine Kachelspalte mehr im linken Bereich**: Die Kacheln nutzen die Breite jetzt aus; eine
+  weitere Spalte erscheint schon, wenn 90 % der rechten Kachel sichtbar sind.
+
+### Geändert
+- **KI-unterstütztes Trennen – verständlichere Vorschau**: Statt „Dokument hinzufügen“ und
+  „Zeile entfernen“ gibt es „Dokument aufteilen …“ (fragt, auf welcher Seite das zweite
+  Schriftstück beginnt) und „Mit dem Dokument davor/danach zusammenlegen“. Die Knöpfe sind nur
+  aktiv, wenn sie beim markierten Dokument etwas bewirken.
+- **Datum von Hand korrigiert → Dateiname zieht nach**: Wird das Feld „Datum“ geändert, etwa weil
+  die Texterkennung das Datum nicht lesen konnte, folgt das Datum am Anfang des vorgeschlagenen
+  Dateinamens sofort. Ein selbst getippter Name bleibt unangetastet.
+
+### Behoben
+- **KI-unterstütztes Trennen bei großen Stapeln**: Große PDFs (z. B. 112 Seiten) scheiterten mit
+  „Die KI hat keine brauchbare Aufteilung genannt“. Der Stapel geht jetzt in Abschnitten von rund
+  20 Seiten an die KI (mit Fortschrittsanzeige „Abschnitt x von y“), abgeschnittene Antworten
+  werden so weit wie möglich gelesen, und liefert ein Abschnitt keine lesbare Aufteilung, wird er
+  bis zu zweimal mit mehr Platz für die Antwort wiederholt.
+- **Abgeschnittene Antworten im Chat**: Modelle, die vor der Antwort „nachdenken“, brachen nach
+  wenigen Wörtern ab. Der Platz für die Antwort ist vervierfacht; bricht eine Antwort trotzdem am
+  Limit ab, wird sie einmal mit mehr Platz wiederholt, sonst steht ein Hinweis darunter (Erkennung
+  bei OpenAI-kompatiblen Anbietern wie OpenRouter).
+
 ## [0.26.1] - 2026-11-10
 
 ### Neu

@@ -12,18 +12,26 @@ alle Anbieter koennen.
 from __future__ import annotations
 
 import json
+import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from src.utils.filename_sanitizer import sanitize_filename
 
-ZEICHEN_GESAMT = 48000  # Textmenge im Prompt ueber alle Seiten
+SEITEN_JE_AUFRUF = 20  # grosse Stapel gehen abschnittsweise an die KI
+ZEICHEN_GESAMT = 20000  # Textmenge im Prompt je Aufruf
 ZEICHEN_JE_SEITE_MAX = 1200
 ZEICHEN_JE_SEITE_MIN = 300
 ENDE_ANTEIL = 0.25  # so viel des Auszugs stammt vom Seitenende (Grussformel, "Seite 2 von 3")
+ANTWORT_TOKENS = 4000  # reichlich: Denkmodelle verbrauchen einen Teil davon, bevor sie antworten
+ANTWORT_TOKENS_VERSUCHE = (ANTWORT_TOKENS, 12000, 16000)  # unlesbare Antwort: noch einmal mit mehr Platz
+AUFRUFE_GLEICHZEITIG = 3
 NAME_MAX = 90
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -101,31 +109,64 @@ def _auszug(text: str, laenge: int) -> str:
     return f"{text[:laenge - ende].rstrip()}\n[...]\n{text[-ende:].lstrip()}"
 
 
-def ki_prompt(texte: Sequence[str]) -> str:
-    """Bittet um die Anfangsseiten der Dokumente im Stapel und je einen Dateinamen."""
+def abschnitte(seitenzahl: int, je_aufruf: int = SEITEN_JE_AUFRUF) -> list[tuple[int, int]]:
+    """Teilt die Seiten in Abschnitte ``(von, bis)`` (1-basiert, einschliesslich) fuer je einen KI-Aufruf."""
+    if seitenzahl <= 0:
+        return []
+    anzahl = -(-seitenzahl // je_aufruf)
+    groesse = -(-seitenzahl // anzahl)  # gleichmaessig statt eines kleinen Rests am Ende
+    return [(von, min(von + groesse - 1, seitenzahl)) for von in range(1, seitenzahl + 1, groesse)]
+
+
+def ki_prompt(texte: Sequence[str], von: int = 1, bis: Optional[int] = None) -> str:
+    """Bittet um die Anfangsseiten der Dokumente (Seiten ``von`` bis ``bis``) und je einen Dateinamen.
+
+    Ab dem zweiten Abschnitt ist die Seite davor zum Vergleich dabei, damit die KI
+    erkennt, ob die erste Seite des Abschnitts ein Dokument fortsetzt.
+    """
     n = len(texte)
-    je_seite = max(ZEICHEN_JE_SEITE_MIN, min(ZEICHEN_JE_SEITE_MAX, ZEICHEN_GESAMT // max(n, 1)))
+    bis = n if bis is None else bis
+    ganz = von == 1 and bis == n
+    erste_gezeigt = max(1, von - 1)
+    gezeigt = bis - erste_gezeigt + 1
+    je_seite = max(ZEICHEN_JE_SEITE_MIN, min(ZEICHEN_JE_SEITE_MAX, ZEICHEN_GESAMT // max(gezeigt, 1)))
+    if ganz:
+        kopf = (f"Das folgende PDF hat {n} Seiten und ist ein Stapel aus mehreren hintereinander "
+                "gescannten Schriftstücken (Briefe, Rechnungen, Bescheide, Verträge ...).")
+    else:
+        kopf = (f"Ein PDF mit {n} Seiten ist ein Stapel aus mehreren hintereinander gescannten "
+                f"Schriftstücken (Briefe, Rechnungen, Bescheide, Verträge ...). Du siehst daraus die "
+                f"Seiten {von} bis {bis}.")
     teile = [
-        f"Das folgende PDF hat {n} Seiten und ist ein Stapel aus mehreren hintereinander "
-        "gescannten Schriftstücken (Briefe, Rechnungen, Bescheide, Verträge ...).",
+        kopf,
         "Finde heraus, auf welcher Seite jeweils ein NEUES Dokument beginnt. Hinweise: "
         "Briefkopf, Absender und Anschrift, Datum, Betreff, Anrede am Anfang; Grußformel, "
         "Unterschrift, 'Seite 2 von 3', fortlaufende Seitenzahlen, fortgesetzte Tabellen "
         "oder Sätze sprechen für eine Fortsetzung.",
         "Regeln:",
         "- Jede Seite gehört zu genau einem Dokument; die Dokumente sind zusammenhängende Seitenbereiche.",
-        "- Das erste Dokument beginnt auf Seite 1.",
+    ]
+    if von == 1:
+        teile.append("- Das erste Dokument beginnt auf Seite 1.")
+    else:
+        teile.append(
+            f"- Seite {von - 1} gehört zum Abschnitt davor und ist nur zum Vergleich dabei: nenne sie nicht. "
+            f"Setzt Seite {von} das Dokument von Seite {von - 1} fort, dann nenne auch Seite {von} nicht.")
+    teile += [
         "- Leere Seiten (Rückseiten) und Anlagen gehören zum vorhergehenden Dokument.",
         "- Trenne nur, wo wirklich ein neues Schriftstück beginnt; im Zweifel zusammenlassen.",
+        "- Verwende die Seitennummern genau so, wie sie unten über den Seiten stehen.",
         "- Gib jedem Dokument einen Dateinamen ohne Endung nach dem Muster "
         "JJJJ-MM-TT_Absender_Dokumentart (Datum des Schreibens; ohne Datum nur Absender_Dokumentart; "
         "keine Umlaute, keine Sonderzeichen, Wörter mit Unterstrich verbunden).",
-        'Antworte nur mit JSON: {"dokumente": [{"erste_seite": 1, "name": "..."}, '
-        '{"erste_seite": 4, "name": "..."}]}',
+        "Antworte nur mit JSON, ohne Erklärung: "
+        f'{{"dokumente": [{{"erste_seite": {von}, "name": "..."}}, '
+        f'{{"erste_seite": {min(von + 3, bis)}, "name": "..."}}]}}',
         "",
     ]
-    for i, text in enumerate(texte, 1):
-        teile.append(f"=== Seite {i} ===\n{_auszug(text, je_seite) or '(leere Seite / kein Text)'}")
+    for i in range(erste_gezeigt, bis + 1):
+        zusatz = " (nur zum Vergleich)" if i < von else ""
+        teile.append(f"=== Seite {i}{zusatz} ===\n{_auszug(texte[i - 1], je_seite) or '(leere Seite / kein Text)'}")
     return "\n".join(teile)
 
 
@@ -135,34 +176,46 @@ def name_bereinigen(name, ersatz: str = "") -> str:
     return text or ersatz
 
 
-def antwort_auswerten(text: str, seitenzahl: int, ersatzname: str = "Dokument") -> Optional[list[Teil]]:
-    """Liest die Dokumente aus der KI-Antwort; None, wenn sie nicht brauchbar ist.
+_EINTRAG_RE = re.compile(r'"erste_seite"\s*:\s*"?(\d+)"?\s*(?:,\s*"name"\s*:\s*"((?:[^"\\]|\\.)*)")?')
 
-    Massgeblich sind die Anfangsseiten: Daraus ergeben sich lueckenlose Bereiche
-    ueber alle Seiten, auch wenn die KI sich bei den Enden verzaehlt haette.
+
+def anfaenge_lesen(text: str, von: int, bis: int) -> Optional[dict[int, str]]:
+    """Anfangsseiten ``{seite: name}`` im Bereich ``von``..``bis`` aus einer KI-Antwort; None = unlesbar.
+
+    Liest zuerst das JSON; ist es kaputt oder abgeschnitten (Token-Limit), zaehlen
+    die Eintraege, die sich noch einzeln erkennen lassen. Ein leeres Ergebnis ist
+    gueltig: Der Abschnitt setzt dann nur das Dokument davor fort.
     """
-    m = re.search(r"\{.*\}", text or "", re.DOTALL)
-    if not m:
-        return None
-    try:
-        daten = json.loads(m.group(0))
-    except ValueError:
-        return None
-    roh = daten.get("dokumente") if isinstance(daten, dict) else None
-    if not isinstance(roh, list) or not roh:
-        return None
-    anfaenge: dict[int, str] = {}
-    for eintrag in roh:
-        if not isinstance(eintrag, dict):
-            continue
+    text = text or ""
+    eintraege: Optional[list] = None
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
         try:
-            seite = int(eintrag.get("erste_seite"))
+            daten = json.loads(m.group(0))
+        except ValueError:
+            daten = None
+        roh = daten.get("dokumente") if isinstance(daten, dict) else None
+        if isinstance(roh, list):
+            eintraege = [(e.get("erste_seite"), e.get("name")) for e in roh if isinstance(e, dict)]
+    if eintraege is None:
+        gefunden = _EINTRAG_RE.findall(text)
+        if not gefunden:
+            return None
+        eintraege = list(gefunden)
+    anfaenge: dict[int, str] = {}
+    for seite, name in eintraege:
+        try:
+            seite = int(seite)
         except (TypeError, ValueError):
             continue
-        if 1 <= seite <= seitenzahl and seite not in anfaenge:
-            anfaenge[seite] = str(eintrag.get("name") or "")
-    if not anfaenge:
-        return None
+        if von <= seite <= bis and seite not in anfaenge:
+            anfaenge[seite] = str(name or "")
+    return anfaenge
+
+
+def teile_aus_anfaengen(anfaenge: dict[int, str], seitenzahl: int, ersatzname: str = "Dokument") -> list[Teil]:
+    """Lueckenlose Bereiche ueber alle Seiten aus den Anfangsseiten (nicht leer)."""
+    anfaenge = dict(anfaenge)
     starts = sorted(anfaenge)
     if starts[0] != 1:  # Seiten vor dem ersten genannten Dokument gehoeren zu diesem
         anfaenge[1] = anfaenge.pop(starts[0])
@@ -175,27 +228,96 @@ def antwort_auswerten(text: str, seitenzahl: int, ersatzname: str = "Dokument") 
     return teile
 
 
-def vorschlagen(provider, texte: Sequence[str], ersatzname: str = "Dokument") -> list[Teil]:
-    """Fragt die KI nach den Dokumenten im Stapel.
+def antwort_auswerten(text: str, seitenzahl: int, ersatzname: str = "Dokument") -> Optional[list[Teil]]:
+    """Liest die Dokumente aus der KI-Antwort fuer das ganze PDF; None, wenn sie nicht brauchbar ist.
 
-    Wirft ``RuntimeError`` mit lesbarem Text, wenn der Aufruf scheitert oder die
-    Antwort nicht brauchbar ist.
+    Massgeblich sind die Anfangsseiten: Daraus ergeben sich lueckenlose Bereiche
+    ueber alle Seiten, auch wenn die KI sich bei den Enden verzaehlt haette.
     """
-    antwort = provider.answer_with_context(
-        system_prompt="Du bist ein Assistent zum Ordnen gescannter Dokumente. Antworte nur mit JSON.",
-        context_docs=[],
-        user_question=ki_prompt(texte),
-        max_tokens=2000,
-    )
-    antwort = (antwort or "").strip()
-    if not antwort:
-        raise RuntimeError("Die KI hat nicht geantwortet.")
-    if antwort.startswith("[") and "fehler" in antwort[:60].lower():
-        raise RuntimeError(antwort.strip("[]"))
-    teile = antwort_auswerten(antwort, len(texte), ersatzname)
-    if teile is None:
-        raise RuntimeError("Die KI hat keine brauchbare Aufteilung genannt.")
-    return teile
+    anfaenge = anfaenge_lesen(text, 1, seitenzahl)
+    if not anfaenge:
+        return None
+    return teile_aus_anfaengen(anfaenge, seitenzahl, ersatzname)
+
+
+def _abschnitt_fragen(provider, texte: Sequence[str], von: int, bis: int) -> dict[int, str]:
+    """Fragt einen Abschnitt ab; bei leerer oder unlesbarer Antwort noch einmal mit mehr Platz.
+
+    Denkmodelle verbrauchen bei schwierigen Seiten (Tabellen, Depotauszuege) das
+    ganze Budget fuers Ueberlegen und kommen nicht mehr zum JSON.
+    """
+    frage = ki_prompt(texte, von, bis)
+    fehler = "Die KI hat nicht geantwortet."
+    for versuch, tokens in enumerate(ANTWORT_TOKENS_VERSUCHE, 1):
+        if versuch > 1:
+            frage_jetzt = frage + ("\n\nWICHTIG: Schreibe keine Überlegungen und keine Begründung. "
+                                   "Gib sofort und ausschließlich das JSON aus.")
+        else:
+            frage_jetzt = frage
+        antwort = provider.answer_with_context(
+            system_prompt="Du bist ein Assistent zum Ordnen gescannter Dokumente. Antworte nur mit JSON.",
+            context_docs=[],
+            user_question=frage_jetzt,
+            max_tokens=tokens,
+        )
+        antwort = (antwort or "").strip()
+        if antwort.startswith("[") and "fehler" in antwort[:60].lower():
+            raise RuntimeError(antwort.strip("[]"))
+        if not antwort:
+            fehler = "Die KI hat nicht geantwortet."
+            logger.warning("KI-Trennen: leere Antwort fuer Seiten %s-%s (Versuch %s)", von, bis, versuch)
+            continue
+        anfaenge = anfaenge_lesen(antwort, von, bis)
+        if anfaenge is not None:
+            return anfaenge
+        fehler = "Die KI hat keine brauchbare Aufteilung genannt."
+        logger.warning("KI-Trennen: Antwort fuer Seiten %s-%s nicht lesbar (Versuch %s): %r",
+                       von, bis, versuch, antwort[:500])
+    raise RuntimeError(fehler)
+
+
+def vorschlagen(provider, texte: Sequence[str], ersatzname: str = "Dokument",
+                fortschritt: Optional[Callable[[int, int], None]] = None,
+                abbruch: Optional[Callable[[], bool]] = None) -> list[Teil]:
+    """Fragt die KI nach den Dokumenten im Stapel; grosse Stapel abschnittsweise.
+
+    ``fortschritt(fertig, gesamt)`` meldet erledigte Abschnitte (aus dem aufrufenden
+    Thread), ``abbruch()`` laesst noch nicht begonnene Abschnitte entfallen.
+
+    Wirft ``RuntimeError`` mit lesbarem Text, wenn ein Aufruf scheitert oder die
+    Antworten nicht brauchbar sind.
+    """
+    bereiche = abschnitte(len(texte))
+    if not bereiche:
+        raise RuntimeError("Das PDF hat keine Seiten.")
+    anfaenge: dict[int, str] = {}
+    if fortschritt:
+        fortschritt(0, len(bereiche))
+
+    def einer(bereich):
+        if abbruch and abbruch():
+            return {}
+        return _abschnitt_fragen(provider, texte, *bereich)
+
+    with ThreadPoolExecutor(max_workers=min(AUFRUFE_GLEICHZEITIG, len(bereiche)),
+                            thread_name_prefix="ki-trennen") as pool:
+        laufend = [pool.submit(einer, b) for b in bereiche]
+        try:
+            for fertig, auftrag in enumerate(laufend, 1):
+                anfaenge.update(auftrag.result())
+                if fortschritt:
+                    fortschritt(fertig, len(bereiche))
+        except BaseException:
+            for auftrag in laufend:
+                auftrag.cancel()
+            raise
+    if abbruch and abbruch():
+        raise RuntimeError("Abgebrochen.")
+    if not anfaenge:
+        if len(bereiche) == 1:
+            raise RuntimeError("Die KI hat keine brauchbare Aufteilung genannt.")
+        anfaenge = {1: ""}
+    return teile_aus_anfaengen(anfaenge, len(texte), ersatzname)
 
 
 # --- Seitenangaben ("1-3, 7") -------------------------------------------------------
