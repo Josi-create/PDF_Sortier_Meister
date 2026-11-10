@@ -64,6 +64,22 @@ def replace_token(filename: str, old: str, new: str) -> str:
     return filename
 
 
+_LEADING_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}(?!\d)")
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def adapt_leading_date(filename: str, datum: str | None) -> str:
+    """Setzt das Datum am Namensanfang (JJJJ-MM-TT) auf das Datum aus dem Feld "Datum".
+
+    Namen ohne fuehrendes Datum bleiben, wie sie sind; ebenso, wenn das Feld
+    leer oder kein ganzes Datum ist.
+    """
+    datum = str(datum or "").strip()
+    if not filename or not _ISO_DATE.fullmatch(datum):
+        return filename
+    return _LEADING_DATE.sub(datum, filename, count=1)
+
+
 def adapt_llm_filename(filename: str, llm_metadata: dict | None, current: dict | None) -> str:
     """Zieht Kategorie und Korrespondent eines KI-Namens nach den aktuellen Feldern nach.
 

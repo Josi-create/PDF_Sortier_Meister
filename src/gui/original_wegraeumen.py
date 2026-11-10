@@ -30,6 +30,7 @@ CONFIG_SCHLUESSEL = "original_wegraeumen"
 AKTIONEN = {
     "umwandeln": "Nach dem Umwandeln in PDF",
     "trennen": "Nach dem Trennen eines PDFs",
+    "zusammenfuegen": "Nach dem Zusammenfügen von PDFs",
 }
 HINWEIS = "Mit Strg+Z holst du es zurück."
 

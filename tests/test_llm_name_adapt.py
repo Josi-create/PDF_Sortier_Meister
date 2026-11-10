@@ -35,3 +35,16 @@ def test_adapt_without_changes_or_fields_is_identity():
     assert adapt_llm_filename(name, {"subject": "Rechnung"}, {"subject": "Rechnung"}) == name
     assert adapt_llm_filename(name, {"subject": "Rechnung"}, {}) == name
     assert adapt_llm_filename("", {}, {"subject": "X"}) == ""
+
+
+def test_leading_date_follows_the_date_field():
+    from src.core.llm_name_adapt import adapt_leading_date
+
+    assert adapt_leading_date("2026-11-10_Rechnung_Ofenbau.pdf", "2009-04-09") == "2009-04-09_Rechnung_Ofenbau.pdf"
+    assert adapt_leading_date("2026-11-10 Rechnung.pdf", "2009-04-09") == "2009-04-09 Rechnung.pdf"
+    # nur ein Datum am Anfang, nur ein ganzes Datum aus dem Feld
+    assert adapt_leading_date("Rechnung_2026-11-10.pdf", "2009-04-09") == "Rechnung_2026-11-10.pdf"
+    assert adapt_leading_date("2026-11-10_Rechnung.pdf", "") == "2026-11-10_Rechnung.pdf"
+    assert adapt_leading_date("2026-11-10_Rechnung.pdf", "2009") == "2026-11-10_Rechnung.pdf"
+    assert adapt_leading_date("2026-11-101_Nummer.pdf", "2009-04-09") == "2026-11-101_Nummer.pdf"
+    assert adapt_leading_date("", "2009-04-09") == ""

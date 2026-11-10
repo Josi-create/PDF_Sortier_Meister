@@ -135,6 +135,99 @@ def test_vorschlagen_meldet_fehler_lesbar(antwort, meldung):
         kt.vorschlagen(_Provider(antwort), ["a", "b"])
 
 
+# --- grosse Stapel: abschnittsweise ---------------------------------------------------
+
+class _AbschnittProvider:
+    """Antwortet je Abschnitt (aus "Seiten x bis y" der Frage) mit einer vorgegebenen Antwort."""
+
+    def __init__(self, antworten: dict):
+        self.antworten = antworten  # erste Seite des Abschnitts -> Antwort oder Liste von Antworten
+        self.aufrufe: list[tuple[int, int]] = []  # (erste Seite, max_tokens)
+        self.fragen: list[str] = []
+
+    def answer_with_context(self, system_prompt, context_docs, user_question, max_tokens=1000):
+        import re
+        m = re.search(r"Seiten (\d+) bis (\d+)", user_question)
+        von = int(m.group(1)) if m else 1
+        self.aufrufe.append((von, max_tokens))
+        self.fragen.append(user_question)
+        antwort = self.antworten[von]
+        if isinstance(antwort, list):
+            return antwort.pop(0)
+        return antwort
+
+
+def test_abschnitte_decken_alle_seiten_gleichmaessig():
+    assert kt.abschnitte(0) == []
+    assert kt.abschnitte(20) == [(1, 20)]
+    assert kt.abschnitte(21) == [(1, 11), (12, 21)]
+    bereiche = kt.abschnitte(112)
+    assert len(bereiche) == 6 and bereiche[0][0] == 1 and bereiche[-1][1] == 112
+    assert all(b[0] == a[1] + 1 for a, b in zip(bereiche, bereiche[1:]))
+    assert max(bis - von + 1 for von, bis in bereiche) <= kt.SEITEN_JE_AUFRUF
+
+
+def test_prompt_fuer_abschnitt_zeigt_seite_davor_nur_zum_vergleich():
+    prompt = kt.ki_prompt([f"Text {i}" for i in range(1, 61)], 21, 40)
+    assert "Seiten 21 bis 40" in prompt
+    assert "=== Seite 20 (nur zum Vergleich) ===\nText 20" in prompt
+    assert "=== Seite 21 ===\nText 21" in prompt and "=== Seite 40 ===" in prompt
+    assert "=== Seite 19" not in prompt and "=== Seite 41" not in prompt
+    assert "Das erste Dokument beginnt auf Seite 1" not in prompt
+
+
+def test_anfaenge_lesen_auch_aus_abgeschnittener_antwort():
+    ganz = _antwort((1, "A"), (4, "B"))
+    assert kt.anfaenge_lesen(ganz, 1, 10) == {1: "A", 4: "B"}
+    abgeschnitten = '{"dokumente": [{"erste_seite": 1, "name": "A"}, {"erste_seite": 4, "name": "B"}, {"erste_se'
+    assert kt.anfaenge_lesen(abgeschnitten, 1, 10) == {1: "A", 4: "B"}
+    assert kt.anfaenge_lesen(ganz, 3, 10) == {4: "B"}  # ausserhalb des Abschnitts zaehlt nicht
+    assert kt.anfaenge_lesen('{"dokumente": []}', 21, 40) == {}  # Abschnitt setzt nur fort
+    assert kt.anfaenge_lesen("Ich überlege noch, Seite 5 könnte ...", 1, 10) is None
+
+
+def test_vorschlagen_fragt_grosse_stapel_abschnittsweise():
+    provider = _AbschnittProvider({
+        1: _antwort((1, "Eins"), (9, "Zwei")),
+        16: '{"dokumente": []}',  # setzt das Dokument davor fort
+        31: _antwort((33, "Drei")),
+    })
+    gemeldet = []
+    teile = kt.vorschlagen(provider, ["text"] * 45, "stapel", fortschritt=lambda f, g: gemeldet.append((f, g)))
+    assert sorted(von for von, _t in provider.aufrufe) == [1, 16, 31]
+    assert [(t.seiten[0], t.seiten[-1], t.name) for t in teile] == [(1, 8, "Eins"), (9, 32, "Zwei"), (33, 45, "Drei")]
+    assert gemeldet == [(0, 3), (1, 3), (2, 3), (3, 3)]
+
+
+def test_vorschlagen_wiederholt_unlesbare_antwort_mit_mehr_platz():
+    provider = _AbschnittProvider({1: ["Auf S. 5 suchen wir nach einem Datum ...", "", _antwort((1, "A"), (2, "B"))]})
+    teile = kt.vorschlagen(provider, ["a", "b", "c"], "stapel")
+    assert teile == [Teil([1], "A"), Teil([2, 3], "B")]
+    assert [t for _von, t in provider.aufrufe] == list(kt.ANTWORT_TOKENS_VERSUCHE)
+    assert "keine Überlegungen" not in provider.fragen[0] and "keine Überlegungen" in provider.fragen[1]
+
+
+def test_vorschlagen_gibt_nach_allen_versuchen_auf():
+    provider = _AbschnittProvider({1: "nur Gerede"})
+    with pytest.raises(RuntimeError, match="keine brauchbare Aufteilung"):
+        kt.vorschlagen(provider, ["a", "b"])
+    assert len(provider.aufrufe) == len(kt.ANTWORT_TOKENS_VERSUCHE)
+
+
+def test_vorschlagen_fehler_des_anbieters_wird_nicht_wiederholt():
+    provider = _AbschnittProvider({1: "[OpenRouter-Fehler: 401 Unauthorized]"})
+    with pytest.raises(RuntimeError, match="401"):
+        kt.vorschlagen(provider, ["a", "b"])
+    assert len(provider.aufrufe) == 1
+
+
+def test_vorschlagen_abbruch_fragt_nicht_mehr():
+    provider = _AbschnittProvider({1: _antwort((1, "A"))})
+    with pytest.raises(RuntimeError, match="Abgebrochen"):
+        kt.vorschlagen(provider, ["a"] * 45, abbruch=lambda: True)
+    assert provider.aufrufe == []
+
+
 # --- Seitenangaben ----------------------------------------------------------------
 
 @pytest.mark.parametrize("text, erwartet", [

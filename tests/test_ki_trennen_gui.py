@@ -372,15 +372,41 @@ def test_dialog_letzte_zeile_bleibt(dialog):
     assert dialog.tabelle.rowCount() == 1 and _zelle(dialog, 0, 0).text() == "1-6"
 
 
-def test_dialog_dokument_hinzufuegen_nach_der_markierten_zeile(dialog):
-    dialog.tabelle.setCurrentCell(0, 0)
-    dialog._hinzufuegen()
+def test_dialog_dokument_aufteilen_fragt_nach_der_seite(dialog, monkeypatch):
+    gefragt = []
+    monkeypatch.setattr(dialog, "_frage_teilseite", lambda seiten: gefragt.append(list(seiten)) or 4)
+    monkeypatch.setattr(dialog.tabelle, "editItem", lambda item: None)
+    dialog.tabelle.setCurrentCell(1, 0)
+    dialog._aufteilen()
+    assert gefragt == [[3, 4]]
     assert dialog.tabelle.rowCount() == 4
-    assert _zelle(dialog, 1, 0).text() == "" and _zelle(dialog, 1, 1).text() == "stapel_Teil_4"
-    assert dialog.stand.text().startswith("⚠ Zeile 2")
-    _zelle(dialog, 0, 0).setText("1")
-    _zelle(dialog, 1, 0).setText("2")
+    assert [_zelle(dialog, z, 0).text() for z in range(4)] == ["1-2", "3", "4", "5-6"]
+    assert _zelle(dialog, 2, 1).text() == "Bescheid_2"
+    assert dialog.tabelle.currentRow() == 2
     assert dialog.stand.text().startswith("✓ Alle 6 Seiten sind auf 4")
+
+
+def test_dialog_aufteilen_abgebrochen_aendert_nichts(dialog, monkeypatch):
+    monkeypatch.setattr(dialog, "_frage_teilseite", lambda seiten: None)
+    dialog.tabelle.setCurrentCell(0, 0)
+    dialog._aufteilen()
+    assert dialog.tabelle.rowCount() == 3 and _zelle(dialog, 0, 0).text() == "1-2"
+
+
+def test_dialog_knoepfe_nur_wenn_sinnvoll(dialog):
+    assert "aufteilen" in dialog.teilen.text() and "zusammenlegen" in dialog.zusammen.text()
+    dialog.tabelle.setCurrentCell(0, 0)
+    assert dialog.teilen.isEnabled() and dialog.zusammen.isEnabled()
+    assert dialog.zusammen.text() == "Mit dem Dokument danach zusammenlegen"
+    dialog.tabelle.setCurrentCell(1, 0)
+    assert dialog.zusammen.text() == "Mit dem Dokument davor zusammenlegen"
+    _zelle(dialog, 1, 0).setText("3")  # einseitig: nichts aufzuteilen
+    assert not dialog.teilen.isEnabled()
+    for _ in range(2):
+        dialog.tabelle.setCurrentCell(0, 0)
+        dialog._entfernen()
+    dialog.tabelle.setCurrentCell(0, 0)
+    assert not dialog.zusammen.isEnabled()  # nur noch ein Dokument
 
 
 def test_dialog_ein_dokument_erklaert_sich(qtbot, tmp_path):

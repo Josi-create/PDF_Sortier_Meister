@@ -834,8 +834,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Ein Klick auf Kachel oder Flaeche gibt der Kachelansicht den Fokus,
         # damit Strg+A dort alle Kacheln markiert (Live-Test 08.11.2026)
         self.pdf_scroll_area.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Kein waagerechter Rollbalken: die letzte Kachelspalte darf rechts
+        # ein Stueck abgeschnitten sein (siehe _pdf_grid_columns)
         self.pdf_scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
         # Container für Ordnerzeilen und Thumbnails
@@ -843,6 +845,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.pdf_container.mousePressEvent = self._on_pdf_container_clicked
         container_layout = QVBoxLayout(self.pdf_container)
         container_layout.setSpacing(10)
+        # Schmale Seitenraender: jede gesparte Breite hilft einer weiteren Kachelspalte
+        raender = container_layout.contentsMargins()
+        container_layout.setContentsMargins(4, raender.top(), 4, raender.bottom())
         # Ordner als Zeilen (Issue #147): eigenes Raster mit 1 oder 2 Spalten
         # ueber den PDF-Kacheln; Hoehe und Schrift unabhaengig von der
         # Kachelgroesse (#117)
@@ -2303,13 +2308,24 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Sichtbare Breite des Scan-Bereichs (eigene Methode, damit Tests sie setzen koennen)."""
         return self.pdf_scroll_area.viewport().width()
 
+    # So viel der letzten Kachelspalte muss sichtbar sein, damit sie angezeigt wird
+    GRID_LETZTE_SPALTE_SICHTBAR = 0.9
+
     def _pdf_grid_columns(self) -> int:
         """Spaltenzahl fürs PDF-Raster aus der sichtbaren Panelbreite.
 
-        Die Rasterbreite pro Kachel (max. Kachelbreite plus 10 px Abstand)
-        haengt von der gewaehlten Kachelgroesse ab (Issue #117).
+        So viele Spalten, wie mit der Mindestbreite der Kachel hineinpassen
+        (abhaengig von der Kachelgroesse, Issue #117). Frueher zaehlte die
+        Hoechstbreite; dann blieb rechts oft fast eine ganze Kachel frei.
+        Die letzte Spalte kommt schon dazu, wenn von ihr GRID_LETZTE_SPALTE_SICHTBAR
+        (90 %) zu sehen sind; der Rest ist rechts abgeschnitten.
         """
-        return max(1, self._scan_viewport_width() // self._tile_view.slot_width)
+        raender = self.pdf_container.layout().contentsMargins()
+        abstand = self.pdf_layout.horizontalSpacing()
+        frei = self._scan_viewport_width() - raender.left() - raender.right()
+        kachel = self._tile_view.tile_w
+        verdeckt = int(kachel * (1 - self.GRID_LETZTE_SPALTE_SICHTBAR))
+        return max(1, (frei + abstand + verdeckt) // (kachel + abstand))
 
     def _folder_grid_columns(self) -> int:
         """Ordnerzeilen: 2 Spalten ab 2 x 240 px sichtbarer Breite, sonst 1 (Issue #147)."""
@@ -3709,9 +3725,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         try:
             merged_path = self.file_manager.merge_pdfs(pdfs_to_merge, target_folder, new_name)
-            self.statusbar.showMessage(f"Zusammengefügt: {merged_path.name}", 4000)
             self.selected_pdfs = []
+            entfernt = self.originale_nach_zusammenfuegen(pdfs_to_merge, merged_path)
             self.load_pdfs()
+            # Erst nach dem Neuladen: load_pdfs schreibt selbst in die Statuszeile
+            if entfernt:
+                self.statusbar.showMessage(
+                    f"Zusammengefügt: {merged_path.name}, {len(entfernt)} Einzel-PDFs im Papierkorb "
+                    "(Strg+Z holt sie zurück)", 6000)
+            else:
+                self.statusbar.showMessage(f"Zusammengefügt: {merged_path.name}", 4000)
         except Exception as e:
             QMessageBox.critical(self, "Fehler", f"Zusammenfügen fehlgeschlagen:\n{e}")
 

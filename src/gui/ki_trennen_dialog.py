@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QProgressDialog,
@@ -63,10 +64,12 @@ class KiTrennenDialog(QDialog):
         layout.setSpacing(10)
         if len(teile) > 1:
             kopf = (f"<b>{pdf_path.name}</b> ({seitenzahl} Seiten)<br>"
-                    f"Die KI hat {len(teile)} Dokumente erkannt. Seiten und Namen lassen sich ändern.")
+                    f"Die KI hat {len(teile)} Dokumente erkannt. Jede Zeile wird ein eigenes PDF; "
+                    "Seiten und Namen lassen sich ändern.")
         else:
             kopf = (f"<b>{pdf_path.name}</b> ({seitenzahl} Seiten)<br>"
-                    "Die KI hält das für ein einziges Dokument. Du kannst die Aufteilung selbst eintragen.")
+                    "Die KI hält das für ein einziges Dokument. Mit „Dokument aufteilen …“ kannst du "
+                    "es selbst zerlegen; jede Zeile wird ein eigenes PDF.")
         info = QLabel(kopf)
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -88,15 +91,20 @@ class KiTrennenDialog(QDialog):
         self.tabelle.itemChanged.connect(self._geaendert)
 
         zeile = QHBoxLayout()
-        neu = QPushButton("Dokument hinzufügen")
-        neu.clicked.connect(self._hinzufuegen)
-        zeile.addWidget(neu)
-        weg = QPushButton("Zeile entfernen")
-        weg.setToolTip("Entfernt die markierte Zeile; ihre Seiten kommen zum Dokument davor")
-        weg.clicked.connect(self._entfernen)
-        zeile.addWidget(weg)
+        self.teilen = QPushButton("Dokument aufteilen …")
+        self.teilen.setToolTip("Im markierten Dokument stecken zwei Schriftstücke?\n"
+                               "Hier angeben, auf welcher Seite das zweite beginnt.")
+        self.teilen.clicked.connect(self._aufteilen)
+        zeile.addWidget(self.teilen)
+        self.zusammen = QPushButton("Mit dem Dokument davor zusammenlegen")
+        self.zusammen.setToolTip("Das markierte Dokument ist gar kein eigenes Schriftstück?\n"
+                                 "Seine Seiten kommen zum Dokument in der Zeile darüber\n"
+                                 "(beim ersten Dokument: in der Zeile darunter).")
+        self.zusammen.clicked.connect(self._entfernen)
+        zeile.addWidget(self.zusammen)
         zeile.addStretch()
         layout.addLayout(zeile)
+        self.tabelle.itemSelectionChanged.connect(self._knoepfe_stellen)
 
         self.stand = QLabel()
         self.stand.setWordWrap(True)
@@ -120,6 +128,7 @@ class KiTrennenDialog(QDialog):
         layout.addLayout(knoepfe)
 
         self._stand_zeigen()
+        self._knoepfe_stellen()
 
     # --- Tabelle --------------------------------------------------------------------
 
@@ -184,14 +193,62 @@ class KiTrennenDialog(QDialog):
             finally:
                 self.tabelle.blockSignals(False)
         self._stand_zeigen()
+        self._knoepfe_stellen()
 
-    def _hinzufuegen(self) -> None:
+    def _knoepfe_stellen(self) -> None:
+        """Knoepfe nur anbieten, wenn sie beim markierten Dokument etwas tun koennen."""
+        zeile = self.tabelle.currentRow() if self.tabelle.selectedItems() else -1
+        mehrseitig = False
+        if zeile >= 0:
+            try:
+                mehrseitig = len(self._seiten_der_zeile(zeile)) > 1
+            except ValueError:
+                mehrseitig = False
+        self.teilen.setEnabled(mehrseitig)
+        self.zusammen.setEnabled(zeile >= 0 and self.tabelle.rowCount() > 1)
+        if zeile == 0:
+            self.zusammen.setText("Mit dem Dokument danach zusammenlegen")
+        else:
+            self.zusammen.setText("Mit dem Dokument davor zusammenlegen")
+
+    def _frage_teilseite(self, seiten: list[int]) -> Optional[int]:
+        """Fragt, auf welcher Seite das zweite Schriftstueck beginnt (Tests ersetzen das)."""
+        seite, ok = QInputDialog.getInt(
+            self, "Dokument aufteilen",
+            f"Das Dokument hat die Seiten {ki_trennen.seiten_als_text(seiten)}.\n\n"
+            "Auf welcher Seite beginnt das zweite Schriftstück?",
+            seiten[1], seiten[1], seiten[-1])
+        return seite if ok else None
+
+    def _aufteilen(self) -> None:
         zeile = self.tabelle.currentRow()
-        neu = self._zeile_anfuegen("", f"{self.pdf_path.stem}_Teil_{self.tabelle.rowCount() + 1}",
-                                   nach=zeile if zeile >= 0 else None)
+        if zeile < 0:
+            return
+        try:
+            seiten = self._seiten_der_zeile(zeile)
+        except ValueError:
+            return
+        if len(seiten) < 2:
+            return
+        ab = self._frage_teilseite(seiten)
+        if ab is None:
+            return
+        vorn = [s for s in seiten if s < ab]
+        hinten = [s for s in seiten if s >= ab]
+        if not vorn or not hinten:
+            return
+        name = self.tabelle.item(zeile, SPALTE_NAME).text().strip() or self.pdf_path.stem
+        self.tabelle.blockSignals(True)
+        try:
+            self.tabelle.item(zeile, SPALTE_SEITEN).setText(ki_trennen.seiten_als_text(vorn))
+            self._zeile_schmuecken(zeile)
+        finally:
+            self.tabelle.blockSignals(False)
+        neu = self._zeile_anfuegen(ki_trennen.seiten_als_text(hinten), f"{name}_2", nach=zeile)
         self._stand_zeigen()
-        self.tabelle.setCurrentCell(neu, SPALTE_SEITEN)
-        self.tabelle.editItem(self.tabelle.item(neu, SPALTE_SEITEN))
+        # Der neue Name ist nur ein Platzhalter: gleich zum Ueberschreiben anbieten
+        self.tabelle.setCurrentCell(neu, SPALTE_NAME)
+        self.tabelle.editItem(self.tabelle.item(neu, SPALTE_NAME))
 
     def _entfernen(self) -> None:
         zeile = self.tabelle.currentRow()
@@ -212,6 +269,7 @@ class KiTrennenDialog(QDialog):
         finally:
             self.tabelle.blockSignals(False)
         self._stand_zeigen()
+        self._knoepfe_stellen()
 
     # --- Prüfen und Ergebnis ----------------------------------------------------------
 
@@ -329,7 +387,15 @@ class KiTrennenMixin:
                 "oder das PDF mit „PDF trennen...“ von Hand trennen.")
             return
 
-        ergebnis: dict = {}
+        ergebnis: dict = {"stand": "Der Text der Seiten wird gelesen …"}
+        stopp = threading.Event()
+
+        def gemeldet(fertig: int, gesamt: int) -> None:
+            if gesamt > 1:
+                ergebnis["stand"] = (f"Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …\n"
+                                     f"Abschnitt {min(fertig + 1, gesamt)} von {gesamt}")
+            else:
+                ergebnis["stand"] = f"Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …"
 
         def arbeit():
             try:
@@ -339,7 +405,8 @@ class KiTrennenMixin:
                     raise RuntimeError(
                         "In dem PDF wurde kein Text gefunden (auch nicht per Texterkennung). "
                         "Ohne Text kann die KI die Dokumente nicht unterscheiden.")
-                ergebnis["teile"] = ki_trennen.vorschlagen(provider, texte, pdf_path.stem)
+                ergebnis["teile"] = ki_trennen.vorschlagen(
+                    provider, texte, pdf_path.stem, fortschritt=gemeldet, abbruch=stopp.is_set)
             except Exception as ex:  # noqa: BLE001 - als Meldung zeigen
                 ergebnis["fehler"] = str(ex) or ex.__class__.__name__
 
@@ -354,15 +421,21 @@ class KiTrennenMixin:
 
         thread = threading.Thread(target=arbeit, name="ki-trennen", daemon=True)
         thread.start()
-        fortschritt = QProgressDialog(
-            f"Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …", "Abbrechen", 0, 0, self)
+        fortschritt = QProgressDialog(ergebnis["stand"], "Abbrechen", 0, 0, self)
         fortschritt.setWindowTitle(titel)
         fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
         fortschritt.setMinimumDuration(0)
         schleife = QEventLoop()
         takt = QTimer()
         takt.setInterval(150)
-        takt.timeout.connect(lambda: (not thread.is_alive() or fortschritt.wasCanceled()) and schleife.quit())
+
+        def tick():
+            if fortschritt.labelText() != ergebnis["stand"]:
+                fortschritt.setLabelText(ergebnis["stand"])
+            if not thread.is_alive() or fortschritt.wasCanceled():
+                schleife.quit()
+
+        takt.timeout.connect(tick)
         fortschritt.canceled.connect(schleife.quit)
         takt.start()
         fortschritt.show()
@@ -370,6 +443,8 @@ class KiTrennenMixin:
             schleife.exec()
         takt.stop()
         abgebrochen = fortschritt.wasCanceled() and thread.is_alive()
+        if abgebrochen:
+            stopp.set()  # noch nicht begonnene KI-Aufrufe entfallen
         fortschritt.close()
         fortschritt.deleteLater()
         if aktivitaet is not None and job is not None:
