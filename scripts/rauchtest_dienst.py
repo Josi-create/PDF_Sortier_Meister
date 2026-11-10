@@ -40,7 +40,7 @@ sys.path.insert(0, str(WURZEL))
 
 WOERTER = "Rauchtest Kontoauszug Zinsertrag"
 BILD_WORT = "Quittung"
-MCP_WERKZEUGE = {"suche", "dokument_lesen", "index_status"}
+MCP_WERKZEUGE = {"suche", "dokument_lesen", "index_status", "ordner_vorschlag", "korrespondent_info"}
 
 
 class Fehlschlag(Exception):  # noqa: N818 - deutscher Name wie Abbruch, ZeitplanFehler
