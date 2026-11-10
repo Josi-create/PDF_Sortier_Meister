@@ -624,12 +624,7 @@ class DetailPanel(QWidget):
         # Header
         self.header_label.setText(f"Original: {pdf_path.name}")
 
-        # Vorschau unten nachladen (Issue #74) - liest im Hintergrund
-        if ist_office_datei(pdf_path):
-            self.preview.show_message("Vorschau wird erstellt …")
-            self.office_preview_requested.emit(pdf_path)
-        else:
-            self.preview.load_pdf(pdf_path)
+        self._vorschau_laden(pdf_path)
 
         # Metadaten vorbefüllen
         self._metadata = {}
@@ -865,6 +860,14 @@ class DetailPanel(QWidget):
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
+
+    def _vorschau_laden(self, pdf_path: Path):
+        """Vorschau unten nachladen (Issue #74) - liest im Hintergrund."""
+        if ist_office_datei(pdf_path):
+            self.preview.show_message("Vorschau wird erstellt …")
+            self.office_preview_requested.emit(pdf_path)
+        else:
+            self.preview.load_pdf(pdf_path)
 
     def _start_metadata_reader(self, pdf_path: Path):
         """Startet das Hintergrund-Lesen der XMP-Metadaten fuer pdf_path."""
@@ -1184,7 +1187,7 @@ class DetailPanel(QWidget):
             KIND_DATE, KIND_KEEP, KIND_KI, KIND_LEARNED, kind_from_reason, sort_by_kind,
         )
 
-        from src.core.llm_name_adapt import adapt_llm_filename
+        from src.core.llm_name_adapt import adapt_leading_date, adapt_llm_filename
 
         self.suggestions_list.clear()
 
@@ -1201,9 +1204,14 @@ class DetailPanel(QWidget):
                 # Issue #113: "Sonstiges"/alte Kategorie im KI-Namen durch die
                 # aktuelle Feld-Eingabe ersetzen (Anzeige-Kopie, Original bleibt)
                 adapted = adapt_llm_filename(s.name, s.metadata, current_meta)
-                if adapted != s.name:
-                    s = RenameSuggestion(name=adapted, reason=s.reason,
-                                         confidence=s.confidence, metadata=s.metadata)
+            else:
+                adapted = s.name
+            # Das Feld "Datum" gilt auch fuer das Datum am Namensanfang: Hat die
+            # KI/Analyse es nicht lesen koennen, zieht die Korrektur von Hand nach
+            adapted = adapt_leading_date(adapted, current_meta.get("buchungsdatum"))
+            if adapted != s.name:
+                s = RenameSuggestion(name=adapted, reason=s.reason,
+                                     confidence=s.confidence, metadata=s.metadata)
             pairs.append((s, kind))
         pattern_pairs = self._pattern_suggestions()
         pairs.extend(pattern_pairs)

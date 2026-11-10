@@ -255,7 +255,8 @@ def antwort_parsen(data: Any, api_name: str) -> WerkzeugAntwort:
             fehler=f"{api_name}: Antwort leer, Token-Limit erreicht "
                    "(Max. Tokens erhöhen oder Modell ohne Reasoning wählen).",
         )
-    return WerkzeugAntwort(text=text, aufrufe=aufrufe, roh=message)
+    return WerkzeugAntwort(text=text, aufrufe=aufrufe, roh=message,
+                           abgeschnitten=finish_reason in ("length", "max_tokens") and not aufrufe)
 
 
 def fehler_aus_antwort(fehler: Any, api_name: str) -> str:

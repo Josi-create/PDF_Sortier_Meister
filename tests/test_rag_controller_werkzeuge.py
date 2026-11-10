@@ -14,7 +14,9 @@ import pytest
 from src.ml.llm_provider import WerkzeugAntwort, WerkzeugAufruf
 from src.rag.bezug import Bezug
 from src.rag.prompts import SYSTEM_PROMPT_WERKZEUGE, build_system_prompt_werkzeuge
-from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController, RAGResponse
+from src.rag.rag_controller import (
+    ABGEBROCHEN_TEXT, ANTWORT_TOKENS, ANTWORT_TOKENS_FAKTOR, RAGController, RAGResponse,
+)
 from src.rag.werkzeuge import Schritt
 from src.utils.config import ChatConfig
 from src.utils.database import Database
@@ -144,7 +146,7 @@ def test_schleife_suche_lesen_antwort(sammlung):
     assert "=== DOKUMENTE ===" in erste[1]["content"] and "BEZUGSDOKUMENT" in erste[1]["content"]
     assert "[D1] dateiname=Neu.pdf" in erste[1]["content"] and f"[D2] dateiname={JAHRESABRECHNUNG}" in erste[1]["content"]
     assert f"FRAGE: {FRAGE}" in erste[1]["content"]
-    assert werkzeuge == OHNE_WERKZEUGE and max_tokens == 1000
+    assert werkzeuge == OHNE_WERKZEUGE and max_tokens == ANTWORT_TOKENS
 
     zweite = llm.aufrufe[1][0]
     assert _rollen(zweite) == ["system", "user", "assistant", "tool"]
@@ -431,3 +433,38 @@ def test_prompt_konstante_und_response_felder():
     assert build_system_prompt_werkzeuge("kaputt").count("höchstens 1 Schritte") == 1
     antwort = RAGResponse(answer_text="x")
     assert antwort.schritte == [] and antwort.werkzeuge_benutzt is False
+
+
+# --------------------------------------------------------------------------- abgeschnittene Antwort
+
+def test_abgeschnittene_antwort_wird_einmal_mit_mehr_platz_wiederholt(sammlung):
+    db, bezug = sammlung
+    llm = _WerkzeugLLM([
+        WerkzeugAntwort(text="Die Abnahmestelle ist", abgeschnitten=True),
+        WerkzeugAntwort(text="Die Abnahmestelle ist Kellermannstr. 3 [2]."),
+    ])
+    response = RAGController(db, llm, ChatConfig()).ask(FRAGE, bezug=bezug)
+    assert response.answer_text == "Die Abnahmestelle ist Kellermannstr. 3 [2]."
+    assert [a[2] for a in llm.aufrufe] == [ANTWORT_TOKENS, ANTWORT_TOKENS * ANTWORT_TOKENS_FAKTOR]
+    assert llm.aufrufe[1][1] == []  # Wiederholung ohne Werkzeuge
+
+
+def test_weiter_abgeschnittene_antwort_bekommt_hinweis(sammlung):
+    db, bezug = sammlung
+    llm = _WerkzeugLLM([
+        WerkzeugAntwort(text="Die Abnahmestelle ist", abgeschnitten=True),
+        WerkzeugAntwort(text="Die Abnahmestelle ist Kellermannstr.", abgeschnitten=True),
+    ])
+    response = RAGController(db, llm, ChatConfig()).ask(FRAGE, bezug=bezug)
+    assert response.answer_text.startswith("Die Abnahmestelle ist Kellermannstr.")
+    assert "abgeschnitten" in response.answer_text and len(llm.aufrufe) == 2
+
+
+def test_wiederholung_mit_fehler_behaelt_die_erste_antwort(sammlung):
+    db, bezug = sammlung
+    llm = _WerkzeugLLM([
+        WerkzeugAntwort(text="Die Abnahmestelle ist", abgeschnitten=True),
+        WerkzeugAntwort(text="", fehler="HTTP 500"),
+    ])
+    response = RAGController(db, llm, ChatConfig()).ask(FRAGE, bezug=bezug)
+    assert response.answer_text.startswith("Die Abnahmestelle ist") and "abgeschnitten" in response.answer_text

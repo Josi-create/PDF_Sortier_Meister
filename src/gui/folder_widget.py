@@ -162,9 +162,11 @@ class FolderWidget(QFrame):
         return self._neu
 
     def set_neu(self, aktiv: bool):
-        """Markiert die Kachel als Neuer-Ordner-Vorschlag (Issue #116): kein Drop."""
+        """Markiert die Kachel als Neuer-Ordner-Vorschlag (Issue #116).
+
+        Ablegen ist erlaubt (Issue #218): der Ordner wird dabei nach Rueckfrage angelegt.
+        """
         self._neu = aktiv
-        self.setAcceptDrops(not aktiv)
         if aktiv:
             self.icon_label.setText("📂")
         self._update_style()

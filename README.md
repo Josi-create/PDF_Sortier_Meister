@@ -79,6 +79,7 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   Versicherung, Bank, Gehalt, Steuer …), **Absender** und den eigenen bisherigen Umbenennungen
 - Eigenes **Dateinamen-Muster** mit Platzhaltern (`{datum}_{kontakt}_{betreff}`) und Live-Vorschau vorgeben, das die KI ausfüllt (`F2` öffnet den Dialog)
 - **PDF trennen**: alle Seiten einzeln oder einen Seitenbereich extrahieren
+- **KI-unterstütztes Trennen**: Scan-Stapel an den Dokumentgrenzen in einzelne Schriftstücke zerlegen, mit Namensvorschlag je Dokument und Vorschau zum Anpassen
 - **PDFs stapeln** wie in PaperPort: eine PDF auf eine andere ziehen legt sie davor, wie ein Blatt Papier auf den Stapel: die gezogene PDF wird Seite 1, die Ziel-PDF behält Namen und Ort (`Ctrl+Z` macht es rückgängig)
 
 ### Metadaten in der PDF, nicht in einer Datenbank

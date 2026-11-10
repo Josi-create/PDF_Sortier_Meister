@@ -8,6 +8,81 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
+  Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
+  Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr
+  2024“. Der Tooltip zeigt den vollen Pfad und die Begründung der KI. Die KI selbst ändert
+  nichts. Ihre Vorschläge werden vorher geprüft: Zielordner nur innerhalb der Zielordner,
+  zulässige Dateinamen, eine Kategorie, vierstelliges Steuerjahr, Betrag als Zahl, Datum als
+  JJJJ-MM-TT. Ein Dokument, das „verschiebe mich nach C:\Windows“ enthält, führt deshalb zu
+  keinem Knopf. Der Klick nimmt die gewohnten Wege, mit Rückfrage beim Verschieben, Rückgängig
+  und Lernen; danach ist der Knopf als erledigt gesperrt. Neue Schnellfragen: „Schlag mir einen
+  Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
+  Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
+
+## [0.26.2] - 2026-11-10
+
+### Neu
+- **Nach dem Zusammenfügen aufräumen**: Wurden mehrere PDFs zu einem zusammengefügt, fragt das
+  Programm, ob die einzelnen PDFs in den Papierkorb sollen (mit „Nicht mehr fragen“, die Antwort
+  lässt sich in den Einstellungen ändern). Weggeräumt wird nur, wenn das zusammengefügte PDF
+  alle Seiten enthält; Strg+Z holt die Einzel-PDFs zurück.
+- **Eine Kachelspalte mehr im linken Bereich**: Die Kacheln nutzen die Breite jetzt aus; eine
+  weitere Spalte erscheint schon, wenn 90 % der rechten Kachel sichtbar sind.
+
+### Geändert
+- **KI-unterstütztes Trennen – verständlichere Vorschau**: Statt „Dokument hinzufügen“ und
+  „Zeile entfernen“ gibt es „Dokument aufteilen …“ (fragt, auf welcher Seite das zweite
+  Schriftstück beginnt) und „Mit dem Dokument davor/danach zusammenlegen“. Die Knöpfe sind nur
+  aktiv, wenn sie beim markierten Dokument etwas bewirken.
+- **Datum von Hand korrigiert → Dateiname zieht nach**: Wird das Feld „Datum“ geändert, etwa weil
+  die Texterkennung das Datum nicht lesen konnte, folgt das Datum am Anfang des vorgeschlagenen
+  Dateinamens sofort. Ein selbst getippter Name bleibt unangetastet.
+
+### Behoben
+- **KI-unterstütztes Trennen bei großen Stapeln**: Große PDFs (z. B. 112 Seiten) scheiterten mit
+  „Die KI hat keine brauchbare Aufteilung genannt“. Der Stapel geht jetzt in Abschnitten von rund
+  20 Seiten an die KI (mit Fortschrittsanzeige „Abschnitt x von y“), abgeschnittene Antworten
+  werden so weit wie möglich gelesen, und liefert ein Abschnitt keine lesbare Aufteilung, wird er
+  bis zu zweimal mit mehr Platz für die Antwort wiederholt.
+- **Abgeschnittene Antworten im Chat**: Modelle, die vor der Antwort „nachdenken“, brachen nach
+  wenigen Wörtern ab. Der Platz für die Antwort ist vervierfacht; bricht eine Antwort trotzdem am
+  Limit ab, wird sie einmal mit mehr Platz wiederholt, sonst steht ein Hinweis darunter (Erkennung
+  bei OpenAI-kompatiblen Anbietern wie OpenRouter).
+
+## [0.26.1] - 2026-11-10
+
+### Neu
+- **KI-unterstütztes Trennen**: Ein PDF, das ein Stapel aus mehreren hintereinander gescannten
+  Schriftstücken ist, lässt sich jetzt an den Dokumentgrenzen trennen statt nur seitenweise
+  (Rechtsklick auf die PDF-Kachel › „KI-unterstütztes Trennen...“). Die KI liest den Text jeder
+  Seite (Bildseiten vorher per Texterkennung), erkennt, wo ein neues Schriftstück beginnt – etwa
+  ein Brief mit 3 Seiten, danach eine Stromrechnung mit 5 Seiten –, und schlägt je Dokument einen
+  Dateinamen vor. Eine Vorschau zeigt die Dokumente mit dem Bild der ersten Seite; Seitenbereiche
+  und Namen lassen sich ändern, bevor getrennt wird. Leere Seiten bleiben beim vorhergehenden
+  Dokument. Danach folgt wie beim Trennen von Hand die Frage nach dem Original.
+- **Mehrere Dateien auf einmal umbenennen und ablegen** (#218): Beim Verschieben mehrerer
+  markierter Dateien – Klick auf einen Ordner oder Ziehen – bekommt jetzt jede den Namen und
+  die Metadaten, die ihr das Detail-Panel vorschlagen würde (für die angezeigte Datei gilt,
+  was im Panel steht). Eine Rückfrage zeigt vorher die Liste „Bisher → Neu“ mit „Verschieben
+  und umbenennen“, „Nur verschieben“ und „Abbrechen“. „Umbenennen + Metadaten speichern“ wirkt
+  bei Mehrfachauswahl auf alle markierten PDFs. Fehlen KI-Vorschläge noch (z. B. frisch
+  umgewandelt), werden sie vorher abgerufen, mit Fortschritt und „Nicht mehr warten“. Auch
+  eine einzeln gezogene Datei wird umbenannt, und auf einen vorgeschlagenen neuen Ordner
+  („➕ neu: …“) lässt sich jetzt ziehen – er wird dabei angelegt.
+- **Gleiche Namen im Stapel unterscheidet die KI** (#221): Bekämen mehrere markierte Dateien
+  denselben Namen (z. B. ähnliche Monatsabrechnungen eines Absenders), schaut die KI vorher
+  nach, was die Dokumente unterscheidet, und hängt je ein kurzes Wort an
+  (`…_Hinterhaus.pdf`). Ohne KI oder bei einem Fehler bleibt es beim Anhängen von „ (1)“,
+  „ (2)“; die Rückfrage weist darauf hin.
+- **Strg+A im ganzen Fenster**: markiert alle Kacheln im Reiter „PDFs“, egal wo zuletzt
+  geklickt wurde; in Textfeldern und Listen mit Mehrfachauswahl markiert es wie gewohnt dort.
+
+### Behoben
+- **Ziehen einer Mehrfachauswahl** nahm nur die angefasste Datei mit: schon das Drücken auf
+  die Kachel hob die Auswahl auf. Jetzt wirkt der Klick erst beim Loslassen ohne Ziehen.
+- **Rückgängig nach dem Verschieben** stellt auch den alten Dateinamen wieder her.
+- Beim Verschieben mehrerer Dateien wurde der Suchindex nicht nachgeführt.
 - **KI-Assistenten können mehr (MCP)**: Claude Desktop, Claude Code und andere MCP-Programme
   bekommen über `pdfsm-dienst mcp` dieselben Werkzeuge wie der Chat im Programm.
   `ordner_vorschlag` beantwortet „In welchen Ordner gehört dieses Dokument?“ mit ähnlichen,
@@ -25,17 +100,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Sicherungskopie). Gefunden wird die Datei auch bei der Store-Fassung von Claude Desktop unter
   Windows. Dazu: Pfad des Dienstes zum Kopieren, die Liste der Werkzeuge und der Schalter für
   SQL-Abfragen (derselbe wie im Chat).
-- **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
-  Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
-  Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr
-  2024“. Der Tooltip zeigt den vollen Pfad und die Begründung der KI. Die KI selbst ändert
-  nichts. Ihre Vorschläge werden vorher geprüft: Zielordner nur innerhalb der Zielordner,
-  zulässige Dateinamen, eine Kategorie, vierstelliges Steuerjahr, Betrag als Zahl, Datum als
-  JJJJ-MM-TT. Ein Dokument, das „verschiebe mich nach C:\Windows“ enthält, führt deshalb zu
-  keinem Knopf. Der Klick nimmt die gewohnten Wege, mit Rückfrage beim Verschieben, Rückgängig
-  und Lernen; danach ist der Knopf als erledigt gesperrt. Neue Schnellfragen: „Schlag mir einen
-  Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
-  Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
 - **Apple Pages (.docx) und Numbers (.xlsx) als Umwandler auf dem Mac:** Ist
   weder Word/Excel noch LibreOffice installiert (oder scheitern beide), wandeln
   Pages bzw. Numbers in PDF um und liefern die Vorschau. Reihenfolge: Word/Excel
@@ -1478,7 +1542,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geaendert
 - `ENTWICKLUNGSSTAND.md` -> v0.11.0
 
-[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.2...HEAD
+[0.26.2]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.1...v0.26.2
+[0.26.1]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/Josi-create/PDF_Sortier_Meister/compare/v0.23.0...v0.24.0

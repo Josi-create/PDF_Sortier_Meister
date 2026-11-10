@@ -37,7 +37,7 @@ from src.utils.single_instance import (
 from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
-__version__ = "0.26.0"
+__version__ = "0.26.2"
 
 
 def _schedule_startup_hints(window, delay_ms: int = 300) -> None:

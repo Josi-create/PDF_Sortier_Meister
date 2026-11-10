@@ -151,7 +151,7 @@ class Config:
         "suggestions_expanded": False,
         # Original nach dem Umwandeln in PDF / Trennen (Issues #184, #187):
         # je Aktion None = fragen, True = in den Papierkorb, False = behalten
-        "original_wegraeumen": {"umwandeln": None, "trennen": None},
+        "original_wegraeumen": {"umwandeln": None, "trennen": None, "zusammenfuegen": None},
         # Dokumentensuche (src/search): Felder siehe src.search.konfig.SearchConfig.
         # Leer = nicht eingerichtet; Standard-Wurzeln sind Scan- und Zielordner.
         "suche": {},

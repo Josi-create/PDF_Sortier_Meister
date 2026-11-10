@@ -75,6 +75,11 @@ FRAGE_TREFFER_MINDESTENS = 2
 # Werkzeug-Schleife (Issue #166/#167, Phase 2): Rueckfall, falls die Konfiguration
 # keinen Wert hat
 WERKZEUG_SCHRITTE_STANDARD = 8
+# Platz fuer die Antwort. 1000 reichten Denkmodellen (z.B. Gemini Flash) nicht:
+# das Denken zaehlt mit, die Antwort brach nach wenigen Woertern ab
+ANTWORT_TOKENS = 4000
+ANTWORT_TOKENS_FAKTOR = 3  # Wiederholung einer abgeschnittenen Antwort
+ABGESCHNITTEN_HINWEIS = "\n\n_(Die Antwort wurde vom Modell am Token-Limit abgeschnitten.)_"
 ABGEBROCHEN_TEXT = "Abgebrochen."
 # Aufforderungen im letzten Schritt der Schleife (Live-Test: gpt-oss rief sonst
 # trotz leerer Werkzeugliste weiter auf und lieferte keinen Text)
@@ -412,7 +417,7 @@ class RAGController:
                 context_block=context_block,
             )
 
-        max_tokens = getattr(self.chat_config, "max_tokens_answer", 1000) or 1000
+        max_tokens = getattr(self.chat_config, "max_tokens_answer", ANTWORT_TOKENS) or ANTWORT_TOKENS
 
         try:
             raw_answer = self.llm_provider.answer_with_context(
@@ -505,7 +510,7 @@ class RAGController:
             max_schritte = max(1, int(max_schritte or WERKZEUG_SCHRITTE_STANDARD))
         except (TypeError, ValueError):
             max_schritte = WERKZEUG_SCHRITTE_STANDARD
-        max_tokens = getattr(self.chat_config, "max_tokens_answer", 1000) or 1000
+        max_tokens = getattr(self.chat_config, "max_tokens_answer", ANTWORT_TOKENS) or ANTWORT_TOKENS
 
         docs_for_prompt = [self._doc_to_prompt_dict(d) for d in kasten.dokumente()]
         nachrichten: list[dict] = [
@@ -563,6 +568,16 @@ class RAGController:
                     werkzeuge_benutzt=True,
                 )
             if not aufrufe:
+                if getattr(antwort, "abgeschnitten", False):
+                    # Am Token-Limit abgebrochen (Denkmodelle verbrauchen einen Teil des
+                    # Budgets, bevor sie schreiben): einmal mit mehr Platz wiederholen
+                    _melde(fortschritt, "Antwort war abgeschnitten - noch einmal mit mehr Platz …")
+                    neu = self._werkzeug_schritt(nachrichten, [], max_tokens * ANTWORT_TOKENS_FAKTOR)
+                    neu_text = str(getattr(neu, "text", "") or "")
+                    if not getattr(neu, "fehler", "") and len(neu_text.strip()) > len(text.strip()):
+                        antwort, text = neu, neu_text
+                    if getattr(antwort, "abgeschnitten", False):
+                        text = text.rstrip() + ABGESCHNITTEN_HINWEIS
                 return self._antwort_mit_werkzeugen(text, kasten)
 
             # Werkzeuge ausfuehren; Assistenten- und tool-Nachrichten anhaengen

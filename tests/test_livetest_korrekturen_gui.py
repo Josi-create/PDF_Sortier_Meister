@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from src.core import neuer_ordner
 from src.core.pdf_cache import PDFAnalysisResult
+from src.gui import stapel_rueckfrage
 from src.gui.folder_widget import FolderWidget
 from src.ml.classifier import Suggestion
 from tests.test_auto_next_after_move_gui import (  # noqa: F401 - Fixtures
@@ -329,9 +330,12 @@ def test_ohne_fertige_analyse_zeigt_das_panel_nie_fremde_felder(korr):
     assert not list(ziel.glob("*Name_fuer_s1*"))
 
 
-def test_mehrfachauswahl_im_reiter_verschiebt_alle(korr):
+def test_mehrfachauswahl_im_reiter_verschiebt_alle(korr, monkeypatch):
     win, view, ziel = korr["win"], korr["view"], korr["ziel"]
     d1, d2, d3 = korr["docs"]
+    # "Nur verschieben": hier geht es um die ganze Auswahl, das Umbenennen (Issue #218)
+    # pruefen tests/test_stapel_ablage_218_gui.py
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *a, **k: stapel_rueckfrage.NUR_VERSCHIEBEN)
     _markieren(view, "d1.pdf", "d3.pdf")
     assert win.selected_pdfs == [d1, d3]  # Reihenfolge der Liste
     assert "2 Dokumente" in win.statusbar.currentMessage()
@@ -348,8 +352,9 @@ def test_mehrfachauswahl_im_reiter_verschiebt_alle(korr):
     assert {Path(d["pfad"]).parent for d in view.angezeigte_dokumente()} == {d1.parent}
 
 
-def test_mehrfachauswahl_ueber_baum_verschieben_und_kopieren(korr):
+def test_mehrfachauswahl_ueber_baum_verschieben_und_kopieren(korr, monkeypatch):
     win, view, ziel = korr["win"], korr["view"], korr["ziel"]
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *a, **k: stapel_rueckfrage.NUR_VERSCHIEBEN)  # Namen: Issue #218, eigene Tests
     d1, d2, d3 = korr["docs"]
     _markieren(view, "d1.pdf", "d2.pdf")
     menue = win.folder_tree._build_context_menu(ziel)
@@ -370,6 +375,7 @@ def test_mehrfachauswahl_ueber_baum_verschieben_und_kopieren(korr):
 
 def test_ziehen_aus_der_liste_auf_einen_ordner(korr, qtbot, monkeypatch):
     win, view, ziel = korr["win"], korr["view"], korr["ziel"]
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *a, **k: stapel_rueckfrage.NUR_VERSCHIEBEN)  # Namen: Issue #218, eigene Tests
     d1, d2, d3 = korr["docs"]
     fehler = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: fehler.append(a[2]))

@@ -313,16 +313,37 @@ def test_main_window_defaults_to_small_tiles_and_switch_persists(main_window, fr
     assert [t.height() for t in main_window.folder_tiles] == row_heights
 
 
+def _spalten(win, viewport_w: int, ansicht: str) -> int:
+    """So viele Spalten, wie mit der Mindestbreite passen; die letzte zaehlt ab 90 % Sichtbarkeit (v0.26.2)."""
+    raender = win.pdf_container.layout().contentsMargins()
+    abstand = win.pdf_layout.horizontalSpacing()
+    kachel = tile_view(ansicht).tile_w
+    frei = viewport_w - raender.left() - raender.right()
+    verdeckt = int(kachel * (1 - win.GRID_LETZTE_SPALTE_SICHTBAR))
+    return max(1, (frei + abstand + verdeckt) // (kachel + abstand))
+
+
+def test_letzte_spalte_zaehlt_ab_90_prozent(main_window, monkeypatch):
+    raender = main_window.pdf_container.layout().contentsMargins()
+    abstand = main_window.pdf_layout.horizontalSpacing()
+    kachel = main_window._tile_view.tile_w
+    drei_ganz = raender.left() + raender.right() + 3 * kachel + 2 * abstand
+    fehlt = int(kachel * 0.1)
+    for breite, erwartet in ((drei_ganz, 3), (drei_ganz - fehlt, 3), (drei_ganz - fehlt - 2, 2)):
+        monkeypatch.setattr(main_window, "_scan_viewport_width", lambda b=breite: b)
+        assert main_window._pdf_grid_columns() == erwartet, breite
+
+
 def test_grid_columns_follow_tile_view(main_window, fresh_singletons):
     scan = _scan_tree(fresh_singletons["tmp_path"])
     for i in range(3):
         (scan / f"scan{i}.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
     main_window._navigate_to_folder(scan)
     viewport_w = main_window.pdf_scroll_area.viewport().width()
-    assert main_window._grid_cols == max(1, viewport_w // tile_view("klein").slot_width)
+    assert main_window._grid_cols == _spalten(main_window, viewport_w, "klein")
 
     main_window.set_tile_view("gross")
-    assert main_window._grid_cols == max(1, viewport_w // tile_view("gross").slot_width)
+    assert main_window._grid_cols == _spalten(main_window, viewport_w, "gross")
     assert main_window.tile_view_combo.currentData() == "gross"
 
     # Raster-Positionen folgen der neuen Spaltenzahl; Ordner liegen seit

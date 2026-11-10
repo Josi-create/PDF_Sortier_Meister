@@ -73,7 +73,7 @@ def test_neuer_ordner_vorne_anders_und_ohne_regenbogen(main_window, fresh_single
     assert widgets[0].folder_path == neu_pfad                      # Position 1
     assert widgets[0].neu and widgets[0]._praefix == "➕ neu: " and "➕ neu: " in widgets[0].name_label.text()
     assert "dashed" in widgets[0].styleSheet()
-    assert not widgets[0].acceptDrops()                             # kein Drag & Drop
+    assert widgets[0].acceptDrops()                                 # Ablegen legt ihn an (#218)
     assert not widgets[0].regenbogen                                # nie am neuen Ordner
     assert widgets[1].regenbogen                                    # erster bestehender >= 85 %
     assert not widgets[1].neu and "dashed" not in widgets[1].styleSheet()

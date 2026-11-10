@@ -216,6 +216,17 @@ def test_leere_antwort_wegen_token_limit_ist_fehler(provider, monkeypatch):
     assert provider.unterstuetzt_werkzeuge() is True
 
 
+def test_antwort_am_token_limit_ist_als_abgeschnitten_markiert(provider, monkeypatch):
+    _patch_http(monkeypatch, provider, [
+        (_antwort(content="Die Miete betrug", finish_reason="length"), None),
+        (_antwort(content="Die Miete betrug 900 EUR."), None),
+    ])
+    a = provider.chat_mit_werkzeugen([{"role": "user", "content": "?"}], WERKZEUGE)
+    assert a.fehler == "" and a.text == "Die Miete betrug" and a.abgeschnitten is True
+    b = provider.chat_mit_werkzeugen([{"role": "user", "content": "?"}], WERKZEUGE)
+    assert b.abgeschnitten is False
+
+
 # --------------------------------------------------------------------------- #
 # Payload                                                                     #
 # --------------------------------------------------------------------------- #

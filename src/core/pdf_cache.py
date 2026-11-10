@@ -211,10 +211,24 @@ class LLMSuggestionWorker(QThread):
         self._current_pdf: Optional[Path] = None
         self._lock = Lock()
         self._hybrid_classifier = None
+        # Eingereihte PDFs mit ihrer besten Prioritaet (wie bei der Analyse, Issue #108):
+        # eine dringende Anfrage (Issue #218) ueberholt eine wartende Vorab-Anfrage,
+        # ohne dass die KI dieselbe PDF danach ein zweites Mal gefragt wird
+        self._queued: dict[Path, int] = {}
 
     def add_task(self, pdf_path: Path, analysis_result: PDFAnalysisResult, priority: int = 5):
-        """Fügt eine LLM-Abruf-Aufgabe zur Queue hinzu."""
+        """Fügt eine LLM-Abruf-Aufgabe zur Queue hinzu (dringendere ueberholt wartende)."""
+        with self._lock:
+            known = self._queued.get(pdf_path)
+            if known is not None and known <= priority:
+                return
+            self._queued[pdf_path] = priority
         self._queue.put((priority, time.time(), pdf_path, analysis_result))
+
+    def get_current_pdf(self) -> Optional[Path]:
+        """Die PDF, fuer die gerade die KI gefragt wird."""
+        with self._lock:
+            return self._current_pdf
 
     def stop(self):
         """Stoppt den Worker."""
@@ -234,6 +248,9 @@ class LLMSuggestionWorker(QThread):
                     continue
 
                 with self._lock:
+                    if self._queued.get(pdf_path) != priority:
+                        continue  # ueberholt (dringend erneut eingereiht) oder schon erledigt
+                    del self._queued[pdf_path]
                     self._current_pdf = pdf_path
 
                 try:
@@ -365,6 +382,9 @@ class PDFCache(QObject):
         # "gefangen"). _llm_retried verhindert Endlosschleifen.
         self._llm_failed: set[Path] = set()
         self._llm_retried: set[Path] = set()
+        # PDFs, deren KI-Vorschlag gleich nach der Analyse dringend gebraucht wird
+        # (Stapel-Ablage, Issue #218) - auch wenn die Vorabfrage ausgeschaltet ist
+        self._llm_dringend: set[Path] = set()
         self._pending_callbacks: dict[Path, list[Callable]] = {}
         self._persist_cache = True  # Standardmäßig persistenten Cache nutzen
         self._db_path: Optional[Path] = None
@@ -767,20 +787,62 @@ class PDFCache(QObject):
         # Signal emittieren
         self.pdf_analyzed.emit(pdf_path)
 
-        # LLM-Pre-Caching auslösen (falls aktiviert und noch nicht abgerufen)
-        if self._llm_precache_enabled and not result.llm_fetched:
-            self._request_llm_suggestions(pdf_path, result)
-
-    def _request_llm_suggestions(self, pdf_path: Path, analysis_result: PDFAnalysisResult) -> bool:
-        """Fordert LLM-Vorschläge im Hintergrund an. False, wenn bereits eingereiht."""
+        # LLM-Pre-Caching auslösen (falls aktiviert und noch nicht abgerufen);
+        # dringend angeforderte PDFs (Issue #218) immer und vorneweg
         with self._lock:
-            if pdf_path in self._llm_queued:
+            dringend = pdf_path in self._llm_dringend
+            self._llm_dringend.discard(pdf_path)
+        if not result.llm_fetched and (dringend or self._llm_precache_enabled):
+            self._request_llm_suggestions(pdf_path, result, dringend=dringend)
+
+    def _request_llm_suggestions(
+        self, pdf_path: Path, analysis_result: PDFAnalysisResult, dringend: bool = False
+    ) -> bool:
+        """Fordert LLM-Vorschläge im Hintergrund an. False, wenn bereits eingereiht.
+
+        ``dringend`` (Issue #218) reiht mit hoechster Prioritaet ein und ueberholt
+        dabei eine schon wartende Vorab-Anfrage derselben PDF.
+        """
+        with self._lock:
+            schon = pdf_path in self._llm_queued
+            if schon and not dringend:
                 return False
             self._llm_queued.add(pdf_path)
-        logger.debug(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}")
+        if schon and self._llm_worker is not None and self._llm_worker.get_current_pdf() == pdf_path:
+            return False  # die KI arbeitet gerade an genau dieser PDF
+        logger.debug(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}{' (dringend)' if dringend else ''}")
         self.start_llm_worker()
-        self._llm_worker.add_task(pdf_path, analysis_result, priority=10)
-        return True
+        self._llm_worker.add_task(pdf_path, analysis_result, priority=1 if dringend else 10)
+        return not schon
+
+    def vorziehen(
+        self,
+        pdf_path: Path,
+        mit_ki: bool,
+        analysiert: Optional[Callable[[PDFAnalysisResult], None]] = None,
+    ) -> None:
+        """Analyse und (``mit_ki``) KI-Vorschlag dieser PDF vor allen anderen erledigen (Issue #218).
+
+        ``analysiert`` wird gerufen, sobald die Analyse vorliegt: sofort, wenn sie
+        schon im Cache ist, bei einem Fehler mit leerem Ergebnis. Solange danach
+        der KI-Vorschlag noch aussteht, meldet :meth:`ki_offen` True.
+        """
+        pdf_path = Path(pdf_path)
+        if mit_ki:
+            with self._lock:
+                self._llm_dringend.add(pdf_path)
+        cached = self.request_analysis(pdf_path, callback=analysiert, urgent=True)
+        if cached is None:
+            return  # _on_analysis_complete reiht die KI danach dringend ein
+        with self._lock:
+            self._llm_dringend.discard(pdf_path)
+        if mit_ki and not cached.llm_fetched:
+            self._request_llm_suggestions(pdf_path, cached, dringend=True)
+
+    def ki_offen(self, pdf_path: Path) -> bool:
+        """True, solange fuer diese PDF ein KI-Vorschlag angefragt, aber noch nicht da ist."""
+        with self._lock:
+            return Path(pdf_path) in self._llm_queued
 
     def llm_pending_count(self) -> int:
         """Anzahl PDFs, die noch in der LLM-Queue stehen (0 = Lauf beendet)."""
@@ -864,6 +926,7 @@ class PDFCache(QObject):
         with self._lock:
             # Callbacks mit leerem Ergebnis aufrufen
             callbacks = self._pending_callbacks.pop(pdf_path, [])
+            self._llm_dringend.discard(pdf_path)
 
         # Leeres Ergebnis für Fehlerfall
         empty_result = PDFAnalysisResult(pdf_path=pdf_path)

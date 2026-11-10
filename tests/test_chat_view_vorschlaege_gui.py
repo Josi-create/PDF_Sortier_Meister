@@ -227,7 +227,10 @@ def test_metadaten_aus_dem_chat(main_window, fresh_singletons):
     assert "Metadaten in 'a.pdf' gespeichert" in main_window.statusbar.currentMessage()
 
 
-def test_verschieben_eines_anderen_dokuments_behaelt_die_auswahl(main_window, fresh_singletons):
+def test_verschieben_eines_anderen_dokuments_behaelt_die_auswahl(main_window, fresh_singletons, monkeypatch):
+    # Seit Issue #218 bietet die Rueckfrage auch das Umbenennen an; hier: nur verschieben
+    from src.gui import stapel_rueckfrage
+    monkeypatch.setattr(stapel_rueckfrage, "frage", lambda *a, **k: stapel_rueckfrage.NUR_VERSCHIEBEN)
     tmp_path = fresh_singletons["tmp_path"]
     scan = _make_scan_folder(tmp_path, ["a.pdf", "b.pdf"])
     ziel = tmp_path / "Ablage" / "Energie"
