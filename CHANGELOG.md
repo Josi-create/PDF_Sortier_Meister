@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-12
+
 ### Neu
 - **Englische Oberfläche**: Das Programm gibt es jetzt auch auf Englisch. Ist Windows oder macOS
   deutsch eingestellt, bleibt alles deutsch; bei jeder anderen Systemsprache erscheint das
