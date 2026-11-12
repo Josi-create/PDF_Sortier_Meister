@@ -872,6 +872,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         for sid, text, _kriterium, _ab in SORT_OPTIONEN:
             self.sort_combo.addItem(text, sid)
         self.sort_combo.setCurrentIndex(self.sort_combo.findData(self._sortierung))
+        # Die Spalte ist oft schmaler als der laengste Eintrag ("Datum: neueste zuerst",
+        # "Date: newest first"); die geschlossene Auswahl wird dann gekuerzt. Die
+        # aufgeklappte Liste zeigt jeden Eintrag ganz (Issue #118).
+        self.sort_combo.view().setMinimumWidth(self.sort_combo.sizeHint().width() + 8)
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
         sort_label = QLabel(tr("Sortieren:"))
