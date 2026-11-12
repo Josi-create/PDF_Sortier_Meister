@@ -995,6 +995,26 @@ class SettingsDialog(QDialog):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Sprache der Oberflaeche (Issue #118) als erste Gruppe; der Titel steht
+        # in beiden Sprachen, damit man ihn auch in der fremden Sprache findet
+        # (Issue #235)
+        language_group = QGroupBox("Sprache / Language")
+        language_layout = QFormLayout(language_group)
+        self.language_combo = QComboBox()
+        self.language_combo.addItem(tr("Automatisch (Sprache des Systems)"), AUTO)
+        for kuerzel, name in available_languages():
+            self.language_combo.addItem(name, kuerzel)
+        self.language_combo.setToolTip(tr(
+            "„Automatisch“ zeigt das Programm auf Deutsch, wenn das System deutsch\n"
+            "eingestellt ist, sonst auf Englisch."
+        ))
+        language_layout.addRow(tr("Sprache:"), self.language_combo)
+        language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
+        language_hint.setStyleSheet("color: gray;")
+        language_hint.setWordWrap(True)
+        language_layout.addRow(language_hint)
+        layout.addWidget(language_group)
+
         # Darstellung
         display_group = QGroupBox(tr("Darstellung"))
         display_layout = QFormLayout(display_group)
@@ -1011,21 +1031,6 @@ class SettingsDialog(QDialog):
         self.max_suggestions_spin.setRange(1, 10)
         self.max_suggestions_spin.setValue(5)
         display_layout.addRow(tr("Max. Vorschläge:"), self.max_suggestions_spin)
-
-        # Sprache der Oberflaeche (Issue #118)
-        self.language_combo = QComboBox()
-        self.language_combo.addItem(tr("Automatisch (Sprache des Systems)"), AUTO)
-        for kuerzel, name in available_languages():
-            self.language_combo.addItem(name, kuerzel)
-        self.language_combo.setToolTip(tr(
-            "„Automatisch“ zeigt das Programm auf Deutsch, wenn das System deutsch\n"
-            "eingestellt ist, sonst auf Englisch."
-        ))
-        display_layout.addRow(tr("Sprache:"), self.language_combo)
-        language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
-        language_hint.setStyleSheet("color: gray;")
-        language_hint.setWordWrap(True)
-        display_layout.addRow(language_hint)
 
         # Issue #116: auch Ordner vorschlagen, die es noch nicht gibt
         self.suggest_new_folders_check = QCheckBox(tr("Neue Ordner vorschlagen"))

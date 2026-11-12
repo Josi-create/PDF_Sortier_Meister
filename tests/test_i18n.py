@@ -283,6 +283,22 @@ def test_einstellungsdialog_auf_englisch(qtbot, fresh_config, sprache):
     assert dlg.windowTitle() == "Settings"
 
 
+@pytest.mark.parametrize("kuerzel, reiter", [("de", "Allgemein"), ("en", "General")])
+def test_sprachwahl_steht_zuoberst_im_reiter_allgemein(qtbot, fresh_config, sprache, kuerzel, reiter):
+    """Issue #235: die Sprachwahl ist in beiden Sprachen auf den ersten Blick zu finden."""
+    from PyQt6.QtWidgets import QGroupBox
+
+    from src.gui.settings_dialog import SettingsDialog
+
+    sprache(kuerzel)
+    dlg = SettingsDialog()
+    qtbot.addWidget(dlg)
+    assert dlg.show_tab(reiter)
+    gruppen = dlg.tab_widget.currentWidget().findChildren(QGroupBox)
+    assert gruppen[0].title() == "Sprache / Language"
+    assert gruppen[0].isAncestorOf(dlg.language_combo)
+
+
 def test_begruendung_wird_erst_bei_der_anzeige_uebersetzt(sprache):
     """Die Begründung bleibt intern deutsch (kind_from_reason liest sie), nur die Anzeige wechselt."""
     from src.core.suggestion_order import KIND_KI, KIND_LEARNED, kind_from_reason, reason_display

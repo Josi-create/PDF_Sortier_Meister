@@ -10,8 +10,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Neu
 - **Englische Oberfläche**: Das Programm gibt es jetzt auch auf Englisch. Ist Windows oder macOS
   deutsch eingestellt, bleibt alles deutsch; bei jeder anderen Systemsprache erscheint das
-  Programm englisch. Umstellen lässt sich das unter Einstellungen → Allgemein → „Sprache“, die
-  Änderung gilt nach dem Neustart. Wer das Programm schon benutzt, behält Deutsch. Englisch sind
+  Programm englisch. Umstellen lässt sich das unter Einstellungen → Allgemein, ganz oben in der
+  Gruppe „Sprache / Language“; die Änderung gilt nach dem Neustart. Wer das Programm schon benutzt, behält Deutsch. Englisch sind
   Hauptfenster, Menüs, Einstellungen, Einrichtungsassistent, Suche, Chat, Korrespondenten, die
   Dialoge und Meldungen sowie die Browser-Oberfläche und die Kommandozeile der Dokumentensuche.
   Noch deutsch bleiben vorerst: Dateinamen, Kategorien und Zusammenfassungen der KI, die
