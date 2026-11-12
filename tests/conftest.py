@@ -195,3 +195,14 @@ def keine_echten_ki_assistenten(monkeypatch):
 
     monkeypatch.setattr(mcp_einrichtung, "claude_programm", lambda: None)
     monkeypatch.setattr(mcp_einrichtung, "claude_desktop_konfig", lambda *args, **kwargs: None)
+
+
+@pytest.fixture(autouse=True)
+def schlagwort_quelle_aus():
+    """Die Liste der schon benutzten Schlagwoerter (Issue #231) haengt nach keinem Test mehr am Index
+    eines frueheren Hauptfensters: ohne Quelle gibt es keine Vorschlaege und keinen Abschnitt im KI-Prompt."""
+    from src.core import schlagwoerter
+
+    schlagwoerter.quelle_setzen(None)
+    yield
+    schlagwoerter.quelle_setzen(None)
