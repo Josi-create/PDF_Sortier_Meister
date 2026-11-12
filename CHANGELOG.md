@@ -8,6 +8,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Englische Oberfläche (in Arbeit)**: Das Programm gibt es jetzt auch auf Englisch. Ist Windows
+  oder macOS deutsch eingestellt, bleibt alles deutsch; bei jeder anderen Systemsprache erscheint
+  das Programm englisch. Umstellen lässt sich das unter Einstellungen → Allgemein → „Sprache“, die
+  Änderung gilt nach dem Neustart. Wer das Programm schon benutzt, behält Deutsch. Dateinamen,
+  Kategorien und Zusammenfassungen liefert die KI vorerst weiter auf Deutsch.
 - **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
   Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
   Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr

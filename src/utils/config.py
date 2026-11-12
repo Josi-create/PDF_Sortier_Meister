@@ -84,7 +84,10 @@ class Config:
         "backup_last_confirmed": "",
         # Frage mit "Nein" beantwortet: Statusleisten-Hinweis bleibt
         "backup_pending": False,
-        "language": "de",
+        # Sprache der Oberflaeche (Issue #118): "auto" = nach Systemsprache
+        # (Deutsch bleibt Deutsch, alles andere wird Englisch), sonst ein Kuerzel
+        # wie "de" oder "en" (siehe src/i18n). Wirkt nach dem Neustart.
+        "language": "auto",
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge

@@ -51,6 +51,8 @@ if (ROOT_DIR / "icon.png").exists():
 # Lizenztext (GPL-3.0-or-later) muss mit jedem Binary ausgeliefert werden
 if (ROOT_DIR / "LICENSE").exists():
     datas.append((str(ROOT_DIR / "LICENSE"), "."))
+# Uebersetzungen der Oberflaeche (Issue #118): src/i18n liest sie neben dem Modul
+datas.append((str(SRC_DIR / "i18n" / "locale"), "src/i18n/locale"))
 # Gebuendelte Tesseract-Laufzeit (vorher scripts/prepare_tesseract.py bzw.
 # scripts/prepare_tesseract_mac.py ausfuehren).
 # Landet in _internal/tesseract/ und wird von find_tesseract() zuerst gefunden.
@@ -122,6 +124,8 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 dienst_datas = [
     # Browser-Oberflaeche (src/search/web.py liest sie neben dem Modul)
     (str(SRC_DIR / "search" / "static"), "src/search/static"),
+    # Uebersetzungen (Meldungen des Dienstes, Browser-Oberflaeche)
+    (str(SRC_DIR / "i18n" / "locale"), "src/i18n/locale"),
     # pdfsm-dienst --version liest __version__ aus src/main.py
     (str(SRC_DIR / "main.py"), "src"),
 ]

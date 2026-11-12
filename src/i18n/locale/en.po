@@ -1,0 +1,30 @@
+# Übersetzung der Oberfläche von PDF Sortier Meister (en).
+# Erzeugt und geordnet von tools/i18n_werkzeug.py; die msgstr-Zeilen werden
+# von Hand gepflegt. msgid ist der deutsche Text aus dem Code.
+#
+msgid ""
+msgstr ""
+"Language: en\n"
+"X-Language-Name: English\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/i18n/__init__.py
+msgid "PDF Sortier Meister"
+msgstr "PDF Sortier Meister"
+
+#: src/gui/settings_dialog.py
+msgid "Automatisch (Sprache des Systems)"
+msgstr "Automatic (system language)"
+
+#: src/gui/settings_dialog.py
+msgid "„Automatisch“ zeigt das Programm auf Deutsch, wenn das System deutsch\neingestellt ist, sonst auf Englisch."
+msgstr "“Automatic” shows the program in German if the system is set to German,\notherwise in English."
+
+#: src/gui/settings_dialog.py
+msgid "Sprache:"
+msgstr "Language:"
+
+#: src/gui/settings_dialog.py
+msgid "Eine andere Sprache gilt nach dem Neustart des Programms."
+msgstr "A different language takes effect after restarting the program."

@@ -18,6 +18,7 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 import sys
 import threading
 
+from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
 from src.search import mcp_einrichtung
@@ -1005,6 +1006,21 @@ class SettingsDialog(QDialog):
         self.max_suggestions_spin.setRange(1, 10)
         self.max_suggestions_spin.setValue(5)
         display_layout.addRow("Max. Vorschläge:", self.max_suggestions_spin)
+
+        # Sprache der Oberflaeche (Issue #118)
+        self.language_combo = QComboBox()
+        self.language_combo.addItem(tr("Automatisch (Sprache des Systems)"), AUTO)
+        for kuerzel, name in available_languages():
+            self.language_combo.addItem(name, kuerzel)
+        self.language_combo.setToolTip(tr(
+            "„Automatisch“ zeigt das Programm auf Deutsch, wenn das System deutsch\n"
+            "eingestellt ist, sonst auf Englisch."
+        ))
+        display_layout.addRow(tr("Sprache:"), self.language_combo)
+        language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
+        language_hint.setStyleSheet("color: gray;")
+        language_hint.setWordWrap(True)
+        display_layout.addRow(language_hint)
 
         # Issue #116: auch Ordner vorschlagen, die es noch nicht gibt
         self.suggest_new_folders_check = QCheckBox("Neue Ordner vorschlagen")
@@ -2602,6 +2618,8 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
+        sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
+        self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
 
         # Persönliche Daten
@@ -2707,6 +2725,7 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
+        self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
 
         # Cache-Einstellungen

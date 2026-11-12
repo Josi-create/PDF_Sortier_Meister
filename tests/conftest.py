@@ -10,7 +10,14 @@ echte Nutzer-Config in %APPDATA% oder gegen die Temp-Config eines frueheren Test
 from __future__ import annotations
 
 import importlib
+import os
 import sys
+
+# Die Tests pruefen deutsche Texte. Die Sprache der Oberflaeche (src/i18n) wird
+# deshalb fest auf Deutsch gestellt, unabhaengig von der Systemsprache des
+# Rechners (CI laeuft englisch) und von der Konfiguration des Nutzers. Muss vor
+# dem ersten Import eines src-Moduls stehen.
+os.environ["PDFSM_LANGUAGE"] = "de"
 
 import pytest
 
