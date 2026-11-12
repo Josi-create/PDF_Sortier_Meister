@@ -63,7 +63,7 @@ signed: *“More info” → “Run anyway”*. A portable ZIP is on the
 - Suggestions from the detected **date**, **category**, **sender** and your own earlier renames
 - Your own **file name pattern** with placeholders (`{datum}_{kontakt}_{betreff}`) and live preview
 - **Split PDFs**, **AI-assisted splitting** of scanned batches, **stacking** PDFs like sheets of paper
-- Convert Word, Excel, OpenDocument files and photos to PDF; correct the perspective of phone photos
+- Convert Word, Excel, OpenDocument and plain text files and photos to PDF; correct the perspective of phone photos
 
 ### Metadata in the PDF, not in a database
 - Category, correspondent, amount (net/gross), VAT, IBAN, tax year and summary are written as

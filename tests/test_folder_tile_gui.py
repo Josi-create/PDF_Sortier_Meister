@@ -71,7 +71,7 @@ def test_drop_emits_only_pdfs(qtbot, tmp_path):
     received = []
     tile.pdf_dropped.connect(lambda pdf, folder: received.append((pdf, folder)))
 
-    ev = _FakeDropEvent(_mime(tmp_path / "a.pdf", tmp_path / "b.txt", tmp_path / "C.PDF"))
+    ev = _FakeDropEvent(_mime(tmp_path / "a.pdf", tmp_path / "b.csv", tmp_path / "C.PDF"))
     tile.dropEvent(ev)
     assert ev.accepted is True
     assert received == [(tmp_path / "a.pdf", tmp_path), (tmp_path / "C.PDF", tmp_path)]
@@ -80,6 +80,6 @@ def test_drop_emits_only_pdfs(qtbot, tmp_path):
 def test_drop_without_pdfs_is_ignored(qtbot, tmp_path):
     tile = FolderTileWidget(tmp_path)
     qtbot.addWidget(tile)
-    ev = _FakeDropEvent(_mime(tmp_path / "b.txt"))
+    ev = _FakeDropEvent(_mime(tmp_path / "b.csv"))
     tile.dropEvent(ev)
     assert ev.accepted is False

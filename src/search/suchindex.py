@@ -336,17 +336,22 @@ class Suchindex:
 
         Ohne ``erzwingen`` nur, wenn die Datei schon im Index ist oder unter einer
         Wurzel bzw. einem Vorrang-Ordner liegt (sonst wuerde die Oberflaeche Dateien
-        aufnehmen, die der Nutzer nie zur Suche freigegeben hat). ``vorab`` ist ein
-        fertiges Ergebnis von ``extract.pdf_text`` (PDF-Analyzer). Liefert die
-        Dokument-Id oder None.
+        aufnehmen, die der Nutzer nie zur Suche freigegeben hat). Unbekannte
+        Dateien mit einer Endung aus ``NUR_AUF_WUNSCH`` (.txt, Issue #227) kommen
+        so nie in den Index, solange die Endung nicht in den Einstellungen steht;
+        sie nimmt erst ``metadaten_setzen`` auf (einsortiert durch den Nutzer).
+        ``vorab`` ist ein fertiges Ergebnis von ``extract.pdf_text`` (PDF-Analyzer).
+        Liefert die Dokument-Id oder None.
         """
-        from src.search.indexer import einzeldatei_indizieren
+        from src.search.indexer import NUR_AUF_WUNSCH, einzeldatei_indizieren
 
         pfad = norm_pfad(pfad)
         if not os.path.isfile(pfad):
             return None
-        if not erzwingen and not self.unter_wurzel(pfad) and self.dokument_nach_pfad(pfad) is None:
-            return None
+        if not erzwingen and self.dokument_nach_pfad(pfad) is None:
+            ext = os.path.splitext(pfad)[1].lower()
+            if not self.unter_wurzel(pfad) or (ext in NUR_AUF_WUNSCH and ext not in self.konfig.endungen):
+                return None
         con = self._schreiben()
         try:
             dok_id = einzeldatei_indizieren(con, self.konfig, pfad, prioritaet, vorab)

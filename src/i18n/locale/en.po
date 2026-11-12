@@ -282,6 +282,18 @@ msgid "LibreOffice konnte nicht umwandeln: {0}"
 msgstr "LibreOffice could not convert: {0}"
 
 #: src/core/office_convert.py
+msgid "Die Textdatei ist zu groß zum Umwandeln (über {mb} MB)."
+msgstr "The text file is too large to convert (over {mb} MB)."
+
+#: src/core/office_convert.py
+msgid "Die Textdatei ist leer."
+msgstr "The text file is empty."
+
+#: src/core/office_convert.py
+msgid "Textdateien werden als normales PDF erstellt (kein PDF/A)."
+msgstr "Text files are created as a regular PDF (no PDF/A)."
+
+#: src/core/office_convert.py
 msgid "Datei nicht gefunden: {quelle}"
 msgstr "File not found: {quelle}"
 
@@ -3640,12 +3652,20 @@ msgid "Bild. Anklicken wählt es aus (Strg/Umschalt für Mehrfachauswahl).\nZieh
 msgstr "Image. Clicking selects it (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDouble-click opens it in the default program.\nRight-click: convert to PDF (with text recognition; the image is kept)."
 
 #: src/gui/office_thumbnail.py
+msgid "Textdatei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\nZiehen verschiebt sie per Drag & Drop in einen Zielordner.\nDoppelklick öffnet sie im Standardprogramm.\nRechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
+msgstr "Text file. Clicking selects it (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDouble-click opens it in the default program.\nRight-click: convert to PDF (the original file is kept)."
+
+#: src/gui/office_thumbnail.py
 msgid "Bild"
 msgstr "Image"
 
 #: src/gui/office_thumbnail.py
 msgid "OpenDocument-Text"
 msgstr "OpenDocument text"
+
+#: src/gui/office_thumbnail.py
+msgid "Textdatei"
+msgstr "Text file"
 
 #: src/gui/office_thumbnail.py
 msgid "Word-Dokument"

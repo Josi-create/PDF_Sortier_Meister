@@ -7,6 +7,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Textdateien (.txt) sortieren und in PDF umwandeln** (#227): .txt-Dateien im Scan-Ordner
+  erscheinen jetzt als Kachel (Etikett „TXT“) mit Vorschau, fließen in die Ordner-Vorschläge ein,
+  behalten beim Verschieben, Umbenennen und Hierhin-Kopieren ihre Endung und lassen sich per
+  Rechtsklick (auch mehrere) in PDF umwandeln. Dafür braucht es weder Word noch LibreOffice: PDF
+  Sortier Meister setzt das PDF selbst (A4, Schreibmaschinenschrift, lange Zeilen werden
+  umbrochen), der Text bleibt durchsuchbar. Ob die Datei als UTF-8 oder als älterer Windows-Text
+  mit Umlauten gespeichert ist, wird erkannt; es fragt kein Programm nach der Kodierung. PDF/A
+  gibt es für Textdateien nicht, Dateien über 5 MB werden nicht umgewandelt.
+- **Textdateien in der Dokumentensuche nur auf Wunsch** (#227): Die Suche nimmt .txt-Dateien nicht
+  von sich aus auf, weil auf einem PC sehr viele technische Textdateien liegen (Protokolle,
+  Lizenztexte). Eine .txt, die du in PDF Sortier Meister in einen Zielordner verschiebst,
+  ist danach aber auffindbar und bleibt es auch, wenn du sie später änderst. Wer alle
+  Textdateien durchsuchen will, trägt `.txt` in den Einstellungen der Suche bei den Dateiendungen
+  ein.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
