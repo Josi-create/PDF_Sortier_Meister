@@ -73,7 +73,7 @@ class Suchindex:
     # ------------------------------------------------------------------ Lesen
 
     FILTER = ("typ", "ordner", "von", "bis", "steuerjahr", "kategorie", "korrespondent", "betrag_von", "betrag_bis",
-              "pdf_id", "steuerjahr_von", "steuerjahr_bis")
+              "pdf_id", "steuerjahr_von", "steuerjahr_bis", "schlagwort")
 
     def suche(self, abfrage: str, **argumente) -> dict:
         """Volltextsuche; Argumente wie ``db.suche`` (typ, ordner, von, bis, sortierung, anzahl, start,
@@ -103,6 +103,22 @@ class Suchindex:
             return []
         finally:
             con.close()
+
+    def schlagwoerter(self, haeufigste: int | None = None) -> list[str]:
+        """Schon benutzte Schlagwoerter samt Oberebenen (Issue #231), nach dem Alphabet;
+        mit ``haeufigste`` nur die meistbenutzten, haeufigste zuerst."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            paare = db.schlagwoerter(con)
+        except Exception:
+            return []
+        finally:
+            con.close()
+        if haeufigste:
+            return [wort for wort, _n in paare[:int(haeufigste)]]
+        return sorted((wort for wort, _n in paare), key=str.casefold)
 
     def top_werte(self, feld: str, limit: int = 10) -> list[str]:
         con = self._lesen()

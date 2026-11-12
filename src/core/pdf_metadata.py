@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from src.core import schlagwoerter as schlagwort_regeln
 from src.core.metadata_choices import clean_category
 
 
@@ -28,6 +29,10 @@ class PDFMetadata:
     subject: Optional[str] = None          # dc:subject (Kategorie)
     description: Optional[str] = None      # dc:description (Zusammenfassung)
     keywords: Optional[str] = None         # pdf:Keywords (kommagetrennt)
+    # Schlagwoerter des Nutzers (Issue #231), z.B. "Steuer/Werbungskosten, Haus". Sie stehen
+    # zusammen mit den automatischen Stichwoertern in pdf:Keywords. Beim Schreiben:
+    # None = die der Datei bleiben, "" = alle entfernen. Beim Lesen: None = keine.
+    schlagwoerter: Optional[str] = None
 
     # Custom-Felder (Steuer/Buchhaltung)
     korrespondent: Optional[str] = None    # Firmenname/Absender
@@ -49,13 +54,13 @@ class PDFMetadata:
             self.betrag, self.betrag_netto, self.betrag_brutto,
             self.iban, self.waehrung, self.mwst_satz,
             self.steuerlich_absetzbar,
-        ])
+        ]) or self.schlagwoerter is not None
 
     def to_dict(self) -> dict:
         """Gibt alle gesetzten Felder als Dictionary zurück."""
         result = {}
         for field_name in [
-            "title", "subject", "description", "keywords",
+            "title", "subject", "description", "keywords", "schlagwoerter",
             "korrespondent", "buchungsdatum", "steuerjahr",
             "betrag", "betrag_netto", "betrag_brutto", "iban",
             "waehrung", "mwst_satz", "steuerlich_absetzbar",
@@ -79,6 +84,12 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
         pdf_path: Pfad zur PDF-Datei
         metadata: PDFMetadata-Objekt mit den zu schreibenden Feldern
 
+    ``pdf:Keywords`` traegt die automatischen Stichwoerter (``metadata.keywords``)
+    und die Schlagwoerter des Nutzers (``metadata.schlagwoerter``). Was nicht
+    uebergeben wird, bleibt wie in der Datei - ein spaeteres Umbenennen loescht
+    also keine Schlagwoerter. ``metadata.keywords`` enthaelt danach den
+    geschriebenen Gesamtwert (fuer den Suchindex).
+
     Returns:
         True bei Erfolg, False bei Fehler oder wenn die Datei keine PDF ist
     """
@@ -100,8 +111,14 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
                     meta["dc:subject"] = subject
                 if metadata.description:
                     meta["dc:description"] = metadata.description
-                if metadata.keywords:
-                    meta["pdf:Keywords"] = metadata.keywords
+                if metadata.keywords or metadata.schlagwoerter is not None:
+                    alt = meta.get("pdf:Keywords", None)
+                    neu = _keywords_gesamt(alt, metadata)
+                    if neu:
+                        meta["pdf:Keywords"] = neu
+                    elif alt:
+                        del meta["pdf:Keywords"]
+                    metadata.keywords = neu or None
 
             # Custom-Felder als XMP Custom Properties schreiben
             # pikepdf unterstützt custom namespaces über die XML-Ebene
@@ -147,6 +164,8 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
                     meta.get("dc:description", None)
                 )
                 metadata.keywords = meta.get("pdf:Keywords", None)
+                metadata.schlagwoerter = schlagwort_regeln.als_text(
+                    schlagwort_regeln.eigene(metadata.keywords)) or None
 
             # Custom-Felder lesen
             _read_custom_fields(pdf, metadata)
@@ -158,6 +177,20 @@ def read_metadata(pdf_path: Path) -> Optional[PDFMetadata]:
     except Exception as e:
         print(f"Fehler beim Lesen der Metadaten aus {pdf_path.name}: {e}")
         return None
+
+
+def _keywords_gesamt(alt, metadata: PDFMetadata) -> str:
+    """Neuer Wert fuer ``pdf:Keywords`` aus dem Stand der Datei und den uebergebenen Teilen."""
+    auto_alt, eigene_alt = schlagwort_regeln.aufteilen(str(alt) if alt else "")
+    auto = schlagwort_regeln.aufteilen(metadata.keywords)[0] if metadata.keywords else auto_alt
+    if metadata.schlagwoerter is not None:
+        eigene = schlagwort_regeln.aus_eingabe(metadata.schlagwoerter)
+    else:
+        eigene = eigene_alt
+        if metadata.keywords:
+            # Aufrufer, die noch alles in keywords uebergeben: deren eigene Eintraege nicht verlieren
+            eigene = eigene + schlagwort_regeln.eigene(metadata.keywords)
+    return schlagwort_regeln.zusammenfuehren(auto, eigene)
 
 
 _FILENAME_LIKE = re.compile(r"[^\s/\\]+\.pdf", re.IGNORECASE)

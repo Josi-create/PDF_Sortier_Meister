@@ -61,7 +61,7 @@ STATUS_MARKEN = {
     "cloud": tr("nur in der Cloud"), "zu_gross": tr("zu groß"), "verschluesselt": tr("verschlüsselt"), "leer": tr("ohne Text"),
     "ausstehend": tr("noch nicht gelesen"),
 }
-METADATEN_FILTER = ("steuerjahr", "kategorie", "korrespondent")
+METADATEN_FILTER = ("steuerjahr", "kategorie", "korrespondent", "schlagwort")
 TYP_NAMEN = {"pdf": "PDF", "office": tr("Office"), "md": tr("Markdown"), "mail": tr("Mails")}
 TABELLEN_FORMATE = ("xlsx", "xlsm", "xls")
 
@@ -571,6 +571,17 @@ class SearchView(QWidget):
             combo.currentIndexChanged.connect(lambda _i: self._filter_geaendert())
             self.meta_combos[feld] = combo
             filter3.addWidget(combo, 1 if feld != "steuerjahr" else 0)
+        # Schlagwort (Issue #231), Unterebenen eingeschlossen: in der Zeile mit Ordner und
+        # Zeitraum, dort ist Platz - die Metadatenzeile wuerde den Reiter sonst breiter machen
+        filter2.addWidget(QLabel(tr("Schlagwort:")), 0, Qt.AlignmentFlag.AlignTop)
+        combo = QComboBox()
+        combo.addItem(tr("Alle"), "")
+        combo.setMinimumWidth(90)
+        combo.setToolTip(tr("Nur Dokumente mit diesem Schlagwort anzeigen; Unterebenen zählen mit\n"
+                            "(„Steuer“ findet auch „Steuer/Werbungskosten“)"))
+        combo.currentIndexChanged.connect(lambda _i: self._filter_geaendert())
+        self.meta_combos["schlagwort"] = combo
+        filter2.addWidget(combo, 1, Qt.AlignmentFlag.AlignTop)
         filter3.addWidget(QLabel(tr("Betrag von:")))
         self.betrag_von_spin = self._betrag_feld()
         filter3.addWidget(self.betrag_von_spin)
@@ -797,7 +808,7 @@ class SearchView(QWidget):
 
     def suchen(self, text: str, typ: str | None = None, steuerjahr: str = "", kategorie: str = "",
                korrespondent: str = "", von: str = "", bis: str = "", betrag_von: float = 0.0,
-               betrag_bis: float = 0.0) -> None:
+               betrag_bis: float = 0.0, schlagwort: str = "") -> None:
         """Suche von aussen (Werkzeugleiste, Strg+F): Suchbegriff und Filter setzen, sofort suchen."""
         for w in (self.search_edit, self.sort_combo, self.ordner_edit, self.zeitraum_edit,
                   self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
@@ -806,7 +817,8 @@ class SearchView(QWidget):
             self.search_edit.setText(text or "")
             if typ is not None and typ in self.typ_buttons:
                 self.typ_buttons[typ].setChecked(True)
-            for feld, wert in (("steuerjahr", steuerjahr), ("kategorie", kategorie), ("korrespondent", korrespondent)):
+            for feld, wert in (("steuerjahr", steuerjahr), ("kategorie", kategorie), ("korrespondent", korrespondent),
+                               ("schlagwort", schlagwort)):
                 self._combo_waehlen(self.meta_combos[feld], wert)
             self.zeitraum_edit.setGrenzen(von, bis)
             self.betrag_von_spin.setValue(float(betrag_von or 0))

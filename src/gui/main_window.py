@@ -45,6 +45,7 @@ from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
 from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
+from src.core import schlagwoerter as schlagwort_regeln
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
 from src.gui.detail_panel import DetailPanel
@@ -195,6 +196,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         super().__init__()
         self.config = get_config()
         self.db = get_database()
+        # Issue #231: Vorschlagsliste im Detail-Panel und Auswahl fuer die KI kommen aus dem Suchindex
+        schlagwort_regeln.quelle_setzen(lambda haeufigste=None: self.db.suchindex.schlagwoerter(haeufigste))
         self.file_manager = FileManager()
         self.folder_manager = FolderManager()
         self.classifier = get_classifier()
@@ -3157,7 +3160,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 new_path=str(new_path),
                 new_filename=new_path.name,
                 extracted_text=self.selected_pdf_text or "",
-                keywords=", ".join(self.selected_pdf_keywords) if self.selected_pdf_keywords else "",
+                keywords=schlagwort_regeln.zusammenfuehren(
+                    self.selected_pdf_keywords, (metadata or {}).get("schlagwoerter")),
                 korrespondent=metadata.get("korrespondent", "") if metadata else "",
                 kategorie=metadata.get("subject", "") if metadata else "",
                 steuerjahr=metadata.get("steuerjahr", "") if metadata else "",
@@ -3334,6 +3338,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     metadata.steuerjahr = dialog_metadata["steuerjahr"]
                 if dialog_metadata.get("description"):
                     metadata.description = dialog_metadata["description"]
+                if "schlagwoerter" in dialog_metadata:
+                    # Issue #231: nur wer das Feld mitgibt, aendert die Schlagwoerter ("" = entfernen);
+                    # sonst bleiben die der Datei (write_metadata)
+                    metadata.schlagwoerter = schlagwort_regeln.als_text(
+                        schlagwort_regeln.aus_eingabe(dialog_metadata["schlagwoerter"]))
 
             # Eine Kategorie, keine abgeschriebene KI-Auswahlliste - auch fuer den Suchindex
             metadata.subject = clean_category(metadata.subject) or None
@@ -3367,9 +3376,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 "zusammenfassung": metadata.description,
                 "schlagwoerter": metadata.keywords,
             }
-            self.db.set_document_metadata(str(pdf_path), {k: v for k, v in felder.items() if v}, sofort=False)
+            # Geleerte Schlagwoerter (Issue #231) muessen auch im Index verschwinden
+            geleert = metadata.schlagwoerter is not None and not metadata.keywords
+            self.db.set_document_metadata(
+                str(pdf_path), {k: v for k, v in felder.items() if v or (geleert and k == "schlagwoerter")},
+                sofort=False)
         except Exception as e:  # noqa: BLE001 - der Index ist Zusatz, nie Blocker
             print(f"Suchindex: Metadaten nicht gemeldet: {e}")
+
+    @staticmethod
+    def _mit_schlagwort_feld(metadata: dict) -> dict:
+        """Metadaten des Detail-Panels fuer "in der PDF speichern": Das Panel zeigt die Schlagwoerter
+        dieser Datei, ein leeres Feld heisst deshalb "alle entfernen" (Issue #231)."""
+        return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", "")}
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
@@ -3382,7 +3401,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
 
         metadata = self.detail_panel.get_metadata()
-        if not metadata:
+        if not metadata and not self.detail_panel.hat_gespeicherte_schlagwoerter():
             self.statusbar.showMessage(tr("Keine Metadaten eingegeben"), 2000)
             return
 
@@ -3390,7 +3409,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             pdf_path,
             pdf_path.name,
             self.selected_pdf_keywords,
-            metadata,
+            self._mit_schlagwort_feld(metadata),
         )
 
         # Korrespondent-Zuordnung lernen
@@ -3453,8 +3472,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 new_path = pdf_path
 
-            if metadata:
-                self._write_pdf_metadata(new_path, new_path.name, self.selected_pdf_keywords, metadata)
+            if metadata or self.detail_panel.hat_gespeicherte_schlagwoerter():
+                self._write_pdf_metadata(new_path, new_path.name, self.selected_pdf_keywords,
+                                         self._mit_schlagwort_feld(metadata))
                 if metadata.get("korrespondent"):
                     self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
 
@@ -5153,11 +5173,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.filter_korrespondent.setToolTip(tr("Nur Dokumente dieses Korrespondenten anzeigen"))
         layout.addWidget(self.filter_korrespondent, 0, 5)
 
+        # Issue #231: Schlagwort, Unterebenen eingeschlossen
+        layout.addWidget(QLabel(tr("Schlagwort:")), 0, 6)
+        self.filter_schlagwort = QComboBox()
+        self.filter_schlagwort.addItem(tr("Alle"))
+        self.filter_schlagwort.setMinimumWidth(150)
+        self.filter_schlagwort.setToolTip(
+            tr("Nur Dokumente mit diesem Schlagwort anzeigen; Unterebenen zählen mit\n"
+               "(„Steuer“ findet auch „Steuer/Werbungskosten“)"))
+        layout.addWidget(self.filter_schlagwort, 0, 7)
+
         # Reset-Button (Zeile 0–1, letzte Spalte)
         reset_btn = QPushButton(tr("Filter zurücksetzen"))
         reset_btn.setToolTip(tr("Alle Filter dieser Leiste auf 'Alle' zurücksetzen"))
         reset_btn.clicked.connect(self._reset_filters)
-        layout.addWidget(reset_btn, 0, 6, 2, 1)
+        layout.addWidget(reset_btn, 0, 8, 2, 1)
 
         # Zeile 1: Datum, Betrag
         datum_label = QLabel(tr("Zeitraum:"))
@@ -5194,6 +5224,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.filter_steuerjahr.currentTextChanged.connect(self._execute_search)
         self.filter_kategorie.currentTextChanged.connect(self._execute_search)
         self.filter_korrespondent.currentTextChanged.connect(self._execute_search)
+        self.filter_schlagwort.currentTextChanged.connect(self._execute_search)
         self.filter_zeitraum.geaendert.connect(self._execute_search)
         self.filter_betrag_von.valueChanged.connect(self._execute_search)
         self.filter_betrag_bis.valueChanged.connect(self._execute_search)
@@ -5213,6 +5244,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             (self.filter_steuerjahr, self.db.get_distinct_steuerjahre),
             (self.filter_kategorie, self.db.get_distinct_kategorien),
             (self.filter_korrespondent, self.db.get_distinct_korrespondenten),
+            (self.filter_schlagwort, self.db.suchindex.schlagwoerter),
         ):
             current = combo.currentText()
             combo.blockSignals(True)
@@ -5233,6 +5265,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return True
         if self.filter_korrespondent.currentText() not in ("", tr("Alle")):
             return True
+        if self.filter_schlagwort.currentText() not in ("", tr("Alle")):
+            return True
         if self.filter_zeitraum.hat_grenze():
             return True
         if self.filter_betrag_von.value() > 0 or self.filter_betrag_bis.value() > 0:
@@ -5243,7 +5277,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Setzt alle Filterfelder zurück."""
         widgets = [
             self.filter_steuerjahr, self.filter_kategorie, self.filter_korrespondent,
-            self.filter_zeitraum,
+            self.filter_schlagwort, self.filter_zeitraum,
             self.filter_betrag_von, self.filter_betrag_bis,
         ]
         for w in widgets:
@@ -5251,6 +5285,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.filter_steuerjahr.setCurrentIndex(0)
         self.filter_kategorie.setCurrentIndex(0)
         self.filter_korrespondent.setCurrentIndex(0)
+        self.filter_schlagwort.setCurrentIndex(0)
         self.filter_zeitraum.zuruecksetzen()
         self.filter_betrag_von.setValue(0.0)
         self.filter_betrag_bis.setValue(0.0)
@@ -5277,6 +5312,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         steuerjahr = ""
         kategorie = ""
         korrespondent = ""
+        schlagwort = ""
         datum_von = ""
         datum_bis = ""
         betrag_von = 0.0
@@ -5289,11 +5325,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             kategorie = "" if val == tr("Alle") else val
             val = self.filter_korrespondent.currentText()
             korrespondent = "" if val == tr("Alle") else val
+            val = self.filter_schlagwort.currentText()
+            schlagwort = "" if val == tr("Alle") else val
             datum_von, datum_bis = self.filter_zeitraum.grenzen()
             betrag_von = self.filter_betrag_von.value()
             betrag_bis = self.filter_betrag_bis.value()
 
-        has_filters = any([steuerjahr, kategorie, korrespondent,
+        has_filters = any([steuerjahr, kategorie, korrespondent, schlagwort,
                            datum_von, datum_bis, betrag_von > 0, betrag_bis > 0])
 
         if not query and not has_filters:
@@ -5312,6 +5350,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             bis=datum_bis,
             betrag_von=betrag_von,
             betrag_bis=betrag_bis,
+            schlagwort=schlagwort,
         )
         if self.center_tabs.currentWidget() is not self.search_view:
             self.center_tabs.setCurrentWidget(self.search_view)
