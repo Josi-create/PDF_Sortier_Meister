@@ -9,15 +9,16 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Iterable
+from src.i18n import tr
 
 # (id, Anzeigetext, Kriterium, absteigend)
 SORT_OPTIONEN = (
-    ("datum_ab", "Datum: neueste zuerst", "datum", True),
-    ("datum_auf", "Datum: älteste zuerst", "datum", False),
-    ("name_auf", "Name: A–Z", "name", False),
-    ("name_ab", "Name: Z–A", "name", True),
-    ("groesse_ab", "Größe: größte zuerst", "groesse", True),
-    ("groesse_auf", "Größe: kleinste zuerst", "groesse", False),
+    ("datum_ab", tr("Datum: neueste zuerst"), "datum", True),
+    ("datum_auf", tr("Datum: älteste zuerst"), "datum", False),
+    ("name_auf", tr("Name: A–Z"), "name", False),
+    ("name_ab", tr("Name: Z–A"), "name", True),
+    ("groesse_ab", tr("Größe: größte zuerst"), "groesse", True),
+    ("groesse_auf", tr("Größe: kleinste zuerst"), "groesse", False),
 )
 STANDARD_SORTIERUNG = "datum_ab"  # bisheriges Verhalten (FileManager.get_pdf_files)
 

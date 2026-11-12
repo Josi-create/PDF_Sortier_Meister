@@ -18,6 +18,7 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 import sys
 import threading
 
+from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
 from src.search import mcp_einrichtung
@@ -69,15 +70,15 @@ class SettingsDialog(QDialog):
     # KI ist ein Hauptfeature, nicht "optional"). Kein hartkodierter Index
     # mehr noetig - siehe _provider_id_at()/_index_for_provider().
     _LLM_PROVIDERS: list[tuple[str, str]] = [
-        ("ollama", "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
-        ("ollama_cloud", "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
-        ("strata", "Strata (lokaler Modell-Server, OpenAI-kompatibel, eigener Key)"),
-        ("lmstudio", "LM Studio (lokal auf diesem Rechner, kein API-Key noetig)"),
-        ("openrouter", "OpenRouter (viele Modelle, ein API-Key)"),
-        ("poe", "Poe.com (viele KI-Modelle, ein API-Key)"),
-        ("claude", "Anthropic Claude"),
-        ("openai", "OpenAI GPT"),
-        ("none", "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"),
+        ("ollama", tr("Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)")),
+        ("ollama_cloud", tr("Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)")),
+        ("strata", tr("Strata (lokaler Modell-Server, OpenAI-kompatibel, eigener Key)")),
+        ("lmstudio", tr("LM Studio (lokal auf diesem Rechner, kein API-Key noetig)")),
+        ("openrouter", tr("OpenRouter (viele Modelle, ein API-Key)")),
+        ("poe", tr("Poe.com (viele KI-Modelle, ein API-Key)")),
+        ("claude", tr("Anthropic Claude")),
+        ("openai", tr("OpenAI GPT")),
+        ("none", tr("Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)")),
     ]
     _LLM_PROVIDER_INDEX = {pid: i for i, (pid, _) in enumerate(_LLM_PROVIDERS)}
     # Provider-Combo des eigenen Chat-Modells (Issue #166/#167): dieselben
@@ -113,7 +114,7 @@ class SettingsDialog(QDialog):
 
     def _setup_ui(self):
         """Erstellt die Benutzeroberfläche."""
-        self.setWindowTitle("Einstellungen")
+        self.setWindowTitle(tr("Einstellungen"))
         self.setMinimumWidth(500)
         self.setMinimumHeight(400)
 
@@ -124,16 +125,16 @@ class SettingsDialog(QDialog):
 
         # LLM-Tab
         llm_tab = self._create_llm_tab()
-        tab_widget.addTab(llm_tab, "KI-Assistent (LLM)")
+        tab_widget.addTab(llm_tab, tr("KI-Assistent (LLM)"))
 
         # Persönliche Daten Tab (vor "Dateinamen": dort werden die Initialen
         # definiert, die das Dateinamen-Muster benutzt)
         personal_tab = self._create_personal_tab()
-        tab_widget.addTab(personal_tab, "Persönliche Daten")
+        tab_widget.addTab(personal_tab, tr("Persönliche Daten"))
 
         # Dateinamen Tab
         filename_tab = self._create_filename_pattern_tab()
-        tab_widget.addTab(filename_tab, "Dateinamen")
+        tab_widget.addTab(filename_tab, tr("Dateinamen"))
 
         # Name/Initialen wirken auf die Muster-Vorschau
         self.owner_name_input.textChanged.connect(self._on_owner_name_changed)
@@ -141,11 +142,11 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen Tab
         general_tab = self._create_general_tab()
-        tab_widget.addTab(general_tab, "Allgemein")
+        tab_widget.addTab(general_tab, tr("Allgemein"))
 
         # Dokumentensuche (Integration von PDFsuche, Phase 3)
         search_tab = self._create_search_tab()
-        tab_widget.addTab(search_tab, "Suche")
+        tab_widget.addTab(search_tab, tr("Suche"))
 
         layout.addWidget(tab_widget)
         self.tab_widget = tab_widget
@@ -157,7 +158,7 @@ class SettingsDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self.test_button = QPushButton("Verbindung testen")
+        self.test_button = QPushButton(tr("Verbindung testen"))
         self.test_button.clicked.connect(self._test_connection)
         button_layout.addWidget(self.test_button)
         # "Verbindung testen" gehoert zum KI-Tab - auf den anderen ausblenden
@@ -166,16 +167,33 @@ class SettingsDialog(QDialog):
         )
         self.test_button.setVisible(tab_widget.currentIndex() == 0)
 
-        self.save_button = QPushButton("Speichern")
+        self.save_button = QPushButton(tr("Speichern"))
         self.save_button.setDefault(True)
         self.save_button.clicked.connect(self._save_settings)
         button_layout.addWidget(self.save_button)
 
-        self.cancel_button = QPushButton("Abbrechen")
+        self.cancel_button = QPushButton(tr("Abbrechen"))
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_button)
 
         layout.addLayout(button_layout)
+        self._set_initial_height(general_tab)
+
+    def _set_initial_height(self, general_tab: QScrollArea) -> None:
+        """Startgroesse: Reiter „Allgemein“ moeglichst ganz zeigen (Issue #235).
+
+        Seit der Reiter scrollt, richtet sich der Dialog nicht mehr nach seinem
+        Inhalt (ein Scrollbereich meldet hoechstens 24 Zeilen Hoehe). Deshalb
+        so hoch oeffnen, wie der Inhalt braucht, aber nie hoeher als 90 % des
+        Bildschirms; der Rest scrollt.
+        """
+        inner = general_tab.widget()
+        wanted = (self.sizeHint().height() - general_tab.sizeHint().height()
+                  + inner.sizeHint().height())
+        screen = self.screen()
+        if screen is not None:
+            wanted = min(wanted, int(screen.availableGeometry().height() * 0.9))
+        self.resize(self.sizeHint().width(), max(wanted, self.minimumHeight()))
 
     def _create_llm_tab(self) -> QWidget:
         """Erstellt den LLM-Einstellungs-Tab."""
@@ -183,7 +201,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         # Provider-Auswahl
-        provider_group = QGroupBox("LLM-Provider")
+        provider_group = QGroupBox(tr("LLM-Provider"))
         provider_layout = QFormLayout(provider_group)
 
         # API-Keys pro Provider (Puffer, bis "Speichern" gedrueckt wird)
@@ -196,23 +214,23 @@ class SettingsDialog(QDialog):
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([label for _, label in self._LLM_PROVIDERS])
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
-        provider_layout.addRow("Provider:", self.provider_combo)
+        provider_layout.addRow(tr("Provider:"), self.provider_combo)
 
         layout.addWidget(provider_group)
 
         # API-Konfiguration
-        api_group = QGroupBox("API-Konfiguration")
+        api_group = QGroupBox(tr("API-Konfiguration"))
         api_layout = QFormLayout(api_group)
 
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key_input.setPlaceholderText("sk-... oder anthropic-...")
-        self.api_key_label = QLabel("API-Key:")
+        self.api_key_input.setPlaceholderText(tr("sk-... oder anthropic-..."))
+        self.api_key_label = QLabel(tr("API-Key:"))
         api_layout.addRow(self.api_key_label, self.api_key_input)
 
         # Show/Hide Button für API-Key
         key_button_layout = QHBoxLayout()
-        self.show_key_button = QPushButton("Anzeigen")
+        self.show_key_button = QPushButton(tr("Anzeigen"))
         self.show_key_button.setCheckable(True)
         self.show_key_button.toggled.connect(self._toggle_key_visibility)
         key_button_layout.addWidget(self.show_key_button)
@@ -223,10 +241,10 @@ class SettingsDialog(QDialog):
         self.base_url_input = QLineEdit()
         self.base_url_input.setPlaceholderText("http://localhost:11434")
         self.base_url_input.setToolTip(
-            "Nur fuer lokale Server (Ollama, Strata, LM Studio): URL des Servers.\n"
-            "Leer = Standard-URL (siehe Platzhalter)."
+            tr("Nur fuer lokale Server (Ollama, Strata, LM Studio): URL des Servers.\n"
+            "Leer = Standard-URL (siehe Platzhalter).")
         )
-        api_layout.addRow("Server-URL:", self.base_url_input)
+        api_layout.addRow(tr("Server-URL:"), self.base_url_input)
 
         # Modell-Auswahl mit Aktualisieren-Button
         model_row_layout = QHBoxLayout()
@@ -234,15 +252,15 @@ class SettingsDialog(QDialog):
         self.model_combo.setEditable(True)
         model_row_layout.addWidget(self.model_combo, 1)
 
-        self.refresh_models_button = QPushButton("Modelle aktualisieren")
+        self.refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
         self.refresh_models_button.setToolTip(
-            "Ruft die aktuell verfügbaren Modelle vom API-Provider ab.\n"
-            "Erfordert einen gültigen API-Key."
+            tr("Ruft die aktuell verfügbaren Modelle vom API-Provider ab.\n"
+            "Erfordert einen gültigen API-Key.")
         )
         self.refresh_models_button.clicked.connect(self._refresh_models)
         model_row_layout.addWidget(self.refresh_models_button)
 
-        api_layout.addRow("Modell:", model_row_layout)
+        api_layout.addRow(tr("Modell:"), model_row_layout)
 
         # Erkennungsstatus (nur bei LM Studio sichtbar)
         self.lmstudio_status_label = QLabel("")
@@ -253,11 +271,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(api_group)
 
         # Datenschutz: Einwilligung fuer Cloud-Provider
-        consent_group = QGroupBox("Datenschutz")
+        consent_group = QGroupBox(tr("Datenschutz"))
         consent_layout = QVBoxLayout(consent_group)
         self.cloud_consent_check = QCheckBox(
-            "Ich willige ein, dass Textauszüge meiner Dokumente an den\n"
-            "gewählten Cloud-Anbieter übertragen werden."
+            tr("Ich willige ein, dass Textauszüge meiner Dokumente an den\n"
+            "gewählten Cloud-Anbieter übertragen werden.")
         )
         self.cloud_consent_check.toggled.connect(self._update_consent_hint)
         consent_layout.addWidget(self.cloud_consent_check)
@@ -267,37 +285,37 @@ class SettingsDialog(QDialog):
         layout.addWidget(consent_group)
 
         # Erweiterte Einstellungen
-        advanced_group = QGroupBox("Erweiterte Einstellungen")
+        advanced_group = QGroupBox(tr("Erweiterte Einstellungen"))
         advanced_layout = QFormLayout(advanced_group)
 
         self.max_tokens_spin = QSpinBox()
         self.max_tokens_spin.setRange(100, 8000)
         self.max_tokens_spin.setValue(2000)
         self.max_tokens_spin.setToolTip(
-            "Obergrenze fuer die Antwortlaenge. Reasoning-Modelle (z.B. GLM, "
+            tr("Obergrenze fuer die Antwortlaenge. Reasoning-Modelle (z.B. GLM, "
             "DeepSeek-R1) verbrauchen davon zuerst ihr 'Nachdenken' - bei zu "
-            "kleinem Wert kommt eine leere Antwort zurueck."
+            "kleinem Wert kommt eine leere Antwort zurueck.")
         )
-        self.max_tokens_spin.setSuffix(" Tokens")
-        advanced_layout.addRow("Max. Tokens:", self.max_tokens_spin)
+        self.max_tokens_spin.setSuffix(tr(" Tokens"))
+        advanced_layout.addRow(tr("Max. Tokens:"), self.max_tokens_spin)
 
         self.temperature_spin = QDoubleSpinBox()
         self.temperature_spin.setRange(0.0, 1.0)
         self.temperature_spin.setSingleStep(0.1)
         self.temperature_spin.setValue(0.3)
-        advanced_layout.addRow("Temperatur:", self.temperature_spin)
+        advanced_layout.addRow(tr("Temperatur:"), self.temperature_spin)
 
         self.text_limit_spin = QSpinBox()
         self.text_limit_spin.setRange(500, 5000)
         self.text_limit_spin.setValue(1500)
         self.text_limit_spin.setSingleStep(500)
-        self.text_limit_spin.setSuffix(" Zeichen")
+        self.text_limit_spin.setSuffix(tr(" Zeichen"))
         self.text_limit_spin.setToolTip(
-            "Maximale Textlänge die an die LLM gesendet wird.\n"
+            tr("Maximale Textlänge die an die LLM gesendet wird.\n"
             "Weniger = schneller + günstiger, aber weniger Kontext.\n"
-            "Empfohlen: 1500 (meist ausreichend für Kopfzeile/Absender)"
+            "Empfohlen: 1500 (meist ausreichend für Kopfzeile/Absender)")
         )
-        advanced_layout.addRow("Text-Limit:", self.text_limit_spin)
+        advanced_layout.addRow(tr("Text-Limit:"), self.text_limit_spin)
 
         layout.addWidget(advanced_group)
 
@@ -328,7 +346,7 @@ class SettingsDialog(QDialog):
         URL heisst: Wert des gleichen Anbieters aus der API-Konfiguration oben
         (``Config.get_chat_llm_config``). Die Cloud-Einwilligung gilt global.
         """
-        group = QGroupBox("Chat (Reiter „Chat“)")
+        group = QGroupBox(tr("Chat (Reiter „Chat“)"))
         layout = QVBoxLayout(group)
 
         # API-Key/Server-URL je Chat-Provider (Puffer bis "Speichern", wie oben)
@@ -337,12 +355,12 @@ class SettingsDialog(QDialog):
         self._chat_base_urls: dict[str, str] = {}
         self._chat_url_provider = ""
 
-        self.chat_own_model_check = QCheckBox("Eigenes Modell für den Chat verwenden")
+        self.chat_own_model_check = QCheckBox(tr("Eigenes Modell für den Chat verwenden"))
         self.chat_own_model_check.setToolTip(
-            "Aus: Der Chat nutzt das Modell der Sortierung (oben).\n"
+            tr("Aus: Der Chat nutzt das Modell der Sortierung (oben).\n"
             "An: Der Chat nutzt den hier gewählten Anbieter und das Modell - z.B. ein\n"
             "großes Modell mit Werkzeugunterstützung, während die Sortierung ein\n"
-            "kleines lokales Modell behält."
+            "kleines lokales Modell behält.")
         )
         self.chat_own_model_check.toggled.connect(self._on_chat_own_model_toggled)
         layout.addWidget(self.chat_own_model_check)
@@ -352,34 +370,34 @@ class SettingsDialog(QDialog):
         self.chat_provider_combo = QComboBox()
         self.chat_provider_combo.addItems([label for _, label in self._CHAT_PROVIDERS])
         self.chat_provider_combo.currentIndexChanged.connect(self._on_chat_provider_changed)
-        form.addRow("Provider:", self.chat_provider_combo)
+        form.addRow(tr("Provider:"), self.chat_provider_combo)
 
         model_row = QHBoxLayout()
         self.chat_model_combo = QComboBox()
         self.chat_model_combo.setEditable(True)
         model_row.addWidget(self.chat_model_combo, 1)
-        self.chat_refresh_models_button = QPushButton("Modelle aktualisieren")
+        self.chat_refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
         self.chat_refresh_models_button.setToolTip(
-            "Ruft die aktuell verfügbaren Modelle vom gewählten Anbieter ab."
+            tr("Ruft die aktuell verfügbaren Modelle vom gewählten Anbieter ab.")
         )
         self.chat_refresh_models_button.clicked.connect(self._refresh_chat_models)
         model_row.addWidget(self.chat_refresh_models_button)
-        form.addRow("Modell:", model_row)
+        form.addRow(tr("Modell:"), model_row)
 
         self.chat_api_key_input = QLineEdit()
         self.chat_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.chat_api_key_label = QLabel("API-Key:")
+        self.chat_api_key_label = QLabel(tr("API-Key:"))
         form.addRow(self.chat_api_key_label, self.chat_api_key_input)
 
         self.chat_base_url_input = QLineEdit()
         self.chat_base_url_input.setToolTip(
-            "Nur für lokale Server (Ollama, Strata): URL des Servers.\n"
-            "Leer = URL des gleichen Anbieters von oben bzw. Standard-URL."
+            tr("Nur für lokale Server (Ollama, Strata): URL des Servers.\n"
+            "Leer = URL des gleichen Anbieters von oben bzw. Standard-URL.")
         )
-        form.addRow("Server-URL:", self.chat_base_url_input)
+        form.addRow(tr("Server-URL:"), self.chat_base_url_input)
 
         test_row = QHBoxLayout()
-        self.chat_test_button = QPushButton("Verbindung testen")
+        self.chat_test_button = QPushButton(tr("Verbindung testen"))
         self.chat_test_button.clicked.connect(self._test_chat_connection)
         test_row.addWidget(self.chat_test_button)
         test_row.addStretch()
@@ -394,36 +412,36 @@ class SettingsDialog(QDialog):
         self.cloud_consent_check.toggled.connect(self._update_chat_consent_hint)
 
         self.chat_tools_check = QCheckBox(
-            "Werkzeuge im Chat verwenden (Suche, Lesen, Ordnervorschlag, Korrespondent)"
+            tr("Werkzeuge im Chat verwenden (Suche, Lesen, Ordnervorschlag, Korrespondent)")
         )
         self.chat_tools_check.setToolTip(
-            "Das Modell darf selbst in der Dokumentensuche suchen, Dokumente lesen,\n"
+            tr("Das Modell darf selbst in der Dokumentensuche suchen, Dokumente lesen,\n"
             "Ordner vorschlagen und Korrespondenten nachschlagen - nur bei Anbietern\n"
-            "und Modellen mit Werkzeugunterstützung, sonst antwortet es wie bisher."
+            "und Modellen mit Werkzeugunterstützung, sonst antwortet es wie bisher.")
         )
         layout.addWidget(self.chat_tools_check)
 
         steps_row = QHBoxLayout()
-        steps_row.addWidget(QLabel("Höchstens"))
+        steps_row.addWidget(QLabel(tr("Höchstens")))
         self.chat_steps_spin = QSpinBox()
         self.chat_steps_spin.setRange(1, 12)
         self.chat_steps_spin.setValue(8)
         self.chat_steps_spin.setToolTip(
-            "Obergrenze für die Modellaufrufe mit Werkzeugen je Frage.\n"
-            "Mehr Schritte = gründlicher, aber langsamer (und bei Cloud-Anbietern teurer)."
+            tr("Obergrenze für die Modellaufrufe mit Werkzeugen je Frage.\n"
+            "Mehr Schritte = gründlicher, aber langsamer (und bei Cloud-Anbietern teurer).")
         )
         steps_row.addWidget(self.chat_steps_spin)
-        steps_row.addWidget(QLabel("Werkzeugschritte je Frage"))
+        steps_row.addWidget(QLabel(tr("Werkzeugschritte je Frage")))
         steps_row.addStretch()
         layout.addLayout(steps_row)
 
         self.chat_sql_check = QCheckBox(
-            "SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)"
+            tr("SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)")
         )
         self.chat_sql_check.setToolTip(
-            "Das Modell darf lesende SQL-Abfragen auf der Suchdatenbank stellen\n"
+            tr("Das Modell darf lesende SQL-Abfragen auf der Suchdatenbank stellen\n"
             "(z.B. Zählungen, Zeiträume). Kleine Modelle formulieren oft falsches SQL.\n"
-            "Gilt auch für KI-Assistenten über MCP (Reiter „Suche“ › KI-Assistenten)."
+            "Gilt auch für KI-Assistenten über MCP (Reiter „Suche“ › KI-Assistenten).")
         )
         layout.addWidget(self.chat_sql_check)
 
@@ -433,9 +451,9 @@ class SettingsDialog(QDialog):
 
         # Eigene Schnellfragen (Phase 3, Issue #166): eine je Zeile
         fragen_kopf = QHBoxLayout()
-        fragen_kopf.addWidget(QLabel("Schnellfragen im Chat (eine je Zeile):"))
+        fragen_kopf.addWidget(QLabel(tr("Schnellfragen im Chat (eine je Zeile):")))
         fragen_kopf.addStretch(1)
-        self.chat_schnellfragen_standard_btn = QPushButton("Standard wiederherstellen")
+        self.chat_schnellfragen_standard_btn = QPushButton(tr("Standard wiederherstellen"))
         self.chat_schnellfragen_standard_btn.clicked.connect(
             lambda: self.chat_schnellfragen_edit.setPlainText("\n".join(SCHNELLFRAGEN))
         )
@@ -444,8 +462,8 @@ class SettingsDialog(QDialog):
         self.chat_schnellfragen_edit = QPlainTextEdit()
         self.chat_schnellfragen_edit.setPlaceholderText("\n".join(SCHNELLFRAGEN))
         self.chat_schnellfragen_edit.setToolTip(
-            "Knöpfe über dem Eingabefeld des Chats, wenn eine PDF der Bezug ist.\n"
-            "Leer = Standardfragen. Höchstens 12 Fragen."
+            tr("Knöpfe über dem Eingabefeld des Chats, wenn eine PDF der Bezug ist.\n"
+            "Leer = Standardfragen. Höchstens 12 Fragen.")
         )
         self.chat_schnellfragen_edit.setFixedHeight(96)
         layout.addWidget(self.chat_schnellfragen_edit)
@@ -473,7 +491,7 @@ class SettingsDialog(QDialog):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
-        intro = QLabel("Nach diesem Muster schlägt die KI Dateinamen vor.")
+        intro = QLabel(tr("Nach diesem Muster schlägt die KI Dateinamen vor."))
         intro.setStyleSheet("color: #555; padding: 2px 0 6px 0;")
         layout.addWidget(intro)
 
@@ -490,27 +508,27 @@ class SettingsDialog(QDialog):
         preset_row.addWidget(self.pattern_preset_combo, 1)
         # Eigenes Muster unter einem Namen merken -> erscheint in der Vorlagen-
         # Liste und als Muster-Vorschlag im Detail-Panel
-        self.pattern_save_btn = QPushButton("Muster speichern…")
+        self.pattern_save_btn = QPushButton(tr("Muster speichern…"))
         self.pattern_save_btn.setToolTip(
-            "Das Muster im Feld unter einem Namen in die Vorlagen-Liste aufnehmen."
+            tr("Das Muster im Feld unter einem Namen in die Vorlagen-Liste aufnehmen.")
         )
         self.pattern_save_btn.clicked.connect(self._save_custom_pattern)
         preset_row.addWidget(self.pattern_save_btn)
-        self.pattern_delete_btn = QPushButton("Löschen")
-        self.pattern_delete_btn.setToolTip("Das gewählte gespeicherte Muster aus der Liste entfernen.")
+        self.pattern_delete_btn = QPushButton(tr("Löschen"))
+        self.pattern_delete_btn.setToolTip(tr("Das gewählte gespeicherte Muster aus der Liste entfernen."))
         self.pattern_delete_btn.clicked.connect(self._delete_custom_pattern)
         preset_row.addWidget(self.pattern_delete_btn)
-        form.addRow("Vorlage:", preset_row)
+        form.addRow(tr("Vorlage:"), preset_row)
 
         self.pattern_input = QLineEdit()
-        self.pattern_input.setPlaceholderText("leer = KI entscheidet selbst")
+        self.pattern_input.setPlaceholderText(tr("leer = KI entscheidet selbst"))
         self.pattern_input.setStyleSheet("font-family: monospace;")
         self.pattern_input.setToolTip(
-            "Platzhalter in geschweiften Klammern, dazwischen beliebige Trennzeichen.\n"
-            "Klick auf einen Platzhalter unten fügt ihn an der Cursorposition ein."
+            tr("Platzhalter in geschweiften Klammern, dazwischen beliebige Trennzeichen.\n"
+            "Klick auf einen Platzhalter unten fügt ihn an der Cursorposition ein.")
         )
         self.pattern_input.textChanged.connect(self._on_pattern_text_changed)
-        form.addRow("Muster:", self.pattern_input)
+        form.addRow(tr("Muster:"), self.pattern_input)
 
         # Platzhalter-Chips: Klick fuegt an der Cursorposition ein
         chips_widget = QWidget()
@@ -522,7 +540,7 @@ class SettingsDialog(QDialog):
         per_row = 5
         for i, ph in enumerate(PLACEHOLDERS):
             btn = QPushButton("{" + ph.key + "}")
-            btn.setToolTip(f"{ph.label}\nBeispiel: {ph.example}")
+            btn.setToolTip(tr("{label}\nBeispiel: {example}").format(label=ph.label, example=ph.example))
             btn.setStyleSheet(
                 "QPushButton { padding: 1px 6px; font-family: monospace; font-size: 11px; }"
             )
@@ -531,7 +549,7 @@ class SettingsDialog(QDialog):
             chips.addWidget(btn, i // per_row, i % per_row)
             self.pattern_chip_buttons.append(btn)
         self.pattern_legend_toggle = QToolButton()
-        self.pattern_legend_toggle.setText("Alle Platzhalter")
+        self.pattern_legend_toggle.setText(tr("Alle Platzhalter"))
         self.pattern_legend_toggle.setCheckable(True)
         self.pattern_legend_toggle.setArrowType(Qt.ArrowType.RightArrow)
         self.pattern_legend_toggle.setToolButtonStyle(
@@ -551,9 +569,9 @@ class SettingsDialog(QDialog):
         sep_row.setSpacing(4)
         self.pattern_sep_buttons = []
         for label, sep, tip in (
-            ("Leerzeichen", " ", "Leerzeichen einfuegen"),
-            ("_", "_", "Unterstrich einfuegen"),
-            ("-", "-", "Bindestrich einfuegen"),
+            (tr("Leerzeichen"), " ", tr("Leerzeichen einfuegen")),
+            ("_", "_", tr("Unterstrich einfuegen")),
+            ("-", "-", tr("Bindestrich einfuegen")),
         ):
             btn = QPushButton(label)
             btn.setToolTip(tip)
@@ -565,9 +583,9 @@ class SettingsDialog(QDialog):
             sep_row.addWidget(btn)
             self.pattern_sep_buttons.append(btn)
         sep_row.addStretch(1)
-        self.pattern_undo_btn = QPushButton("⌫ Zurücknehmen")
+        self.pattern_undo_btn = QPushButton(tr("⌫ Zurücknehmen"))
         self.pattern_undo_btn.setToolTip(
-            "Letzten Baustein vor dem Cursor entfernen (ganzer Platzhalter oder ein Trennzeichen)"
+            tr("Letzten Baustein vor dem Cursor entfernen (ganzer Platzhalter oder ein Trennzeichen)")
         )
         self.pattern_undo_btn.setStyleSheet("QPushButton { padding: 1px 8px; font-size: 11px; }")
         self.pattern_undo_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -601,37 +619,37 @@ class SettingsDialog(QDialog):
             "border: 1px solid #a5d6a7; border-radius: 3px; color: #1b5e20;"
         )
         preview_row.addWidget(self.pattern_preview_label, 1)
-        self.pattern_try_button = QPushButton("Mit aktueller PDF")
+        self.pattern_try_button = QPushButton(tr("Mit aktueller PDF"))
         self.pattern_try_button.setToolTip(
-            "Vorschau mit den KI-Metadaten der gerade ausgewählten PDF"
+            tr("Vorschau mit den KI-Metadaten der gerade ausgewählten PDF")
         )
         self.pattern_try_button.clicked.connect(self._preview_with_current_pdf)
         self.pattern_try_button.setVisible(self._example_values_provider is not None)
         preview_row.addWidget(self.pattern_try_button)
-        form.addRow("Vorschau:", preview_widget)
+        form.addRow(tr("Vorschau:"), preview_widget)
 
         layout.addLayout(form)
 
         # ---- Beim Verschieben in einen Ordner (Issue #42) ----
-        move_group = QGroupBox("Beim Verschieben in einen Ordner")
+        move_group = QGroupBox(tr("Beim Verschieben in einen Ordner"))
         move_layout = QVBoxLayout(move_group)
 
         # Beide Optionen gehen vom Namen im Feld "Neuer Dateiname" aus (KI-Vorschlag
         # oder eigene Eingabe); "beibehalten" wurde als "KI-Vorschlag verwerfen" gelesen.
         self.folder_naming_keep_radio = QRadioButton(
-            "Nichts ergänzen – Name wie vorgeschlagen bzw. eingegeben"
+            tr("Nichts ergänzen – Name wie vorgeschlagen bzw. eingegeben")
         )
         self.folder_naming_keep_radio.setToolTip(
-            "Die Datei bekommt genau den Namen aus dem Feld „Neuer Dateiname“\n"
-            "(KI-Vorschlag oder Ihre Änderung)."
+            tr("Die Datei bekommt genau den Namen aus dem Feld „Neuer Dateiname“\n"
+            "(KI-Vorschlag oder Ihre Änderung).")
         )
         self.folder_naming_prefix_radio = QRadioButton(
-            "Nach Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)"
+            tr("Nach Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)")
         )
         self.folder_naming_prefix_radio.setToolTip(
-            "Der Name aus dem Feld „Neuer Dateiname“ wird nach der Vorlage unten\n"
+            tr("Der Name aus dem Feld „Neuer Dateiname“ wird nach der Vorlage unten\n"
             "ergänzt ({text} steht für diesen Namen). Gleiche Einstellung wie\n"
-            "der Schalter „Ordnerstruktur im Namen“ über den Vorschlägen."
+            "der Schalter „Ordnerstruktur im Namen“ über den Vorschlägen.")
         )
         self.folder_naming_keep_radio.setChecked(True)
         move_layout.addWidget(self.folder_naming_keep_radio)
@@ -643,12 +661,12 @@ class SettingsDialog(QDialog):
         self.folder_naming_template_input.setPlaceholderText(DEFAULT_TEMPLATE)
         self.folder_naming_template_input.setStyleSheet("font-family: monospace;")
         self.folder_naming_template_input.setToolTip(
-            "Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem "
+            tr("Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem "
             "Zielordner-Namen, z.B. 069-03-05), {ordnerpfad} (Ordnernamen mit - "
             "verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), "
-            "{text} (Name aus dem Feld „Neuer Dateiname“ ohne Datum)"
+            "{text} (Name aus dem Feld „Neuer Dateiname“ ohne Datum)")
         )
-        move_form.addRow("Vorlage:", self.folder_naming_template_input)
+        move_form.addRow(tr("Vorlage:"), self.folder_naming_template_input)
 
         self.folder_naming_preview_label = QLineEdit()
         self.folder_naming_preview_label.setReadOnly(True)
@@ -656,12 +674,14 @@ class SettingsDialog(QDialog):
             "font-family: monospace; padding: 4px; background-color: #f5f5f5; "
             "border: 1px solid #ddd; border-radius: 3px; color: #444;"
         )
-        move_form.addRow("Ergebnis:", self.folder_naming_preview_label)
+        move_form.addRow(tr("Ergebnis:"), self.folder_naming_preview_label)
         move_layout.addLayout(move_form)
 
         move_hint = QLabel(
-            f"Beispiel für den Zielordner „{self._PREVIEW_FOLDER}“. "
-            "Ihre Initialen stellen Sie unter „Persönliche Daten“ ein."
+            tr(
+                "Beispiel für den Zielordner „{PREVIEW_FOLDER}“. Ihre Initialen stellen Sie "
+                "unter „Persönliche Daten“ ein."
+            ).format(PREVIEW_FOLDER=self._PREVIEW_FOLDER)
         )
         move_hint.setWordWrap(True)
         move_hint.setStyleSheet("color: #777; font-size: 11px;")
@@ -733,15 +753,18 @@ class SettingsDialog(QDialog):
         existing = self._custom_patterns()
         default_name = next((n for n, p in existing if p == pattern), "")
         name, ok = QInputDialog.getText(
-            self, "Muster speichern", "Name für dieses Muster:", text=default_name
+            self, tr("Muster speichern"), tr("Name für dieses Muster:"), text=default_name
         )
         name = (name or "").strip()
         if not ok or not name:
             return
         from src.core.filename_placeholders import builtin_pattern_names
         if name in builtin_pattern_names():
-            QMessageBox.warning(self, "Muster speichern",
-                                f"„{name}“ ist eine eingebaute Vorlage - bitte einen anderen Namen wählen.")
+            QMessageBox.warning(self, tr("Muster speichern"),
+                                tr(
+                                    "„{name}“ ist eine eingebaute Vorlage - bitte einen "
+                                    "anderen Namen wählen."
+                                ).format(name=name))
             return
         # Gleicher Name oder gleiches Muster -> Eintrag ersetzen
         patterns = [(n, p) for n, p in existing if n.lower() != name.lower() and p != pattern]
@@ -828,7 +851,7 @@ class SettingsDialog(QDialog):
         from src.ml.llm_provider import derive_initials
         derived = derive_initials(text)
         self.owner_initials_input.setPlaceholderText(
-            f"{derived} (aus dem Namen)" if derived else "z.B. JW"
+            tr("{derived} (aus dem Namen)").format(derived=derived) if derived else tr("z.B. MM")
         )
         self._update_filename_previews()
 
@@ -853,7 +876,7 @@ class SettingsDialog(QDialog):
         problems = [c for c in find_problem_chars(pattern) if not c.isspace()]
         if problems:
             self.pattern_warning_label.setText(
-                "Im Dateinamen nicht erlaubt: " + " ".join(problems) + " – wird durch _ ersetzt"
+                tr("Im Dateinamen nicht erlaubt: {0} – wird durch _ ersetzt").format(' '.join(problems))
             )
             self.pattern_warning_label.show()
         else:
@@ -863,11 +886,11 @@ class SettingsDialog(QDialog):
         values = {"initialen": initials} if initials else None
         if pattern:
             self._ki_preview_name = render_example(pattern, values)
-            self.pattern_preview_label.setText(self._ki_preview_name or "(leer)")
+            self.pattern_preview_label.setText(self._ki_preview_name or tr("(leer)"))
         else:
             self._ki_preview_name = render_example(self._PREVIEW_DEFAULT_PATTERN, values)
             self.pattern_preview_label.setText(
-                f"KI entscheidet selbst, z.B. {self._ki_preview_name}"
+                tr("KI entscheidet selbst, z.B. {ki_preview_name}").format(ki_preview_name=self._ki_preview_name)
             )
         self._update_folder_naming_preview()
 
@@ -908,14 +931,14 @@ class SettingsDialog(QDialog):
                 values = None
         if not values:
             self.pattern_preview_label.setText(
-                "Keine PDF ausgewählt oder noch keine KI-Metadaten vorhanden."
+                tr("Keine PDF ausgewählt oder noch keine KI-Metadaten vorhanden.")
             )
             return
         pattern = self.pattern_input.text().strip() or self._PREVIEW_DEFAULT_PATTERN
         initials = self._current_initials()
         if initials:
             values = {**values, "initialen": initials}
-        self.pattern_preview_label.setText(render_example(pattern, values) or "(leer)")
+        self.pattern_preview_label.setText(render_example(pattern, values) or tr("(leer)"))
 
     def _create_personal_tab(self) -> QWidget:
         """Erstellt den Tab für persönliche Daten."""
@@ -924,60 +947,60 @@ class SettingsDialog(QDialog):
 
         # Erklärung
         info_label = QLabel(
-            "Damit das System Sie nicht als Korrespondent erkennt, geben Sie hier\n"
+            tr("Damit das System Sie nicht als Korrespondent erkennt, geben Sie hier\n"
             "Ihren Namen ein. Der Korrespondent ist immer die andere Partei\n"
-            "(Firma, Behörde, Person) — nicht Sie selbst."
+            "(Firma, Behörde, Person) — nicht Sie selbst.")
         )
         info_label.setStyleSheet("color: #555; font-size: 11px; padding: 5px;")
         layout.addWidget(info_label)
 
         # Benutzerinformationen
-        user_group = QGroupBox("Ihre Daten")
+        user_group = QGroupBox(tr("Ihre Daten"))
         user_layout = QFormLayout(user_group)
 
         self.owner_name_input = QLineEdit()
-        self.owner_name_input.setPlaceholderText("z.B. Johannes Härle-Wack")
-        self.owner_name_input.setToolTip("Ihr vollständiger Name")
-        user_layout.addRow("Name:", self.owner_name_input)
+        self.owner_name_input.setPlaceholderText(tr("z.B. Max Mustermann"))
+        self.owner_name_input.setToolTip(tr("Ihr vollständiger Name"))
+        user_layout.addRow(tr("Name:"), self.owner_name_input)
 
         self.owner_initials_input = QLineEdit()
-        self.owner_initials_input.setPlaceholderText("z.B. JW")
+        self.owner_initials_input.setPlaceholderText(tr("z.B. MM"))
         self.owner_initials_input.setMaximumWidth(80)
         self.owner_initials_input.setToolTip(
-            "2-3 Großbuchstaben für den Platzhalter {initialen} in Dateinamen.\n"
-            "Leer = aus dem Namen abgeleitet."
+            tr("2-3 Großbuchstaben für den Platzhalter {initialen} in Dateinamen.\n"
+            "Leer = aus dem Namen abgeleitet.")
         )
-        user_layout.addRow("Initialen:", self.owner_initials_input)
+        user_layout.addRow(tr("Initialen:"), self.owner_initials_input)
 
         self.owner_variants_input = QLineEdit()
-        self.owner_variants_input.setPlaceholderText("z.B. J. Härle-Wack, Härle-Wack")
+        self.owner_variants_input.setPlaceholderText(tr("z.B. M. Mustermann, Mustermann"))
         self.owner_variants_input.setToolTip(
-            "Weitere Schreibweisen Ihres Namens (kommagetrennt),\n"
-            "die auf Dokumenten vorkommen können."
+            tr("Weitere Schreibweisen Ihres Namens (kommagetrennt),\n"
+            "die auf Dokumenten vorkommen können.")
         )
-        user_layout.addRow("Namensvarianten:", self.owner_variants_input)
+        user_layout.addRow(tr("Namensvarianten:"), self.owner_variants_input)
 
         self.owner_company_input = QLineEdit()
-        self.owner_company_input.setPlaceholderText("z.B. Härle-Wack GbR (optional)")
-        self.owner_company_input.setToolTip("Ihre eigene Firma (falls vorhanden)")
-        user_layout.addRow("Eigene Firma:", self.owner_company_input)
+        self.owner_company_input.setPlaceholderText(tr("z.B. Mustermann GbR (optional)"))
+        self.owner_company_input.setToolTip(tr("Ihre eigene Firma (falls vorhanden)"))
+        user_layout.addRow(tr("Eigene Firma:"), self.owner_company_input)
 
         self.owner_address_input = QLineEdit()
-        self.owner_address_input.setPlaceholderText("z.B. Musterstraße 12, 12345 Berlin (optional)")
-        self.owner_address_input.setToolTip("Ihre Adresse (hilft bei der Erkennung auf Briefen)")
-        user_layout.addRow("Adresse:", self.owner_address_input)
+        self.owner_address_input.setPlaceholderText(tr("z.B. Musterstraße 12, 12345 Berlin (optional)"))
+        self.owner_address_input.setToolTip(tr("Ihre Adresse (hilft bei der Erkennung auf Briefen)"))
+        user_layout.addRow(tr("Adresse:"), self.owner_address_input)
 
         self.owner_emails_input = QLineEdit()
         self.owner_emails_input.setPlaceholderText(
-            "z.B. ich@example.com, privat@example.com (kommagetrennt)"
+            tr("z.B. ich@example.com, privat@example.com (kommagetrennt)")
         )
         self.owner_emails_input.setToolTip(
-            "Ihre eigenen E-Mail-Adressen (kommagetrennt).\n"
+            tr("Ihre eigenen E-Mail-Adressen (kommagetrennt).\n"
             "Mehrere Adressen moeglich. Hilft der KI, Sie als Empfaenger\n"
             "und nicht als Korrespondent zu erkennen, wenn die Adresse\n"
-            "auf einem Dokument steht."
+            "auf einem Dokument steht.")
         )
-        user_layout.addRow("E-Mail-Adressen:", self.owner_emails_input)
+        user_layout.addRow(tr("E-Mail-Adressen:"), self.owner_emails_input)
 
         layout.addWidget(user_group)
 
@@ -989,13 +1012,33 @@ class SettingsDialog(QDialog):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Sprache der Oberflaeche (Issue #118) als erste Gruppe; der Titel steht
+        # in beiden Sprachen, damit man ihn auch in der fremden Sprache findet
+        # (Issue #235)
+        language_group = QGroupBox("Sprache / Language")
+        language_layout = QFormLayout(language_group)
+        self.language_combo = QComboBox()
+        self.language_combo.addItem(tr("Automatisch (Sprache des Systems)"), AUTO)
+        for kuerzel, name in available_languages():
+            self.language_combo.addItem(name, kuerzel)
+        self.language_combo.setToolTip(tr(
+            "„Automatisch“ zeigt das Programm auf Deutsch, wenn das System deutsch\n"
+            "eingestellt ist, sonst auf Englisch."
+        ))
+        language_layout.addRow(tr("Sprache:"), self.language_combo)
+        language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
+        language_hint.setStyleSheet("color: gray;")
+        language_hint.setWordWrap(True)
+        language_layout.addRow(language_hint)
+        layout.addWidget(language_group)
+
         # Darstellung
-        display_group = QGroupBox("Darstellung")
+        display_group = QGroupBox(tr("Darstellung"))
         display_layout = QFormLayout(display_group)
 
         tile_hint = QLabel(
-            "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
-            "über dem Scan-Bereich unter „Ansicht“ ein."
+            tr("Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
+            "über dem Scan-Bereich unter „Ansicht“ ein.")
         )
         tile_hint.setStyleSheet("color: gray;")
         tile_hint.setWordWrap(True)
@@ -1004,46 +1047,46 @@ class SettingsDialog(QDialog):
         self.max_suggestions_spin = QSpinBox()
         self.max_suggestions_spin.setRange(1, 10)
         self.max_suggestions_spin.setValue(5)
-        display_layout.addRow("Max. Vorschläge:", self.max_suggestions_spin)
+        display_layout.addRow(tr("Max. Vorschläge:"), self.max_suggestions_spin)
 
         # Issue #116: auch Ordner vorschlagen, die es noch nicht gibt
-        self.suggest_new_folders_check = QCheckBox("Neue Ordner vorschlagen")
+        self.suggest_new_folders_check = QCheckBox(tr("Neue Ordner vorschlagen"))
         self.suggest_new_folders_check.setChecked(True)
         self.suggest_new_folders_check.setToolTip(
-            "Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\n"
+            tr("Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\n"
             "oder nennt die KI einen passenden neuen Unterordner, erscheint er als\n"
-            "Vorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage."
+            "Vorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage.")
         )
         display_layout.addRow(self.suggest_new_folders_check)
 
         layout.addWidget(display_group)
 
         # Cache-Einstellungen
-        cache_group = QGroupBox("PDF-Analyse-Cache")
+        cache_group = QGroupBox(tr("PDF-Analyse-Cache"))
         cache_layout = QVBoxLayout(cache_group)
 
-        self.persist_cache_checkbox = QCheckBox("Cache über Programmende hinaus speichern")
+        self.persist_cache_checkbox = QCheckBox(tr("Cache über Programmende hinaus speichern"))
         self.persist_cache_checkbox.setToolTip(
-            "Wenn aktiviert, werden PDF-Analysen auf der Festplatte gespeichert.\n"
+            tr("Wenn aktiviert, werden PDF-Analysen auf der Festplatte gespeichert.\n"
             "Beim nächsten Start sind bereits analysierte PDFs sofort verfügbar.\n"
-            "Dies beschleunigt besonders große Ordner erheblich."
+            "Dies beschleunigt besonders große Ordner erheblich.")
         )
         cache_layout.addWidget(self.persist_cache_checkbox)
 
-        self.llm_precache_checkbox = QCheckBox("LLM-Vorschläge im Hintergrund vorladen (Pre-Caching)")
+        self.llm_precache_checkbox = QCheckBox(tr("LLM-Vorschläge im Hintergrund vorladen (Pre-Caching)"))
         self.llm_precache_checkbox.setToolTip(
-            "Wenn aktiviert, werden LLM-Namensvorschläge bereits im Hintergrund\n"
+            tr("Wenn aktiviert, werden LLM-Namensvorschläge bereits im Hintergrund\n"
             "abgerufen, bevor Sie den Umbenennen-Dialog öffnen.\n"
             "Dies beschleunigt den Dialog, verursacht aber mehr API-Aufrufe.\n"
-            "Deaktivieren für Debugging oder um API-Kosten zu sparen."
+            "Deaktivieren für Debugging oder um API-Kosten zu sparen.")
         )
         cache_layout.addWidget(self.llm_precache_checkbox)
 
         # Cache leeren Button
         cache_buttons_layout = QHBoxLayout()
 
-        self.clear_cache_button = QPushButton("Cache leeren")
-        self.clear_cache_button.setToolTip("Löscht alle gecachten PDF-Analysen")
+        self.clear_cache_button = QPushButton(tr("Cache leeren"))
+        self.clear_cache_button.setToolTip(tr("Löscht alle gecachten PDF-Analysen"))
         self.clear_cache_button.clicked.connect(self._clear_cache)
         cache_buttons_layout.addWidget(self.clear_cache_button)
 
@@ -1057,21 +1100,21 @@ class SettingsDialog(QDialog):
 
         # Windows-Explorer-Integration (nur unter Windows sinnvoll)
         if sys.platform == "win32":
-            explorer_group = QGroupBox("Windows-Explorer-Integration")
+            explorer_group = QGroupBox(tr("Windows-Explorer-Integration"))
             explorer_layout = QVBoxLayout(explorer_group)
 
             self.explorer_menu_checkbox = QCheckBox(
-                "Im Rechtsklick-Menue des Explorers anzeigen "
-                "(\"PDF Sortier Meister von hier oeffnen\")"
+                tr("Im Rechtsklick-Menue des Explorers anzeigen "
+                "(\"PDF Sortier Meister von hier oeffnen\")")
             )
             self.explorer_menu_checkbox.setToolTip(
-                "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n"
+                tr("Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n"
                 "  - Ordner (Rechtsklick auf Ordner-Icon)\n"
                 "  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n"
                 "  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n"
                 "    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\n"
                 "Laeuft das Programm bereits, wird der Pfad an die offene\n"
-                "Instanz uebergeben statt eine zweite zu starten."
+                "Instanz uebergeben statt eine zweite zu starten.")
             )
             explorer_layout.addWidget(self.explorer_menu_checkbox)
 
@@ -1083,35 +1126,35 @@ class SettingsDialog(QDialog):
             layout.addWidget(explorer_group)
 
         # PDF oeffnen (Issues #74/#76)
-        open_group = QGroupBox("PDF öffnen (Doppelklick auf ein Thumbnail)")
+        open_group = QGroupBox(tr("PDF öffnen (Doppelklick auf ein Thumbnail)"))
         open_layout = QFormLayout(open_group)
 
         self.pdf_open_mode_combo = QComboBox()
         for mode_id, label in OPEN_MODES:
             self.pdf_open_mode_combo.addItem(label, mode_id)
         self.pdf_open_mode_combo.setToolTip(
-            "Integrierte Vorschau: eigenes Fenster in der App, öffnet sofort.\n"
+            tr("Integrierte Vorschau: eigenes Fenster in der App, öffnet sofort.\n"
             "Standardprogramm: was Windows/macOS für PDFs eingestellt hat\n"
             "(oft der Browser).\n"
-            "Eigenes Programm: z. B. PDF-XChange Editor oder Acrobat."
+            "Eigenes Programm: z. B. PDF-XChange Editor oder Acrobat.")
         )
         self.pdf_open_mode_combo.currentIndexChanged.connect(self._update_pdf_open_command_enabled)
-        open_layout.addRow("Öffnen mit:", self.pdf_open_mode_combo)
+        open_layout.addRow(tr("Öffnen mit:"), self.pdf_open_mode_combo)
 
         command_row = QHBoxLayout()
         self.pdf_open_command_input = QLineEdit()
         self.pdf_open_command_input.setPlaceholderText(
-            "Pfad zum Programm, z. B. C:\\Program Files\\Tracker Software\\PDF Editor\\PDFXEdit.exe"
+            tr("Pfad zum Programm, z. B. C:\\Program Files\\Tracker Software\\PDF Editor\\PDFXEdit.exe")
         )
         command_row.addWidget(self.pdf_open_command_input, 1)
-        self.pdf_open_command_browse = QPushButton("Durchsuchen…")
+        self.pdf_open_command_browse = QPushButton(tr("Durchsuchen…"))
         self.pdf_open_command_browse.clicked.connect(self._browse_pdf_open_command)
         command_row.addWidget(self.pdf_open_command_browse)
-        open_layout.addRow("Programm:", command_row)
+        open_layout.addRow(tr("Programm:"), command_row)
 
         open_hint = QLabel(
-            "Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
-            "und immer aktiv."
+            tr("Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
+            "und immer aktiv.")
         )
         open_hint.setStyleSheet("color: gray;")
         open_hint.setWordWrap(True)
@@ -1120,19 +1163,19 @@ class SettingsDialog(QDialog):
         layout.addWidget(open_group)
 
         # Tonwerte beim Entzerren fotografierter Dokumente (Issue #205)
-        foto_group = QGroupBox("Fotos entzerren (Rechtsklick auf ein Bild)")
+        foto_group = QGroupBox(tr("Fotos entzerren (Rechtsklick auf ein Bild)"))
         foto_layout = QFormLayout(foto_group)
         self.bild_tonwerte_combo = QComboBox()
         for schluessel in TONWERTE:
             self.bild_tonwerte_combo.addItem(TONWERT_NAMEN[schluessel], schluessel)
         self.bild_tonwerte_combo.setToolTip(
-            "Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\n"
-            "Graustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei)."
+            tr("Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\n"
+            "Graustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei).")
         )
-        foto_layout.addRow("Tonwerte:", self.bild_tonwerte_combo)
+        foto_layout.addRow(tr("Tonwerte:"), self.bild_tonwerte_combo)
         foto_hint = QLabel(
-            "Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
-            "lässt sich die Wahl für den einzelnen Auftrag ändern."
+            tr("Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
+            "lässt sich die Wahl für den einzelnen Auftrag ändern.")
         )
         foto_hint.setStyleSheet("color: gray;")
         foto_hint.setWordWrap(True)
@@ -1140,34 +1183,34 @@ class SettingsDialog(QDialog):
         layout.addWidget(foto_group)
 
         # Original nach Umwandeln/Trennen (Issues #184, #187)
-        original_group = QGroupBox("Original nach dem Umwandeln und Trennen")
+        original_group = QGroupBox(tr("Original nach dem Umwandeln und Trennen"))
         original_layout = QFormLayout(original_group)
         self.original_combos = {}
         for aktion, label in AKTIONEN.items():
             combo = QComboBox()
-            combo.addItem("Jedes Mal fragen", None)
-            combo.addItem("In den Papierkorb verschieben", True)
-            combo.addItem("Behalten", False)
-            combo.setToolTip("Mit Strg+Z holst du ein weggeräumtes Original zurück.")
+            combo.addItem(tr("Jedes Mal fragen"), None)
+            combo.addItem(tr("In den Papierkorb verschieben"), True)
+            combo.addItem(tr("Behalten"), False)
+            combo.setToolTip(tr("Mit Strg+Z holst du ein weggeräumtes Original zurück."))
             self.original_combos[aktion] = combo
             original_layout.addRow(f"{label}:", combo)
         layout.addWidget(original_group)
 
         # Update-Pruefung (Issue #73)
-        update_group = QGroupBox("Updates")
+        update_group = QGroupBox(tr("Updates"))
         update_layout = QVBoxLayout(update_group)
 
-        self.update_check_checkbox = QCheckBox("Beim Programmstart auf neue Versionen prüfen")
+        self.update_check_checkbox = QCheckBox(tr("Beim Programmstart auf neue Versionen prüfen"))
         self.update_check_checkbox.setToolTip(
-            "Fragt kurz nach dem Start die Versionsnummer des neuesten Releases\n"
+            tr("Fragt kurz nach dem Start die Versionsnummer des neuesten Releases\n"
             "auf GitHub ab. Es werden keine Daten über Sie oder Ihre Dokumente\n"
-            "gesendet. Manuell jederzeit über Hilfe > Nach Updates suchen."
+            "gesendet. Manuell jederzeit über Hilfe > Nach Updates suchen.")
         )
         update_layout.addWidget(self.update_check_checkbox)
 
         update_info = QLabel(
-            "Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
-            "heruntergeladen und installiert wird nichts automatisch."
+            tr("Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
+            "heruntergeladen und installiert wird nichts automatisch.")
         )
         update_info.setStyleSheet("color: gray;")
         update_info.setWordWrap(True)
@@ -1176,48 +1219,48 @@ class SettingsDialog(QDialog):
         layout.addWidget(update_group)
 
         # Backup-Erinnerung (Issue #14)
-        backup_group = QGroupBox("Backup-Erinnerung")
+        backup_group = QGroupBox(tr("Backup-Erinnerung"))
         backup_layout = QHBoxLayout(backup_group)
-        backup_layout.addWidget(QLabel("Alle"))
+        backup_layout.addWidget(QLabel(tr("Alle", "Abstand")))
         self.backup_days_spin = QSpinBox()
         self.backup_days_spin.setRange(0, 365)
-        self.backup_days_spin.setSuffix(" Tage")
+        self.backup_days_spin.setSuffix(tr(" Tage"))
         self.backup_days_spin.setToolTip(
-            "Abstand, in dem gefragt wird, ob ein Backup gemacht wurde.\n"
-            "0 = Erinnerung aus. Ein aktuelles Macrium-Reflect-Log ersetzt die Frage."
+            tr("Abstand, in dem gefragt wird, ob ein Backup gemacht wurde.\n"
+            "0 = Erinnerung aus. Ein aktuelles Macrium-Reflect-Log ersetzt die Frage.")
         )
         backup_layout.addWidget(self.backup_days_spin)
-        backup_layout.addWidget(QLabel("nach einem Backup fragen (0 = aus)"))
+        backup_layout.addWidget(QLabel(tr("nach einem Backup fragen (0 = aus)")))
         backup_layout.addStretch()
         layout.addWidget(backup_group)
 
         # Unterstuetzen-Hinweis (Issue #115)
-        support_group = QGroupBox("Unterstützen")
+        support_group = QGroupBox(tr("Unterstützen"))
         support_layout = QVBoxLayout(support_group)
-        self.support_hint_disabled_checkbox = QCheckBox("Nicht mehr an das Unterstützen erinnern")
+        self.support_hint_disabled_checkbox = QCheckBox(tr("Nicht mehr an das Unterstützen erinnern"))
         self.support_hint_disabled_checkbox.setToolTip(
-            "Blendet den gelegentlichen Hinweis aus. Über Hilfe > Unterstützen ...\n"
-            "lässt sich der Dialog jederzeit öffnen."
+            tr("Blendet den gelegentlichen Hinweis aus. Über Hilfe > Unterstützen ...\n"
+            "lässt sich der Dialog jederzeit öffnen.")
         )
         support_layout.addWidget(self.support_hint_disabled_checkbox)
         layout.addWidget(support_group)
 
         # Debug-Bereich
-        debug_group = QGroupBox("Debug / Zurücksetzen")
+        debug_group = QGroupBox(tr("Debug / Zurücksetzen"))
         debug_layout = QVBoxLayout(debug_group)
 
         debug_info = QLabel(
-            "<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>"
+            tr("<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>")
         )
         debug_info.setStyleSheet("color: #cc0000;")
         debug_layout.addWidget(debug_info)
 
         debug_buttons_layout = QHBoxLayout()
 
-        self.clear_learning_button = QPushButton("🗑 Gelernte Ordnervorschläge löschen")
+        self.clear_learning_button = QPushButton(tr("🗑 Gelernte Ordnervorschläge löschen"))
         self.clear_learning_button.setToolTip(
-            "Löscht alle gelernten Zuordnungen (Sortierhistorie, Ordnerstatistiken).\n"
-            "Das Programm startet danach quasi 'neu' ohne Lernfortschritt."
+            tr("Löscht alle gelernten Zuordnungen (Sortierhistorie, Ordnerstatistiken).\n"
+            "Das Programm startet danach quasi 'neu' ohne Lernfortschritt.")
         )
         self.clear_learning_button.clicked.connect(self._clear_learned_data)
         debug_buttons_layout.addWidget(self.clear_learning_button)
@@ -1234,7 +1277,16 @@ class SettingsDialog(QDialog):
 
         layout.addStretch()
 
-        return tab
+        # Der Reiter ist hoeher als viele Bildschirme (Issue #235): ohne
+        # Scrollbereich quetscht Qt die Gruppen zusammen, bis die Texte
+        # unleserlich uebereinander liegen. Wie im KI-Reiter scrollen lassen.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(tab)
+        from PyQt6.QtWidgets import QAbstractScrollArea
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        return scroll
 
     # ------------------------------------------------------------------ Dokumentensuche (Registerkarte „Suche“)
 
@@ -1250,83 +1302,83 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(inner)
 
         self.search_active_check = QCheckBox(
-            "Dokumentensuche eingeschaltet (Volltextindex über die unten gewählten Ordner)"
+            tr("Dokumentensuche eingeschaltet (Volltextindex über die unten gewählten Ordner)")
         )
         self.search_active_check.setToolTip(
-            "Durchsucht PDFs (mit Texterkennung), Office-Dateien, Markdown und Mails\n"
+            tr("Durchsucht PDFs (mit Texterkennung), Office-Dateien, Markdown und Mails\n"
             "nach Stichwörtern. Der Index ist eine lokale Datenbank; Dateien werden\n"
-            "nur gelesen, nie verändert."
+            "nur gelesen, nie verändert.")
         )
         layout.addWidget(self.search_active_check)
         search_hint = QLabel(
-            "Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
-            "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert."
+            tr("Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
+            "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert.")
         )
         search_hint.setStyleSheet("color: gray;")
         search_hint.setWordWrap(True)
         layout.addWidget(search_hint)
 
         # Ordner und Laufwerke
-        folders_group = QGroupBox("Ordner und Laufwerke")
+        folders_group = QGroupBox(tr("Ordner und Laufwerke"))
         folders_layout = QVBoxLayout(folders_group)
-        folders_layout.addWidget(QLabel("Vollständig durchsuchte Ordner oder Laufwerke:"))
+        folders_layout.addWidget(QLabel(tr("Vollständig durchsuchte Ordner oder Laufwerke:")))
         self.search_roots_list = QListWidget()
         self.search_roots_list.setMaximumHeight(90)
         folders_layout.addWidget(self.search_roots_list)
         roots_buttons = QHBoxLayout()
-        self.search_roots_add = QPushButton("Ordner hinzufügen…")
+        self.search_roots_add = QPushButton(tr("Ordner hinzufügen…"))
         self.search_roots_add.clicked.connect(
-            lambda: self._search_list_add_folder(self.search_roots_list, "Ordner oder Laufwerk hinzufügen")
+            lambda: self._search_list_add_folder(self.search_roots_list, tr("Ordner oder Laufwerk hinzufügen"))
         )
         roots_buttons.addWidget(self.search_roots_add)
         self.search_roots_suggest = QToolButton()
-        self.search_roots_suggest.setText("Vorschläge")
-        self.search_roots_suggest.setToolTip("Scan- und Zielordner, Laufwerke bzw. Benutzerordner und Volumes")
+        self.search_roots_suggest.setText(tr("Vorschläge"))
+        self.search_roots_suggest.setToolTip(tr("Scan- und Zielordner, Laufwerke bzw. Benutzerordner und Volumes"))
         self.search_roots_suggest.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.search_roots_suggest_menu = QMenu(self.search_roots_suggest)
         self.search_roots_suggest_menu.aboutToShow.connect(self._search_fill_suggestions)
         self.search_roots_suggest.setMenu(self.search_roots_suggest_menu)
         roots_buttons.addWidget(self.search_roots_suggest)
-        self.search_roots_remove = QPushButton("Entfernen")
+        self.search_roots_remove = QPushButton(tr("Entfernen"))
         self.search_roots_remove.clicked.connect(lambda: self._search_list_remove(self.search_roots_list))
         roots_buttons.addWidget(self.search_roots_remove)
         roots_buttons.addStretch()
         folders_layout.addLayout(roots_buttons)
 
         folders_layout.addWidget(QLabel(
-            "Vorrang-Ordner (bei jedem Lauf zuerst; neue Scans im ersten Ordner werden sofort texterkannt):"
+            tr("Vorrang-Ordner (bei jedem Lauf zuerst; neue Scans im ersten Ordner werden sofort texterkannt):")
         ))
         self.search_priority_list = QListWidget()
         self.search_priority_list.setMaximumHeight(70)
         folders_layout.addWidget(self.search_priority_list)
         prio_buttons = QHBoxLayout()
-        self.search_priority_add = QPushButton("Ordner hinzufügen…")
+        self.search_priority_add = QPushButton(tr("Ordner hinzufügen…"))
         self.search_priority_add.clicked.connect(
-            lambda: self._search_list_add_folder(self.search_priority_list, "Vorrang-Ordner hinzufügen")
+            lambda: self._search_list_add_folder(self.search_priority_list, tr("Vorrang-Ordner hinzufügen"))
         )
         prio_buttons.addWidget(self.search_priority_add)
-        self.search_priority_remove = QPushButton("Entfernen")
+        self.search_priority_remove = QPushButton(tr("Entfernen"))
         self.search_priority_remove.clicked.connect(lambda: self._search_list_remove(self.search_priority_list))
         prio_buttons.addWidget(self.search_priority_remove)
         prio_buttons.addStretch()
         folders_layout.addLayout(prio_buttons)
 
-        folders_layout.addWidget(QLabel("Ordnernamen, die überall übersprungen werden (einer je Zeile):"))
+        folders_layout.addWidget(QLabel(tr("Ordnernamen, die überall übersprungen werden (einer je Zeile):")))
         self.search_exclude_names_edit = QPlainTextEdit()
         self.search_exclude_names_edit.setMaximumHeight(70)
         folders_layout.addWidget(self.search_exclude_names_edit)
 
-        folders_layout.addWidget(QLabel("Vollständige Pfade, die übersprungen werden:"))
+        folders_layout.addWidget(QLabel(tr("Vollständige Pfade, die übersprungen werden:")))
         self.search_exclude_paths_list = QListWidget()
         self.search_exclude_paths_list.setMaximumHeight(60)
         folders_layout.addWidget(self.search_exclude_paths_list)
         excl_buttons = QHBoxLayout()
-        self.search_exclude_paths_add = QPushButton("Pfad hinzufügen…")
+        self.search_exclude_paths_add = QPushButton(tr("Pfad hinzufügen…"))
         self.search_exclude_paths_add.clicked.connect(
-            lambda: self._search_list_add_folder(self.search_exclude_paths_list, "Auszuschließenden Ordner wählen")
+            lambda: self._search_list_add_folder(self.search_exclude_paths_list, tr("Auszuschließenden Ordner wählen"))
         )
         excl_buttons.addWidget(self.search_exclude_paths_add)
-        self.search_exclude_paths_remove = QPushButton("Entfernen")
+        self.search_exclude_paths_remove = QPushButton(tr("Entfernen"))
         self.search_exclude_paths_remove.clicked.connect(
             lambda: self._search_list_remove(self.search_exclude_paths_list)
         )
@@ -1336,31 +1388,31 @@ class SettingsDialog(QDialog):
 
         ext_row = QFormLayout()
         self.search_extensions_edit = QLineEdit()
-        self.search_extensions_edit.setToolTip("Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg")
-        ext_row.addRow("Dateiendungen:", self.search_extensions_edit)
+        self.search_extensions_edit.setToolTip(tr("Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"))
+        ext_row.addRow(tr("Dateiendungen:"), self.search_extensions_edit)
         folders_layout.addLayout(ext_row)
         layout.addWidget(folders_group)
 
         # Mails
-        mail_group = QGroupBox("Mails (Thunderbird-Postfächer)")
+        mail_group = QGroupBox(tr("Mails (Thunderbird-Postfächer)"))
         mail_layout = QVBoxLayout(mail_group)
-        self.search_mails_check = QCheckBox("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)")
+        self.search_mails_check = QCheckBox(tr("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"))
         mail_layout.addWidget(self.search_mails_check)
         self.search_thunderbird_label = QLabel("")
         self.search_thunderbird_label.setStyleSheet("color: gray;")
         self.search_thunderbird_label.setWordWrap(True)
         mail_layout.addWidget(self.search_thunderbird_label)
-        mail_layout.addWidget(QLabel("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):"))
+        mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):")))
         self.search_mail_folders_list = QListWidget()
         self.search_mail_folders_list.setMaximumHeight(60)
         mail_layout.addWidget(self.search_mail_folders_list)
         mail_buttons = QHBoxLayout()
-        self.search_mail_folders_add = QPushButton("Ordner hinzufügen…")
+        self.search_mail_folders_add = QPushButton(tr("Ordner hinzufügen…"))
         self.search_mail_folders_add.clicked.connect(
-            lambda: self._search_list_add_folder(self.search_mail_folders_list, "Postfach-Ordner (Mail/, ImapMail/) wählen")
+            lambda: self._search_list_add_folder(self.search_mail_folders_list, tr("Postfach-Ordner (Mail/, ImapMail/) wählen"))
         )
         mail_buttons.addWidget(self.search_mail_folders_add)
-        self.search_mail_folders_remove = QPushButton("Entfernen")
+        self.search_mail_folders_remove = QPushButton(tr("Entfernen"))
         self.search_mail_folders_remove.clicked.connect(
             lambda: self._search_list_remove(self.search_mail_folders_list)
         )
@@ -1370,18 +1422,18 @@ class SettingsDialog(QDialog):
         layout.addWidget(mail_group)
 
         # Texterkennung
-        ocr_group = QGroupBox("Texterkennung (OCR) für gescannte PDFs")
+        ocr_group = QGroupBox(tr("Texterkennung (OCR) für gescannte PDFs"))
         ocr_layout = QFormLayout(ocr_group)
-        self.search_ocr_check = QCheckBox("Bildseiten ohne Text mit Tesseract erkennen")
+        self.search_ocr_check = QCheckBox(tr("Bildseiten ohne Text mit Tesseract erkennen"))
         ocr_layout.addRow(self.search_ocr_check)
         self.search_ocr_languages_edit = QLineEdit()
-        self.search_ocr_languages_edit.setToolTip("Tesseract-Sprachen, mit + verbunden, z. B. deu+eng")
-        ocr_layout.addRow("Sprachen:", self.search_ocr_languages_edit)
+        self.search_ocr_languages_edit.setToolTip(tr("Tesseract-Sprachen, mit + verbunden, z. B. deu+eng"))
+        ocr_layout.addRow(tr("Sprachen:"), self.search_ocr_languages_edit)
         self.search_ocr_max_pages_spin = QSpinBox()
         self.search_ocr_max_pages_spin.setRange(0, 100000)
-        self.search_ocr_max_pages_spin.setSpecialValueText("keine Grenze")
-        self.search_ocr_max_pages_spin.setToolTip("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt")
-        ocr_layout.addRow("Höchstens Bildseiten je PDF:", self.search_ocr_max_pages_spin)
+        self.search_ocr_max_pages_spin.setSpecialValueText(tr("keine Grenze"))
+        self.search_ocr_max_pages_spin.setToolTip(tr("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt"))
+        ocr_layout.addRow(tr("Höchstens Bildseiten je PDF:"), self.search_ocr_max_pages_spin)
         self.search_ocr_status_label = QLabel("")
         self.search_ocr_status_label.setStyleSheet("color: gray;")
         self.search_ocr_status_label.setWordWrap(True)
@@ -1389,35 +1441,35 @@ class SettingsDialog(QDialog):
         layout.addWidget(ocr_group)
 
         # Cloud-Dateien und Grenzen
-        limits_group = QGroupBox("Cloud-Dateien und Grenzen")
+        limits_group = QGroupBox(tr("Cloud-Dateien und Grenzen"))
         limits_layout = QFormLayout(limits_group)
         self.search_cloud_check = QCheckBox(
-            "Nur in der Cloud liegende Dateien (OneDrive, iCloud Drive) zum Lesen herunterladen"
+            tr("Nur in der Cloud liegende Dateien (OneDrive, iCloud Drive) zum Lesen herunterladen")
         )
-        self.search_cloud_check.setToolTip("Sonst werden solche Dateien nur mit ihrem Namen aufgenommen.")
+        self.search_cloud_check.setToolTip(tr("Sonst werden solche Dateien nur mit ihrem Namen aufgenommen."))
         limits_layout.addRow(self.search_cloud_check)
         self.search_max_size_spin = QSpinBox()
         self.search_max_size_spin.setRange(1, 100000)
         self.search_max_size_spin.setSuffix(" MB")
-        limits_layout.addRow("Größere Dateien nur mit Namen aufnehmen ab:", self.search_max_size_spin)
+        limits_layout.addRow(tr("Größere Dateien nur mit Namen aufnehmen ab:"), self.search_max_size_spin)
         layout.addWidget(limits_group)
 
         # Hintergrundindexierung
-        bg_group = QGroupBox("Hintergrundindexierung")
+        bg_group = QGroupBox(tr("Hintergrundindexierung"))
         bg_layout = QFormLayout(bg_group)
-        self.search_background_check = QCheckBox("Einmal täglich im Hintergrund indizieren, sobald der Rechner nicht "
-                                                  "benutzt wird")
+        self.search_background_check = QCheckBox(tr("Einmal täglich im Hintergrund indizieren, sobald der Rechner nicht "
+                                                  "benutzt wird"))
         bg_layout.addRow(self.search_background_check)
         self.search_background_time_edit = QTimeEdit()
         self.search_background_time_edit.setDisplayFormat("HH:mm")
-        bg_layout.addRow("Frühestens ab:", self.search_background_time_edit)
+        bg_layout.addRow(tr("Frühestens ab:"), self.search_background_time_edit)
         bg_hint = QLabel(
-            "Der Lauf beginnt erst, wenn der Rechner 10 Minuten nicht benutzt wurde, und hält an, "
+            tr("Der Lauf beginnt erst, wenn der Rechner 10 Minuten nicht benutzt wurde, und hält an, "
             "sobald Sie weiterarbeiten; im nächsten Leerlauf geht er weiter. War der Rechner zur "
             "eingestellten Zeit aus, wird der Lauf nach dem Einschalten nachgeholt – ebenfalls erst "
             "im Leerlauf, nicht direkt nach dem Start. Eingerichtet wird er beim Speichern über die "
             "Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind "
-            "nicht nötig."
+            "nicht nötig.")
         )
         bg_hint.setStyleSheet("color: gray;")
         bg_hint.setWordWrap(True)
@@ -1425,23 +1477,23 @@ class SettingsDialog(QDialog):
         layout.addWidget(bg_group)
 
         # Browser-Oberflaeche
-        web_group = QGroupBox("Browser-Oberfläche (nur auf diesem Rechner erreichbar)")
+        web_group = QGroupBox(tr("Browser-Oberfläche (nur auf diesem Rechner erreichbar)"))
         web_layout = QFormLayout(web_group)
-        self.search_web_check = QCheckBox("Browser-Oberfläche der Suche einschalten")
+        self.search_web_check = QCheckBox(tr("Browser-Oberfläche der Suche einschalten"))
         web_layout.addRow(self.search_web_check)
-        self.search_web_login_check = QCheckBox("Bei der Anmeldung automatisch starten (nicht nötig)")
+        self.search_web_login_check = QCheckBox(tr("Bei der Anmeldung automatisch starten (nicht nötig)"))
         self.search_web_login_check.setToolTip(
-            "Legt eine Anmeldeaufgabe an. Manche Virenscanner, z. B. Microsoft Defender, melden das bei "
-            "unsignierten Programmen als verdächtig und entfernen den Hintergrunddienst."
+            tr("Legt eine Anmeldeaufgabe an. Manche Virenscanner, z. B. Microsoft Defender, melden das bei "
+            "unsignierten Programmen als verdächtig und entfernen den Hintergrunddienst.")
         )
         web_layout.addRow(self.search_web_login_check)
         self.search_web_port_spin = QSpinBox()
         self.search_web_port_spin.setRange(1024, 65535)
-        web_layout.addRow("Port:", self.search_web_port_spin)
+        web_layout.addRow(tr("Port:"), self.search_web_port_spin)
         web_hint = QLabel(
-            "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“; dabei startet sie bei Bedarf "
+            tr("Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“; dabei startet sie bei Bedarf "
             "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
-            "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig."
+            "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig.")
         )
         web_hint.setStyleSheet("color: gray;")
         web_hint.setWordWrap(True)
@@ -1452,45 +1504,45 @@ class SettingsDialog(QDialog):
         layout.addWidget(self._create_mcp_group())
 
         # Leistung
-        perf_group = QGroupBox("Leistung")
+        perf_group = QGroupBox(tr("Leistung"))
         perf_layout = QFormLayout(perf_group)
         self.search_processes_spin = QSpinBox()
         self.search_processes_spin.setRange(0, 64)
-        self.search_processes_spin.setSpecialValueText("automatisch (halbe Kernzahl, höchstens 8)")
-        perf_layout.addRow("Arbeitsprozesse:", self.search_processes_spin)
+        self.search_processes_spin.setSpecialValueText(tr("automatisch (halbe Kernzahl, höchstens 8)"))
+        perf_layout.addRow(tr("Arbeitsprozesse:"), self.search_processes_spin)
         layout.addWidget(perf_group)
 
         # Textebene (Phase 5b)
-        text_group = QGroupBox("Gescannte PDFs verbessern (Textebene, Drehung, Schräglage)")
+        text_group = QGroupBox(tr("Gescannte PDFs verbessern (Textebene, Drehung, Schräglage)"))
         text_layout = QFormLayout(text_group)
         self.search_textlayer_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – keine PDF wird verändert", "aus"),
-            ("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – keine PDF wird verändert"), "aus"),
+            (tr("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)"), "alle"),
         ):
             self.search_textlayer_combo.addItem(label, stufe)
         self._search_textlayer_previous = "aus"
         self.search_textlayer_combo.currentIndexChanged.connect(self._on_search_textlayer_changed)
-        text_layout.addRow("Textebene schreiben:", self.search_textlayer_combo)
+        text_layout.addRow(tr("Textebene schreiben:"), self.search_textlayer_combo)
         self.search_textlayer_backup_days_spin = QSpinBox()
         self.search_textlayer_backup_days_spin.setRange(0, 3650)
-        self.search_textlayer_backup_days_spin.setSuffix(" Tage")
-        self.search_textlayer_backup_days_spin.setSpecialValueText("unbegrenzt")
-        text_layout.addRow("Sicherungskopien aufbewahren:", self.search_textlayer_backup_days_spin)
-        self.search_textlayer_protocol_button = QPushButton("Geänderte PDFs anzeigen / rückgängig machen…")
+        self.search_textlayer_backup_days_spin.setSuffix(tr(" Tage"))
+        self.search_textlayer_backup_days_spin.setSpecialValueText(tr("unbegrenzt"))
+        text_layout.addRow(tr("Sicherungskopien aufbewahren:"), self.search_textlayer_backup_days_spin)
+        self.search_textlayer_protocol_button = QPushButton(tr("Geänderte PDFs anzeigen / rückgängig machen…"))
         self.search_textlayer_protocol_button.setToolTip(
-            "Protokoll aller PDFs, die eine Textebene bekommen haben; einzelne Änderungen zurücknehmen"
+            tr("Protokoll aller PDFs, die eine Textebene bekommen haben; einzelne Änderungen zurücknehmen")
         )
         self.search_textlayer_protocol_button.clicked.connect(self._open_textlayer_protocol)
         text_layout.addRow(self.search_textlayer_protocol_button)
         text_hint = QLabel(
-            "Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit auch "
+            tr("Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit auch "
             "andere Programme (Explorer-Suche, Acrobat, PaperPort) ihn finden und man ihn "
             "markieren kann. Das Scanbild bleibt unverändert; vor jeder Änderung entsteht "
             "eine Sicherungskopie. Geschrieben wird beim nächsten Indexlauf, auch wenn die "
             "Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien "
-            "sowie geöffnete Dateien bleiben unberührt."
+            "sowie geöffnete Dateien bleiben unberührt.")
         )
         text_hint.setStyleSheet("color: gray;")
         text_hint.setWordWrap(True)
@@ -1498,20 +1550,20 @@ class SettingsDialog(QDialog):
         # Gedrehte Scans (Issue #151)
         self.search_autorotate_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – Seiten bleiben, wie sie gescannt wurden", "aus"),
-            ("Alle PDFs, deren Texterkennung eine gedrehte Seite findet", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – Seiten bleiben, wie sie gescannt wurden"), "aus"),
+            (tr("Alle PDFs, deren Texterkennung eine gedrehte Seite findet"), "alle"),
         ):
             self.search_autorotate_combo.addItem(label, stufe)
         self.search_autorotate_combo.setToolTip(
-            "Liest die Texterkennung eine Seite erst gedreht richtig, wird die PDF so gespeichert"
+            tr("Liest die Texterkennung eine Seite erst gedreht richtig, wird die PDF so gespeichert")
         )
-        text_layout.addRow("Gedrehte Seiten richtig herum speichern:", self.search_autorotate_combo)
+        text_layout.addRow(tr("Gedrehte Seiten richtig herum speichern:"), self.search_autorotate_combo)
         rotate_hint = QLabel(
-            "Liest die Texterkennung eine Seite nicht, weil sie auf dem Kopf steht oder quer "
+            tr("Liest die Texterkennung eine Seite nicht, weil sie auf dem Kopf steht oder quer "
             "liegt, versucht sie die drei anderen Lagen und nimmt die beste. So herum wird die "
             "Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die "
-            "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert."
+            "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert.")
         )
         rotate_hint.setStyleSheet("color: gray;")
         rotate_hint.setWordWrap(True)
@@ -1519,20 +1571,20 @@ class SettingsDialog(QDialog):
         # Schief gescannte Seiten (Issue #165)
         self.search_deskew_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – Seiten bleiben, wie sie gescannt wurden", "aus"),
-            ("Alle neu eingelesenen gescannten PDFs", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – Seiten bleiben, wie sie gescannt wurden"), "aus"),
+            (tr("Alle neu eingelesenen gescannten PDFs"), "alle"),
         ):
             self.search_deskew_combo.addItem(label, stufe)
         self.search_deskew_combo.setToolTip(
-            "Schief eingezogene Seiten werden um den kleinen Winkel gerade gedreht"
+            tr("Schief eingezogene Seiten werden um den kleinen Winkel gerade gedreht")
         )
-        text_layout.addRow("Schief gescannte Seiten gerade ausrichten:", self.search_deskew_combo)
+        text_layout.addRow(tr("Schief gescannte Seiten gerade ausrichten:"), self.search_deskew_combo)
         deskew_hint = QLabel(
-            "Beim Einlesen wird gemessen, ob die Zeilen eines Scans schräg stehen (ab 0,3°). Dann "
+            tr("Beim Einlesen wird gemessen, ob die Zeilen eines Scans schräg stehen (ab 0,3°). Dann "
             "dreht PDFSM den Seiteninhalt um diesen Winkel gerade – mit Sicherungskopie, im Protokoll "
             "oben, rückgängig wie die Textebene. Das Scanbild wird dabei nicht neu berechnet, eine "
-            "vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten."
+            "vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten.")
         )
         deskew_hint.setStyleSheet("color: gray;")
         deskew_hint.setWordWrap(True)
@@ -1540,22 +1592,22 @@ class SettingsDialog(QDialog):
         layout.addWidget(text_group)
 
         # Speicherort und Uebernahme
-        storage_group = QGroupBox("Speicherort und Übernahme")
+        storage_group = QGroupBox(tr("Speicherort und Übernahme"))
         storage_layout = QFormLayout(storage_group)
         db_row = QHBoxLayout()
         self.search_db_path_edit = QLineEdit()
         self.search_db_path_edit.setToolTip(
-            "Leer = Standardort im Datenverzeichnis. Bei einer übernommenen PDFsuche\n"
-            "zeigt der Wert auf deren bisherige Datenbank."
+            tr("Leer = Standardort im Datenverzeichnis. Bei einer übernommenen PDFsuche\n"
+            "zeigt der Wert auf deren bisherige Datenbank.")
         )
         db_row.addWidget(self.search_db_path_edit, 1)
-        self.search_db_browse = QPushButton("Durchsuchen…")
+        self.search_db_browse = QPushButton(tr("Durchsuchen…"))
         self.search_db_browse.clicked.connect(self._browse_search_db)
         db_row.addWidget(self.search_db_browse)
-        storage_layout.addRow("Datenbank:", db_row)
-        self.search_migrate_button = QPushButton("Vorhandene PDFsuche übernehmen…")
+        storage_layout.addRow(tr("Datenbank:"), db_row)
+        self.search_migrate_button = QPushButton(tr("Vorhandene PDFsuche übernehmen…"))
         self.search_migrate_button.setToolTip(
-            "Einstellungen und Datenbank des früheren, eigenständigen Programms PDFsuche übernehmen"
+            tr("Einstellungen und Datenbank des früheren, eigenständigen Programms PDFsuche übernehmen")
         )
         self.search_migrate_button.clicked.connect(self._open_search_migration)
         storage_layout.addRow(self.search_migrate_button)
@@ -1594,13 +1646,13 @@ class SettingsDialog(QDialog):
         self._mcp_desktop_status: mcp_einrichtung.Status | None = None
         self._mcp_hintergrund = _Hintergrund(self)
 
-        group = QGroupBox("KI-Assistenten (MCP)")
+        group = QGroupBox(tr("KI-Assistenten (MCP)"))
         form = QFormLayout(group)
 
         self.mcp_hint_label = QLabel(
-            "Claude Desktop, Claude Code und andere MCP-fähige Programme durchsuchen über den "
+            tr("Claude Desktop, Claude Code und andere MCP-fähige Programme durchsuchen über den "
             "Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst "
-            "liest den Index nur."
+            "liest den Index nur.")
         )
         self.mcp_hint_label.setStyleSheet("color: gray;")
         self.mcp_hint_label.setWordWrap(True)
@@ -1611,28 +1663,28 @@ class SettingsDialog(QDialog):
         self.mcp_dienst_edit = QLineEdit(str(mcp_einrichtung.dienst_pfad()))
         self.mcp_dienst_edit.setReadOnly(True)
         self.mcp_dienst_edit.setCursorPosition(0)
-        tipp = "So startet ein KI-Assistent den Dienst (stdio)."
+        tipp = tr("So startet ein KI-Assistent den Dienst (stdio).")
         if aufruf.umgebung:
-            tipp += "\nEntwicklungsmodus, zusätzlich: " + ", ".join(f"{k}={v}" for k, v in aufruf.umgebung.items())
+            tipp += tr("\nEntwicklungsmodus, zusätzlich: {0}").format(', '.join((f'{k}={v}' for k, v in aufruf.umgebung.items())))
         self.mcp_dienst_edit.setToolTip(tipp)
         dienst_row.addWidget(self.mcp_dienst_edit, 1)
-        self.mcp_dienst_copy_button = QPushButton("Kopieren")
+        self.mcp_dienst_copy_button = QPushButton(tr("Kopieren"))
         self.mcp_dienst_copy_button.clicked.connect(
             lambda: QApplication.clipboard().setText(self.mcp_dienst_edit.text())
         )
         dienst_row.addWidget(self.mcp_dienst_copy_button)
-        form.addRow("Dienst:", dienst_row)
+        form.addRow(tr("Dienst:"), dienst_row)
 
         self.mcp_tools_label = QLabel("")
         self.mcp_tools_label.setWordWrap(True)
         self.mcp_tools_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        form.addRow("Werkzeuge:", self.mcp_tools_label)
+        form.addRow(tr("Werkzeuge:"), self.mcp_tools_label)
 
-        self.mcp_sql_check = QCheckBox("SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)")
+        self.mcp_sql_check = QCheckBox(tr("SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)"))
         self.mcp_sql_check.setToolTip(
-            "Gibt dem Assistenten zusätzlich das Werkzeug sql_abfrage (Summen, Zählungen).\n"
+            tr("Gibt dem Assistenten zusätzlich das Werkzeug sql_abfrage (Summen, Zählungen).\n"
             "Derselbe Schalter wie unter „KI-Assistent (LLM)“ › Chat; er gilt für beide.\n"
-            "Der Assistent sieht die Änderung nach seinem nächsten Neustart."
+            "Der Assistent sieht die Änderung nach seinem nächsten Neustart.")
         )
         form.addRow(self.mcp_sql_check)
         # Ein Wert an zwei Stellen: setChecked mit gleichem Wert sendet kein toggled (keine Schleife)
@@ -1644,33 +1696,33 @@ class SettingsDialog(QDialog):
         self.mcp_code_status_label = QLabel("–")
         self.mcp_code_status_label.setWordWrap(True)
         code_row.addWidget(self.mcp_code_status_label, 1)
-        self.mcp_code_button = QPushButton("Einrichten")
+        self.mcp_code_button = QPushButton(tr("Einrichten"))
         self.mcp_code_button.setEnabled(False)
         self.mcp_code_button.setToolTip(
             mcp_einrichtung.befehlszeile(mcp_einrichtung.claude_code_befehl(aufruf))
         )
         self.mcp_code_button.clicked.connect(self._mcp_code_einrichten)
         code_row.addWidget(self.mcp_code_button)
-        form.addRow("Claude Code:", code_row)
+        form.addRow(tr("Claude Code:"), code_row)
 
         desktop_row = QHBoxLayout()
         self.mcp_desktop_status_label = QLabel("–")
         self.mcp_desktop_status_label.setWordWrap(True)
         desktop_row.addWidget(self.mcp_desktop_status_label, 1)
-        self.mcp_desktop_copy_button = QPushButton("Eintrag kopieren")
+        self.mcp_desktop_copy_button = QPushButton(tr("Eintrag kopieren"))
         self.mcp_desktop_copy_button.setToolTip(
-            "Kopiert den Eintrag für claude_desktop_config.json (JSON) in die Zwischenablage."
+            tr("Kopiert den Eintrag für claude_desktop_config.json (JSON) in die Zwischenablage.")
         )
         self.mcp_desktop_copy_button.clicked.connect(self._mcp_desktop_kopieren)
         desktop_row.addWidget(self.mcp_desktop_copy_button)
-        self.mcp_desktop_write_button = QPushButton("In Konfiguration eintragen")
+        self.mcp_desktop_write_button = QPushButton(tr("In Konfiguration eintragen"))
         self.mcp_desktop_write_button.setEnabled(False)
         self.mcp_desktop_write_button.clicked.connect(self._mcp_desktop_eintragen)
         desktop_row.addWidget(self.mcp_desktop_write_button)
-        form.addRow("Claude Desktop:", desktop_row)
+        form.addRow(tr("Claude Desktop:"), desktop_row)
 
         self.mcp_meldung_label = QLabel(
-            "Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten."
+            tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
         self.mcp_meldung_label.setStyleSheet("color: gray;")
         self.mcp_meldung_label.setWordWrap(True)
@@ -1690,7 +1742,7 @@ class SettingsDialog(QDialog):
         """Claude Desktop sofort (Datei lesen), Claude Code im Hintergrund (``claude mcp get``)."""
         self._mcp_geprueft = True
         self._mcp_desktop_status_setzen(mcp_einrichtung.claude_desktop_status())
-        self.mcp_code_status_label.setText("wird geprüft …")
+        self.mcp_code_status_label.setText(tr("wird geprüft …"))
         self.mcp_code_button.setEnabled(False)
         self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
                                       self._mcp_code_status_setzen)
@@ -1700,11 +1752,11 @@ class SettingsDialog(QDialog):
 
     def _mcp_code_status_setzen(self, status) -> None:
         if isinstance(status, Exception):
-            status = mcp_einrichtung.Status(mcp_einrichtung.FEHLER, f"Prüfung gescheitert: {status}")
+            status = mcp_einrichtung.Status(mcp_einrichtung.FEHLER, tr("Prüfung gescheitert: {status}").format(status=status))
         self._mcp_code_status = status
         self.mcp_code_status_label.setText(self._mcp_status_text(status))
         vorhanden = status.zustand in (mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
-        self.mcp_code_button.setText("Neu einrichten" if vorhanden else "Einrichten")
+        self.mcp_code_button.setText(tr("Neu einrichten") if vorhanden else tr("Einrichten"))
         self.mcp_code_button.setEnabled(status.zustand != mcp_einrichtung.NICHT_GEFUNDEN)
 
     def _mcp_code_einrichten(self) -> None:
@@ -1712,27 +1764,26 @@ class SettingsDialog(QDialog):
         ersetzen = status is not None and status.zustand in (
             mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
         befehl = mcp_einrichtung.befehlszeile(mcp_einrichtung.claude_code_befehl())
-        frage = ("Claude Code richtet den Server „pdfsuche“ für alle Projekte ein:\n\n"
-                 f"{befehl}\n\n")
+        frage = (tr("Claude Code richtet den Server „pdfsuche“ für alle Projekte ein:\n\n{befehl}\n\n").format(befehl=befehl))
         if ersetzen:
-            frage += "Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n"
-        frage += "Fortfahren?"
-        antwort = QMessageBox.question(self, "Claude Code einrichten", frage)
+            frage += tr("Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n")
+        frage += tr("Fortfahren?")
+        antwort = QMessageBox.question(self, tr("Claude Code einrichten"), frage)
         if antwort != QMessageBox.StandardButton.Yes:
             return
         self.mcp_code_button.setEnabled(False)
-        self.mcp_code_status_label.setText("wird eingerichtet …")
+        self.mcp_code_status_label.setText(tr("wird eingerichtet …"))
         self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_einrichten(ersetzen),
                                       self._mcp_code_eingerichtet)
 
     def _mcp_code_eingerichtet(self, text) -> None:
         if isinstance(text, Exception):
-            text = f"Fehler: {text}"
-        if str(text).startswith("Fehler"):
-            QMessageBox.warning(self, "Claude Code", str(text))
+            text = tr("Fehler: {text}").format(text=text)
+        if str(text).startswith(tr("Fehler")):
+            QMessageBox.warning(self, tr("Claude Code"), str(text))
         else:
-            QMessageBox.information(self, "Claude Code", str(text))
-        self.mcp_code_status_label.setText("wird geprüft …")
+            QMessageBox.information(self, tr("Claude Code"), str(text))
+        self.mcp_code_status_label.setText(tr("wird geprüft …"))
         self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
                                       self._mcp_code_status_setzen)
 
@@ -1744,9 +1795,9 @@ class SettingsDialog(QDialog):
         schreibbar = status.pfad is not None and status.zustand != mcp_einrichtung.FEHLER
         self.mcp_desktop_write_button.setEnabled(schreibbar)
         self.mcp_desktop_write_button.setToolTip(
-            f"Trägt „pdfsuche“ in {status.pfad} ein (mit Sicherungskopie)." if schreibbar
-            else "Keine beschreibbare Konfiguration von Claude Desktop gefunden – "
-                 "„Eintrag kopieren“ und von Hand einfügen."
+            tr("Trägt „pdfsuche“ in {pfad} ein (mit Sicherungskopie).").format(pfad=status.pfad) if schreibbar
+            else tr("Keine beschreibbare Konfiguration von Claude Desktop gefunden – "
+                 "„Eintrag kopieren“ und von Hand einfügen.")
         )
 
     def _mcp_desktop_kopieren(self) -> None:
@@ -1754,26 +1805,28 @@ class SettingsDialog(QDialog):
 
         QApplication.clipboard().setText(mcp_einrichtung.claude_desktop_eintrag_json())
         self.mcp_meldung_label.setText(
-            "Eintrag kopiert. In claude_desktop_config.json unter „mcpServers“ einfügen "
+            tr("Eintrag kopiert. In claude_desktop_config.json unter „mcpServers“ einfügen "
             "(Claude Desktop: Einstellungen › Entwickler › Konfiguration bearbeiten), "
-            "dann Claude Desktop neu starten."
+            "dann Claude Desktop neu starten.")
         )
 
     def _mcp_desktop_eintragen(self) -> None:
         status = self._mcp_desktop_status
         if status is None or status.pfad is None:
             return
-        frage = ("Den Server „pdfsuche“ in die Konfiguration von Claude Desktop eintragen?\n\n"
-                 f"{status.pfad}\n\n"
-                 "Andere Einträge bleiben erhalten; vorher entsteht eine Sicherungskopie.")
-        antwort = QMessageBox.question(self, "Claude Desktop einrichten", frage)
+        frage = (tr(
+            "Den Server „pdfsuche“ in die Konfiguration von Claude Desktop eintragen?\n\n"
+            "{pfad}\n\nAndere Einträge bleiben erhalten; vorher entsteht eine "
+            "Sicherungskopie."
+        ).format(pfad=status.pfad))
+        antwort = QMessageBox.question(self, tr("Claude Desktop einrichten"), frage)
         if antwort != QMessageBox.StandardButton.Yes:
             return
         text = mcp_einrichtung.claude_desktop_eintragen(status.pfad)
-        if text.startswith("Fehler"):
-            QMessageBox.warning(self, "Claude Desktop", text)
+        if text.startswith(tr("Fehler")):
+            QMessageBox.warning(self, tr("Claude Desktop"), text)
         else:
-            QMessageBox.information(self, "Claude Desktop", text)
+            QMessageBox.information(self, tr("Claude Desktop"), text)
         self._mcp_desktop_status_setzen(mcp_einrichtung.claude_desktop_status(status.pfad))
 
     # Listen-Helfer der Registerkarte „Suche“
@@ -1832,14 +1885,14 @@ class SettingsDialog(QDialog):
             action = menu.addAction(p)
             action.triggered.connect(lambda _=False, pfad=p: self._search_list_add(self.search_roots_list, pfad))
         if menu.isEmpty():
-            menu.addAction("Keine Vorschläge").setEnabled(False)
+            menu.addAction(tr("Keine Vorschläge")).setEnabled(False)
 
     def _browse_search_db(self) -> None:
         from PyQt6.QtWidgets import QFileDialog
 
         pfad, _ = QFileDialog.getSaveFileName(
-            self, "Datenbank der Dokumentensuche", self.search_db_path_edit.text(),
-            "SQLite-Datenbank (*.db);;Alle Dateien (*)",
+            self, tr("Datenbank der Dokumentensuche"), self.search_db_path_edit.text(),
+            tr("SQLite-Datenbank (*.db);;Alle Dateien (*)"),
             options=QFileDialog.Option.DontConfirmOverwrite,
         )
         if pfad:
@@ -1875,8 +1928,8 @@ class SettingsDialog(QDialog):
         except Exception:
             profil = []
         self.search_thunderbird_label.setText(
-            "Thunderbird-Profil erkannt: " + ", ".join(profil) if profil
-            else "Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen."
+            tr("Thunderbird-Profil erkannt: {0}").format(', '.join(profil)) if profil
+            else tr("Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen.")
         )
 
         self.search_ocr_check.setChecked(cfg.ocr_aktiv)
@@ -1884,11 +1937,11 @@ class SettingsDialog(QDialog):
         self.search_ocr_max_pages_spin.setValue(cfg.ocr_max_seiten)
         ocr = cfg.ocr_einstellungen()
         if ocr["tesseract"]:
-            status = f"Tesseract gefunden: {ocr['tesseract']}"
-            if ocr["grund"] and "Sprachdaten" in ocr["grund"]:
+            status = tr("Tesseract gefunden: {tesseract}").format(tesseract=ocr['tesseract'])
+            if ocr["grund"] and ocr["grund"].startswith(tr("Sprachdaten fehlen: {0}").format("")):
                 status += f" – {ocr['grund']}"
         else:
-            status = "Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist."
+            status = tr("Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist.")
         self.search_ocr_status_label.setText(status)
 
         self.search_cloud_check.setChecked(cfg.cloud_herunterladen)
@@ -1977,8 +2030,11 @@ class SettingsDialog(QDialog):
             QGuiApplication.restoreOverrideCursor()
         if fehler:
             QMessageBox.warning(
-                self, "Hintergrundindexierung",
-                "Die Einstellungen sind gespeichert, aber der Zeitplan ließ sich nicht anpassen:\n\n" + fehler)
+                self, tr("Hintergrundindexierung"),
+                tr(
+                    "Die Einstellungen sind gespeichert, aber der Zeitplan ließ sich nicht "
+                    "anpassen:\n\n{fehler}"
+                ).format(fehler=fehler))
 
     def _search_config_for_index(self):
         """Gespeicherte Suche-Einstellungen mit dem Datenbankpfad aus dem Formular (Schätzung, Protokoll)."""
@@ -2011,13 +2067,15 @@ class SettingsDialog(QDialog):
         try:
             text = textebene.schaetzung_text(Suchindex(self._search_config_for_index()).textebene_schaetzung())
         except Exception as e:  # noqa: BLE001 - Schätzung ist eine Hilfe, kein Muss
-            text = f"Der Aufwand lässt sich gerade nicht schätzen ({e})."
+            text = tr("Der Aufwand lässt sich gerade nicht schätzen ({e}).").format(e=e)
         finally:
             QGuiApplication.restoreOverrideCursor()
         antwort = QMessageBox.question(
-            self, "Textebene auch für den Altbestand",
-            text + "\n\nDie Stufe gilt ab dem nächsten Indexlauf; im Reiter „Suche“ lässt sich der Lauf "
-            "jederzeit anhalten. Einschalten?",
+            self, tr("Textebene auch für den Altbestand"),
+            tr(
+                "{text}\n\nDie Stufe gilt ab dem nächsten Indexlauf; im Reiter „Suche“ lässt "
+                "sich der Lauf jederzeit anhalten. Einschalten?"
+            ).format(text=text),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         return antwort == QMessageBox.StandardButton.Yes
 
@@ -2037,12 +2095,14 @@ class SettingsDialog(QDialog):
 
             reply = QMessageBox.warning(
                 self,
-                "Gelernte Daten löschen",
-                f"Möchten Sie wirklich ALLE gelernten Daten löschen?\n\n"
-                f"• {entry_count} Sortierhistorie-Einträge\n"
-                f"• {rename_count} Umbenennungs-Einträge\n"
-                f"• Alle Ordnerstatistiken\n\n"
-                f"Diese Aktion kann NICHT rückgängig gemacht werden!",
+                tr("Gelernte Daten löschen"),
+                tr(
+                    "Möchten Sie wirklich ALLE gelernten Daten löschen?\n\n"
+                    "• {entry_count} Sortierhistorie-Einträge\n"
+                    "• {rename_count} Umbenennungs-Einträge\n"
+                    "• Alle Ordnerstatistiken\n\nDiese Aktion kann NICHT rückgängig gemacht "
+                    "werden!"
+                ).format(entry_count=entry_count, rename_count=rename_count),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -2053,8 +2113,8 @@ class SettingsDialog(QDialog):
             # Nochmal bestätigen
             confirm = QMessageBox.question(
                 self,
-                "Wirklich löschen?",
-                "Sind Sie SICHER? Alle Lernfortschritte gehen verloren!",
+                tr("Wirklich löschen?"),
+                tr("Sind Sie SICHER? Alle Lernfortschritte gehen verloren!"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -2083,9 +2143,9 @@ class SettingsDialog(QDialog):
 
                 QMessageBox.information(
                     self,
-                    "Daten gelöscht",
-                    "Alle gelernten Ordnervorschläge wurden gelöscht.\n"
-                    "Das Programm startet jetzt ohne Lernfortschritt."
+                    tr("Daten gelöscht"),
+                    tr("Alle gelernten Ordnervorschläge wurden gelöscht.\n"
+                    "Das Programm startet jetzt ohne Lernfortschritt.")
                 )
 
             finally:
@@ -2094,8 +2154,8 @@ class SettingsDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Fehler",
-                f"Fehler beim Löschen der Daten:\n{e}"
+                tr("Fehler"),
+                tr("Fehler beim Löschen der Daten:\n{e}").format(e=e)
             )
 
     def _update_learning_stats(self):
@@ -2106,7 +2166,7 @@ class SettingsDialog(QDialog):
             entry_count = db.get_entry_count()
             rename_count = db.get_rename_count()
             self.learning_stats_label.setText(
-                f"Aktuell: {entry_count} Sortierungen, {rename_count} Umbenennungen gelernt"
+                tr("Aktuell: {entry_count} Sortierungen, {rename_count} Umbenennungen gelernt").format(entry_count=entry_count, rename_count=rename_count)
             )
         except Exception:
             self.learning_stats_label.setText("")
@@ -2118,9 +2178,9 @@ class SettingsDialog(QDialog):
 
             reply = QMessageBox.question(
                 self,
-                "Cache leeren",
-                "Möchten Sie den gesamten PDF-Analyse-Cache löschen?\n\n"
-                "Alle PDFs müssen dann erneut analysiert werden.",
+                tr("Cache leeren"),
+                tr("Möchten Sie den gesamten PDF-Analyse-Cache löschen?\n\n"
+                "Alle PDFs müssen dann erneut analysiert werden."),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -2131,11 +2191,11 @@ class SettingsDialog(QDialog):
                 cache.clear_persistent_cache()
                 self._update_cache_stats()
                 QMessageBox.information(
-                    self, "Cache geleert", "Der PDF-Analyse-Cache wurde erfolgreich geleert."
+                    self, tr("Cache geleert"), tr("Der PDF-Analyse-Cache wurde erfolgreich geleert.")
                 )
 
         except Exception as e:
-            QMessageBox.warning(self, "Fehler", f"Cache konnte nicht geleert werden:\n{e}")
+            QMessageBox.warning(self, tr("Fehler"), tr("Cache konnte nicht geleert werden:\n{e}").format(e=e))
 
     def _update_cache_stats(self):
         """Aktualisiert die Cache-Statistik-Anzeige."""
@@ -2146,79 +2206,79 @@ class SettingsDialog(QDialog):
             llm_count = stats.get('llm_cached_count', 0)
             if llm_count > 0:
                 self.cache_stats_label.setText(
-                    f"({stats['cached_count']} PDFs, {llm_count} mit LLM-Vorschlägen)"
+                    tr("({cached_count} PDFs, {llm_count} mit LLM-Vorschlägen)").format(cached_count=stats['cached_count'], llm_count=llm_count)
                 )
             else:
-                self.cache_stats_label.setText(f"({stats['cached_count']} PDFs im Cache)")
+                self.cache_stats_label.setText(tr("({cached_count} PDFs im Cache)").format(cached_count=stats['cached_count']))
         except Exception:
             self.cache_stats_label.setText("")
 
     # Vorgegebene Default-Modelle pro Provider (Fallback wenn kein Cache existiert)
     _PROVIDER_DEFAULT_MODELS = {
         "claude": [
-            "haiku-3.5 (günstig, älter)",
-            "haiku-4.5 (schnell & günstig)",
-            "sonnet-3.5 (günstig, älter)",
-            "sonnet-4 (ausgewogen)",
-            "sonnet-4.5 (beste Qualität)",
-            "opus-4 (premium)",
+            tr("haiku-3.5 (günstig, älter)"),
+            tr("haiku-4.5 (schnell & günstig)"),
+            tr("sonnet-3.5 (günstig, älter)"),
+            tr("sonnet-4 (ausgewogen)"),
+            tr("sonnet-4.5 (beste Qualität)"),
+            tr("opus-4 (premium)"),
         ],
         "openai": [
-            "gpt-4o-mini (günstig, älter)",
-            "gpt-4.1-nano (schnellstes)",
-            "gpt-4.1-mini (schnell & günstig)",
-            "gpt-4o (ausgewogen)",
-            "gpt-4.1 (beste Qualität)",
-            "o3-mini (Reasoning, günstig)",
-            "o3 (Reasoning)",
-            "o4-mini (Reasoning, neu)",
+            tr("gpt-4o-mini (günstig, älter)"),
+            tr("gpt-4.1-nano (schnellstes)"),
+            tr("gpt-4.1-mini (schnell & günstig)"),
+            tr("gpt-4o (ausgewogen)"),
+            tr("gpt-4.1 (beste Qualität)"),
+            tr("o3-mini (Reasoning, günstig)"),
+            tr("o3 (Reasoning)"),
+            tr("o4-mini (Reasoning, neu)"),
         ],
         "ollama": [
-            "gpt-oss:20b (OpenAI, ab 16 GB Grafikspeicher, empfohlen)",
-            "gemma4:12b (Google, ab 10 GB Grafikspeicher)",
-            "gemma3:4b (Google, ab 4 GB Grafikspeicher)",
-            "gemma4:26b (Google, ab 24 GB Grafikspeicher)",
-            "gemma3:1b (Google, ohne Grafikkarte, langsam)",
-            "llama3.1 (Meta, ausgewogen)",
-            "qwen2.5 (Alibaba, gut bei strukturiertem Output)",
+            tr("gpt-oss:20b (OpenAI, ab 16 GB Grafikspeicher, empfohlen)"),
+            tr("gemma4:12b (Google, ab 10 GB Grafikspeicher)"),
+            tr("gemma3:4b (Google, ab 4 GB Grafikspeicher)"),
+            tr("gemma4:26b (Google, ab 24 GB Grafikspeicher)"),
+            tr("gemma3:1b (Google, ohne Grafikkarte, langsam)"),
+            tr("llama3.1 (Meta, ausgewogen)"),
+            tr("qwen2.5 (Alibaba, gut bei strukturiertem Output)"),
         ],
         "poe": [
-            "GPT-4o-Mini (schnell & günstig)",
-            "GPT-4o (OpenAI)",
-            "GPT-4.1-Mini (OpenAI, neu)",
-            "GPT-4.1 (OpenAI, neu)",
-            "o3-Mini (Reasoning)",
-            "o4-Mini (Reasoning, neu)",
-            "Claude-3.5-Haiku (schnell)",
-            "Claude-3.5-Sonnet (Anthropic)",
-            "Claude-Sonnet-4 (Anthropic, neu)",
-            "Claude-Sonnet-4.5 (Anthropic, neuestes)",
-            "Claude-Opus-4 (Anthropic, premium)",
-            "Gemini-2-Flash (Google)",
-            "Gemini-2.5-Flash (Google, neu)",
-            "Gemini-2.5-Pro (Google, premium)",
-            "Llama-3.1-405B (Meta)",
-            "Mistral-Large (Mistral)",
+            tr("GPT-4o-Mini (schnell & günstig)"),
+            tr("GPT-4o (OpenAI)"),
+            tr("GPT-4.1-Mini (OpenAI, neu)"),
+            tr("GPT-4.1 (OpenAI, neu)"),
+            tr("o3-Mini (Reasoning)"),
+            tr("o4-Mini (Reasoning, neu)"),
+            tr("Claude-3.5-Haiku (schnell)"),
+            tr("Claude-3.5-Sonnet (Anthropic)"),
+            tr("Claude-Sonnet-4 (Anthropic, neu)"),
+            tr("Claude-Sonnet-4.5 (Anthropic, neuestes)"),
+            tr("Claude-Opus-4 (Anthropic, premium)"),
+            tr("Gemini-2-Flash (Google)"),
+            tr("Gemini-2.5-Flash (Google, neu)"),
+            tr("Gemini-2.5-Pro (Google, premium)"),
+            tr("Llama-3.1-405B (Meta)"),
+            tr("Mistral-Large (Mistral)"),
         ],
         "openrouter": [
-            "openai/gpt-4.1-nano (schnell & günstig)",
-            "openai/gpt-4.1-mini (ausgewogen)",
-            "openai/gpt-4o-mini (OpenAI, älter)",
-            "anthropic/claude-3.5-haiku (Anthropic, schnell)",
-            "anthropic/claude-sonnet-4 (Anthropic)",
-            "google/gemini-2.5-flash (Google)",
-            "meta-llama/llama-3.1-70b-instruct (Meta)",
-            "mistralai/mistral-small (Mistral)",
+            tr("openai/gpt-4.1-nano (schnell & günstig)"),
+            tr("openai/gpt-4.1-mini (ausgewogen)"),
+            tr("openai/gpt-4o-mini (OpenAI, älter)"),
+            tr("anthropic/claude-3.5-haiku (Anthropic, schnell)"),
+            tr("anthropic/claude-sonnet-4 (Anthropic)"),
+            tr("google/gemini-2.5-flash (Google)"),
+            tr("meta-llama/llama-3.1-70b-instruct (Meta)"),
+            tr("mistralai/mistral-small (Mistral)"),
         ],
         "ollama_cloud": [
-            "gpt-oss:120b (OpenAI, gross, empfohlen)",
-            "gpt-oss:20b (OpenAI, schnell)",
-            "gemma4:31b (Google)",
-            "deepseek-v4.1-flash (DeepSeek)",
-            "kimi-k3 (Moonshot)",
-            "glm-5.3 (Zhipu)",
-            "minimax-m3 (MiniMax)",
-            "mistral-large-4 (Mistral)",
+            tr("gpt-oss:120b (OpenAI, gross, empfohlen)"),
+            tr("gpt-oss:20b (OpenAI, schnell)"),
+            tr("gemma4:31b (Google)"),
+            tr("deepseek-v4.1-flash (DeepSeek)"),
+            tr("kimi-k3 (Moonshot)"),
+            tr("glm-5.3 (Zhipu)"),
+            tr("minimax-m3 (MiniMax)"),
+            tr("mistral-large-4 (Mistral)"),
         ],
     }
 
@@ -2237,14 +2297,14 @@ class SettingsDialog(QDialog):
         "lmstudio": "http://localhost:1234/v1",
     }
     _API_KEY_PLACEHOLDERS = {
-        "strata": "sk-strata-... (in Strata unter Connect, Taste k)",
+        "strata": tr("sk-strata-... (in Strata unter Connect, Taste k)"),
         "claude": "sk-ant-...",
         "openai": "sk-...",
-        "poe": "Poe API-Key von poe.com/api_key",
-        "ollama": "Nicht noetig fuer Ollama",
-        "lmstudio": "Nicht noetig fuer LM Studio",
-        "openrouter": "sk-or-... von openrouter.ai/keys",
-        "ollama_cloud": "API-Key von ollama.com/settings/keys",
+        "poe": tr("Poe API-Key von poe.com/api_key"),
+        "ollama": tr("Nicht noetig fuer Ollama"),
+        "lmstudio": tr("Nicht noetig fuer LM Studio"),
+        "openrouter": tr("sk-or-... von openrouter.ai/keys"),
+        "ollama_cloud": tr("API-Key von ollama.com/settings/keys"),
     }
 
     def _provider_id_at(self, index: int) -> str:
@@ -2288,7 +2348,7 @@ class SettingsDialog(QDialog):
         self._key_provider = new_provider if key_label else ""
         self.api_key_input.setText(self._api_keys.get(self._key_provider, ""))
         self.api_key_label.setText(
-            f"API-Key ({key_label}):" if key_label else "API-Key:"
+            tr("API-Key ({key_label}):").format(key_label=key_label) if key_label else tr("API-Key:")
         )
         self.cloud_consent_check.setEnabled(is_cloud_provider(new_provider))
         self._update_consent_hint()
@@ -2327,13 +2387,13 @@ class SettingsDialog(QDialog):
         )
 
     _LMSTUDIO_START_HINT = (
-        "LM Studio wurde nicht gefunden. LM Studio starten und den lokalen "
+        tr("LM Studio wurde nicht gefunden. LM Studio starten und den lokalen "
         "Server aktivieren (Developer > Start Server), dann "
-        "„Modelle aktualisieren“ klicken."
+        "„Modelle aktualisieren“ klicken.")
     )
     _LMSTUDIO_KEIN_MODELL = (
-        "LM Studio laeuft, bietet aber kein Modell an. In LM Studio "
-        "ein Modell herunterladen bzw. laden."
+        tr("LM Studio laeuft, bietet aber kein Modell an. In LM Studio "
+        "ein Modell herunterladen bzw. laden.")
     )
 
     def _detect_lmstudio(self) -> list[str] | None:
@@ -2353,7 +2413,7 @@ class SettingsDialog(QDialog):
         else:
             self.model_combo.addItems(models)
             if models:
-                text, color = f"LM Studio erkannt: {len(models)} Modell(e) verfuegbar.", "green"
+                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "green"
             else:
                 text, color = self._LMSTUDIO_KEIN_MODELL, "#b35c00"
             self.lmstudio_status_label.setText(text)
@@ -2367,16 +2427,16 @@ class SettingsDialog(QDialog):
         provider = self._provider_id_at(self.provider_combo.currentIndex())
         if not is_cloud_provider(provider):
             self.consent_hint_label.setText(
-                "Nur für Cloud-Anbieter relevant (Ollama läuft lokal)."
+                tr("Nur für Cloud-Anbieter relevant (Ollama läuft lokal).")
             )
             self.consent_hint_label.setStyleSheet("color: gray;")
         elif self.cloud_consent_check.isChecked():
-            self.consent_hint_label.setText("Einwilligung erteilt.")
+            self.consent_hint_label.setText(tr("Einwilligung erteilt."))
             self.consent_hint_label.setStyleSheet("color: green;")
         else:
             self.consent_hint_label.setText(
-                "Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
-                "(Statusleiste: \"LLM: Aus\")."
+                tr("Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
+                "(Statusleiste: \"LLM: Aus\").")
             )
             self.consent_hint_label.setStyleSheet("color: #c0392b;")
 
@@ -2432,11 +2492,11 @@ class SettingsDialog(QDialog):
         self._chat_key_provider = provider if key_label else ""
         self.chat_api_key_input.setText(self._chat_api_keys.get(self._chat_key_provider, ""))
         self.chat_api_key_label.setText(
-            f"API-Key ({key_label}):" if key_label else "API-Key:"
+            tr("API-Key ({key_label}):").format(key_label=key_label) if key_label else tr("API-Key:")
         )
         if key_label:
             self.chat_api_key_input.setPlaceholderText(
-                "Leer = Key des gleichen Anbieters von oben"
+                tr("Leer = Key des gleichen Anbieters von oben")
             )
         else:
             self.chat_api_key_input.setPlaceholderText(
@@ -2447,7 +2507,7 @@ class SettingsDialog(QDialog):
         self._chat_url_provider = provider if default_url else ""
         self.chat_base_url_input.setText(self._chat_base_urls.get(self._chat_url_provider, ""))
         self.chat_base_url_input.setPlaceholderText(
-            f"Leer = wie oben bzw. {default_url}" if default_url else ""
+            tr("Leer = wie oben bzw. {default_url}").format(default_url=default_url) if default_url else ""
         )
 
         self.chat_model_combo.clear()
@@ -2470,14 +2530,16 @@ class SettingsDialog(QDialog):
 
     def _update_chat_consent_hint(self):
         """Hinweis: Die Cloud-Einwilligung von oben gilt auch fuer das Chat-Modell."""
-        base = "Die Einwilligung für Cloud-Anbieter gilt auch hier."
+        base = tr("Die Einwilligung für Cloud-Anbieter gilt auch hier.")
         provider = self._chat_provider_id_at(self.chat_provider_combo.currentIndex())
         if (self.chat_own_model_check.isChecked()
                 and is_cloud_provider(provider)
                 and not self.cloud_consent_check.isChecked()):
             self.chat_consent_hint_label.setText(
-                f"{base} Ohne Einwilligung (oben unter „Datenschutz“) bleibt das "
-                f"Chat-Modell aus."
+                tr(
+                    "{base} Ohne Einwilligung (oben unter „Datenschutz“) bleibt das "
+                    "Chat-Modell aus."
+                ).format(base=base)
             )
             self.chat_consent_hint_label.setStyleSheet("color: #c0392b;")
         else:
@@ -2526,10 +2588,10 @@ class SettingsDialog(QDialog):
         """Zeigt/versteckt den API-Key."""
         if checked:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.show_key_button.setText("Verbergen")
+            self.show_key_button.setText(tr("Verbergen"))
         else:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self.show_key_button.setText("Anzeigen")
+            self.show_key_button.setText(tr("Anzeigen"))
 
     def _load_settings(self):
         """Lädt die aktuellen Einstellungen."""
@@ -2602,6 +2664,8 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
+        sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
+        self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
 
         # Persönliche Daten
@@ -2666,8 +2730,8 @@ class SettingsDialog(QDialog):
             self.explorer_menu_checkbox.setChecked(registered)
             self._explorer_initial_state = registered
             self.explorer_info_label.setText(
-                "Aktuell aktiviert." if registered else
-                "Aktuell nicht eingerichtet."
+                tr("Aktuell aktiviert.") if registered else
+                tr("Aktuell nicht eingerichtet.")
             )
 
         # Dokumentensuche (Registerkarte „Suche“)
@@ -2707,6 +2771,7 @@ class SettingsDialog(QDialog):
 
         # Allgemeine Einstellungen
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
+        self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
 
         # Cache-Einstellungen
@@ -2813,13 +2878,13 @@ class SettingsDialog(QDialog):
         from PyQt6.QtWidgets import QFileDialog
 
         if sys.platform == "win32":
-            file_filter = "Programme (*.exe);;Alle Dateien (*)"
+            file_filter = tr("Programme (*.exe);;Alle Dateien (*)")
         elif sys.platform == "darwin":
-            file_filter = "Programme (*.app);;Alle Dateien (*)"
+            file_filter = tr("Programme (*.app);;Alle Dateien (*)")
         else:
-            file_filter = "Alle Dateien (*)"
+            file_filter = tr("Alle Dateien (*)")
         path, _ = QFileDialog.getOpenFileName(
-            self, "PDF-Programm auswählen", self.pdf_open_command_input.text(), file_filter
+            self, tr("PDF-Programm auswählen"), self.pdf_open_command_input.text(), file_filter
         )
         if path:
             self.pdf_open_command_input.setText(path)
@@ -2844,8 +2909,8 @@ class SettingsDialog(QDialog):
         except Exception as e:
             QMessageBox.warning(
                 self,
-                "Explorer-Integration",
-                f"Die Aenderung konnte nicht angewendet werden:\n{e}"
+                tr("Explorer-Integration"),
+                tr("Die Aenderung konnte nicht angewendet werden:\n{e}").format(e=e)
             )
 
     def _test_connection(self):
@@ -2869,13 +2934,13 @@ class SettingsDialog(QDialog):
         # Ollama und LM Studio brauchen keinen API-Key, aber eine URL.
         if provider_id not in ("ollama", "lmstudio") and not api_key:
             QMessageBox.warning(
-                self, "Fehler",
-                "Bitte geben Sie einen API-Key ein."
+                self, tr("Fehler"),
+                tr("Bitte geben Sie einen API-Key ein.")
             )
             return
 
         button.setEnabled(False)
-        button.setText("Teste...")
+        button.setText(tr("Teste..."))
 
         try:
             if provider_id == "claude":
@@ -2896,7 +2961,7 @@ class SettingsDialog(QDialog):
                 self._test_lmstudio(model, base_url)
         finally:
             button.setEnabled(True)
-            button.setText("Verbindung testen")
+            button.setText(tr("Verbindung testen"))
 
     def _test_claude(self, api_key: str, model: str):
         """Testet die Claude API."""
@@ -2917,26 +2982,24 @@ class SettingsDialog(QDialog):
             )
 
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Claude erfolgreich!\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {message.content[0].text}"
+                self, tr("Erfolg"),
+                tr("Verbindung zu Claude erfolgreich!\nModell: {model_id}\nAntwort: {text}").format(model_id=model_id, text=message.content[0].text)
             )
         except ImportError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Das 'anthropic' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install anthropic"
+                self, tr("Fehler"),
+                tr("Das 'anthropic' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install anthropic")
             )
         except anthropic.AuthenticationError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
+                self, tr("Fehler"),
+                tr("Ungültiger API-Key. Bitte überprüfen Sie Ihren Key.")
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
+                self, tr("Fehler"),
+                tr("Verbindungsfehler: {0}").format(str(e))
             )
 
     def _test_openai(self, api_key: str, model: str):
@@ -2958,26 +3021,24 @@ class SettingsDialog(QDialog):
             )
 
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu OpenAI erfolgreich!\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {response.choices[0].message.content}"
+                self, tr("Erfolg"),
+                tr("Verbindung zu OpenAI erfolgreich!\nModell: {model_id}\nAntwort: {content}").format(model_id=model_id, content=response.choices[0].message.content)
             )
         except ImportError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Das 'openai' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install openai"
+                self, tr("Fehler"),
+                tr("Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai")
             )
         except openai.AuthenticationError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
+                self, tr("Fehler"),
+                tr("Ungültiger API-Key. Bitte überprüfen Sie Ihren Key.")
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
+                self, tr("Fehler"),
+                tr("Verbindungsfehler: {0}").format(str(e))
             )
 
     def _test_poe(self, api_key: str, model: str):
@@ -3005,27 +3066,25 @@ class SettingsDialog(QDialog):
             )
 
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Poe erfolgreich!\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {response.choices[0].message.content}"
+                self, tr("Erfolg"),
+                tr("Verbindung zu Poe erfolgreich!\nModell: {model_id}\nAntwort: {content}").format(model_id=model_id, content=response.choices[0].message.content)
             )
         except ImportError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Das 'openai' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install openai"
+                self, tr("Fehler"),
+                tr("Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai")
             )
         except openai.AuthenticationError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Ungültiger Poe API-Key.\n"
-                "Holen Sie Ihren Key von: poe.com/api_key"
+                self, tr("Fehler"),
+                tr("Ungültiger Poe API-Key.\n"
+                "Holen Sie Ihren Key von: poe.com/api_key")
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
+                self, tr("Fehler"),
+                tr("Verbindungsfehler: {0}").format(str(e))
             )
 
     def _test_ollama_cloud(self, api_key: str, model: str):
@@ -3042,20 +3101,20 @@ class SettingsDialog(QDialog):
             answer, error = provider._do_chat("Antworte nur mit OK.", "Test")
             if error:
                 QMessageBox.critical(
-                    self, "Fehler",
-                    f"Ollama Cloud antwortet nicht:\n{error}\n\n"
-                    "Pruefen Sie den API-Key (ollama.com/settings/keys) "
-                    "und den Modellnamen."
+                    self, tr("Fehler"),
+                    tr(
+                        "Ollama Cloud antwortet nicht:\n{error}\n\n"
+                        "Pruefen Sie den API-Key (ollama.com/settings/keys) und den "
+                        "Modellnamen."
+                    ).format(error=error)
                 )
                 return
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Ollama Cloud erfolgreich!\n"
-                f"Modell: {model or OllamaCloudProvider.DEFAULT_MODEL}\n"
-                f"Antwort: {answer.strip()[:60]}"
+                self, tr("Erfolg"),
+                tr("Verbindung zu Ollama Cloud erfolgreich!\nModell: {0}\nAntwort: {1}").format(model or OllamaCloudProvider.DEFAULT_MODEL, answer.strip()[:60])
             )
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Verbindungsfehler: {e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Verbindungsfehler: {e}").format(e=e))
 
     def _test_ollama(self, base_url: str, model: str):
         """Testet die Verbindung zu einem lokalen Ollama-Server."""
@@ -3072,10 +3131,12 @@ class SettingsDialog(QDialog):
             ok, msg = provider.ping()
             if not ok:
                 QMessageBox.critical(
-                    self, "Fehler",
-                    f"Ollama-Server nicht erreichbar:\n{msg}\n\n"
-                    f"Pruefen Sie ob Ollama laeuft (z.B. 'ollama serve')\n"
-                    f"und die URL stimmt: {base_url}"
+                    self, tr("Fehler"),
+                    tr(
+                        "Ollama-Server nicht erreichbar:\n{msg}\n\n"
+                        "Pruefen Sie ob Ollama laeuft (z.B. 'ollama serve')\n"
+                        "und die URL stimmt: {base_url}"
+                    ).format(msg=msg, base_url=base_url)
                 )
                 return
 
@@ -3086,24 +3147,24 @@ class SettingsDialog(QDialog):
                 # Nicht zwingend ein Fehler - der Modellname kann ein Tag
                 # enthalten (z.B. 'llama3.1:latest'). Wir geben einen Hinweis.
                 extra = (
-                    f"\n\nHinweis: Modell '{chosen}' steht nicht in der Liste "
-                    f"der installierten Modelle. Verfuegbar:\n"
-                    + "\n".join(f"  - {m}" for m in available[:10])
-                    + f"\n\nInstallieren mit: ollama pull {chosen}"
+                    tr(
+                        "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der "
+                        "installierten Modelle. Verfuegbar:\n"
+                        "{0}\n\nInstallieren mit: ollama pull {chosen}"
+                    ).format('\n'.join((f'  - {m}' for m in available[:10])), chosen=chosen)
                 )
 
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Ollama erfolgreich!\n"
-                f"Server: {base_url}\n"
-                f"Version: {msg}\n"
-                f"Gewaehltes Modell: {chosen}"
-                + extra
+                self, tr("Erfolg"),
+                tr(
+                    "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\n"
+                    "Version: {msg}\nGewaehltes Modell: {chosen}{extra}"
+                ).format(base_url=base_url, msg=msg, chosen=chosen, extra=extra)
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
+                self, tr("Fehler"),
+                tr("Verbindungsfehler: {0}").format(str(e))
             )
 
     def _test_openrouter(self, api_key: str, model: str):
@@ -3126,27 +3187,28 @@ class SettingsDialog(QDialog):
             )
 
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu OpenRouter erfolgreich!\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {response.choices[0].message.content}"
+                self, tr("Erfolg"),
+                tr(
+                    "Verbindung zu OpenRouter erfolgreich!\n"
+                    "Modell: {model_id}\nAntwort: {content}"
+                ).format(model_id=model_id, content=response.choices[0].message.content)
             )
         except ImportError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Das 'openai' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install openai"
+                self, tr("Fehler"),
+                tr("Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai")
             )
         except openai.AuthenticationError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Ungültiger OpenRouter API-Key.\n"
-                "Holen Sie Ihren Key von: openrouter.ai/keys"
+                self, tr("Fehler"),
+                tr("Ungültiger OpenRouter API-Key.\n"
+                "Holen Sie Ihren Key von: openrouter.ai/keys")
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Verbindungsfehler: {str(e)}"
+                self, tr("Fehler"),
+                tr("Verbindungsfehler: {0}").format(str(e))
             )
 
     def _test_strata(self, api_key: str, model: str, base_url: str):
@@ -3160,11 +3222,11 @@ class SettingsDialog(QDialog):
                 api_key=api_key, model=model, base_url=base_url,
             ))
             if provider._client is None:
-                raise RuntimeError("OpenAI-kompatibler Client nicht verfuegbar.")
+                raise RuntimeError(tr("OpenAI-kompatibler Client nicht verfuegbar."))
             model_id = provider._get_model_id()
             if not model_id:
                 raise RuntimeError(
-                    f"Kein Modell gefunden. Laeuft Strata unter {provider.base_url}?"
+                    tr("Kein Modell gefunden. Laeuft Strata unter {base_url}?").format(base_url=provider.base_url)
                 )
             response = provider._create_chat_completion(
                 model=model_id,
@@ -3172,28 +3234,27 @@ class SettingsDialog(QDialog):
                 messages=[{"role": "user", "content": "Sage 'OK'"}],
             )
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu Strata erfolgreich!\n"
-                f"Server: {provider.base_url}\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {response.choices[0].message.content}"
+                self, tr("Erfolg"),
+                tr(
+                    "Verbindung zu Strata erfolgreich!\nServer: {base_url}\n"
+                    "Modell: {model_id}\nAntwort: {content}"
+                ).format(base_url=provider.base_url, model_id=model_id, content=response.choices[0].message.content)
             )
         except ImportError:
             QMessageBox.critical(
-                self, "Fehler",
-                "Das 'openai' Paket ist nicht installiert.\n"
-                "Installieren mit: pip install openai"
+                self, tr("Fehler"),
+                tr("Das 'openai' Paket ist nicht installiert.\n"
+                "Installieren mit: pip install openai")
             )
         except Exception as e:
             if type(e).__name__ == "AuthenticationError":
-                text = ("Ungueltiger Strata API-Key.\n"
-                        "Den Key zeigt Strata unter Connect (Taste k).")
+                text = (tr("Ungueltiger Strata API-Key.\n"
+                        "Den Key zeigt Strata unter Connect (Taste k)."))
             elif type(e).__name__ == "APIConnectionError":
-                text = (f"Keine Verbindung zu Strata unter {base_url}.\n"
-                        "Laeuft der Strata-Server?")
+                text = (tr("Keine Verbindung zu Strata unter {base_url}.\nLaeuft der Strata-Server?").format(base_url=base_url))
             else:
-                text = f"Verbindungsfehler: {str(e)}"
-            QMessageBox.critical(self, "Fehler", text)
+                text = tr("Verbindungsfehler: {0}").format(str(e))
+            QMessageBox.critical(self, tr("Fehler"), text)
 
     def _test_lmstudio(self, model: str, base_url: str):
         """Testet ein lokales LM Studio (OpenAI-kompatibel, ohne Key).
@@ -3204,7 +3265,7 @@ class SettingsDialog(QDialog):
         from src.ml.lmstudio_provider import detect_lm_studio
 
         if detect_lm_studio(base_url) is None:
-            QMessageBox.warning(self, "LM Studio", self._LMSTUDIO_START_HINT)
+            QMessageBox.warning(self, tr("LM Studio"), self._LMSTUDIO_START_HINT)
             return
         try:
             from src.ml.llm_provider import LLMConfig
@@ -3214,12 +3275,12 @@ class SettingsDialog(QDialog):
                 api_key="", model=model, base_url=base_url,
             ))
             if provider._client is None:
-                raise RuntimeError("OpenAI-kompatibler Client nicht verfuegbar.")
+                raise RuntimeError(tr("OpenAI-kompatibler Client nicht verfuegbar."))
             model_id = provider._get_model_id()
             if not model_id:
                 raise RuntimeError(
-                    "LM Studio bietet kein Modell an. Bitte in LM Studio "
-                    "ein Modell herunterladen bzw. laden."
+                    tr("LM Studio bietet kein Modell an. Bitte in LM Studio "
+                    "ein Modell herunterladen bzw. laden.")
                 )
             response = provider._create_chat_completion(
                 model=model_id,
@@ -3227,14 +3288,15 @@ class SettingsDialog(QDialog):
                 messages=[{"role": "user", "content": "Sage 'OK'"}],
             )
             QMessageBox.information(
-                self, "Erfolg",
-                f"Verbindung zu LM Studio erfolgreich!\n"
-                f"Server: {provider.base_url}\n"
-                f"Modell: {model_id}\n"
-                f"Antwort: {response.choices[0].message.content}"
+                self, tr("Erfolg"),
+                tr(
+                    "Verbindung zu LM Studio erfolgreich!\n"
+                    "Server: {base_url}\nModell: {model_id}\n"
+                    "Antwort: {content}"
+                ).format(base_url=provider.base_url, model_id=model_id, content=response.choices[0].message.content)
             )
         except Exception as e:  # noqa: BLE001
-            QMessageBox.critical(self, "Fehler", f"Verbindungsfehler: {str(e)}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Verbindungsfehler: {0}").format(str(e)))
 
     def _refresh_models(self):
         """Ruft die verfügbaren Modelle vom API-Provider ab (Sortier-Modell)."""
@@ -3267,8 +3329,10 @@ class SettingsDialog(QDialog):
             models = strata.list_models()
             if not models:
                 raise RuntimeError(
-                    f"Keine Modelle gefunden. Laeuft Strata unter "
-                    f"{strata.base_url} und stimmt der API-Key?"
+                    tr(
+                        "Keine Modelle gefunden. Laeuft Strata unter {base_url} und stimmt "
+                        "der API-Key?"
+                    ).format(base_url=strata.base_url)
                 )
             return models
         if provider_id == "lmstudio":
@@ -3296,16 +3360,16 @@ class SettingsDialog(QDialog):
         """
         if provider_id == "none" or not provider_id:
             QMessageBox.information(
-                self, "Hinweis",
-                "Bitte wählen Sie zuerst einen LLM-Provider aus."
+                self, tr("Hinweis"),
+                tr("Bitte wählen Sie zuerst einen LLM-Provider aus.")
             )
             return
 
         # Ollama und LM Studio brauchen keinen API-Key, alle anderen schon.
         if provider_id not in ("ollama", "lmstudio") and not api_key:
             QMessageBox.warning(
-                self, "Fehler",
-                "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
+                self, tr("Fehler"),
+                tr("Bitte geben Sie einen API-Key ein, um die Modelle abzurufen.")
             )
             return
 
@@ -3313,7 +3377,7 @@ class SettingsDialog(QDialog):
         current_model = combo.currentText().split(" ")[0]
 
         button.setEnabled(False)
-        button.setText("Lade...")
+        button.setText(tr("Lade..."))
 
         try:
             models = self._fetch_models_for(provider_id, api_key, base_url)
@@ -3332,17 +3396,17 @@ class SettingsDialog(QDialog):
                 self.config.set_cached_models(provider_id, models)
 
                 QMessageBox.information(
-                    self, "Erfolg",
-                    f"{len(models)} Modelle gefunden und aktualisiert."
+                    self, tr("Erfolg"),
+                    tr("{anzahl} Modelle gefunden und aktualisiert.").format(anzahl=len(models))
                 )
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Modelle konnten nicht abgerufen werden:\n{str(e)}"
+                self, tr("Fehler"),
+                tr("Modelle konnten nicht abgerufen werden:\n{0}").format(str(e))
             )
         finally:
             button.setEnabled(True)
-            button.setText("Modelle aktualisieren")
+            button.setText(tr("Modelle aktualisieren"))
 
     def _fetch_claude_models(self, api_key: str) -> list[str]:
         """Ruft verfügbare Claude-Modelle von der Anthropic API ab."""
@@ -3419,8 +3483,10 @@ class SettingsDialog(QDialog):
         models = provider.list_models()
         if not models:
             raise RuntimeError(
-                f"Keine Modelle gefunden. Laeuft Ollama unter {base_url}?\n"
-                "Modelle installieren mit: ollama pull llama3.1"
+                tr(
+                    "Keine Modelle gefunden. Laeuft Ollama unter {base_url}?\n"
+                    "Modelle installieren mit: ollama pull llama3.1"
+                ).format(base_url=base_url)
             )
         models.sort()
         return models

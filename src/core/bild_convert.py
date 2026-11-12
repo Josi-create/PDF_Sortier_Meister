@@ -30,6 +30,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+from src.i18n import tr
 
 BILD_ENDUNGEN = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".webp")
 HEIC_ENDUNGEN = (".heic", ".heif")
@@ -99,10 +100,10 @@ def _pdf_ueber_pillow(quelle: Path) -> bytes:
     try:
         from PIL import Image, ImageOps, ImageSequence
     except ImportError as e:
-        raise BildFehler(f"Für {quelle.suffix.lower()}-Bilder wird das Paket \"Pillow\" benötigt.") from e
+        raise BildFehler(tr("Für {0}-Bilder wird das Paket \"Pillow\" benötigt.").format(quelle.suffix.lower())) from e
     endung = quelle.suffix.lower()
     if endung in HEIC_ENDUNGEN and not heif_verfuegbar():
-        raise BildFehler("HEIC-Bilder brauchen das Paket \"pillow-heif\".")
+        raise BildFehler(tr("HEIC-Bilder brauchen das Paket \"pillow-heif\"."))
     doc = pymupdf.open()
     try:
         with Image.open(quelle) as im:
@@ -123,7 +124,7 @@ def _pdf_ueber_pillow(quelle: Path) -> bytes:
                     with pymupdf.open("pdf", einzel.convert_to_pdf()) as seite:
                         doc.insert_pdf(seite)
         if doc.page_count == 0:
-            raise BildFehler(f"{quelle.name}: keine Bildseite gefunden.")
+            raise BildFehler(tr("{name}: keine Bildseite gefunden.").format(name=quelle.name))
         return doc.tobytes()
     finally:
         doc.close()
@@ -181,7 +182,7 @@ def _textebene_auflegen(seite, text_pdf: bytes) -> bool:
 def _texterkennung(doc, erg: BildErgebnis) -> None:
     cfg = ocr_einstellungen()
     if cfg is None:
-        erg.ocr_hinweis = "Keine Texterkennung (Tesseract nicht gefunden) - das PDF ist nicht durchsuchbar."
+        erg.ocr_hinweis = tr("Keine Texterkennung (Tesseract nicht gefunden) - das PDF ist nicht durchsuchbar.")
         return
     fehler = 0
     for seite in doc:
@@ -192,7 +193,7 @@ def _texterkennung(doc, erg: BildErgebnis) -> None:
         except Exception:  # noqa: BLE001 - die Seite bleibt ohne Text, das PDF entsteht trotzdem
             fehler += 1
     if fehler:
-        erg.ocr_hinweis = f"Texterkennung bei {fehler} Seite(n) fehlgeschlagen."
+        erg.ocr_hinweis = tr("Texterkennung bei {fehler} Seite(n) fehlgeschlagen.").format(fehler=fehler)
 
 
 def _entzerrt_pdf_bytes(quelle: Path, auftrag) -> bytes:
@@ -202,7 +203,7 @@ def _entzerrt_pdf_bytes(quelle: Path, auftrag) -> bytes:
     try:
         bild = bild_laden(quelle)
     except Exception as e:  # noqa: BLE001
-        raise BildFehler(f"{quelle.name}: Bild nicht lesbar ({e})") from e
+        raise BildFehler(tr("{name}: Bild nicht lesbar ({e})").format(name=quelle.name, e=e)) from e
     return seite_als_pdf_bytes(bild, auftrag.ecken, auftrag.tonwerte)
 
 
@@ -229,12 +230,12 @@ def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr
     quellen = [Path(q) for q in quellen]
     entzerrung = {Path(k): v for k, v in (entzerrung or {}).items()}
     if not quellen:
-        raise BildFehler("Kein Bild angegeben.")
+        raise BildFehler(tr("Kein Bild angegeben."))
     for q in quellen:
         if not q.is_file():
-            raise BildFehler(f"Datei nicht gefunden: {q}")
+            raise BildFehler(tr("Datei nicht gefunden: {q}").format(q=q))
         if not ist_bild_datei(q):
-            raise BildFehler(f"Dateityp {q.suffix.lower() or '(keiner)'} wird nicht unterstützt.")
+            raise BildFehler(tr("Dateityp {0} wird nicht unterstützt.").format(q.suffix.lower() or '(keiner)'))
     ziel = _freier_pfad(Path(ziel) if ziel else quellen[0].with_suffix(".pdf"))
     teil = ziel.with_name(ziel.name + ".part")  # endet nicht auf .pdf: erscheint nie in der Ansicht
     doc = pymupdf.open()
@@ -256,15 +257,15 @@ def bilder_in_pdf(quellen: list[Path | str], ziel: Path | str | None = None, ocr
             doc.save(str(teil), garbage=3, deflate=True)
         except Exception as e:  # noqa: BLE001
             teil.unlink(missing_ok=True)
-            raise BildFehler(f"PDF konnte nicht geschrieben werden: {e}") from e
+            raise BildFehler(tr("PDF konnte nicht geschrieben werden: {e}").format(e=e)) from e
     finally:
         doc.close()
     try:
         os.replace(teil, ziel)
     except OSError as e:
         teil.unlink(missing_ok=True)
-        raise BildFehler(f"PDF konnte nicht geschrieben werden: {e}") from e
+        raise BildFehler(tr("PDF konnte nicht geschrieben werden: {e}").format(e=e)) from e
     if not pdf_lesbar(ziel, erg.seiten):
         ziel.unlink(missing_ok=True)
-        raise BildFehler("Das erzeugte PDF ist nicht lesbar.")
+        raise BildFehler(tr("Das erzeugte PDF ist nicht lesbar."))
     return erg

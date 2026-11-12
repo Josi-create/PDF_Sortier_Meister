@@ -16,6 +16,7 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontMetrics
+from src.i18n import tr
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class TileView:
 # vor Issue #117 (Kachel 160-180 x 230-260, Bild 140x160).
 TILE_VIEWS: tuple[TileView, ...] = (
     TileView(
-        id="klein", label="Klein",
+        id="klein", label=tr("Klein"),
         # Bild so breit wie der Text, Seite unten abgeschnitten: Bei 56x64
         # blieb um die A4-Seite (45 px breit) zu viel leere Kachel (#117-Feedback)
         thumb_w=82, thumb_h=64, thumb_crop=True,
@@ -65,7 +66,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
         hover_preview=True,
     ),
     TileView(
-        id="mittel", label="Mittel",
+        id="mittel", label=tr("Mittel"),
         thumb_w=84, thumb_h=96, thumb_crop=False,
         tile_w=104, tile_h=142, tile_max_w=114, tile_max_h=166,
         margin=6, spacing=4, font_px=10,
@@ -73,7 +74,7 @@ TILE_VIEWS: tuple[TileView, ...] = (
         hover_preview=True,
     ),
     TileView(
-        id="gross", label="Groß",
+        id="gross", label=tr("Groß"),
         thumb_w=140, thumb_h=160, thumb_crop=False,
         tile_w=160, tile_h=230, tile_max_w=180, tile_max_h=260,
         margin=8, spacing=5, font_px=11,

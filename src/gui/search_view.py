@@ -52,16 +52,17 @@ from src.search.ausgabe import datum as datum_text
 from src.search.plattform import im_dateimanager_zeigen
 from src.search.suchindex import Suchindex
 from src.utils.platform_paths import file_manager_name, open_with_default_app
+from src.i18n import tr
 
-TYPEN = (("", "Alle"), ("pdf", "PDF"), ("office", "Office"), ("md", "Markdown"), ("mail", "Mail"))
-SORTIERUNGEN = (("relevanz", "Relevanz"), ("neu", "Neueste zuerst"), ("alt", "Älteste zuerst"))
+TYPEN = (("", tr("Alle")), ("pdf", "PDF"), ("office", tr("Office")), ("md", tr("Markdown")), ("mail", tr("Mail")))
+SORTIERUNGEN = (("relevanz", tr("Relevanz")), ("neu", tr("Neueste zuerst")), ("alt", tr("Älteste zuerst")))
 STATUS_MARKEN = {
-    "ocr_ausstehend": "OCR ausstehend", "ocr_teilweise": "OCR teilweise", "fehler": "Fehler",
-    "cloud": "nur in der Cloud", "zu_gross": "zu groß", "verschluesselt": "verschlüsselt", "leer": "ohne Text",
-    "ausstehend": "noch nicht gelesen",
+    "ocr_ausstehend": tr("OCR ausstehend"), "ocr_teilweise": tr("OCR teilweise"), "fehler": tr("Fehler"),
+    "cloud": tr("nur in der Cloud"), "zu_gross": tr("zu groß"), "verschluesselt": tr("verschlüsselt"), "leer": tr("ohne Text"),
+    "ausstehend": tr("noch nicht gelesen"),
 }
 METADATEN_FILTER = ("steuerjahr", "kategorie", "korrespondent")
-TYP_NAMEN = {"pdf": "PDF", "office": "Office", "md": "Markdown", "mail": "Mails"}
+TYP_NAMEN = {"pdf": "PDF", "office": tr("Office"), "md": tr("Markdown"), "mail": tr("Mails")}
 TABELLEN_FORMATE = ("xlsx", "xlsm", "xls")
 
 SEITENGROESSE = 50            # Treffer je Ladevorgang („Weitere Treffer laden“)
@@ -75,7 +76,7 @@ _MARK_AUF = '<span style="background-color:#fff0a0; color:#000000;"><b>'
 _MARK_ZU = "</b></span>"
 
 HILFE_HTML = (
-    "<b>So wird gesucht</b><ul>"
+    tr("<b>So wird gesucht</b><ul>"
     "<li>Mehrere Wörter: alle müssen vorkommen – <code>Rechnung Telekom</code></li>"
     "<li>Genaue Wortfolge: <code>\"Betrag in Höhe von\"</code></li>"
     "<li>Oder / Nicht: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li>"
@@ -83,7 +84,7 @@ HILFE_HTML = (
     "<li>Nähe: <code>NEAR(Kündigung Frist, 10)</code> – höchstens 10 Wörter auseinander</li>"
     "<li>Umlaute sind egal: <code>Muller</code> findet auch <code>Müller</code></li>"
     "<li>Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht.</li>"
-    "</ul>"
+    "</ul>")
 )
 
 
@@ -138,9 +139,9 @@ def typ_kuerzel(d: dict) -> str:
 def meta_zeile(d: dict) -> str:
     """Datum, Seiten/Blaetter, Groesse, OCR bzw. bei Mails Datum, Absender, Anhaenge."""
     if d.get("typ") == "mail":
-        teile = [datum_text(d.get("datum")), f"Von: {d.get('mail_von') or '?'}"]
+        teile = [datum_text(d.get("datum")), tr("Von: {0}").format(d.get('mail_von') or '?')]
         if d.get("mail_anhaenge"):
-            teile.append(f"Anhänge: {d['mail_anhaenge']}")
+            teile.append(tr("Anhänge: {mail_anhaenge}").format(mail_anhaenge=d['mail_anhaenge']))
     else:
         teile = [datum_text(d.get("datum"))]
         if d.get("seiten"):
@@ -152,7 +153,7 @@ def meta_zeile(d: dict) -> str:
         if d.get("groesse") is not None:
             teile.append(groesse_text(d["groesse"]))
         if d.get("ocr_seiten"):
-            teile.append(f"{d['ocr_seiten']} S. per OCR")
+            teile.append(tr("{ocr_seiten} S. per OCR").format(ocr_seiten=d['ocr_seiten']))
     return " · ".join(t for t in teile if t)
 
 
@@ -160,7 +161,7 @@ def metadaten_zeile(d: dict) -> str:
     """PDFSM-Metadaten eines Treffers: Korrespondent · Kategorie · Steuerjahr · Betrag · Buchungsdatum."""
     teile = [d.get("korrespondent"), d.get("kategorie")]
     if d.get("steuerjahr"):
-        teile.append(f"Steuerjahr {d['steuerjahr']}")
+        teile.append(tr("Steuerjahr {steuerjahr}").format(steuerjahr=d['steuerjahr']))
     if d.get("betrag") is not None and d.get("betrag") != "":
         try:
             teile.append(f"{float(d['betrag']):,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
@@ -175,33 +176,33 @@ def stellen_beschriftung(d: dict, seite) -> str:
     if d.get("typ") == "pdf":
         return f"S. {seite}"
     if ist_tabelle(d):
-        return f"Blatt {seite}"
+        return tr("Blatt {seite}").format(seite=seite)
     return ""
 
 
 def status_zeile(st: dict) -> str:
     """Indexstand in einem Satz fuer die Statusleiste des Reiters."""
     if st.get("fehler"):
-        return f"Indexstand nicht lesbar: {st['fehler']}"
+        return tr("Indexstand nicht lesbar: {fehler}").format(fehler=st['fehler'])
     if not st.get("vorhanden"):
-        return ("Noch kein Index vorhanden – „Jetzt indizieren“ liest die Vorrang-Ordner ein, "
-                "„Kompletten Lauf starten“ alle Ordner.")
+        return (tr("Noch kein Index vorhanden – „Jetzt indizieren“ liest die Vorrang-Ordner ein, "
+                "„Kompletten Lauf starten“ alle Ordner."))
     pro_typ = dict(st.get("pro_typ") or {})
     reihenfolge = [k for k in TYP_NAMEN if k in pro_typ] + [k for k in pro_typ if k not in TYP_NAMEN]
     detail = ", ".join(f"{TYP_NAMEN.get(k, k)} {zahl(pro_typ[k])}" for k in reihenfolge if pro_typ[k])
-    teile = [f"{zahl(st.get('dokumente'))} Dokumente" + (f" ({detail})" if detail else "")]
+    teile = [tr("{0} Dokumente{1}").format(zahl(st.get('dokumente')), f' ({detail})' if detail else '')]
     if st.get("ocr_ausstehend_seiten"):
-        teile.append(f"OCR ausstehend: {zahl(st['ocr_ausstehend_seiten'])} Seiten")
+        teile.append(tr("OCR ausstehend: {0} Seiten").format(zahl(st['ocr_ausstehend_seiten'])))
     if st.get("ocr_grund"):
-        teile.append(f"Texterkennung aus ({st['ocr_grund']})")
+        teile.append(tr("Texterkennung aus ({ocr_grund})").format(ocr_grund=st['ocr_grund']))
     geschrieben = (st.get("textebene") or {}).get("geschrieben")
     if geschrieben:
-        teile.append(f"Textebene in {zahl(geschrieben)} PDFs")
+        teile.append(tr("Textebene in {0} PDFs").format(zahl(geschrieben)))
     if st.get("laeuft"):
-        teile.append("Indexlauf aktiv" + (f": {st['fortschritt']}" if st.get("fortschritt") else ""))
+        teile.append(tr("Indexlauf aktiv{0}").format(f": {st['fortschritt']}" if st.get('fortschritt') else ''))
     elif st.get("laeufe"):
         lauf = st["laeufe"][0]
-        teile.append(f"Letzter Lauf: {lauf.get('beginn') or '?'} ({lauf.get('status') or '?'})")
+        teile.append(tr("Letzter Lauf: {0} ({1})").format(lauf.get('beginn') or '?', lauf.get('status') or '?'))
     return " · ".join(teile)
 
 
@@ -212,36 +213,36 @@ def dokument_html(d: dict, seiten: list[dict]) -> str:
     """
     kopf = [f"<h3 style='margin:0 0 4px 0'>{escape(titel_von(d))}</h3>"]
     if d.get("typ") == "mail":
-        zeilen = [f"Von: {escape(d.get('mail_von') or '')}", f"An: {escape(d.get('mail_an') or '')}",
-                  f"Datum: {escape(datum_text(d.get('datum')) if d.get('datum') else str(d.get('mail_datum') or ''))}"]
+        zeilen = [tr("Von: {0}").format(escape(d.get('mail_von') or '')), tr("An: {0}").format(escape(d.get('mail_an') or '')),
+                  tr("Datum: {0}").format(escape(datum_text(d.get('datum')) if d.get('datum') else str(d.get('mail_datum') or '')))]
         if d.get("mail_anhaenge"):
-            zeilen.append(f"Anhänge: {escape(str(d['mail_anhaenge']))}")
+            zeilen.append(tr("Anhänge: {0}").format(escape(str(d['mail_anhaenge']))))
         kopf.append("<p style='color:#666666; margin:0'>" + "<br>".join(zeilen) + "</p>")
     else:
         kopf.append(f"<p style='color:#666666; margin:0'>{escape(meta_zeile(d))} · "
                     f"Status: {escape(d.get('textstatus') or '')}</p>")
         if d.get("datei") and not os.path.exists(d["datei"]):
-            kopf.append("<p style='color:#9a3412'>Die Datei existiert nicht mehr – "
-                        "hier der im Index gespeicherte Text.</p>")
+            kopf.append(tr("<p style='color:#9a3412'>Die Datei existiert nicht mehr – "
+                        "hier der im Index gespeicherte Text.</p>"))
     teile = []
     anker_gesetzt = False
     for s in seiten:
         ueberschrift = ""
         if d.get("typ") == "pdf":
-            ueberschrift = f"Seite {s.get('seite')}" + (" · OCR" if s.get("quelle") == "ocr" else "")
+            ueberschrift = tr("Seite {0}{1}").format(s.get('seite'), ' · OCR' if s.get('quelle') == 'ocr' else '')
         elif ist_tabelle(d):
-            ueberschrift = f"Blatt {s.get('seite')}"
+            ueberschrift = tr("Blatt {0}").format(s.get('seite'))
         anker = ""
         if s.get("treffer") and not anker_gesetzt:
             anker, anker_gesetzt = '<a name="treffer"></a>', True
-        text = markiert_html(s.get("text") or "", zeilen=True) or "<i>(kein Text)</i>"
+        text = markiert_html(s.get("text") or "", zeilen=True) or tr("<i>(kein Text)</i>")
         if ueberschrift:
             teile.append(f"<h4 style='margin:10px 0 2px 0'>{anker}{escape(ueberschrift)}</h4>")
         else:
             teile.append(anker)
         teile.append(f"<p style='white-space:pre-wrap; margin:0'>{text}</p>")
     if not seiten:
-        teile.append("<p style='color:#888888'>Kein Text vorhanden.</p>")
+        teile.append(tr("<p style='color:#888888'>Kein Text vorhanden.</p>"))
     return "".join(kopf) + "<hr>" + "".join(teile)
 
 
@@ -296,9 +297,9 @@ class TrefferKarte(QFrame):
         if marke:
             marken.append(marke)
         if d.get("im_namen"):
-            marken.append("Treffer im Namen")
+            marken.append(tr("Treffer im Namen"))
         if d.get("im_metadaten"):
-            marken.append("Treffer in Metadaten")
+            marken.append(tr("Treffer in Metadaten"))
         kopf = (f'<span style="color:#2563eb; font-weight:bold;">{escape(typ_kuerzel(d))}</span>&nbsp; '
                 f"<b>{escape(titel_von(d))}</b>"
                 + "".join(f'&nbsp; <span style="color:#9a3412;">[{escape(m)}]</span>' for m in marken))
@@ -326,9 +327,9 @@ class TrefferKarte(QFrame):
             self.stellen_labels.append(lbl)
 
         if d.get("im_namen") and not d.get("stellen"):
-            lay.addWidget(self._label("(Treffer im Datei-/Ordnernamen)", "color: #888888; font-size: 11px;"))
+            lay.addWidget(self._label(tr("(Treffer im Datei-/Ordnernamen)"), "color: #888888; font-size: 11px;"))
         if (d.get("treffer_seiten") or 0) > len(d.get("stellen") or []):
-            lay.addWidget(self._label(f"… insgesamt {d['treffer_seiten']} Seiten mit Treffern",
+            lay.addWidget(self._label(tr("… insgesamt {treffer_seiten} Seiten mit Treffern").format(treffer_seiten=d['treffer_seiten']),
                                       "color: #888888; font-size: 11px;"))
 
     def set_ausgewaehlt(self, an: bool) -> None:
@@ -440,13 +441,13 @@ class SearchView(QWidget):
         h = QHBoxLayout(self.hinweis)
         h.setContentsMargins(12, 8, 12, 8)
         self.hinweis_label = QLabel(
-            "Die Dokumentensuche ist noch nicht eingerichtet. Sie durchsucht PDFs (auch gescannte), "
-            "Office-Dateien, Markdown und Mails auf diesem Rechner – alles bleibt lokal."
+            tr("Die Dokumentensuche ist noch nicht eingerichtet. Sie durchsucht PDFs (auch gescannte), "
+            "Office-Dateien, Markdown und Mails auf diesem Rechner – alles bleibt lokal.")
         )
         self.hinweis_label.setWordWrap(True)
         h.addWidget(self.hinweis_label, 1)
-        self.einrichten_button = QPushButton("Einrichten…")
-        self.einrichten_button.setToolTip("Einstellungen > Suche öffnen")
+        self.einrichten_button = QPushButton(tr("Einrichten…"))
+        self.einrichten_button.setToolTip(tr("Einstellungen > Suche öffnen"))
         self.einrichten_button.clicked.connect(self.einrichten_requested)
         h.addWidget(self.einrichten_button)
         aussen.addWidget(self.hinweis)
@@ -468,29 +469,29 @@ class SearchView(QWidget):
         status.addWidget(self.status_label, 1)
         self.refresh_button = QToolButton()
         self.refresh_button.setText("↻")
-        self.refresh_button.setToolTip("Indexstand aktualisieren")
+        self.refresh_button.setToolTip(tr("Indexstand aktualisieren"))
         self.refresh_button.setAutoRaise(True)
         self.refresh_button.clicked.connect(self.refresh_status)
         status.addWidget(self.refresh_button)
-        self.index_button = QPushButton("Jetzt indizieren")
-        self.index_button.setToolTip("Vorrang-Ordner (z. B. frisch gescannte PDFs) sofort einlesen – "
-                                     "läuft im Hintergrund")
+        self.index_button = QPushButton(tr("Jetzt indizieren"))
+        self.index_button.setToolTip(tr("Vorrang-Ordner (z. B. frisch gescannte PDFs) sofort einlesen – "
+                                     "läuft im Hintergrund"))
         self.index_button.clicked.connect(lambda: self._lauf_starten(True))
         status.addWidget(self.index_button)
-        self.index_all_button = QPushButton("Kompletten Lauf starten")
-        self.index_all_button.setToolTip("Alle eingerichteten Ordner, Laufwerke und Postfächer einlesen – "
-                                         "läuft im Hintergrund")
+        self.index_all_button = QPushButton(tr("Kompletten Lauf starten"))
+        self.index_all_button.setToolTip(tr("Alle eingerichteten Ordner, Laufwerke und Postfächer einlesen – "
+                                         "läuft im Hintergrund"))
         self.index_all_button.clicked.connect(lambda: self._lauf_starten(False))
         status.addWidget(self.index_all_button)
-        self.web_button = QPushButton("Im Browser öffnen")
-        self.web_button.setToolTip("Browser-Oberfläche der Suche öffnen (nur auf diesem Rechner erreichbar); "
-                                   "läuft sie noch nicht, wird sie gestartet")
+        self.web_button = QPushButton(tr("Im Browser öffnen"))
+        self.web_button.setToolTip(tr("Browser-Oberfläche der Suche öffnen (nur auf diesem Rechner erreichbar); "
+                                   "läuft sie noch nicht, wird sie gestartet"))
         self.web_button.clicked.connect(self._web_oeffnen)
         self.web_button.setVisible(False)
         status.addWidget(self.web_button)
-        self.anhalten_button = QPushButton("Anhalten")
-        self.anhalten_button.setToolTip("Den laufenden Indexlauf anhalten – laufende Aufträge werden noch "
-                                        "fertig, der nächste Lauf setzt fort")
+        self.anhalten_button = QPushButton(tr("Anhalten"))
+        self.anhalten_button.setToolTip(tr("Den laufenden Indexlauf anhalten – laufende Aufträge werden noch "
+                                        "fertig, der nächste Lauf setzt fort"))
         self.anhalten_button.clicked.connect(self._lauf_anhalten)
         self.anhalten_button.setVisible(False)
         status.addWidget(self.anhalten_button)
@@ -504,19 +505,19 @@ class SearchView(QWidget):
 
         zeile = QHBoxLayout()
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Suchen in PDFs, Office-Dateien, Markdown und Mails …")
+        self.search_edit.setPlaceholderText(tr("Suchen in PDFs, Office-Dateien, Markdown und Mails …"))
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setToolTip(HILFE_HTML)
         self.search_edit.returnPressed.connect(self._suche_starten)
         self.search_edit.textChanged.connect(self._text_geaendert)
         self.search_edit.installEventFilter(self)
         zeile.addWidget(self.search_edit, 1)
-        self.search_button = QPushButton("Suchen")
+        self.search_button = QPushButton(tr("Suchen"))
         self.search_button.clicked.connect(self._suche_starten)
         zeile.addWidget(self.search_button)
         self.help_button = QToolButton()
         self.help_button.setText("?")
-        self.help_button.setToolTip("Hilfe zur Suchsyntax")
+        self.help_button.setToolTip(tr("Hilfe zur Suchsyntax"))
         self.help_button.clicked.connect(self._hilfe_zeigen)
         zeile.addWidget(self.help_button)
         lay.addLayout(zeile)
@@ -536,7 +537,7 @@ class SearchView(QWidget):
         self.typ_buttons[""].setChecked(True)
         self._typ_gruppe.buttonClicked.connect(lambda _b: self._filter_geaendert())
         filter1.addStretch(1)
-        filter1.addWidget(QLabel("Sortierung:"))
+        filter1.addWidget(QLabel(tr("Sortierung:")))
         self.sort_combo = QComboBox()
         for key, beschriftung in SORTIERUNGEN:
             self.sort_combo.addItem(beschriftung, key)
@@ -545,15 +546,15 @@ class SearchView(QWidget):
         lay.addLayout(filter1)
 
         filter2 = QHBoxLayout()
-        filter2.addWidget(QLabel("Ordner:"))
+        filter2.addWidget(QLabel(tr("Ordner:")))
         self.ordner_edit = QLineEdit()
-        self.ordner_edit.setPlaceholderText("Teil des Pfads oder Postfachs, z. B. Steuer")
+        self.ordner_edit.setPlaceholderText(tr("Teil des Pfads oder Postfachs, z. B. Steuer"))
         self.ordner_edit.setClearButtonEnabled(True)
         self.ordner_edit.editingFinished.connect(self._filter_geaendert)
         filter2.addWidget(self.ordner_edit, 1)
-        filter2.addWidget(QLabel("Zeitraum:"), 0, Qt.AlignmentFlag.AlignTop)
+        filter2.addWidget(QLabel(tr("Zeitraum:")), 0, Qt.AlignmentFlag.AlignTop)
         self.zeitraum_edit = ZeitraumFeld()
-        self.zeitraum_edit.setToolTip("Dokumentdatum (Dateidatum bzw. Mail-Datum); leer = kein Filter")
+        self.zeitraum_edit.setToolTip(tr("Dokumentdatum (Dateidatum bzw. Mail-Datum); leer = kein Filter"))
         self.zeitraum_edit.geaendert.connect(self._filter_geaendert)
         filter2.addWidget(self.zeitraum_edit, 1)
         lay.addLayout(filter2)
@@ -561,19 +562,19 @@ class SearchView(QWidget):
         # PDFSM-Metadaten (Phase 5): Steuerjahr, Kategorie, Korrespondent, Betrag
         filter3 = QHBoxLayout()
         self.meta_combos: dict[str, QComboBox] = {}
-        for feld, beschriftung in (("steuerjahr", "Steuerjahr:"), ("kategorie", "Kategorie:"),
-                                   ("korrespondent", "Korrespondent:")):
+        for feld, beschriftung in (("steuerjahr", tr("Steuerjahr:")), ("kategorie", tr("Kategorie:")),
+                                   ("korrespondent", tr("Korrespondent:"))):
             filter3.addWidget(QLabel(beschriftung))
             combo = QComboBox()
-            combo.addItem("Alle", "")
+            combo.addItem(tr("Alle"), "")
             combo.setMinimumWidth(90)
             combo.currentIndexChanged.connect(lambda _i: self._filter_geaendert())
             self.meta_combos[feld] = combo
             filter3.addWidget(combo, 1 if feld != "steuerjahr" else 0)
-        filter3.addWidget(QLabel("Betrag von:"))
+        filter3.addWidget(QLabel(tr("Betrag von:")))
         self.betrag_von_spin = self._betrag_feld()
         filter3.addWidget(self.betrag_von_spin)
-        filter3.addWidget(QLabel("bis:"))
+        filter3.addWidget(QLabel(tr("bis:")))
         self.betrag_bis_spin = self._betrag_feld()
         filter3.addWidget(self.betrag_bis_spin)
         lay.addLayout(filter3)
@@ -596,7 +597,7 @@ class SearchView(QWidget):
         self.hilfe_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.hilfe_label.setStyleSheet("color: #444444; padding: 8px;")
         self.treffer_layout.addWidget(self.hilfe_label)
-        self.mehr_button = QPushButton("Weitere Treffer laden")
+        self.mehr_button = QPushButton(tr("Weitere Treffer laden"))
         self.mehr_button.setVisible(False)
         self.mehr_button.clicked.connect(self._mehr_laden)
         self.treffer_layout.addWidget(self.mehr_button)
@@ -611,7 +612,7 @@ class SearchView(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
 
-        self.titel_label = QLabel("Kein Treffer ausgewählt")
+        self.titel_label = QLabel(tr("Kein Treffer ausgewählt"))
         self.titel_label.setStyleSheet("font-weight: bold;")
         self.titel_label.setWordWrap(True)
         self.titel_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -623,19 +624,19 @@ class SearchView(QWidget):
         lay.addWidget(self.pfad_label)
 
         aktionen = QHBoxLayout()
-        self.open_button = QPushButton("Öffnen")
-        self.open_button.setToolTip("PDFs wie in den Einstellungen gewählt, andere Dateien mit dem "
-                                    "Standardprogramm, Mails als .eml mit dem Mailprogramm")
+        self.open_button = QPushButton(tr("Öffnen"))
+        self.open_button.setToolTip(tr("PDFs wie in den Einstellungen gewählt, andere Dateien mit dem "
+                                    "Standardprogramm, Mails als .eml mit dem Mailprogramm"))
         self.open_button.clicked.connect(lambda: self._mit_aktuellem(self._oeffnen))
         aktionen.addWidget(self.open_button)
-        self.show_button = QPushButton(f"Im {file_manager_name()} zeigen")
+        self.show_button = QPushButton(tr("Im {0} zeigen").format(file_manager_name()))
         self.show_button.clicked.connect(lambda: self._mit_aktuellem(self._im_dateimanager_zeigen))
         aktionen.addWidget(self.show_button)
-        self.copy_button = QPushButton("Pfad kopieren")
+        self.copy_button = QPushButton(tr("Pfad kopieren"))
         self.copy_button.clicked.connect(lambda: self._mit_aktuellem(self._pfad_kopieren))
         aktionen.addWidget(self.copy_button)
-        self.eml_button = QPushButton("Als .eml speichern…")
-        self.eml_button.setToolTip("Die Mail als Datei ablegen (z. B. zu den Belegen)")
+        self.eml_button = QPushButton(tr("Als .eml speichern…"))
+        self.eml_button.setToolTip(tr("Die Mail als Datei ablegen (z. B. zu den Belegen)"))
         self.eml_button.clicked.connect(lambda: self._mit_aktuellem(self._eml_speichern))
         aktionen.addWidget(self.eml_button)
         aktionen.addStretch(1)
@@ -651,8 +652,8 @@ class SearchView(QWidget):
         lay.addWidget(self.meldung_label)
 
         self.vorschau_stack = QStackedWidget()
-        self.vorschau_hinweis = QLabel("Treffer auswählen – PDFs erscheinen hier auf der Trefferseite, "
-                                       "Office-Dateien, Markdown und Mails als Text.")
+        self.vorschau_hinweis = QLabel(tr("Treffer auswählen – PDFs erscheinen hier auf der Trefferseite, "
+                                       "Office-Dateien, Markdown und Mails als Text."))
         self.vorschau_hinweis.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.vorschau_hinweis.setWordWrap(True)
         self.vorschau_hinweis.setStyleSheet("color: #888888; padding: 16px;")
@@ -676,7 +677,7 @@ class SearchView(QWidget):
         feld.setDecimals(2)
         feld.setSpecialValueText("–")
         feld.setSuffix(" €")
-        feld.setToolTip("Bruttobetrag aus den PDFSM-Metadaten; „–“ = kein Filter")
+        feld.setToolTip(tr("Bruttobetrag aus den PDFSM-Metadaten; „–“ = kein Filter"))
         feld.valueChanged.connect(lambda _v: self._filter_geaendert())
         return feld
 
@@ -697,7 +698,7 @@ class SearchView(QWidget):
         self._status_timer.stop()
         self._liste_leeren(hilfe=True)
         self.count_label.setText("")
-        self.status_label.setText("" if aktiv else "Dokumentensuche ausgeschaltet (Einstellungen > Suche).")
+        self.status_label.setText("" if aktiv else tr("Dokumentensuche ausgeschaltet (Einstellungen > Suche)."))
         if aktiv and self.isVisible():
             self.refresh_status()
 
@@ -859,7 +860,7 @@ class SearchView(QWidget):
             combo.blockSignals(True)
             try:
                 combo.clear()
-                combo.addItem("Alle", "")
+                combo.addItem(tr("Alle"), "")
                 for w in liste:
                     combo.addItem(str(w), str(w))
                 self._combo_waehlen(combo, aktuell)
@@ -884,7 +885,7 @@ class SearchView(QWidget):
         thread.fertig.connect(self._ergebnis_da)
         thread.fehler.connect(self._abfrage_fehler)
         self._thread_starten(thread)
-        self.count_label.setText("Suche …" if not start else "Lade weitere Treffer …")
+        self.count_label.setText(tr("Suche …") if not start else tr("Lade weitere Treffer …"))
         self.mehr_button.setEnabled(False)
 
     def _mehr_laden(self) -> None:
@@ -905,12 +906,11 @@ class SearchView(QWidget):
             self._karte_anlegen(d)
         gesamt = int(ergebnis.get("gesamt") or 0)
         if gesamt:
-            self.count_label.setText(f"{zahl(gesamt)}{'+' if ergebnis.get('mehr') else ''} Dokumente · "
-                                     f"{ergebnis.get('dauer_ms', 0)} ms")
+            self.count_label.setText(tr("{0}{1} Dokumente · {2} ms").format(zahl(gesamt), '+' if ergebnis.get('mehr') else '', ergebnis.get('dauer_ms', 0)))
         elif text:
-            self.count_label.setText(f"Keine Treffer für „{text}“ (Abfrage: {ergebnis.get('abfrage', '')})")
+            self.count_label.setText(tr("Keine Treffer für „{text}“ (Abfrage: {0})").format(ergebnis.get('abfrage', ''), text=text))
         else:
-            self.count_label.setText("Keine Dokumente mit diesen Filtern")
+            self.count_label.setText(tr("Keine Dokumente mit diesen Filtern"))
         geladen = start + len(ergebnis.get("treffer") or [])
         self.mehr_button.setVisible(geladen < gesamt)
         self.mehr_button.setEnabled(True)
@@ -928,7 +928,7 @@ class SearchView(QWidget):
         self._abfragen.pop(generation, None)
         if generation != self._generation:
             return
-        self.count_label.setText(f"Suche fehlgeschlagen: {text}")
+        self.count_label.setText(tr("Suche fehlgeschlagen: {text}").format(text=text))
         self.mehr_button.setEnabled(True)
 
     def _liste_leeren(self, hilfe: bool) -> None:
@@ -1014,7 +1014,7 @@ class SearchView(QWidget):
         self._pdf_pfad = None
         self._pending_seite = None
         self._vorschau_generation += 1
-        self.text_vorschau.setHtml("<p style='color:#888888'>Lade Text …</p>")
+        self.text_vorschau.setHtml(tr("<p style='color:#888888'>Lade Text …</p>"))
         self.vorschau_stack.setCurrentWidget(self.text_vorschau)
         thread = DokumentLaden(self.index, self._vorschau_generation, int(d["id"]),
                                self.angezeigte_abfrage or None, self)
@@ -1028,7 +1028,7 @@ class SearchView(QWidget):
         self.pdf_vorschau.clear()
         self.text_vorschau.clear()
         self.vorschau_stack.setCurrentWidget(self.vorschau_hinweis)
-        self.titel_label.setText("Kein Treffer ausgewählt")
+        self.titel_label.setText(tr("Kein Treffer ausgewählt"))
         self.pfad_label.setText("")
         for b in (self.open_button, self.show_button, self.copy_button):
             b.setEnabled(False)
@@ -1055,7 +1055,7 @@ class SearchView(QWidget):
         if generation != self._vorschau_generation:
             return
         if d is None:
-            self.text_vorschau.setHtml("<p>Dieses Dokument ist nicht mehr im Index.</p>")
+            self.text_vorschau.setHtml(tr("<p>Dieses Dokument ist nicht mehr im Index.</p>"))
             return
         self.text_vorschau.setHtml(dokument_html(d, list(seiten or [])))
         if any(s.get("treffer") for s in seiten or []):
@@ -1068,7 +1068,7 @@ class SearchView(QWidget):
         self.titel_label.setText(titel_von(d) or "–")
         self.pfad_label.setText((d.get("ordner") if mbox else d.get("pfad")) or "")
         self.open_button.setEnabled(True)
-        self.open_button.setText("Mail öffnen" if mail else "Öffnen")
+        self.open_button.setText(tr("Mail öffnen") if mail else tr("Öffnen"))
         self.show_button.setEnabled(not mbox)
         self.copy_button.setEnabled(True)
         self.eml_button.setVisible(mail)
@@ -1088,15 +1088,15 @@ class SearchView(QWidget):
     def _aktionen_menue(self, d: dict) -> QMenu:
         """Kontextmenue eines Treffers (ohne exec, auch fuer Tests)."""
         menue = QMenu(self)
-        menue.addAction("Mail öffnen" if d.get("typ") == "mail" else "Öffnen", lambda: self._oeffnen(d))
+        menue.addAction(tr("Mail öffnen") if d.get("typ") == "mail" else tr("Öffnen"), lambda: self._oeffnen(d))
         if d.get("typ") != "mail" and ist_sortierbar(Path(d.get("datei") or "")):
             # Im Programm: Ordner in "PDFs" oeffnen, Datei auswaehlen (umbenennen/verschieben)
-            menue.addAction("📂 Im Ordner anzeigen", lambda: self._im_ordner_anzeigen(d))
+            menue.addAction(tr("📂 Im Ordner anzeigen"), lambda: self._im_ordner_anzeigen(d))
         if d.get("format") != "mbox":
-            menue.addAction(f"Im {file_manager_name()} zeigen", lambda: self._im_dateimanager_zeigen(d))
-        menue.addAction("Pfad kopieren", lambda: self._pfad_kopieren(d))
+            menue.addAction(tr("Im {0} zeigen").format(file_manager_name()), lambda: self._im_dateimanager_zeigen(d))
+        menue.addAction(tr("Pfad kopieren"), lambda: self._pfad_kopieren(d))
         if d.get("typ") == "mail":
-            menue.addAction("Als .eml speichern…", lambda: self._eml_speichern(d))
+            menue.addAction(tr("Als .eml speichern…"), lambda: self._eml_speichern(d))
         return menue
 
     def _kontextmenue_zeigen(self, karte: TrefferKarte, pos: QPoint) -> None:
@@ -1109,13 +1109,13 @@ class SearchView(QWidget):
             try:
                 pfad = self.index.mail_als_eml(d)
             except OSError as e:
-                self._meldung(f"Die Mail konnte nicht gelesen werden: {e}")
+                self._meldung(tr("Die Mail konnte nicht gelesen werden: {e}").format(e=e))
                 return
             open_with_default_app(pfad)
             return
         pfad = d.get("datei") or ""
         if not pfad or not os.path.exists(pfad):
-            self._meldung("Die Datei existiert nicht mehr.")
+            self._meldung(tr("Die Datei existiert nicht mehr."))
             return
         if d.get("typ") == "pdf":
             self.open_pdf_requested.emit(Path(pfad))
@@ -1126,37 +1126,37 @@ class SearchView(QWidget):
         """Treffer im Programm zeigen: Ordner in "PDFs" oeffnen, Datei auswaehlen."""
         pfad = d.get("datei") or ""
         if not pfad or not os.path.exists(pfad):
-            self._meldung("Die Datei existiert nicht mehr.")
+            self._meldung(tr("Die Datei existiert nicht mehr."))
             return
         self.im_ordner_anzeigen_requested.emit(Path(pfad))
 
     def _im_dateimanager_zeigen(self, d: dict) -> None:
         pfad = d.get("datei") or ""
         if not pfad or not os.path.exists(pfad):
-            self._meldung("Die Datei existiert nicht mehr.")
+            self._meldung(tr("Die Datei existiert nicht mehr."))
             return
         im_dateimanager_zeigen(pfad)
 
     def _pfad_kopieren(self, d: dict) -> None:
         QApplication.clipboard().setText(d.get("pfad") or "")
-        self._meldung("Pfad kopiert.")
+        self._meldung(tr("Pfad kopiert."))
 
     def _eml_speichern(self, d: dict) -> None:
         endung = ".msg" if d.get("format") == "msg" else ".eml"
         vorschlag = str(Path.home() / (Suchindex.eml_dateiname(titel_von(d)) + endung))
-        ziel, _ = QFileDialog.getSaveFileName(self, "Mail speichern", vorschlag, f"E-Mail (*{endung})")
+        ziel, _ = QFileDialog.getSaveFileName(self, tr("Mail speichern"), vorschlag, tr("E-Mail (*{endung})").format(endung=endung))
         if not ziel:
             return
         try:
             quelle = self.index.mail_als_eml(d)
             Path(ziel).write_bytes(Path(quelle).read_bytes())
         except OSError as e:
-            self._meldung(f"Speichern fehlgeschlagen: {e}")
+            self._meldung(tr("Speichern fehlgeschlagen: {e}").format(e=e))
             return
-        self._meldung(f"Gespeichert: {ziel}")
+        self._meldung(tr("Gespeichert: {ziel}").format(ziel=ziel))
 
     def _hilfe_zeigen(self) -> None:
-        QMessageBox.information(self, "So wird gesucht", HILFE_HTML)
+        QMessageBox.information(self, tr("So wird gesucht"), HILFE_HTML)
 
     # ------------------------------------------------------------------ Indexstand und Laeufe
 
@@ -1194,13 +1194,14 @@ class SearchView(QWidget):
         try:
             prozess = self.index.lauf_starten(nur_prioritaet=nur_prioritaet)
         except OSError as e:
-            self._meldung(f"Der Indexlauf konnte nicht gestartet werden: {e}")
+            self._meldung(tr("Der Indexlauf konnte nicht gestartet werden: {e}").format(e=e))
             return
         if prozess is None:
-            self.status_label.setText("Ein Indexlauf läuft bereits.")
+            self.status_label.setText(tr("Ein Indexlauf läuft bereits."))
         else:
-            self.status_label.setText("Indexlauf gestartet – " + ("die Vorrang-Ordner werden"
-                                      if nur_prioritaet else "alle Ordner werden") + " im Hintergrund eingelesen …")
+            self.status_label.setText(tr("Indexlauf gestartet – die Vorrang-Ordner werden im Hintergrund eingelesen …")
+                if nur_prioritaet
+                else tr("Indexlauf gestartet – alle Ordner werden im Hintergrund eingelesen …"))
         self.index_button.setEnabled(False)
         self.index_all_button.setEnabled(False)
         self._status_timer.start()
@@ -1213,12 +1214,12 @@ class SearchView(QWidget):
         try:
             angehalten = self.index.lauf_anhalten()
         except OSError as e:
-            self._meldung(f"Der Lauf konnte nicht angehalten werden: {e}")
+            self._meldung(tr("Der Lauf konnte nicht angehalten werden: {e}").format(e=e))
             return
         if angehalten:
             self.anhalten_button.setEnabled(False)
-            self.status_label.setText("Der Indexlauf hält an, sobald die laufenden Aufträge fertig sind – "
-                                      "der nächste Lauf setzt fort …")
+            self.status_label.setText(tr("Der Indexlauf hält an, sobald die laufenden Aufträge fertig sind – "
+                                      "der nächste Lauf setzt fort …"))
         else:
             self.refresh_status()
 
@@ -1232,17 +1233,19 @@ class SearchView(QWidget):
         try:
             self.index.web_starten(oeffnen=True)
         except OSError as e:
-            self._meldung(f"Die Browser-Oberfläche konnte nicht gestartet werden: {e}")
+            self._meldung(tr("Die Browser-Oberfläche konnte nicht gestartet werden: {e}").format(e=e))
             return
-        self.status_label.setText("Die Browser-Oberfläche wird gestartet …")
+        self.status_label.setText(tr("Die Browser-Oberfläche wird gestartet …"))
         QTimer.singleShot(WEB_PRUEFEN_MS, self._web_pruefen)
 
     def _web_pruefen(self) -> None:
         """Nach dem Start: antwortet die Oberfläche? Sonst ist der Port belegt oder Flask fehlt."""
         if self.index is None or self.index.web_erreichbar():
             return
-        self._meldung(f"Die Browser-Oberfläche antwortet nicht. Ist Port {self.konfig.web_port} von einem anderen "
-                      "Programm belegt? Der Port lässt sich unter Einstellungen > Suche ändern.")
+        self._meldung(tr(
+            "Die Browser-Oberfläche antwortet nicht. Ist Port {web_port} von einem anderen "
+            "Programm belegt? Der Port lässt sich unter Einstellungen > Suche ändern."
+        ).format(web_port=self.konfig.web_port))
 
     # ------------------------------------------------------------------ Tastatur
 

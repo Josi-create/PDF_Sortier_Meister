@@ -49,6 +49,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from src.i18n import tr
 
 # Groessere Dateien werden nicht komplett in den Speicher gelesen.
 MAX_PREVIEW_BYTES = 300 * 1024 * 1024
@@ -59,16 +60,16 @@ ZOOM_MAX = 8.0
 
 # Rechtsklick auf markierten Text: in welches Metadaten-Feld? (Issue #109)
 SELECTION_TARGETS: tuple[tuple[str, str], ...] = (
-    ("korrespondent", "Als Korrespondent übernehmen"),
-    ("subject", "Als Kategorie übernehmen"),
-    ("description", "Als Zusammenfassung übernehmen"),
-    ("betrag_netto", "Als Betrag Netto übernehmen"),
-    ("betrag_brutto", "Als Betrag Brutto übernehmen"),
-    ("waehrung", "Als Währung übernehmen"),
-    ("mwst_satz", "Als MwSt-Satz übernehmen"),
-    ("iban", "Als IBAN übernehmen"),
-    ("buchungsdatum", "Als Datum übernehmen"),  # Issue #132
-    ("steuerjahr", "Als Steuerjahr übernehmen"),
+    ("korrespondent", tr("Als Korrespondent übernehmen")),
+    ("subject", tr("Als Kategorie übernehmen")),
+    ("description", tr("Als Zusammenfassung übernehmen")),
+    ("betrag_netto", tr("Als Betrag Netto übernehmen")),
+    ("betrag_brutto", tr("Als Betrag Brutto übernehmen")),
+    ("waehrung", tr("Als Währung übernehmen")),
+    ("mwst_satz", tr("Als MwSt-Satz übernehmen")),
+    ("iban", tr("Als IBAN übernehmen")),
+    ("buchungsdatum", tr("Als Datum übernehmen")),  # Issue #132
+    ("steuerjahr", tr("Als Steuerjahr übernehmen")),
 )
 
 
@@ -114,12 +115,12 @@ class _PdfBytesReader(QThread):
             if size > MAX_PREVIEW_BYTES:
                 self.finished_read.emit(
                     self._generation, None,
-                    f"Datei zu groß für die Vorschau ({size // (1024 * 1024)} MB).",
+                    tr("Datei zu groß für die Vorschau ({0} MB).").format(size // (1024 * 1024)),
                 )
                 return
             data = self._path.read_bytes()
         except OSError as e:
-            self.finished_read.emit(self._generation, None, f"Datei konnte nicht gelesen werden: {e}")
+            self.finished_read.emit(self._generation, None, tr("Datei konnte nicht gelesen werden: {e}").format(e=e))
             return
         self.finished_read.emit(self._generation, data, "")
 
@@ -181,7 +182,7 @@ class PdfPreviewWidget(QWidget):
         style = self.style()
 
         self.prev_btn = self._tool_button(
-            style.standardIcon(QStyle.StandardPixmap.SP_ArrowLeft), "Vorherige Seite (Bild auf)"
+            style.standardIcon(QStyle.StandardPixmap.SP_ArrowLeft), tr("Vorherige Seite (Bild auf)")
         )
         self.prev_btn.clicked.connect(self.previous_page)
         bar.addWidget(self.prev_btn)
@@ -189,30 +190,30 @@ class PdfPreviewWidget(QWidget):
         self.page_label = QLabel("– / –")
         self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.page_label.setMinimumWidth(56)
-        self.page_label.setToolTip("Aktuelle Seite / Seitenzahl")
+        self.page_label.setToolTip(tr("Aktuelle Seite / Seitenzahl"))
         bar.addWidget(self.page_label)
 
         self.next_btn = self._tool_button(
-            style.standardIcon(QStyle.StandardPixmap.SP_ArrowRight), "Nächste Seite (Bild ab)"
+            style.standardIcon(QStyle.StandardPixmap.SP_ArrowRight), tr("Nächste Seite (Bild ab)")
         )
         self.next_btn.clicked.connect(self.next_page)
         bar.addWidget(self.next_btn)
 
         bar.addSpacing(8)
 
-        self.zoom_out_btn = self._tool_button(None, "Verkleinern", text="−")
+        self.zoom_out_btn = self._tool_button(None, tr("Verkleinern"), text="−")
         self.zoom_out_btn.clicked.connect(self.zoom_out)
         bar.addWidget(self.zoom_out_btn)
 
-        self.zoom_in_btn = self._tool_button(None, "Vergrößern", text="+")
+        self.zoom_in_btn = self._tool_button(None, tr("Vergrößern"), text="+")
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         bar.addWidget(self.zoom_in_btn)
 
-        self.fit_width_btn = self._tool_button(None, "An Breite anpassen", text="Breite")
+        self.fit_width_btn = self._tool_button(None, tr("An Breite anpassen"), text=tr("Breite"))
         self.fit_width_btn.clicked.connect(self.fit_width)
         bar.addWidget(self.fit_width_btn)
 
-        self.fit_page_btn = self._tool_button(None, "Ganze Seite anzeigen", text="Seite")
+        self.fit_page_btn = self._tool_button(None, tr("Ganze Seite anzeigen"), text=tr("Seite"))
         self.fit_page_btn.clicked.connect(self.fit_page)
         bar.addWidget(self.fit_page_btn)
 
@@ -220,8 +221,8 @@ class PdfPreviewWidget(QWidget):
 
         if self._compact:
             self.enlarge_btn = self._tool_button(
-                None, "Große Vorschau in eigenem Fenster (auch Doppelklick auf die Seite)",
-                text="Groß",
+                None, tr("Große Vorschau in eigenem Fenster (auch Doppelklick auf die Seite)"),
+                text=tr("Groß"),
             )
             self.enlarge_btn.clicked.connect(self._emit_enlarge)
             bar.addWidget(self.enlarge_btn)
@@ -229,8 +230,8 @@ class PdfPreviewWidget(QWidget):
             self.enlarge_btn = None
 
         self.external_btn = self._tool_button(
-            None, "Im externen Programm öffnen (siehe Einstellungen > Allgemein)",
-            text="Extern öffnen",
+            None, tr("Im externen Programm öffnen (siehe Einstellungen > Allgemein)"),
+            text=tr("Extern öffnen"),
         )
         self.external_btn.clicked.connect(self._emit_open_external)
         bar.addWidget(self.external_btn)
@@ -250,8 +251,8 @@ class PdfPreviewWidget(QWidget):
         self._view.pageNavigator().currentPageChanged.connect(self._on_current_page_changed)
         self._view.viewport().installEventFilter(self)
         self._view.setToolTip(
-            "Text mit der Maus markieren, dann Rechtsklick: "
-            "in ein Metadaten-Feld übernehmen (Datum, Korrespondent, Betrag, IBAN, ...)."
+            tr("Text mit der Maus markieren, dann Rechtsklick: "
+            "in ein Metadaten-Feld übernehmen (Datum, Korrespondent, Betrag, IBAN, ...).")
         )
         self._stack.addWidget(self._view)
 
@@ -263,7 +264,7 @@ class PdfPreviewWidget(QWidget):
         self._view.zoomFactorChanged.connect(self._refresh_overlay)
         self._view.zoomModeChanged.connect(self._refresh_overlay)
 
-        self.message_label = QLabel("Keine PDF ausgewählt")
+        self.message_label = QLabel(tr("Keine PDF ausgewählt"))
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.message_label.setWordWrap(True)
         self.message_label.setStyleSheet("color: #888; padding: 16px;")
@@ -301,7 +302,7 @@ class PdfPreviewWidget(QWidget):
         self._generation += 1
         generation = self._generation
         self._current_path = path
-        self._show_message(f"Lade {path.name} …")
+        self._show_message(tr("Lade {name} …").format(name=path.name))
         self._set_controls_enabled(False)
 
         reader = _PdfBytesReader(path, generation, self)
@@ -353,7 +354,7 @@ class PdfPreviewWidget(QWidget):
         self._line_boxes = {}
         self.clear_selection()
         self._release_document()
-        self._show_message("Keine PDF ausgewählt")
+        self._show_message(tr("Keine PDF ausgewählt"))
         self._set_controls_enabled(False)
         self.page_label.setText("– / –")
 
@@ -369,7 +370,7 @@ class PdfPreviewWidget(QWidget):
             return  # Inzwischen wurde eine andere PDF gewaehlt
         path = self._current_path
         if data is None:
-            self._fail(path, error or "Unbekannter Fehler")
+            self._fail(path, error or tr("Unbekannter Fehler"))
             return
         self.load_bytes(path, data)
 
@@ -389,7 +390,7 @@ class PdfPreviewWidget(QWidget):
 
     def _fail(self, path: Path, message: str):
         self._release_document()
-        self._show_message(f"Vorschau nicht möglich:\n{message}")
+        self._show_message(tr("Vorschau nicht möglich:\n{message}").format(message=message))
         self._set_controls_enabled(False)
         self.external_btn.setEnabled(True)
         self.load_failed.emit(path, message)
@@ -405,12 +406,12 @@ class PdfPreviewWidget(QWidget):
     @staticmethod
     def _error_text(error) -> str:
         mapping = {
-            QPdfDocument.Error.FileNotFound: "Datei nicht gefunden.",
-            QPdfDocument.Error.InvalidFileFormat: "Keine gültige PDF-Datei.",
-            QPdfDocument.Error.IncorrectPassword: "Die PDF ist passwortgeschützt.",
-            QPdfDocument.Error.UnsupportedSecurityScheme: "Nicht unterstützte Verschlüsselung.",
+            QPdfDocument.Error.FileNotFound: tr("Datei nicht gefunden."),
+            QPdfDocument.Error.InvalidFileFormat: tr("Keine gültige PDF-Datei."),
+            QPdfDocument.Error.IncorrectPassword: tr("Die PDF ist passwortgeschützt."),
+            QPdfDocument.Error.UnsupportedSecurityScheme: tr("Nicht unterstützte Verschlüsselung."),
         }
-        return mapping.get(error, "Die PDF konnte nicht gelesen werden.")
+        return mapping.get(error, tr("Die PDF konnte nicht gelesen werden."))
 
     def _on_page_count_changed(self, _count: int):
         self._update_page_label()
@@ -678,7 +679,7 @@ class PdfPreviewWidget(QWidget):
                 lambda _checked=False, k=field_key, t=text: self.apply_text_requested.emit(k, t)
             )
         menu.addSeparator()
-        copy_action = menu.addAction("Kopieren")
+        copy_action = menu.addAction(tr("Kopieren"))
         copy_action.triggered.connect(lambda _checked=False, t=text: QApplication.clipboard().setText(t))
         return menu
 

@@ -27,6 +27,7 @@ from src.ml.provider_factory import (
 )
 from src.utils.config import get_config
 from src.utils.database import get_database
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -349,7 +350,7 @@ class HybridClassifier:
                 + self.LLM_WEIGHT * llm.confidence
             )
             matching_local.confidence = min(combined_confidence, 0.98)
-            matching_local.reason = f"{matching_local.reason} + LLM bestätigt"
+            matching_local.reason = tr("{reason} + LLM bestätigt").format(reason=matching_local.reason)
             matching_local.source = "hybrid"
         else:
             # LLM-Vorschlag hinzufügen
@@ -532,10 +533,10 @@ class HybridClassifier:
         self.total_tokens_used += response.tokens_used
 
         if not response.success:
-            self.last_llm_error = response.error_message or "KI-Aufruf fehlgeschlagen."
+            self.last_llm_error = response.error_message or tr("KI-Aufruf fehlgeschlagen.")
             return None
         if not response.filename_suggestion:
-            self.last_llm_error = "KI hat keinen Dateinamen geliefert."
+            self.last_llm_error = tr("KI hat keinen Dateinamen geliefert.")
             return None
         self.last_llm_error = None
 
@@ -543,7 +544,7 @@ class HybridClassifier:
         from src.utils.filename_sanitizer import sanitize_filename
         clean_name = sanitize_filename(response.filename_suggestion)
         if not clean_name:
-            self.last_llm_error = "KI-Dateiname bestand nur aus ungueltigen Zeichen."
+            self.last_llm_error = tr("KI-Dateiname bestand nur aus ungueltigen Zeichen.")
             return None
 
         return HybridFilename(
@@ -631,8 +632,10 @@ class HybridClassifier:
         model = provider._get_model_id()
         installed = provider.list_models()
         if not _ollama_model_installed(model, installed):
-            return False, (f"Modell „{model}“ ist in Ollama nicht installiert "
-                           f"({len(installed)} Modell(e) vorhanden).")
+            return False, (tr(
+                "Modell „{model}“ ist in Ollama nicht installiert ({anzahl} Modell(e) "
+                "vorhanden)."
+            ).format(model=model, anzahl=len(installed)))
         return True, detail
 
     def llm_connection_checkable(self) -> bool:
@@ -647,7 +650,7 @@ class HybridClassifier:
     def get_llm_provider_name(self) -> str:
         """Gibt den Namen des aktuellen LLM-Providers zurück."""
         if not self.llm_enabled or not self.llm_provider:
-            return "Keiner"
+            return tr("Keiner")
         if isinstance(self.llm_provider, ClaudeProvider):
             return "Claude"
         if isinstance(self.llm_provider, OpenRouterProvider):
@@ -664,7 +667,7 @@ class HybridClassifier:
             return "Ollama Cloud"
         if isinstance(self.llm_provider, OllamaProvider):
             return "Ollama"
-        return "Unbekannt"
+        return tr("Unbekannt")
 
 
 def _ollama_model_installed(model: str, installed: list[str]) -> bool:

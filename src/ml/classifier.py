@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 from src.utils.config import get_config
 from src.utils.database import get_database, SortingHistory
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.classifier")
 
@@ -485,7 +486,7 @@ class PDFClassifier:
                     folder_path=folder_path,
                     folder_name=folder_path.name,
                     confidence=min(combined_score, 0.95),  # Max 95%
-                    reason=f"Ähnlicher Inhalt ({int(combined_score * 100)}%)",
+                    reason=tr("Ähnlicher Inhalt ({0}%)").format(int(combined_score * 100)),
                 ))
 
         suggestions.sort(key=lambda s: s.confidence, reverse=True)
@@ -523,7 +524,7 @@ class PDFClassifier:
                     folder_path=folder_path,
                     folder_name=folder_path.name,
                     confidence=confidence,
-                    reason=f"Ähnliche Schlüsselwörter",
+                    reason=tr("Ähnliche Schlüsselwörter"),
                 ))
 
         suggestions.sort(key=lambda s: s.confidence, reverse=True)
@@ -544,7 +545,7 @@ class PDFClassifier:
                     folder_path=folder_path,
                     folder_name=folder_path.name,
                     confidence=confidence,
-                    reason=f"Häufig verwendet ({folder.usage_count}x)",
+                    reason=tr("Häufig verwendet ({usage_count}x)").format(usage_count=folder.usage_count),
                 ))
                 if len(suggestions) >= max_suggestions:
                     break
@@ -614,10 +615,10 @@ class PDFClassifier:
             variant_path, variant_relative = variant
             year_matches = detected_year is not None
             if year_matches:
-                reason = f'Jahr {target_year} im Dokument erkannt - Variante von "{relative_path}"'
+                reason = tr("Jahr {target_year} im Dokument erkannt - Variante von \"{relative_path}\"").format(target_year=target_year, relative_path=relative_path)
                 confidence = min(1.0, s.confidence + 0.05)
             else:
-                reason = f'Aktuelles Jahr {target_year} - Variante von "{relative_path}"'
+                reason = tr("Aktuelles Jahr {target_year} - Variante von \"{relative_path}\"").format(target_year=target_year, relative_path=relative_path)
                 confidence = max(0.0, s.confidence - 0.05)
             variant_suggestion = Suggestion(
                 folder_path=variant_path,
@@ -743,7 +744,7 @@ class PDFClassifier:
                     folder_path=folder_path,
                     folder_name=folder_path.name,
                     confidence=confidence,
-                    reason=f"Gelernt ({folder_entry.usage_count}x verwendet)",
+                    reason=tr("Gelernt ({usage_count}x verwendet)").format(usage_count=folder_entry.usage_count),
                     relative_path=folder_entry.relative_path or folder_entry.name,
                 ))
                 if len(suggestions) >= max_suggestions:
@@ -763,7 +764,7 @@ class PDFClassifier:
                             folder_path=subfolder,
                             folder_name=subfolder.name,
                             confidence=0.2,
-                            reason="Existierender Unterordner",
+                            reason=tr("Existierender Unterordner"),
                             relative_path=subfolder.name,
                         ))
             except PermissionError:

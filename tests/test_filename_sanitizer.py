@@ -13,8 +13,8 @@ from src.utils.filename_sanitizer import (
     [
         # Klammeraffe und Punkte (E-Mail im Namen)
         (
-            "Haerle-Wack_2013-04-23_Arbeitsuchendmeldung_kathrin.haerle@web.de.pdf",
-            "Haerle-Wack_2013-04-23_Arbeitsuchendmeldung_Kathrin_Haerle.pdf",
+            "Huber-Weber_2013-04-23_Arbeitsuchendmeldung_karin.huber@example.com.pdf",
+            "Huber-Weber_2013-04-23_Arbeitsuchendmeldung_Karin_Huber.pdf",
         ),
         # Punkt als Doppel-Endung / Versionsnummer
         ("Rechnung.v1.2.pdf", "Rechnung_v1_2.pdf"),
@@ -45,7 +45,7 @@ def test_sanitize_filename(raw, expected):
 
 
 def test_sanitize_is_idempotent():
-    raw = "kathrin.haerle@web.de / Überweisung.pdf"
+    raw = "karin.huber@example.com / Überweisung.pdf"
     once = sanitize_filename(raw)
     assert sanitize_filename(once) == once
 
@@ -58,7 +58,7 @@ def test_sanitize_without_pdf_suffix():
     "raw, expected",
     [
         # Person aus Lokalteil
-        ("Meldung_kathrin.haerle@web.de.pdf", "Meldung_Kathrin_Haerle.pdf"),
+        ("Meldung_karin.huber@example.com.pdf", "Meldung_Karin_Huber.pdf"),
         ("Meldung_max-mustermann@example.com", "Meldung_Max_Mustermann.pdf"),
         ("Meldung_m.mueller2024@gmx.de", "Meldung_M_Mueller.pdf"),
         ("Meldung_hans+tag@web.de", "Meldung_Hans.pdf"),
@@ -78,8 +78,8 @@ def test_email_addresses_become_names(raw, expected):
 
 def test_contains_email():
     from src.utils.filename_sanitizer import contains_email
-    assert contains_email("x_kathrin.haerle@web.de")
-    assert not contains_email("x_kathrin_haerle")
+    assert contains_email("x_karin.huber@example.com")
+    assert not contains_email("x_karin_huber")
     assert not contains_email("a@b")
 
 

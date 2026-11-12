@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QHeaderView,
 )
+from src.i18n import tr
 
 
 class SteuerauswertungDialog(QDialog):
@@ -28,7 +29,7 @@ class SteuerauswertungDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Steuerauswertung")
+        self.setWindowTitle(tr("Steuerauswertung"))
         self.setMinimumSize(750, 450)
         self._data: list[dict] = []
         self._setup_ui()
@@ -38,24 +39,24 @@ class SteuerauswertungDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
-        header = QLabel("Steuerauswertung nach Jahr und Kategorie")
+        header = QLabel(tr("Steuerauswertung nach Jahr und Kategorie"))
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 4px;")
         layout.addWidget(header)
 
         hint = QLabel(
-            "Grundlage: alle sortierten Dokumente mit gespeichertem Steuerjahr. "
-            "Betraege in EUR."
+            tr("Grundlage: alle sortierten Dokumente mit gespeichertem Steuerjahr. "
+            "Betraege in EUR.")
         )
         hint.setStyleSheet("font-size: 10px; color: #666; padding: 2px;")
         layout.addWidget(hint)
 
         columns = [
-            "Steuerjahr",
-            "Kategorie",
-            "Anzahl",
-            "Summe Brutto",
-            "Summe Netto",
-            "Summe absetzbar",
+            tr("Steuerjahr"),
+            tr("Kategorie"),
+            tr("Anzahl"),
+            tr("Summe Brutto"),
+            tr("Summe Netto"),
+            tr("Summe absetzbar"),
         ]
         self.table = QTableWidget()
         self.table.setColumnCount(len(columns))
@@ -71,11 +72,11 @@ class SteuerauswertungDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        self.refresh_btn = QPushButton("Aktualisieren")
+        self.refresh_btn = QPushButton(tr("Aktualisieren"))
         self.refresh_btn.clicked.connect(self._load_data)
         btn_row.addWidget(self.refresh_btn)
 
-        self.export_btn = QPushButton("Als CSV exportieren")
+        self.export_btn = QPushButton(tr("Als CSV exportieren"))
         self.export_btn.setStyleSheet(
             "QPushButton { background-color: #1565c0; color: white; "
             "padding: 4px 12px; border: none; border-radius: 3px; }"
@@ -85,7 +86,7 @@ class SteuerauswertungDialog(QDialog):
         self.export_btn.clicked.connect(self._export_csv)
         btn_row.addWidget(self.export_btn)
 
-        close_btn = QPushButton("Schliessen")
+        close_btn = QPushButton(tr("Schliessen"))
         close_btn.clicked.connect(self.accept)
         btn_row.addWidget(close_btn)
 
@@ -97,7 +98,7 @@ class SteuerauswertungDialog(QDialog):
             from src.utils.database import get_database
             self._data = get_database().get_steuerauswertung()
         except Exception as e:
-            QMessageBox.warning(self, "Fehler", f"Daten konnten nicht geladen werden:\n{e}")
+            QMessageBox.warning(self, tr("Fehler"), tr("Daten konnten nicht geladen werden:\n{e}").format(e=e))
             self._data = []
 
         self._fill_table()
@@ -131,9 +132,9 @@ class SteuerauswertungDialog(QDialog):
         """Exportiert die Tabelle als CSV-Datei."""
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "CSV exportieren",
+            tr("CSV exportieren"),
             str(Path.home() / "Steuerauswertung.csv"),
-            "CSV-Dateien (*.csv)",
+            tr("CSV-Dateien (*.csv)"),
         )
         if not path:
             return
@@ -142,8 +143,8 @@ class SteuerauswertungDialog(QDialog):
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
                 writer.writerow([
-                    "Steuerjahr", "Kategorie", "Anzahl",
-                    "Summe Brutto", "Summe Netto", "Summe absetzbar",
+                    tr("Steuerjahr"), tr("Kategorie"), tr("Anzahl"),
+                    tr("Summe Brutto"), tr("Summe Netto"), tr("Summe absetzbar"),
                 ])
                 for rec in self._data:
                     writer.writerow([
@@ -155,7 +156,7 @@ class SteuerauswertungDialog(QDialog):
                         f"{rec.get('summe_absetzbar', 0.0):.2f}",
                     ])
             QMessageBox.information(
-                self, "Export erfolgreich", f"Datei gespeichert:\n{path}"
+                self, tr("Export erfolgreich"), tr("Datei gespeichert:\n{path}").format(path=path)
             )
         except Exception as e:
-            QMessageBox.critical(self, "Exportfehler", f"Fehler beim Speichern:\n{e}")
+            QMessageBox.critical(self, tr("Exportfehler"), tr("Fehler beim Speichern:\n{e}").format(e=e))

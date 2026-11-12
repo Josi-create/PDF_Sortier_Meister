@@ -29,6 +29,7 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
+from src.i18n import tr
 
 BACKUP_FILES: tuple[str, ...] = ("config.json", "history.db", "pdf_cache.db", "llm_timing.json")
 BACKUP_DIRS: tuple[str, ...] = ("model",)
@@ -112,7 +113,7 @@ def create_backup(data_dir: Path, zip_path: Path, version: str = "") -> BackupIn
                     if f.is_file():
                         staged.append((f, f.relative_to(data_dir).as_posix()))
         if not staged:
-            raise FileNotFoundError(f"Keine Anwendungsdaten gefunden in {data_dir}")
+            raise FileNotFoundError(tr("Keine Anwendungsdaten gefunden in {data_dir}").format(data_dir=data_dir))
 
         info = BackupInfo(
             created_at=datetime.now().isoformat(timespec="seconds"),
@@ -142,14 +143,16 @@ def inspect_backup(zip_path: Path) -> BackupInfo:
     """
     zip_path = Path(zip_path)
     if not zipfile.is_zipfile(zip_path):
-        raise ValueError(f"{zip_path.name} ist kein ZIP-Archiv.")
+        raise ValueError(tr("{name} ist kein ZIP-Archiv.").format(name=zip_path.name))
     with zipfile.ZipFile(zip_path) as zf:
         names = zf.namelist()
         entries = [n for n in names if not n.endswith("/") and _is_safe_entry(n)]
         if not entries:
             raise ValueError(
-                f"{zip_path.name} enthaelt keine Daten von PDF Sortier Meister "
-                f"(erwartet z.B. {BACKUP_FILES[1]} oder {BACKUP_FILES[0]})."
+                tr(
+                    "{name} enthaelt keine Daten von PDF Sortier Meister (erwartet z.B. {0} "
+                    "oder {1})."
+                ).format(BACKUP_FILES[1], BACKUP_FILES[0], name=zip_path.name)
             )
         info = BackupInfo(entries=entries, path=zip_path)
         if INFO_NAME in names:

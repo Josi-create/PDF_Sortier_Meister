@@ -36,7 +36,7 @@ _RESERVED_NAMES = {
 
 _PDF_SUFFIX_RE = re.compile(r"\.pdf$", re.IGNORECASE)
 # Kein "_" im Lokalteil: im Dateinamen ist "_" das Trennzeichen, sonst wuerde
-# "Meldung_kathrin.haerle@web.de" als eine einzige Adresse gelesen.
+# "Meldung_karin.huber@example.com" als eine einzige Adresse gelesen.
 _EMAIL_RE = re.compile(r"[A-Za-z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 # Lokalteile, die keinen Personennamen tragen (info@, kontakt@ ...)
@@ -64,7 +64,7 @@ _UNDERSCORE_AROUND_DASH_RE = re.compile(r"_?-_?")
 def _email_to_name(local: str, domain: str) -> str:
     """Macht aus einer E-Mail-Adresse einen Namensbestandteil.
 
-    ``kathrin.haerle@web.de`` -> ``Kathrin_Haerle``;
+    ``karin.huber@example.com`` -> ``Karin_Huber``;
     ``info@huk-coburg.de`` -> ``Huk-Coburg``;
     ``info@web.de`` -> ``""`` (nichts Brauchbares).
     """
@@ -135,7 +135,7 @@ def sanitize_filename(name: str, ensure_pdf: bool = True) -> str:
     Schritte:
     1. ``.pdf``-Endung abtrennen (wird am Ende wieder angehaengt);
        E-Mail-Adressen durch den ableitbaren Namen ersetzen
-       (``kathrin.haerle@web.de`` -> ``Kathrin_Haerle``).
+       (``karin.huber@example.com`` -> ``Karin_Huber``).
     2. Umlaute/ß nach ae/oe/ue/ss; sonstige Akzente entfernen (é -> e).
     3. Verbotene Zeichen (``<>:"/\\|?*``), Steuerzeichen, Tabs/Umbrueche
        sowie ``.`` und ``@`` durch ``_`` ersetzen. Leerzeichen bleiben.

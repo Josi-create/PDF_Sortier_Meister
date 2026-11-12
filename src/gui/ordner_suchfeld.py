@@ -21,6 +21,7 @@ from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QSizePolicy, QVBoxLayout, QWidget
 
 from src.core.ordnersuche import Treffer, indizes_vorwaermen, suche_im_index
+from src.i18n import tr
 
 _ROLLE_PFAD = Qt.ItemDataRole.UserRole
 
@@ -38,7 +39,7 @@ class OrdnerSuchfeld(QWidget):
     def __init__(
         self,
         wurzeln: Callable[[], list[Path]],
-        platzhalter: str = "Ordner suchen … (z. B. Zeugn*)",
+        platzhalter: str = tr("Ordner suchen … (z. B. Zeugn*)"),
         schwebend: bool = False,
         parent=None,
     ):
@@ -90,7 +91,7 @@ class OrdnerSuchfeld(QWidget):
             self._timer.stop()
             self.liste.setVisible(False)
             return
-        self._zeige_hinweis("Suche …")
+        self._zeige_hinweis(tr("Suche …"))
         self._timer.start()
 
     def _abbrechen(self):
@@ -111,10 +112,10 @@ class OrdnerSuchfeld(QWidget):
             self._nachlauf.start()
         if not treffer:
             if self.vollstaendig:
-                self._zeige_hinweis("Kein Ordner gefunden")
+                self._zeige_hinweis(tr("Kein Ordner gefunden"))
             else:
-                self._zeige_hinweis("Suche …")
-                self.liste.item(0).setToolTip(f"Bisher {gelesen} Ordner gelesen")
+                self._zeige_hinweis(tr("Suche …"))
+                self.liste.item(0).setToolTip(tr("Bisher {gelesen} Ordner gelesen").format(gelesen=gelesen))
             return
         self.liste.clear()
         for t in treffer:
@@ -124,7 +125,7 @@ class OrdnerSuchfeld(QWidget):
             item.setToolTip(str(t.pfad))
             self.liste.addItem(item)
         if not self.vollstaendig:
-            hinweis = QListWidgetItem(f"… Ordner werden noch eingelesen ({gelesen} bisher)")
+            hinweis = QListWidgetItem(tr("… Ordner werden noch eingelesen ({gelesen} bisher)").format(gelesen=gelesen))
             hinweis.setFlags(Qt.ItemFlag.NoItemFlags)
             self.liste.addItem(hinweis)
         self.liste.setCurrentRow(min(zeile, len(treffer) - 1))

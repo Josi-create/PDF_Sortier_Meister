@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from src.search import migration
 from src.utils.config import get_config
+from src.i18n import tr
 
 
 class _PruefThread(QThread):
@@ -67,42 +68,42 @@ class SearchMigrationDialog(QDialog):
         self.uebernahme = None
         self.ergebnis = None
         self._thread: QThread | None = None
-        self.setWindowTitle("Vorhandene PDFsuche übernehmen")
+        self.setWindowTitle(tr("Vorhandene PDFsuche übernehmen"))
         self.setMinimumSize(640, 500)
 
         layout = QVBoxLayout(self)
         intro = QLabel(
-            "Wenn Sie bisher das eigenständige Programm <b>PDFsuche</b> benutzt haben, "
+            tr("Wenn Sie bisher das eigenständige Programm <b>PDFsuche</b> benutzt haben, "
             "übernimmt PDF Sortier Meister dessen Einstellungen (config.toml) und die "
             "Suchdatenbank. Die Datenbank bleibt an ihrem bisherigen Ort, es wird nichts "
             "gelöscht; den bisherigen Projektordner räumen Sie später selbst auf. "
-            "Die Aufgaben der Aufgabenplanung werden hier nicht verändert."
+            "Die Aufgaben der Aufgabenplanung werden hier nicht verändert.")
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("PDFsuche-Ordner:"))
+        row.addWidget(QLabel(tr("PDFsuche-Ordner:")))
         self.folder_combo = QComboBox()
         self.folder_combo.setEditable(True)
         self.folder_combo.setMinimumWidth(260)
         row.addWidget(self.folder_combo, 1)
-        self.browse_button = QPushButton("Durchsuchen…")
+        self.browse_button = QPushButton(tr("Durchsuchen…"))
         self.browse_button.clicked.connect(self._browse)
         row.addWidget(self.browse_button)
-        self.check_button = QPushButton("Prüfen")
+        self.check_button = QPushButton(tr("Prüfen"))
         self.check_button.clicked.connect(self._pruefen)
         row.addWidget(self.check_button)
         layout.addLayout(row)
 
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
-        self.preview.setPlaceholderText("Noch nicht geprüft. Ordner wählen und auf „Prüfen“ klicken.")
+        self.preview.setPlaceholderText(tr("Noch nicht geprüft. Ordner wählen und auf „Prüfen“ klicken."))
         layout.addWidget(self.preview, 1)
 
         self.copy_check = QCheckBox(
-            "Datenbank in das Datenverzeichnis von PDF Sortier Meister kopieren "
-            "(sonst bleibt sie am bisherigen Ort; die Kopie wird geprüft)"
+            tr("Datenbank in das Datenverzeichnis von PDF Sortier Meister kopieren "
+            "(sonst bleibt sie am bisherigen Ort; die Kopie wird geprüft)")
         )
         layout.addWidget(self.copy_check)
 
@@ -117,12 +118,12 @@ class SearchMigrationDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch()
-        self.take_button = QPushButton("Übernehmen")
+        self.take_button = QPushButton(tr("Übernehmen"))
         self.take_button.setEnabled(False)
         self.take_button.setDefault(True)
         self.take_button.clicked.connect(self._uebernehmen)
         buttons.addWidget(self.take_button)
-        self.cancel_button = QPushButton("Abbrechen")
+        self.cancel_button = QPushButton(tr("Abbrechen"))
         self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.cancel_button)
         layout.addLayout(buttons)
@@ -134,7 +135,7 @@ class SearchMigrationDialog(QDialog):
         if kandidaten:
             self._pruefen()
         else:
-            self.status_label.setText("Keine PDFsuche gefunden – bitte den Projektordner (mit config.toml) wählen.")
+            self.status_label.setText(tr("Keine PDFsuche gefunden – bitte den Projektordner (mit config.toml) wählen."))
 
     # ------------------------------------------------------------------ Ablauf
 
@@ -142,7 +143,7 @@ class SearchMigrationDialog(QDialog):
         return self.folder_combo.currentText().strip()
 
     def _browse(self):
-        ordner = QFileDialog.getExistingDirectory(self, "Projektordner der PDFsuche wählen", self.ordner())
+        ordner = QFileDialog.getExistingDirectory(self, tr("Projektordner der PDFsuche wählen"), self.ordner())
         if ordner:
             self.folder_combo.setEditText(ordner)
             self._pruefen()
@@ -150,13 +151,13 @@ class SearchMigrationDialog(QDialog):
     def _pruefen(self):
         ordner = self.ordner()
         if not ordner:
-            self.status_label.setText("Bitte zuerst den Projektordner wählen.")
+            self.status_label.setText(tr("Bitte zuerst den Projektordner wählen."))
             return
         if self._thread is not None and self._thread.isRunning():
             return
         self.take_button.setEnabled(False)
         self.check_button.setEnabled(False)
-        self.status_label.setText("Prüfe … (bei großen Datenbanken dauert die Integritätsprüfung einige Minuten)")
+        self.status_label.setText(tr("Prüfe … (bei großen Datenbanken dauert die Integritätsprüfung einige Minuten)"))
         self._thread = _PruefThread(ordner, self)
         self._thread.fertig.connect(self._geprueft)
         self._thread.start()
@@ -167,7 +168,7 @@ class SearchMigrationDialog(QDialog):
         self.check_button.setEnabled(True)
         self.take_button.setEnabled(uebernahme.moeglich)
         self.status_label.setText(
-            "Bereit zur Übernahme." if uebernahme.moeglich else "Übernahme nicht möglich – siehe Hinweise oben."
+            tr("Bereit zur Übernahme.") if uebernahme.moeglich else tr("Übernahme nicht möglich – siehe Hinweise oben.")
         )
 
     def _uebernehmen(self):
@@ -184,7 +185,7 @@ class SearchMigrationDialog(QDialog):
         if kopieren:
             self.progress.setRange(0, 0)
             self.progress.setVisible(True)
-        self.status_label.setText("Übernehme …" + (" Datenbank wird kopiert." if kopieren else ""))
+        self.status_label.setText(tr("Übernehme …") + (tr(" Datenbank wird kopiert.") if kopieren else ""))
         self._thread = _UebernahmeThread(u, self.config, kopieren, self)
         self._thread.fortschritt.connect(self._fortschritt)
         self._thread.fertig.connect(self._uebernommen)
@@ -200,12 +201,12 @@ class SearchMigrationDialog(QDialog):
         self.copy_check.setEnabled(True)
         if ok:
             self.ergebnis = self.config.get_search_config()
-            self.status_label.setText(f"Übernommen. Datenbank: {text}")
+            self.status_label.setText(tr("Übernommen. Datenbank: {text}").format(text=text))
             self.accept()
             return
         self.progress.setVisible(False)
         self.take_button.setEnabled(True)
-        self.status_label.setText(f"Fehler: {text}")
+        self.status_label.setText(tr("Fehler: {text}").format(text=text))
 
     def reject(self):
         if self._thread is not None and self._thread.isRunning():

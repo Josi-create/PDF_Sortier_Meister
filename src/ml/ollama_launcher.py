@@ -25,6 +25,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Callable, Optional
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.ollama_launcher")
 
@@ -112,9 +113,9 @@ def pull_model(
     except urllib.error.HTTPError as e:
         return False, http_error_text(e)
     except urllib.error.URLError as e:
-        return False, f"Keine Verbindung zu Ollama ({base_url}): {e.reason}"
+        return False, tr("Keine Verbindung zu Ollama ({base_url}): {reason}").format(base_url=base_url, reason=e.reason)
     except Exception as e:
-        return False, f"Download-Fehler: {e}"
+        return False, tr("Download-Fehler: {e}").format(e=e)
 
 
 def http_error_text(error: urllib.error.HTTPError, limit: int = 300) -> str:
@@ -141,7 +142,7 @@ def http_error_text(error: urllib.error.HTTPError, limit: int = 300) -> str:
         raw = " ".join(raw.split())
         if len(raw) > limit:
             raw = raw[:limit] + "…"
-    return f"Ollama HTTP {error.code}: {raw}" if raw else f"Ollama HTTP {error.code}"
+    return tr("Ollama HTTP {code}: {raw}").format(code=error.code, raw=raw) if raw else tr("Ollama HTTP {code}").format(code=error.code)
 
 
 def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]:
@@ -149,7 +150,7 @@ def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]
     last_status = ""
     for raw in stream:
         if should_cancel and should_cancel():
-            return False, "Download abgebrochen."
+            return False, tr("Download abgebrochen.")
         line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
         line = line.strip()
         if not line:
@@ -168,8 +169,8 @@ def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]
             progress_cb(percent, status)
         last_status = status
         if status == "success":
-            return True, "Modell installiert."
-    return False, "Download unvollstaendig (Verbindung beendet)."
+            return True, tr("Modell installiert.")
+    return False, tr("Download unvollstaendig (Verbindung beendet).")
 
 
 def _start_server_process(exe_path: str) -> bool:
@@ -219,17 +220,17 @@ def ensure_running(base_url: str, max_wait: float = 10.0) -> tuple[bool, str]:
         gestarteten Executable bzw. einen Hinweis, dass schon lief.
     """
     if quick_ping(base_url, timeout=1.0):
-        return True, "Ollama war bereits erreichbar."
+        return True, tr("Ollama war bereits erreichbar.")
 
     exe = find_ollama_executable()
     if not exe:
         return False, (
-            "Ollama wurde nicht gefunden. Bitte Ollama installieren "
-            "(https://ollama.com) oder das Programm in den PATH legen."
+            tr("Ollama wurde nicht gefunden. Bitte Ollama installieren "
+            "(https://ollama.com) oder das Programm in den PATH legen.")
         )
 
     if not _start_server_process(exe):
-        return False, f"Ollama ({exe}) konnte nicht gestartet werden."
+        return False, tr("Ollama ({exe}) konnte nicht gestartet werden.").format(exe=exe)
 
     logger.info(f"Ollama-Server gestartet: {exe}")
 
@@ -238,9 +239,11 @@ def ensure_running(base_url: str, max_wait: float = 10.0) -> tuple[bool, str]:
     while time.monotonic() < deadline:
         time.sleep(0.5)
         if quick_ping(base_url, timeout=1.0):
-            return True, f"Ollama-Server gestartet ({exe})."
+            return True, tr("Ollama-Server gestartet ({exe}).").format(exe=exe)
 
     return False, (
-        f"Ollama-Server wurde gestartet, antwortet aber nicht innerhalb "
-        f"von {max_wait:.0f} Sekunden. Bitte erneut versuchen."
+        tr(
+            "Ollama-Server wurde gestartet, antwortet aber nicht innerhalb von "
+            "{max_wait:.0f} Sekunden. Bitte erneut versuchen."
+        ).format(max_wait=max_wait)
     )

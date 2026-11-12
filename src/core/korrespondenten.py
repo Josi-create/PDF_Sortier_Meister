@@ -29,6 +29,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping
+from src.i18n import tr
 
 # Rechtsformen und Zusaetze, die nichts an der Identitaet aendern (nach :func:`schluessel`
 # geschrieben: klein, ohne Punkte, Umlaute als ae/oe/ue). Nur am Ende bzw. nach dem
@@ -65,9 +66,9 @@ GRUND_NUTZER = "nutzer"
 GRUND_VERLAG = "verlag"
 
 GRUND_TEXT = {
-    GRUND_LEER: "kein Korrespondent",
-    GRUND_NUTZER: "der Nutzer selbst",
-    GRUND_VERLAG: "Formular- bzw. Druckverlag",
+    GRUND_LEER: tr("kein Korrespondent"),
+    GRUND_NUTZER: tr("der Nutzer selbst"),
+    GRUND_VERLAG: tr("Formular- bzw. Druckverlag"),
 }
 
 
@@ -221,8 +222,8 @@ def _kern(name: str) -> list[str]:
 
 def ist_nutzer(name: str, owner: Iterable[str]) -> bool:
     """Ist ``name`` der Nutzer selbst? Gleiche Woerter (ohne Titel), oder bei mindestens
-    zwei Woertern sind die einen ganz in den anderen enthalten ("Härle-Wack" in
-    "Dr. Johannes Härle-Wack")."""
+    zwei Woertern sind die einen ganz in den anderen enthalten ("Huber-Weber" in
+    "Dr. Jonas Huber-Weber")."""
     t = _kern(name)
     if not t:
         return False

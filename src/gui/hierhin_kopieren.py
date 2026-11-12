@@ -24,8 +24,9 @@ from PyQt6.QtWidgets import QMenu, QMessageBox
 
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 from src.core.office_convert import endung_tauschen, ist_office_datei
+from src.i18n import tr
 
-NICHTS_AUSGEWAEHLT_TIP = "In der PDF-Ansicht ist keine Datei ausgewählt"
+NICHTS_AUSGEWAEHLT_TIP = tr("In der PDF-Ansicht ist keine Datei ausgewählt")
 
 # Mime-Typ beim Ziehen einer Ordnerzeile (Issue #196); bewusst ohne URLs, damit andere
 # Programme den Ordner nicht selbst verschieben
@@ -42,22 +43,22 @@ def ordner_aus_mime(mime) -> Optional[Path]:
 
 def _aktions_text(dateien: list[Path], symbol: str, verb: str) -> str:
     if len(dateien) == 1 and Path(dateien[0]).is_dir():  # markierter Ordner (Issue #196)
-        return f"📁 Ordner hierhin {verb}"
+        return tr("📁 Ordner hierhin {verb}").format(verb=verb)
     if len(dateien) > 1:
-        return f"{symbol} {len(dateien)} Dateien hierhin {verb}"
+        return tr("{symbol} {anzahl} Dateien hierhin {verb}").format(symbol=symbol, anzahl=len(dateien), verb=verb)
     if len(dateien) == 1 and ist_office_datei(dateien[0]):
-        return f"{symbol} Datei hierhin {verb}"
-    return f"{symbol} PDF hierhin {verb}"
+        return tr("{symbol} Datei hierhin {verb}").format(symbol=symbol, verb=verb)
+    return tr("{symbol} PDF hierhin {verb}").format(symbol=symbol, verb=verb)
 
 
 def kopier_text(dateien: list[Path]) -> str:
     """Text des Menueeintrags passend zur Auswahl."""
-    return _aktions_text(dateien, "📄", "kopieren")
+    return _aktions_text(dateien, "📄", tr("kopieren"))
 
 
 def verschieben_text(dateien: list[Path]) -> str:
     """Text des Eintrags "Hierhin verschieben" (Issue #183)."""
-    return _aktions_text(dateien, "➡", "verschieben")
+    return _aktions_text(dateien, "➡", tr("verschieben"))
 
 
 def _auswahl_eintrag(menu, auswahl, anfordern, text_fn):
@@ -309,7 +310,7 @@ class HierhinKopierenMixin:
         """"Rechts im Baum zeigen": aufklappen, markieren, hinscrollen (ohne zu verschieben)."""
         if not self.folder_tree.reveal_folder(Path(folder_path)):
             self.statusbar.showMessage(
-                f"'{Path(folder_path).name}' liegt außerhalb der Zielordner rechts", 4000
+                tr("'{name}' liegt außerhalb der Zielordner rechts").format(name=Path(folder_path).name), 4000
             )
 
     def on_target_toggle_requested(self, folder_path: Path) -> None:
@@ -321,7 +322,7 @@ class HierhinKopierenMixin:
         self.config.add_target_folder(folder_path)
         self.folder_manager.add_folder(folder_path)
         self.load_folders()
-        self.statusbar.showMessage(f"Zielordner hinzugefügt: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=folder_path.name), 3000)
 
     def on_copy_here_requested(self, folder_path: Path) -> None:
         """Menue "Hierhin kopieren": kopiert die aktuelle Auswahl in den Ordner."""
@@ -330,7 +331,7 @@ class HierhinKopierenMixin:
             return
         dateien = self.kopier_auswahl()
         if not dateien:
-            self.statusbar.showMessage("Zum Kopieren zuerst eine Datei auswählen", 3000)
+            self.statusbar.showMessage(tr("Zum Kopieren zuerst eine Datei auswählen"), 3000)
             return
         self._kopiere_dateien(dateien, Path(folder_path))
 
@@ -355,10 +356,10 @@ class HierhinKopierenMixin:
         if not folder_path.exists():
             from src.core import neuer_ordner
 
-            wer = f"{len(dateien)} Dateien" if len(dateien) > 1 else "Datei"
+            wer = tr("{anzahl} Dateien").format(anzahl=len(dateien)) if len(dateien) > 1 else tr("Datei")
             antwort = QMessageBox.question(
-                self, "Neuen Ordner anlegen",
-                f"Ordner '{relative_path}' anlegen und {wer} dorthin kopieren?",
+                self, tr("Neuen Ordner anlegen"),
+                tr("Ordner '{relative_path}' anlegen und {wer} dorthin kopieren?").format(relative_path=relative_path, wer=wer),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
             )
@@ -367,7 +368,7 @@ class HierhinKopierenMixin:
             try:
                 angelegt = neuer_ordner.anlegen(folder_path)
             except OSError as e:
-                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{e}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Ordner konnte nicht angelegt werden:\n{e}").format(e=e))
                 return []
             self._invalidate_folder_caches()
 
@@ -387,8 +388,8 @@ class HierhinKopierenMixin:
         if fehler:
             QMessageBox.warning(
                 self,
-                "Kopieren fehlgeschlagen" if not kopien else "Teilweise fehlgeschlagen",
-                "Einige Dateien konnten nicht kopiert werden:\n" + "\n".join(fehler),
+                tr("Kopieren fehlgeschlagen") if not kopien else tr("Teilweise fehlgeschlagen"),
+                tr("Einige Dateien konnten nicht kopiert werden:\n{0}").format('\n'.join(fehler)),
             )
         if not kopien:
             if angelegt:  # nichts kopiert: den neuen Ordner nicht leer liegen lassen
@@ -398,9 +399,9 @@ class HierhinKopierenMixin:
                 self._invalidate_folder_caches()
             return []
 
-        self.training_label.setText(f"Gelernt: {self.classifier.get_training_count()}")
-        suffix = f" ({len(kopien)} Dateien)" if len(kopien) > 1 else ""
-        self.statusbar.showMessage(f"Kopiert nach '{relative_path}'{suffix}", 3000)
+        self.training_label.setText(tr("Gelernt: {0}").format(self.classifier.get_training_count()))
+        suffix = tr(" ({anzahl} Dateien)").format(anzahl=len(kopien)) if len(kopien) > 1 else ""
+        self.statusbar.showMessage(tr("Kopiert nach '{relative_path}'{suffix}").format(relative_path=relative_path, suffix=suffix), 3000)
 
         for original, _kopie in kopien:
             self._kopie_hinweis_merken(original, folder_path)
@@ -484,8 +485,8 @@ class HierhinKopierenMixin:
         ordner = self.__dict__.get("_kopie_hinweise", {}).get(Path(widget.pdf_path))
         if not ordner:
             return
-        text = f"📄 kopiert nach {ordner[-1].name or str(ordner[-1])}"
+        text = tr("📄 kopiert nach {0}").format(ordner[-1].name or str(ordner[-1]))
         if len(ordner) > 1:
             text += f" (+{len(ordner) - 1})"
         kurz = f"📄 → {ordner[-1].name or str(ordner[-1])}"
-        widget.set_kopie_hinweis(text, "\n".join(f"Kopiert nach {p}" for p in ordner), kurz)
+        widget.set_kopie_hinweis(text, "\n".join(tr("Kopiert nach {p}").format(p=p) for p in ordner), kurz)

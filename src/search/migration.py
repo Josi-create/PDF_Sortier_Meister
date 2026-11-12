@@ -28,6 +28,7 @@ from pathlib import Path
 from src.search import db, plattform
 from src.search.konfig import SearchConfig, lade_config_toml, norm_pfad
 from src.utils.platform_paths import get_app_data_dir
+from src.i18n import tr
 
 AUFGABE_ALT = r"\PDFsuche\Indexierung"      # Windows-Aufgabe des alten Programms
 KONFIG_DATEI = "config.toml"
@@ -56,29 +57,26 @@ class Uebernahme:
 
     def zusammenfassung(self) -> str:
         """Mehrzeilige Vorschau fuer Dialog und ``pdfsm-dienst migration``."""
-        z = [f"PDFsuche-Ordner: {self.ordner}"]
+        z = [tr("PDFsuche-Ordner: {ordner}").format(ordner=self.ordner)]
         k = self.konfig
         if k is not None:
-            z.append(f"Datenbank: {self.db_pfad}" + ("" if self.db_vorhanden else "  (nicht gefunden)"))
+            z.append(tr("Datenbank: {db_pfad}{0}").format('' if self.db_vorhanden else tr("  (nicht gefunden)"), db_pfad=self.db_pfad))
             if self.zaehler:
                 typen = ", ".join(f"{t}: {n}" for t, n in sorted(self.zaehler.get("pro_typ", {}).items()))
-                z.append(f"Dokumente: {self.zaehler.get('dokumente', 0)}" + (f"  ({typen})" if typen else ""))
-                z.append(f"Seiten: {self.zaehler.get('seiten', 0)}, davon per OCR erkannt: "
-                         f"{self.zaehler.get('ocr_seiten', 0)}, OCR ausstehend: {self.zaehler.get('ocr_ausstehend_seiten', 0)}")
+                z.append(tr("Dokumente: {0}{1}").format(self.zaehler.get('dokumente', 0), f'  ({typen})' if typen else ''))
+                z.append(tr("Seiten: {0}, davon per OCR erkannt: {1}, OCR ausstehend: {2}").format(self.zaehler.get('seiten', 0), self.zaehler.get('ocr_seiten', 0), self.zaehler.get('ocr_ausstehend_seiten', 0)))
             if self.schema_version:
-                z.append(f"Schema-Version: {self.schema_version}, Integrität: {self.integritaet or '–'}")
-            z.append("Vorrang-Ordner: " + (", ".join(k.prioritaet) or "–"))
+                z.append(tr("Schema-Version: {schema_version}, Integrität: {0}").format(self.integritaet or '–', schema_version=self.schema_version))
+            z.append(tr("Vorrang-Ordner: {0}").format(', '.join(k.prioritaet) or '–'))
             z.append("Ordner/Laufwerke: " + (", ".join(k.wurzeln) or "–"))
-            z.append("Mail-Ordner: " + (", ".join(k.mail_ordner) or "–"))
-            z.append(f"Texterkennung: {'ein' if k.ocr_aktiv else 'aus'} ({k.ocr_sprachen})"
-                     + (f", Tesseract: {k.ocr_tesseract}" if k.ocr_tesseract else ""))
-            z.append(f"Ausschlüsse: {len(k.ordner_ausschliessen)} Ordnernamen, {len(k.pfade_ausschliessen)} Pfade; "
-                     f"Endungen: {' '.join(sorted(k.endungen))}")
-            z.append(f"Browser-Oberfläche: Port {k.web_port}; Arbeitsprozesse: {k.prozesse or 'automatisch'}")
+            z.append(tr("Mail-Ordner: {0}").format(', '.join(k.mail_ordner) or '–'))
+            z.append(tr("Texterkennung: {0} ({ocr_sprachen}){1}").format(tr("ein") if k.ocr_aktiv else tr("aus"), ', Tesseract: ' + str(k.ocr_tesseract) if k.ocr_tesseract else '', ocr_sprachen=k.ocr_sprachen))
+            z.append(tr("Ausschlüsse: {anzahl} Ordnernamen, {anzahl2} Pfade; Endungen: {0}").format(' '.join(sorted(k.endungen)), anzahl=len(k.ordner_ausschliessen), anzahl2=len(k.pfade_ausschliessen)))
+            z.append(tr("Browser-Oberfläche: Port {web_port}; Arbeitsprozesse: {0}").format(k.prozesse or tr("automatisch"), web_port=k.web_port))
         if self.laeuft:
-            z.append("Achtung: Ein Indexierungslauf ist gerade aktiv.")
+            z.append(tr("Achtung: Ein Indexierungslauf ist gerade aktiv."))
         for f in self.fehler:
-            z.append(f"Fehler: {f}")
+            z.append(tr("Fehler: {f}").format(f=f))
         return "\n".join(z)
 
 
@@ -173,12 +171,12 @@ def pruefen(ordner: str | Path) -> Uebernahme:
     u = Uebernahme(ordner=norm_pfad(ordner))
     toml = Path(u.ordner) / KONFIG_DATEI
     if not toml.is_file():
-        u.fehler.append(f"Keine {KONFIG_DATEI} in {u.ordner}")
+        u.fehler.append(tr("Keine {KONFIG_DATEI} in {ordner}").format(KONFIG_DATEI=KONFIG_DATEI, ordner=u.ordner))
         return u
     try:
         konfig = lade_config_toml(toml)
     except Exception as e:  # tomllib.TOMLDecodeError, OSError, ValueError
-        u.fehler.append(f"{KONFIG_DATEI} nicht lesbar: {e}")
+        u.fehler.append(tr("{KONFIG_DATEI} nicht lesbar: {e}").format(KONFIG_DATEI=KONFIG_DATEI, e=e))
         return u
     db_pfad = Path(konfig.db_pfad or DB_STANDARD_ALT)
     if not db_pfad.is_absolute():
@@ -189,13 +187,13 @@ def pruefen(ordner: str | Path) -> Uebernahme:
     u.db_pfad = konfig.db_pfad
     u.db_vorhanden = db_pfad.is_file()
     if not u.db_vorhanden:
-        u.fehler.append(f"Datenbank nicht gefunden: {u.db_pfad}")
+        u.fehler.append(tr("Datenbank nicht gefunden: {db_pfad}").format(db_pfad=u.db_pfad))
         return u
     from src.search.indexer import laeuft_gerade
 
     u.laeuft = laeuft_gerade(konfig)
     if u.laeuft:
-        u.fehler.append("Ein Indexierungslauf ist gerade aktiv – bitte warten, bis er beendet ist.")
+        u.fehler.append(tr("Ein Indexierungslauf ist gerade aktiv – bitte warten, bis er beendet ist."))
         return u
     try:
         con = db.verbinde(db_pfad, nur_lesen=True)
@@ -208,12 +206,12 @@ def pruefen(ordner: str | Path) -> Uebernahme:
         finally:
             con.close()
     except sqlite3.Error as e:
-        u.fehler.append(f"Datenbank nicht lesbar: {e}")
+        u.fehler.append(tr("Datenbank nicht lesbar: {e}").format(e=e))
         return u
     if u.integritaet != "ok":
-        u.fehler.append(f"Integritätsprüfung fehlgeschlagen: {u.integritaet}")
+        u.fehler.append(tr("Integritätsprüfung fehlgeschlagen: {integritaet}").format(integritaet=u.integritaet))
     if u.schema_version not in ("1", "2"):
-        u.fehler.append(f"Unbekannte Schema-Version {u.schema_version!r} (erwartet 1 oder 2)")
+        u.fehler.append(tr("Unbekannte Schema-Version {schema_version!r} (erwartet 1 oder 2)").format(schema_version=u.schema_version))
     return u
 
 
@@ -227,7 +225,7 @@ def uebernehmen(u: Uebernahme, config, kopieren: bool = False, fortschritt=None)
     ``kopiere_db``); ``fortschritt(kopiert, gesamt)`` wird dabei aufgerufen.
     """
     if not u.moeglich:
-        raise ValueError("; ".join(u.fehler) or "Prüfung fehlt")
+        raise ValueError("; ".join(u.fehler) or tr("Prüfung fehlt"))
     konfig = u.konfig
     assert konfig is not None
     bisher = get_app_data_dir() / "suche" / "suche.db"
@@ -303,7 +301,7 @@ def kopiere_db(quelle: str | Path, ziel: str | Path, fortschritt=None) -> None:
     """
     quelle, ziel = Path(quelle), Path(ziel)
     if ziel.exists():
-        raise FileExistsError(f"Ziel existiert schon: {ziel}")
+        raise FileExistsError(tr("Ziel existiert schon: {ziel}").format(ziel=ziel))
     ziel.parent.mkdir(parents=True, exist_ok=True)
     teil = ziel.with_name(ziel.name + ".teil")
     if teil.exists():
@@ -328,7 +326,7 @@ def kopiere_db(quelle: str | Path, ziel: str | Path, fortschritt=None) -> None:
         finally:
             kon.close()
         if befund != "ok" or n_kopie != n_quelle:
-            raise RuntimeError(f"Kopie fehlerhaft (quick_check: {befund}, Dokumente {n_kopie} statt {n_quelle})")
+            raise RuntimeError(tr("Kopie fehlerhaft (quick_check: {befund}, Dokumente {n_kopie} statt {n_quelle})").format(befund=befund, n_kopie=n_kopie, n_quelle=n_quelle))
     except Exception:
         teil.unlink(missing_ok=True)
         raise

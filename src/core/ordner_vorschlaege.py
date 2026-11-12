@@ -32,6 +32,7 @@ from src.core.similar_documents import (
     _YEAR_RE, _year_of, normalize_relative, relative_folder, resolve_relative_folder,
     year_adjusted_folder,
 )
+from src.i18n import tr
 
 MAX_DATEIEN = 300  # so viele Dateien werden betrachtet
 MAX_KLASSIFIKATOR = 25  # so viele davon fragen den Klassifikator (Text aus dem Cache)
@@ -226,7 +227,7 @@ def vorschlaege_aus_namensvettern(
                 pfad = resolve_relative_folder(vorhanden, root_folders)
                 if pfad is not None:
                     angepasst = pfad.parent
-                    neu(angepasst, 0.8, f'Gleichnamiger Ordner für {jahr} existiert: "{vorhanden}"')
+                    neu(angepasst, 0.8, tr("Gleichnamiger Ordner für {jahr} existiert: \"{vorhanden}\"").format(jahr=jahr, vorhanden=vorhanden))
             else:
                 muster = _Muster(d, rel)
                 variante = jahres_neuer_ordner([muster], jahr, root_folders)
@@ -234,14 +235,14 @@ def vorschlaege_aus_namensvettern(
                     angepasst = Path(variante.folder_path).parent
                     if angepasst.is_dir():
                         neu(angepasst, 0.75,
-                            f'"{angepasst.name}" passt zum Jahr {jahr} (Muster: "{rel}")')
+                            tr("\"{name}\" passt zum Jahr {jahr} (Muster: \"{rel}\")").format(name=angepasst.name, jahr=jahr, rel=rel))
                     else:
                         neu(angepasst, 0.6,
-                            f'Neuer Ordner "{angepasst.name}" für {jahr} (Muster: "{rel}")',
+                            tr("Neuer Ordner \"{name}\" für {jahr} (Muster: \"{rel}\")").format(name=angepasst.name, jahr=jahr, rel=rel),
                             QUELLE_JAHR)
         # Der Namensvetter selbst: das Original-Jahr, bei Jahresanpassung nur zweite Wahl
         neu(d.parent, 0.5 if angepasst is not None else 0.7,
-            f'Gleichnamiger Ordner existiert: "{rel or d}"')
+            tr("Gleichnamiger Ordner existiert: \"{0}\"").format(rel or d))
     return ergebnis
 
 
@@ -288,7 +289,7 @@ def vorschlaege_fuer_ordner(
             kandidaten.append(Suggestion(
                 folder_path=eltern, folder_name=eltern.name or str(eltern),
                 confidence=min(0.95, 0.3 + 0.65 * anteil),
-                reason=f"Inhalt: {int(round(anteil * 100))} % der Dateien gehören laut Lernen/KI dorthin",
+                reason=tr("Inhalt: {0} % der Dateien gehören laut Lernen/KI dorthin").format(int(round(anteil * 100))),
                 relative_path=relative_folder(eltern, roots) or eltern.name,
             ))
 
@@ -400,7 +401,7 @@ def ki_antwort_auswerten(text: str, ordner: Path, root_folders: Sequence[Path]):
     grund = str(daten.get("begruendung") or "").strip()
     return Suggestion(
         folder_path=pfad, folder_name=pfad.name or str(pfad), confidence=0.85,
-        reason="KI: " + (grund or "passender Elternordner"),
+        reason="KI: " + (grund or tr("passender Elternordner")),
         relative_path=relative_folder(pfad, roots) or rel,
         new_source=QUELLE_KI if neu else "",
     )
@@ -421,7 +422,7 @@ def ki_zielordner(provider, ordner: Path | str, root_folders: Sequence[Path],
     )
     antwort = (antwort or "").strip()
     if not antwort:
-        raise RuntimeError("Die KI hat nicht geantwortet.")
+        raise RuntimeError(tr("Die KI hat nicht geantwortet."))
     if antwort.startswith("[") and "fehler" in antwort[:60].lower():
         raise RuntimeError(antwort.strip("[]"))
     return ki_antwort_auswerten(antwort, ordner, root_folders)

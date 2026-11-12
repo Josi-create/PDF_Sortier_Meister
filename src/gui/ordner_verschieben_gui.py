@@ -26,11 +26,12 @@ from src.core.office_convert import ist_sortierbar
 from src.gui.folder_widget import REGENBOGEN_SCHWELLE
 from src.gui.hierhin_kopieren import AblageNamen
 from src.gui.vorschlag_liste import VorschlagZeile
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.ordner")
 
-STANDARD_PLATZHALTER = "Wählen Sie eine PDF aus für Vorschläge"
-STANDARD_UEBERSCHRIFT = "Vorgeschlagene Ziele:"
+STANDARD_PLATZHALTER = tr("Wählen Sie eine PDF aus für Vorschläge")
+STANDARD_UEBERSCHRIFT = tr("Vorgeschlagene Ziele:")
 
 # Laufende Hintergrundjobs: die Python-Referenz muss bis zum Ende erhalten bleiben,
 # sonst loescht Qt einen laufenden QThread (Absturz).
@@ -74,10 +75,10 @@ class OrdnerVorschlagZeile(VorschlagZeile):
 
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)
-        menu.addAction("📁 Ordner hierhin verschieben").triggered.connect(
+        menu.addAction(tr("📁 Ordner hierhin verschieben")).triggered.connect(
             lambda: self.ordner_hierhin.emit(self.folder_path, False)
         )
-        menu.addAction("📁 Ordner hierhin kopieren").triggered.connect(
+        menu.addAction(tr("📁 Ordner hierhin kopieren")).triggered.connect(
             lambda: self.ordner_hierhin.emit(self.folder_path, True)
         )
         menu.addSeparator()
@@ -106,10 +107,10 @@ class OrdnerVerschiebenMixin:
     # --- Markierung ---------------------------------------------------------
 
     def ordner_ki_knopf_bauen(self) -> QPushButton:
-        btn = QPushButton("🤖 KI fragen")
+        btn = QPushButton(tr("🤖 KI fragen"))
         btn.setToolTip(
-            "Fragt die KI, unter welchen Ordner der markierte Ordner gehört.\n"
-            "Gesendet werden der Ordnername, Dateinamen und Ordnernamen der Ablage."
+            tr("Fragt die KI, unter welchen Ordner der markierte Ordner gehört.\n"
+            "Gesendet werden der Ordnername, Dateinamen und Ordnernamen der Ablage.")
         )
         btn.setStyleSheet("padding: 2px 8px;")
         btn.clicked.connect(self.on_ordner_ki_fragen)
@@ -131,7 +132,7 @@ class OrdnerVerschiebenMixin:
         folder_path = Path(folder_path)
         if self._markierter_ordner == folder_path:
             self._ordner_markierung_aufheben()
-            self.statusbar.showMessage("Auswahl aufgehoben", 2000)
+            self.statusbar.showMessage(tr("Auswahl aufgehoben"), 2000)
             return
         self._ordner_markieren(folder_path)
 
@@ -149,16 +150,18 @@ class OrdnerVerschiebenMixin:
         self._markierter_ordner = Path(folder_path)
         self._ordner_vorschlaege = []
         self._ordner_markierung_anzeigen()
-        self.suggestions_label.setText(f"Vorgeschlagene Ziele für Ordner „{folder_path.name}“:")
-        self.no_suggestions_label.setText("Vorschläge für den Ordner werden berechnet …")
+        self.suggestions_label.setText(tr("Vorgeschlagene Ziele für Ordner „{name}“:").format(name=folder_path.name))
+        self.no_suggestions_label.setText(tr("Vorschläge für den Ordner werden berechnet …"))
         self.no_suggestions_label.show()
         if self.ordner_ki_btn is not None:
             self.ordner_ki_btn.setEnabled(True)
-            self.ordner_ki_btn.setText("🤖 KI fragen")
+            self.ordner_ki_btn.setText(tr("🤖 KI fragen"))
             self.ordner_ki_btn.show()
         self.statusbar.showMessage(
-            f"Ordner markiert: {folder_path.name} – Ziel rechts anklicken (Vorschlag oder Baum), "
-            "Strg+Ziehen kopiert"
+            tr(
+                "Ordner markiert: {name} – Ziel rechts anklicken (Vorschlag oder Baum), "
+                "Strg+Ziehen kopiert"
+            ).format(name=folder_path.name)
         )
         self._ordner_vorschlaege_starten(Path(folder_path))
 
@@ -230,7 +233,7 @@ class OrdnerVerschiebenMixin:
         name = self._markierter_ordner.name if self._markierter_ordner else ""
         if not suggestions:
             self.no_suggestions_label.setText(
-                "Keine Vorschläge für diesen Ordner. Ziel im Baum anklicken oder „KI fragen“."
+                tr("Keine Vorschläge für diesen Ordner. Ziel im Baum anklicken oder „KI fragen“.")
             )
             self.no_suggestions_label.show()
             return
@@ -249,14 +252,14 @@ class OrdnerVerschiebenMixin:
             ziel = Path(s.folder_path) if s.folder_path else None
             if ziel is not None and ziel.is_absolute():
                 eltern = str(ziel.parent)
-            zeile.set_anzeige(kurz, eltern, "➕ neu: " if is_new else "")
-            tooltip = f"Ordner „{name}“ wird nach {rel}/{name} einsortiert.\n{s.reason}\n"
-            tooltip += f"Konfidenz: {int(s.confidence * 100)}%\n"
+            zeile.set_anzeige(kurz, eltern, tr("➕ neu: ") if is_new else "")
+            tooltip = tr("Ordner „{name}“ wird nach {rel}/{name} einsortiert.\n{reason}\n").format(name=name, rel=rel, reason=s.reason)
+            tooltip += tr("Konfidenz: {0}%\n").format(int(s.confidence * 100))
             tooltip += (
-                "Diesen Ordner gibt es noch nicht, er wird nach einer Rückfrage angelegt.\n"
+                tr("Diesen Ordner gibt es noch nicht, er wird nach einer Rückfrage angelegt.\n")
                 if is_new else ""
             )
-            tooltip += "Anklicken verschiebt den markierten Ordner hierher (Rechtsklick: kopieren)."
+            tooltip += tr("Anklicken verschiebt den markierten Ordner hierher (Rechtsklick: kopieren).")
             zeile.setToolTip(tooltip)
             zeile.count_label.setText(f"{int(s.confidence * 100)}%")
             farbe = "#1e6fd9" if is_new else "#28a745"
@@ -299,8 +302,8 @@ class OrdnerVerschiebenMixin:
         provider = getattr(hc, "llm_provider", None)
         if not hc.is_llm_available() or provider is None:
             QMessageBox.information(
-                self, "KI nicht eingerichtet",
-                "Für „KI fragen“ muss unter Einstellungen ein KI-Anbieter eingerichtet sein.",
+                self, tr("KI nicht eingerichtet"),
+                tr("Für „KI fragen“ muss unter Einstellungen ein KI-Anbieter eingerichtet sein."),
             )
             return
         roots = list(self.config.get_target_folders())
@@ -312,8 +315,8 @@ class OrdnerVerschiebenMixin:
 
         if self.ordner_ki_btn is not None:
             self.ordner_ki_btn.setEnabled(False)
-            self.ordner_ki_btn.setText("🤖 KI fragt …")
-        self.statusbar.showMessage(f"KI überlegt, wohin „{ordner.name}“ gehört …")
+            self.ordner_ki_btn.setText(tr("🤖 KI fragt …"))
+        self.statusbar.showMessage(tr("KI überlegt, wohin „{name}“ gehört …").format(name=ordner.name))
         job = OrdnerJob(arbeit)
         job.fertig.connect(lambda s, g=gen, o=ordner: self._ordner_ki_da(g, o, s))
         job.fehler.connect(lambda msg, g=gen, o=ordner: self._ordner_ki_fehler(g, o, msg))
@@ -322,7 +325,7 @@ class OrdnerVerschiebenMixin:
     def _ordner_ki_fertig_knopf(self) -> None:
         if self.ordner_ki_btn is not None:
             self.ordner_ki_btn.setEnabled(True)
-            self.ordner_ki_btn.setText("🤖 KI fragen")
+            self.ordner_ki_btn.setText(tr("🤖 KI fragen"))
 
     def _ordner_ki_da(self, gen: int, ordner: Path, vorschlag) -> None:
         if sip.isdeleted(self):
@@ -331,21 +334,21 @@ class OrdnerVerschiebenMixin:
             return
         self._ordner_ki_fertig_knopf()
         if vorschlag is None:
-            self.statusbar.showMessage("Die KI konnte keinen passenden Elternordner nennen", 5000)
+            self.statusbar.showMessage(tr("Die KI konnte keinen passenden Elternordner nennen"), 5000)
             return
         liste = list(self._ordner_vorschlaege)
         for s in liste:
             if Path(s.folder_path) == Path(vorschlag.folder_path):  # bestaetigt einen vorhandenen
                 s.confidence = max(s.confidence, 0.9)
-                if "KI bestätigt" not in s.reason:
-                    s.reason += " + KI bestätigt"
+                if tr("KI bestätigt") not in s.reason:
+                    s.reason += tr(" + KI bestätigt")
                 liste.insert(0, liste.pop(liste.index(s)))
                 break
         else:
             liste.insert(0, vorschlag)
         self._ordner_vorschlaege = liste
         self.display_folder_suggestions(liste)
-        self.statusbar.showMessage(f"KI-Vorschlag: {vorschlag.relative_path}", 5000)
+        self.statusbar.showMessage(tr("KI-Vorschlag: {relative_path}").format(relative_path=vorschlag.relative_path), 5000)
 
     def _ordner_ki_fehler(self, gen: int, ordner: Path, meldung: str) -> None:
         if sip.isdeleted(self):
@@ -353,7 +356,7 @@ class OrdnerVerschiebenMixin:
         if gen != self._ordner_generation or self._markierter_ordner != ordner:
             return
         self._ordner_ki_fertig_knopf()
-        QMessageBox.warning(self, "KI fragen", f"Die KI-Anfrage ist fehlgeschlagen:\n{meldung}")
+        QMessageBox.warning(self, tr("KI fragen"), tr("Die KI-Anfrage ist fehlgeschlagen:\n{meldung}").format(meldung=meldung))
 
     # --- Zielwahl per Dialog und per Ziehen ----------------------------------------
 
@@ -361,8 +364,9 @@ class OrdnerVerschiebenMixin:
         """Menue "Anderen Ordner wählen …": beliebigen Zielordner im Dateidialog waehlen."""
         ziele = self.config.get_target_folders()
         start = str(ziele[0]) if ziele else str(Path(ordner).parent)
-        verb = "kopieren" if kopieren else "verschieben"
-        gewaehlt = QFileDialog.getExistingDirectory(self, f"Zielordner zum {verb.capitalize()} wählen", start)
+        titel = (tr("Zielordner zum Kopieren wählen") if kopieren
+                 else tr("Zielordner zum Verschieben wählen"))
+        gewaehlt = QFileDialog.getExistingDirectory(self, titel, start)
         if gewaehlt:
             self.ordner_uebertragen(Path(ordner), Path(gewaehlt), kopieren)
 
@@ -379,31 +383,36 @@ class OrdnerVerschiebenMixin:
         """Verschiebt bzw. kopiert ``quelle`` nach ``ziel_eltern/<Name>`` (nach Rueckfrage, im Hintergrund)."""
         quelle, ziel_eltern = Path(quelle), Path(ziel_eltern)
         if self._ordner_laeuft:
-            self.statusbar.showMessage("Es läuft schon ein Ordner-Vorgang", 3000)
+            self.statusbar.showMessage(tr("Es läuft schon ein Ordner-Vorgang"), 3000)
             return
         meldung = ordner_verschieben.pruefe(quelle, ziel_eltern)
         if meldung:
-            QMessageBox.warning(self, "Ordner verschieben nicht möglich", meldung)
+            QMessageBox.warning(self, tr("Ordner verschieben nicht möglich"), meldung)
             return
 
-        verb = "kopieren" if kopieren else "verschieben"
         rel = self.folder_tree.get_relative_path(ziel_eltern)
         dateien, unterordner = ordner_verschieben.inhalt_zaehlen(quelle)
-        text = (
-            f"Ordner „{quelle.name}“ ({dateien} {'Datei' if dateien == 1 else 'Dateien'}, "
-            f"{unterordner} {'Unterordner' if unterordner == 1 else 'Unterordner'}) "
-            f"nach „{rel}“ {verb}?"
-        )
+        inhalt = ", ".join((
+            (tr("{anzahl} Datei") if dateien == 1 else tr("{anzahl} Dateien")).format(anzahl=dateien),
+            (tr("{anzahl} Unterordner", "Einzahl") if unterordner == 1
+             else tr("{anzahl} Unterordner")).format(anzahl=unterordner),
+        ))
+        frage = (tr("Ordner „{name}“ ({inhalt}) nach „{rel}“ kopieren?") if kopieren
+                 else tr("Ordner „{name}“ ({inhalt}) nach „{rel}“ verschieben?"))
+        text = frage.format(name=quelle.name, inhalt=inhalt, rel=rel)
         if not ziel_eltern.exists():
-            text += "\n\nDen Zielordner gibt es noch nicht, er wird angelegt."
+            text += tr("\n\nDen Zielordner gibt es noch nicht, er wird angelegt.")
         if ordner_verschieben.zusammenfuehren_noetig(quelle, ziel_eltern):
             text += (
-                f"\n\n„{quelle.name}“ gibt es dort schon: Die Inhalte werden zusammengeführt. "
-                "Gleiche Dateinamen bekommen „ (2)“ angehängt, byte-gleiche Dateien werden nicht doppelt abgelegt"
-                + (" (die Quelldatei kommt in den Papierkorb)." if not kopieren else ".")
+                tr(
+                    "\n\n„{name}“ gibt es dort schon: Die Inhalte werden zusammengeführt. "
+                    "Gleiche Dateinamen bekommen „ (2)“ angehängt, byte-gleiche Dateien "
+                    "werden nicht doppelt abgelegt{0}"
+                ).format(tr(" (die Quelldatei kommt in den Papierkorb).") if not kopieren else ".",
+                         name=quelle.name)
             )
         antwort = QMessageBox.question(
-            self, f"Ordner {verb}", text,
+            self, tr("Ordner kopieren") if kopieren else tr("Ordner verschieben"), text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
@@ -418,14 +427,15 @@ class OrdnerVerschiebenMixin:
                 fortschritt=fortschritt, abbruch=abbruch,
             )
 
-        titel = f"Ordner „{quelle.name}“ wird {'kopiert' if kopieren else 'verschoben'} …"
+        titel = (tr("Ordner „{name}“ wird kopiert …") if kopieren
+                 else tr("Ordner „{name}“ wird verschoben …")).format(name=quelle.name)
         self._ordner_job_starten(titel, arbeit, lambda erg: self._ordner_fertig(erg, rel))
 
     def _ordner_job_starten(self, titel: str, arbeit: Callable, fertig: Callable) -> None:
         """Startet den Job mit Fortschrittsdialog (erscheint erst nach einer halben Sekunde)."""
         self._ordner_laeuft = True
-        dlg = QProgressDialog(titel, "Abbrechen", 0, 0, self)
-        dlg.setWindowTitle("PDF Sortier Meister")
+        dlg = QProgressDialog(titel, tr("Abbrechen"), 0, 0, self)
+        dlg.setWindowTitle(tr("PDF Sortier Meister"))
         dlg.setWindowModality(Qt.WindowModality.WindowModal)
         dlg.setMinimumDuration(500)
         dlg.setAutoClose(False)
@@ -456,7 +466,7 @@ class OrdnerVerschiebenMixin:
             if sip.isdeleted(self):
                 return
             beenden()
-            QMessageBox.warning(self, "Ordner verschieben", meldung)
+            QMessageBox.warning(self, tr("Ordner verschieben"), meldung)
 
         job.fortschritt.connect(fortschritt)
         job.fertig.connect(ok)
@@ -469,12 +479,14 @@ class OrdnerVerschiebenMixin:
         name = erg.quelle.name
         if erg.fehler:
             QMessageBox.warning(
-                self, "Teilweise fehlgeschlagen",
-                "Einige Dateien konnten nicht übertragen werden (sie bleiben am alten Platz):\n"
-                + "\n".join(erg.fehler[:15]) + ("\n…" if len(erg.fehler) > 15 else ""),
+                self, tr("Teilweise fehlgeschlagen"),
+                tr(
+                    "Einige Dateien konnten nicht übertragen werden (sie bleiben am alten "
+                    "Platz):\n{0}{1}"
+                ).format('\n'.join(erg.fehler[:15]), '\n…' if len(erg.fehler) > 15 else ''),
             )
         if not erg.etwas_getan:
-            self.statusbar.showMessage("Es wurde nichts übertragen", 4000)
+            self.statusbar.showMessage(tr("Es wurde nichts übertragen"), 4000)
             return
 
         if not erg.kopiert:
@@ -489,15 +501,17 @@ class OrdnerVerschiebenMixin:
         if not erg.kopiert:
             self.classifier._schedule_retrain()  # gelernte Ordnerpfade neu einlesen
 
-        verb = "kopiert" if erg.kopiert else "verschoben"
         self._push_undo({
             "type": "ordner",
             "ergebnis": erg,
-            "description": f"Ordner {name} {verb} → {rel}",
+            "description": (tr("Ordner {name} kopiert → {rel}") if erg.kopiert
+                            else tr("Ordner {name} verschoben → {rel}")).format(name=name, rel=rel),
         })
-        extra = f", {len(erg.identisch)} identische übersprungen" if erg.identisch else ""
+        extra = tr(", {anzahl} identische übersprungen").format(anzahl=len(erg.identisch)) if erg.identisch else ""
         self.statusbar.showMessage(
-            f"Ordner „{name}“ nach „{rel}“ {verb} ({len(erg.dateien)} Dateien{extra})", 6000
+            (tr("Ordner „{name}“ nach „{rel}“ kopiert ({anzahl} Dateien{extra})") if erg.kopiert
+             else tr("Ordner „{name}“ nach „{rel}“ verschoben ({anzahl} Dateien{extra})")).format(
+                name=name, rel=rel, anzahl=len(erg.dateien), extra=extra), 6000
         )
         self.config.add_to_last_used(erg.ziel.parent)
         if not erg.kopiert:
@@ -556,7 +570,7 @@ class OrdnerVerschiebenMixin:
             )
             gelernt += 1
         if gelernt:
-            self.training_label.setText(f"Gelernt: {self.classifier.get_training_count()}")
+            self.training_label.setText(tr("Gelernt: {0}").format(self.classifier.get_training_count()))
 
     def _ordner_ansicht_aktualisieren(self, erg, rueckgaengig: bool = False) -> None:
         """Ordnerzeilen und Zielbaum nach einer Aenderung auffrischen."""
@@ -577,17 +591,17 @@ class OrdnerVerschiebenMixin:
     def _undo_ordner(self, entry: dict) -> None:
         erg = entry["ergebnis"]
         if erg.kopiert:
-            text = f"Die Kopie von „{erg.quelle.name}“ in den Papierkorb legen?"
+            text = tr("Die Kopie von „{name}“ in den Papierkorb legen?").format(name=erg.quelle.name)
         else:
-            text = f"Ordner „{erg.quelle.name}“ zurück nach „{erg.quelle.parent}“ verschieben?"
+            text = tr("Ordner „{name}“ zurück nach „{parent}“ verschieben?").format(name=erg.quelle.name, parent=erg.quelle.parent)
         antwort = QMessageBox.question(
-            self, "Rückgängig machen", text,
+            self, tr("Rückgängig machen"), text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if antwort != QMessageBox.StandardButton.Yes:
             return
         if self._ordner_laeuft:
-            self.statusbar.showMessage("Es läuft schon ein Ordner-Vorgang", 3000)
+            self.statusbar.showMessage(tr("Es läuft schon ein Ordner-Vorgang"), 3000)
             return
         self._undo_stack.pop()
         self._update_undo_ui()
@@ -597,14 +611,14 @@ class OrdnerVerschiebenMixin:
             return ordner_verschieben.rueckgaengig(erg, papierkorb)
 
         self._ordner_job_starten(
-            f"Ordner „{erg.quelle.name}“ wird zurückgeholt …", arbeit,
+            tr("Ordner „{name}“ wird zurückgeholt …").format(name=erg.quelle.name), arbeit,
             lambda probleme: self._undo_ordner_fertig(entry, probleme),
         )
 
     def _undo_ordner_fertig(self, entry: dict, probleme: list) -> None:
         erg = entry["ergebnis"]
         if probleme:
-            QMessageBox.warning(self, "Rückgängig nicht ganz möglich", "\n".join(probleme[:15]))
+            QMessageBox.warning(self, tr("Rückgängig nicht ganz möglich"), "\n".join(probleme[:15]))
         if not erg.kopiert:
             zurueck = [(n, a) for a, n in erg.dateien if Path(a).exists()]
             neu_angelegt = any(Path(p) == erg.ziel for p in erg.neue_ordner)
@@ -616,5 +630,5 @@ class OrdnerVerschiebenMixin:
             )
             self.classifier._schedule_retrain()
         self._invalidate_folder_caches()
-        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.statusbar.showMessage(tr("Rückgängig: {description}").format(description=entry['description']), 3000)
         self._ordner_ansicht_aktualisieren(erg, rueckgaengig=True)

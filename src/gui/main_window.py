@@ -60,6 +60,7 @@ from src.core.folder_naming import coerce_date
 from src.gui.hierhin_kopieren import HierhinKopierenMixin
 from src.gui.stapel_ablage import StapelAblageMixin, erkanntes_datum
 from src.gui.ordner_verschieben_gui import OrdnerVerschiebenMixin
+from src.i18n import tr
 
 
 def _iso_to_date(value):
@@ -118,7 +119,7 @@ _PROVIDER_ANZEIGENAMEN = {
 def provider_anzeigename(provider_id: str) -> str:
     """Anzeigename zu einer Provider-Kennung (unbekannte Kennung unveraendert)."""
     kennung = str(provider_id or "").strip().lower()
-    return _PROVIDER_ANZEIGENAMEN.get(kennung, kennung or "Unbekannt")
+    return _PROVIDER_ANZEIGENAMEN.get(kennung, kennung or tr("Unbekannt"))
 
 
 def modell_name(provider, fallback: str = "", short: bool = False) -> str:
@@ -175,7 +176,7 @@ class _UpdateCheckThread(QThread):
             self.result_ready.emit(None, str(e))
             return
         except Exception as e:  # noqa: BLE001 - Hintergrund-Thread darf nie crashen
-            self.result_ready.emit(None, f"Unerwarteter Fehler: {e}")
+            self.result_ready.emit(None, tr("Unerwarteter Fehler: {e}").format(e=e))
             return
         self.result_ready.emit(info, "")
 
@@ -289,7 +290,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def setup_ui(self):
         """Initialisiert die Haupt-UI-Komponenten."""
-        self.setWindowTitle("PDF Sortier Meister")
+        self.setWindowTitle(tr("PDF Sortier Meister"))
         self.setMinimumSize(800, 600)
         # Anzeige (maximiert oder gespeicherte Groesse) entscheidet load_settings()
 
@@ -345,10 +346,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.chat_view.metadaten_requested.connect(self._on_chat_metadaten)
         self.chat_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
         self.left_tabs = QTabWidget()
-        self.left_tabs.addTab(pdf_panel, "PDFs")
-        self.left_tabs.setTabToolTip(0, "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken")
-        self.left_tabs.addTab(self.chat_view, "Chat")
-        self.left_tabs.setTabToolTip(1, "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen")
+        self.left_tabs.addTab(pdf_panel, tr("PDFs"))
+        self.left_tabs.setTabToolTip(0, tr("Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken"))
+        self.left_tabs.addTab(self.chat_view, tr("Chat"))
+        self.left_tabs.setTabToolTip(1, tr("Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen"))
         # Korrespondenten aus dem Suchindex mit ihren Dokumenten (Issue #160)
         self.korrespondenten_view = KorrespondentenView(
             self.db, self.config, self.hybrid_classifier,
@@ -357,9 +358,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.korrespondenten_view.dokumente_gewaehlt.connect(self._on_korrespondent_dokumente)
         self.korrespondenten_view.dokument_oeffnen.connect(self.open_pdf_external)
         self.korrespondenten_view.ordner_oeffnen.connect(self._on_korrespondent_ordner)
-        self.korrespondenten_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
-        self.left_tabs.addTab(self.korrespondenten_view, "Korrespondenten")
-        self.left_tabs.setTabToolTip(2, "Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente")
+        self.korrespondenten_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab=tr("Suche")))
+        self.left_tabs.addTab(self.korrespondenten_view, tr("Korrespondenten"))
+        self.left_tabs.setTabToolTip(2, tr("Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente"))
         self.left_tabs.currentChanged.connect(self._on_left_tab_changed)
         splitter.addWidget(self.left_tabs)
 
@@ -403,9 +404,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Beim Verschieben des Splitters die Raster-Spalten anpassen (Issue #50)
         splitter.splitterMoved.connect(lambda *_: self._grid_relayout_timer.start())
 
-        self.center_tabs.addTab(preview_container, "Vorschau")
+        self.center_tabs.addTab(preview_container, tr("Vorschau"))
         self.center_tabs.setTabToolTip(
-            0, "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
+            0, tr("3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken")
         )
 
         # Der Chat ist seit Phase 3 (Issue #166/#167) ein Reiter der linken
@@ -417,11 +418,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.search_view.open_pdf_requested.connect(self.open_pdf)
         self.search_view.open_pdf_external_requested.connect(self.open_pdf_external)
         self.search_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
-        self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab="Suche"))
+        self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab=tr("Suche")))
         self.search_view.suche_fertig.connect(self._on_search_view_result)
-        self.center_tabs.addTab(self.search_view, "Suche")
+        self.center_tabs.addTab(self.search_view, tr("Suche"))
         self.center_tabs.setTabToolTip(
-            1, "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+            1, tr("Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails")
         )
 
         # Indexstand aktualisieren, wenn der Tab gewaehlt wird
@@ -459,7 +460,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         pfade = [p for p in (dokument_pfad(d) for d in doks) if p.is_file() and ist_sortierbar(p)]
         if not pfade:
             if doks:
-                self.statusbar.showMessage("Diese Dokumente lassen sich hier nicht bearbeiten (Mail oder Datei fehlt)", 4000)
+                self.statusbar.showMessage(tr("Diese Dokumente lassen sich hier nicht bearbeiten (Mail oder Datei fehlt)"), 4000)
             if self._korr_aktiv:
                 self._korr_auswahl_leeren()
             return
@@ -471,9 +472,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.selected_pdf = pfade[-1]  # wie unter "PDFs": die letzte ist die "aktive"
         self._auswahl_anzeigen()
         if len(pfade) > 1:
-            self.statusbar.showMessage(f"{len(pfade)} Dokumente ausgewählt")
+            self.statusbar.showMessage(tr("{anzahl} Dokumente ausgewählt").format(anzahl=len(pfade)))
         else:
-            self.statusbar.showMessage(f"Ausgewählt: {pfade[0].name}")
+            self.statusbar.showMessage(tr("Ausgewählt: {name}").format(name=pfade[0].name))
 
     def _auswahl_anzeigen(self) -> None:
         """Felder, Vorschau und Vorschlaege fuer ``selected_pdf`` zeigen.
@@ -560,7 +561,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
         bezug = Path(bezug)
         if not bezug.exists():
-            self.statusbar.showMessage(f"{bezug.name} liegt nicht mehr im Scan-Ordner", 4000)
+            self.statusbar.showMessage(tr("{name} liegt nicht mehr im Scan-Ordner").format(name=bezug.name), 4000)
             return
         self.move_pdf_to_folder_and_learn(bezug, Path(ordner_pfad))
         if not bezug.exists():
@@ -581,10 +582,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         gecachten Text, Rueckgaengig) - ohne die Auswahl aufzuheben.
         """
         if not pfad.is_file():
-            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            self.statusbar.showMessage(tr("„{name}“ gibt es nicht mehr unter {parent}").format(name=pfad.name, parent=pfad.parent), 5000)
             return
         if not ziel.is_dir():
-            self.statusbar.showMessage(f"Den Ordner {ziel} gibt es nicht mehr", 5000)
+            self.statusbar.showMessage(tr("Den Ordner {ziel} gibt es nicht mehr").format(ziel=ziel), 5000)
             return
         if self.selected_pdf is not None and Path(self.selected_pdf) == pfad:
             self.move_pdf_to_folder_and_learn(pfad, ziel)
@@ -602,12 +603,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         pfad = Path(quelle)
         if not name or not pfad.is_file():
-            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            self.statusbar.showMessage(tr("„{name}“ gibt es nicht mehr unter {parent}").format(name=pfad.name, parent=pfad.parent), 5000)
             return
         try:
             neu = self.file_manager.rename_file(pfad, name)
         except Exception as e:  # noqa: BLE001 - Meldung statt Absturz
-            QMessageBox.warning(self, "Fehler", f"Umbenennen fehlgeschlagen:\n{e}")
+            QMessageBox.warning(self, tr("Fehler"), tr("Umbenennen fehlgeschlagen:\n{e}").format(e=e))
             return
         try:
             self.pdf_cache.migrate_cache_entry(pfad, neu)
@@ -617,7 +618,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "type": "rename",
             "old_path": pfad,
             "new_path": neu,
-            "description": f"Umbenennung: {pfad.name} → {neu.name}",
+            "description": tr("Umbenennung: {name} → {name2}").format(name=pfad.name, name2=neu.name),
         })
         try:
             gecacht = self.pdf_cache.get(neu)
@@ -633,13 +634,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             logging.getLogger(__name__).debug(f"Umbenennung aus dem Chat nicht gelernt: {e}")
         if self.detail_panel.get_current_pdf() == pfad:
             self.detail_panel._current_pdf = neu
-            self.detail_panel.header_label.setText(f"Original: {neu.name}")
+            self.detail_panel.header_label.setText(tr("Original: {name}").format(name=neu.name))
         self._update_pdf_widget_path(pfad, neu)
         bezug = self.chat_view.bezug
         if bezug is not None and Path(bezug) == pfad:
             self.chat_view.set_bezug(neu)
         self.chat_view.vorschlag_erledigt("umbenennen", quelle, str(neu))
-        self.statusbar.showMessage(f"Umbenannt zu: {neu.name}", 4000)
+        self.statusbar.showMessage(tr("Umbenannt zu: {name}").format(name=neu.name), 4000)
 
     def _on_chat_metadaten(self, quelle: str, felder: dict) -> None:
         """Vorschlag „Metadaten übernehmen“ aus dem Chat (Baustein 2).
@@ -650,10 +651,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         pfad = Path(quelle)
         if not pfad.is_file():
-            self.statusbar.showMessage(f"„{pfad.name}“ gibt es nicht mehr unter {pfad.parent}", 5000)
+            self.statusbar.showMessage(tr("„{name}“ gibt es nicht mehr unter {parent}").format(name=pfad.name, parent=pfad.parent), 5000)
             return
         if ist_office_datei(pfad) or pfad.suffix.lower() != ".pdf":
-            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            self.statusbar.showMessage(tr("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln"), 4000)
             return
         metadata = {ziel: str(felder[feld]) for feld, ziel in self._CHAT_METADATEN.items() if felder.get(feld)}
         if not metadata:
@@ -664,7 +665,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self.detail_panel.get_current_pdf() == pfad and not self.detail_panel.has_user_edits():
             self.detail_panel.load_metadata_from_pdf(pfad)
         self.chat_view.vorschlag_erledigt("metadaten", quelle)
-        self.statusbar.showMessage(f"Metadaten in '{pfad.name}' gespeichert", 4000)
+        self.statusbar.showMessage(tr("Metadaten in '{name}' gespeichert").format(name=pfad.name), 4000)
 
     def _on_chat_ordner_belegt(self, ordner_pfad: str, begruendung: str) -> None:
         """Der Chat hat einen Zielordner belegt (Phase 3): als Vorschlag ins Detail-Panel.
@@ -682,7 +683,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if vorschlag is None:
                 return
             suggestions = self._ordnen(self.selected_pdf, merge_folder_suggestion(
-                list(self._shown_suggestions), vorschlag, bestaetigung="Chat bestätigt",
+                list(self._shown_suggestions), vorschlag, bestaetigung=tr("Chat bestätigt"),
             ))
             self.display_suggestions(suggestions)
             self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
@@ -783,7 +784,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if note:
             self.statusbar.showMessage(note, 6000)
         if not ok:
-            QMessageBox.warning(self, "PDF öffnen", note)
+            QMessageBox.warning(self, tr("PDF öffnen"), note)
 
     def show_preview_window(self, pdf_path: Path, seite: int | None = None) -> None:
         """Zeigt die PDF im (wiederverwendeten) Vorschau-Fenster, optional direkt auf ``seite``."""
@@ -806,7 +807,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         selected = self.detail_panel.get_current_pdf()
         if shown is None or selected is None or Path(shown) != Path(selected):
             self.statusbar.showMessage(
-                "Die Vorschau zeigt nicht die ausgewählte PDF - Text nicht übernommen.", 5000
+                tr("Die Vorschau zeigt nicht die ausgewählte PDF - Text nicht übernommen."), 5000
             )
             return
         self.detail_panel.apply_preview_text(field_key, text)
@@ -825,7 +826,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Zurück-Button (vorheriger Ordner)
         self.navigate_back_btn = QPushButton("⬅")
         self.navigate_back_btn.setFixedSize(28, 28)
-        self.navigate_back_btn.setToolTip("Zurück zum vorherigen Ordner (Alt+Left)")
+        self.navigate_back_btn.setToolTip(tr("Zurück zum vorherigen Ordner (Alt+Left)"))
         self.navigate_back_btn.clicked.connect(self.on_navigate_back)
         self.navigate_back_btn.setEnabled(False)
         header_layout.addWidget(self.navigate_back_btn)
@@ -833,12 +834,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Nach-oben-Button (ein Verzeichnis höher)
         self.navigate_up_btn = QPushButton("⬆")
         self.navigate_up_btn.setFixedSize(28, 28)
-        self.navigate_up_btn.setToolTip("Ein Verzeichnis nach oben (Alt+Up)")
+        self.navigate_up_btn.setToolTip(tr("Ein Verzeichnis nach oben (Alt+Up)"))
         self.navigate_up_btn.clicked.connect(self.on_navigate_up)
         header_layout.addWidget(self.navigate_up_btn)
 
         # Überschrift mit Ordnerpfad
-        self.pdf_header = QLabel("Neue PDFs im Scan-Ordner")
+        self.pdf_header = QLabel(tr("Neue PDFs im Scan-Ordner"))
         self.pdf_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(self.pdf_header)
         header_layout.addStretch()
@@ -856,12 +857,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.tile_view_combo.addItem(view.label, view.id)
         self.tile_view_combo.setCurrentIndex(self.tile_view_combo.findData(self._tile_view.id))
         self.tile_view_combo.setToolTip(
-            "Größe der Kacheln im Scan-Bereich.\n"
+            tr("Größe der Kacheln im Scan-Bereich.\n"
             "Bei kleinen und mittleren Kacheln zeigt der Mauszeiger auf einer PDF\n"
-            "kurz darauf die große Vorschau."
+            "kurz darauf die große Vorschau.")
         )
         self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
-        view_label = QLabel("Ansicht:")
+        view_label = QLabel(tr("Ansicht:"))
         view_label.setStyleSheet("color: #888; font-size: 12px;")
         header_layout.addWidget(view_label)
         header_layout.addWidget(self.tile_view_combo)
@@ -871,9 +872,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         for sid, text, _kriterium, _ab in SORT_OPTIONEN:
             self.sort_combo.addItem(text, sid)
         self.sort_combo.setCurrentIndex(self.sort_combo.findData(self._sortierung))
-        self.sort_combo.setToolTip("Reihenfolge der Dateien im Scan-Bereich.")
+        # Die Spalte ist oft schmaler als der laengste Eintrag ("Datum: neueste zuerst",
+        # "Date: newest first"); die geschlossene Auswahl wird dann gekuerzt. Die
+        # aufgeklappte Liste zeigt jeden Eintrag ganz (Issue #118).
+        self.sort_combo.view().setMinimumWidth(self.sort_combo.sizeHint().width() + 8)
+        self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
-        sort_label = QLabel("Sortieren:")
+        sort_label = QLabel(tr("Sortieren:"))
         sort_label.setStyleSheet("color: #888; font-size: 12px;")
         header_layout.addWidget(sort_label)
         header_layout.addWidget(self.sort_combo)
@@ -902,13 +907,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.breadcrumb_widget.customContextMenuRequested.connect(self._breadcrumb_menue)
         # Ordnersuche (Issue #159): Klick auf die freie Pfadzeile oder die Lupe
         # blendet das Suchfeld an Stelle der Pfadzeile ein (wie im Explorer).
-        self.breadcrumb_widget.setToolTip("Klicken zum Suchen nach Ordnern")
+        self.breadcrumb_widget.setToolTip(tr("Klicken zum Suchen nach Ordnern"))
         self.breadcrumb_widget.mousePressEvent = self._breadcrumb_klick
         self.breadcrumb_suche_btn = QToolButton()
         self.breadcrumb_suche_btn.setText("🔍")
         self.breadcrumb_suche_btn.setAutoRaise(True)
         self.breadcrumb_suche_btn.setFixedSize(20, 20)
-        self.breadcrumb_suche_btn.setToolTip("Ordner suchen")
+        self.breadcrumb_suche_btn.setToolTip(tr("Ordner suchen"))
         self.breadcrumb_suche_btn.clicked.connect(self._ordnersuche_links_oeffnen)
         self.breadcrumb_zeile = QWidget()
         zeile_layout = QHBoxLayout(self.breadcrumb_zeile)
@@ -929,9 +934,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Info-Label für leeren Ordner
         self.empty_label = QLabel(
-            "Kein Scan-Ordner ausgewählt.\n\n"
+            tr("Kein Scan-Ordner ausgewählt.\n\n"
             "Klicken Sie auf 'Scan-Ordner' in der Werkzeugleiste,\n"
-            "um einen Ordner mit PDFs auszuwählen."
+            "um einen Ordner mit PDFs auszuwählen.")
         )
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setStyleSheet("color: #666; padding: 40px;")
@@ -993,28 +998,28 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Überschrift mit Buttons
         header_layout = QHBoxLayout()
-        header = QLabel("Zielordner")
+        header = QLabel(tr("Zielordner"))
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
         header_layout.addWidget(header)
         header_layout.addStretch()
 
         # Button: Zielordner hinzufügen
-        add_folder_btn = QPushButton("+ Hinzufügen")
-        add_folder_btn.setToolTip("Neuen Zielordner hinzufügen")
+        add_folder_btn = QPushButton(tr("+ Hinzufügen"))
+        add_folder_btn.setToolTip(tr("Neuen Zielordner hinzufügen"))
         add_folder_btn.setStyleSheet("padding: 3px 8px;")
         add_folder_btn.clicked.connect(self.add_target_folder)
         header_layout.addWidget(add_folder_btn)
 
         # Button: Zielordner neu aufbauen
-        rebuild_btn = QPushButton("↻ Neu laden")
-        rebuild_btn.setToolTip("Zielordner-Ansicht neu aufbauen (Lerninhalte bleiben erhalten)")
+        rebuild_btn = QPushButton(tr("↻ Neu laden"))
+        rebuild_btn.setToolTip(tr("Zielordner-Ansicht neu aufbauen (Lerninhalte bleiben erhalten)"))
         rebuild_btn.setStyleSheet("padding: 3px 8px;")
         rebuild_btn.clicked.connect(self.rebuild_folder_view)
         header_layout.addWidget(rebuild_btn)
 
         # Button: Zielordner-Ansicht leeren
-        clear_btn = QPushButton("🗑 Leeren")
-        clear_btn.setToolTip("Zielordner-Ansicht leeren (Lerninhalte bleiben erhalten)")
+        clear_btn = QPushButton(tr("🗑 Leeren"))
+        clear_btn.setToolTip(tr("Zielordner-Ansicht leeren (Lerninhalte bleiben erhalten)"))
         clear_btn.setStyleSheet("padding: 3px 8px;")
         clear_btn.clicked.connect(self.clear_folder_view)
         header_layout.addWidget(clear_btn)
@@ -1022,7 +1027,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         layout.addLayout(header_layout)
 
         # Vorschläge-Bereich
-        self.suggestions_label = QLabel("Vorgeschlagene Ziele:")
+        self.suggestions_label = QLabel(tr("Vorgeschlagene Ziele:"))
         self.suggestions_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         # Issue #196: "KI fragen" erscheint, solange links ein Ordner markiert ist
         suggestions_kopf = QHBoxLayout()
@@ -1037,7 +1042,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         layout.addWidget(self.suggestions_container)
 
         # Platzhalter wenn keine Vorschläge
-        self.no_suggestions_label = QLabel("Wählen Sie eine PDF aus für Vorschläge")
+        self.no_suggestions_label = QLabel(tr("Wählen Sie eine PDF aus für Vorschläge"))
         self.no_suggestions_label.setStyleSheet("color: #999; font-style: italic; padding: 10px;")
         self.suggestions_layout.addWidget(self.no_suggestions_label)
 
@@ -1147,23 +1152,22 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         if not pdf_files and not office_files and not subfolders and parent_folder is None:
             self.empty_label.setText(
-                "Keine PDFs im Scan-Ordner gefunden.\n\n"
-                f"Ordner: {self.file_manager.scan_folder}"
+                tr("Keine PDFs im Scan-Ordner gefunden.\n\nOrdner: {scan_folder}").format(scan_folder=self.file_manager.scan_folder)
             )
             self.empty_label.show()
             self.pdf_scroll_area.hide()
-            self.pdf_count_label.setText("PDFs: 0")
-            self.pdf_folder_count_label.setText("0 Dateien")
+            self.pdf_count_label.setText(tr("PDFs: 0"))
+            self.pdf_folder_count_label.setText(tr("0 Dateien"))
             return
 
         self.empty_label.hide()
         self.pdf_scroll_area.show()
 
         # Header aktualisieren
-        self.pdf_header.setText(f"PDFs in: {self.file_manager.scan_folder.name}")
+        self.pdf_header.setText(tr("PDFs in: {name}").format(name=self.file_manager.scan_folder.name))
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
         count = len(pdf_files) + len(office_files)
-        count_text = f"{count} {'Datei' if count == 1 else 'Dateien'}"
+        count_text = (tr("{anzahl} Datei") if count == 1 else tr("{anzahl} Dateien")).format(anzahl=count)
         if subfolders:
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
         self.pdf_folder_count_label.setText(count_text)
@@ -1196,7 +1200,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         if not pdf_files:
             self._add_office_widgets(office_files, 0)
-            self.pdf_count_label.setText("PDFs: 0")
+            self.pdf_count_label.setText(tr("PDFs: 0"))
             self._pending_thumbnails = 0
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
@@ -1250,8 +1254,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._sortiere_kacheln()
 
         # Statusleiste aktualisieren
-        self.pdf_count_label.setText(f"PDFs: {len(pdf_files)}")
-        self.statusbar.showMessage(f"{len(pdf_files)} PDFs geladen", 3000)
+        self.pdf_count_label.setText(tr("PDFs: {anzahl}").format(anzahl=len(pdf_files)))
+        self.statusbar.showMessage(tr("{anzahl} PDFs geladen").format(anzahl=len(pdf_files)), 3000)
 
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
@@ -1314,11 +1318,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if pdf is not None:
             self.detail_panel.preview.load_pdf(pdf)
         else:
-            self.detail_panel.preview.show_message(f"Vorschau nicht möglich:\n{fehler}")
+            self.detail_panel.preview.show_message(tr("Vorschau nicht möglich:\n{fehler}").format(fehler=fehler))
 
     def on_office_delete(self, pfad: Path):
         """Kontextmenue "Loeschen" einer .docx/.xlsx (gleicher Weg und gleiche Rueckfrage wie bei PDFs)."""
-        self._datei_loeschen(pfad, "Datei löschen", "diese Datei", self._remove_office_widget)
+        self._datei_loeschen(pfad, tr("Datei löschen"), tr("diese Datei"), self._remove_office_widget)
 
     def _remove_office_widget(self, pfad: Path):
         was_selected = self.selected_pdf == pfad
@@ -1331,7 +1335,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def open_office_file(self, pfad: Path):
         """Oeffnet eine .docx/.xlsx im Standardprogramm."""
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad))):
-            QMessageBox.warning(self, "Öffnen", f"Datei konnte nicht geöffnet werden:\n{pfad}")
+            QMessageBox.warning(self, tr("Öffnen"), tr("Datei konnte nicht geöffnet werden:\n{pfad}").format(pfad=pfad))
 
     def on_office_convert(self, pfad: Path, pdfa: bool):
         """Kontextmenue "In PDF umwandeln": Hintergrund-Thread, PDF entsteht neben der Datei."""
@@ -1351,14 +1355,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def _office_umwandeln(self, pfade: list[Path], pdfa: bool):
         if self._office_worker is not None or self._bild_beschaeftigt():
-            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            self.statusbar.showMessage(tr("Eine Umwandlung läuft noch - bitte warten."), 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self.statusbar.showMessage(f"Wandle in PDF um: {pfade[0].name}…")
+        self.statusbar.showMessage(tr("Wandle in PDF um: {name}…").format(name=pfade[0].name))
         worker = OfficeConvertWorker(pfade, pdfa, self)
         if len(pfade) > 1:
             worker.fortschritt.connect(
-                lambda i, n, p: self.statusbar.showMessage(f"Wandle in PDF um ({i}/{n}): {p.name}…"))
+                lambda i, n, p: self.statusbar.showMessage(tr("Wandle in PDF um ({i}/{n}): {name}…").format(i=i, n=n, name=p.name)))
         worker.fertig.connect(self._on_office_converted)
         self._office_worker = worker
         worker.start()
@@ -1380,13 +1384,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 lesbar.append((quelle, erg.pdf))
             hinweise.extend(f"{quelle.name}: {h}" for h in erg.hinweise)
             self.statusbar.showMessage(
-                f"PDF erstellt ({erg.werkzeug}{', PDF/A' if erg.pdfa else ''}): {erg.pdf.name}", 6000
+                tr("PDF erstellt ({werkzeug}{0}): {name}").format(', PDF/A' if erg.pdfa else '', werkzeug=erg.werkzeug, name=erg.pdf.name), 6000
             )
         if lesbar:
             # Eine Frage fuer alle Originale, nicht eine je Datei
             self.original_nach_umwandeln([q for q, _ in lesbar], [p for _, p in lesbar])
         if len(erzeugt) > 1:
-            self.statusbar.showMessage(f"{len(erzeugt)} PDFs erstellt", 6000)
+            self.statusbar.showMessage(tr("{anzahl} PDFs erstellt").format(anzahl=len(erzeugt)), 6000)
         if erzeugt:
             self.load_pdfs()
             # Das neue PDF wie angeklickt auswaehlen (load_pdfs baut die Kacheln synchron)
@@ -1395,9 +1399,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self.on_pdf_clicked(erzeugt[0])
                 self.zur_kachel_scrollen(erzeugt[0])
         if fehler:
-            QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
+            QMessageBox.warning(self, tr("In PDF umwandeln"), "\n".join(fehler))
         elif hinweise:
-            QMessageBox.information(self, "In PDF umwandeln", "\n".join(hinweise))
+            QMessageBox.information(self, tr("In PDF umwandeln"), "\n".join(hinweise))
 
     def _schedule_pre_caching(self, pdf_files: list[Path], delay_ms: int = 500):
         """Startet das Pre-Caching verzoegert ueber einen fenstergebundenen Timer.
@@ -1419,9 +1423,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         analysis_n, llm_n = self.pdf_cache.pre_cache(pdf_files)
         self._update_cache_status()
         if analysis_n:
-            self.statusbar.showMessage(f"Analysiere {analysis_n} PDFs im Hintergrund...", 2000)
+            self.statusbar.showMessage(tr("Analysiere {analysis_n} PDFs im Hintergrund...").format(analysis_n=analysis_n), 2000)
         elif llm_n:
-            self.statusbar.showMessage(f"Hole KI-Vorschläge für {llm_n} PDFs im Hintergrund...", 2000)
+            self.statusbar.showMessage(tr("Hole KI-Vorschläge für {llm_n} PDFs im Hintergrund...").format(llm_n=llm_n), 2000)
 
     def _precache_progress(self) -> tuple[int, int, int]:
         """Liefert (analysiert, mit KI-Vorschlägen, gesamt) für die geladenen PDFs."""
@@ -1453,28 +1457,30 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         parts = []
         if total > 0:
             if analyzed < total:
-                parts.append(f"Durchsuche PDFs… {analyzed}/{total}")
+                parts.append(tr("Durchsuche PDFs… {analyzed}/{total}").format(analyzed=analyzed, total=total))
             llm_active = (
                 self.hybrid_classifier.is_llm_available()
                 and self.config.get("llm_precache_enabled", True)
             )
             if llm_active and llm_done < total:
-                parts.append(f"KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen")
+                parts.append(tr("KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen").format(llm_done=llm_done, total=total))
         # Laufender KI-Aufruf (Pre-Cache, Metadaten, Chat): Uhr + Schaetzung (Issue #68)
         jobs = activity.jobs()
         if jobs:
             job = jobs[0]
             label = f" „{job.label}“" if job.label else ""
-            parts.append(f"KI arbeitet{label} {activity.describe()}")
+            parts.append(tr("KI arbeitet{label} {0}").format(activity.describe(), label=label))
         if self._last_llm_error:
             name, error = self._last_llm_error
-            parts.append("⚠ KI-Fehler (Doppelklick)")
+            parts.append(tr("⚠ KI-Fehler (Doppelklick)"))
             self.cache_status_label.setToolTip(
-                f"Letzter KI-Fehler bei „{name}“:\n{error}\n\n"
-                "Doppelklick zeigt Details und öffnet die Log-Datei."
+                tr(
+                    "Letzter KI-Fehler bei „{name}“:\n{error}\n\n"
+                    "Doppelklick zeigt Details und öffnet die Log-Datei."
+                ).format(name=name, error=error)
             )
         else:
-            self.cache_status_label.setToolTip("Doppelklick zeigt Details zur Hintergrund-Analyse.")
+            self.cache_status_label.setToolTip(tr("Doppelklick zeigt Details zur Hintergrund-Analyse."))
         self.cache_status_label.setText(" | ".join(parts))
 
     def _on_llm_suggestions_ready(self, pdf_path: Path):
@@ -1536,7 +1542,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             suggestions = self._with_ki_folder(pdf_path, base, detected_date)
             self.display_suggestions(suggestions)
             self.folder_tree.set_suggestion_folders([s.folder_path for s in suggestions])
-        self.statusbar.showMessage(f"KI-Vorschläge für {pdf_path.name} eingetragen", 4000)
+        self.statusbar.showMessage(tr("KI-Vorschläge für {name} eingetragen").format(name=pdf_path.name), 4000)
         return True
 
     def _with_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
@@ -1622,7 +1628,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             verknuepft = ordner_vorschlag_aus_kennungen(
                 text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
             )
-            return merge_folder_suggestion(merged, verknuepft, bestaetigung="verknüpfte Dokumente")
+            return merge_folder_suggestion(merged, verknuepft, bestaetigung=tr("verknüpfte Dokumente"))
         except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
             logging.getLogger(__name__).debug(f"Vorschlag aus verknuepften Dokumenten nicht verfuegbar: {e}")
             return merged
@@ -1656,36 +1662,37 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         health, hinweis = self._llm_health()
         provider = self.hybrid_classifier.get_llm_provider_name()
         if health == "fehler":
-            llm_state = (f"{provider} funktioniert gerade nicht.\n"
-                         f"  Problem: {hinweis.problem}\n"
-                         f"  Abhilfe: {hinweis.abhilfe}")
+            llm_state = (tr(
+                "{provider} funktioniert gerade nicht.\n  Problem: {problem}\n"
+                "  Abhilfe: {abhilfe}"
+            ).format(provider=provider, problem=hinweis.problem, abhilfe=hinweis.abhilfe))
         elif health == "pruefen":
-            llm_state = f"{provider} (Verbindung wird geprüft …)"
+            llm_state = tr("{provider} (Verbindung wird geprüft …)").format(provider=provider)
         elif health == "bereit":
-            llm_state = f"bereit ({provider})"
+            llm_state = tr("bereit ({provider})").format(provider=provider)
         else:
             llm_state = "aus"
         precache = "an" if self.config.get("llm_precache_enabled", True) else "aus"
         lines = [
-            f"PDFs im Ordner: {total}",
-            f"Analysiert (Text/Datum): {analyzed}/{total}",
-            f"KI-Vorschläge vorhanden: {llm_done}/{total}",
+            tr("PDFs im Ordner: {total}").format(total=total),
+            tr("Analysiert (Text/Datum): {analyzed}/{total}").format(analyzed=analyzed, total=total),
+            tr("KI-Vorschläge vorhanden: {llm_done}/{total}").format(llm_done=llm_done, total=total),
             f"KI-Assistent: {llm_state}",
-            f"KI-Vorabfrage im Hintergrund: {precache}",
+            tr("KI-Vorabfrage im Hintergrund: {precache}").format(precache=precache),
         ]
         if self._last_llm_error:
             name, error = self._last_llm_error
-            lines.append(f"\nLetzter KI-Fehler ({name}):\n{error}")
+            lines.append(tr("\nLetzter KI-Fehler ({name}):\n{error}").format(name=name, error=error))
         log_file = get_log_directory() / "pdf_sortier_meister.log"
-        lines.append(f"\nLog-Datei: {log_file}")
+        lines.append(tr("\nLog-Datei: {log_file}").format(log_file=log_file))
 
         box = QMessageBox(self)
-        box.setWindowTitle("Hintergrund-Analyse")
+        box.setWindowTitle(tr("Hintergrund-Analyse"))
         warn = bool(self._last_llm_error) or health == "fehler"
         box.setIcon(QMessageBox.Icon.Warning if warn else QMessageBox.Icon.Information)
         box.setText("\n".join(lines))
-        settings_btn = box.addButton("Einstellungen öffnen", QMessageBox.ButtonRole.ActionRole)
-        open_log_btn = box.addButton("Log-Datei öffnen", QMessageBox.ButtonRole.ActionRole)
+        settings_btn = box.addButton(tr("Einstellungen öffnen"), QMessageBox.ButtonRole.ActionRole)
+        open_log_btn = box.addButton(tr("Log-Datei öffnen"), QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
         if box.clickedButton() is settings_btn:
@@ -1695,7 +1702,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             try:
                 open_with_default_app(log_file)
             except Exception as e:
-                QMessageBox.warning(self, "Log-Datei", f"Konnte die Log-Datei nicht öffnen:\n{e}")
+                QMessageBox.warning(self, tr("Log-Datei"), tr("Konnte die Log-Datei nicht öffnen:\n{e}").format(e=e))
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -1726,7 +1733,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._relayout_pdf_grid(force=True)
 
         # PDF-Zähler aktualisieren
-        self.pdf_count_label.setText(f"PDFs: {len(self.pdf_widgets)}")
+        self.pdf_count_label.setText(tr("PDFs: {anzahl}").format(anzahl=len(self.pdf_widgets)))
 
         # Falls es die ausgewählte PDF war, Auswahl zurücksetzen
         if self.selected_pdf == pdf_path:
@@ -1825,7 +1832,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if not getattr(self, "_model_wait_active", False):
             self._model_wait_active = True
             QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-            self.statusbar.showMessage("KI-Modell wird geladen, Vorschläge folgen gleich…")
+            self.statusbar.showMessage(tr("KI-Modell wird geladen, Vorschläge folgen gleich…"))
         if not hasattr(self, "_model_wait_timer"):
             self._model_wait_timer = QTimer(self)
             self._model_wait_timer.setSingleShot(True)
@@ -1929,11 +1936,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Bestätigungsdialog
         reply = QMessageBox.question(
             self,
-            "Zielordner neu laden",
-            "Möchten Sie die Zielordner-Ansicht neu aufbauen?\n\n"
+            tr("Zielordner neu laden"),
+            tr("Möchten Sie die Zielordner-Ansicht neu aufbauen?\n\n"
             "• Die Ordnerstruktur wird neu eingelesen\n"
             "• Gelernte Zuordnungen bleiben erhalten\n"
-            "• Nicht mehr existierende Ordner werden entfernt",
+            "• Nicht mehr existierende Ordner werden entfernt"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -1969,11 +1976,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Statusmeldung
         if removed_count > 0:
             self.statusbar.showMessage(
-                f"Zielordner neu geladen. {removed_count} nicht mehr existierende Ordner entfernt.",
+                tr(
+                    "Zielordner neu geladen. {removed_count} nicht mehr existierende Ordner "
+                    "entfernt."
+                ).format(removed_count=removed_count),
                 5000
             )
         else:
-            self.statusbar.showMessage("Zielordner-Ansicht neu aufgebaut.", 3000)
+            self.statusbar.showMessage(tr("Zielordner-Ansicht neu aufgebaut."), 3000)
 
     def clear_folder_view(self):
         """
@@ -1985,11 +1995,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Bestätigungsdialog
         reply = QMessageBox.question(
             self,
-            "Zielordner-Ansicht leeren",
-            "Möchten Sie alle Zielordner aus der Ansicht entfernen?\n\n"
+            tr("Zielordner-Ansicht leeren"),
+            tr("Möchten Sie alle Zielordner aus der Ansicht entfernen?\n\n"
             "• Die Ansicht wird geleert\n"
             "• Gelernte Zuordnungen bleiben erhalten\n"
-            "• Sie können danach neue Zielordner hinzufügen",
+            "• Sie können danach neue Zielordner hinzufügen"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -2021,64 +2031,64 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self.classifier._folder_cache = {}
                 self.classifier._folder_cache_roots = []
 
-            self.statusbar.showMessage("Zielordner-Ansicht geleert. Fügen Sie neue Zielordner hinzu.", 5000)
+            self.statusbar.showMessage(tr("Zielordner-Ansicht geleert. Fügen Sie neue Zielordner hinzu."), 5000)
 
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Fehler beim Leeren der Ansicht:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Fehler beim Leeren der Ansicht:\n{e}").format(e=e))
 
     def setup_menu(self):
         """Erstellt die Menüleiste."""
         menubar = self.menuBar()
 
         # Datei-Menü
-        file_menu = menubar.addMenu("Datei")
+        file_menu = menubar.addMenu(tr("Datei"))
 
-        open_folder_action = QAction("Scan-Ordner öffnen...", self)
+        open_folder_action = QAction(tr("Scan-Ordner öffnen..."), self)
         open_folder_action.setShortcut("Ctrl+O")
         open_folder_action.triggered.connect(self.open_scan_folder)
         file_menu.addAction(open_folder_action)
 
-        add_target_action = QAction("Zielordner hinzufügen...", self)
+        add_target_action = QAction(tr("Zielordner hinzufügen..."), self)
         add_target_action.triggered.connect(self.add_target_folder)
         file_menu.addAction(add_target_action)
 
         file_menu.addSeparator()
 
-        exit_action = QAction("Beenden", self)
+        exit_action = QAction(tr("Beenden"), self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # Bearbeiten-Menü
-        edit_menu = menubar.addMenu("Bearbeiten")
+        edit_menu = menubar.addMenu(tr("Bearbeiten"))
 
-        self.undo_action = QAction("Rückgängig", self)
+        self.undo_action = QAction(tr("Rückgängig"), self)
         self.undo_action.setShortcut("Ctrl+Z")
-        self.undo_action.setToolTip("Letzte Aktion rückgängig machen (Verschieben/Umbenennen)")
+        self.undo_action.setToolTip(tr("Letzte Aktion rückgängig machen (Verschieben/Umbenennen)"))
         self.undo_action.triggered.connect(self.undo_last_action)
         self.undo_action.setEnabled(False)
         edit_menu.addAction(self.undo_action)
 
-        rename_action = QAction("Umbenennen...", self)
+        rename_action = QAction(tr("Umbenennen..."), self)
         rename_action.setShortcut("F2")
-        rename_action.setToolTip("Ausgewählte PDF umbenennen (F2)")
+        rename_action.setToolTip(tr("Ausgewählte PDF umbenennen (F2)"))
         rename_action.triggered.connect(self._rename_selected_pdf)
         edit_menu.addAction(rename_action)
 
         edit_menu.addSeparator()
 
-        deselect_action = QAction("Auswahl aufheben", self)
+        deselect_action = QAction(tr("Auswahl aufheben"), self)
         deselect_action.setShortcut("Escape")
-        deselect_action.setToolTip("Alle Selektionen aufheben (Escape)")
+        deselect_action.setToolTip(tr("Alle Selektionen aufheben (Escape)"))
         deselect_action.triggered.connect(self._clear_selection)
         edit_menu.addAction(deselect_action)
 
         # Strg+A im ganzen Fenster: in Textfeldern und Listen markiert es dort alles,
         # sonst alle Kacheln im Reiter "PDFs" - egal, wo zuletzt geklickt wurde
-        self.select_all_action = QAction("Alle markieren", self)
+        self.select_all_action = QAction(tr("Alle markieren"), self)
         self.select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
         self.select_all_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
-        self.select_all_action.setToolTip("Alle Kacheln im Bereich PDFs markieren (Strg+A)")
+        self.select_all_action.setToolTip(tr("Alle Kacheln im Bereich PDFs markieren (Strg+A)"))
         self.select_all_action.triggered.connect(self._strg_a)
         self.addAction(self.select_all_action)
         edit_menu.addAction(self.select_all_action)
@@ -2086,140 +2096,140 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         QApplication.instance().installEventFilter(self)
 
         # Ansicht-Menü
-        view_menu = menubar.addMenu("Ansicht")
+        view_menu = menubar.addMenu(tr("Ansicht"))
 
-        refresh_action = QAction("Aktualisieren", self)
+        refresh_action = QAction(tr("Aktualisieren"), self)
         refresh_action.setShortcut("F5")
         refresh_action.triggered.connect(self.refresh_view)
         view_menu.addAction(refresh_action)
 
         view_menu.addSeparator()
 
-        back_action = QAction("Zurück", self)
+        back_action = QAction(tr("Zurück"), self)
         back_action.setShortcut("Alt+Left")
-        back_action.setToolTip("Zum vorherigen Scan-Ordner zurückkehren")
+        back_action.setToolTip(tr("Zum vorherigen Scan-Ordner zurückkehren"))
         back_action.triggered.connect(self.on_navigate_back)
         view_menu.addAction(back_action)
 
-        up_action = QAction("Übergeordneter Ordner", self)
+        up_action = QAction(tr("Übergeordneter Ordner"), self)
         up_action.setShortcut("Alt+Up")
-        up_action.setToolTip("Ein Verzeichnis nach oben (wie im Dateimanager)")
+        up_action.setToolTip(tr("Ein Verzeichnis nach oben (wie im Dateimanager)"))
         up_action.triggered.connect(self.on_navigate_up)
         view_menu.addAction(up_action)
 
         view_menu.addSeparator()
 
-        search_action = QAction("Dokumentensuche...", self)
+        search_action = QAction(tr("Dokumentensuche..."), self)
         search_action.setShortcut("Ctrl+F")
-        search_action.setToolTip("Alle sortierten Dokumente durchsuchen")
+        search_action.setToolTip(tr("Alle sortierten Dokumente durchsuchen"))
         search_action.triggered.connect(lambda: self.search_input.setFocus())
         view_menu.addAction(search_action)
 
-        volltext_action = QAction("Volltextsuche (Reiter „Suche“)", self)
+        volltext_action = QAction(tr("Volltextsuche (Reiter „Suche“)"), self)
         volltext_action.setShortcut("Ctrl+Shift+F")
-        volltext_action.setToolTip("PDFs, Office-Dateien, Markdown und Mails im Suchindex durchsuchen")
+        volltext_action.setToolTip(tr("PDFs, Office-Dateien, Markdown und Mails im Suchindex durchsuchen"))
         volltext_action.triggered.connect(self.show_search_tab)
         view_menu.addAction(volltext_action)
 
         # Extras-Menü
-        extras_menu = menubar.addMenu("Extras")
+        extras_menu = menubar.addMenu(tr("Extras"))
 
-        steuer_action = QAction("Steuerauswertung...", self)
-        steuer_action.setToolTip("Jahressummen nach Kategorie anzeigen und als CSV exportieren")
+        steuer_action = QAction(tr("Steuerauswertung..."), self)
+        steuer_action.setToolTip(tr("Jahressummen nach Kategorie anzeigen und als CSV exportieren"))
         steuer_action.triggered.connect(self._open_steuerauswertung)
         extras_menu.addAction(steuer_action)
 
         extras_menu.addSeparator()
 
-        index_folder_action = QAction("Ordner zum Suchindex hinzufügen...", self)
-        index_folder_action.setToolTip("Bestehende PDF-Sammlung scannen und in den Suchindex aufnehmen")
+        index_folder_action = QAction(tr("Ordner zum Suchindex hinzufügen..."), self)
+        index_folder_action.setToolTip(tr("Bestehende PDF-Sammlung scannen und in den Suchindex aufnehmen"))
         index_folder_action.triggered.connect(self._index_folder_dialog)
         extras_menu.addAction(index_folder_action)
 
         extras_menu.addSeparator()
 
-        backup_action = QAction("Backup-Status prüfen", self)
+        backup_action = QAction(tr("Backup-Status prüfen"), self)
         backup_action.triggered.connect(self.check_backup_status)
         extras_menu.addAction(backup_action)
 
         # Anwendungsdaten sichern/wiederherstellen (Issue #98)
-        self.backup_data_action = QAction("Daten sichern (ZIP)...", self)
+        self.backup_data_action = QAction(tr("Daten sichern (ZIP)..."), self)
         self.backup_data_action.setToolTip(
-            "Datenbank, Suchindex, KI-Cache, Modell und Einstellungen als ZIP sichern"
+            tr("Datenbank, Suchindex, KI-Cache, Modell und Einstellungen als ZIP sichern")
         )
         self.backup_data_action.triggered.connect(self.backup_app_data)
         extras_menu.addAction(self.backup_data_action)
 
-        self.restore_data_action = QAction("Daten aus Sicherung wiederherstellen...", self)
+        self.restore_data_action = QAction(tr("Daten aus Sicherung wiederherstellen..."), self)
         self.restore_data_action.setToolTip(
-            "Eine mit „Daten sichern“ erstellte ZIP-Datei beim nächsten Start einspielen"
+            tr("Eine mit „Daten sichern“ erstellte ZIP-Datei beim nächsten Start einspielen")
         )
         self.restore_data_action.triggered.connect(self.restore_app_data)
         extras_menu.addAction(self.restore_data_action)
 
         extras_menu.addSeparator()
 
-        wizard_action = QAction("Einrichtungs-Assistent...", self)
+        wizard_action = QAction(tr("Einrichtungs-Assistent..."), self)
         wizard_action.triggered.connect(self.open_setup_wizard)
         extras_menu.addAction(wizard_action)
 
-        settings_action = QAction("Einstellungen...", self)
+        settings_action = QAction(tr("Einstellungen..."), self)
         settings_action.triggered.connect(self.open_settings)
         extras_menu.addAction(settings_action)
 
         # Hilfe-Menü
-        help_menu = menubar.addMenu("Hilfe")
+        help_menu = menubar.addMenu(tr("Hilfe"))
 
-        first_steps_action = QAction("Erste Schritte", self)
-        first_steps_action.setToolTip("Zeigt die Kurzanleitung zum 3-Spalten-Workflow erneut an")
+        first_steps_action = QAction(tr("Erste Schritte"), self)
+        first_steps_action.setToolTip(tr("Zeigt die Kurzanleitung zum 3-Spalten-Workflow erneut an"))
         first_steps_action.triggered.connect(lambda: self.show_first_steps_hint(force=True))
         help_menu.addAction(first_steps_action)
 
-        update_action = QAction("Nach Updates suchen...", self)
-        update_action.setToolTip("Prüft, ob auf GitHub eine neuere Version veröffentlicht wurde")
+        update_action = QAction(tr("Nach Updates suchen..."), self)
+        update_action.setToolTip(tr("Prüft, ob auf GitHub eine neuere Version veröffentlicht wurde"))
         update_action.triggered.connect(lambda: self.check_for_updates(manual=True))
         help_menu.addAction(update_action)
 
-        support_action = QAction("Unterstützen ...", self)
-        support_action.setToolTip("Freiwillige Unterstützung - keine Freischaltung von Funktionen")
+        support_action = QAction(tr("Unterstützen ..."), self)
+        support_action.setToolTip(tr("Freiwillige Unterstützung - keine Freischaltung von Funktionen"))
         support_action.triggered.connect(lambda: self.show_support_hint(force=True))
         help_menu.addAction(support_action)
 
-        about_action = QAction("Über PDF Sortier Meister", self)
+        about_action = QAction(tr("Über PDF Sortier Meister"), self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
     def setup_toolbar(self):
         """Erstellt die Werkzeugleiste."""
-        toolbar = QToolBar("Hauptwerkzeugleiste")
+        toolbar = QToolBar(tr("Hauptwerkzeugleiste"))
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
         # Aktualisieren-Button
-        refresh_action = QAction("Aktualisieren", self)
-        refresh_action.setToolTip("Scan-Ordner neu einlesen (F5)")
+        refresh_action = QAction(tr("Aktualisieren"), self)
+        refresh_action.setToolTip(tr("Scan-Ordner neu einlesen (F5)"))
         refresh_action.triggered.connect(self.refresh_view)
         toolbar.addAction(refresh_action)
 
         toolbar.addSeparator()
 
         # Scan-Ordner öffnen
-        open_action = QAction("Scan-Ordner", self)
-        open_action.setToolTip("Scan-Ordner auswählen")
+        open_action = QAction(tr("Scan-Ordner"), self)
+        open_action.setToolTip(tr("Scan-Ordner auswählen"))
         open_action.triggered.connect(self.open_scan_folder)
         toolbar.addAction(open_action)
 
         # Zielordner hinzufügen
-        add_folder_action = QAction("+ Zielordner", self)
-        add_folder_action.setToolTip("Neuen Zielordner hinzufügen")
+        add_folder_action = QAction(tr("+ Zielordner"), self)
+        add_folder_action.setToolTip(tr("Neuen Zielordner hinzufügen"))
         add_folder_action.triggered.connect(self.add_target_folder)
         toolbar.addAction(add_folder_action)
 
         toolbar.addSeparator()
 
         # Rückgängig-Button
-        self.undo_toolbar_action = QAction("↩ Rückgängig", self)
-        self.undo_toolbar_action.setToolTip("Letzte Aktion rückgängig machen (Ctrl+Z)")
+        self.undo_toolbar_action = QAction(tr("↩ Rückgängig"), self)
+        self.undo_toolbar_action.setToolTip(tr("Letzte Aktion rückgängig machen (Ctrl+Z)"))
         self.undo_toolbar_action.triggered.connect(self.undo_last_action)
         self.undo_toolbar_action.setEnabled(False)
         toolbar.addAction(self.undo_toolbar_action)
@@ -2227,11 +2237,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         toolbar.addSeparator()
 
         # Suchleiste (Phase 17)
-        search_label = QLabel(" Suche: ")
+        search_label = QLabel(tr(" Suche: "))
         toolbar.addWidget(search_label)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Dokumente durchsuchen... (Ctrl+F)")
+        self.search_input.setPlaceholderText(tr("Dokumente durchsuchen... (Ctrl+F)"))
         self.search_input.setFixedWidth(250)
         self.search_input.setStyleSheet("padding: 3px 6px;")
         self.search_input.returnPressed.connect(self._execute_search)
@@ -2242,15 +2252,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.search_count_label.setStyleSheet("color: #666; padding-left: 5px;")
         toolbar.addWidget(self.search_count_label)
 
-        clear_search_action = QAction("Suche leeren", self)
-        clear_search_action.setToolTip("Suchfilter zurücksetzen")
+        clear_search_action = QAction(tr("Suche leeren"), self)
+        clear_search_action.setToolTip(tr("Suchfilter zurücksetzen"))
         clear_search_action.triggered.connect(self._clear_search)
         toolbar.addAction(clear_search_action)
 
         # Filter-Leiste Toggle (Phase 18)
         self.filter_toggle_btn = QToolButton()
-        self.filter_toggle_btn.setText("Filter ▼")
-        self.filter_toggle_btn.setToolTip("Erweiterte Filter ein-/ausblenden")
+        self.filter_toggle_btn.setText(tr("Filter ▼"))
+        self.filter_toggle_btn.setToolTip(tr("Erweiterte Filter ein-/ausblenden"))
         self.filter_toggle_btn.setCheckable(True)
         self.filter_toggle_btn.setChecked(False)
         self.filter_toggle_btn.toggled.connect(self._toggle_filter_bar)
@@ -2262,19 +2272,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.setStatusBar(self.statusbar)
 
         # Permanente Anzeigen
-        self.pdf_count_label = QLabel("PDFs: 0")
+        self.pdf_count_label = QLabel(tr("PDFs: 0"))
         self.statusbar.addPermanentWidget(self.pdf_count_label)
 
         # Trainingsstand anzeigen
         training_count = self.classifier.get_training_count()
-        self.training_label = QLabel(f"Gelernt: {training_count}")
-        self.training_label.setToolTip("Anzahl gelernter Sortierentscheidungen")
+        self.training_label = QLabel(tr("Gelernt: {training_count}").format(training_count=training_count))
+        self.training_label.setToolTip(tr("Anzahl gelernter Sortierentscheidungen"))
         self.statusbar.addPermanentWidget(self.training_label)
 
         # Cache-Status (Pre-Caching-Fortschritt)
         self.cache_status_label = _ClickableLabel("")
         self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
-        self.cache_status_label.setToolTip("Doppelklick zeigt Details zur Hintergrund-Analyse.")
+        self.cache_status_label.setToolTip(tr("Doppelklick zeigt Details zur Hintergrund-Analyse."))
         self.cache_status_label.doubleClicked.connect(self._show_precache_details)
         self.statusbar.addPermanentWidget(self.cache_status_label)
 
@@ -2298,9 +2308,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.statusbar.addPermanentWidget(self.llm_status_label)
 
         # Backup-Erinnerung (Issue #14): nur sichtbar, solange "Nein" gilt
-        self.backup_status_label = _ClickableLabel("Kein aktuelles Backup gemacht")
+        self.backup_status_label = _ClickableLabel(tr("Kein aktuelles Backup gemacht"))
         self.backup_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
-        self.backup_status_label.setToolTip("Klicken, um ein gemachtes Backup zu bestätigen.")
+        self.backup_status_label.setToolTip(tr("Klicken, um ein gemachtes Backup zu bestätigen."))
         self.backup_status_label.clicked.connect(self.confirm_backup_done)
         self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
         self.statusbar.addPermanentWidget(self.backup_status_label)
@@ -2308,14 +2318,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
         self.update_status_label = _ClickableLabel("")
         self.update_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
-        self.update_status_label.setToolTip("Doppelklick zeigt Details zum Update.")
+        self.update_status_label.setToolTip(tr("Doppelklick zeigt Details zum Update."))
         self.update_status_label.doubleClicked.connect(self._show_available_update)
         self.update_status_label.setVisible(False)
         self.statusbar.addPermanentWidget(self.update_status_label)
         self._update_thread: Optional[_UpdateCheckThread] = None
         self._available_update: Optional[UpdateInfo] = None
 
-        self.statusbar.showMessage("Bereit")
+        self.statusbar.showMessage(tr("Bereit"))
 
     def load_settings(self):
         """Lädt die gespeicherten Einstellungen."""
@@ -2555,7 +2565,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 widget.selected = True
                 break
 
-        self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}")
+        self.statusbar.showMessage(tr("Ausgewählt: {name}").format(name=pdf_path.name))
 
         # Wartezustand einer noch laufenden Erst-Analyse fuer die vorige PDF beenden
         self._end_analysis_wait()
@@ -2694,15 +2704,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Aktualisiert die Statusbar basierend auf der aktuellen Auswahl."""
         count = len(self.selected_pdfs)
         if count == 0:
-            self.statusbar.showMessage("Keine Auswahl")
+            self.statusbar.showMessage(tr("Keine Auswahl"))
             self.selected_pdf = None
         elif count == 1:
             self.selected_pdf = self.selected_pdfs[0]
-            self.statusbar.showMessage(f"Ausgewählt: {self.selected_pdf.name}")
+            self.statusbar.showMessage(tr("Ausgewählt: {name}").format(name=self.selected_pdf.name))
             self.update_suggestions_for_pdf(self.selected_pdf)
         else:
             self.selected_pdf = self.selected_pdfs[-1]  # Letzte PDF als "aktiv" für Vorschläge
-            self.statusbar.showMessage(f"{count} PDFs ausgewählt (Shift/Ctrl+Klick für weitere)")
+            self.statusbar.showMessage(tr("{count} PDFs ausgewählt (Shift/Ctrl+Klick für weitere)").format(count=count))
             # Vorschläge für die letzte ausgewählte PDF anzeigen
             self.update_suggestions_for_pdf(self.selected_pdf)
 
@@ -2730,7 +2740,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if hasattr(self, 'detail_panel'):
                 self.detail_panel.clear()
 
-            self.statusbar.showMessage("Auswahl aufgehoben", 2000)
+            self.statusbar.showMessage(tr("Auswahl aufgehoben"), 2000)
         except Exception as e:
             print(f"Fehler beim Aufheben der Auswahl: {e}")
 
@@ -2772,7 +2782,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._analysis_wait_pdf = pdf_path
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         self.statusbar.showMessage(
-            f"Analysiere {pdf_path.name}… (Texterkennung kann einige Sekunden dauern)"
+            tr("Analysiere {name}… (Texterkennung kann einige Sekunden dauern)").format(name=pdf_path.name)
         )
         widget = self._pdf_widget_for(pdf_path)
         if widget is not None:
@@ -2864,11 +2874,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             if suggestions:
                 self.statusbar.showMessage(
-                    f"Ausgewählt: {pdf_path.name} - {len(suggestions)} Vorschläge", 3000
+                    tr("Ausgewählt: {name} - {anzahl} Vorschläge").format(name=pdf_path.name, anzahl=len(suggestions)), 3000
                 )
             else:
                 self.statusbar.showMessage(
-                    f"Ausgewählt: {pdf_path.name} - Keine Vorschläge verfügbar", 3000
+                    tr("Ausgewählt: {name} - Keine Vorschläge verfügbar").format(name=pdf_path.name), 3000
                 )
 
         except Exception as e:
@@ -2878,7 +2888,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.selected_pdf_dates = None
             self.clear_suggestions()
             self.folder_tree.clear_suggestions()
-            self.statusbar.showMessage(f"Ausgewählt: {pdf_path.name}", 3000)
+            self.statusbar.showMessage(tr("Ausgewählt: {name}").format(name=pdf_path.name), 3000)
 
     def _namens_vorschlaege(self, pdf_path: Path, result: PDFAnalysisResult) -> list[RenameSuggestion]:
         """Umbenennungsvorschlaege einer Datei fuers Detail-Panel (auch fuer die Stapel-Ablage, #218)."""
@@ -2964,20 +2974,20 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             ordner = Path(suggestion.folder_path) if suggestion.folder_path else None
             if ordner is not None and ordner.is_absolute():
                 elternpfad = str(ordner.parent)
-            widget.set_anzeige(name, elternpfad, "➕ neu: " if is_new else "")
+            widget.set_anzeige(name, elternpfad, tr("➕ neu: ") if is_new else "")
 
             # Tooltip mit vollständigem Pfad, Begründung und Konfidenz
             voller_pfad = str(ordner) if ordner is not None and ordner.is_absolute() else (
                 suggestion.relative_path or suggestion.folder_name)
-            tooltip = f"Pfad: {voller_pfad}\n"
+            tooltip = tr("Pfad: {voller_pfad}\n").format(voller_pfad=voller_pfad)
             tooltip += f"{suggestion.reason}\n"
-            tooltip += f"Konfidenz: {int(suggestion.confidence * 100)}%\n"
+            tooltip += tr("Konfidenz: {0}%\n").format(int(suggestion.confidence * 100))
             if is_new:
-                tooltip += ("Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach "
+                tooltip += (tr("Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach "
                             "einer Rückfrage an und verschiebt die ausgewählte Datei dorthin "
-                            "(Rechtsklick: hierhin kopieren).")
+                            "(Rechtsklick: hierhin kopieren)."))
             else:
-                tooltip += "Anklicken verschiebt die ausgewählte PDF hierher."
+                tooltip += tr("Anklicken verschiebt die ausgewählte PDF hierher.")
             widget.setToolTip(tooltip)
 
             # Konfidenz im Namen anzeigen
@@ -3026,7 +3036,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # Issue #116: neuer Ordner nur fuer die eine ausgewaehlte Datei
             if len(self.selected_pdfs) > 1:
                 self.statusbar.showMessage(
-                    "Neuer Ordner: bitte nur eine Datei auswählen", 4000
+                    tr("Neuer Ordner: bitte nur eine Datei auswählen"), 4000
                 )
             elif self.selected_pdf:
                 self._move_rename_and_learn(self.selected_pdf, folder_path, create_folder=True)
@@ -3069,18 +3079,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Bestätigungsdialog
         if create_folder:
-            msg = f"Ordner '{relative_path}' anlegen und Datei dorthin verschieben?"
+            msg = tr("Ordner '{relative_path}' anlegen und Datei dorthin verschieben?").format(relative_path=relative_path)
             if name_changed:
                 msg += f"\n\n'{pdf_path.name}'\n→ '{new_name}'"
             else:
                 new_name = None
         elif name_changed:
-            msg = f"'{pdf_path.name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
+            msg = tr("'{name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?").format(name=pdf_path.name, new_name=new_name, relative_path=relative_path)
         else:
-            msg = f"'{pdf_path.name}' nach '{relative_path}' verschieben?"
+            msg = tr("'{name}' nach '{relative_path}' verschieben?").format(name=pdf_path.name, relative_path=relative_path)
 
         reply = QMessageBox.question(
-            self, "Neuen Ordner anlegen" if create_folder else "PDF verschieben",
+            self, tr("Neuen Ordner anlegen") if create_folder else tr("PDF verschieben"),
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
@@ -3095,7 +3105,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             try:
                 created_dirs = neuer_ordner.anlegen(folder_path)
             except OSError as e:
-                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{e}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Ordner konnte nicht angelegt werden:\n{e}").format(e=e))
                 return
             self._invalidate_folder_caches()
 
@@ -3159,12 +3169,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             # Status
             training_count = self.classifier.get_training_count()
-            self.training_label.setText(f"Gelernt: {training_count}")
+            self.training_label.setText(tr("Gelernt: {training_count}").format(training_count=training_count))
 
-            meta_info = f" + {len(metadata)} Metadaten" if metadata else ""
+            meta_info = tr(" + {anzahl} Metadaten").format(anzahl=len(metadata)) if metadata else ""
             rename_info = f" (umbenannt)" if name_changed else ""
             self.statusbar.showMessage(
-                f"Verschoben nach '{relative_path}'{rename_info}{meta_info}", 3000
+                tr("Verschoben nach '{relative_path}'{rename_info}{meta_info}").format(relative_path=relative_path, rename_info=rename_info, meta_info=meta_info), 3000
             )
 
             # UI aktualisieren
@@ -3186,7 +3196,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 from src.core import neuer_ordner
                 neuer_ordner.leere_wegraeumen(created_dirs)
                 self._invalidate_folder_caches()
-            QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Verschieben fehlgeschlagen:\n{e}").format(e=e))
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
         """Verschiebt eine PDF und lernt aus der Entscheidung."""
@@ -3195,8 +3205,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         reply = QMessageBox.question(
             self,
-            "PDF verschieben",
-            f"PDF '{pdf_path.name}' nach '{relative_path}' verschieben?",
+            tr("PDF verschieben"),
+            tr("PDF '{name}' nach '{relative_path}' verschieben?").format(name=pdf_path.name, relative_path=relative_path),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -3226,12 +3236,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                         relative_path=relative_path,  # NEU: Relativer Pfad
                     )
                     training_count = self.classifier.get_training_count()
-                    self.training_label.setText(f"Gelernt: {training_count}")
+                    self.training_label.setText(tr("Gelernt: {training_count}").format(training_count=training_count))
                     self.statusbar.showMessage(
-                        f"Verschoben nach '{relative_path}' und gelernt! ({training_count} Trainingsbeispiele)", 3000
+                        tr(
+                            "Verschoben nach '{relative_path}' und gelernt! "
+                            "({training_count} Trainingsbeispiele)"
+                        ).format(relative_path=relative_path, training_count=training_count), 3000
                     )
                 else:
-                    self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
+                    self.statusbar.showMessage(tr("Verschoben nach: {relative_path}").format(relative_path=relative_path), 3000)
 
                 # Volltext-Suchindex befüllen (Phase 17)
                 self.db.update_pdf_path(
@@ -3256,7 +3269,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self._auto_collect_korrespondenten()
 
             except Exception as e:
-                QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Verschieben fehlgeschlagen:\n{e}").format(e=e))
 
     def move_multiple_pdfs_to_folder(self, pdf_paths: list[Path], folder_path: Path,
                                      auswahl_behalten: bool = False):
@@ -3362,15 +3375,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
         pdf_path = self.detail_panel.get_current_pdf()
         if not pdf_path or not pdf_path.exists():
-            self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            self.statusbar.showMessage(tr("Keine PDF ausgewaehlt"), 2000)
             return
         if ist_office_datei(pdf_path):
-            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            self.statusbar.showMessage(tr("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln"), 4000)
             return
 
         metadata = self.detail_panel.get_metadata()
         if not metadata:
-            self.statusbar.showMessage("Keine Metadaten eingegeben", 2000)
+            self.statusbar.showMessage(tr("Keine Metadaten eingegeben"), 2000)
             return
 
         self._write_pdf_metadata(
@@ -3386,7 +3399,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         self.detail_panel.mark_metadata_saved()
         self.statusbar.showMessage(
-            f"Metadaten in '{pdf_path.name}' gespeichert", 3000
+            tr("Metadaten in '{name}' gespeichert").format(name=pdf_path.name), 3000
         )
 
     def _on_rename_and_save_metadata(self):
@@ -3399,17 +3412,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.stapel_umbenennen_speichern(list(self.selected_pdfs))
             return
         if not pdf_path or not pdf_path.exists():
-            self.statusbar.showMessage("Keine PDF ausgewaehlt", 2000)
+            self.statusbar.showMessage(tr("Keine PDF ausgewaehlt"), 2000)
             return
         if ist_office_datei(pdf_path):
-            self.statusbar.showMessage("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+            self.statusbar.showMessage(tr("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln"), 4000)
             return
 
         new_name = self.detail_panel.get_new_name()
         metadata = self.detail_panel.get_metadata()
 
         if not new_name:
-            self.statusbar.showMessage("Kein Dateiname eingegeben", 2000)
+            self.statusbar.showMessage(tr("Kein Dateiname eingegeben"), 2000)
             return
 
         name_changed = new_name != pdf_path.name
@@ -3436,7 +3449,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     )
                 self.selected_pdf = new_path
                 self.detail_panel._current_pdf = new_path
-                self.detail_panel.header_label.setText(f"Original: {new_path.name}")
+                self.detail_panel.header_label.setText(tr("Original: {name}").format(name=new_path.name))
             else:
                 new_path = pdf_path
 
@@ -3447,9 +3460,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             self.detail_panel.mark_metadata_saved()
 
-            rename_info = f" und umbenannt zu '{new_name}'" if name_changed else ""
+            rename_info = tr(" und umbenannt zu '{new_name}'").format(new_name=new_name) if name_changed else ""
             self.statusbar.showMessage(
-                f"Metadaten in '{new_path.name}' gespeichert{rename_info}", 3000
+                tr("Metadaten in '{name}' gespeichert{rename_info}").format(name=new_path.name, rename_info=rename_info), 3000
             )
 
             # Thumbnail-Widget aktualisieren falls umbenannt
@@ -3461,20 +3474,20 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                         break
 
         except Exception as e:
-            QMessageBox.warning(self, "Fehler", f"Umbenennen/Speichern fehlgeschlagen:\n{e}")
+            QMessageBox.warning(self, tr("Fehler"), tr("Umbenennen/Speichern fehlgeschlagen:\n{e}").format(e=e))
 
     def _rename_selected_pdf(self):
         """F2-Shortcut: Öffnet den Umbenennungsdialog für die ausgewählte PDF."""
         if self.selected_pdf and self.selected_pdf.exists():
             self.on_pdf_rename(self.selected_pdf)
         else:
-            self.statusbar.showMessage("Keine PDF ausgewählt zum Umbenennen", 2000)
+            self.statusbar.showMessage(tr("Keine PDF ausgewählt zum Umbenennen"), 2000)
 
     def on_pdf_rename(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF umbenannt werden soll."""
         if ist_office_datei(pdf_path):
             self.statusbar.showMessage(
-                "Word-/Excel-/Bilddateien werden beim Verschieben umbenannt (Namensfeld rechts)", 4000)
+                tr("Word-/Excel-/Bilddateien werden beim Verschieben umbenannt (Namensfeld rechts)"), 4000)
             return
         from src.core.pdf_cache import get_pdf_cache
 
@@ -3483,9 +3496,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         cached_llm = pdf_cache.get_llm_suggestions(pdf_path)
 
         if cached_llm:
-            self.statusbar.showMessage("Verwende gecachte KI-Vorschläge...")
+            self.statusbar.showMessage(tr("Verwende gecachte KI-Vorschläge..."))
         else:
-            self.statusbar.showMessage("Analysiere PDF für Umbenennung...")
+            self.statusbar.showMessage(tr("Analysiere PDF für Umbenennung..."))
         QApplication.processEvents()
 
         # PDF analysieren falls noch nicht geschehen
@@ -3549,13 +3562,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             for llm_s in cached_llm:
                 suggestions.insert(0, RenameSuggestion(
                     name=llm_s.filename,
-                    reason=f"KI (gecacht): Vorschlag",
+                    reason="KI (gecacht): Vorschlag",
                     confidence=llm_s.confidence,
                     metadata=getattr(llm_s, 'metadata', None),
                 ))
         # Sonst: LLM-Vorschlag live holen wenn verfügbar
         elif self.hybrid_classifier.is_llm_available():
-            self.statusbar.showMessage("Frage KI nach Vorschlag...")
+            self.statusbar.showMessage(tr("Frage KI nach Vorschlag..."))
             QApplication.processEvents()
             try:
                 # Datei-Änderungsdatum als Fallback (Scandatum)
@@ -3621,7 +3634,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     )])
                     if self.detail_panel._current_pdf == pdf_path:
                         self.detail_panel._current_pdf = new_path
-                        self.detail_panel.header_label.setText(f"Original: {new_path.name}")
+                        self.detail_panel.header_label.setText(tr("Original: {name}").format(name=new_path.name))
 
                     # Metadaten in PDF schreiben (Phase 16)
                     self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
@@ -3657,24 +3670,24 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                         "type": "rename",
                         "old_path": pdf_path,
                         "new_path": new_path,
-                        "description": f"Umbenennung: {pdf_path.name} → {new_path.name}",
+                        "description": tr("Umbenennung: {name} → {name2}").format(name=pdf_path.name, name2=new_path.name),
                     })
 
                     meta_info = ""
                     if dialog_metadata:
-                        meta_info = f" + {len(dialog_metadata)} Metadaten"
+                        meta_info = tr(" + {anzahl} Metadaten").format(anzahl=len(dialog_metadata))
                     self.statusbar.showMessage(
-                        f"Umbenannt zu: {new_path.name} (gelernt{meta_info})", 3000
+                        tr("Umbenannt zu: {name} (gelernt{meta_info})").format(name=new_path.name, meta_info=meta_info), 3000
                     )
                     # Widget-Namen aktualisieren statt vollständigem Refresh
                     self._update_pdf_widget_path(pdf_path, new_path)
 
                 except Exception as e:
-                    QMessageBox.critical(self, "Fehler", f"Umbenennung fehlgeschlagen:\n{e}")
+                    QMessageBox.critical(self, tr("Fehler"), tr("Umbenennung fehlgeschlagen:\n{e}").format(e=e))
 
     def on_pdf_delete(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF gelöscht werden soll."""
-        self._datei_loeschen(pdf_path, "PDF löschen", "diese PDF", self.remove_pdf_widget)
+        self._datei_loeschen(pdf_path, tr("PDF löschen"), tr("diese PDF"), self.remove_pdf_widget)
 
     def _datei_loeschen(self, pdf_path: Path, titel: str, objekt: str, widget_entfernen):
         """Rueckfrage, Loeschen und Kachel entfernen - gemeinsam fuer PDFs und Office-Dateien.
@@ -3685,7 +3698,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         reply = QMessageBox.question(
             self,
             titel,
-            f"Möchten Sie {objekt} in den Papierkorb verschieben?\n\n{pdf_path.name}",
+            tr("Möchten Sie {objekt} in den Papierkorb verschieben?\n\n{name}").format(objekt=objekt, name=pdf_path.name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -3697,38 +3710,38 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 except PapierkorbNichtVerfuegbar:
                     antwort = QMessageBox.question(
                         self,
-                        "Papierkorb nicht verfügbar",
-                        f"Papierkorb nicht verfügbar – endgültig löschen?\n\n{pdf_path.name}",
+                        tr("Papierkorb nicht verfügbar"),
+                        tr("Papierkorb nicht verfügbar – endgültig löschen?\n\n{name}").format(name=pdf_path.name),
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         QMessageBox.StandardButton.No,
                     )
                     if antwort != QMessageBox.StandardButton.Yes:
                         return
                     papierkorb = self.file_manager.delete_file(pdf_path, endgueltig=True)
-                self.statusbar.showMessage(f"Gelöscht: {pdf_path.name}", 3000)
+                self.statusbar.showMessage(tr("Gelöscht: {name}").format(name=pdf_path.name), 3000)
                 if papierkorb is not None:
                     self._push_undo({
                         "type": "delete",
                         "original": pdf_path,
                         "papierkorb": papierkorb,
-                        "description": f"Löschen: {pdf_path.name}",
+                        "description": tr("Löschen: {name}").format(name=pdf_path.name),
                     })
                 # Nur das gelöschte Widget entfernen
                 widget_entfernen(pdf_path)
             except Exception as e:
-                QMessageBox.critical(self, "Fehler", f"Löschen fehlgeschlagen:\n{e}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Löschen fehlgeschlagen:\n{e}").format(e=e))
 
     def on_pdf_move(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF verschoben werden soll."""
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Zielordner auswählen",
+            tr("Zielordner auswählen"),
         )
 
         if folder:
             try:
                 new_path = self.file_manager.move_file(pdf_path, folder)
-                self.statusbar.showMessage(f"Verschoben nach: {new_path.parent.name}", 3000)
+                self.statusbar.showMessage(tr("Verschoben nach: {name}").format(name=new_path.parent.name), 3000)
 
                 # Undo-Eintrag erstellen
                 self._push_undo({
@@ -3744,7 +3757,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 # Phase 20: Korrespondenten aus Historie sammeln
                 self._auto_collect_korrespondenten()
             except Exception as e:
-                QMessageBox.critical(self, "Fehler", f"Verschieben fehlgeschlagen:\n{e}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Verschieben fehlgeschlagen:\n{e}").format(e=e))
 
     def on_pdf_copy(self, pdf_path: Path):
         """Erstellt eine Kopie der PDF im selben Verzeichnis mit Suffix '_kopie'."""
@@ -3765,13 +3778,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             shutil.copy2(pdf_path, new_path)
             index_melden("datei_aufnehmen", str(new_path))
 
-            self.statusbar.showMessage(f"Kopie erstellt: {new_name}", 3000)
+            self.statusbar.showMessage(tr("Kopie erstellt: {new_name}").format(new_name=new_name), 3000)
 
             # PDF-Ansicht aktualisieren um neue Datei anzuzeigen
             self.load_pdfs()
 
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Kopieren fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Kopieren fehlgeschlagen:\n{e}").format(e=e))
 
     def on_pdf_split(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF getrennt werden soll."""
@@ -3783,13 +3796,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             with fitz.open(str(pdf_path)) as doc:
                 page_count = len(doc)
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"PDF konnte nicht geöffnet werden:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("PDF konnte nicht geöffnet werden:\n{e}").format(e=e))
             return
 
         if page_count < 2:
             QMessageBox.information(
-                self, "PDF trennen",
-                f"'{pdf_path.name}' hat nur eine Seite und kann nicht getrennt werden."
+                self, tr("PDF trennen"),
+                tr("'{name}' hat nur eine Seite und kann nicht getrennt werden.").format(name=pdf_path.name)
             )
             return
 
@@ -3803,21 +3816,24 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
             n = len(output_files)
-            self.statusbar.showMessage(f"PDF getrennt: {n} Datei(en) erstellt", 4000)
+            self.statusbar.showMessage(tr("PDF getrennt: {n} Datei(en) erstellt").format(n=n), 4000)
             if self.original_nach_trennen(pdf_path, output_files):  # Issue #187
                 self.statusbar.showMessage(
-                    f"PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)", 6000)
+                    tr(
+                        "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb "
+                        "(Strg+Z holt es zurück)"
+                    ).format(n=n), 6000)
             self.load_pdfs()
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("PDF trennen fehlgeschlagen:\n{e}").format(e=e))
 
     def on_pdf_merge(self):
         """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
         pdfs_to_merge = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]
         if len(pdfs_to_merge) < 2:
             QMessageBox.information(
-                self, "PDFs zusammenfügen",
-                "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+                self, tr("PDFs zusammenfügen"),
+                tr("Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen.")
             )
             return
 
@@ -3827,8 +3843,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         new_name, ok = QInputDialog.getText(
             self,
-            "PDFs zusammenfügen",
-            f"{len(pdfs_to_merge)} PDFs zusammenfügen.\n\nName der Zieldatei:",
+            tr("PDFs zusammenfügen"),
+            tr("{anzahl} PDFs zusammenfügen.\n\nName der Zieldatei:").format(anzahl=len(pdfs_to_merge)),
             text=default_name,
         )
 
@@ -3846,12 +3862,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # Erst nach dem Neuladen: load_pdfs schreibt selbst in die Statuszeile
             if entfernt:
                 self.statusbar.showMessage(
-                    f"Zusammengefügt: {merged_path.name}, {len(entfernt)} Einzel-PDFs im Papierkorb "
-                    "(Strg+Z holt sie zurück)", 6000)
+                    tr(
+                        "Zusammengefügt: {name}, {anzahl} Einzel-PDFs im Papierkorb (Strg+Z "
+                        "holt sie zurück)"
+                    ).format(name=merged_path.name, anzahl=len(entfernt)), 6000)
             else:
-                self.statusbar.showMessage(f"Zusammengefügt: {merged_path.name}", 4000)
+                self.statusbar.showMessage(tr("Zusammengefügt: {name}").format(name=merged_path.name), 4000)
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Zusammenfügen fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Zusammenfügen fehlgeschlagen:\n{e}").format(e=e))
 
     # --- Stapeln: PDF auf PDF ziehen (wie PaperPort) ---
 
@@ -3891,14 +3909,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             backups = self.file_manager.stack_pdfs(target, sources, backup_dir)
         except Exception as e:
-            QMessageBox.critical(self, "Fehler", f"Stapeln fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("Stapeln fehlgeschlagen:\n{e}").format(e=e))
             return
         self._prune_stack_backups()
 
         if len(sources) == 1:
-            desc = f"{sources[0].name} vor {target.name} gelegt"
+            desc = tr("{name} vor {name2} gelegt").format(name=sources[0].name, name2=target.name)
         else:
-            desc = f"{len(sources)} PDFs vor {target.name} gelegt"
+            desc = tr("{anzahl} PDFs vor {name} gelegt").format(anzahl=len(sources), name=target.name)
         self._push_undo({"type": "stack", "backups": backups, "description": desc})
 
         # Inhalt der Ziel-PDF hat sich geaendert: Analyse neu, Vorschau neu
@@ -3913,15 +3931,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Stapel auswaehlen (ein Klick auf die schon gewaehlte PDF wuerde abwaehlen)
         if self.selected_pdf != target or self.selected_pdfs:
             self.on_pdf_clicked(target)
-        self.statusbar.showMessage(f"{desc} (Ctrl+Z macht es rückgängig)", 5000)
+        self.statusbar.showMessage(tr("{desc} (Ctrl+Z macht es rückgängig)").format(desc=desc), 5000)
 
     def _undo_stack_pdfs(self, entry: dict):
         """Macht ein Stapeln rueckgaengig."""
         backups = entry["backups"]
         target = backups[0][0]
         reply = QMessageBox.question(
-            self, "Rückgängig machen",
-            f"Stapeln rückgängig machen?\n\n{entry['description']}",
+            self, tr("Rückgängig machen"),
+            tr("Stapeln rückgängig machen?\n\n{description}").format(description=entry['description']),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -3931,7 +3949,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.file_manager.restore_stack(backups)
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler", f"Stapeln konnte nicht rückgängig gemacht werden:\n{e}"
+                self, tr("Fehler"), tr("Stapeln konnte nicht rückgängig gemacht werden:\n{e}").format(e=e)
             )
             return  # Eintrag bleibt: die Sicherung ist noch da, ein neuer Versuch ist moeglich
         self._undo_stack.pop()
@@ -3939,7 +3957,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         for original, _ in backups:
             self.pdf_cache.clear_for_pdf(original)
-        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.statusbar.showMessage(tr("Rückgängig: {description}").format(description=entry['description']), 3000)
         self.load_pdfs()
 
     # --- Drehen und OCR neu (Issue #150) ---
@@ -3973,7 +3991,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     fehler.append(f"{path.name}: {e}")
                     continue
                 except PermissionError:
-                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    fehler.append(tr("{name}: Die Datei ist geöffnet oder gesperrt.").format(name=path.name))
                     continue
                 except Exception as e:  # noqa: BLE001 - je Datei melden
                     fehler.append(f"{path.name}: {e}")
@@ -3983,7 +4001,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         finally:
             QApplication.restoreOverrideCursor()
 
-        richtung = {90: "90° nach rechts", -90: "90° nach links", 270: "90° nach links", 180: "180°"}[grad]
+        richtung = {90: tr("90° nach rechts"), -90: tr("90° nach links"), 270: tr("90° nach links"), 180: "180°"}[grad]
         wer = gedreht[0].name if len(gedreht) == 1 else f"{len(gedreht)} PDFs"
         if gedreht and undo:
             self._push_undo({
@@ -3992,9 +4010,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 "grad": grad,
                 "description": f"{wer} {richtung} gedreht",
             })
-            self.statusbar.showMessage(f"{wer} {richtung} gedreht (Ctrl+Z macht es rückgängig)", 5000)
+            self.statusbar.showMessage(tr("{wer} {richtung} gedreht (Ctrl+Z macht es rückgängig)").format(wer=wer, richtung=richtung), 5000)
         if fehler:
-            QMessageBox.warning(self, "Drehen", "Nicht gedreht:\n\n" + "\n".join(fehler))
+            QMessageBox.warning(self, tr("Drehen"), tr("Nicht gedreht:\n\n{0}").format('\n'.join(fehler)))
         return gedreht
 
     def _undo_rotate(self, entry: dict):
@@ -4005,9 +4023,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         fehlen = len(entry["paths"]) - len(vorhanden)
         if vorhanden:
             self._rotate_pdfs(vorhanden, gegenrichtung(entry["grad"]), undo=False)
-        text = f"Rückgängig: {entry['description']}"
+        text = tr("Rückgängig: {description}").format(description=entry['description'])
         if fehlen:
-            text += f" ({fehlen} PDF(s) nicht mehr am alten Ort)"
+            text += tr(" ({fehlen} PDF(s) nicht mehr am alten Ort)").format(fehlen=fehlen)
         self.statusbar.showMessage(text, 5000)
 
     # --- Gerade ausrichten (Issue #165) ---
@@ -4035,7 +4053,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     fehler.append(f"{path.name}: {e}")
                     continue
                 except PermissionError:
-                    fehler.append(f"{path.name}: Die Datei ist geöffnet oder gesperrt.")
+                    fehler.append(tr("{name}: Die Datei ist geöffnet oder gesperrt.").format(name=path.name))
                     continue
                 except Exception as e:  # noqa: BLE001 - je Datei melden
                     fehler.append(f"{path.name}: {e}")
@@ -4056,20 +4074,20 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                                 for s, w in sorted(ausgerichtet[erste].items()))
             else:
                 wer = f"{len(ausgerichtet)} PDFs"
-                was = f"{sum(len(w) for w in ausgerichtet.values())} Seiten"
+                was = tr("{0} Seiten").format(sum((len(w) for w in ausgerichtet.values())))
             self._push_undo({
                 "type": "gerade",
                 "seiten": {p: sorted(w) for p, w in ausgerichtet.items()},
-                "description": f"{wer} gerade ausgerichtet",
+                "description": tr("{wer} gerade ausgerichtet").format(wer=wer),
             })
-            text = f"{wer} gerade ausgerichtet ({was})"
+            text = tr("{wer} gerade ausgerichtet ({was})").format(wer=wer, was=was)
             if schon_gerade:
-                text += f", {schon_gerade} PDF(s) waren schon gerade"
-            self.statusbar.showMessage(text + " – Ctrl+Z macht es rückgängig", 6000)
+                text += tr(", {schon_gerade} PDF(s) waren schon gerade").format(schon_gerade=schon_gerade)
+            self.statusbar.showMessage(tr("{text} – Ctrl+Z macht es rückgängig").format(text=text), 6000)
         elif not fehler:
-            self.statusbar.showMessage("Keine schief gescannte Seite gefunden – nichts geändert.", 5000)
+            self.statusbar.showMessage(tr("Keine schief gescannte Seite gefunden – nichts geändert."), 5000)
         if fehler:
-            QMessageBox.warning(self, "Gerade ausrichten", "Nicht ausgerichtet:\n\n" + "\n".join(fehler))
+            QMessageBox.warning(self, tr("Gerade ausrichten"), tr("Nicht ausgerichtet:\n\n{0}").format('\n'.join(fehler)))
         return ausgerichtet
 
     def _undo_gerade(self, entry: dict):
@@ -4091,9 +4109,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     nicht += 1
         finally:
             QApplication.restoreOverrideCursor()
-        text = f"Rückgängig: {entry['description']}"
+        text = tr("Rückgängig: {description}").format(description=entry['description'])
         if nicht:
-            text += f" ({nicht} PDF(s) nicht mehr möglich)"
+            text += tr(" ({nicht} PDF(s) nicht mehr möglich)").format(nicht=nicht)
         self.statusbar.showMessage(text, 5000)
 
     def _pdf_inhalt_geaendert(self, path: Path):
@@ -4120,7 +4138,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def _reocr_pdfs(self, paths: list[Path]):
         """Startet die neue Texterkennung im Hintergrund (Wartezeiger, Kacheln "Analysiere…")."""
         if self._ocr_neu_worker is not None:
-            self.statusbar.showMessage("Die Texterkennung läuft noch - bitte warten.", 4000)
+            self.statusbar.showMessage(tr("Die Texterkennung läuft noch - bitte warten."), 4000)
             return
         self._ocr_neu_paths = list(paths)
         for path in paths:
@@ -4128,7 +4146,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if widget is not None:
                 widget.analyzing = True
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self.statusbar.showMessage(f"Texterkennung neu: {len(paths)} PDF(s)…")
+        self.statusbar.showMessage(tr("Texterkennung neu: {anzahl} PDF(s)…").format(anzahl=len(paths)))
         worker = OcrNeuWorker(paths, self)
         worker.fortschritt.connect(self._on_reocr_progress)
         worker.fertig.connect(self._on_reocr_done)
@@ -4136,7 +4154,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         worker.start()
 
     def _on_reocr_progress(self, nummer: int, anzahl: int, path: Path):
-        self.statusbar.showMessage(f"Texterkennung neu ({nummer}/{anzahl}): {path.name}…")
+        self.statusbar.showMessage(tr("Texterkennung neu ({nummer}/{anzahl}): {name}…").format(nummer=nummer, anzahl=anzahl, name=path.name))
 
     def _on_reocr_done(self, ergebnisse: list):
         """Ergebnis der neuen Texterkennung: Analysen verwerfen, ausgewaehlte PDF neu laden."""
@@ -4160,15 +4178,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             path == self.selected_pdf for path, _ in ergebnisse
         ):
             self.update_suggestions_for_pdf(self.selected_pdf)
-        text = f"Texterkennung neu: {len(ergebnisse)} PDF(s)"
+        text = tr("Texterkennung neu: {anzahl} PDF(s)").format(anzahl=len(ergebnisse))
         if seiten:
-            text += f", {seiten} Seite(n) erkannt"
+            text += tr(", {seiten} Seite(n) erkannt").format(seiten=seiten)
         if gedreht:
             # Issue #151: die Datei dreht der naechste Indexlauf (je nach Einstellung)
-            text += f", {gedreht} davon erst gedreht lesbar"
+            text += tr(", {gedreht} davon erst gedreht lesbar").format(gedreht=gedreht)
         self.statusbar.showMessage(text, 6000)
         if fehler:
-            QMessageBox.warning(self, "OCR neu durchführen", "\n".join(fehler))
+            QMessageBox.warning(self, tr("OCR neu durchführen"), "\n".join(fehler))
 
     # --- Undo-Funktionalität ---
 
@@ -4192,17 +4210,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         has_undo = len(self._undo_stack) > 0
         if has_undo:
             desc = self._undo_stack[-1]["description"]
-            text = f"Rückgängig: {desc}"
+            text = tr("Rückgängig: {desc}").format(desc=desc)
             self.undo_action.setText(text)
             self.undo_action.setEnabled(True)
-            self.undo_toolbar_action.setText(f"↩ Rückgängig")
-            self.undo_toolbar_action.setToolTip(f"Rückgängig: {desc} (Ctrl+Z)")
+            self.undo_toolbar_action.setText(tr("↩ Rückgängig"))
+            self.undo_toolbar_action.setToolTip(tr("Rückgängig: {desc} (Ctrl+Z)").format(desc=desc))
             self.undo_toolbar_action.setEnabled(True)
         else:
-            self.undo_action.setText("Rückgängig")
+            self.undo_action.setText(tr("Rückgängig"))
             self.undo_action.setEnabled(False)
-            self.undo_toolbar_action.setText("↩ Rückgängig")
-            self.undo_toolbar_action.setToolTip("Keine Aktion zum Rückgängig machen")
+            self.undo_toolbar_action.setText(tr("↩ Rückgängig"))
+            self.undo_toolbar_action.setToolTip(tr("Keine Aktion zum Rückgängig machen"))
             self.undo_toolbar_action.setEnabled(False)
 
     def undo_last_action(self):
@@ -4241,25 +4259,28 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._update_undo_ui()
         if not papierkorb.exists():
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                f"'{original.name}' ist nicht mehr im Papierkorb.\n\n"
-                "Möglicherweise wurde der Papierkorb geleert oder die Datei wiederhergestellt."
+                self, tr("Rückgängig nicht möglich"),
+                tr(
+                    "'{name}' ist nicht mehr im Papierkorb.\n\n"
+                    "Möglicherweise wurde der Papierkorb geleert oder die Datei "
+                    "wiederhergestellt."
+                ).format(name=original.name)
             )
             return
         if original.exists():
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                f"Am ursprünglichen Ort existiert bereits eine Datei '{original.name}'."
+                self, tr("Rückgängig nicht möglich"),
+                tr("Am ursprünglichen Ort existiert bereits eine Datei '{name}'.").format(name=original.name)
             )
             return
         try:
             original.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(papierkorb), str(original))
         except Exception as e:  # noqa: BLE001
-            QMessageBox.warning(self, "Rückgängig fehlgeschlagen", f"{original.name}:\n{e}")
+            QMessageBox.warning(self, tr("Rückgängig fehlgeschlagen"), f"{original.name}:\n{e}")
             return
         index_melden("datei_aufnehmen", str(original))
-        self.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        self.statusbar.showMessage(tr("Rückgängig: {description}").format(description=entry['description']), 3000)
         self.refresh_view()
 
     def _undo_rename(self, entry: dict):
@@ -4271,9 +4292,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Prüfen ob die Datei noch am neuen Ort existiert
         if not new_path.exists():
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                f"Die Datei '{new_path.name}' wurde nicht gefunden.\n\n"
-                "Möglicherweise wurde sie bereits manuell umbenannt oder gelöscht."
+                self, tr("Rückgängig nicht möglich"),
+                tr(
+                    "Die Datei '{name}' wurde nicht gefunden.\n\n"
+                    "Möglicherweise wurde sie bereits manuell umbenannt oder gelöscht."
+                ).format(name=new_path.name)
             )
             self._undo_stack.pop()
             self._update_undo_ui()
@@ -4282,8 +4305,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Prüfen ob der alte Name schon vergeben ist
         if old_path.exists():
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                f"Eine Datei mit dem Namen '{old_path.name}' existiert bereits."
+                self, tr("Rückgängig nicht möglich"),
+                tr("Eine Datei mit dem Namen '{name}' existiert bereits.").format(name=old_path.name)
             )
             self._undo_stack.pop()
             self._update_undo_ui()
@@ -4291,9 +4314,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Bestätigung
         reply = QMessageBox.question(
-            self, "Umbenennung rückgängig",
-            f"Umbenennung rückgängig machen?\n\n"
-            f"'{new_path.name}'\n→ '{old_path.name}'",
+            self, tr("Umbenennung rückgängig"),
+            tr("Umbenennung rückgängig machen?\n\n'{name}'\n→ '{name2}'").format(name=new_path.name, name2=old_path.name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
@@ -4311,7 +4333,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._undo_stack.pop()
             self._update_undo_ui()
 
-            self.statusbar.showMessage(f"Rückgängig: {old_path.name}", 3000)
+            self.statusbar.showMessage(tr("Rückgängig: {name}").format(name=old_path.name), 3000)
 
             # Widget-Namen aktualisieren
             self._update_pdf_widget_path(new_path, restored_path)
@@ -4319,8 +4341,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         except Exception as e:
             QMessageBox.critical(
-                self, "Fehler",
-                f"Umbenennung konnte nicht rückgängig gemacht werden:\n{e}"
+                self, tr("Fehler"),
+                tr("Umbenennung konnte nicht rückgängig gemacht werden:\n{e}").format(e=e)
             )
 
     def _undo_move(self, entry: dict):
@@ -4336,9 +4358,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if missing:
             names = "\n".join(p.name for p in missing)
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                f"Folgende Dateien wurden am Zielort nicht mehr gefunden:\n{names}\n\n"
-                "Möglicherweise wurden sie bereits manuell verschoben oder gelöscht."
+                self, tr("Rückgängig nicht möglich"),
+                tr(
+                    "Folgende Dateien wurden am Zielort nicht mehr gefunden:\n"
+                    "{names}\n\nMöglicherweise wurden sie bereits manuell verschoben oder "
+                    "gelöscht."
+                ).format(names=names)
             )
             # Eintrag trotzdem entfernen, da ungültig
             self._undo_stack.pop()
@@ -4348,12 +4373,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Bestätigung
         if len(moves) == 1:
             source, dest = moves[0]
-            msg = f"Datei zurückverschieben?\n\n{dest.name}\nvon: {dest.parent}\nnach: {source.parent}"
+            msg = tr("Datei zurückverschieben?\n\n{name}\nvon: {parent}\nnach: {parent2}").format(name=dest.name, parent=dest.parent, parent2=source.parent)
         else:
-            msg = f"{len(moves)} Dateien zurückverschieben?\n\nVon: {moves[0][1].parent}\nNach: {moves[0][0].parent}"
+            msg = tr("{anzahl} Dateien zurückverschieben?\n\nVon: {parent}\nNach: {parent2}").format(anzahl=len(moves), parent=moves[0][1].parent, parent2=moves[0][0].parent)
 
         reply = QMessageBox.question(
-            self, "Rückgängig machen",
+            self, tr("Rückgängig machen"),
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -4398,15 +4423,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         if errors:
             QMessageBox.warning(
-                self, "Teilweise fehlgeschlagen",
-                f"{restored} von {len(moves)} Dateien zurückverschoben.\n\n"
-                f"Fehler:\n" + "\n".join(errors)
+                self, tr("Teilweise fehlgeschlagen"),
+                tr("{restored} von {anzahl} Dateien zurückverschoben.\n\nFehler:\n{0}").format('\n'.join(errors), restored=restored, anzahl=len(moves))
             )
         else:
             if restored == 1:
-                self.statusbar.showMessage(f"Rückgängig: {desc}", 3000)
+                self.statusbar.showMessage(tr("Rückgängig: {desc}").format(desc=desc), 3000)
             else:
-                self.statusbar.showMessage(f"Rückgängig: {restored} Dateien zurückverschoben", 3000)
+                self.statusbar.showMessage(tr("Rückgängig: {restored} Dateien zurückverschoben").format(restored=restored), 3000)
 
         # Ansichten aktualisieren
         self.load_pdfs()
@@ -4418,8 +4442,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         if len(self.selected_pdfs) < 2:
             QMessageBox.information(
-                self, "Batch-Umbenennung",
-                "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+                self, tr("Batch-Umbenennung"),
+                tr("Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen.")
             )
             return
 
@@ -4428,18 +4452,20 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         classifier = get_hybrid_classifier()
         if not classifier.is_llm_available():
             QMessageBox.warning(
-                self, "LLM nicht verfügbar",
-                "Für die automatische Umbenennung wird ein LLM benötigt.\n"
-                "Bitte konfigurieren Sie einen LLM-Provider unter Extras → Einstellungen."
+                self, tr("LLM nicht verfügbar"),
+                tr("Für die automatische Umbenennung wird ein LLM benötigt.\n"
+                "Bitte konfigurieren Sie einen LLM-Provider unter Extras → Einstellungen.")
             )
             return
 
         # Bestätigung anfordern
         reply = QMessageBox.question(
             self,
-            "Batch-Umbenennung",
-            f"{len(self.selected_pdfs)} PDFs automatisch mit LLM umbenennen?\n\n"
-            "Die PDFs werden analysiert und mit dem besten LLM-Vorschlag umbenannt.",
+            tr("Batch-Umbenennung"),
+            tr(
+                "{anzahl} PDFs automatisch mit LLM umbenennen?\n\n"
+                "Die PDFs werden analysiert und mit dem besten LLM-Vorschlag umbenannt."
+            ).format(anzahl=len(self.selected_pdfs)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -4450,9 +4476,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Fortschritts-Dialog erstellen
         from PyQt6.QtWidgets import QProgressDialog
         progress = QProgressDialog(
-            "Batch-Umbenennung läuft...", "Abbrechen", 0, len(self.selected_pdfs), self
+            tr("Batch-Umbenennung läuft..."), tr("Abbrechen"), 0, len(self.selected_pdfs), self
         )
-        progress.setWindowTitle("Automatische Umbenennung")
+        progress.setWindowTitle(tr("Automatische Umbenennung"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.show()
@@ -4467,7 +4493,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 break
 
             progress.setValue(i)
-            progress.setLabelText(f"Verarbeite: {pdf_path.name}")
+            progress.setLabelText(tr("Verarbeite: {name}").format(name=pdf_path.name))
             QApplication.processEvents()
 
             try:
@@ -4571,14 +4597,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         progress.close()
 
         # Ergebnis anzeigen
-        result_msg = f"Batch-Umbenennung abgeschlossen:\n\n"
-        result_msg += f"✓ Umbenannt: {renamed_count}\n"
+        result_msg = tr("Batch-Umbenennung abgeschlossen:\n\n")
+        result_msg += tr("✓ Umbenannt: {renamed_count}\n").format(renamed_count=renamed_count)
         if skipped_count > 0:
-            result_msg += f"○ Übersprungen: {skipped_count}\n"
+            result_msg += tr("○ Übersprungen: {skipped_count}\n").format(skipped_count=skipped_count)
         if error_count > 0:
-            result_msg += f"✗ Fehler: {error_count}"
+            result_msg += tr("✗ Fehler: {error_count}").format(error_count=error_count)
 
-        QMessageBox.information(self, "Batch-Umbenennung", result_msg)
+        QMessageBox.information(self, tr("Batch-Umbenennung"), result_msg)
 
         # Auswahl aufheben
         self.selected_pdfs = []
@@ -4643,7 +4669,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         pfad = Path(pfad)
         if not pfad.is_file():
-            self.statusbar.showMessage(f"Datei nicht gefunden: {pfad}", 5000)
+            self.statusbar.showMessage(tr("Datei nicht gefunden: {pfad}").format(pfad=pfad), 5000)
             return
         aktuell = self.config.get_scan_folder()
         if not aktuell or not gleicher_pfad(aktuell, pfad.parent):
@@ -4655,14 +4681,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         if widget is None:
             self.statusbar.showMessage(
-                f"„{pfad.name}“ ist in der Liste nicht zu sehen (Filter aktiv?)", 6000
+                tr("„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)").format(name=pfad.name), 6000
             )
             return
         # Ein Klick auf das bereits ausgewaehlte PDF hebt die Auswahl auf - das nicht
         if self.selected_pdf != widget.pdf_path or self.selected_pdfs:
             self.on_pdf_clicked(widget.pdf_path)
         self.zur_kachel_scrollen(widget.pdf_path)
-        self.statusbar.showMessage(f"Im Ordner angezeigt: {pfad.name}", 4000)
+        self.statusbar.showMessage(tr("Im Ordner angezeigt: {name}").format(name=pfad.name), 4000)
 
     def zur_kachel_scrollen(self, pfad: Path) -> None:
         """Scrollt die Liste "PDFs" so, dass die Kachel von ``pfad`` sichtbar ist.
@@ -4762,7 +4788,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if Path(self.config.get_scan_folder()) == folder_path:
             return
         self._navigate_to_folder(folder_path)
-        self.statusbar.showMessage(f"Ordner geöffnet: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Ordner geöffnet: {name}").format(name=folder_path.name), 3000)
 
     def _breadcrumb_menue(self, pos):
         """Rechtsklick auf die Pfadzeile: aktuellen Ordner als Favorit merken."""
@@ -4801,23 +4827,23 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.navigate_back_btn.setEnabled(has_history)
         if has_history:
             prev = self._folder_history[-1]
-            self.navigate_back_btn.setToolTip(f"Zurück zu: {prev.name} (Alt+Left)")
+            self.navigate_back_btn.setToolTip(tr("Zurück zu: {name} (Alt+Left)").format(name=prev.name))
         else:
-            self.navigate_back_btn.setToolTip("Kein vorheriger Ordner")
+            self.navigate_back_btn.setToolTip(tr("Kein vorheriger Ordner"))
 
     def on_navigate_back(self):
         """Navigiert zum vorherigen Scan-Ordner aus der History."""
         if not self._folder_history:
-            self.statusbar.showMessage("Kein vorheriger Ordner in der History", 2000)
+            self.statusbar.showMessage(tr("Kein vorheriger Ordner in der History"), 2000)
             return
 
         previous_folder = self._folder_history.pop()
 
         if previous_folder.exists():
             self._navigate_to_folder(previous_folder, add_to_history=False)
-            self.statusbar.showMessage(f"Zurück zu: {previous_folder.name}", 3000)
+            self.statusbar.showMessage(tr("Zurück zu: {name}").format(name=previous_folder.name), 3000)
         else:
-            self.statusbar.showMessage(f"Ordner existiert nicht mehr: {previous_folder}", 3000)
+            self.statusbar.showMessage(tr("Ordner existiert nicht mehr: {previous_folder}").format(previous_folder=previous_folder), 3000)
             self._update_navigation_buttons()
 
     def on_folder_clicked(self, folder_path: Path):
@@ -4843,11 +4869,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def on_folder_tile_double_clicked(self, folder_path: Path):
         """Doppelklick auf eine Ordner-Kachel im Scan-Bereich: hineinwechseln."""
         if not folder_path.exists():
-            self.statusbar.showMessage(f"Ordner existiert nicht mehr: {folder_path}", 3000)
+            self.statusbar.showMessage(tr("Ordner existiert nicht mehr: {folder_path}").format(folder_path=folder_path), 3000)
             self.load_pdfs()
             return
         self._navigate_to_folder(folder_path)
-        self.statusbar.showMessage(f"Ordner geöffnet: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Ordner geöffnet: {name}").format(name=folder_path.name), 3000)
 
     def _update_breadcrumb(self, folder: Optional[Path]):
         """Baut den klickbaren Pfad zum aktuellen Scan-Ordner neu auf."""
@@ -4890,7 +4916,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def on_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner doppelgeklickt wird."""
         self._navigate_to_folder(folder_path)
-        self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Scan-Ordner gewechselt: {name}").format(name=folder_path.name), 3000)
 
     def on_tree_folder_selected(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht ausgewählt wird."""
@@ -4913,12 +4939,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ordner_pfade_umziehen(old, new, None, umbenannt=True)
         self._invalidate_folder_caches()
         self.classifier._schedule_retrain()
-        self.statusbar.showMessage(f"Ordner umbenannt: {old.name} -> {new.name}", 3000)
+        self.statusbar.showMessage(tr("Ordner umbenannt: {name} -> {name2}").format(name=old.name, name2=new.name), 3000)
 
     def on_tree_folder_double_clicked(self, folder_path: Path):
         """Wird aufgerufen wenn ein Ordner in der Baumansicht doppelgeklickt wird."""
         self._navigate_to_folder(folder_path)
-        self.statusbar.showMessage(f"Scan-Ordner gewechselt: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Scan-Ordner gewechselt: {name}").format(name=folder_path.name), 3000)
 
     def on_navigate_up(self):
         """Navigiert ein Verzeichnis nach oben (übergeordneter Ordner)."""
@@ -4928,9 +4954,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Prüfen ob wir noch höher navigieren können
         if parent_folder.exists() and parent_folder != current_scan_folder:
             self._navigate_to_folder(parent_folder)
-            self.statusbar.showMessage(f"Navigiert zu: {parent_folder.name}", 3000)
+            self.statusbar.showMessage(tr("Navigiert zu: {name}").format(name=parent_folder.name), 3000)
         else:
-            self.statusbar.showMessage("Bereits im obersten Verzeichnis", 2000)
+            self.statusbar.showMessage(tr("Bereits im obersten Verzeichnis"), 2000)
 
     def on_pdf_dropped_on_folder(self, pdf_path: Path, folder_path: Path):
         """Wird aufgerufen wenn eine oder mehrere PDFs auf einen Ordner gezogen werden."""
@@ -4991,19 +5017,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Status aktualisieren
         training_count = self.classifier.get_training_count()
-        self.training_label.setText(f"Gelernt: {training_count}")
+        self.training_label.setText(tr("Gelernt: {training_count}").format(training_count=training_count))
 
         if moved_count == 1:
-            self.statusbar.showMessage(f"Verschoben nach: {relative_path}", 3000)
+            self.statusbar.showMessage(tr("Verschoben nach: {relative_path}").format(relative_path=relative_path), 3000)
         else:
-            self.statusbar.showMessage(f"{moved_count} PDFs nach '{relative_path}' verschoben", 3000)
+            self.statusbar.showMessage(tr("{moved_count} PDFs nach '{relative_path}' verschoben").format(moved_count=moved_count, relative_path=relative_path), 3000)
 
         # Fehler anzeigen
         if errors:
             QMessageBox.warning(
                 self,
-                "Teilweise fehlgeschlagen",
-                f"Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(errors)
+                tr("Teilweise fehlgeschlagen"),
+                tr("Einige Dateien konnten nicht verschoben werden:\n{0}").format('\n'.join(errors))
             )
 
         # Undo-Eintrag erstellen (nur wenn Dateien verschoben wurden)
@@ -5011,7 +5037,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if moved_count == 1:
                 desc = f"{move_pairs[0][0].name} → {relative_path}"
             else:
-                desc = f"{moved_count} PDFs → {relative_path}"
+                desc = tr("{moved_count} PDFs → {relative_path}").format(moved_count=moved_count, relative_path=relative_path)
             self._push_undo({"type": "move", "moves": move_pairs, "description": desc})
 
         # Nur die verschobenen PDF-Widgets entfernen (NICHT refresh_view!)
@@ -5053,7 +5079,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if not self.suggestion_widgets:
             self.no_suggestions_label.show()
 
-        self.statusbar.showMessage(f"Ordner entfernt: {folder_path.name}", 3000)
+        self.statusbar.showMessage(tr("Ordner entfernt: {name}").format(name=folder_path.name), 3000)
 
     def move_selected_pdf_to_folder(self, folder_path: Path):
         """Verschiebt die ausgewählte PDF in den angegebenen Ordner."""
@@ -5070,18 +5096,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         current = self.config.get_scan_folder()
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Scan-Ordner auswählen",
+            tr("Scan-Ordner auswählen"),
             str(current) if current else "",
         )
         if folder:
             self._navigate_to_folder(Path(folder))
-            self.statusbar.showMessage(f"Scan-Ordner gesetzt: {folder}")
+            self.statusbar.showMessage(tr("Scan-Ordner gesetzt: {folder}").format(folder=folder))
 
     def add_target_folder(self):
         """Öffnet einen Dialog zum Hinzufügen eines Zielordners."""
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Zielordner auswählen",
+            tr("Zielordner auswählen"),
             self.config.dialog_start_dir(),
         )
         if folder:
@@ -5089,7 +5115,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.config.add_target_folder(folder_path)
             self.folder_manager.add_folder(folder_path)
             self.load_folders()
-            self.statusbar.showMessage(f"Zielordner hinzugefügt: {folder_path.name}", 3000)
+            self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=folder_path.name), 3000)
 
     # === Volltextsuche mit kombinierbaren Filtern (Phase 17/18) ===
 
@@ -5106,41 +5132,41 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         layout.setSpacing(6)
 
         # Zeile 0: Steuerjahr, Kategorie, Korrespondent
-        layout.addWidget(QLabel("Steuerjahr:"), 0, 0)
+        layout.addWidget(QLabel(tr("Steuerjahr:")), 0, 0)
         self.filter_steuerjahr = QComboBox()
-        self.filter_steuerjahr.addItem("Alle")
+        self.filter_steuerjahr.addItem(tr("Alle"))
         self.filter_steuerjahr.setMinimumWidth(90)
-        self.filter_steuerjahr.setToolTip("Nur Dokumente aus diesem Steuerjahr anzeigen")
+        self.filter_steuerjahr.setToolTip(tr("Nur Dokumente aus diesem Steuerjahr anzeigen"))
         layout.addWidget(self.filter_steuerjahr, 0, 1)
 
-        layout.addWidget(QLabel("Kategorie:"), 0, 2)
+        layout.addWidget(QLabel(tr("Kategorie:")), 0, 2)
         self.filter_kategorie = QComboBox()
-        self.filter_kategorie.addItem("Alle")
+        self.filter_kategorie.addItem(tr("Alle"))
         self.filter_kategorie.setMinimumWidth(130)
-        self.filter_kategorie.setToolTip("Nur Dokumente dieser Kategorie anzeigen")
+        self.filter_kategorie.setToolTip(tr("Nur Dokumente dieser Kategorie anzeigen"))
         layout.addWidget(self.filter_kategorie, 0, 3)
 
-        layout.addWidget(QLabel("Korrespondent:"), 0, 4)
+        layout.addWidget(QLabel(tr("Korrespondent:")), 0, 4)
         self.filter_korrespondent = QComboBox()
-        self.filter_korrespondent.addItem("Alle")
+        self.filter_korrespondent.addItem(tr("Alle"))
         self.filter_korrespondent.setMinimumWidth(150)
-        self.filter_korrespondent.setToolTip("Nur Dokumente dieses Korrespondenten anzeigen")
+        self.filter_korrespondent.setToolTip(tr("Nur Dokumente dieses Korrespondenten anzeigen"))
         layout.addWidget(self.filter_korrespondent, 0, 5)
 
         # Reset-Button (Zeile 0–1, letzte Spalte)
-        reset_btn = QPushButton("Filter zurücksetzen")
-        reset_btn.setToolTip("Alle Filter dieser Leiste auf 'Alle' zurücksetzen")
+        reset_btn = QPushButton(tr("Filter zurücksetzen"))
+        reset_btn.setToolTip(tr("Alle Filter dieser Leiste auf 'Alle' zurücksetzen"))
         reset_btn.clicked.connect(self._reset_filters)
         layout.addWidget(reset_btn, 0, 6, 2, 1)
 
         # Zeile 1: Datum, Betrag
-        datum_label = QLabel("Zeitraum:")
+        datum_label = QLabel(tr("Zeitraum:"))
         layout.addWidget(datum_label, 1, 0, Qt.AlignmentFlag.AlignTop)
         self.filter_zeitraum = ZeitraumFeld()
-        self.filter_zeitraum.setToolTip("Nur Dokumente aus diesem Zeitraum anzeigen; leer = keine Grenze")
+        self.filter_zeitraum.setToolTip(tr("Nur Dokumente aus diesem Zeitraum anzeigen; leer = keine Grenze"))
         layout.addWidget(self.filter_zeitraum, 1, 1, 1, 3)
 
-        betrag_label = QLabel("Betrag (€):")
+        betrag_label = QLabel(tr("Betrag (€):"))
         layout.addWidget(betrag_label, 1, 4)
         betrag_widget = QWidget()
         betrag_layout = QHBoxLayout(betrag_widget)
@@ -5149,18 +5175,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.filter_betrag_von = QDoubleSpinBox()
         self.filter_betrag_von.setRange(0, 999999.99)
         self.filter_betrag_von.setDecimals(2)
-        self.filter_betrag_von.setSpecialValueText("ab –")
+        self.filter_betrag_von.setSpecialValueText(tr("ab –"))
         self.filter_betrag_von.setValue(0.0)
         self.filter_betrag_von.setMinimumWidth(80)
-        self.filter_betrag_von.setToolTip("Nur Dokumente mit mindestens diesem Betrag anzeigen")
+        self.filter_betrag_von.setToolTip(tr("Nur Dokumente mit mindestens diesem Betrag anzeigen"))
         betrag_layout.addWidget(self.filter_betrag_von)
         self.filter_betrag_bis = QDoubleSpinBox()
         self.filter_betrag_bis.setRange(0, 999999.99)
         self.filter_betrag_bis.setDecimals(2)
-        self.filter_betrag_bis.setSpecialValueText("bis –")
+        self.filter_betrag_bis.setSpecialValueText(tr("bis –"))
         self.filter_betrag_bis.setValue(0.0)
         self.filter_betrag_bis.setMinimumWidth(80)
-        self.filter_betrag_bis.setToolTip("Nur Dokumente bis zu diesem Betrag anzeigen")
+        self.filter_betrag_bis.setToolTip(tr("Nur Dokumente bis zu diesem Betrag anzeigen"))
         betrag_layout.addWidget(self.filter_betrag_bis)
         layout.addWidget(betrag_widget, 1, 5)
 
@@ -5177,7 +5203,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def _toggle_filter_bar(self, checked: bool):
         """Blendet die Filterleiste ein oder aus."""
         self.filter_bar.setVisible(checked)
-        self.filter_toggle_btn.setText("Filter ▲" if checked else "Filter ▼")
+        self.filter_toggle_btn.setText(tr("Filter ▲") if checked else tr("Filter ▼"))
         if checked:
             self._populate_filter_dropdowns()
 
@@ -5191,7 +5217,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             current = combo.currentText()
             combo.blockSignals(True)
             combo.clear()
-            combo.addItem("Alle")
+            combo.addItem(tr("Alle"))
             combo.addItems(getter())
             idx = combo.findText(current)
             combo.setCurrentIndex(idx if idx >= 0 else 0)
@@ -5201,11 +5227,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Prüft ob mindestens ein Filter aktiv ist."""
         if not hasattr(self, 'filter_steuerjahr'):
             return False
-        if self.filter_steuerjahr.currentText() not in ("", "Alle"):
+        if self.filter_steuerjahr.currentText() not in ("", tr("Alle")):
             return True
-        if self.filter_kategorie.currentText() not in ("", "Alle"):
+        if self.filter_kategorie.currentText() not in ("", tr("Alle")):
             return True
-        if self.filter_korrespondent.currentText() not in ("", "Alle"):
+        if self.filter_korrespondent.currentText() not in ("", tr("Alle")):
             return True
         if self.filter_zeitraum.hat_grenze():
             return True
@@ -5258,11 +5284,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         if hasattr(self, 'filter_steuerjahr'):
             val = self.filter_steuerjahr.currentText()
-            steuerjahr = "" if val == "Alle" else val
+            steuerjahr = "" if val == tr("Alle") else val
             val = self.filter_kategorie.currentText()
-            kategorie = "" if val == "Alle" else val
+            kategorie = "" if val == tr("Alle") else val
             val = self.filter_korrespondent.currentText()
-            korrespondent = "" if val == "Alle" else val
+            korrespondent = "" if val == tr("Alle") else val
             datum_von, datum_bis = self.filter_zeitraum.grenzen()
             betrag_von = self.filter_betrag_von.value()
             betrag_bis = self.filter_betrag_bis.value()
@@ -5293,7 +5319,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def _on_search_view_result(self, ergebnis: dict) -> None:
         """Trefferzahl des Reiters „Suche“ in der Werkzeugleiste anzeigen."""
         gesamt = int(ergebnis.get("gesamt") or 0)
-        self.search_count_label.setText(f"{gesamt} Treffer" if gesamt else "Keine Treffer")
+        self.search_count_label.setText(tr("{gesamt} Treffer").format(gesamt=gesamt) if gesamt else tr("Keine Treffer"))
 
     def _show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse der alten Fassade im Detail-Panel an (nur noch fuer Aufrufer von aussen)."""
@@ -5328,7 +5354,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Ordner auswählen
         folder = QFileDialog.getExistingDirectory(
-            self, "Ordner zum Suchindex hinzufügen"
+            self, tr("Ordner zum Suchindex hinzufügen")
         )
         if not folder:
             return
@@ -5337,25 +5363,25 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Optionen-Dialog
         dlg = QDialog(self)
-        dlg.setWindowTitle("Indexierungs-Optionen")
+        dlg.setWindowTitle(tr("Indexierungs-Optionen"))
         dlg.setMinimumWidth(400)
         form = QFormLayout(dlg)
 
         folder_label = QLabel(str(folder_path))
         folder_label.setWordWrap(True)
         folder_label.setStyleSheet("font-weight: bold;")
-        form.addRow("Ordner:", folder_label)
+        form.addRow(tr("Ordner:"), folder_label)
 
-        include_subfolders = QCheckBox("Unterordner einbeziehen")
+        include_subfolders = QCheckBox(tr("Unterordner einbeziehen"))
         include_subfolders.setChecked(True)
         form.addRow(include_subfolders)
 
-        use_llm = QCheckBox("KI-Metadaten generieren (Zusammenfassung, Kategorie, ...)")
+        use_llm = QCheckBox(tr("KI-Metadaten generieren (Zusammenfassung, Kategorie, ...)"))
         llm_available = bool(self.hybrid_classifier.is_llm_available())
         use_llm.setChecked(llm_available)
         use_llm.setEnabled(llm_available)
         if not self.hybrid_classifier.is_llm_available():
-            use_llm.setToolTip("Kein LLM konfiguriert - nur Textextraktion")
+            use_llm.setToolTip(tr("Kein LLM konfiguriert - nur Textextraktion"))
         form.addRow(use_llm)
 
         buttons = QDialogButtonBox(
@@ -5375,7 +5401,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             pdf_files = list(folder_path.glob("*.pdf"))
 
         if not pdf_files:
-            QMessageBox.information(self, "Keine PDFs", f"Keine PDF-Dateien in '{folder_path.name}' gefunden.")
+            QMessageBox.information(self, tr("Keine PDFs"), tr("Keine PDF-Dateien in '{name}' gefunden.").format(name=folder_path.name))
             return
 
         if not use_llm.isChecked():
@@ -5392,14 +5418,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             prozess = self.db.suchindex.lauf_starten(pfad=str(folder_path))
         except OSError as e:
-            QMessageBox.warning(self, "Suchindex", f"Der Indexlauf konnte nicht gestartet werden:\n{e}")
+            QMessageBox.warning(self, tr("Suchindex"), tr("Der Indexlauf konnte nicht gestartet werden:\n{e}").format(e=e))
             return
         if prozess is None:
-            self.statusbar.showMessage("Ein Indexlauf läuft bereits – der Ordner kommt beim nächsten Lauf dazu.",
+            self.statusbar.showMessage(tr("Ein Indexlauf läuft bereits – der Ordner kommt beim nächsten Lauf dazu."),
                                        6000)
             return
         self.statusbar.showMessage(
-            f"Suchindex: {anzahl} PDFs in '{folder_path.name}' werden im Hintergrund gelesen", 6000
+            tr("Suchindex: {anzahl} PDFs in '{name}' werden im Hintergrund gelesen").format(anzahl=anzahl, name=folder_path.name), 6000
         )
         self.search_view.refresh_status()
 
@@ -5408,9 +5434,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from PyQt6.QtWidgets import QProgressDialog
 
         progress = QProgressDialog(
-            "Indexiere PDFs...", "Abbrechen", 0, len(pdf_files), self
+            tr("Indexiere PDFs..."), tr("Abbrechen"), 0, len(pdf_files), self
         )
-        progress.setWindowTitle("Suchindex aufbauen")
+        progress.setWindowTitle(tr("Suchindex aufbauen"))
         progress.setMinimumDuration(0)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
 
@@ -5423,7 +5449,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 break
 
             progress.setValue(i)
-            progress.setLabelText(f"Analysiere: {pdf_path.name}\n({i+1}/{len(pdf_files)})")
+            progress.setLabelText(tr("Analysiere: {name}\n({0}/{anzahl})").format(i + 1, name=pdf_path.name, anzahl=len(pdf_files)))
             QApplication.processEvents()
 
             try:
@@ -5507,31 +5533,31 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         progress.setValue(len(pdf_files))
 
         # Ergebnis
-        msg = f"{indexed} PDFs indexiert"
+        msg = tr("{indexed} PDFs indexiert").format(indexed=indexed)
         if skipped:
-            msg += f", {skipped} übersprungen"
+            msg += tr(", {skipped} übersprungen").format(skipped=skipped)
         if errors:
-            msg += f", {errors} Fehler"
+            msg += tr(", {errors} Fehler").format(errors=errors)
         if progress.wasCanceled():
             msg += " (abgebrochen)"
 
         total_indexed = self.db.get_search_index_count()
-        self.statusbar.showMessage(f"{msg} | Gesamt im Index: {total_indexed}", 5000)
+        self.statusbar.showMessage(tr("{msg} | Gesamt im Index: {total_indexed}").format(msg=msg, total_indexed=total_indexed), 5000)
 
         QMessageBox.information(
-            self, "Indexierung abgeschlossen",
-            f"{msg}\n\nGesamt im Suchindex: {total_indexed} Dokumente"
+            self, tr("Indexierung abgeschlossen"),
+            tr("{msg}\n\nGesamt im Suchindex: {total_indexed} Dokumente").format(msg=msg, total_indexed=total_indexed)
         )
 
     def refresh_view(self):
         """Aktualisiert die Ansicht."""
-        self.statusbar.showMessage("Aktualisiere...")
+        self.statusbar.showMessage(tr("Aktualisiere..."))
         QApplication.processEvents()
 
         self.load_pdfs()
         self.load_folders()
 
-        self.statusbar.showMessage("Ansicht aktualisiert", 3000)
+        self.statusbar.showMessage(tr("Ansicht aktualisiert"), 3000)
 
     def check_backup_status(self):
         """Zeigt den Backup-Hinweis (Menue). Macrium-Log-Parsing: Issue #14."""
@@ -5552,9 +5578,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Daten sichern",
+            tr("Daten sichern"),
             str(Path(self._documents_dir()) / default_backup_name()),
-            "ZIP-Archiv (*.zip)",
+            tr("ZIP-Archiv (*.zip)"),
         )
         if not path:
             return
@@ -5564,46 +5590,49 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             info = create_backup(self.config.data_dir, Path(path), version=version)
         except Exception as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Sicherung fehlgeschlagen", str(e))
+            QMessageBox.critical(self, tr("Sicherung fehlgeschlagen"), str(e))
             return
         QApplication.restoreOverrideCursor()
         size_mb = info.total_bytes / (1024 * 1024)
         QMessageBox.information(
             self,
-            "Daten gesichert",
-            f"{len(info.entries)} Dateien ({size_mb:.1f} MB) gesichert nach:\n{path}\n\n"
-            "Enthalten: Datenbank (Verlauf, Suchindex, Korrespondenten, Regeln), "
-            "KI-Cache, ML-Modell und Einstellungen.\n\n"
-            "Hinweis: Die Einstellungen enthalten Ihre API-Schlüssel – bewahren "
-            "Sie das Archiv entsprechend geschützt auf.",
+            tr("Daten gesichert"),
+            tr(
+                "{anzahl} Dateien ({size_mb:.1f} MB) gesichert nach:\n"
+                "{path}\n\nEnthalten: Datenbank (Verlauf, Suchindex, Korrespondenten, "
+                "Regeln), KI-Cache, ML-Modell und Einstellungen.\n\n"
+                "Hinweis: Die Einstellungen enthalten Ihre API-Schlüssel – bewahren Sie das "
+                "Archiv entsprechend geschützt auf."
+            ).format(anzahl=len(info.entries), size_mb=size_mb, path=path),
         )
-        self.statusbar.showMessage(f"Daten gesichert: {Path(path).name}", 5000)
+        self.statusbar.showMessage(tr("Daten gesichert: {name}").format(name=Path(path).name), 5000)
 
     def restore_app_data(self):
         """Extras > Daten wiederherstellen: ZIP vormerken, beim naechsten Start einspielen."""
         from src.utils.backup import PREVIOUS_DIR, inspect_backup, stage_restore
 
         path, _ = QFileDialog.getOpenFileName(
-            self, "Sicherung wiederherstellen", self._documents_dir(), "ZIP-Archiv (*.zip)"
+            self, tr("Sicherung wiederherstellen"), self._documents_dir(), tr("ZIP-Archiv (*.zip)")
         )
         if not path:
             return
         try:
             info = inspect_backup(Path(path))
         except Exception as e:
-            QMessageBox.critical(self, "Keine gültige Sicherung", str(e))
+            QMessageBox.critical(self, tr("Keine gültige Sicherung"), str(e))
             return
 
         version = info.version or "unbekannt"
         answer = QMessageBox.question(
             self,
-            "Sicherung wiederherstellen?",
-            f"Sicherung vom {info.created_display} (Version {version}, "
-            f"{len(info.entries)} Dateien).\n\n"
-            "Beim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den "
-            "KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien "
-            f"bleiben im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\n"
-            "PDF Sortier Meister wird dazu jetzt beendet. Fortfahren?",
+            tr("Sicherung wiederherstellen?"),
+            tr(
+                "Sicherung vom {created_display} (Version {version}, {anzahl} Dateien).\n\n"
+                "Beim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den "
+                "KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien bleiben "
+                "im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\n"
+                "PDF Sortier Meister wird dazu jetzt beendet. Fortfahren?"
+            ).format(created_display=info.created_display, version=version, anzahl=len(info.entries), PREVIOUS_DIR=PREVIOUS_DIR),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -5612,13 +5641,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             stage_restore(Path(path), self.config.data_dir)
         except Exception as e:
-            QMessageBox.critical(self, "Wiederherstellung fehlgeschlagen", str(e))
+            QMessageBox.critical(self, tr("Wiederherstellung fehlgeschlagen"), str(e))
             return
         QMessageBox.information(
             self,
-            "Wiederherstellung vorbereitet",
-            "Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird "
-            "beim Start eingespielt.",
+            tr("Wiederherstellung vorbereitet"),
+            tr("Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird "
+            "beim Start eingespielt."),
         )
         self.close()
 
@@ -5633,19 +5662,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle("Erste Schritte")
-        box.setText("So sortieren Sie eine PDF in drei Schritten:")
+        box.setWindowTitle(tr("Erste Schritte"))
+        box.setText(tr("So sortieren Sie eine PDF in drei Schritten:"))
         box.setInformativeText(
-            "1. Links: Ein PDF anklicken, um es auszuwaehlen.\n"
+            tr("1. Links: Ein PDF anklicken, um es auszuwaehlen.\n"
             "2. Mitte: Vorgeschlagenen Namen und Metadaten pruefen und bei "
             "Bedarf anpassen.\n"
             "3. Rechts: Auf einen Zielordner klicken - das PDF wird dorthin "
             "verschoben, umbenannt und die Metadaten werden gespeichert.\n\n"
             "Doppelklick auf einen Ordner im Baum (rechts) klappt ihn auf, "
             "ohne etwas zu verschieben. Rechtsklick > \"Ordner links öffnen\" "
-            "zeigt ihn links an."
+            "zeigt ihn links an.")
         )
-        dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
+        dismiss = QCheckBox(tr("Diesen Hinweis nicht mehr anzeigen"))
         dismiss.setChecked(self.config.get("first_steps_hint_dismissed", False))
         box.setCheckBox(dismiss)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
@@ -5666,8 +5695,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         ):
             return False
         antwort = QMessageBox.question(
-            self, "Backup-Erinnerung",
-            f"Haben Sie in den letzten {int(days)} Tagen ein Backup gemacht?",
+            self, tr("Backup-Erinnerung"),
+            tr("Haben Sie in den letzten {0} Tagen ein Backup gemacht?").format(int(days)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if antwort == QMessageBox.StandardButton.Yes:
@@ -5695,16 +5724,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return False
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle("Backup empfohlen")
-        box.setText("PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten "
-                    "direkt in Ihre PDF-Dateien.")
+        box.setWindowTitle(tr("Backup empfohlen"))
+        box.setText(tr("PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten "
+                    "direkt in Ihre PDF-Dateien."))
         box.setInformativeText(
-            "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per "
+            tr("Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per "
             "Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie "
             "Macrium Reflect.\n\n"
-            "Rueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
+            "Rueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup.")
         )
-        dismiss = QCheckBox("Diesen Hinweis nicht mehr anzeigen")
+        dismiss = QCheckBox(tr("Diesen Hinweis nicht mehr anzeigen"))
         dismiss.setChecked(self.config.get("backup_hint_dismissed", False))
         box.setCheckBox(dismiss)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
@@ -5761,7 +5790,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         if self._update_thread is not None and self._update_thread.isRunning():
             if manual:
-                self.statusbar.showMessage("Update-Prüfung läuft bereits...", 3000)
+                self.statusbar.showMessage(tr("Update-Prüfung läuft bereits..."), 3000)
             return
         from src.main import __version__
 
@@ -5771,7 +5800,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         self._update_thread = thread
         if manual:
-            self.statusbar.showMessage("Suche nach Updates...", 5000)
+            self.statusbar.showMessage(tr("Suche nach Updates..."), 5000)
         thread.start()
 
     def _on_update_check_finished(self, info: Optional[UpdateInfo], error: str,
@@ -5784,10 +5813,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if manual:
                 QMessageBox.warning(
                     self,
-                    "Update-Prüfung fehlgeschlagen",
-                    "Die Update-Prüfung konnte nicht durchgeführt werden:\n"
-                    f"{error}\n\n"
-                    "Bitte prüfen Sie Ihre Internetverbindung oder versuchen Sie es später erneut.",
+                    tr("Update-Prüfung fehlgeschlagen"),
+                    tr(
+                        "Die Update-Prüfung konnte nicht durchgeführt werden:\n"
+                        "{error}\n\nBitte prüfen Sie Ihre Internetverbindung oder versuchen "
+                        "Sie es später erneut."
+                    ).format(error=error),
                 )
             return
 
@@ -5795,8 +5826,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if manual:
                 QMessageBox.information(
                     self,
-                    "Kein Update verfügbar",
-                    f"Sie verwenden bereits die aktuelle Version {__version__}.",
+                    tr("Kein Update verfügbar"),
+                    tr("Sie verwenden bereits die aktuelle Version {version}.").format(version=__version__),
                 )
             return
 
@@ -5809,7 +5840,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
 
         self._available_update = info
-        self.update_status_label.setText(f"Update: v{info.version} verfügbar")
+        self.update_status_label.setText(tr("Update: v{version} verfügbar").format(version=info.version))
         self.update_status_label.setVisible(True)
         self._show_update_dialog(info)
 
@@ -5824,25 +5855,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle("Update verfügbar")
+        box.setWindowTitle(tr("Update verfügbar"))
         box.setText(
-            f"<b>Version {info.version}</b> von PDF Sortier Meister ist verfügbar.<br>"
-            f"Installiert ist Version {__version__}."
+            tr(
+                "<b>Version {version}</b> von PDF Sortier Meister ist "
+                "verfügbar.<br>Installiert ist Version {version2}."
+            ).format(version=info.version, version2=__version__)
         )
         hint = (
-            "Auf der Download-Seite finden Sie den Installer und die Liste der "
+            tr("Auf der Download-Seite finden Sie den Installer und die Liste der "
             "Änderungen. Installieren Sie die neue Version einfach über die "
-            "bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
+            "bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten.")
         )
         if info.asset_name:
-            hint += f"\n\nDatei für Ihr System: {info.asset_name}"
+            hint += tr("\n\nDatei für Ihr System: {asset_name}").format(asset_name=info.asset_name)
         box.setInformativeText(hint)
         if info.notes:
             box.setDetailedText(info.notes)
 
-        download_btn = box.addButton("Download-Seite öffnen", QMessageBox.ButtonRole.AcceptRole)
-        skip_btn = box.addButton("Diese Version überspringen", QMessageBox.ButtonRole.ActionRole)
-        box.addButton("Später", QMessageBox.ButtonRole.RejectRole)
+        download_btn = box.addButton(tr("Download-Seite öffnen"), QMessageBox.ButtonRole.AcceptRole)
+        skip_btn = box.addButton(tr("Diese Version überspringen"), QMessageBox.ButtonRole.ActionRole)
+        box.addButton(tr("Später"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(download_btn)
         box.exec()
 
@@ -5858,8 +5891,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._available_update = None
         self.update_status_label.setVisible(False)
         self.statusbar.showMessage(
-            f"Version {info.version} wird übersprungen "
-            "(Hilfe > Nach Updates suchen zeigt sie erneut).",
+            tr(
+                "Version {version} wird übersprungen (Hilfe > Nach Updates suchen zeigt sie "
+                "erneut)."
+            ).format(version=info.version),
             5000,
         )
 
@@ -5878,7 +5913,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def open_filename_settings(self):
         """Einstellungen direkt auf dem Tab "Dateinamen" (Muster bearbeiten)."""
-        self._open_settings_dialog(tab="Dateinamen")
+        self._open_settings_dialog(tab=tr("Dateinamen"))
 
     def _open_settings_dialog(self, tab: str | None = None):
         dialog = SettingsDialog(self, example_values_provider=self._settings_example_values)
@@ -5926,7 +5961,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.refresh_settings()
         # Reiter „Suche“: Suche ein-/ausgeschaltet, anderer Speicherort
         self.search_view.refresh_settings()
-        self.statusbar.showMessage("Einstellungen gespeichert", 3000)
+        self.statusbar.showMessage(tr("Einstellungen gespeichert"), 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.
         self._last_llm_error = None
@@ -6003,21 +6038,23 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         name = provider_anzeigename(cfg.get("provider", ""))
         provider = self._chat_provider()
         if provider is None:
-            grund = grund_text(self._chat_llm_grund) or "Kein KI-Anbieter eingestellt."
-            return f" · Chat: {name} (aus)", f"Chat: {name} – nicht aktiv. {grund}"
+            grund = grund_text(self._chat_llm_grund) or tr("Kein KI-Anbieter eingestellt.")
+            return tr(" · Chat: {name} (aus)").format(name=name), tr("Chat: {name} – nicht aktiv. {grund}").format(name=name, grund=grund)
         try:
             verfuegbar = bool(provider.is_available())
         except Exception:  # noqa: BLE001 - Anzeige darf nie scheitern
             verfuegbar = False
         if not verfuegbar:
             # Der Chat nimmt dann das Modell der Sortierung (ChatView._llm_provider_fuer_chat)
-            return (f" · Chat: {name} (aus)",
-                    f"Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); "
-                    "der Chat nutzt das Modell der Sortierung.")
+            return (tr(" · Chat: {name} (aus)").format(name=name),
+                    tr(
+                        "Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); "
+                        "der Chat nutzt das Modell der Sortierung."
+                    ).format(name=name))
         model_full = modell_name(provider, cfg.get("model", ""))
         model_short = modell_name(provider, cfg.get("model", ""), short=True)
-        text = f" · Chat: {name}/{model_short}" if model_short else f" · Chat: {name}"
-        tip = f"Chat: {name}, Modell: {model_full}" if model_full else f"Chat: {name}"
+        text = tr(" · Chat: {name}/{model_short}").format(name=name, model_short=model_short) if model_short else tr(" · Chat: {name}").format(name=name)
+        tip = tr("Chat: {name}, Modell: {model_full}").format(name=name, model_full=model_full) if model_full else tr("Chat: {name}").format(name=name)
         return text, tip
 
     def _update_llm_status(self):
@@ -6034,38 +6071,41 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             model_full = self.hybrid_classifier.get_llm_model_name()
             # z.B. "LLM: OpenRouter/glm-5.3-flash" - das Modell entscheidet
             # ueber Tempo und Qualitaet, deshalb gehoert es in die Anzeige
-            text = f"LLM: {provider}/{model_short}" if model_short else f"LLM: {provider}"
-            detail = f"{provider}, Modell: {model_full}" if model_full else provider
+            text = tr("LLM: {provider}/{model_short}").format(provider=provider, model_short=model_short) if model_short else f"LLM: {provider}"
+            detail = tr("{provider}, Modell: {model_full}").format(provider=provider, model_full=model_full) if model_full else provider
             if health == "pruefen":
                 color = "gray"
-                state = f"KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …"
+                state = tr("KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …").format(detail=detail)
             elif health == "bereit":
                 color = "green"
-                state = f"KI-Assistent bereit ({detail})."
+                state = tr("KI-Assistent bereit ({detail}).").format(detail=detail)
             else:
                 color = self.LLM_STATUS_RED
                 text = f"⚠ {text}"
-                state = (f"Die KI funktioniert gerade nicht ({detail}).\n\n"
-                         f"Problem: {hinweis.problem}\n"
-                         f"Abhilfe: {hinweis.abhilfe}")
+                state = (tr(
+                    "Die KI funktioniert gerade nicht ({detail}).\n\n"
+                    "Problem: {problem}\nAbhilfe: {abhilfe}"
+                ).format(detail=detail, problem=hinweis.problem, abhilfe=hinweis.abhilfe))
             self.llm_status_label.setText(text + chat_text)
             self.llm_status_label.setStyleSheet(f"color: {color};")
             self.llm_status_label.setToolTip(
-                f"{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
+                tr("{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen.").format(state=state, chat_zeile=chat_zeile)
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
             llm_cfg = self.config.get_llm_config()
             if (is_cloud_provider(llm_cfg.get("provider", "none"))
                     and not llm_cfg.get("cloud_consent", False)):
-                reason = "Keine Einwilligung zur Datenübertragung erteilt."
+                reason = tr("Keine Einwilligung zur Datenübertragung erteilt.")
             else:
-                reason = "Nicht konfiguriert."
-            self.llm_status_label.setText("LLM: Aus" + chat_text)
+                reason = tr("Nicht konfiguriert.")
+            self.llm_status_label.setText(tr("LLM: Aus{chat_text}").format(chat_text=chat_text))
             self.llm_status_label.setStyleSheet("color: gray;")
             self.llm_status_label.setToolTip(
-                f"KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
-                f"Doppelklick öffnet die Einstellungen."
+                tr(
+                    "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
+                    "Doppelklick öffnet die Einstellungen."
+                ).format(reason=reason, chat_zeile=chat_zeile)
             )
 
     def _on_llm_check_tick(self):
@@ -6091,7 +6131,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             try:
                 result = classifier.check_llm_connection()
             except Exception as e:  # noqa: BLE001
-                result = (False, f"Fehler: {e}")
+                result = (False, tr("Fehler: {e}").format(e=e))
             try:
                 self._llm_connection_checked.emit(generation, result)
             except RuntimeError:
@@ -6128,7 +6168,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from PyQt6.QtCore import Qt
 
         # LLM-Status ermitteln
-        llm_status = "Nicht konfiguriert"
+        llm_status = tr("Nicht konfiguriert")
         if self.hybrid_classifier.is_llm_available():
             llm_status = self.hybrid_classifier.get_llm_provider_name()
 
@@ -6142,7 +6182,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Dialog erstellen
         dialog = QDialog(self)
-        dialog.setWindowTitle("Über PDF Sortier Meister")
+        dialog.setWindowTitle(tr("Über PDF Sortier Meister"))
         dialog.setFixedSize(450, 410)
 
         layout = QVBoxLayout(dialog)
@@ -6150,26 +6190,26 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Titel und Version
         title_label = QLabel(
-            f"<h2>PDF Sortier Meister</h2>"
-            f"<p style='color: #666;'>Version {__version__}</p>"
+            tr("<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>").format(version=__version__)
         )
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
         # Beschreibung
         desc_label = QLabel(
-            "Ein intelligentes Programm zum Sortieren und<br>"
-            "Umbenennen von gescannten PDF-Dokumenten."
+            tr("Ein intelligentes Programm zum Sortieren und<br>"
+            "Umbenennen von gescannten PDF-Dokumenten.")
         )
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(desc_label)
 
         # Status-Info
         status_label = QLabel(
-            f"<table style='margin: 10px;'>"
-            f"<tr><td><b>LLM-Provider:</b></td><td>{llm_status}</td></tr>"
-            f"<tr><td><b>Gelernte Zuordnungen:</b></td><td>{learn_count}</td></tr>"
-            f"</table>"
+            tr(
+                "<table style='margin: "
+                "10px;'><tr><td><b>LLM-Provider:</b></td><td>{llm_status}</td></tr><tr><td><b>Gelernte "
+                "Zuordnungen:</b></td><td>{learn_count}</td></tr></table>"
+            ).format(llm_status=llm_status, learn_count=learn_count)
         )
         status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status_label)
@@ -6177,15 +6217,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from src.core.support import supporter_label
         supporter_text = supporter_label(self.config)
         if supporter_text:
-            supporter = QLabel(f"<b>{supporter_text}</b> - danke!")
+            supporter = QLabel(tr("<b>{supporter_text}</b> - danke!").format(supporter_text=supporter_text))
             supporter.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(supporter)
 
         # GitHub-Link
         github_label = QLabel(
-            '<p><b>GitHub:</b> '
+            tr('<p><b>GitHub:</b> '
             '<a href="https://github.com/Josi-create/PDF_Sortier_Meister">'
-            'github.com/Josi-create/PDF_Sortier_Meister</a></p>'
+            'github.com/Josi-create/PDF_Sortier_Meister</a></p>')
         )
         github_label.setOpenExternalLinks(True)
         github_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -6193,11 +6233,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Lizenz
         license_label = QLabel(
-            "<p style='color: #666; font-size: 11px;'>"
+            tr("<p style='color: #666; font-size: 11px;'>"
             "<b>Lizenz:</b> GPL-3.0-or-later<br>"
             "Copyright (c) 2024-2026<br>"
             "Freie Software - Open Source. Lizenztext: "
-            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>'
+            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>')
         )
         license_label.setOpenExternalLinks(True)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -6207,8 +6247,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from src.utils.logging_config import get_log_file_path
         log_path = get_log_file_path()
         log_label = QLabel(
-            f"<p style='color: #999; font-size: 10px;'>"
-            f"Log-Datei: {log_path}</p>"
+            tr("<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>").format(log_path=log_path)
         )
         log_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         log_label.setWordWrap(True)
@@ -6219,7 +6258,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # OK-Button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        ok_button = QPushButton("OK")
+        ok_button = QPushButton(tr("OK"))
         ok_button.setFixedWidth(80)
         ok_button.clicked.connect(dialog.accept)
         button_layout.addWidget(ok_button)

@@ -113,7 +113,7 @@ def test_build_filename_prompt_contains_required_parts(provider):
 def test_build_filename_prompt_forbids_email_as_contact(provider):
     prompt = provider._build_filename_prompt(text="Text", current_filename="scan.pdf")
     assert "niemals eine E-Mail-Adresse" in prompt
-    assert "kathrin.haerle@web.de -> Kathrin_Haerle" in prompt
+    assert "karin.huber@example.com -> Karin_Huber" in prompt
     assert "Kein Punkt ausser vor .pdf" in prompt
 
 
@@ -130,7 +130,7 @@ def test_pattern_info_explains_initials_and_uses_configured_ones(provider, monke
     monkeypatch.setattr(cfg, "get_config", lambda: _CfgStub(
         filename_pattern="{initialen}_{aktenzeichen}_{datum}_{betreff}_{kontakt}",
         owner_initials="JW",
-        owner_name="Johannes Haerle-Wack",
+        owner_name="Jonas Huber-Weber",
     ))
     info = provider._build_filename_pattern_info()
     assert "2-3 Grossbuchstaben" in info
@@ -144,7 +144,7 @@ def test_pattern_info_derives_initials_from_owner_name(provider, monkeypatch):
     monkeypatch.setattr(cfg, "get_config", lambda: _CfgStub(
         filename_pattern="{initialen}_{datum}_{betreff}",
         owner_initials="",
-        owner_name="Dr. med. Johannes Härle-Wack",
+        owner_name="Dr. med. Jonas Huber-Weber",
     ))
     assert "Verwende genau: JHW" in provider._build_filename_pattern_info()
 
@@ -163,8 +163,8 @@ def test_pattern_info_migrates_legacy_pattern_on_the_fly(provider, monkeypatch):
 
 def test_derive_initials():
     from src.ml.llm_provider import derive_initials
-    assert derive_initials("Johannes Härle-Wack") == "JHW"
-    assert derive_initials("Dr. med. Johannes Wack") == "JW"
+    assert derive_initials("Jonas Huber-Weber") == "JHW"
+    assert derive_initials("Dr. med. Jonas Weber") == "JW"
     assert derive_initials("Prof. Dr. Anna Maria Müller-Lüdenscheidt") == "AMM"
-    assert derive_initials("Johannes") == ""
+    assert derive_initials("Jonas") == ""
     assert derive_initials("") == ""

@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMenu,
 )
+from src.i18n import tr
 
 # Ab dieser Konfidenz bekommt der beste Vorschlag den Regenbogenrahmen (Issue #32)
 REGENBOGEN_SCHWELLE = 0.85
@@ -92,7 +93,7 @@ class FolderWidget(QFrame):
 
         # Standard-Tooltip für die ganze Kachel (main_window.py setzt bei
         # Vorschlägen einen ausführlicheren Tooltip, der diesen ersetzt).
-        self.setToolTip(f"{self.folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher.")
+        self.setToolTip(tr("{folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher.").format(folder_path=self.folder_path))
 
         layout.addWidget(self.name_label)
 
@@ -106,9 +107,9 @@ class FolderWidget(QFrame):
     def _update_count_label(self):
         """Aktualisiert die Anzeige der PDF-Anzahl."""
         if self.pdf_count == 1:
-            self.count_label.setText("1 PDF")
+            self.count_label.setText(tr("1 PDF"))
         else:
-            self.count_label.setText(f"{self.pdf_count} PDFs")
+            self.count_label.setText(tr("{pdf_count} PDFs").format(pdf_count=self.pdf_count))
 
     def _update_style(self):
         """Aktualisiert den Style basierend auf Status."""
@@ -269,7 +270,7 @@ class FolderWidget(QFrame):
         # Im Dateimanager öffnen (nicht bei einem Ordner, den es noch nicht gibt)
         if not self._neu:
             from src.utils.platform_paths import file_manager_name
-            open_action = menu.addAction(f"Im {file_manager_name()} öffnen")
+            open_action = menu.addAction(tr("Im {0} öffnen").format(file_manager_name()))
             open_action.triggered.connect(lambda: self._open_in_explorer())
 
         # Issue #154: Pfad in die Zwischenablage
@@ -283,7 +284,7 @@ class FolderWidget(QFrame):
         # keine Eintraege der Zielliste.
         if not self._is_suggestion:
             menu.addSeparator()
-            remove_action = menu.addAction("Aus Zielliste entfernen")
+            remove_action = menu.addAction(tr("Aus Zielliste entfernen"))
             remove_action.triggered.connect(lambda: self.remove_requested.emit(self.folder_path))
 
         return menu

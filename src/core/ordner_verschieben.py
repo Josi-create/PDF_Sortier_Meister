@@ -27,6 +27,7 @@ from typing import Callable, Optional
 from src.core.file_manager import FileManager
 from src.core.neuer_ordner import leere_wegraeumen
 from src.search.meldungen import melden as index_melden
+from src.i18n import tr
 
 Fortschritt = Callable[[int, int, str], None]
 
@@ -70,15 +71,15 @@ def pruefe(quelle: Path | str, ziel_eltern: Path | str) -> Optional[str]:
     """
     quelle, ziel_eltern = Path(quelle), Path(ziel_eltern)
     if not quelle.is_dir():
-        return f"'{quelle.name}' ist kein Ordner."
+        return tr("'{name}' ist kein Ordner.").format(name=quelle.name)
     if ziel_eltern.exists() and not ziel_eltern.is_dir():
-        return f"'{ziel_eltern.name}' ist kein Ordner."
+        return tr("'{name}' ist kein Ordner.").format(name=ziel_eltern.name)
     q = _norm(quelle)
     z = _norm(ziel_eltern)
     if z == q or z.startswith(q + os.sep):
-        return "Ein Ordner kann nicht in sich selbst oder einen eigenen Unterordner verschoben werden."
+        return tr("Ein Ordner kann nicht in sich selbst oder einen eigenen Unterordner verschoben werden.")
     if _norm(quelle.parent) == z:
-        return f"'{quelle.name}' liegt schon in '{ziel_eltern.name}'."
+        return tr("'{name}' liegt schon in '{name2}'.").format(name=quelle.name, name2=ziel_eltern.name)
     return None
 
 
@@ -250,10 +251,10 @@ def rueckgaengig(
     for alt, neu in reversed(erg.dateien):
         alt, neu = Path(alt), Path(neu)
         if not os.path.lexists(neu):
-            probleme.append(f"'{neu.name}' wurde am Zielort nicht mehr gefunden.")
+            probleme.append(tr("'{name}' wurde am Zielort nicht mehr gefunden.").format(name=neu.name))
             continue
         if os.path.lexists(alt):
-            probleme.append(f"Am ursprünglichen Ort existiert schon '{alt.name}'.")
+            probleme.append(tr("Am ursprünglichen Ort existiert schon '{name}'.").format(name=alt.name))
             continue
         try:
             alt.parent.mkdir(parents=True, exist_ok=True)
@@ -266,10 +267,10 @@ def rueckgaengig(
             continue
         quelldatei, ablage = Path(quelldatei), Path(ablage)
         if not ablage.exists():
-            probleme.append(f"'{quelldatei.name}' ist nicht mehr im Papierkorb.")
+            probleme.append(tr("'{name}' ist nicht mehr im Papierkorb.").format(name=quelldatei.name))
             continue
         if os.path.lexists(quelldatei):
-            probleme.append(f"Am ursprünglichen Ort existiert schon '{quelldatei.name}'.")
+            probleme.append(tr("Am ursprünglichen Ort existiert schon '{name}'.").format(name=quelldatei.name))
             continue
         try:
             quelldatei.parent.mkdir(parents=True, exist_ok=True)

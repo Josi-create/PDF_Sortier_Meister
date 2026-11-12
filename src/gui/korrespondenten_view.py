@@ -50,6 +50,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core import korrespondenten as kr
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +197,7 @@ class _DokumentListe(QTreeWidget):
             if isinstance(d, dict):
                 pfade.append(dokument_pfad(d))
         mime.setUrls([QUrl.fromLocalFile(str(p)) for p in pfade])
-        mime.setText(str(pfade[0]) if len(pfade) == 1 else f"{len(pfade)} Dokumente")
+        mime.setText(str(pfade[0]) if len(pfade) == 1 else tr("{anzahl} Dokumente").format(anzahl=len(pfade)))
         return mime
 
     def startDrag(self, supportedActions):  # noqa: N802 - Qt-Signatur
@@ -256,12 +257,12 @@ class KorrespondentenView(QWidget):
                                    "border-radius: 6px; }")
         h = QVBoxLayout(self.hinweis)
         h.setContentsMargins(10, 8, 10, 8)
-        text = QLabel("Die Korrespondenten kommen aus dem Suchindex. Richten Sie dazu die Dokumentensuche "
-                      "ein – sie bleibt ganz auf diesem Rechner.")
+        text = QLabel(tr("Die Korrespondenten kommen aus dem Suchindex. Richten Sie dazu die Dokumentensuche "
+                      "ein – sie bleibt ganz auf diesem Rechner."))
         text.setWordWrap(True)
         h.addWidget(text)
-        self.einrichten_button = QPushButton("Suche einrichten…")
-        self.einrichten_button.setToolTip("Einstellungen > Suche öffnen")
+        self.einrichten_button = QPushButton(tr("Suche einrichten…"))
+        self.einrichten_button.setToolTip(tr("Einstellungen > Suche öffnen"))
         self.einrichten_button.clicked.connect(self.einrichten_requested)
         h.addWidget(self.einrichten_button, 0, Qt.AlignmentFlag.AlignLeft)
         aussen.addWidget(self.hinweis)
@@ -273,17 +274,17 @@ class KorrespondentenView(QWidget):
 
         kopf = QHBoxLayout()
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("Korrespondent suchen…")
+        self.filter_edit.setPlaceholderText(tr("Korrespondent suchen…"))
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(self._filter_anwenden)
         kopf.addWidget(self.filter_edit, 1)
         self.aufraeumen_button = QToolButton()
-        self.aufraeumen_button.setText("Aufräumen…")
+        self.aufraeumen_button.setText(tr("Aufräumen…"))
         self.aufraeumen_button.setAutoRaise(True)
         self.aufraeumen_button.setToolTip(
-            "Korrespondenten aufräumen: Dokumente in den Zielordnern ohne Korrespondent, mit Ihrem\n"
+            tr("Korrespondenten aufräumen: Dokumente in den Zielordnern ohne Korrespondent, mit Ihrem\n"
             "eigenen Namen oder einem Formularverlag (z. B. „Haus & Grund“) von der KI neu bewerten\n"
-            "lassen. Vorher erscheint die Anzahl; abbrechen geht jederzeit."
+            "lassen. Vorher erscheint die Anzahl; abbrechen geht jederzeit.")
         )
         self.aufraeumen_button.clicked.connect(self.aufraeumen)
         kopf.addWidget(self.aufraeumen_button)
@@ -297,7 +298,7 @@ class KorrespondentenView(QWidget):
         self.fortschritt_bar.setTextVisible(True)
         self.fortschritt_bar.setFormat("%v / %m")
         f.addWidget(self.fortschritt_bar, 1)
-        self.abbrechen_button = QPushButton("Abbrechen")
+        self.abbrechen_button = QPushButton(tr("Abbrechen"))
         self.abbrechen_button.clicked.connect(self.abbrechen)
         f.addWidget(self.abbrechen_button)
         self.fortschritt_box.hide()
@@ -317,20 +318,20 @@ class KorrespondentenView(QWidget):
         u = QVBoxLayout(unten)
         u.setContentsMargins(0, 0, 0, 0)
         u.setSpacing(2)
-        self.dokumente_label = QLabel("Korrespondent anklicken, um seine Dokumente zu sehen.")
+        self.dokumente_label = QLabel(tr("Korrespondent anklicken, um seine Dokumente zu sehen."))
         self.dokumente_label.setWordWrap(True)
         self.dokumente_label.setStyleSheet("font-weight: bold; padding: 2px;")
         u.addWidget(self.dokumente_label)
         self.dokumente = _DokumentListe()
-        self.dokumente.setHeaderLabels(["Datum", "Dateiname", "Ablageort", "Kategorie"])
+        self.dokumente.setHeaderLabels([tr("Datum"), tr("Dateiname"), tr("Ablageort"), tr("Kategorie")])
         self.dokumente.setRootIsDecorated(False)
         self.dokumente.setAlternatingRowColors(True)
         self.dokumente.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.dokumente.setDragEnabled(True)
         self.dokumente.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.dokumente.setToolTip(
-            "Klick: Dokument wie unter „PDFs“ bearbeiten · Strg/Umschalt: mehrere markieren · "
-            "auf einen Ordner ziehen (Strg: kopieren) · Doppelklick: öffnen · Rechtsklick: weitere Aktionen")
+            tr("Klick: Dokument wie unter „PDFs“ bearbeiten · Strg/Umschalt: mehrere markieren · "
+            "auf einen Ordner ziehen (Strg: kopieren) · Doppelklick: öffnen · Rechtsklick: weitere Aktionen"))
         self.dokumente.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.dokumente.customContextMenuRequested.connect(self._dokument_menue_zeigen)
         self.dokumente.itemSelectionChanged.connect(self._auswahl_geaendert)
@@ -401,22 +402,21 @@ class KorrespondentenView(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, i)
                 tipp = [g.name]
                 if len(g.schreibweisen) > 1 or g.schreibweisen[:1] != [g.name]:
-                    tipp.append("Schreibweisen: " + ", ".join(g.schreibweisen))
+                    tipp.append(tr("Schreibweisen: {0}").format(', '.join(g.schreibweisen)))
                 grund = kr.auffaelligkeit(g.name, owner)
                 if grund:
                     item.setForeground(QColor("#9e9e9e"))
-                    tipp.append(f"Auffällig ({kr.GRUND_TEXT[grund]}) – „Aufräumen…“ bewertet diese "
-                                "Dokumente neu.")
+                    tipp.append(tr("Auffällig ({0}) – „Aufräumen…“ bewertet diese Dokumente neu.").format(kr.GRUND_TEXT[grund]))
                 item.setToolTip("\n".join(tipp))
                 self.liste.addItem(item)
         finally:
             self.liste.blockSignals(False)
         self._filter_anwenden(self.filter_edit.text())
         if not self.gruppen:
-            self._meldung("Noch keine Korrespondenten im Suchindex. Sie entstehen beim Sortieren und mit "
-                          "„Metadaten speichern“.")
+            self._meldung(tr("Noch keine Korrespondenten im Suchindex. Sie entstehen beim Sortieren und mit "
+                          "„Metadaten speichern“."))
         elif not self._aufraeumen_thread:
-            self._meldung(f"{len(self.gruppen)} Korrespondenten")
+            self._meldung(tr("{anzahl} Korrespondenten").format(anzahl=len(self.gruppen)))
         if vorher:
             self.waehlen(vorher, neu_laden=False)
         else:
@@ -465,7 +465,7 @@ class KorrespondentenView(QWidget):
         self.liste.setCurrentItem(None)
         self._dokumente_zeigen(None)
         if neu_laden:
-            self._meldung(f"Keine Dokumente von „{name}“ im Suchindex.")
+            self._meldung(tr("Keine Dokumente von „{name}“ im Suchindex.").format(name=name))
         return False
 
     # ------------------------------------------------------------------ Dokumente
@@ -482,7 +482,7 @@ class KorrespondentenView(QWidget):
     def _dokumente_fuellen(self, gruppe: kr.Gruppe | None) -> None:
         self.dokumente.clear()
         if gruppe is None:
-            self.dokumente_label.setText("Korrespondent anklicken, um seine Dokumente zu sehen.")
+            self.dokumente_label.setText(tr("Korrespondent anklicken, um seine Dokumente zu sehen."))
             return
         try:
             doks = self.index.dokumente_mit_werten("korrespondent", gruppe.schreibweisen)
@@ -500,7 +500,7 @@ class KorrespondentenView(QWidget):
             self.dokumente.addTopLevelItem(item)
         for spalte in range(self.dokumente.columnCount()):
             self.dokumente.resizeColumnToContents(spalte)
-        self.dokumente_label.setText(f"Dokumente von „{gruppe.name}“ ({len(doks)})")
+        self.dokumente_label.setText(tr("Dokumente von „{name}“ ({anzahl})").format(name=gruppe.name, anzahl=len(doks)))
 
     def angezeigte_dokumente(self) -> list[dict]:
         return [self.dokumente.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole)
@@ -556,7 +556,7 @@ class KorrespondentenView(QWidget):
             return
         pfad = dokument_pfad(d)
         if not pfad.exists():
-            self._meldung(f"Die Datei gibt es nicht mehr: {pfad}")
+            self._meldung(tr("Die Datei gibt es nicht mehr: {pfad}").format(pfad=pfad))
             return
         self.dokument_oeffnen.emit(pfad)
 
@@ -570,7 +570,7 @@ class KorrespondentenView(QWidget):
         zeigen = menue.addAction(zeigen_text())
         zeigen.setEnabled(pfad.exists())
         zeigen.triggered.connect(lambda: im_dateimanager_zeigen(pfad))
-        links = menue.addAction("Ordner links öffnen")
+        links = menue.addAction(tr("Ordner links öffnen"))
         links.setEnabled(ordner.is_dir())
         links.triggered.connect(lambda: self.ordner_oeffnen.emit(ordner))
         return menue
@@ -648,19 +648,21 @@ class KorrespondentenView(QWidget):
             return
         wurzeln = [str(w) for w in self._wurzeln() or []]
         if not wurzeln:
-            self._meldung("Aufgeräumt wird in den Zielordnern – es ist noch keiner eingerichtet.")
+            self._meldung(tr("Aufgeräumt wird in den Zielordnern – es ist noch keiner eingerichtet."))
             return
         owner = self._owner()
         doks = kr.auffaellige_dokumente(self.index.metadaten_liste("pdf"), wurzeln, owner)
         if not doks:
-            self._meldung("Nichts aufzuräumen: Kein Dokument in den Zielordnern ist ohne Korrespondent, "
-                          "trägt Ihren Namen oder einen Formularverlag.")
+            self._meldung(tr("Nichts aufzuräumen: Kein Dokument in den Zielordnern ist ohne Korrespondent, "
+                          "trägt Ihren Namen oder einen Formularverlag."))
             return
         gruende = Counter(d["grund"] for d in doks)
         teile = ", ".join(f"{n} {kr.GRUND_TEXT[g]}" for g, n in gruende.most_common())
         if self._provider() is None:
-            self._meldung(f"{len(doks)} Dokumente wären neu zu bewerten ({teile}) – dafür braucht es "
-                          "einen KI-Anbieter (Einstellungen > KI-Assistent).")
+            self._meldung(tr(
+                "{anzahl} Dokumente wären neu zu bewerten ({teile}) – dafür braucht es einen "
+                "KI-Anbieter (Einstellungen > KI-Assistent)."
+            ).format(anzahl=len(doks), teile=teile))
             return
         from src.ml.llm_provider import is_cloud_provider
 
@@ -671,10 +673,13 @@ class KorrespondentenView(QWidget):
             except Exception:  # noqa: BLE001
                 name = anbieter
             antwort = QMessageBox.question(
-                self, "Korrespondenten aufräumen",
-                f"{len(doks)} Dokumente werden neu bewertet ({teile}).\n\n"
-                f"Dabei geht der Text jedes Dokuments an {name}. Das ist ein KI-Aufruf je Dokument "
-                "und kann je nach Tarif Kosten verursachen.\n\nJetzt starten?",
+                self, tr("Korrespondenten aufräumen"),
+                tr(
+                    "{anzahl} Dokumente werden neu bewertet ({teile}).\n\n"
+                    "Dabei geht der Text jedes Dokuments an {name}. Das ist ein KI-Aufruf je "
+                    "Dokument und kann je nach Tarif Kosten verursachen.\n\n"
+                    "Jetzt starten?"
+                ).format(anzahl=len(doks), teile=teile, name=name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -695,9 +700,9 @@ class KorrespondentenView(QWidget):
         self.fortschritt_bar.setRange(0, len(doks))
         self.fortschritt_bar.setValue(0)
         self.fortschritt_box.show()
-        self.fortschritt_label.setText(f"{len(doks)} Dokumente: {teile}")
+        self.fortschritt_label.setText(tr("{anzahl} Dokumente: {teile}").format(anzahl=len(doks), teile=teile))
         self.fortschritt_label.show()
-        self._meldung("Korrespondenten werden aufgeräumt …")
+        self._meldung(tr("Korrespondenten werden aufgeräumt …"))
         thread.start()
 
     def abbrechen(self) -> None:
@@ -705,13 +710,13 @@ class KorrespondentenView(QWidget):
         if self._aufraeumen_thread is not None:
             self._aufraeumen_thread.requestInterruption()
             self.abbrechen_button.setEnabled(False)
-            self._meldung("Wird nach dem laufenden Dokument abgebrochen …")
+            self._meldung(tr("Wird nach dem laufenden Dokument abgebrochen …"))
 
     def _aufraeumen_fortschritt(self, erledigt: int, gesamt: int, name: str) -> None:
         self.fortschritt_bar.setRange(0, gesamt)
         self.fortschritt_bar.setValue(erledigt)
         if name:
-            self.fortschritt_label.setText(f"Bewerte {name} …")
+            self.fortschritt_label.setText(tr("Bewerte {name} …").format(name=name))
 
     def _aufraeumen_geaendert(self, d: dict, neu: str, geschrieben: bool) -> None:
         """Wie "Metadaten speichern": Datei neu lesen lassen, Korrespondent mit Vorrang in den Suchindex."""
@@ -730,10 +735,12 @@ class KorrespondentenView(QWidget):
         self.aufraeumen_button.setEnabled(True)
         self.fortschritt_box.hide()
         self.fortschritt_label.hide()
-        text = (f"Aufräumen {'abgebrochen' if stand.get('abgebrochen') else 'fertig'}: "
-                f"{stand.get('geaendert', 0)} geändert, {stand.get('unveraendert', 0)} unverändert")
+        text = (tr("Aufräumen abgebrochen: {geaendert} geändert, {unveraendert} unverändert")
+                if stand.get("abgebrochen")
+                else tr("Aufräumen fertig: {geaendert} geändert, {unveraendert} unverändert")).format(
+            geaendert=stand.get("geaendert", 0), unveraendert=stand.get("unveraendert", 0))
         if stand.get("fehler"):
-            text += f", {stand['fehler']} ohne KI-Antwort"
+            text += tr(", {fehler} ohne KI-Antwort").format(fehler=stand['fehler'])
         self.refresh(abgleich=False)
         self._meldung(text + ".")
         self.aufraeumen_fertig.emit(stand)

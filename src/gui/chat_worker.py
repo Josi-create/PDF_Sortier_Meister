@@ -16,6 +16,7 @@ import threading
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.core.llm_activity import KIND_CHAT, get_llm_activity
+from src.i18n import tr
 
 
 class ChatWorker(QObject):
@@ -78,7 +79,7 @@ class ChatWorker(QObject):
             return
         self.started.emit()
         try:
-            self.progress.emit("KI denkt…")
+            self.progress.emit(tr("KI denkt…"))
             # Aktivitaetsanzeige (Issue #68)
             activity = get_llm_activity()
             token = activity.begin(KIND_CHAT, self.question[:40])

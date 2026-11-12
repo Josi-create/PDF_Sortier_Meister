@@ -23,6 +23,7 @@ from pathlib import Path
 
 from src.search import db, plattform
 from src.search.konfig import SearchConfig, norm_pfad
+from src.i18n import tr
 
 # Statuswerte, bei denen der Text im Index fuer den PDF-Analyzer reicht
 TEXT_AUS_INDEX = ("text", "ocr", "leer", "ocr_teilweise")
@@ -274,7 +275,7 @@ class Suchindex:
             # Treffer aus ``suche()`` tragen nur die Kurzfassung; Lage in der mbox nachladen
             voll = self.dokument(int(dok["id"]))
             if not voll:
-                raise OSError(f"Mail {dok['id']} ist nicht mehr im Index")
+                raise OSError(tr("Mail {id} ist nicht mehr im Index").format(id=dok['id']))
             dok = voll
         from src.search import mbox
 
@@ -445,7 +446,7 @@ class Suchindex:
                "typ": typ, "format": fmt, "groesse": None, "mtime_ns": None,
                "datum": os.path.getmtime(pfad) if vorhanden else None, "seiten": None,
                "textstatus": "ausstehend" if vorhanden else "fehler",
-               "fehler": None if vorhanden else "Datei nicht gefunden", "prioritaet": 9}
+               "fehler": None if vorhanden else tr("Datei nicht gefunden"), "prioritaet": 9}
         seiten = [(1, "pdfsm", text)] if text else []
         return db.speichere(con, dok, seiten)
 
@@ -484,7 +485,7 @@ class Suchindex:
         from src.search import textebene
 
         if not self.vorhanden():
-            return False, "Kein Suchindex vorhanden."
+            return False, tr("Kein Suchindex vorhanden.")
         con = self._schreiben()
         try:
             return textebene.rueckgaengig(con, self.konfig, int(eintrag_id), erzwingen=erzwingen)

@@ -8,6 +8,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Englische Oberfläche**: Das Programm gibt es jetzt auch auf Englisch. Ist Windows oder macOS
+  deutsch eingestellt, bleibt alles deutsch; bei jeder anderen Systemsprache erscheint das
+  Programm englisch. Umstellen lässt sich das unter Einstellungen → Allgemein, ganz oben in der
+  Gruppe „Sprache / Language“; die Änderung gilt nach dem Neustart. Wer das Programm schon benutzt, behält Deutsch. Englisch sind
+  Hauptfenster, Menüs, Einstellungen, Einrichtungsassistent, Suche, Chat, Korrespondenten, die
+  Dialoge und Meldungen sowie die Browser-Oberfläche und die Kommandozeile der Dokumentensuche.
+  Noch deutsch bleiben vorerst: Dateinamen, Kategorien und Zusammenfassungen der KI, die
+  Platzhalter und Vorlagen für Dateinamen und die Schnellfragen im Chat. Die Schlüsselwörter der
+  Suche (ODER, NICHT, ab, bis) sind in beiden Sprachen gleich. Dazu gibt es eine englische
+  Programmbeschreibung (README.en.md).
 - **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
   Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
   Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr
@@ -19,6 +29,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   und Lernen; danach ist der Knopf als erledigt gesperrt. Neue Schnellfragen: „Schlag mir einen
   Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
   Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
+
+### Geändert
+- **Beispieltexte unter „Persönliche Daten“**: Die grauen Beispiele in den Eingabefeldern zeigen
+  jetzt erfundene Angaben (Max Mustermann, Initialen MM).
+
+### Behoben
+- **Einstellungen, Reiter „Allgemein“ wieder lesbar**: Auf Bildschirmen, die niedriger sind als
+  der Reiter, lagen Häkchen, Auswahllisten und Texte zusammengequetscht übereinander. Der Reiter
+  scrollt jetzt (wie „KI-Assistent“ und „Suche“), und der Dialog öffnet höchstens so hoch wie
+  90 % des Bildschirms. (#235)
 
 ## [0.26.2] - 2026-11-10
 
@@ -1122,7 +1142,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Behoben
 - **Dateinamen ohne verbotene/unguenstige Zeichen**: KI-Vorschlaege wie
-  `..._kathrin.haerle@web.de.pdf` enthielten Punkte und Klammeraffen.
+  `..._karin.huber@example.com.pdf` enthielten Punkte und Klammeraffen.
   Neue zentrale Bereinigung (`src/utils/filename_sanitizer.py`) ersetzt
   Windows-verbotene Zeichen (`<>:"/\|?*`), Steuerzeichen,
   `.` und `@` durch `_`, wandelt Umlaute/Akzente um, fasst Unterstriche
@@ -1133,11 +1153,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Umbenennung zu blockieren. Der KI-Prompt verbietet Punkte/E-Mail-Adressen
   im Namen explizit und verlangt fuer Kontakt/Absender den Namen einer
   Person oder Organisation. Rutscht doch eine Adresse durch, wird sie in
-  einen Namen umgewandelt (`kathrin.haerle@web.de` -> `Kathrin_Haerle`,
+  einen Namen umgewandelt (`karin.huber@example.com` -> `Karin_Huber`,
   `info@huk-coburg.de` -> `Huk-Coburg`); die Vorschau weist darauf hin.
   Enthaelt das Dateinamen-Muster `INITIALEN`/`INITIALIEN`, erklaert der
   Prompt jetzt, dass 2-3 Grossbuchstaben gemeint sind (vorher kam
-  `J_Haerle-Wack` statt `JHW`), und gibt die Initialen aus den
+  `J_Huber-Weber` statt `JHW`), und gibt die Initialen aus den
   Einstellungen bzw. aus dem Besitzernamen abgeleitet vor.
 - **KI-Vorschlaege fehlten still** bei Reasoning-Modellen (z.B. GLM-5.3-flash
   via OpenRouter): das Modell verbrauchte das Token-Budget fuers Nachdenken,

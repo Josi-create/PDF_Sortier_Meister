@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from src.utils.platform_paths import get_app_data_dir
+from src.i18n import tr
 
 # Stufen fuer „OCR-Text als Textebene in die PDF schreiben“ (Phase 5b):
 # aus | nur neue Scans im ersten Vorrang-Ordner | alle (Altbestand, nur auf Wunsch)
@@ -249,11 +250,11 @@ class SearchConfig:
         sprachen = self.ocr_sprachen or "deu+eng"
         fehlend = fehlende_sprachen(tessdata, sprachen) if tesseract else []
         if not self.ocr_aktiv:
-            grund = "in den Einstellungen ausgeschaltet"
+            grund = tr("in den Einstellungen ausgeschaltet")
         elif not tesseract:
-            grund = "Tesseract nicht gefunden"
+            grund = tr("Tesseract nicht gefunden")
         elif fehlend:
-            grund = "Sprachdaten fehlen: " + ", ".join(fehlend)
+            grund = tr("Sprachdaten fehlen: {0}").format(', '.join(fehlend))
         else:
             grund = None
         return {

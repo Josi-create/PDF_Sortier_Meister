@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core import support
+from src.i18n import tr
 
 
 def tier_text(tier: support.Tier) -> str:
@@ -35,20 +36,20 @@ class SupportDialog(QDialog):
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
-        self.setWindowTitle("PDF Sortier Meister unterstützen")
+        self.setWindowTitle(tr("PDF Sortier Meister unterstützen"))
         self.setMinimumWidth(460)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        title = QLabel("<h3>Gefällt Ihnen PDF Sortier Meister?</h3>")
+        title = QLabel(tr("<h3>Gefällt Ihnen PDF Sortier Meister?</h3>"))
         layout.addWidget(title)
 
         intro = QLabel(
-            "Das Programm ist freie Software und bleibt es. Wenn es Ihnen Zeit spart, "
+            tr("Das Programm ist freie Software und bleibt es. Wenn es Ihnen Zeit spart, "
             "freue ich mich über einen kleinen Beitrag zur Weiterentwicklung.<br><br>"
             "<b>Ein freiwilliger Beitrag, keine Gegenleistung, keine Freischaltung "
-            "von Funktionen.</b> Das Programm funktioniert mit und ohne Beitrag gleich."
+            "von Funktionen.</b> Das Programm funktioniert mit und ohne Beitrag gleich.")
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -63,11 +64,11 @@ class SupportDialog(QDialog):
 
         if support.DONATE_URL:
             hint_text = (
-                "Die Knöpfe öffnen die Seite bei Buy Me a Coffee. Bitte geben Sie dort "
-                "den gewünschten Betrag ein bzw. wählen Sie die passende Anzahl Kaffees."
+                tr("Die Knöpfe öffnen die Seite bei Buy Me a Coffee. Bitte geben Sie dort "
+                "den gewünschten Betrag ein bzw. wählen Sie die passende Anzahl Kaffees.")
             )
         else:
-            hint_text = "Der Zahlungslink ist noch nicht eingerichtet."
+            hint_text = tr("Der Zahlungslink ist noch nicht eingerichtet.")
         self.amount_hint = QLabel(hint_text)
         self.amount_hint.setWordWrap(True)
         self.amount_hint.setStyleSheet("color: gray;")
@@ -77,31 +78,31 @@ class SupportDialog(QDialog):
         separator.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(separator)
 
-        self.supported_label = QLabel("<b>Ich habe gerade unterstützt:</b>")
+        self.supported_label = QLabel(tr("<b>Ich habe gerade unterstützt:</b>"))
         layout.addWidget(self.supported_label)
         row = QHBoxLayout()
         self.tier_combo = QComboBox()
         for tier in support.TIERS:
             self.tier_combo.addItem(tier_text(tier), tier.key)
         row.addWidget(self.tier_combo, 1)
-        self.confirm_button = QPushButton("Danke, merken")
+        self.confirm_button = QPushButton(tr("Danke, merken"))
         self.confirm_button.setToolTip(
-            "Speichert nur auf diesem Rechner, dass Sie unterstützt haben - "
-            "es wird nichts geprüft und nichts übertragen."
+            tr("Speichert nur auf diesem Rechner, dass Sie unterstützt haben - "
+            "es wird nichts geprüft und nichts übertragen.")
         )
         self.confirm_button.clicked.connect(self._confirm_supported)
         row.addWidget(self.confirm_button)
         layout.addLayout(row)
 
         if support.IMPRESSUM_URL:
-            impressum = QLabel(f'<a href="{support.IMPRESSUM_URL}">Impressum</a>')
+            impressum = QLabel(tr("<a href=\"{IMPRESSUM_URL}\">Impressum</a>").format(IMPRESSUM_URL=support.IMPRESSUM_URL))
             impressum.setOpenExternalLinks(True)
             impressum.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
             layout.addWidget(impressum)
 
         bottom = QHBoxLayout()
         bottom.addStretch()
-        self.later_button = QPushButton("Später erinnern")
+        self.later_button = QPushButton(tr("Später erinnern"))
         self.later_button.clicked.connect(self.reject)
         bottom.addWidget(self.later_button)
         layout.addLayout(bottom)

@@ -12,7 +12,7 @@ import pytest
 from src.core import korrespondenten as kr
 from src.ml.llm_provider import LLMConfig, LLMProvider
 
-OWNER = ["Dr. med. Johannes Härle-Wack", "J. Härle", "Praxis Härle-Wack"]
+OWNER = ["Dr. med. Jonas Huber-Weber", "J. Huber", "Praxis Huber-Weber"]
 
 
 # --------------------------------------------------------------------------- Prompt
@@ -49,7 +49,7 @@ def _prompts(provider):
 def test_prompts_definieren_korrespondent_als_gegenpartei_mit_owner(provider, monkeypatch):
     import src.utils.config as cfg
     monkeypatch.setattr(cfg, "get_config", lambda: _Cfg(
-        owner_name="Dr. Johannes Härle-Wack", owner_name_variants="J. Härle, Johannes Wack"))
+        owner_name="Dr. Jonas Huber-Weber", owner_name_variants="J. Huber, Jonas Weber"))
     for prompt in _prompts(provider):
         assert "Firmenname des Absenders" not in prompt
         assert "GEGENPARTEI des Dokuments aus Sicht des Nutzers" in prompt
@@ -59,7 +59,7 @@ def test_prompts_definieren_korrespondent_als_gegenpartei_mit_owner(provider, mo
         assert "Arztbrief an den Nutzer als Patienten -> der Arzt bzw. die Praxis" in prompt
         assert "Niemals ein Formularverlag, eine Druckerei" in prompt
         assert "genau einer je Dokument" in prompt
-        assert ('Der Nutzer heißt "Dr. Johannes Härle-Wack" (auch "J. Härle", "Johannes Wack") '
+        assert ('Der Nutzer heißt "Dr. Jonas Huber-Weber" (auch "J. Huber", "Jonas Weber") '
                 '- er ist nie der Korrespondent.') in prompt
         assert '"korrespondent": "Gegenpartei aus Sicht des Nutzers' in prompt
         assert "JSON" in prompt
@@ -84,7 +84,7 @@ def test_prompt_ohne_owner_name_sinngemaess(provider, monkeypatch):
     ("Haus & Grund e. V.", "haus-und-grund"),
     ("Müller GmbH & Co. KG", "Mueller"),
     ("Telekom Deutschland GmbH", "Telekom Deutschland"),
-    ("Kathrin_Haerle", "Kathrin Härle"),
+    ("Karin_Huber", "Karin Huber"),
 ])
 def test_schluessel_gleichwertige_schreibweisen(a, b):
     assert kr.schluessel(a) == kr.schluessel(b)
@@ -128,15 +128,15 @@ def test_filter_passt_umlaute_egal():
     ("", kr.GRUND_LEER),
     (None, kr.GRUND_LEER),
     ("  ", kr.GRUND_LEER),
-    ("Johannes Härle-Wack", kr.GRUND_NUTZER),
-    ("Dr. Härle-Wack", kr.GRUND_NUTZER),
-    ("Praxis Härle-Wack", kr.GRUND_NUTZER),
+    ("Jonas Huber-Weber", kr.GRUND_NUTZER),
+    ("Dr. Huber-Weber", kr.GRUND_NUTZER),
+    ("Praxis Huber-Weber", kr.GRUND_NUTZER),
     ("Haus & Grund", kr.GRUND_VERLAG),
     ("Haus und Grund Göttingen e.V.", kr.GRUND_VERLAG),
     ("Avery Zweckform GmbH", kr.GRUND_VERLAG),
     ("RNK-Verlag", kr.GRUND_VERLAG),
     ("Stadtwerke Göttingen", None),
-    ("Kathrin Härle-Wack", None),   # Familienmitglied, nicht der Nutzer
+    ("Karin Huber-Weber", None),   # Familienmitglied, nicht der Nutzer
     ("Max Mieter", None),
 ])
 def test_auffaelligkeit(name, grund):
@@ -148,7 +148,7 @@ def test_auffaellige_dokumente_nur_unter_zielordnern(tmp_path):
     doks = [
         {"id": 1, "datei": str(ablage / "Miete" / "a.pdf"), "korrespondent": "Haus & Grund"},
         {"id": 2, "datei": str(ablage / "b.pdf"), "korrespondent": ""},
-        {"id": 3, "datei": str(ablage / "c.pdf"), "korrespondent": "J. Härle"},
+        {"id": 3, "datei": str(ablage / "c.pdf"), "korrespondent": "J. Huber"},
         {"id": 4, "datei": str(ablage / "d.pdf"), "korrespondent": "Stadtwerke"},
         {"id": 5, "datei": str(fremd / "e.pdf"), "korrespondent": ""},
         {"id": 6, "datei": str(tmp_path / "Ablage2" / "f.pdf"), "korrespondent": ""},  # nur Namensanfang gleich
@@ -159,7 +159,7 @@ def test_auffaellige_dokumente_nur_unter_zielordnern(tmp_path):
 
 
 def test_erkennbare_eintraege_ohne_nutzer_und_verlag():
-    eintraege = [{"name": "Haus & Grund"}, {"name": "Johannes Härle-Wack"}, {"name": "Stadtwerke"}]
+    eintraege = [{"name": "Haus & Grund"}, {"name": "Jonas Huber-Weber"}, {"name": "Stadtwerke"}]
     assert [e["name"] for e in kr.erkennbare_eintraege(eintraege, OWNER)] == ["Stadtwerke"]
 
 

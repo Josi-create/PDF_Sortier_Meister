@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional, Sequence
 
 from src.core.rename_examples import _TOKEN_RE, name_tokens
+from src.i18n import tr
 
 if TYPE_CHECKING:  # nur fuer Annotationen: src.rag importiert dieses Modul
     from src.rag.daten import ChatDaten
@@ -316,12 +317,12 @@ def folder_suggestion_from_metadata(
         folder_path=path,
         folder_name=path.name,
         confidence=0.85,
-        reason="KI: ähnliche Dokumente liegen dort",
+        reason=tr("KI: ähnliche Dokumente liegen dort"),
         relative_path=relative_folder(path, root_folders) or rel,
     )
 
 
-def merge_folder_suggestion(suggestions: list, ki_suggestion, bestaetigung: str = "KI bestätigt") -> list:
+def merge_folder_suggestion(suggestions: list, ki_suggestion, bestaetigung: str = tr("KI bestätigt")) -> list:
     """Setzt den Vorschlag an die Spitze; kennt die Liste den Ordner schon, wird er bestaetigt.
 
     ``bestaetigung`` ist der Zusatz zur Begruendung ("KI bestätigt", oder

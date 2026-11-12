@@ -28,6 +28,7 @@ from PyQt6.QtCore import Qt, QUrl, QThread, QStandardPaths, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont
 
 from src.utils.config import get_config
+from src.i18n import tr
 
 
 # Seiten-IDs
@@ -46,14 +47,14 @@ PAGE_DONE = 6
 # bietet es nie zum Download an.
 _PROVIDER_IDS = ["ollama", "lmstudio", "ollama_cloud", "openrouter", "poe", "claude", "openai", "none"]
 _PROVIDER_LABELS = [
-    "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)",
-    "LM Studio (laeuft bereits auf diesem Rechner — kein API-Key noetig)",
-    "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)",
-    "OpenRouter (viele KI-Modelle, ein API-Key)",
-    "Poe.com (viele KI-Modelle, ein API-Key)",
-    "Anthropic Claude",
-    "OpenAI GPT",
-    "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)",
+    tr("Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"),
+    tr("LM Studio (laeuft bereits auf diesem Rechner — kein API-Key noetig)"),
+    tr("Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"),
+    tr("OpenRouter (viele KI-Modelle, ein API-Key)"),
+    tr("Poe.com (viele KI-Modelle, ein API-Key)"),
+    tr("Anthropic Claude"),
+    tr("OpenAI GPT"),
+    tr("Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"),
 ]
 _PROVIDER_URLS = {
     "claude": "https://console.anthropic.com/settings/keys",
@@ -64,12 +65,12 @@ _PROVIDER_URLS = {
     "poe": "https://poe.com/api_key",
 }
 _PROVIDER_KEY_HINTS = {
-    "claude": 'Beginnt mit "sk-ant-..."',
-    "openai": 'Beginnt mit "sk-..."',
-    "ollama": "Leer lassen fuer Standard (http://localhost:11434)",
-    "ollama_cloud": "Zu finden auf ollama.com/settings/keys",
-    "openrouter": 'Beginnt mit "sk-or-..."',
-    "poe": "Zu finden auf poe.com/api_key",
+    "claude": tr('Beginnt mit "sk-ant-..."'),
+    "openai": tr('Beginnt mit "sk-..."'),
+    "ollama": tr("Leer lassen fuer Standard (http://localhost:11434)"),
+    "ollama_cloud": tr("Zu finden auf ollama.com/settings/keys"),
+    "openrouter": tr('Beginnt mit "sk-or-..."'),
+    "poe": tr("Zu finden auf poe.com/api_key"),
 }
 
 OLLAMA_LOCAL_URL = "http://localhost:11434"
@@ -182,17 +183,17 @@ class WelcomePage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Willkommen bei PDF Sortier Meister!")
+        self.setTitle(tr("Willkommen bei PDF Sortier Meister!"))
         self.setSubTitle(
-            "Dieses kurze Setup dauert etwa 2 Minuten.\n"
-            "Sie koennen jeden Schritt ueberspringen und spaeter aendern."
+            tr("Dieses kurze Setup dauert etwa 2 Minuten.\n"
+            "Sie koennen jeden Schritt ueberspringen und spaeter aendern.")
         )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         text = QLabel(
-            "<b>Was macht PDF Sortier Meister?</b><br><br>"
+            tr("<b>Was macht PDF Sortier Meister?</b><br><br>"
             "Das Programm schaut Ihre gescannten PDFs an und schlaegt Ihnen vor,\n"
             "in welchen Ordner jedes Dokument gehoert — zum Beispiel:\n"
             "<ul>"
@@ -210,7 +211,7 @@ class WelcomePage(QWizardPage):
             "(z. B. weil er ein Abo hat oder dem Anbieter vertraut), kann\n"
             "stattdessen einen API-Key hinterlegen. Im naechsten Schritt waehlen\n"
             "Sie aus — ganz ohne KI geht es zur Not auch, dann sortiert nur\n"
-            "eine einfache Stichwort-Zuordnung."
+            "eine einfache Stichwort-Zuordnung.")
         )
         text.setWordWrap(True)
         layout.addWidget(text)
@@ -222,37 +223,37 @@ class ScanFolderPage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 1: Scan-Ordner auswaehlen")
+        self.setTitle(tr("Schritt 1: Scan-Ordner auswaehlen"))
         self.setSubTitle(
-            "Hier landen Ihre unsortierten (gescannten) PDFs — hierhin\n"
+            tr("Hier landen Ihre unsortierten (gescannten) PDFs — hierhin\n"
             "speichert auch Ihr Scanner. Diesen Ordner wird das Programm\n"
-            "beim Start anzeigen."
+            "beim Start anzeigen.")
         )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
         info = QLabel(
-            "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
-            "oder einen anderen Ordner waehlen (z. B. ein Netzlaufwerk)."
+            tr("Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
+            "oder einen anderen Ordner waehlen (z. B. ein Netzlaufwerk).")
         )
         info.setWordWrap(True)
         layout.addWidget(info)
 
         path_layout = QHBoxLayout()
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Noch kein Ordner ausgewaehlt ...")
+        self.path_edit.setPlaceholderText(tr("Noch kein Ordner ausgewaehlt ..."))
         self.path_edit.setReadOnly(True)
         path_layout.addWidget(self.path_edit, 1)
 
-        browse_btn = QPushButton("Ordner auswaehlen ...")
+        browse_btn = QPushButton(tr("Ordner auswaehlen ..."))
         browse_btn.clicked.connect(self._browse)
         path_layout.addWidget(browse_btn)
         layout.addLayout(path_layout)
 
         skip_info = QLabel(
-            "<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
-            "unter Extras → Einstellungen festlegen.</i>"
+            tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
+            "unter Extras → Einstellungen festlegen.</i>")
         )
         skip_info.setStyleSheet("color: gray;")
         layout.addWidget(skip_info)
@@ -281,7 +282,7 @@ class ScanFolderPage(QWizardPage):
 
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "Scan-Ordner auswaehlen", str(self.path_edit.text() or "")
+            self, tr("Scan-Ordner auswaehlen"), str(self.path_edit.text() or "")
         )
         if folder:
             self.path_edit.setText(folder)
@@ -301,36 +302,36 @@ class TargetFolderPage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 2: Zielordner auswaehlen")
+        self.setTitle(tr("Schritt 2: Zielordner auswaehlen"))
         self.setSubTitle(
-            "Hierhin werden die sortierten PDFs verschoben — in Unterordner,\n"
-            "die Sie selbst anlegen oder die Ihnen vorgeschlagen werden."
+            tr("Hierhin werden die sortierten PDFs verschoben — in Unterordner,\n"
+            "die Sie selbst anlegen oder die Ihnen vorgeschlagen werden.")
         )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
         info = QLabel(
-            "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
-            "oder einen anderen Ordner waehlen."
+            tr("Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\n"
+            "oder einen anderen Ordner waehlen.")
         )
         info.setWordWrap(True)
         layout.addWidget(info)
 
         path_layout = QHBoxLayout()
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Noch kein Ordner ausgewaehlt ...")
+        self.path_edit.setPlaceholderText(tr("Noch kein Ordner ausgewaehlt ..."))
         self.path_edit.setReadOnly(True)
         path_layout.addWidget(self.path_edit, 1)
 
-        browse_btn = QPushButton("Ordner auswaehlen ...")
+        browse_btn = QPushButton(tr("Ordner auswaehlen ..."))
         browse_btn.clicked.connect(self._browse)
         path_layout.addWidget(browse_btn)
         layout.addLayout(path_layout)
 
         skip_info = QLabel(
-            "<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
-            "unter Extras → Einstellungen festlegen.</i>"
+            tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
+            "unter Extras → Einstellungen festlegen.</i>")
         )
         skip_info.setStyleSheet("color: gray;")
         layout.addWidget(skip_info)
@@ -355,7 +356,7 @@ class TargetFolderPage(QWizardPage):
 
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "Zielordner auswaehlen", str(self.path_edit.text() or "")
+            self, tr("Zielordner auswaehlen"), str(self.path_edit.text() or "")
         )
         if folder:
             self.path_edit.setText(folder)
@@ -375,10 +376,10 @@ class ProviderPage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 3: KI-Assistent auswaehlen")
+        self.setTitle(tr("Schritt 3: KI-Assistent auswaehlen"))
         self.setSubTitle(
-            "Ein KI-Assistent liefert deutlich bessere Vorschlaege — wir empfehlen\n"
-            "Ollama (laeuft lokal, kostenlos). Ganz ohne KI geht es zur Not auch."
+            tr("Ein KI-Assistent liefert deutlich bessere Vorschlaege — wir empfehlen\n"
+            "Ollama (laeuft lokal, kostenlos). Ganz ohne KI geht es zur Not auch.")
         )
 
         layout = QVBoxLayout(self)
@@ -398,7 +399,7 @@ class ProviderPage(QWizardPage):
                 # bestehende Nutzer-Entscheidung geladen wird (siehe unten).
                 rb.setChecked(True)
                 # Statuszeile direkt unter dem Ollama-Eintrag
-                self.ollama_status_label = QLabel("    Pruefe Ollama-Installation ...")
+                self.ollama_status_label = QLabel(tr("    Pruefe Ollama-Installation ..."))
                 self.ollama_status_label.setStyleSheet("color: gray;")
                 layout.addWidget(self.ollama_status_label)
             elif _PROVIDER_IDS[i] == "lmstudio":
@@ -408,7 +409,7 @@ class ProviderPage(QWizardPage):
                 self.lmstudio_status_label.setVisible(False)
                 layout.addWidget(self.lmstudio_status_label)
 
-        self.hardware_label = QLabel("Hardware wird geprueft ...")
+        self.hardware_label = QLabel(tr("Hardware wird geprueft ..."))
         self.hardware_label.setWordWrap(True)
         self.hardware_label.setStyleSheet("color: gray;")
         layout.addWidget(self.hardware_label)
@@ -451,11 +452,11 @@ class ProviderPage(QWizardPage):
 
         # Ollama-Status
         if result.get("running"):
-            status, color = "✓ Ollama ist installiert und laeuft", "green"
+            status, color = tr("✓ Ollama ist installiert und laeuft"), "green"
         elif result.get("installed"):
-            status, color = "✓ Ollama ist installiert", "green"
+            status, color = tr("✓ Ollama ist installiert"), "green"
         else:
-            status, color = "Ollama ist nicht installiert (Download im naechsten Schritt)", "#b35c00"
+            status, color = tr("Ollama ist nicht installiert (Download im naechsten Schritt)"), "#b35c00"
         self.ollama_status_label.setText("    " + status)
         self.ollama_status_label.setStyleSheet(f"color: {color};")
 
@@ -464,9 +465,9 @@ class ProviderPage(QWizardPage):
         if lms_models is not None:
             self._radios[_PROVIDER_IDS.index("lmstudio")].setVisible(True)
             if lms_models:
-                status, color = f"✓ LM Studio laeuft ({len(lms_models)} Modell(e))", "green"
+                status, color = tr("✓ LM Studio laeuft ({anzahl} Modell(e))").format(anzahl=len(lms_models)), "green"
             else:
-                status, color = "LM Studio laeuft, aber es ist kein Modell vorhanden", "#b35c00"
+                status, color = tr("LM Studio laeuft, aber es ist kein Modell vorhanden"), "#b35c00"
             self.lmstudio_status_label.setText("    " + status)
             self.lmstudio_status_label.setStyleSheet(f"color: {color};")
             self.lmstudio_status_label.setVisible(True)
@@ -474,27 +475,31 @@ class ProviderPage(QWizardPage):
         # Hardware-Empfehlung
         recommended_id = None
         if rec is None:
-            self.hardware_label.setText("Hardware konnte nicht geprueft werden.")
+            self.hardware_label.setText(tr("Hardware konnte nicht geprueft werden."))
         elif rec.local_ok:
             recommended_id = "ollama"
             self.hardware_label.setText(
-                f"<b>Empfehlung: Ollama lokal.</b> {rec.reason} "
-                f"Ihre Dokumente bleiben dabei auf diesem PC."
+                tr(
+                    "<b>Empfehlung: Ollama lokal.</b> {reason} Ihre Dokumente bleiben dabei "
+                    "auf diesem PC."
+                ).format(reason=rec.reason)
             )
             self.hardware_label.setStyleSheet("color: #1a6b1a;")
         else:
             recommended_id = "ollama_cloud"
             self.hardware_label.setText(
-                f"<b>Ollama lokal nicht empfohlen.</b> {rec.reason} "
-                f"Empfehlung: <b>Ollama Cloud</b> — dieselben Modelle, nur ein API-Key noetig "
-                f"(Dokumentinhalte werden dabei an ollama.com uebertragen)."
+                tr(
+                    "<b>Ollama lokal nicht empfohlen.</b> {reason} Empfehlung: <b>Ollama "
+                    "Cloud</b> — dieselben Modelle, nur ein API-Key noetig (Dokumentinhalte "
+                    "werden dabei an ollama.com uebertragen)."
+                ).format(reason=rec.reason)
             )
             self.hardware_label.setStyleSheet("color: #7a4a00;")
 
         self._recommended_id = recommended_id
         if recommended_id:
             idx = _PROVIDER_IDS.index(recommended_id)
-            self._radios[idx].setText(_PROVIDER_LABELS[idx] + "  (empfohlen)")
+            self._radios[idx].setText(tr("{0}  (empfohlen)").format(_PROVIDER_LABELS[idx]))
             # Nur vorauswaehlen, wenn noch keine bewusste Entscheidung
             # vorliegt - eine bestehende Wahl des Nutzers (auch "ohne KI")
             # wird nicht ueberschrieben.
@@ -526,7 +531,7 @@ class ApiKeyPage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 4: API-Key eingeben")
+        self.setTitle(tr("Schritt 4: API-Key eingeben"))
         self._provider_id = "none"
 
         layout = QVBoxLayout(self)
@@ -548,7 +553,7 @@ class ApiKeyPage(QWizardPage):
         self.key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         key_layout.addWidget(self.key_edit, 1)
 
-        self._show_btn = QPushButton("Anzeigen")
+        self._show_btn = QPushButton(tr("Anzeigen"))
         self._show_btn.setCheckable(True)
         self._show_btn.toggled.connect(self._toggle_visibility)
         key_layout.addWidget(self._show_btn)
@@ -571,11 +576,11 @@ class ApiKeyPage(QWizardPage):
         ollama_layout.addWidget(self.ollama_warning_label)
 
         models_row = QHBoxLayout()
-        models_row.addWidget(QLabel("Modell:"))
+        models_row.addWidget(QLabel(tr("Modell:")))
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
         models_row.addWidget(self.model_combo, 1)
-        self.refresh_btn = QPushButton("Erneut pruefen")
+        self.refresh_btn = QPushButton(tr("Erneut pruefen"))
         self.refresh_btn.clicked.connect(self._start_probe)
         models_row.addWidget(self.refresh_btn)
         ollama_layout.addLayout(models_row)
@@ -589,7 +594,7 @@ class ApiKeyPage(QWizardPage):
         self.pull_btn = QPushButton()
         self.pull_btn.clicked.connect(self._start_pull)
         pull_row.addWidget(self.pull_btn, 1)
-        self.cancel_pull_btn = QPushButton("Abbrechen")
+        self.cancel_pull_btn = QPushButton(tr("Abbrechen"))
         self.cancel_pull_btn.clicked.connect(self._cancel_pull)
         self.cancel_pull_btn.setVisible(False)
         pull_row.addWidget(self.cancel_pull_btn)
@@ -604,9 +609,9 @@ class ApiKeyPage(QWizardPage):
         self._ollama_box.setVisible(False)
 
         skip_info = QLabel(
-            "<i>Ohne API-Key koennen Sie die App trotzdem nutzen.\n"
+            tr("<i>Ohne API-Key koennen Sie die App trotzdem nutzen.\n"
             "Klicken Sie einfach auf 'Weiter' ohne etwas einzugeben.\n"
-            "Den Key koennen Sie spaeter unter Extras → Einstellungen eintragen.</i>"
+            "Den Key koennen Sie spaeter unter Extras → Einstellungen eintragen.</i>")
         )
         skip_info.setWordWrap(True)
         skip_info.setStyleSheet("color: gray;")
@@ -664,27 +669,29 @@ class ApiKeyPage(QWizardPage):
             widget.setVisible(not is_lmstudio)
 
         if is_lmstudio:
-            self.setTitle("Schritt 4: LM Studio")
+            self.setTitle(tr("Schritt 4: LM Studio"))
             self.setSubTitle(
-                "LM Studio laeuft auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
-                "nur ein Modell - waehlen Sie es unten aus."
+                tr("LM Studio laeuft auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
+                "nur ein Modell - waehlen Sie es unten aus.")
             )
             self._show_btn.setVisible(False)
             self._setup_lmstudio_section(detection)
         elif is_ollama:
-            self.setTitle("Schritt 4: Ollama einrichten")
+            self.setTitle(tr("Schritt 4: Ollama einrichten"))
             self.setSubTitle(
-                "Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
-                "nur die Installation und ein Modell - beides erledigen Sie hier."
+                tr("Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\n"
+                "nur die Installation und ein Modell - beides erledigen Sie hier.")
             )
             self.key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
             self._show_btn.setVisible(False)
             self._setup_ollama_section(detection, recommendation)
         else:
-            self.setTitle("Schritt 4: API-Key eingeben")
+            self.setTitle(tr("Schritt 4: API-Key eingeben"))
             self.setSubTitle(
-                f"Geben Sie Ihren {name} API-Key ein.\n"
-                "Den Key koennen Sie kostenlos erstellen (ein Account genuegt)."
+                tr(
+                    "Geben Sie Ihren {name} API-Key ein.\nDen Key koennen Sie kostenlos "
+                    "erstellen (ein Account genuegt)."
+                ).format(name=name)
             )
             self.key_edit.setEchoMode(QLineEdit.EchoMode.Password)
             self._show_btn.setVisible(True)
@@ -693,9 +700,9 @@ class ApiKeyPage(QWizardPage):
         url = _PROVIDER_URLS.get(self._provider_id, "")
         if url:
             link_text = (
-                f"  Hier klicken um Ollama herunterzuladen: {url}"
+                tr("  Hier klicken um Ollama herunterzuladen: {url}").format(url=url)
                 if is_ollama
-                else f"  Hier klicken um API-Key zu erstellen: {url}"
+                else tr("  Hier klicken um API-Key zu erstellen: {url}").format(url=url)
             )
             self._link_btn.setText(link_text)
             self._link_btn.setVisible(True)
@@ -705,49 +712,52 @@ class ApiKeyPage(QWizardPage):
         hint = _PROVIDER_KEY_HINTS.get(self._provider_id, "")
         self._hint_label.setText(hint)
         self.key_edit.setPlaceholderText(
-            hint if is_ollama else (hint or "API-Key hier einfuegen ...")
+            hint if is_ollama else (hint or tr("API-Key hier einfuegen ..."))
         )
 
         info_texts = {
             "claude": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu console.anthropic.com).\n"
+                tr("1. Oeffnen Sie den Link unten (oder gehen Sie zu console.anthropic.com).\n"
                 "2. Melden Sie sich an oder erstellen Sie ein kostenloses Konto.\n"
                 "3. Klicken Sie auf 'API Keys' und dann 'Create Key'.\n"
-                "4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
+                "4. Kopieren Sie den Key und fuegen Sie ihn unten ein.")
             ),
             "openai": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu platform.openai.com).\n"
+                tr("1. Oeffnen Sie den Link unten (oder gehen Sie zu platform.openai.com).\n"
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Klicken Sie auf 'API Keys' und dann 'Create new secret key'.\n"
-                "4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
+                "4. Kopieren Sie den Key und fuegen Sie ihn unten ein.")
             ),
             "ollama": self._ollama_info_text(detection),
             "lmstudio": (
-                "Der lokale Server von LM Studio muss beim Sortieren laufen\n"
+                tr("Der lokale Server von LM Studio muss beim Sortieren laufen\n"
                 "(LM Studio starten, Developer > Start Server). Das Modell koennen Sie\n"
-                "spaeter unter Extras -> Einstellungen aendern."
+                "spaeter unter Extras -> Einstellungen aendern.")
             ),
             "ollama_cloud": (
-                "Ollama Cloud fuehrt die Ollama-Modelle auf Servern von ollama.com aus -\n"
-                "ideal fuer PCs ohne Grafikkarte. Dokumentinhalte werden dabei uebertragen.\n"
-                "1. Oeffnen Sie den Link unten und melden Sie sich bei ollama.com an.\n"
-                "2. Unter 'Keys' einen API-Key erstellen und kopieren.\n"
-                f"3. Fuegen Sie ihn unten ein. Standardmodell: {OLLAMA_CLOUD_DEFAULT_MODEL}\n"
-                "   (aenderbar unter Extras -> Einstellungen)."
+                tr(
+                    "Ollama Cloud fuehrt die Ollama-Modelle auf Servern von ollama.com aus "
+                    "-\nideal fuer PCs ohne Grafikkarte. Dokumentinhalte werden dabei "
+                    "uebertragen.\n1. Oeffnen Sie den Link unten und melden Sie sich bei "
+                    "ollama.com an.\n2. Unter 'Keys' einen API-Key erstellen und kopieren.\n"
+                    "3. Fuegen Sie ihn unten ein. Standardmodell: "
+                    "{OLLAMA_CLOUD_DEFAULT_MODEL}\n   (aenderbar unter Extras -> "
+                    "Einstellungen)."
+                ).format(OLLAMA_CLOUD_DEFAULT_MODEL=OLLAMA_CLOUD_DEFAULT_MODEL)
             ),
             "poe": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n"
+                tr("1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n"
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n"
                 "4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n"
-                "   Extras -> Einstellungen (z.B. GPT-4o-Mini)."
+                "   Extras -> Einstellungen (z.B. GPT-4o-Mini).")
             ),
             "openrouter": (
-                "1. Oeffnen Sie den Link unten (oder gehen Sie zu openrouter.ai).\n"
+                tr("1. Oeffnen Sie den Link unten (oder gehen Sie zu openrouter.ai).\n"
                 "2. Melden Sie sich an oder erstellen Sie ein Konto.\n"
                 "3. Unter 'Keys' einen neuen API-Key erstellen und kopieren.\n"
                 "4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n"
-                "   Extras -> Einstellungen (z.B. openai/gpt-4.1-nano)."
+                "   Extras -> Einstellungen (z.B. openai/gpt-4.1-nano).")
             ),
         }
         self._info_label.setText(info_texts.get(self._provider_id, ""))
@@ -760,15 +770,15 @@ class ApiKeyPage(QWizardPage):
     def _ollama_info_text(detection: dict) -> str:
         if detection.get("installed"):
             return (
-                "Ollama ist installiert. Unten sehen Sie die vorhandenen Modelle;\n"
+                tr("Ollama ist installiert. Unten sehen Sie die vorhandenen Modelle;\n"
                 "falls noch keines da ist, laden Sie das empfohlene Modell mit einem Klick.\n"
-                "Die Server-URL koennen Sie leer lassen (Standard: http://localhost:11434)."
+                "Die Server-URL koennen Sie leer lassen (Standard: http://localhost:11434).")
             )
         return (
-            "Ollama ist noch nicht installiert:\n"
+            tr("Ollama ist noch nicht installiert:\n"
             "1. Ueber den Link unten Ollama herunterladen und installieren (Standardeinstellungen).\n"
             "2. Danach hier auf 'Erneut pruefen' klicken.\n"
-            "3. Das empfohlene Modell mit einem Klick herunterladen - fertig."
+            "3. Das empfohlene Modell mit einem Klick herunterladen - fertig.")
         )
 
     def _setup_ollama_section(self, detection: dict, recommendation) -> None:
@@ -783,16 +793,20 @@ class ApiKeyPage(QWizardPage):
 
         if recommendation is not None and not recommendation.local_ok:
             self.ollama_warning_label.setText(
-                f"Hinweis: {recommendation.reason} Sie koennen Ollama trotzdem lokal "
-                f"nutzen, muessen aber mit langen Wartezeiten rechnen."
+                tr(
+                    "Hinweis: {reason} Sie koennen Ollama trotzdem lokal nutzen, muessen "
+                    "aber mit langen Wartezeiten rechnen."
+                ).format(reason=recommendation.reason)
             )
             self.ollama_warning_label.setVisible(True)
         else:
             self.ollama_warning_label.setVisible(False)
 
         self.pull_btn.setText(
-            f"Empfohlenes Modell herunterladen: {self._recommended_model} "
-            f"(ca. {self._recommended_size_gb:.0f} GB)"
+            tr(
+                "Empfohlenes Modell herunterladen: {recommended_model} (ca. "
+                "{recommended_size_gb:.0f} GB)"
+            ).format(recommended_model=self._recommended_model, recommended_size_gb=self._recommended_size_gb)
         )
         self.pull_progress.setVisible(False)
         self.cancel_pull_btn.setVisible(False)
@@ -807,7 +821,7 @@ class ApiKeyPage(QWizardPage):
             self._start_probe()
         else:
             self.models_status_label.setText(
-                "Ollama nicht gefunden - nach der Installation 'Erneut pruefen' klicken."
+                tr("Ollama nicht gefunden - nach der Installation 'Erneut pruefen' klicken.")
             )
             self.pull_btn.setEnabled(False)
 
@@ -822,18 +836,18 @@ class ApiKeyPage(QWizardPage):
         if configured_model in models:
             self.model_combo.setCurrentText(configured_model)
         if models:
-            self.models_status_label.setText(f"{len(models)} Modell(e) in LM Studio verfuegbar.")
+            self.models_status_label.setText(tr("{anzahl} Modell(e) in LM Studio verfuegbar.").format(anzahl=len(models)))
         else:
             self.models_status_label.setText(
-                "LM Studio bietet noch kein Modell an - bitte in LM Studio ein Modell "
-                "herunterladen und laden."
+                tr("LM Studio bietet noch kein Modell an - bitte in LM Studio ein Modell "
+                "herunterladen und laden.")
             )
 
     def _start_probe(self):
         if self._models_thread is not None and self._models_thread.isRunning():
             return
         self.refresh_btn.setEnabled(False)
-        self.models_status_label.setText("Ollama wird gestartet und Modelle werden gelesen ...")
+        self.models_status_label.setText(tr("Ollama wird gestartet und Modelle werden gelesen ..."))
         self._models_thread = _ModelsThread(self)
         self._models_thread.done.connect(self._on_models_probed)
         self._models_thread.start()
@@ -842,15 +856,17 @@ class ApiKeyPage(QWizardPage):
         self.refresh_btn.setEnabled(True)
         if not ok:
             self._ollama_installed = False
-            self.models_status_label.setText(f"Ollama nicht erreichbar: {msg}")
+            self.models_status_label.setText(tr("Ollama nicht erreichbar: {msg}").format(msg=msg))
             self.pull_btn.setEnabled(False)
             return
 
         self._ollama_installed = True
         self.pull_btn.setEnabled(True)
         self.pull_btn.setText(
-            f"Empfohlenes Modell herunterladen: {self._recommended_model} "
-            f"(ca. {self._recommended_size_gb:.0f} GB)"
+            tr(
+                "Empfohlenes Modell herunterladen: {recommended_model} (ca. "
+                "{recommended_size_gb:.0f} GB)"
+            ).format(recommended_model=self._recommended_model, recommended_size_gb=self._recommended_size_gb)
         )
         current = self.model_combo.currentText().strip()
         self.model_combo.clear()
@@ -864,17 +880,19 @@ class ApiKeyPage(QWizardPage):
             )
             self.model_combo.setCurrentText(preferred)
             self.models_status_label.setText(
-                f"{len(models)} Modell(e) installiert. Empfehlung fuer Ihre Hardware: "
-                f"{self._recommended_model}."
+                tr(
+                    "{anzahl} Modell(e) installiert. Empfehlung fuer Ihre Hardware: "
+                    "{recommended_model}."
+                ).format(anzahl=len(models), recommended_model=self._recommended_model)
             )
             if self._is_installed(self._recommended_model, models):
-                self.pull_btn.setText(f"{self._recommended_model} ist bereits installiert")
+                self.pull_btn.setText(tr("{recommended_model} ist bereits installiert").format(recommended_model=self._recommended_model))
                 self.pull_btn.setEnabled(False)
         else:
             self.model_combo.setCurrentText(current or self._recommended_model)
             self.models_status_label.setText(
-                "Ollama laeuft, aber es ist noch kein Modell installiert - "
-                "bitte unten herunterladen."
+                tr("Ollama laeuft, aber es ist noch kein Modell installiert - "
+                "bitte unten herunterladen.")
             )
 
     @staticmethod
@@ -890,7 +908,7 @@ class ApiKeyPage(QWizardPage):
         self.cancel_pull_btn.setVisible(True)
         self.pull_progress.setValue(0)
         self.pull_progress.setVisible(True)
-        self.models_status_label.setText(f"Lade {self._recommended_model} herunter ...")
+        self.models_status_label.setText(tr("Lade {recommended_model} herunter ...").format(recommended_model=self._recommended_model))
         self._pull_thread = _PullThread(self._recommended_model, self)
         self._pull_thread.progress.connect(self._on_pull_progress)
         self._pull_thread.finished_pull.connect(self._on_pull_finished)
@@ -916,7 +934,7 @@ class ApiKeyPage(QWizardPage):
             self._start_probe()
         else:
             self.pull_progress.setVisible(False)
-            self.models_status_label.setText(f"Download fehlgeschlagen: {msg}")
+            self.models_status_label.setText(tr("Download fehlgeschlagen: {msg}").format(msg=msg))
 
     def get_selected_model(self) -> str:
         """Gewaehltes Ollama-Modell (nur bei Provider 'ollama' relevant)."""
@@ -934,10 +952,10 @@ class ApiKeyPage(QWizardPage):
     def _toggle_visibility(self, checked: bool):
         if checked:
             self.key_edit.setEchoMode(QLineEdit.EchoMode.Normal)
-            self._show_btn.setText("Verbergen")
+            self._show_btn.setText(tr("Verbergen"))
         else:
             self.key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-            self._show_btn.setText("Anzeigen")
+            self._show_btn.setText(tr("Anzeigen"))
 
     def get_api_key(self) -> str:
         return self.key_edit.text().strip()
@@ -955,39 +973,39 @@ class SearchPage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Schritt 5: Dokumentensuche (optional)")
+        self.setTitle(tr("Schritt 5: Dokumentensuche (optional)"))
         self.setSubTitle(
-            "Volltextsuche ueber Ihre Dokumente - auch in gescannten PDFs,\n"
-            "Office-Dateien und Mails. Alles bleibt auf diesem Rechner."
+            tr("Volltextsuche ueber Ihre Dokumente - auch in gescannten PDFs,\n"
+            "Office-Dateien und Mails. Alles bleibt auf diesem Rechner.")
         )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
-        self.enable_check = QCheckBox("Dokumentensuche einschalten")
+        self.enable_check = QCheckBox(tr("Dokumentensuche einschalten"))
         self.enable_check.toggled.connect(self._update_enabled)
         layout.addWidget(self.enable_check)
 
-        self.folders_label = QLabel("Diese Ordner und Laufwerke durchsuchen (Haken setzen):")
+        self.folders_label = QLabel(tr("Diese Ordner und Laufwerke durchsuchen (Haken setzen):"))
         layout.addWidget(self.folders_label)
         self.folders_list = QListWidget()
         self.folders_list.setMaximumHeight(110)
         layout.addWidget(self.folders_list)
         folder_row = QHBoxLayout()
-        self.add_folder_button = QPushButton("Weiteren Ordner ...")
+        self.add_folder_button = QPushButton(tr("Weiteren Ordner ..."))
         self.add_folder_button.clicked.connect(self._browse)
         folder_row.addWidget(self.add_folder_button)
         folder_row.addStretch()
         layout.addLayout(folder_row)
 
-        self.mails_check = QCheckBox("Mails aus Thunderbird aufnehmen")
+        self.mails_check = QCheckBox(tr("Mails aus Thunderbird aufnehmen"))
         layout.addWidget(self.mails_check)
         self.mails_label = QLabel("")
         self.mails_label.setStyleSheet("color: gray;")
         self.mails_label.setWordWrap(True)
         layout.addWidget(self.mails_label)
 
-        self.ocr_check = QCheckBox("Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen")
+        self.ocr_check = QCheckBox(tr("Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen"))
         layout.addWidget(self.ocr_check)
         self.ocr_label = QLabel("")
         self.ocr_label.setStyleSheet("color: gray;")
@@ -995,33 +1013,33 @@ class SearchPage(QWizardPage):
         layout.addWidget(self.ocr_label)
 
         self.textlayer_check = QCheckBox(
-            "Erkannten Text unsichtbar in neue Scans schreiben (Textebene, mit Sicherungskopie)"
+            tr("Erkannten Text unsichtbar in neue Scans schreiben (Textebene, mit Sicherungskopie)")
         )
         self.textlayer_check.setToolTip(
-            "Dann finden auch andere Programme den Text der Scans. Das Scanbild bleibt unveraendert; "
-            "abschalten unter Einstellungen > Suche > Textebene."
+            tr("Dann finden auch andere Programme den Text der Scans. Das Scanbild bleibt unveraendert; "
+            "abschalten unter Einstellungen > Suche > Textebene.")
         )
         layout.addWidget(self.textlayer_check)
 
         self.background_check = QCheckBox(
-            "Einmal taeglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird"
+            tr("Einmal taeglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird")
         )
         layout.addWidget(self.background_check)
 
         privacy = QLabel(
-            "<b>Datenschutz:</b> Index und erkannter Text liegen in einer lokalen\n"
+            tr("<b>Datenschutz:</b> Index und erkannter Text liegen in einer lokalen\n"
             "Datenbank, nichts verlaesst den Rechner. Dateien werden nur gelesen;\n"
             "einzige Ausnahme ist die Textebene fuer neue Scans (abschaltbar).\n"
             "Ohne Ihre Zustimmung wird nichts indiziert. Alles laesst sich spaeter\n"
-            "unter <b>Extras &rarr; Einstellungen &rarr; Suche</b> aendern."
+            "unter <b>Extras &rarr; Einstellungen &rarr; Suche</b> aendern.")
         )
         privacy.setWordWrap(True)
         layout.addWidget(privacy)
 
-        self.migrate_button = QPushButton("Vorhandene PDFsuche uebernehmen ...")
+        self.migrate_button = QPushButton(tr("Vorhandene PDFsuche uebernehmen ..."))
         self.migrate_button.setToolTip(
-            "Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\n"
-            "PDFsuche uebernehmen. Die Datenbank bleibt an ihrem Ort."
+            tr("Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\n"
+            "PDFsuche uebernehmen. Die Datenbank bleibt an ihrem Ort.")
         )
         self.migrate_button.setVisible(False)
         self.migrate_button.clicked.connect(self._migrate)
@@ -1071,9 +1089,9 @@ class SearchPage(QWizardPage):
         self._mails_moeglich = bool(profil)
         self.mails_check.setChecked(cfg.mails_aktiv and self._mails_moeglich)
         self.mails_label.setText(
-            "Thunderbird-Profil gefunden: " + ", ".join(profil) if profil
-            else "Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\n"
-                 "Einstellungen einrichten (Postfach-Ordner angeben)."
+            tr("Thunderbird-Profil gefunden: {0}").format(', '.join(profil)) if profil
+            else tr("Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\n"
+                 "Einstellungen einrichten (Postfach-Ordner angeben).")
         )
 
         tesseract = find_tesseract()
@@ -1081,9 +1099,9 @@ class SearchPage(QWizardPage):
         self.ocr_check.setChecked(self._ocr_moeglich and cfg.ocr_aktiv)
         self.textlayer_check.setChecked(cfg.textebene != "aus")
         self.ocr_label.setText(
-            "Braucht Rechenzeit und laeuft mit niedriger Prioritaet; der erkannte\n"
-            "Text landet nur im Index." if tesseract
-            else "Tesseract nicht gefunden - die Texterkennung laesst sich spaeter einrichten."
+            tr("Braucht Rechenzeit und laeuft mit niedriger Prioritaet; der erkannte\n"
+            "Text landet nur im Index.") if tesseract
+            else tr("Tesseract nicht gefunden - die Texterkennung laesst sich spaeter einrichten.")
         )
 
         try:
@@ -1129,7 +1147,7 @@ class SearchPage(QWizardPage):
         self.folders_list.addItem(item)
 
     def _browse(self):
-        folder = QFileDialog.getExistingDirectory(self, "Ordner oder Laufwerk fuer die Suche waehlen", "")
+        folder = QFileDialog.getExistingDirectory(self, tr("Ordner oder Laufwerk fuer die Suche waehlen"), "")
         if folder:
             self._add_folder(folder, True)
 
@@ -1176,9 +1194,10 @@ class SearchPage(QWizardPage):
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.ergebnis is not None:
             self._uebernommen = dlg.ergebnis
             self.migrate_label.setText(
-                f"Uebernommen: {dlg.ergebnis.db_datei}\n"
-                "Die Einstellungen der PDFsuche gelten; aendern koennen Sie sie unter\n"
-                "Extras -> Einstellungen -> Suche."
+                tr(
+                    "Uebernommen: {db_datei}\nDie Einstellungen der PDFsuche gelten; aendern "
+                    "koennen Sie sie unter\nExtras -> Einstellungen -> Suche."
+                ).format(db_datei=dlg.ergebnis.db_datei)
             )
             self.migrate_label.setVisible(True)
             self.migrate_button.setVisible(False)
@@ -1192,15 +1211,15 @@ class DonePage(QWizardPage):
 
     def __init__(self):
         super().__init__()
-        self.setTitle("Alles bereit!")
-        self.setSubTitle("Das Setup ist abgeschlossen. Sie koennen jetzt loslegen.")
+        self.setTitle(tr("Alles bereit!"))
+        self.setSubTitle(tr("Das Setup ist abgeschlossen. Sie koennen jetzt loslegen."))
         self.setFinalPage(True)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         text = QLabel(
-            "<b>Was jetzt?</b><br><br>"
+            tr("<b>Was jetzt?</b><br><br>"
             "Legen Sie ein paar PDFs in Ihren Scan-Ordner und starten Sie\n"
             "die Sortierung mit einem Doppelklick auf ein Dokument.<br><br>"
             "<b>Einstellungen aendern:</b><br>"
@@ -1208,7 +1227,7 @@ class DonePage(QWizardPage):
             "<b>Extras &rarr; Einstellungen</b> in der Menuleiste.<br><br>"
             "<b>Assistenten erneut starten:</b><br>"
             "Unter <b>Extras &rarr; Einrichtungs-Assistent</b> koennen Sie\n"
-            "diesen Assistenten jederzeit erneut oeffnen."
+            "diesen Assistenten jederzeit erneut oeffnen.")
         )
         text.setWordWrap(True)
         layout.addWidget(text)
@@ -1217,13 +1236,13 @@ class DonePage(QWizardPage):
         self.explorer_checkbox = None
         if sys.platform == "win32":
             self.explorer_checkbox = QCheckBox(
-                "PDF Sortier Meister im Rechtsklick-Menue des Explorers "
-                "anzeigen"
+                tr("PDF Sortier Meister im Rechtsklick-Menue des Explorers "
+                "anzeigen")
             )
             self.explorer_checkbox.setToolTip(
-                "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\n"
+                tr("Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\n"
                 "hinzu, wenn Sie einen Ordner oder dessen Hintergrund\n"
-                "rechtsklicken. Aenderbar unter Extras -> Einstellungen."
+                "rechtsklicken. Aenderbar unter Extras -> Einstellungen.")
             )
             layout.addWidget(self.explorer_checkbox)
 
@@ -1254,7 +1273,7 @@ class SetupWizard(QWizard):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("PDF Sortier Meister einrichten")
+        self.setWindowTitle(tr("PDF Sortier Meister einrichten"))
         self.setMinimumSize(600, 520)
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
 
@@ -1281,10 +1300,10 @@ class SetupWizard(QWizard):
         self.setStartId(PAGE_WELCOME)
 
         # Fertig-Button beschriften
-        self.setButtonText(QWizard.WizardButton.FinishButton, "Fertig")
-        self.setButtonText(QWizard.WizardButton.NextButton, "Weiter >")
-        self.setButtonText(QWizard.WizardButton.BackButton, "< Zurueck")
-        self.setButtonText(QWizard.WizardButton.CancelButton, "Spaeter")
+        self.setButtonText(QWizard.WizardButton.FinishButton, tr("Fertig"))
+        self.setButtonText(QWizard.WizardButton.NextButton, tr("Weiter >"))
+        self.setButtonText(QWizard.WizardButton.BackButton, tr("< Zurueck"))
+        self.setButtonText(QWizard.WizardButton.CancelButton, tr("Spaeter"))
 
         self.finished.connect(self._on_finished)
 
@@ -1386,9 +1405,12 @@ class SetupWizard(QWizard):
             zeitplan.abgleichen(search_cfg)
         except (zeitplan.ZeitplanFehler, OSError, subprocess.SubprocessError) as e:
             QMessageBox.warning(
-                self, "Hintergrundindexierung",
-                "Die Dokumentensuche ist eingerichtet, aber der tägliche Lauf ließ sich nicht planen:\n\n"
-                f"{e}\n\nUnter Einstellungen > Suche lässt er sich erneut speichern.")
+                self, tr("Hintergrundindexierung"),
+                tr(
+                    "Die Dokumentensuche ist eingerichtet, aber der tägliche Lauf ließ sich "
+                    "nicht planen:\n\n{e}\n\nUnter Einstellungen > Suche lässt er sich "
+                    "erneut speichern."
+                ).format(e=e))
 
     @staticmethod
     def _ensure_folder_exists(folder: str) -> None:

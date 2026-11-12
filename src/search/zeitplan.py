@@ -34,14 +34,15 @@ from xml.sax.saxutils import escape
 
 from src.search import plattform
 from src.search.konfig import SearchConfig
+from src.i18n import tr
 
 ORDNER = "\\PDF Sortier Meister\\"
 NAMEN = {"index": "Indexierung", "web": "Web-Oberflaeche"}
 LABELS = {"index": "de.josi-create.pdf-sortier-meister.suche", "web": "de.josi-create.pdf-sortier-meister.web"}
 BESCHREIBUNG = {
-    "index": "PDF Sortier Meister: liest täglich bei Leerlauf neue und geänderte Dokumente in den Suchindex ein "
-             "(zuerst die Vorrang-Ordner) und erkennt Scans per OCR. Bricht ab, sobald am Rechner gearbeitet wird.",
-    "web": "PDF Sortier Meister: Browser-Oberfläche der Dokumentensuche (nur auf diesem Rechner erreichbar).",
+    "index": tr("PDF Sortier Meister: liest täglich bei Leerlauf neue und geänderte Dokumente in den Suchindex ein "
+             "(zuerst die Vorrang-Ordner) und erkennt Scans per OCR. Bricht ab, sobald am Rechner gearbeitet wird."),
+    "web": tr("PDF Sortier Meister: Browser-Oberfläche der Dokumentensuche (nur auf diesem Rechner erreichbar)."),
 }
 LEERLAUF_MINUTEN = 10
 HOECHSTDAUER_STUNDEN = 20
@@ -83,7 +84,7 @@ def _text(roh: bytes | str | None) -> str:
 
 
 def _meldung(r: subprocess.CompletedProcess) -> str:
-    return " ".join((_text(r.stderr) or _text(r.stdout)).split()) or f"Rückgabewert {r.returncode}"
+    return " ".join((_text(r.stderr) or _text(r.stdout)).split()) or tr("Rückgabewert {returncode}").format(returncode=r.returncode)
 
 
 # --------------------------------------------------------------------------- Was die Einstellungen verlangen
@@ -233,7 +234,7 @@ def _xml_lesen(text: str) -> dict | None:
 class Aufgabenplanung:
     """Windows-Aufgabenplanung ueber ``schtasks`` (ohne Adminrechte)."""
 
-    titel = "Aufgabenplanung"
+    titel = tr("Aufgabenplanung")
     leerlauf_selbst = False      # Leerlaufbedingung der Aufgabe: Start erst nach 10 Minuten, Abbruch bei Aktivitaet
 
     def __init__(self, ausfuehren=None, ordner: str = ORDNER, benutzer: str | None = None):
@@ -264,7 +265,7 @@ class Aufgabenplanung:
             datei.write_text(aufgabe_xml(e, self.benutzer, BESCHREIBUNG[e.art]), encoding="utf-16")
             r = self._ausfuehren(["schtasks", "/Create", "/TN", self.name(e.art), "/XML", str(datei), "/F"])
         if r.returncode != 0:
-            raise ZeitplanFehler(f"Aufgabe „{self.name(e.art)}“ ließ sich nicht einrichten: {_meldung(r)}")
+            raise ZeitplanFehler(tr("Aufgabe „{0}“ ließ sich nicht einrichten: {1}").format(self.name(e.art), _meldung(r)))
 
     def starten(self, art: str) -> None:
         self._ausfuehren(["schtasks", "/Run", "/TN", self.name(art)])
@@ -276,7 +277,7 @@ class Aufgabenplanung:
             self._ausfuehren(["schtasks", "/End", "/TN", self.name(art)])
         r = self._ausfuehren(["schtasks", "/Delete", "/TN", self.name(art), "/F"])
         if r.returncode != 0 and self.abfragen(art) is not None:
-            raise ZeitplanFehler(f"Aufgabe „{self.name(art)}“ ließ sich nicht entfernen: {_meldung(r)}")
+            raise ZeitplanFehler(tr("Aufgabe „{0}“ ließ sich nicht entfernen: {1}").format(self.name(art), _meldung(r)))
 
     def aufraeumen(self) -> None:
         """Den leeren Aufgabenordner entfernen (best effort, ``schtasks`` kennt keine Ordner)."""
@@ -353,7 +354,7 @@ class LaunchAgents:
         os.replace(tmp, ziel)
         r = self._ausfuehren(["launchctl", "bootstrap", f"gui/{self.uid}", str(ziel)])
         if r.returncode != 0:
-            raise ZeitplanFehler(f"LaunchAgent „{LABELS[e.art]}“ ließ sich nicht laden: {_meldung(r)}")
+            raise ZeitplanFehler(tr("LaunchAgent „{0}“ ließ sich nicht laden: {1}").format(LABELS[e.art], _meldung(r)))
 
     def starten(self, art: str) -> None:
         pass   # RunAtLoad startet den Agenten schon beim Laden
@@ -365,7 +366,7 @@ class LaunchAgents:
         except FileNotFoundError:
             pass
         except OSError as ex:
-            raise ZeitplanFehler(f"LaunchAgent „{LABELS[art]}“ ließ sich nicht entfernen: {ex}") from ex
+            raise ZeitplanFehler(tr("LaunchAgent „{0}“ ließ sich nicht entfernen: {ex}").format(LABELS[art], ex=ex)) from ex
 
     def aufraeumen(self) -> None:
         pass
@@ -441,7 +442,7 @@ def abgleichen(konfig: SearchConfig, kommando: list[str] | None = None, konfig_p
     soll = gewuenscht(konfig, kommando, konfig_pfad, leerlauf_selbst=getattr(b, "leerlauf_selbst", False))
     if b is None:
         if any(soll.values()):
-            raise ZeitplanFehler("Die Hintergrundindexierung wird auf diesem Betriebssystem nicht unterstützt.")
+            raise ZeitplanFehler(tr("Die Hintergrundindexierung wird auf diesem Betriebssystem nicht unterstützt."))
         return []
     geaendert: list[str] = []
     for art in ARTEN:
@@ -481,15 +482,15 @@ def entfernen(b=None) -> list[str]:
 def zustand_text(z: dict) -> str:
     """Zustand als Text fuer ``pdfsm-dienst zeitplan --status``."""
     if not z.get("unterstuetzt"):
-        return "Hintergrundindexierung: auf diesem Betriebssystem nicht unterstützt."
+        return tr("Hintergrundindexierung: auf diesem Betriebssystem nicht unterstützt.")
     zeilen = []
-    for art, titel in (("index", "Hintergrundindexierung"), ("web", "Web-Oberfläche bei Anmeldung")):
+    for art, titel in (("index", tr("Hintergrundindexierung")), ("web", tr("Web-Oberfläche bei Anmeldung"))):
         ist = z.get(art)
         if not ist:
-            zeilen.append(f"{titel}: nicht eingerichtet")
+            zeilen.append(tr("{titel}: nicht eingerichtet").format(titel=titel))
             continue
-        wann = (f"täglich beim ersten Leerlauf ab {ist['uhrzeit']} (nach dem Einschalten nachgeholt)"
-                if ist.get("uhrzeit") else "bei der Anmeldung")
+        wann = (tr("täglich beim ersten Leerlauf ab {uhrzeit} (nach dem Einschalten nachgeholt)").format(uhrzeit=ist['uhrzeit'])
+                if ist.get("uhrzeit") else tr("bei der Anmeldung"))
         aus = "" if ist.get("aktiviert", True) else " (deaktiviert)"
         zeilen.append(f"{titel}: {wann}{aus} – {z['titel']} {ist['name']}")
     return "\n".join(zeilen)

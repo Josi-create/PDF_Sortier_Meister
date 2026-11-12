@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Iterable, Sequence, TypeVar
 
 from src.core.filename_placeholders import pattern_choices
+from src.i18n import tr
 
 CONFIG_KEY = "suggestion_kind_order"
 
@@ -56,6 +57,37 @@ def kind_from_reason(reason: str) -> str:
     if reason == "Nur Datum":
         return KIND_DATE
     return KIND_OTHER
+
+
+# Begruendungen mit festem Wortlaut und solche mit einem Anfang, dem ein Name folgt.
+# Die Begruendung selbst bleibt deutsch (``kind_from_reason`` und Vergleiche wie
+# ``reason == "KI-Vorschlag"`` lesen sie); uebersetzt wird nur die Anzeige.
+def reason_display(reason: str) -> str:
+    """Begruendung eines Vorschlags in der Sprache der Oberflaeche (Issue #118)."""
+    reason = reason or ""
+    fest = {
+        "KI-Vorschlag": tr("KI-Vorschlag"),
+        "KI (gecacht): Vorschlag": tr("KI (gecacht): Vorschlag"),
+        "Automatisch erkannt": tr("Automatisch erkannt"),
+        "Kategorie + Nummer": tr("Kategorie + Nummer"),
+        "Nur Datum": tr("Nur Datum"),
+        "Aktuellen Namen behalten": tr("Aktuellen Namen behalten"),
+        "Gelernt": tr("Gelernt"),
+    }
+    if reason in fest:
+        return fest[reason]
+    anfaenge = (
+        ("Gelernt: ähnlich zu ", tr("Gelernt: ähnlich zu ")),
+        ("Datum + Kategorie (", tr("Datum + Kategorie (")),
+        ("Muster: ", tr("Muster: ")),
+        ("KI: ", tr("KI: ")),
+        ("Mit erkanntem Datum (", tr("Mit erkanntem Datum (")),
+        ("Mit Kategorie (", tr("Mit Kategorie (")),
+    )
+    for anfang, uebersetzt in anfaenge:
+        if reason.startswith(anfang):
+            return uebersetzt + reason[len(anfang):]
+    return reason
 
 
 def default_order(config_pattern: str = "", custom_patterns=None) -> list[str]:

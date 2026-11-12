@@ -8,9 +8,10 @@ uebersetzt: was los ist und was der Nutzer tun kann. Qt-frei, damit testbar.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from src.i18n import tr
 
-LOKALE_SERVER = {"Ollama": "Ollama", "Strata": "den Strata-Server",
-                 "LM Studio": "LM Studio (mit lokalem Server)"}
+LOKALE_SERVER = {"Ollama": tr("Ollama"), "Strata": tr("den Strata-Server"),
+                 "LM Studio": tr("LM Studio (mit lokalem Server)")}
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,10 @@ _NUR_DOKUMENT = (
     "keinen vorschlag",
     "keinen dateinamen",
     "nur aus ungueltigen zeichen",
+    # dieselben Meldungen in der englischen Oberflaeche (src/i18n/locale/en.po)
+    "not return a suggestion",
+    "not return a file name",
+    "only of invalid characters",
 )
 
 
@@ -42,65 +47,71 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
     """Uebersetzt eine technische Fehlermeldung in Problem + Abhilfe."""
     text = (fehler or "").lower()
     server = LOKALE_SERVER.get(provider)
-    modell_name = f"„{modell}“" if modell else "das eingestellte Modell"
+    modell_name = f"„{modell}“" if modell else tr("das eingestellte Modell")
 
     if _enthaelt(text, "llama-server", "llama runner", "runner process"):
         return KIHinweis(
-            f"{provider} ist unvollständig installiert und kann keine Modelle laden.",
-            f"{provider} neu installieren bzw. aktualisieren (ollama.com) "
-            "und danach neu starten.",
+            tr("{provider} ist unvollständig installiert und kann keine Modelle laden.").format(provider=provider),
+            tr(
+                "{provider} neu installieren bzw. aktualisieren (ollama.com) und danach neu "
+                "starten."
+            ).format(provider=provider),
         )
-    if _enthaelt(text, "nicht installiert", "not found, try pulling", "model not found",
+    if _enthaelt(text, "nicht installiert", "is not installed", "not found, try pulling", "model not found",
                  "does not exist", "no such model"):
         return KIHinweis(
-            f"Das Modell {modell_name} gibt es bei {provider} nicht.",
-            "In den Einstellungen ein vorhandenes Modell auswählen.",
+            tr("Das Modell {modell_name} gibt es bei {provider} nicht.").format(modell_name=modell_name, provider=provider),
+            tr("In den Einstellungen ein vorhandenes Modell auswählen."),
         )
     if _enthaelt(text, "system memory", "out of memory", "not enough memory",
                  "insufficient memory", "cuda error"):
         return KIHinweis(
-            f"Das Modell {modell_name} passt nicht in den Speicher des Rechners.",
-            "In den Einstellungen ein kleineres Modell auswählen.",
+            tr("Das Modell {modell_name} passt nicht in den Speicher des Rechners.").format(modell_name=modell_name),
+            tr("In den Einstellungen ein kleineres Modell auswählen."),
         )
     if _enthaelt(text, "api-key", "api key", "http 401", "http 403", "code: 401",
                  "code: 403", "unauthorized",
                  "forbidden", "authentication", "invalid_api_key"):
         return KIHinweis(
-            f"{provider} nimmt den API-Key nicht an.",
-            "In den Einstellungen den API-Key prüfen bzw. neu eintragen.",
+            tr("{provider} nimmt den API-Key nicht an.").format(provider=provider),
+            tr("In den Einstellungen den API-Key prüfen bzw. neu eintragen."),
         )
     if _enthaelt(text, "insufficient_quota", "quota", "credit", "guthaben",
                  "billing", "payment", "http 402", "code: 402"):
         return KIHinweis(
-            f"Das Guthaben bzw. Kontingent bei {provider} ist aufgebraucht.",
-            f"Guthaben bei {provider} aufladen oder in den Einstellungen "
-            "einen anderen Anbieter wählen.",
+            tr("Das Guthaben bzw. Kontingent bei {provider} ist aufgebraucht.").format(provider=provider),
+            tr(
+                "Guthaben bei {provider} aufladen oder in den Einstellungen einen anderen "
+                "Anbieter wählen."
+            ).format(provider=provider),
         )
     if _enthaelt(text, "http 429", "code: 429", "rate limit", "rate_limit", "too many requests"):
         return KIHinweis(
-            f"{provider} lehnt gerade zu viele Anfragen ab.",
-            "Kurz warten, es geht danach von selbst weiter.",
+            tr("{provider} lehnt gerade zu viele Anfragen ab.").format(provider=provider),
+            tr("Kurz warten, es geht danach von selbst weiter."),
         )
     if _enthaelt(text, "timed out", "timeout", "zeitüberschreitung"):
         return KIHinweis(
-            f"{provider} antwortet zu langsam.",
-            "Kurz warten oder in den Einstellungen ein schnelleres Modell wählen.",
+            tr("{provider} antwortet zu langsam.").format(provider=provider),
+            tr("Kurz warten oder in den Einstellungen ein schnelleres Modell wählen."),
         )
-    if _enthaelt(text, "verbindung", "nicht erreichbar", "connection", "refused",
+    if _enthaelt(text, "verbindung", "nicht erreichbar", "not reachable", "connection", "refused",
                  "10061", "getaddrinfo", "name or service", "unreachable"):
         if server:
             return KIHinweis(
-                f"{provider} läuft nicht oder ist nicht erreichbar.",
-                f"{server[0].upper()}{server[1:]} starten; falls das nicht hilft, "
-                "in den Einstellungen die Adresse prüfen.",
+                tr("{provider} läuft nicht oder ist nicht erreichbar.").format(provider=provider),
+                tr(
+                    "{0}{1} starten; falls das nicht hilft, in den Einstellungen die Adresse "
+                    "prüfen."
+                ).format(server[0].upper(), server[1:]),
             )
         return KIHinweis(
-            f"Keine Verbindung zu {provider}.",
-            "Internetverbindung prüfen; falls das nicht hilft, "
-            "in den Einstellungen einen anderen Anbieter wählen.",
+            tr("Keine Verbindung zu {provider}.").format(provider=provider),
+            tr("Internetverbindung prüfen; falls das nicht hilft, "
+            "in den Einstellungen einen anderen Anbieter wählen."),
         )
     return KIHinweis(
-        f"{provider} meldet einen Fehler.",
-        "Einstellungen öffnen und dort mit „Verbindung testen“ prüfen; "
-        "Details stehen in der Log-Datei.",
+        tr("{provider} meldet einen Fehler.").format(provider=provider),
+        tr("Einstellungen öffnen und dort mit „Verbindung testen“ prüfen; "
+        "Details stehen in der Log-Datei."),
     )

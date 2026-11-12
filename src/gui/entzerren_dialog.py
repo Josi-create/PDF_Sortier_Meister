@@ -45,6 +45,7 @@ from src.core.entzerren import (
     entzerrte_seite,
     standard_ecken,
 )
+from src.i18n import tr
 
 ARBEIT_PX = 1600        # laengste Seite der Anzeigekopie des Fotos
 VORSCHAU_PX = 900       # laengste Seite der Vorschau rechts
@@ -108,7 +109,7 @@ class _VorschauFeld(QLabel):
     """Vorschau rechts; skaliert das Bild beim Verkleinern/Vergroessern mit."""
 
     def __init__(self):
-        super().__init__("Vorschau")
+        super().__init__(tr("Vorschau"))
         self._pixmap: Optional[QPixmap] = None
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(200, 200)
@@ -121,7 +122,7 @@ class _VorschauFeld(QLabel):
 
     def _anpassen(self):
         if self._pixmap is None or self._pixmap.isNull():
-            self.setText("Vorschau")
+            self.setText(tr("Vorschau"))
             return
         self.setPixmap(self._pixmap.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio,
                                            Qt.TransformationMode.SmoothTransformation))
@@ -174,7 +175,7 @@ class EntzerrenDialog(QDialog):
     def __init__(self, pfade: list[Path], vorgaben: Optional[dict] = None, tonwerte: str = TONWERT_STANDARD,
                  parent: Optional[QWidget] = None, unsicher: Optional[set] = None):
         super().__init__(parent)
-        self.setWindowTitle("Foto entzerren")
+        self.setWindowTitle(tr("Foto entzerren"))
         self.setModal(True)
         vorgaben = vorgaben or {}
         self._unsicher = set(unsicher or ())
@@ -203,7 +204,7 @@ class EntzerrenDialog(QDialog):
         self._kopf = QLabel()
         self._kopf.setStyleSheet("font-weight: bold;")
         self._hinweis = QLabel(
-            "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis."
+            tr("Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis.")
         )
         self._hinweis.setWordWrap(True)
         self._status = QLabel()
@@ -214,18 +215,18 @@ class EntzerrenDialog(QDialog):
             self.tonwerte_combo.addItem(TONWERT_NAMEN[schluessel], schluessel)
         self.tonwerte_combo.setCurrentIndex(max(self.tonwerte_combo.findData(tonwerte), 0))
         self.tonwerte_combo.setToolTip(
-            "Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\n"
-            "Graustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei)."
+            tr("Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\n"
+            "Graustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei).")
         )
         self.tonwerte_combo.currentIndexChanged.connect(lambda _i: self._vorschau_planen(0))
 
-        self.zurueck_knopf = QPushButton("◀ Zurück")
-        self.weiter_knopf = QPushButton("Weiter ▶")
-        self.zuruecksetzen_knopf = QPushButton("Zurücksetzen (automatisch)")
-        self.zuruecksetzen_knopf.setToolTip("Die Ecken dieses Bildes auf die automatische Erkennung zurücksetzen")
-        self.uebernehmen_knopf = QPushButton("Übernehmen")
+        self.zurueck_knopf = QPushButton(tr("◀ Zurück"))
+        self.weiter_knopf = QPushButton(tr("Weiter ▶"))
+        self.zuruecksetzen_knopf = QPushButton(tr("Zurücksetzen (automatisch)"))
+        self.zuruecksetzen_knopf.setToolTip(tr("Die Ecken dieses Bildes auf die automatische Erkennung zurücksetzen"))
+        self.uebernehmen_knopf = QPushButton(tr("Übernehmen"))
         self.uebernehmen_knopf.setDefault(True)
-        self.abbrechen_knopf = QPushButton("Abbrechen")
+        self.abbrechen_knopf = QPushButton(tr("Abbrechen"))
         self.zurueck_knopf.clicked.connect(lambda: self._blaettern(-1))
         self.weiter_knopf.clicked.connect(lambda: self._blaettern(1))
         self.zuruecksetzen_knopf.clicked.connect(self.zuruecksetzen)
@@ -234,15 +235,15 @@ class EntzerrenDialog(QDialog):
 
         mitte = QHBoxLayout()
         links, rechts = QVBoxLayout(), QVBoxLayout()
-        links.addWidget(QLabel("Foto"))
+        links.addWidget(QLabel(tr("Foto")))
         links.addWidget(self._ansicht, 1)
-        rechts.addWidget(QLabel("Ergebnis (Vorschau)"))
+        rechts.addWidget(QLabel(tr("Ergebnis (Vorschau)")))
         rechts.addWidget(self._vorschau, 1)
         mitte.addLayout(links, 1)
         mitte.addLayout(rechts, 1)
 
         unten = QHBoxLayout()
-        unten.addWidget(QLabel("Tonwerte:"))
+        unten.addWidget(QLabel(tr("Tonwerte:")))
         unten.addWidget(self.tonwerte_combo)
         unten.addSpacing(12)
         unten.addWidget(self.zuruecksetzen_knopf)
@@ -301,14 +302,14 @@ class EntzerrenDialog(QDialog):
         finally:
             self._laedt = False
         n = len(self._eintraege)
-        self._kopf.setText(f"Bild {index + 1} von {n}: {e.pfad.name}" if n > 1 else e.pfad.name)
+        self._kopf.setText(tr("Bild {0} von {n}: {name}").format(index + 1, n=n, name=e.pfad.name) if n > 1 else e.pfad.name)
         self.zurueck_knopf.setVisible(n > 1)
         self.weiter_knopf.setVisible(n > 1)
         self.zurueck_knopf.setEnabled(index > 0)
         self.weiter_knopf.setEnabled(index < n - 1)
         self._status.setText(
-            f"Das Bild konnte nicht gelesen werden: {e.fehler}" if e.fehler
-            else ("Die automatische Erkennung war bei diesem Bild unsicher - bitte die Ecken prüfen."
+            tr("Das Bild konnte nicht gelesen werden: {fehler}").format(fehler=e.fehler) if e.fehler
+            else (tr("Die automatische Erkennung war bei diesem Bild unsicher - bitte die Ecken prüfen.")
                   if e.pfad in self._unsicher else "")
         )
         self.zuruecksetzen_knopf.setEnabled(e.klein is not None)

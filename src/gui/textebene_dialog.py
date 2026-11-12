@@ -29,17 +29,18 @@ from PyQt6.QtWidgets import (
 from src.search.suchindex import Suchindex
 from src.search.textebene import MELDUNG_GEAENDERT
 from src.utils.platform_paths import file_manager_name
+from src.i18n import tr
 
-SPALTEN = ("Geändert am", "Datei", "Seiten", "Gedreht", "Stand")
+SPALTEN = (tr("Geändert am"), tr("Datei"), tr("Seiten"), tr("Gedreht"), tr("Stand"))
 
 
 def stand_text(e: dict) -> str:
     """Kurzer Stand eines Protokolleintrags."""
     if e.get("status") == "rueckgaengig":
-        return "rückgängig gemacht"
+        return tr("rückgängig gemacht")
     if e.get("sicherung"):
-        return "Sicherung vorhanden"
-    return "Sicherung abgelaufen"
+        return tr("Sicherung vorhanden")
+    return tr("Sicherung abgelaufen")
 
 
 def gedreht_text(gedreht: str | None, gerade: str | None = None) -> str:
@@ -59,7 +60,7 @@ def gedreht_text(gedreht: str | None, gerade: str | None = None) -> str:
         except ValueError:
             continue
         if seite.strip():
-            teile.append(f"S. {seite.strip()}: {f'{wert:.1f}'.replace('.', ',')}° gerade")
+            teile.append(tr("S. {0}: {1}° gerade").format(seite.strip(), f'{wert:.1f}'.replace('.', ',')))
     return ", ".join(teile)
 
 
@@ -78,7 +79,7 @@ class RueckgaengigThread(QThread):
         try:
             ok, meldung = self.index.textebene_rueckgaengig(self.eintrag_id, erzwingen=self.erzwingen)
         except Exception as e:  # noqa: BLE001 - nie in die Oberflaeche werfen
-            ok, meldung = False, f"Rückgängig machen fehlgeschlagen: {e}"
+            ok, meldung = False, tr("Rückgängig machen fehlgeschlagen: {e}").format(e=e)
         self.fertig.emit(ok, meldung)
 
 
@@ -89,7 +90,7 @@ class TextebeneProtokollDialog(QDialog):
 
     def __init__(self, konfig, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Textebene – geänderte PDFs")
+        self.setWindowTitle(tr("Textebene – geänderte PDFs"))
         self.resize(820, 420)
         self.index = Suchindex(konfig)
         self.eintraege: list[dict] = []
@@ -97,9 +98,9 @@ class TextebeneProtokollDialog(QDialog):
 
         lay = QVBoxLayout(self)
         hinweis = QLabel(
-            "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen, wurden richtig "
+            tr("Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen, wurden richtig "
             "herum gedreht oder gerade ausgerichtet. Vor jeder Änderung entstand eine Sicherungskopie; solange "
-            "sie aufbewahrt wird, lässt sich die Änderung zurücknehmen."
+            "sie aufbewahrt wird, lässt sich die Änderung zurücknehmen.")
         )
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
@@ -117,20 +118,20 @@ class TextebeneProtokollDialog(QDialog):
         self.tabelle.itemSelectionChanged.connect(self._auswahl_geaendert)
         lay.addWidget(self.tabelle, 1)
 
-        self.leer_label = QLabel("Noch keine PDF hat eine Textebene bekommen, wurde gedreht oder gerade "
-                                 "ausgerichtet.")
+        self.leer_label = QLabel(tr("Noch keine PDF hat eine Textebene bekommen, wurde gedreht oder gerade "
+                                 "ausgerichtet."))
         self.leer_label.setStyleSheet("color: gray;")
         lay.addWidget(self.leer_label)
 
         knoepfe = QHBoxLayout()
-        self.rueckgaengig_button = QPushButton("Rückgängig machen")
+        self.rueckgaengig_button = QPushButton(tr("Rückgängig machen"))
         self.rueckgaengig_button.clicked.connect(self._rueckgaengig)
         knoepfe.addWidget(self.rueckgaengig_button)
-        self.zeigen_button = QPushButton(f"Im {file_manager_name()} zeigen")
+        self.zeigen_button = QPushButton(tr("Im {0} zeigen").format(file_manager_name()))
         self.zeigen_button.clicked.connect(self._zeigen)
         knoepfe.addWidget(self.zeigen_button)
         knoepfe.addStretch()
-        schliessen = QPushButton("Schließen")
+        schliessen = QPushButton(tr("Schließen"))
         schliessen.clicked.connect(self.accept)
         knoepfe.addWidget(schliessen)
         lay.addLayout(knoepfe)
@@ -185,9 +186,12 @@ class TextebeneProtokollDialog(QDialog):
             return
         name = os.path.basename(e.get("aktueller_pfad") or e["pfad"])
         if not erzwingen and QMessageBox.question(
-                self, "Rückgängig machen",
-                f"Die Textebene aus „{name}“ entfernen und das Original wiederherstellen?\n\n"
-                "Die Datei bekommt danach nicht mehr automatisch eine Textebene.",
+                self, tr("Rückgängig machen"),
+                tr(
+                    "Die Textebene aus „{name}“ entfernen und das Original "
+                    "wiederherstellen?\n\nDie Datei bekommt danach nicht mehr automatisch "
+                    "eine Textebene."
+                ).format(name=name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
@@ -200,17 +204,20 @@ class TextebeneProtokollDialog(QDialog):
         self._thread = None
         if not ok and meldung == MELDUNG_GEAENDERT:
             if QMessageBox.question(
-                    self, "Datei wurde seither geändert",
-                    meldung + "\n\nTrotzdem das Original wiederherstellen? Die spätere Änderung geht dabei verloren.",
+                    self, tr("Datei wurde seither geändert"),
+                    tr(
+                        "{meldung}\n\nTrotzdem das Original wiederherstellen? Die spätere "
+                        "Änderung geht dabei verloren."
+                    ).format(meldung=meldung),
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
                 self._auswahl_setzen(eintrag_id)
                 self._rueckgaengig(erzwingen=True)
                 return
         elif ok:
-            QMessageBox.information(self, "Rückgängig gemacht", meldung)
+            QMessageBox.information(self, tr("Rückgängig gemacht"), meldung)
         else:
-            QMessageBox.warning(self, "Rückgängig machen nicht möglich", meldung)
+            QMessageBox.warning(self, tr("Rückgängig machen nicht möglich"), meldung)
         self.laden()
         self._auswahl_setzen(eintrag_id)
         self.rueckgaengig_fertig.emit(ok, meldung)

@@ -25,6 +25,7 @@ from datetime import datetime
 import fitz  # PyMuPDF
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
+from src.i18n import tr
 
 
 def _search_konfig():
@@ -99,17 +100,17 @@ def ocr_neu_durchfuehren(pdf_path: Path | str, abbrechen=None) -> dict:
     pfad = str(pdf_path)
     gelesen = suche_extract.pdf_text(pfad, index.konfig.ocr_min_zeichen)
     if gelesen["status"] in ("fehler", "verschluesselt"):
-        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        erg["fehler"] = gelesen.get("fehler") or tr("Die PDF ist verschlüsselt.")
         return erg
     if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
-        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        erg["fehler"] = tr("Die Datei konnte nicht in den Suchindex aufgenommen werden.")
         return erg
     offen = list(gelesen["ohne_text"])
     if not offen:
         return erg
     cfg = ocr_einstellungen_fuer_analyse()
     if cfg is None:
-        erg["fehler"] = "Tesseract nicht gefunden - keine Texterkennung möglich."
+        erg["fehler"] = tr("Tesseract nicht gefunden - keine Texterkennung möglich.")
         return erg
     if index.konfig.textebene_erzeugen(pfad):
         cfg["textebene"] = True
@@ -207,24 +208,24 @@ def ocr_wiederholen(pdf_path: Path | str, sprachen: str, abbrechen=None) -> dict
     erg["index"] = True
     cfg = ocr_einstellungen_fuer_analyse()
     if cfg is None:
-        erg["fehler"] = "Tesseract nicht gefunden - keine Texterkennung möglich."
+        erg["fehler"] = tr("Tesseract nicht gefunden - keine Texterkennung möglich.")
         return erg
     fehlend = fehlende_sprachen(cfg.get("tessdata"), sprachen)
     if fehlend:
-        erg["fehler"] = "Sprachdaten fehlen: " + ", ".join(fehlend)
+        erg["fehler"] = tr("Sprachdaten fehlen: {0}").format(', '.join(fehlend))
         return erg
     pfad = str(pdf_path)
     min_zeichen = index.konfig.ocr_min_zeichen
     gelesen = suche_extract.pdf_text(pfad, min_zeichen)
     if gelesen["status"] in ("fehler", "verschluesselt"):
-        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        erg["fehler"] = gelesen.get("fehler") or tr("Die PDF ist verschlüsselt.")
         return erg
     seiten = suche_extract.ocr_kandidaten(pfad, min_zeichen)
     if not seiten:
-        erg["fehler"] = "Die PDF enthält keine gescannten Seiten."
+        erg["fehler"] = tr("Die PDF enthält keine gescannten Seiten.")
         return erg
     if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
-        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        erg["fehler"] = tr("Die Datei konnte nicht in den Suchindex aufgenommen werden.")
         return erg
 
     def abgebrochen() -> bool:

@@ -21,6 +21,7 @@ from src.search.pdfsm_daten import (  # gemeinsame Fassade mit dem Dienst (Baust
     dokumente_suchen,
 )
 from src.utils.config import get_config
+from src.i18n import tr
 
 Base = declarative_base()
 
@@ -1792,7 +1793,7 @@ class Database:
             Dict des gespeicherten Korrespondenten
         """
         if not name or not name.strip():
-            raise ValueError("Korrespondent-Name darf nicht leer sein")
+            raise ValueError(tr("Korrespondent-Name darf nicht leer sein"))
 
         name = name.strip()
         aliases_json = self._serialize_aliases(aliases)
@@ -1929,7 +1930,7 @@ class Database:
             )
             if primary is None:
                 raise ValueError(
-                    f"Primaerkorrespondent '{primary_name}' existiert nicht"
+                    tr("Primaerkorrespondent '{primary_name}' existiert nicht").format(primary_name=primary_name)
                 )
 
             # Bestehende Aliasse des Primaers laden

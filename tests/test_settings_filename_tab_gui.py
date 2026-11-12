@@ -69,7 +69,7 @@ def test_forbidden_chars_show_warning_but_preview_is_clean(qtbot, monkeypatch, t
 def test_initials_from_personal_tab_feed_preview(qtbot, monkeypatch, tmp_path):
     dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
     dlg.pattern_input.setText("{initialen}_{datum}")
-    dlg.owner_name_input.setText("Dr. med. Johannes Härle-Wack")
+    dlg.owner_name_input.setText("Dr. med. Jonas Huber-Weber")
     assert dlg.owner_initials_input.placeholderText().startswith("JHW")
     assert dlg.pattern_preview_label.text() == "JHW_2024-03-12.pdf"
     dlg.owner_initials_input.setText("jw")

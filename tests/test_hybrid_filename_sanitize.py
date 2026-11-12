@@ -34,10 +34,10 @@ def _call(clf):
 
 
 def test_llm_filename_with_email_is_sanitized():
-    clf = _make_classifier("2013-04-23_Meldung_kathrin.haerle@web.de.pdf")
+    clf = _make_classifier("2013-04-23_Meldung_karin.huber@example.com.pdf")
     result = _call(clf)
     assert result is not None
-    assert result.filename == "2013-04-23_Meldung_Kathrin_Haerle.pdf"
+    assert result.filename == "2013-04-23_Meldung_Karin_Huber.pdf"
     assert clf.last_llm_error is None
 
 

@@ -113,6 +113,10 @@ class Rauchtest:
         self.dienstw = ordner / "pdfsm-dienstw.exe" if sys.platform == "win32" else None
         self.tmp = Path(tempfile.mkdtemp(prefix="pdfsm-rauchtest-"))
         self.env = dict(os.environ)
+        # Die Pruefungen unten lesen deutsche Ausgaben; CI-Rechner sind englisch (Issue #118)
+        self.env["PDFSM_LANGUAGE"] = "de"
+        # Die Pruefungen unten lesen deutsche Ausgaben; CI-Rechner sind englisch (Issue #118)
+        self.env["PDFSM_LANGUAGE"] = "de"
         if sys.platform == "win32":
             self.env["APPDATA"] = str(self.tmp / "appdata")
         else:

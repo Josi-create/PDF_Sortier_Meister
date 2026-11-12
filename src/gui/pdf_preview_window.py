@@ -15,6 +15,7 @@ from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import QMainWindow
 
 from src.gui.pdf_preview_widget import PdfPreviewWidget
+from src.i18n import tr
 
 _DEFAULT_SIZE = (900, 1000)
 
@@ -34,7 +35,7 @@ class PdfPreviewWindow(QMainWindow):
 
     def __init__(self, parent=None, geometry: list | None = None):
         super().__init__(parent)
-        self.setWindowTitle("PDF-Vorschau")
+        self.setWindowTitle(tr("PDF-Vorschau"))
         # Eigenes Top-Level-Fenster (nicht im Hauptfenster eingebettet),
         # bleibt aber dem Hauptfenster zugeordnet und schliesst mit ihm.
         self.setWindowFlag(Qt.WindowType.Window, True)
@@ -63,7 +64,7 @@ class PdfPreviewWindow(QMainWindow):
     def show_pdf(self, path: Path | str, seite: int | None = None) -> None:
         """Zeigt die PDF (optional direkt auf ``seite``, 1-basiert) und bringt das Fenster nach vorn."""
         path = Path(path)
-        self.setWindowTitle(f"PDF-Vorschau – {path.name}")
+        self.setWindowTitle(tr("PDF-Vorschau – {name}").format(name=path.name))
         self._pending_seite = (path, int(seite)) if seite and int(seite) > 0 else None
         self.preview.load_pdf(path)
         if self.isMinimized():

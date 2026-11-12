@@ -15,6 +15,7 @@ from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
 from src.ml.openai_werkzeuge import OpenAIWerkzeugMixin
+from src.i18n import tr
 
 
 class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
@@ -151,13 +152,13 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="Poe API nicht verfügbar. API-Key prüfen."
+                error_message=tr("Poe API nicht verfügbar. API-Key prüfen.")
             )
 
         if not available_folders:
             return LLMResponse(
                 success=False,
-                error_message="Keine Zielordner verfügbar."
+                error_message=tr("Keine Zielordner verfügbar.")
             )
 
         prompt = self._build_classification_prompt(
@@ -190,7 +191,7 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
@@ -213,22 +214,22 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
         except self._openai.APIConnectionError:
             return LLMResponse(
                 success=False,
-                error_message="Keine Verbindung zur Poe API."
+                error_message=tr("Keine Verbindung zur Poe API.")
             )
         except self._openai.RateLimitError:
             return LLMResponse(
                 success=False,
-                error_message="Poe API Rate-Limit erreicht. Bitte später versuchen."
+                error_message=tr("Poe API Rate-Limit erreicht. Bitte später versuchen.")
             )
         except self._openai.AuthenticationError:
             return LLMResponse(
                 success=False,
-                error_message="Ungültiger Poe API-Key."
+                error_message=tr("Ungültiger Poe API-Key.")
             )
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"Poe API Fehler: {str(e)}"
+                error_message=tr("Poe API Fehler: {0}").format(str(e))
             )
 
     def suggest_filename(
@@ -260,7 +261,7 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="Poe API nicht verfügbar. API-Key prüfen."
+                error_message=tr("Poe API nicht verfügbar. API-Key prüfen.")
             )
 
         prompt = self._build_filename_prompt(
@@ -294,7 +295,7 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Dateiname validieren
@@ -316,7 +317,7 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"Poe API Fehler: {str(e)}"
+                error_message=tr("Poe API Fehler: {0}").format(str(e))
             )
 
     def _find_similar_folder(
@@ -390,11 +391,11 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
                 detail = e.read().decode("utf-8", errors="replace")
             except Exception:
                 detail = ""
-            return None, f"Poe HTTP {e.code}: {detail}"
+            return None, tr("Poe HTTP {code}: {detail}").format(code=e.code, detail=detail)
         except urllib.error.URLError as e:
-            return None, f"Keine Verbindung zur Poe API: {e.reason}"
+            return None, tr("Keine Verbindung zur Poe API: {reason}").format(reason=e.reason)
         except Exception as e:
-            return None, f"Poe-Fehler: {e}"
+            return None, tr("Poe-Fehler: {e}").format(e=e)
 
     def answer_with_context(
         self,
@@ -434,7 +435,7 @@ class PoeProvider(OpenAIWerkzeugMixin, LLMProvider):
         }
         data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers)
         if error or not data:
-            return f"[Poe-Fehler: {error}]"
+            return tr("[Poe-Fehler: {error}]").format(error=error)
 
         choices = data.get("choices") or []
         if not choices:

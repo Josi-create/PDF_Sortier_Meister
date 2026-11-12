@@ -38,6 +38,7 @@ from src.utils.tesseract import (  # noqa: F401 - Re-Export
     find_tesseract,
     tessdata_dir,
 )
+from src.i18n import tr
 
 log = logging.getLogger("pdf_sortier_meister.suche")
 
@@ -366,7 +367,7 @@ def datei_ersetzen(ziel: str, ersatz: str) -> None:
         _ersetzen_windows(os.path.abspath(ziel), os.path.abspath(ersatz))
         return
     if not os.path.isfile(ziel):
-        raise FileNotFoundError(2, "Datei nicht mehr vorhanden", ziel)
+        raise FileNotFoundError(2, tr("Datei nicht mehr vorhanden"), ziel)
     try:
         shutil.copymode(ziel, ersatz)
     except OSError:
@@ -387,13 +388,13 @@ def _ersetzen_windows(ziel: str, ersatz: str) -> None:
         return
     fehler = ctypes.get_last_error()
     if fehler in (ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND):
-        raise FileNotFoundError(2, "Datei nicht mehr vorhanden", ziel)
+        raise FileNotFoundError(2, tr("Datei nicht mehr vorhanden"), ziel)
     if fehler == ERROR_UNABLE_TO_MOVE_REPLACEMENT and not os.path.exists(ziel) and os.path.exists(ersatz):
         # Laut Dokumentation ist das Original dann schon entfernt: den geprueften Ersatz an seinen Platz
         os.replace(ersatz, ziel)
         return
     if fehler in (ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION, ERROR_UNABLE_TO_REMOVE_REPLACED):
-        raise PermissionError(13, "Datei ist geöffnet oder gesperrt", ziel)
+        raise PermissionError(13, tr("Datei ist geöffnet oder gesperrt"), ziel)
     raise OSError(fehler, ctypes.FormatError(fehler).strip(), ziel)
 
 

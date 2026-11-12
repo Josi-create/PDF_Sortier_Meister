@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from src.utils.platform_paths import open_with_default_app
+from src.i18n import tr
 
 OPEN_MODE_INTEGRATED = "integrated"
 OPEN_MODE_SYSTEM = "system"
@@ -20,9 +21,9 @@ OPEN_MODE_CUSTOM = "custom"
 
 # (id, Beschriftung) - Reihenfolge = Reihenfolge in den Einstellungen
 OPEN_MODES: list[tuple[str, str]] = [
-    (OPEN_MODE_INTEGRATED, "Integrierte Vorschau (schnell, empfohlen)"),
-    (OPEN_MODE_SYSTEM, "Standardprogramm des Systems (z. B. Browser oder Acrobat)"),
-    (OPEN_MODE_CUSTOM, "Eigenes Programm (z. B. PDF-XChange)"),
+    (OPEN_MODE_INTEGRATED, tr("Integrierte Vorschau (schnell, empfohlen)")),
+    (OPEN_MODE_SYSTEM, tr("Standardprogramm des Systems (z. B. Browser oder Acrobat)")),
+    (OPEN_MODE_CUSTOM, tr("Eigenes Programm (z. B. PDF-XChange)")),
 ]
 
 
@@ -60,29 +61,29 @@ def open_pdf_externally(pdf_path: Path | str, mode: str = OPEN_MODE_SYSTEM,
     """
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
-        return False, f"Datei nicht gefunden: {pdf_path}"
+        return False, tr("Datei nicht gefunden: {pdf_path}").format(pdf_path=pdf_path)
 
     mode = normalize_open_mode(mode)
     if mode == OPEN_MODE_CUSTOM:
         command = (command or "").strip()
         if not command:
-            note = "Kein eigenes Programm eingetragen - Standardprogramm verwendet."
+            note = tr("Kein eigenes Programm eingetragen - Standardprogramm verwendet.")
         elif not Path(command).exists():
-            note = f"Programm nicht gefunden ({command}) - Standardprogramm verwendet."
+            note = tr("Programm nicht gefunden ({command}) - Standardprogramm verwendet.").format(command=command)
         else:
             try:
                 subprocess.Popen(build_custom_command(command, pdf_path))
                 return True, ""
             except OSError as e:
-                note = f"Programm konnte nicht gestartet werden ({e}) - Standardprogramm verwendet."
+                note = tr("Programm konnte nicht gestartet werden ({e}) - Standardprogramm verwendet.").format(e=e)
         try:
             open_with_default_app(pdf_path)
         except OSError as e:
-            return False, f"{note} Auch das schlug fehl: {e}"
+            return False, tr("{note} Auch das schlug fehl: {e}").format(note=note, e=e)
         return True, note
 
     try:
         open_with_default_app(pdf_path)
     except OSError as e:
-        return False, f"Standardprogramm konnte nicht gestartet werden: {e}"
+        return False, tr("Standardprogramm konnte nicht gestartet werden: {e}").format(e=e)
     return True, ""

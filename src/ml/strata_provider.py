@@ -14,6 +14,7 @@ from typing import Optional
 
 from src.ml.llm_provider import LLMConfig
 from src.ml.openai_provider import OpenAIProvider
+from src.i18n import tr
 
 
 def normalize_base_url(url: str) -> str:
@@ -103,15 +104,15 @@ class StrataProvider(OpenAIProvider):
             with urllib.request.urlopen(req, timeout=self.PING_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             anzahl = len(data.get("data") or [])
-            return True, f"{anzahl} Modell(e) geladen"
+            return True, tr("{anzahl} Modell(e) geladen").format(anzahl=anzahl)
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
-                return False, "API-Key wird nicht angenommen"
+                return False, tr("API-Key wird nicht angenommen")
             return False, f"HTTP {e.code}"
         except urllib.error.URLError as e:
-            return False, f"Verbindung fehlgeschlagen: {e.reason}"
+            return False, tr("Verbindung fehlgeschlagen: {reason}").format(reason=e.reason)
         except Exception as e:  # noqa: BLE001
-            return False, f"Fehler: {e}"
+            return False, tr("Fehler: {e}").format(e=e)
 
     def _get_model_id(self) -> str:
         """Eingestelltes Modell unveraendert; leer -> erstes Modell des Servers."""

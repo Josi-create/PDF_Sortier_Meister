@@ -16,6 +16,7 @@ import json
 import re
 from pathlib import PurePath
 from typing import Optional, Sequence
+from src.i18n import tr
 
 TEXT_JE_DOKUMENT = 1500  # Zeichen Textanfang je Dokument im Prompt
 WORT_MAX = 30  # Zeichen je Unterscheidungswort
@@ -97,10 +98,10 @@ def unterscheiden(provider, name: str, texte: Sequence[str]) -> list[str]:
     )
     antwort = (antwort or "").strip()
     if not antwort:
-        raise RuntimeError("Die KI hat nicht geantwortet.")
+        raise RuntimeError(tr("Die KI hat nicht geantwortet."))
     if antwort.startswith("[") and "fehler" in antwort[:60].lower():
         raise RuntimeError(antwort.strip("[]"))
     woerter = antwort_auswerten(antwort, len(texte))
     if woerter is None:
-        raise RuntimeError("Die KI hat keine eindeutigen Unterscheidungen genannt.")
+        raise RuntimeError(tr("Die KI hat keine eindeutigen Unterscheidungen genannt."))
     return woerter

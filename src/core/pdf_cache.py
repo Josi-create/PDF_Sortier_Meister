@@ -22,6 +22,7 @@ from typing import Optional, Callable
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
 from src.core.llm_activity import KIND_SUGGEST, get_llm_activity
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.cache")
 
@@ -318,7 +319,7 @@ class LLMSuggestionWorker(QThread):
                         # "abgerufen" zu cachen (sonst nie wieder ein Versuch)
                         err = getattr(self._hybrid_classifier, "last_llm_error", None)
                         self.suggestions_error.emit(
-                            pdf_path, err or "KI hat keinen Vorschlag geliefert."
+                            pdf_path, err or tr("KI hat keinen Vorschlag geliefert.")
                         )
                         continue
 

@@ -4,7 +4,7 @@ from src.core.metadata_choices import DEFAULT_CATEGORIES, category_choices, norm
 
 TEXT = (
     "Commerzbank AG - Depotauszug per 31.12.2024\n"
-    "Kunde: Johannes Wack\nIhre Ansprechpartnerin: Frau Müller, Stadtwerke-Kundencenter"
+    "Kunde: Jonas Weber\nIhre Ansprechpartnerin: Frau Müller, Stadtwerke-Kundencenter"
 )
 
 
@@ -23,8 +23,8 @@ def test_longest_match_wins_then_list_order():
                {"name": "Commerzbank", "aliases": []}]
     assert find_known_korrespondent(TEXT, entries) == "Commerzbank AG"
     # Gleich lange Treffer: der zuerst gelistete (nach Haeufigkeit) gewinnt
-    entries = [{"name": "Wack", "aliases": []}, {"name": "Frau", "aliases": []}]
-    assert find_known_korrespondent(TEXT, entries) == "Wack"
+    entries = [{"name": "Weber", "aliases": []}, {"name": "Frau", "aliases": []}]
+    assert find_known_korrespondent(TEXT, entries) == "Weber"
 
 
 def test_no_text_or_short_names_give_none():

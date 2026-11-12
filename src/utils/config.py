@@ -84,19 +84,22 @@ class Config:
         "backup_last_confirmed": "",
         # Frage mit "Nein" beantwortet: Statusleisten-Hinweis bleibt
         "backup_pending": False,
-        "language": "de",
+        # Sprache der Oberflaeche (Issue #118): "auto" = nach Systemsprache
+        # (Deutsch bleibt Deutsch, alles andere wird Englisch), sonst ein Kuerzel
+        # wie "de" oder "en" (siehe src/i18n). Wirkt nach dem Neustart.
+        "language": "auto",
         "theme": "light",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
         # Persönliche Daten (damit das System den Benutzer kennt)
-        "owner_name": "",           # z.B. "Johannes Härle-Wack"
+        "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
         "owner_company": "",        # Eigene Firma (falls vorhanden)
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
         "owner_emails": "",         # Eigene E-Mail-Adressen (kommagetrennt)
-        "owner_initials": "",       # z.B. "JW" - fuer {initialen} in Dateinamen
+        "owner_initials": "",       # z.B. "MM" - fuer {initialen} in Dateinamen
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",

@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Optional
+from src.i18n import tr
 
 # Zahlungsseite (Buy Me a Coffee). Leer = kein Spenden-Link.
 DONATE_URL = "https://buymeacoffee.com/josicreate"
@@ -45,13 +46,13 @@ class Tier:
 
 
 TIERS: tuple[Tier, ...] = (
-    Tier("zigarette", "Eine Zigarette", 1),
-    Tier("kaffee", "Ein Kaffee", 3),
-    Tier("bier", "Zwei Bier", 5),
-    Tier("mittag", "Mittagessen", 12),
-    Tier("abend", "Abendessen", 25),
-    Tier("pro", "PRO-Unterstützerlizenz", 49),
-    Tier("porsche", "Ein neuer Porsche", 999),
+    Tier("zigarette", tr("Eine Zigarette"), 1),
+    Tier("kaffee", tr("Ein Kaffee"), 3),
+    Tier("bier", tr("Zwei Bier"), 5),
+    Tier("mittag", tr("Mittagessen"), 12),
+    Tier("abend", tr("Abendessen"), 25),
+    Tier("pro", tr("PRO-Unterstützerlizenz"), 49),
+    Tier("porsche", tr("Ein neuer Porsche"), 999),
 )
 
 
@@ -135,5 +136,5 @@ def supporter_label(config) -> str:
         return ""
     datum = since.strftime("%d.%m.%Y")
     if config.get("support_tier", "") == "pro":
-        return f"PRO-Unterstützer seit {datum}"
-    return f"Unterstützer seit {datum}"
+        return tr("PRO-Unterstützer seit {datum}").format(datum=datum)
+    return tr("Unterstützer seit {datum}").format(datum=datum)

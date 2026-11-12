@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, pyqtSignal
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.llm_activity")
 
@@ -54,8 +55,8 @@ def format_estimate(seconds: float | None) -> str:
     if seconds is None or seconds <= 0:
         return ""
     if seconds < 60:
-        return f"ca. {max(1, int(round(seconds)))} s"
-    return f"ca. {format_elapsed(seconds)} min"
+        return tr("ca. {0} s").format(max(1, int(round(seconds))))
+    return tr("ca. {0} min").format(format_elapsed(seconds))
 
 
 def timing_key(provider: str, model: str, kind: str) -> str:

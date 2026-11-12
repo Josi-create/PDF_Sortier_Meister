@@ -343,15 +343,15 @@ def test_known_korrespondent_in_text_beats_ki_suggestion(qtbot, monkeypatch, tmp
 def test_wiedererkennen_ohne_nutzer_und_formularverlag_und_alias_160(qtbot, monkeypatch, tmp_path):
     """Issue #160: "Haus & Grund" im Formularkopf und der eigene Name setzen sich nicht selbst;
     ein von der KI zugeordneter Alias erscheint in der Schreibweise der Verwaltung."""
-    panel, cfg = _panel(qtbot, monkeypatch, tmp_path, owner_name="Johannes Härle-Wack")
+    panel, cfg = _panel(qtbot, monkeypatch, tmp_path, owner_name="Jonas Huber-Weber")
     cfg._db.add_or_update_korrespondent("Haus & Grund")
-    cfg._db.add_or_update_korrespondent("Johannes Härle-Wack")
+    cfg._db.add_or_update_korrespondent("Jonas Huber-Weber")
     cfg._db.korrespondent_alias_setzen("Testfirma", "Testfirma GmbH")
 
     pdf = tmp_path / "scan.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     panel.set_pdf(pdf_path=pdf, suggestions=[_ki_suggestion()],
-                  extracted_text="Mietvertrag Haus & Grund, Vermieter Johannes Härle-Wack",
+                  extracted_text="Mietvertrag Haus & Grund, Vermieter Jonas Huber-Weber",
                   keywords=["vertrag"], detected_date="2024-01-31")
     # kein Treffer aus der Verwaltung; der KI-Vorschlag "Testfirma GmbH" kommt als kanonischer Name
     assert panel.get_metadata()["korrespondent"] == "Testfirma"

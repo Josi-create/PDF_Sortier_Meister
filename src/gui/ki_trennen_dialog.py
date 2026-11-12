@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from src.core import ki_trennen
 from src.core.ki_trennen import Teil
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -56,26 +57,30 @@ class KiTrennenDialog(QDialog):
         except Exception:  # noqa: BLE001 - dann ohne Seitenbilder
             self._doc = None
 
-        self.setWindowTitle("KI-unterstütztes Trennen")
+        self.setWindowTitle(tr("KI-unterstütztes Trennen"))
         self.setModal(True)
         self.resize(760, 560)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         if len(teile) > 1:
-            kopf = (f"<b>{pdf_path.name}</b> ({seitenzahl} Seiten)<br>"
-                    f"Die KI hat {len(teile)} Dokumente erkannt. Jede Zeile wird ein eigenes PDF; "
-                    "Seiten und Namen lassen sich ändern.")
+            kopf = (tr(
+                "<b>{name}</b> ({seitenzahl} Seiten)<br>Die KI hat {anzahl} Dokumente "
+                "erkannt. Jede Zeile wird ein eigenes PDF; Seiten und Namen lassen sich "
+                "ändern."
+            ).format(name=pdf_path.name, seitenzahl=seitenzahl, anzahl=len(teile)))
         else:
-            kopf = (f"<b>{pdf_path.name}</b> ({seitenzahl} Seiten)<br>"
-                    "Die KI hält das für ein einziges Dokument. Mit „Dokument aufteilen …“ kannst du "
-                    "es selbst zerlegen; jede Zeile wird ein eigenes PDF.")
+            kopf = (tr(
+                "<b>{name}</b> ({seitenzahl} Seiten)<br>Die KI hält das für ein einziges "
+                "Dokument. Mit „Dokument aufteilen …“ kannst du es selbst zerlegen; jede "
+                "Zeile wird ein eigenes PDF."
+            ).format(name=pdf_path.name, seitenzahl=seitenzahl))
         info = QLabel(kopf)
         info.setWordWrap(True)
         layout.addWidget(info)
 
         self.tabelle = QTableWidget(0, 2, self)
-        self.tabelle.setHorizontalHeaderLabels(["Seiten", "Dateiname (ohne .pdf)"])
+        self.tabelle.setHorizontalHeaderLabels([tr("Seiten"), tr("Dateiname (ohne .pdf)")])
         self.tabelle.setIconSize(QSize(int(BILD_HOEHE * 0.72), BILD_HOEHE))
         self.tabelle.verticalHeader().setDefaultSectionSize(BILD_HOEHE + 10)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -91,15 +96,15 @@ class KiTrennenDialog(QDialog):
         self.tabelle.itemChanged.connect(self._geaendert)
 
         zeile = QHBoxLayout()
-        self.teilen = QPushButton("Dokument aufteilen …")
-        self.teilen.setToolTip("Im markierten Dokument stecken zwei Schriftstücke?\n"
-                               "Hier angeben, auf welcher Seite das zweite beginnt.")
+        self.teilen = QPushButton(tr("Dokument aufteilen …"))
+        self.teilen.setToolTip(tr("Im markierten Dokument stecken zwei Schriftstücke?\n"
+                               "Hier angeben, auf welcher Seite das zweite beginnt."))
         self.teilen.clicked.connect(self._aufteilen)
         zeile.addWidget(self.teilen)
-        self.zusammen = QPushButton("Mit dem Dokument davor zusammenlegen")
-        self.zusammen.setToolTip("Das markierte Dokument ist gar kein eigenes Schriftstück?\n"
+        self.zusammen = QPushButton(tr("Mit dem Dokument davor zusammenlegen"))
+        self.zusammen.setToolTip(tr("Das markierte Dokument ist gar kein eigenes Schriftstück?\n"
                                  "Seine Seiten kommen zum Dokument in der Zeile darüber\n"
-                                 "(beim ersten Dokument: in der Zeile darunter).")
+                                 "(beim ersten Dokument: in der Zeile darunter)."))
         self.zusammen.clicked.connect(self._entfernen)
         zeile.addWidget(self.zusammen)
         zeile.addStretch()
@@ -110,18 +115,20 @@ class KiTrennenDialog(QDialog):
         self.stand.setWordWrap(True)
         layout.addWidget(self.stand)
 
-        hinweis = QLabel("Seiten als Bereich (1-3) oder kommagetrennt (1-3, 7). "
-                         f"Die neuen PDFs entstehen in: {pdf_path.parent}")
+        hinweis = QLabel(tr(
+            "Seiten als Bereich (1-3) oder kommagetrennt (1-3, 7). Die neuen PDFs entstehen "
+            "in: {parent}"
+        ).format(parent=pdf_path.parent))
         hinweis.setWordWrap(True)
         hinweis.setEnabled(False)
         layout.addWidget(hinweis)
 
         knoepfe = QHBoxLayout()
         knoepfe.addStretch()
-        abbrechen = QPushButton("Abbrechen")
+        abbrechen = QPushButton(tr("Abbrechen"))
         abbrechen.clicked.connect(self.reject)
         knoepfe.addWidget(abbrechen)
-        self.ok = QPushButton("Trennen")
+        self.ok = QPushButton(tr("Trennen"))
         self.ok.setDefault(True)
         self.ok.clicked.connect(self._annehmen)
         knoepfe.addWidget(self.ok)
@@ -161,7 +168,7 @@ class KiTrennenDialog(QDialog):
             return
         item.setIcon(self._seitenbild(erste))
         anfang = " ".join((self._texte[erste - 1] if erste <= len(self._texte) else "").split())[:400]
-        tipp = f"Seite {erste}: {anfang}" if anfang else f"Seite {erste} (kein Text)"
+        tipp = tr("Seite {erste}: {anfang}").format(erste=erste, anfang=anfang) if anfang else tr("Seite {erste} (kein Text)").format(erste=erste)
         item.setToolTip(tipp)
         name = self.tabelle.item(zeile, SPALTE_NAME)
         if name is not None:
@@ -207,16 +214,18 @@ class KiTrennenDialog(QDialog):
         self.teilen.setEnabled(mehrseitig)
         self.zusammen.setEnabled(zeile >= 0 and self.tabelle.rowCount() > 1)
         if zeile == 0:
-            self.zusammen.setText("Mit dem Dokument danach zusammenlegen")
+            self.zusammen.setText(tr("Mit dem Dokument danach zusammenlegen"))
         else:
-            self.zusammen.setText("Mit dem Dokument davor zusammenlegen")
+            self.zusammen.setText(tr("Mit dem Dokument davor zusammenlegen"))
 
     def _frage_teilseite(self, seiten: list[int]) -> Optional[int]:
         """Fragt, auf welcher Seite das zweite Schriftstueck beginnt (Tests ersetzen das)."""
         seite, ok = QInputDialog.getInt(
-            self, "Dokument aufteilen",
-            f"Das Dokument hat die Seiten {ki_trennen.seiten_als_text(seiten)}.\n\n"
-            "Auf welcher Seite beginnt das zweite Schriftstück?",
+            self, tr("Dokument aufteilen"),
+            tr(
+                "Das Dokument hat die Seiten {0}.\n\nAuf welcher Seite beginnt das zweite "
+                "Schriftstück?"
+            ).format(ki_trennen.seiten_als_text(seiten)),
             seiten[1], seiten[1], seiten[-1])
         return seite if ok else None
 
@@ -281,12 +290,12 @@ class KiTrennenDialog(QDialog):
             try:
                 seiten = self._seiten_der_zeile(zeile)
             except ValueError as e:
-                fehler.append(f"Zeile {zeile + 1}: {e}")
+                fehler.append(tr("Zeile {0}: {e}").format(zeile + 1, e=e))
                 continue
             item = self.tabelle.item(zeile, SPALTE_NAME)
             name = ki_trennen.name_bereinigen(item.text() if item else "")
             if not name:
-                fehler.append(f"Zeile {zeile + 1}: Der Dateiname fehlt.")
+                fehler.append(tr("Zeile {0}: Der Dateiname fehlt.").format(zeile + 1))
                 continue
             teile.append(Teil(seiten, name))
         return teile, fehler
@@ -309,30 +318,30 @@ class KiTrennenDialog(QDialog):
         fehlend, doppelt = self._luecken(teile)
         meldungen = []
         if fehlend:
-            meldungen.append(f"Seite(n) {ki_trennen.seiten_als_text(fehlend)} kommen in keinem Dokument vor")
+            meldungen.append(tr("Seite(n) {0} kommen in keinem Dokument vor").format(ki_trennen.seiten_als_text(fehlend)))
         if doppelt:
-            meldungen.append(f"Seite(n) {ki_trennen.seiten_als_text(doppelt)} sind mehrfach vergeben")
+            meldungen.append(tr("Seite(n) {0} sind mehrfach vergeben").format(ki_trennen.seiten_als_text(doppelt)))
         if meldungen:
             self.stand.setText("⚠ " + "; ".join(meldungen) + ".")
         else:
-            self.stand.setText(f"✓ Alle {self.seitenzahl} Seiten sind auf {len(teile)} Dokument(e) verteilt.")
+            self.stand.setText(tr("✓ Alle {seitenzahl} Seiten sind auf {anzahl} Dokument(e) verteilt.").format(seitenzahl=self.seitenzahl, anzahl=len(teile)))
 
     def _annehmen(self) -> None:
         # Laufende Eingabe in einer Zelle uebernehmen
         self.ok.setFocus()
         teile, fehler = self._lesen()
         if fehler:
-            QMessageBox.warning(self, "Eingabe prüfen", "\n".join(fehler))
+            QMessageBox.warning(self, tr("Eingabe prüfen"), "\n".join(fehler))
             return
         fehlend, doppelt = self._luecken(teile)
         if fehlend or doppelt:
             zeilen = []
             if fehlend:
-                zeilen.append(f"Seite(n) {ki_trennen.seiten_als_text(fehlend)} kommen in keinem Dokument vor.")
+                zeilen.append(tr("Seite(n) {0} kommen in keinem Dokument vor.").format(ki_trennen.seiten_als_text(fehlend)))
             if doppelt:
-                zeilen.append(f"Seite(n) {ki_trennen.seiten_als_text(doppelt)} sind mehrfach vergeben.")
+                zeilen.append(tr("Seite(n) {0} sind mehrfach vergeben.").format(ki_trennen.seiten_als_text(doppelt)))
             antwort = QMessageBox.question(
-                self, "KI-unterstütztes Trennen", "\n".join(zeilen) + "\n\nTrotzdem so trennen?",
+                self, tr("KI-unterstütztes Trennen"), tr("{0}\n\nTrotzdem so trennen?").format('\n'.join(zeilen)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No)
             if antwort != QMessageBox.StandardButton.Yes:
@@ -357,9 +366,9 @@ class KiTrennenMixin:
     """Hauptfenster-Teil: Stapel-PDF von der KI in Dokumente zerlegen lassen."""
 
     def on_pdf_ki_split(self, pdf_path: Path):
-        titel = "KI-unterstütztes Trennen"
+        titel = tr("KI-unterstütztes Trennen")
         if pdf_path.suffix.lower() != ".pdf":
-            QMessageBox.information(self, titel, "Das geht nur mit PDF-Dateien.")
+            QMessageBox.information(self, titel, tr("Das geht nur mit PDF-Dateien."))
             return
         try:
             import fitz
@@ -367,11 +376,11 @@ class KiTrennenMixin:
             with fitz.open(str(pdf_path)) as doc:
                 seitenzahl = len(doc)
         except Exception as e:  # noqa: BLE001
-            QMessageBox.critical(self, "Fehler", f"PDF konnte nicht geöffnet werden:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("PDF konnte nicht geöffnet werden:\n{e}").format(e=e))
             return
         if seitenzahl < 2:
             QMessageBox.information(
-                self, titel, f"'{pdf_path.name}' hat nur eine Seite und kann nicht getrennt werden.")
+                self, titel, tr("'{name}' hat nur eine Seite und kann nicht getrennt werden.").format(name=pdf_path.name))
             return
 
         hc = self.hybrid_classifier
@@ -383,19 +392,21 @@ class KiTrennenMixin:
         if not mit_ki:
             QMessageBox.information(
                 self, titel,
-                "Dafür ist eine KI nötig. Bitte in den Einstellungen einen KI-Anbieter einrichten "
-                "oder das PDF mit „PDF trennen...“ von Hand trennen.")
+                tr("Dafür ist eine KI nötig. Bitte in den Einstellungen einen KI-Anbieter einrichten "
+                "oder das PDF mit „PDF trennen...“ von Hand trennen."))
             return
 
-        ergebnis: dict = {"stand": "Der Text der Seiten wird gelesen …"}
+        ergebnis: dict = {"stand": tr("Der Text der Seiten wird gelesen …")}
         stopp = threading.Event()
 
         def gemeldet(fertig: int, gesamt: int) -> None:
             if gesamt > 1:
-                ergebnis["stand"] = (f"Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …\n"
-                                     f"Abschnitt {min(fertig + 1, gesamt)} von {gesamt}")
+                ergebnis["stand"] = (tr(
+                    "Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …\n"
+                    "Abschnitt {0} von {gesamt}"
+                ).format(min(fertig + 1, gesamt), seitenzahl=seitenzahl, gesamt=gesamt))
             else:
-                ergebnis["stand"] = f"Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …"
+                ergebnis["stand"] = tr("Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …").format(seitenzahl=seitenzahl)
 
         def arbeit():
             try:
@@ -403,8 +414,8 @@ class KiTrennenMixin:
                 ergebnis["texte"] = texte
                 if not any(t.strip() for t in texte):
                     raise RuntimeError(
-                        "In dem PDF wurde kein Text gefunden (auch nicht per Texterkennung). "
-                        "Ohne Text kann die KI die Dokumente nicht unterscheiden.")
+                        tr("In dem PDF wurde kein Text gefunden (auch nicht per Texterkennung). "
+                        "Ohne Text kann die KI die Dokumente nicht unterscheiden."))
                 ergebnis["teile"] = ki_trennen.vorschlagen(
                     provider, texte, pdf_path.stem, fortschritt=gemeldet, abbruch=stopp.is_set)
             except Exception as ex:  # noqa: BLE001 - als Meldung zeigen
@@ -421,7 +432,7 @@ class KiTrennenMixin:
 
         thread = threading.Thread(target=arbeit, name="ki-trennen", daemon=True)
         thread.start()
-        fortschritt = QProgressDialog(ergebnis["stand"], "Abbrechen", 0, 0, self)
+        fortschritt = QProgressDialog(ergebnis["stand"], tr("Abbrechen"), 0, 0, self)
         fortschritt.setWindowTitle(titel)
         fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
         fortschritt.setMinimumDuration(0)
@@ -453,10 +464,10 @@ class KiTrennenMixin:
             except Exception:  # noqa: BLE001
                 pass
         if abgebrochen:
-            self.statusbar.showMessage("KI-unterstütztes Trennen abgebrochen", 4000)
+            self.statusbar.showMessage(tr("KI-unterstütztes Trennen abgebrochen"), 4000)
             return
         if "teile" not in ergebnis:
-            QMessageBox.warning(self, titel, ergebnis.get("fehler") or "Die KI hat keine Aufteilung geliefert.")
+            QMessageBox.warning(self, titel, ergebnis.get("fehler") or tr("Die KI hat keine Aufteilung geliefert."))
             return
 
         dialog = KiTrennenDialog(pdf_path, seitenzahl, ergebnis["teile"], ergebnis.get("texte"), parent=self)
@@ -467,12 +478,15 @@ class KiTrennenMixin:
             output_files = self.file_manager.split_pdf_teile(
                 pdf_path, pdf_path.parent, [(t.seiten, t.name) for t in teile])
             n = len(output_files)
-            self.statusbar.showMessage(f"PDF getrennt: {n} Dokument(e) erstellt", 4000)
+            self.statusbar.showMessage(tr("PDF getrennt: {n} Dokument(e) erstellt").format(n=n), 4000)
             if self.original_nach_trennen(pdf_path, output_files):
                 self.statusbar.showMessage(
-                    f"PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb (Strg+Z holt es zurück)",
+                    tr(
+                        "PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb "
+                        "(Strg+Z holt es zurück)"
+                    ).format(n=n),
                     6000)
             self.load_pdfs()
         except Exception as e:  # noqa: BLE001
             logger.exception("KI-Trennen fehlgeschlagen")
-            QMessageBox.critical(self, "Fehler", f"PDF trennen fehlgeschlagen:\n{e}")
+            QMessageBox.critical(self, tr("Fehler"), tr("PDF trennen fehlgeschlagen:\n{e}").format(e=e))

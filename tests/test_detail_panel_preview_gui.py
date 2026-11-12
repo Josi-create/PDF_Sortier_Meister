@@ -40,9 +40,9 @@ def test_preview_shown_when_characters_are_replaced(qtbot):
 
 def test_preview_shown_for_email(qtbot):
     panel = _panel(qtbot)
-    panel.name_input.setText("Meldung kathrin.haerle@web.de")
+    panel.name_input.setText("Meldung karin.huber@example.com")
     assert not panel.preview_label.isHidden()
-    assert "Kathrin" in panel.preview_label.text()
+    assert "Karin" in panel.preview_label.text()
 
 
 def test_move_only_toggle_is_gone(qtbot):

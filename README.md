@@ -1,5 +1,7 @@
 # PDF Sortier Meister
 
+*English: [README.en.md](README.en.md)*
+
 **Gescannte PDFs sortieren, umbenennen und wiederfinden — auf dem eigenen PC (Windows & macOS), ohne Server, mit lokaler KI.**
 
 [![Release](https://img.shields.io/github/v/release/Josi-create/PDF_Sortier_Meister?label=Download&color=brightgreen)](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)

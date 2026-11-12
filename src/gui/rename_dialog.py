@@ -26,6 +26,8 @@ from PyQt6.QtWidgets import (
     QFrame,
     QMessageBox,
 )
+from src.i18n import tr
+from src.core.suggestion_order import reason_display
 
 
 @dataclass
@@ -93,7 +95,7 @@ class RenameDialog(QDialog):
             except Exception:
                 pass
 
-        self.setWindowTitle("PDF umbenennen")
+        self.setWindowTitle(tr("PDF umbenennen"))
         self.setMinimumWidth(550)
         self.setMinimumHeight(500)
 
@@ -106,7 +108,7 @@ class RenameDialog(QDialog):
         layout.setSpacing(15)
 
         # Originaldateiname
-        original_group = QGroupBox("Aktueller Dateiname")
+        original_group = QGroupBox(tr("Aktueller Dateiname"))
         original_layout = QVBoxLayout(original_group)
 
         self.original_label = QLabel(self.pdf_path.name)
@@ -120,7 +122,7 @@ class RenameDialog(QDialog):
         layout.addWidget(original_group)
 
         # Vorschläge
-        suggestions_group = QGroupBox("Vorschläge (zum Auswählen klicken)")
+        suggestions_group = QGroupBox(tr("Vorschläge (zum Auswählen klicken)"))
         suggestions_layout = QVBoxLayout(suggestions_group)
 
         self.suggestions_list = QListWidget()
@@ -132,11 +134,11 @@ class RenameDialog(QDialog):
         layout.addWidget(suggestions_group)
 
         # Neuer Name Eingabe
-        new_name_group = QGroupBox("Neuer Dateiname")
+        new_name_group = QGroupBox(tr("Neuer Dateiname"))
         new_name_layout = QVBoxLayout(new_name_group)
 
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
+        self.name_input.setPlaceholderText(tr("Neuen Dateinamen eingeben..."))
         self.name_input.textChanged.connect(self.update_preview)
         font = QFont()
         font.setPointSize(11)
@@ -144,14 +146,14 @@ class RenameDialog(QDialog):
         new_name_layout.addWidget(self.name_input)
 
         # Hinweis zur .pdf Endung
-        hint_label = QLabel("Die .pdf Endung wird automatisch hinzugefügt")
+        hint_label = QLabel(tr("Die .pdf Endung wird automatisch hinzugefügt"))
         hint_label.setStyleSheet("color: #666; font-size: 10px;")
         new_name_layout.addWidget(hint_label)
 
         layout.addWidget(new_name_group)
 
         # Vorschau
-        preview_group = QGroupBox("Vorschau")
+        preview_group = QGroupBox(tr("Vorschau"))
         preview_layout = QVBoxLayout(preview_group)
 
         self.preview_label = QLabel()
@@ -172,9 +174,9 @@ class RenameDialog(QDialog):
 
         # Metadaten-Panel (Phase 16)
         if self._has_learned_overrides:
-            metadata_title = "Dokument-Metadaten (gelernt + werden in PDF gespeichert)"
+            metadata_title = tr("Dokument-Metadaten (gelernt + werden in PDF gespeichert)")
         else:
-            metadata_title = "Dokument-Metadaten (werden in PDF gespeichert)"
+            metadata_title = tr("Dokument-Metadaten (werden in PDF gespeichert)")
         metadata_group = QGroupBox(metadata_title)
         metadata_layout = QVBoxLayout(metadata_group)
         metadata_layout.setSpacing(4)
@@ -182,14 +184,14 @@ class RenameDialog(QDialog):
         # Metadaten-Felder als editierbare Eingabefelder
         self._metadata_inputs = {}
         metadata_field_labels = [
-            ("buchungsdatum", "Datum"),
-            ("subject", "Kategorie"),
-            ("korrespondent", "Korrespondent"),
-            ("betrag", "Betrag"),
-            ("waehrung", "Währung"),
-            ("mwst_satz", "MwSt-Satz"),
-            ("steuerjahr", "Steuerjahr"),
-            ("description", "Zusammenfassung"),
+            ("buchungsdatum", tr("Datum")),
+            ("subject", tr("Kategorie")),
+            ("korrespondent", tr("Korrespondent")),
+            ("betrag", tr("Betrag")),
+            ("waehrung", tr("Währung")),
+            ("mwst_satz", tr("MwSt-Satz")),
+            ("steuerjahr", tr("Steuerjahr")),
+            ("description", tr("Zusammenfassung")),
         ]
 
         for field_key, field_label in metadata_field_labels:
@@ -224,8 +226,8 @@ class RenameDialog(QDialog):
         # Button: KI-Metadaten neu generieren
         llm_btn_row = QHBoxLayout()
         llm_btn_row.addStretch()
-        self.llm_metadata_btn = QPushButton("KI-Metadaten neu generieren")
-        self.llm_metadata_btn.setToolTip("LLM erneut aufrufen um Metadaten zu extrahieren")
+        self.llm_metadata_btn = QPushButton(tr("KI-Metadaten neu generieren"))
+        self.llm_metadata_btn.setToolTip(tr("LLM erneut aufrufen um Metadaten zu extrahieren"))
         self.llm_metadata_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
             "padding: 4px 12px; border: none; border-radius: 3px; font-size: 11px; }"
@@ -240,11 +242,11 @@ class RenameDialog(QDialog):
 
         # Erkannte Informationen
         if self.keywords:
-            info_group = QGroupBox("Erkannte Informationen")
+            info_group = QGroupBox(tr("Erkannte Informationen"))
             info_layout = QVBoxLayout(info_group)
 
-            keywords_text = ", ".join(self.keywords) if self.keywords else "Keine erkannt"
-            keywords_label = QLabel(f"Schlüsselwörter: {keywords_text}")
+            keywords_text = ", ".join(self.keywords) if self.keywords else tr("Keine erkannt")
+            keywords_label = QLabel(tr("Schlüsselwörter: {keywords_text}").format(keywords_text=keywords_text))
             keywords_label.setStyleSheet("color: #666;")
             info_layout.addWidget(keywords_label)
 
@@ -254,11 +256,11 @@ class RenameDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self.cancel_button = QPushButton("Abbrechen")
+        self.cancel_button = QPushButton(tr("Abbrechen"))
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_button)
 
-        self.rename_button = QPushButton("Umbenennen")
+        self.rename_button = QPushButton(tr("Umbenennen"))
         self.rename_button.setDefault(True)
         self.rename_button.clicked.connect(self.accept_rename)
         self.rename_button.setStyleSheet(
@@ -280,7 +282,7 @@ class RenameDialog(QDialog):
         self.suggestions_list.clear()
 
         if not self.suggestions:
-            item = QListWidgetItem("Keine Vorschläge verfügbar")
+            item = QListWidgetItem(tr("Keine Vorschläge verfügbar"))
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.suggestions_list.addItem(item)
             return
@@ -290,11 +292,11 @@ class RenameDialog(QDialog):
             confidence_pct = int(suggestion.confidence * 100)
             display_text = f"{suggestion.name}"
             if suggestion.reason:
-                display_text += f"  [{suggestion.reason}]"
+                display_text += f"  [{reason_display(suggestion.reason)}]"
 
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion.name)
-            item.setToolTip(f"Konfidenz: {confidence_pct}%\n{suggestion.reason}")
+            item.setToolTip(tr("Konfidenz: {confidence_pct}%\n{reason}").format(confidence_pct=confidence_pct, reason=reason_display(suggestion.reason)))
 
             # Farbcodierung nach Konfidenz
             if confidence_pct >= 70:
@@ -333,7 +335,7 @@ class RenameDialog(QDialog):
     def update_preview(self, text: str):
         """Aktualisiert die Vorschau."""
         if not text.strip():
-            self.preview_label.setText("(Bitte Namen eingeben)")
+            self.preview_label.setText(tr("(Bitte Namen eingeben)"))
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 10px; background-color: #fff3e0; "
                 "border: 1px solid #ffcc80; border-radius: 3px;"
@@ -351,22 +353,22 @@ class RenameDialog(QDialog):
         has_email = contains_email(text)
 
         if not preview_name:
-            self.warning_label.setText("Name besteht nur aus ungültigen Zeichen")
+            self.warning_label.setText(tr("Name besteht nur aus ungültigen Zeichen"))
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 10px; background-color: #ffebee; "
                 "border: 1px solid #ef9a9a; border-radius: 3px;"
             )
             self.rename_button.setEnabled(False)
-            preview_name = "(ungültig)"
+            preview_name = tr("(ungültig)")
         elif found_invalid or has_email:
             hints = []
             if has_email:
-                hints.append("E-Mail-Adresse → Name")
+                hints.append(tr("E-Mail-Adresse → Name"))
             if found_invalid:
                 shown = ' '.join('␣' if c.isspace() else c for c in found_invalid)
                 hints.append(f"{shown} → _")
-            self.warning_label.setText("Wird ersetzt: " + ", ".join(hints))
+            self.warning_label.setText(tr("Wird ersetzt: {0}").format(', '.join(hints)))
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 10px; background-color: #fff8e1; "
@@ -390,8 +392,8 @@ class RenameDialog(QDialog):
         if not text:
             QMessageBox.warning(
                 self,
-                "Fehler",
-                "Bitte geben Sie einen Dateinamen ein."
+                tr("Fehler"),
+                tr("Bitte geben Sie einen Dateinamen ein.")
             )
             return
 
@@ -401,8 +403,8 @@ class RenameDialog(QDialog):
         if not text:
             QMessageBox.warning(
                 self,
-                "Fehler",
-                "Der Dateiname besteht nur aus ungültigen Zeichen."
+                tr("Fehler"),
+                tr("Der Dateiname besteht nur aus ungültigen Zeichen.")
             )
             return
 
@@ -420,14 +422,14 @@ class RenameDialog(QDialog):
             if not classifier.is_llm_available():
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.information(
-                    self, "KI nicht verfügbar",
-                    "Kein LLM konfiguriert. Bitte unter Extras → Einstellungen einen API-Key hinterlegen."
+                    self, tr("KI nicht verfügbar"),
+                    tr("Kein LLM konfiguriert. Bitte unter Extras → Einstellungen einen API-Key hinterlegen.")
                 )
                 return
 
             # Button deaktivieren während der Anfrage
             self.llm_metadata_btn.setEnabled(False)
-            self.llm_metadata_btn.setText("KI arbeitet...")
+            self.llm_metadata_btn.setText(tr("KI arbeitet..."))
             QApplication.processEvents()
 
             # Datum ermitteln - Feld "Datum" vor dem Analyse-Wert (Issue #132)
@@ -488,16 +490,16 @@ class RenameDialog(QDialog):
             if not metadata_found:
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.information(
-                    self, "Keine Metadaten",
-                    "Das LLM konnte keine Metadaten aus dem Dokument extrahieren."
+                    self, tr("Keine Metadaten"),
+                    tr("Das LLM konnte keine Metadaten aus dem Dokument extrahieren.")
                 )
 
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Fehler", f"LLM-Aufruf fehlgeschlagen:\n{e}")
+            QMessageBox.warning(self, tr("Fehler"), tr("LLM-Aufruf fehlgeschlagen:\n{e}").format(e=e))
         finally:
             self.llm_metadata_btn.setEnabled(True)
-            self.llm_metadata_btn.setText("KI-Metadaten neu generieren")
+            self.llm_metadata_btn.setText(tr("KI-Metadaten neu generieren"))
 
     def get_new_name(self) -> Optional[str]:
         """Gibt den neuen Dateinamen zurück."""

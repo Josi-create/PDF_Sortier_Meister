@@ -35,6 +35,7 @@ from src.ml.llm_provider import (
     WerkzeugAntwort,
 )
 from src.ml.ollama_launcher import http_error_text
+from src.i18n import tr
 
 
 class OllamaProvider(LLMProvider):
@@ -115,9 +116,9 @@ class OllamaProvider(LLMProvider):
                 data = json.loads(resp.read().decode("utf-8"))
                 return True, data.get("version", "unbekannt")
         except urllib.error.URLError as e:
-            return False, f"Verbindung fehlgeschlagen: {e.reason}"
+            return False, tr("Verbindung fehlgeschlagen: {reason}").format(reason=e.reason)
         except Exception as e:
-            return False, f"Fehler: {e}"
+            return False, tr("Fehler: {e}").format(e=e)
 
     def list_models(self) -> list[str]:
         """Holt die Liste der lokal installierten Modelle vom Server."""
@@ -143,7 +144,7 @@ class OllamaProvider(LLMProvider):
             return result, error
 
         # Nur bei echten Verbindungsfehlern (URLError) Auto-Start versuchen
-        if self._autostart_attempted or not error.startswith("Keine Verbindung"):
+        if self._autostart_attempted or not error.startswith(tr("Keine Verbindung")):
             return result, error
 
         self._autostart_attempted = True
@@ -155,8 +156,7 @@ class OllamaProvider(LLMProvider):
         ok, msg = ensure_running(self._get_base_url())
         if not ok:
             return None, (
-                f"Ollama nicht erreichbar und Auto-Start fehlgeschlagen.\n"
-                f"{msg}"
+                tr("Ollama nicht erreichbar und Auto-Start fehlgeschlagen.\n{msg}").format(msg=msg)
             )
 
         # Server laeuft jetzt - Request wiederholen.
@@ -211,7 +211,7 @@ class OllamaProvider(LLMProvider):
                 return None, error
             content = self._extract_content(data)
         if not content:
-            return None, "Ollama hat eine leere Antwort geliefert."
+            return None, tr("Ollama hat eine leere Antwort geliefert.")
         return content, None
 
     # Aktueller Wert fuer das "think"-Feld: False = aus, "low" = minimal,
@@ -251,9 +251,9 @@ class OllamaProvider(LLMProvider):
         except urllib.error.HTTPError as e:
             return None, http_error_text(e)
         except urllib.error.URLError as e:
-            return None, f"Keine Verbindung zu Ollama ({self._get_base_url()}). Details: {e.reason}"
+            return None, tr("Keine Verbindung zu Ollama ({0}). Details: {reason}").format(self._get_base_url(), reason=e.reason)
         except Exception as e:
-            return None, f"Ollama-Fehler: {e}"
+            return None, tr("Ollama-Fehler: {e}").format(e=e)
 
     def _strip_code_fences(self, text: str) -> str:
         """Entfernt Markdown-Code-Fences."""
@@ -277,9 +277,9 @@ class OllamaProvider(LLMProvider):
         detected_date: str = None,
     ) -> LLMResponse:
         if not self.is_available():
-            return LLMResponse(success=False, error_message="Ollama-Provider nicht konfiguriert.")
+            return LLMResponse(success=False, error_message=tr("Ollama-Provider nicht konfiguriert."))
         if not available_folders:
-            return LLMResponse(success=False, error_message="Keine Zielordner verfuegbar.")
+            return LLMResponse(success=False, error_message=tr("Keine Zielordner verfuegbar."))
 
         prompt = self._build_classification_prompt(text, available_folders, keywords, detected_date)
         system_prompt = "Du bist ein Assistent zum Sortieren von Dokumenten. Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt."
@@ -317,7 +317,7 @@ class OllamaProvider(LLMProvider):
         similar_info: str = "",
     ) -> LLMResponse:
         if not self.is_available():
-            return LLMResponse(success=False, error_message="Ollama-Provider nicht konfiguriert.")
+            return LLMResponse(success=False, error_message=tr("Ollama-Provider nicht konfiguriert."))
 
         prompt = self._build_filename_prompt(
             text, current_filename, keywords, detected_date, target_folder, file_date,
@@ -373,7 +373,7 @@ class OllamaProvider(LLMProvider):
         import base64
 
         if not self.is_available():
-            raise RuntimeError("Ollama ist nicht eingerichtet oder nicht erreichbar.")
+            raise RuntimeError(tr("Ollama ist nicht eingerichtet oder nicht erreichbar."))
         payload = {
             "model": self._get_model_id(),
             "stream": False,
@@ -386,7 +386,7 @@ class OllamaProvider(LLMProvider):
         }
         data, error = self._post_chat(f"{self._get_base_url()}/api/chat", payload)
         if error or not data:
-            raise RuntimeError(error or "Leere Antwort von Ollama.")
+            raise RuntimeError(error or tr("Leere Antwort von Ollama."))
         return (data.get("message") or {}).get("content", "") or ""
 
     def answer_with_context(
@@ -441,9 +441,9 @@ class OllamaProvider(LLMProvider):
             with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.URLError as e:
-            return f"[Ollama nicht erreichbar: {e.reason}]"
+            return tr("[Ollama nicht erreichbar: {reason}]").format(reason=e.reason)
         except Exception as e:
-            return f"[Ollama-Fehler: {e}]"
+            return tr("[Ollama-Fehler: {e}]").format(e=e)
 
         message = data.get("message") or {}
         return message.get("content", "") or ""
@@ -535,7 +535,7 @@ class OllamaProvider(LLMProvider):
         :meth:`answer_with_context` ohne Auto-Start des Servers.
         """
         if not self.is_available():
-            return WerkzeugAntwort(fehler="Ollama-Provider nicht konfiguriert.")
+            return WerkzeugAntwort(fehler=tr("Ollama-Provider nicht konfiguriert."))
         if werkzeuge and self._werkzeuge_abgelehnt:
             return WerkzeugAntwort(fehler=self._werkzeuge_fehlertext("bereits abgelehnt"))
 
@@ -583,7 +583,7 @@ class OllamaProvider(LLMProvider):
                 return WerkzeugAntwort(fehler=error)
             antwort = self._werkzeug_antwort_aus(data)
         if not antwort.text and not antwort.aufrufe:
-            antwort.fehler = "Ollama hat eine leere Antwort geliefert."
+            antwort.fehler = tr("Ollama hat eine leere Antwort geliefert.")
         return antwort
 
     @staticmethod
@@ -595,7 +595,7 @@ class OllamaProvider(LLMProvider):
 
     def _werkzeuge_fehlertext(self, grund: str) -> str:
         """Fehlertext mit dem Wort "Werkzeuge" (Signal fuer den Controller)."""
-        return f"Das Modell '{self._get_model_id()}' unterstützt keine Werkzeuge ({grund})."
+        return tr("Das Modell '{0}' unterstützt keine Werkzeuge ({grund}).").format(self._get_model_id(), grund=grund)
 
     @staticmethod
     def _werkzeug_fuer_ollama(werkzeug: Werkzeug) -> dict:

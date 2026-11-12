@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
 )
+from src.i18n import tr
 
 
 class _TreeScanThread(QThread):
@@ -90,9 +91,9 @@ class FolderTreeWidget(QWidget):
     # Zusatztext fuer die Tooltips einzelner Ordner-Items: erklaert den
     # Kern-Workflow, der sonst fuer neue Nutzer unsichtbar ist (Issue #51).
     _CLICK_HINT = (
-        "\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\n"
+        tr("\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\n"
         "Doppelklick oder Pfeil rechts klappt auf, * klappt alle Unterordner auf.\n"
-        "Rechtsklick: weitere Aktionen."
+        "Rechtsklick: weitere Aktionen.")
     )
 
     # Verweildauer, nach der ein zugeklappter Ordner beim Darueberziehen
@@ -168,7 +169,7 @@ class FolderTreeWidget(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        header_label = QLabel("📁 Zielordner")
+        header_label = QLabel(tr("📁 Zielordner"))
         header_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         header_layout.addWidget(header_label)
         header_layout.addStretch()
@@ -176,7 +177,7 @@ class FolderTreeWidget(QWidget):
         # Refresh-Button
         self.refresh_btn = QPushButton("🔄")
         self.refresh_btn.setFixedSize(24, 24)
-        self.refresh_btn.setToolTip("Ordnerstruktur aktualisieren")
+        self.refresh_btn.setToolTip(tr("Ordnerstruktur aktualisieren"))
         self.refresh_btn.clicked.connect(self._aktualisieren_geklickt)
         header_layout.addWidget(self.refresh_btn)
 
@@ -189,7 +190,7 @@ class FolderTreeWidget(QWidget):
         self.view_root_label = QLabel()
         self.view_root_label.setStyleSheet("font-size: 11px;")
         bar_layout.addWidget(self.view_root_label, stretch=1)
-        self.view_root_back_btn = QPushButton("↩ Zurück zur Gesamtansicht")
+        self.view_root_back_btn = QPushButton(tr("↩ Zurück zur Gesamtansicht"))
         self.view_root_back_btn.clicked.connect(lambda: self.set_view_root(None))
         bar_layout.addWidget(self.view_root_back_btn)
         self.view_root_bar.setVisible(False)
@@ -218,13 +219,13 @@ class FolderTreeWidget(QWidget):
         # werden (tiefe Ebenen, OneDrive), und wuerde sonst doppelt umschalten.
         self.tree.setExpandsOnDoubleClick(False)
         self.tree.setToolTip(
-            "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
+            tr("Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\n"
             "Doppelklick oder Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\n"
             "Links oeffnen: Rechtsklick > \"Ordner links öffnen\".\n"
             "Rechtsklick: weitere Aktionen.\n"
             "PDFs koennen auch per Drag & Drop hierher gezogen werden.\n"
             "Links markierter Ordner: Klick (oder Ordnerzeile hierher ziehen) verschiebt "
-            "den ganzen Ordner, Strg+Ziehen kopiert ihn."
+            "den ganzen Ordner, Strg+Ziehen kopiert ihn.")
         )
 
         # Styling
@@ -325,7 +326,7 @@ class FolderTreeWidget(QWidget):
             item = QTreeWidgetItem(self.tree)
             item.setText(0, f"📁 {root.name}  …")
             item.setData(0, Qt.ItemDataRole.UserRole, str(root))
-            item.setToolTip(0, f"{root}\nOrdner werden geladen…")
+            item.setToolTip(0, tr("{root}\nOrdner werden geladen…").format(root=root))
             self._items[root] = item
 
         thread = _TreeScanThread(roots, self._scan_generation, parent=self)
@@ -351,7 +352,7 @@ class FolderTreeWidget(QWidget):
         """Zeigt nur den Teilbaum ab folder (None = Gesamtansicht)."""
         self._view_root = Path(folder) if folder is not None else None
         if self._view_root is not None:
-            self.view_root_label.setText(f"🔎 Ansicht: {self._view_root.name}")
+            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=self._view_root.name))
             self.view_root_label.setToolTip(str(self._view_root))
         self.view_root_bar.setVisible(self._view_root is not None)
         self.refresh_tree()
@@ -604,7 +605,7 @@ class FolderTreeWidget(QWidget):
             # Noch keine Unterordner bekannt (z.B. waehrend des ersten Scans
             # oder auf OneDrive spaeter angelegt): eine Ebene frisch nachladen.
             if not self._has_subfolders(folder_path):
-                self.status_message.emit(f"„{folder_path.name}“ hat keine Unterordner")
+                self.status_message.emit(tr("„{name}“ hat keine Unterordner").format(name=folder_path.name))
                 return
             self._mark_unloaded(folder_path, item)
         item.setExpanded(True)
@@ -628,10 +629,10 @@ class FolderTreeWidget(QWidget):
         is_root = folder_path in self._root_folders
 
         # --- Navigation ---
-        goto_action = menu.addAction("📁 Ordner links öffnen")
+        goto_action = menu.addAction(tr("📁 Ordner links öffnen"))
         goto_action.triggered.connect(lambda: self.folder_double_clicked.emit(folder_path))
 
-        sub_menu = menu.addMenu("📂 Unterordner öffnen")
+        sub_menu = menu.addMenu(tr("📂 Unterordner öffnen"))
         sub_menu.setStyleSheet("QMenu { menu-scrollable: 1; }")
         sub_menu.aboutToShow.connect(lambda: self._fill_subfolder_menu(sub_menu, folder_path))
         sub_menu.setEnabled(self._has_subfolders(folder_path))
@@ -639,29 +640,29 @@ class FolderTreeWidget(QWidget):
         has_children = item is not None and (
             item.childCount() > 0 or folder_path in self._unloaded
         )
-        expand_action = menu.addAction("➕ Alle Unterordner aufklappen")
+        expand_action = menu.addAction(tr("➕ Alle Unterordner aufklappen"))
         expand_action.setEnabled(has_children)
         expand_action.triggered.connect(lambda: self._expand_subtree(folder_path))
 
-        collapse_action = menu.addAction("➖ Unterordner zuklappen")
+        collapse_action = menu.addAction(tr("➖ Unterordner zuklappen"))
         collapse_action.setEnabled(item is not None and item.childCount() > 0)
         collapse_action.triggered.connect(lambda: self._collapse_subtree(folder_path))
 
-        collapse_all_action = menu.addAction("➖ Alles zuklappen")
+        collapse_all_action = menu.addAction(tr("➖ Alles zuklappen"))
         collapse_all_action.triggered.connect(self.tree.collapseAll)
 
         if folder_path != self._view_root:
-            view_root_action = menu.addAction("🔎 Diesen Ordner als Wurzel anzeigen")
+            view_root_action = menu.addAction(tr("🔎 Diesen Ordner als Wurzel anzeigen"))
             view_root_action.triggered.connect(lambda: self.set_view_root(folder_path))
 
         menu.addSeparator()
 
         # --- Aktionen mit PDFs ---
-        move_action = menu.addAction("📥 Hierhin verschieben")
+        move_action = menu.addAction(tr("📥 Hierhin verschieben"))
         has_pdfs = bool(self.has_pdf_selection())
         move_action.setEnabled(has_pdfs)
         if not has_pdfs:
-            move_action.setToolTip("Links ist keine PDF ausgewählt")
+            move_action.setToolTip(tr("Links ist keine PDF ausgewählt"))
         move_action.triggered.connect(lambda: self.move_here_requested.emit(folder_path))
         # Issue #179: Kopie statt Verschieben
         kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(folder_path))
@@ -669,34 +670,34 @@ class FolderTreeWidget(QWidget):
         menu.addSeparator()
 
         # --- Ordner verwalten ---
-        new_folder_action = menu.addAction("➕ Neuen Unterordner erstellen")
+        new_folder_action = menu.addAction(tr("➕ Neuen Unterordner erstellen"))
         new_folder_action.triggered.connect(lambda: self._create_subfolder(folder_path))
 
-        rename_action = menu.addAction("✏️ Ordner umbenennen")
+        rename_action = menu.addAction(tr("✏️ Ordner umbenennen"))
         rename_action.triggered.connect(lambda: self._rename_folder(folder_path))
 
-        delete_action = menu.addAction("🗑️ Ordner löschen (in den Papierkorb)")
+        delete_action = menu.addAction(tr("🗑️ Ordner löschen (in den Papierkorb)"))
         if is_root:
             delete_action.setEnabled(False)
-            delete_action.setToolTip("Zielordner zuerst aus der Zielliste entfernen")
+            delete_action.setToolTip(tr("Zielordner zuerst aus der Zielliste entfernen"))
         elif not self._is_empty_dir(folder_path):
             delete_action.setEnabled(False)
-            delete_action.setToolTip("Nur leere Ordner können gelöscht werden")
+            delete_action.setToolTip(tr("Nur leere Ordner können gelöscht werden"))
         delete_action.triggered.connect(lambda: self._delete_folder(folder_path))
 
         # Aus Liste entfernen (nur für Root-Ordner)
         if is_root:
-            remove_action = menu.addAction("❌ Aus Zielliste entfernen")
+            remove_action = menu.addAction(tr("❌ Aus Zielliste entfernen"))
             remove_action.triggered.connect(lambda: self._remove_folder(folder_path))
 
         menu.addSeparator()
 
         # --- Info / Dateimanager ---
-        info_action = menu.addAction("ℹ️ Inhalt anzeigen")
+        info_action = menu.addAction(tr("ℹ️ Inhalt anzeigen"))
         info_action.triggered.connect(lambda: self._show_folder_info(folder_path))
 
         # Im Dateimanager öffnen
-        open_action = menu.addAction(f"📂 Im {file_manager_name()} öffnen")
+        open_action = menu.addAction(tr("📂 Im {0} öffnen").format(file_manager_name()))
         open_action.triggered.connect(lambda: self._open_in_explorer(folder_path))
 
         # Issue #154: Pfad in die Zwischenablage
@@ -743,10 +744,10 @@ class FolderTreeWidget(QWidget):
             action.triggered.connect(lambda checked=False, p=sub: self._open_subfolder(p))
         rest = len(subs) - self.SUBMENU_MAX_ENTRIES
         if rest > 0:
-            more = sub_menu.addAction(f"… {rest} weitere (im Baum aufklappen)")
+            more = sub_menu.addAction(tr("… {rest} weitere (im Baum aufklappen)").format(rest=rest))
             more.triggered.connect(lambda: self._expand_one(folder))
         if not subs:
-            sub_menu.addAction("(keine Unterordner)").setEnabled(False)
+            sub_menu.addAction(tr("(keine Unterordner)")).setEnabled(False)
 
     def _expand_one(self, folder: Path):
         item = self._items.get(Path(folder))
@@ -825,45 +826,49 @@ class FolderTreeWidget(QWidget):
                     except OSError:
                         continue
         except OSError as e:
-            self.status_message.emit(f"Inhalt von {folder.name} nicht lesbar: {e}")
+            self.status_message.emit(tr("Inhalt von {name} nicht lesbar: {e}").format(name=folder.name, e=e))
             return
         self.status_message.emit(
-            f"ℹ️ {folder.name}: {pdfs} PDF{'s' if pdfs != 1 else ''}, "
-            f"{others} weitere Datei{'en' if others != 1 else ''}, "
-            f"{dirs} Unterordner"
+            tr("ℹ️ {name}: {pdfs}, {others}, {dirs} Unterordner").format(
+                name=folder.name,
+                pdfs=(tr("{anzahl} PDFs") if pdfs != 1 else tr("{anzahl} PDF")).format(anzahl=pdfs),
+                others=(tr("{anzahl} weitere Dateien") if others != 1
+                        else tr("{anzahl} weitere Datei")).format(anzahl=others),
+                dirs=dirs,
+            )
         )
 
     def _validate_new_name(self, old: Path, name: str) -> Optional[str]:
         """None wenn der Name passt, sonst die Fehlermeldung."""
         if self._INVALID_NAME.search(name):
-            return 'Der Name darf keines dieser Zeichen enthalten: < > : " / \\ | ? *'
+            return tr('Der Name darf keines dieser Zeichen enthalten: < > : " / \\ | ? *')
         if name.endswith(('.', ' ')) or name in ('.', '..'):
-            return "Der Name darf nicht mit Punkt oder Leerzeichen enden."
+            return tr("Der Name darf nicht mit Punkt oder Leerzeichen enden.")
         new = old.parent / name
         case_only = name.lower() == old.name.lower()
         if new.exists() and not case_only:
-            return f"Es gibt hier bereits einen Eintrag namens „{name}“."
+            return tr("Es gibt hier bereits einen Eintrag namens „{name}“.").format(name=name)
         return None
 
     def _rename_folder(self, folder: Path):
         """Benennt den Ordner um und zieht Baum und Zielpfade nach."""
         folder = Path(folder)
         name, ok = QInputDialog.getText(
-            self, "Ordner umbenennen", "Neuer Name:", text=folder.name
+            self, tr("Ordner umbenennen"), tr("Neuer Name:"), text=folder.name
         )
         name = (name or "").strip()
         if not ok or not name or name == folder.name:
             return
         error = self._validate_new_name(folder, name)
         if error:
-            QMessageBox.warning(self, "Umbenennen nicht möglich", error)
+            QMessageBox.warning(self, tr("Umbenennen nicht möglich"), error)
             return
         new = folder.parent / name
         try:
             folder.rename(new)
         except OSError as e:
             QMessageBox.critical(
-                self, "Fehler", f"Ordner konnte nicht umbenannt werden:\n{e}"
+                self, tr("Fehler"), tr("Ordner konnte nicht umbenannt werden:\n{e}").format(e=e)
             )
             return
         self._remap_paths(folder, new)
@@ -890,7 +895,7 @@ class FolderTreeWidget(QWidget):
             self._selected_folder = conv(self._selected_folder)
         if self._view_root is not None:
             self._view_root = conv(self._view_root)
-            self.view_root_label.setText(f"🔎 Ansicht: {self._view_root.name}")
+            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=self._view_root.name))
             self.view_root_label.setToolTip(str(self._view_root))
         item = self._items.get(new)
         if item is not None:
@@ -904,13 +909,13 @@ class FolderTreeWidget(QWidget):
         folder = Path(folder)
         if not self._is_empty_dir(folder):
             QMessageBox.information(
-                self, "Ordner nicht leer",
-                "Es können nur leere Ordner gelöscht werden.",
+                self, tr("Ordner nicht leer"),
+                tr("Es können nur leere Ordner gelöscht werden."),
             )
             return
         answer = QMessageBox.question(
-            self, "Ordner löschen",
-            f"Leeren Ordner „{folder.name}“ in den Papierkorb legen?",
+            self, tr("Ordner löschen"),
+            tr("Leeren Ordner „{name}“ in den Papierkorb legen?").format(name=folder.name),
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -918,7 +923,7 @@ class FolderTreeWidget(QWidget):
         trashed = result[0] if isinstance(result, tuple) else bool(result)
         if not trashed:
             QMessageBox.critical(
-                self, "Fehler", f"Ordner konnte nicht in den Papierkorb gelegt werden:\n{folder}"
+                self, tr("Fehler"), tr("Ordner konnte nicht in den Papierkorb gelegt werden:\n{folder}").format(folder=folder)
             )
             return
         item = self._items.pop(folder, None)
@@ -931,7 +936,7 @@ class FolderTreeWidget(QWidget):
                 self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(item))
         if self._selected_folder == folder:
             self._selected_folder = None
-        self.status_message.emit(f"🗑️ Ordner in den Papierkorb gelegt: {folder.name}")
+        self.status_message.emit(tr("🗑️ Ordner in den Papierkorb gelegt: {name}").format(name=folder.name))
 
     def _open_in_explorer(self, folder_path: Path):
         """Öffnet den Ordner im Dateimanager des Systems."""
@@ -943,8 +948,8 @@ class FolderTreeWidget(QWidget):
         """Erstellt einen neuen Unterordner."""
         name, ok = QInputDialog.getText(
             self,
-            "Neuer Unterordner",
-            "Name des neuen Ordners:",
+            tr("Neuer Unterordner"),
+            tr("Name des neuen Ordners:"),
         )
 
         name = (name or "").strip()
@@ -955,8 +960,8 @@ class FolderTreeWidget(QWidget):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Fehler",
-                    f"Ordner konnte nicht erstellt werden:\n{e}"
+                    tr("Fehler"),
+                    tr("Ordner konnte nicht erstellt werden:\n{e}").format(e=e)
                 )
                 return
             self._show_new_folder(new_folder)
@@ -1152,7 +1157,7 @@ class FolderTreeWidget(QWidget):
         """
         folder = Path(folder)
         if not self._ensure_folder_item(folder):
-            self.status_message.emit(f"Ordner nicht im sichtbaren Baum: {folder.name}")
+            self.status_message.emit(tr("Ordner nicht im sichtbaren Baum: {name}").format(name=folder.name))
             return False
         self._mark_folder(folder)
         return True

@@ -28,6 +28,7 @@ from src.gui.pfad_aktionen import (
     zeigen_text,
 )
 from src.gui.tile_view import TileView, fit_text_lines, tile_view
+from src.i18n import tr
 
 
 class ThumbnailLoaderThread(QThread):
@@ -110,13 +111,13 @@ class PDFThumbnailWidget(QFrame):
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
-        "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        tr("Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
         "Auf eine andere PDF gelegt, kommen ihre Seiten davor (Stapeln, wie Papier).\n"
-        "Doppelklick öffnet die PDF im Standardprogramm."
+        "Doppelklick öffnet die PDF im Standardprogramm.")
     )
-    AI_TOOLTIP_SUFFIX = "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
-    OCR_TOOLTIP_SUFFIX = "\n\nText schlecht erkannt – Rechtsklick für andere Erkennung"
+    AI_TOOLTIP_SUFFIX = tr("\n\nKI-Vorschlag vorhanden (grün hinterlegt).")
+    OCR_TOOLTIP_SUFFIX = tr("\n\nText schlecht erkannt – Rechtsklick für andere Erkennung")
 
     # Wartezeit, bis der Mauszeiger ueber einer kompakten Kachel die grosse
     # Vorschau einblendet (Issue #117)
@@ -169,7 +170,7 @@ class PDFThumbnailWidget(QFrame):
         self.thumbnail_label.setStyleSheet(
             "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;"
         )
-        self.thumbnail_label.setText("Laden...")
+        self.thumbnail_label.setText(tr("Laden..."))
         self._layout.addWidget(self.thumbnail_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         # Dateiname (mehrzeilig, pixelgenau umgebrochen; voller Name im Tooltip)
@@ -383,7 +384,7 @@ class PDFThumbnailWidget(QFrame):
 
     def _on_thumbnail_error(self, error: str):
         """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
-        self.thumbnail_label.setText("Fehler\nbeim Laden")
+        self.thumbnail_label.setText(tr("Fehler\nbeim Laden"))
         self.thumbnail_label.setStyleSheet(
             "background-color: #ffe0e0; border: 1px solid #ffaaaa; border-radius: 3px; color: #cc0000;"
         )
@@ -462,7 +463,7 @@ class PDFThumbnailWidget(QFrame):
         self._ocr_symbol.setVisible(value)
         self._update_tooltip()
 
-    ANALYZING_TEXT = "Analysiere…"
+    ANALYZING_TEXT = tr("Analysiere…")
 
     @property
     def analyzing(self) -> bool:
@@ -556,7 +557,7 @@ class PDFThumbnailWidget(QFrame):
         selection_count = self._get_selection_count()
 
         # Öffnen
-        open_action = menu.addAction("PDF öffnen")
+        open_action = menu.addAction(tr("PDF öffnen"))
         open_action.triggered.connect(lambda: self._open_pdf())
 
         # Issue #154: Ablageort zeigen und Pfad kopieren
@@ -568,34 +569,34 @@ class PDFThumbnailWidget(QFrame):
         menu.addSeparator()
 
         # Umbenennen
-        rename_action = menu.addAction("Umbenennen...")
+        rename_action = menu.addAction(tr("Umbenennen..."))
         rename_action.triggered.connect(lambda: self.rename_requested.emit(self.pdf_path))
 
         # Batch-Umbenennung wenn mehrere ausgewählt
         if selection_count > 1:
-            batch_rename_action = menu.addAction(f"Ausgewählte ({selection_count}) auto-umbenennen (LLM)")
+            batch_rename_action = menu.addAction(tr("Ausgewählte ({selection_count}) auto-umbenennen (LLM)").format(selection_count=selection_count))
             batch_rename_action.triggered.connect(lambda: self.batch_rename_requested.emit())
 
         # Verschieben
-        move_action = menu.addAction("Verschieben nach...")
+        move_action = menu.addAction(tr("Verschieben nach..."))
         move_action.triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
 
         # Kopie erstellen
-        copy_action = menu.addAction("Kopie erstellen")
+        copy_action = menu.addAction(tr("Kopie erstellen"))
         copy_action.triggered.connect(lambda: self.copy_requested.emit(self.pdf_path))
 
         menu.addSeparator()
 
         # PDF trennen
-        split_action = menu.addAction("PDF trennen...")
+        split_action = menu.addAction(tr("PDF trennen..."))
         split_action.triggered.connect(lambda: self.split_requested.emit(self.pdf_path))
-        ki_split_action = menu.addAction("KI-unterstütztes Trennen...")
-        ki_split_action.setToolTip("Scan-Stapel von der KI in einzelne Dokumente zerlegen lassen")
+        ki_split_action = menu.addAction(tr("KI-unterstütztes Trennen..."))
+        ki_split_action.setToolTip(tr("Scan-Stapel von der KI in einzelne Dokumente zerlegen lassen"))
         ki_split_action.triggered.connect(lambda: self.ki_split_requested.emit(self.pdf_path))
 
         # PDFs zusammenfügen wenn mehrere ausgewählt
         if selection_count > 1:
-            merge_action = menu.addAction(f"Ausgewählte ({selection_count}) PDFs zusammenfügen...")
+            merge_action = menu.addAction(tr("Ausgewählte ({selection_count}) PDFs zusammenfügen...").format(selection_count=selection_count))
             merge_action.triggered.connect(lambda: self.merge_requested.emit())
 
         menu.addSeparator()
@@ -603,36 +604,36 @@ class PDFThumbnailWidget(QFrame):
         # Issue #150: ganze PDF verlustfrei drehen, Texterkennung neu. Bei
         # Mehrfachauswahl (diese Kachel gehoert dazu) gilt es fuer alle.
         count = selection_count if selection_count > 1 and self.selected else 1
-        suffix = f" ({count} PDFs)" if count > 1 else ""
-        rotate_menu = menu.addMenu(f"Drehen{suffix}")
-        rotate_left = rotate_menu.addAction("90° nach links")
+        suffix = tr(" ({count} PDFs)").format(count=count) if count > 1 else ""
+        rotate_menu = menu.addMenu(tr("Drehen{suffix}").format(suffix=suffix))
+        rotate_left = rotate_menu.addAction(tr("90° nach links"))
         rotate_left.triggered.connect(self._rotate_left)
-        rotate_right = rotate_menu.addAction("90° nach rechts")
+        rotate_right = rotate_menu.addAction(tr("90° nach rechts"))
         rotate_right.triggered.connect(self._rotate_right)
         rotate_half = rotate_menu.addAction("180°")
         rotate_half.triggered.connect(self._rotate_180)
         # Issue #165: schief gescannte Seiten um den kleinen Winkel gerade drehen
         rotate_menu.addSeparator()
-        straighten_action = rotate_menu.addAction("Gerade ausrichten (schief gescannt)")
-        straighten_action.setToolTip("Schief eingezogene Seiten messen und gerade drehen")
+        straighten_action = rotate_menu.addAction(tr("Gerade ausrichten (schief gescannt)"))
+        straighten_action.setToolTip(tr("Schief eingezogene Seiten messen und gerade drehen"))
         straighten_action.triggered.connect(self._request_straighten)
-        reocr_action = menu.addAction(f"OCR neu durchführen{suffix}")
-        reocr_action.setToolTip("Gescannte Seiten neu erkennen, z. B. nach dem Drehen")
+        reocr_action = menu.addAction(tr("OCR neu durchführen{suffix}").format(suffix=suffix))
+        reocr_action.setToolTip(tr("Gescannte Seiten neu erkennen, z. B. nach dem Drehen"))
         reocr_action.triggered.connect(self._request_reocr)
         # Issue #47: andere Erkennung - Sprachen/Fraktur per Tesseract, Handschrift per KI-Bilderkennung.
         # Die Sprachen werden erst beim Aufklappen gelesen (``tesseract --list-langs`` dauert).
-        self.ocr_sprache_menu = menu.addMenu("OCR wiederholen mit …")
-        self.ocr_sprache_menu.setToolTip("Seiten mit anderen Tesseract-Sprachen neu erkennen, z. B. Fraktur")
-        self.ocr_sprache_menu.addAction("Sprachen werden gelesen …").setEnabled(False)
+        self.ocr_sprache_menu = menu.addMenu(tr("OCR wiederholen mit …"))
+        self.ocr_sprache_menu.setToolTip(tr("Seiten mit anderen Tesseract-Sprachen neu erkennen, z. B. Fraktur"))
+        self.ocr_sprache_menu.addAction(tr("Sprachen werden gelesen …")).setEnabled(False)
         self.ocr_sprache_menu.aboutToShow.connect(self._fill_ocr_sprache_menu)
-        handschrift_action = menu.addAction("Handschrift mit KI entziffern (Bilderkennung)")
-        handschrift_action.setToolTip("Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht")
+        handschrift_action = menu.addAction(tr("Handschrift mit KI entziffern (Bilderkennung)"))
+        handschrift_action.setToolTip(tr("Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht"))
         handschrift_action.triggered.connect(self._request_handschrift)
 
         menu.addSeparator()
 
         # Löschen
-        delete_action = menu.addAction("Löschen")
+        delete_action = menu.addAction(tr("Löschen"))
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
         return menu
@@ -663,20 +664,20 @@ class PDFThumbnailWidget(QFrame):
         menu.clear()
         angebot = self._ocr_sprachangebot()
         if not angebot["tesseract"]:
-            menu.addAction("Tesseract nicht gefunden").setEnabled(False)
+            menu.addAction(tr("Tesseract nicht gefunden")).setEnabled(False)
             return
         for code, name in angebot["sprachen"]:
             action = menu.addAction(name)
-            action.setToolTip(f"Tesseract-Sprache: {code}")
+            action.setToolTip(tr("Tesseract-Sprache: {code}").format(code=code))
             action.triggered.connect(lambda _checked=False, c=code: self.reocr_sprache_requested.emit(self.pdf_path, c))
         if not angebot["fraktur"]:
             menu.addSeparator()
-            hinweis = menu.addAction("Fraktur (nicht installiert) – so installieren …")
+            hinweis = menu.addAction(tr("Fraktur (nicht installiert) – so installieren …"))
             hinweis.triggered.connect(lambda _checked=False: self._show_fraktur_hint(angebot["tessdata"]))
 
     def _show_fraktur_hint(self, tessdata):
         from src.utils.tesseract import fraktur_hinweis
-        QMessageBox.information(self, "Fraktur installieren", fraktur_hinweis(tessdata))
+        QMessageBox.information(self, tr("Fraktur installieren"), fraktur_hinweis(tessdata))
 
     def _request_straighten(self):
         self.straighten_requested.emit(self.pdf_path)
@@ -782,7 +783,7 @@ class PDFThumbnailWidget(QFrame):
         if len(urls) == 1:
             mime_data.setText(str(self.pdf_path))
         else:
-            mime_data.setText(f"{len(urls)} PDFs")
+            mime_data.setText(tr("{anzahl} PDFs").format(anzahl=len(urls)))
 
         drag.setMimeData(mime_data)
 

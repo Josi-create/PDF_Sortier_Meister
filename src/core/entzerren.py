@@ -54,6 +54,7 @@ from typing import Optional
 
 import numpy as np
 from scipy import ndimage
+from src.i18n import tr
 
 # --- Erkennung -----------------------------------------------------------------
 ERKENNUNG_PX = 800          # laengste Seite beim Suchen des Blatts
@@ -122,7 +123,7 @@ BOX_MM = (210.0, 297.0)     # Seiten mit unbekanntem Format passen in diesen Kas
 # --- Tonwerte ------------------------------------------------------------------------
 TONWERTE = ("farbe", "grau", "sw")
 TONWERT_STANDARD = "farbe"
-TONWERT_NAMEN = {"farbe": "Farbe aufgehellt", "grau": "Graustufen", "sw": "Schwarzweiß"}
+TONWERT_NAMEN = {"farbe": tr("Farbe aufgehellt"), "grau": tr("Graustufen"), "sw": tr("Schwarzweiß")}
 HINTERGRUND_PX = 400        # laengste Seite der Hintergrundschaetzung
 HINTERGRUND_FENSTER = 0.04  # Schliessfenster (Anteil der langen Seite): groesser als jeder Strich
 HINTERGRUND_GROB = 0.30     # Fenster der groben Schaetzung (Anteil der langen Seite)

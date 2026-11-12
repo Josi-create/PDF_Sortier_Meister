@@ -67,6 +67,7 @@ from pathlib import Path
 from typing import Optional
 from xml.sax.saxutils import escape as _xml_escape
 from xml.sax.saxutils import unescape as _xml_unescape
+from src.i18n import tr
 
 WORD_ENDUNGEN = (".docx", ".odt")  # .odt (OpenDocument-Text) wird wie .docx behandelt
 EXCEL_ENDUNGEN = (".xlsx",)
@@ -765,9 +766,11 @@ def _mac_fehlertext(programm: str, stderr: str) -> str:
     text = (stderr or "").strip()
     if "-1743" in text:
         return (
-            f"PDF Sortier Meister darf {programm} nicht steuern. Bitte unter "
-            "Systemeinstellungen › Datenschutz & Sicherheit › Automation "
-            f"„{programm}“ für PDF Sortier Meister erlauben."
+            tr(
+                "PDF Sortier Meister darf {programm} nicht steuern. Bitte unter "
+                "Systemeinstellungen › Datenschutz & Sicherheit › Automation „{programm}“ "
+                "für PDF Sortier Meister erlauben."
+            ).format(programm=programm)
         )
     # "418:454: execution error: <Meldung> (9001)" -> "<Meldung>"
     treffer = re.search(r"execution error:\s*(.*?)\s*\(-?\d+\)\s*$", text, re.DOTALL)
@@ -775,7 +778,7 @@ def _mac_fehlertext(programm: str, stderr: str) -> str:
         text = treffer.group(1)
     if text.startswith(programm):  # eigene Meldung des Skripts nennt das Programm schon
         return text[:300]
-    return f"{programm} konnte nicht umwandeln: {text[:300]}"
+    return tr("{programm} konnte nicht umwandeln: {0}").format(text[:300], programm=programm)
 
 
 def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
@@ -785,7 +788,7 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
     programm = _MAC_APPS[art][0]
     bundle = _mac_bundle_id(art)
     if not bundle:
-        raise UmwandlungFehler(f"{programm} ist nicht (mehr) installiert.")
+        raise UmwandlungFehler(tr("{programm} ist nicht (mehr) installiert.").format(programm=programm))
     container_tmp = Path.home() / "Library" / "Containers" / bundle / "Data" / "tmp"
     container_tmp.mkdir(parents=True, exist_ok=True)
     arbeit = Path(tempfile.mkdtemp(prefix="pdfsm-", dir=container_tmp))
@@ -806,11 +809,11 @@ def _mit_office_mac(art: str, quelle: Path, pdf: Path) -> None:
                 input=skript, capture_output=True, text=True, timeout=MAC_OFFICE_TIMEOUT_S + 30,
             )
         except subprocess.TimeoutExpired as e:
-            raise UmwandlungFehler(f"{programm} hat nicht rechtzeitig geantwortet.") from e
+            raise UmwandlungFehler(tr("{programm} hat nicht rechtzeitig geantwortet.").format(programm=programm)) from e
         if lauf.returncode != 0:
             raise UmwandlungFehler(_mac_fehlertext(programm, lauf.stderr))
         if not ziel.exists() or ziel.stat().st_size == 0:
-            raise UmwandlungFehler(f"{programm} hat kein PDF erzeugt.")
+            raise UmwandlungFehler(tr("{programm} hat kein PDF erzeugt.").format(programm=programm))
         shutil.move(str(ziel), str(pdf))
     finally:
         if not war_offen:
@@ -915,11 +918,11 @@ def _mit_libreoffice(soffice: str, quelle: Path, pdf: Path, pdfa: bool) -> None:
                 creationflags=flags,
             )
         except subprocess.TimeoutExpired as e:
-            raise UmwandlungFehler("LibreOffice hat nicht rechtzeitig geantwortet.") from e
+            raise UmwandlungFehler(tr("LibreOffice hat nicht rechtzeitig geantwortet.")) from e
         erzeugt = ausgabe / (quelle.stem + ".pdf")
         if lauf.returncode != 0 or not erzeugt.exists():
             raise UmwandlungFehler(
-                f"LibreOffice konnte nicht umwandeln: {(lauf.stderr or lauf.stdout).strip()[:300]}"
+                tr("LibreOffice konnte nicht umwandeln: {0}").format((lauf.stderr or lauf.stdout).strip()[:300])
             )
         if erzeugt != pdf:
             erzeugt.replace(pdf)
@@ -954,9 +957,9 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
     quelle = Path(quelle)
     endung = quelle.suffix.lower()
     if endung not in OFFICE_ENDUNGEN:
-        raise UmwandlungFehler(f"Dateityp {endung or '(keiner)'} wird nicht unterstützt.")
+        raise UmwandlungFehler(tr("Dateityp {0} wird nicht unterstützt.").format(endung or '(keiner)'))
     if not quelle.is_file():
-        raise UmwandlungFehler(f"Datei nicht gefunden: {quelle}")
+        raise UmwandlungFehler(tr("Datei nicht gefunden: {quelle}").format(quelle=quelle))
     ist_word = endung in WORD_ENDUNGEN
     ziel = _freier_pfad(Path(ziel) if ziel else quelle.with_suffix(".pdf"))
 
@@ -969,19 +972,26 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
         prog_id = "Word.Application" if ist_word else "Excel.Application"
         if _com_klasse_registriert(prog_id) and not pywin32_verfuegbar():
             raise KeinUmwandlerGefunden(
-                f"{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister "
-                "läuft, fehlt das Paket \"pywin32\".\n"
-                "Bitte im Programmordner ausführen: python -m pip install -r requirements.txt"
+                tr(
+                    "{programm} ist installiert, aber dem Python, mit dem PDF Sortier "
+                    "Meister läuft, fehlt das Paket \"pywin32\".\n"
+                    "Bitte im Programmordner ausführen: python -m pip install -r "
+                    "requirements.txt"
+                ).format(programm=programm)
             )
         if sys.platform == "darwin" and endung in PAGES_ENDUNGEN + NUMBERS_ENDUNGEN:
             apple = "Apple Pages" if ist_word else "Apple Numbers"
             raise KeinUmwandlerGefunden(
-                f"Zum Umwandeln wird {programm}, LibreOffice oder {apple} benötigt. "
-                "Nichts davon wurde gefunden."
+                tr(
+                    "Zum Umwandeln wird {programm}, LibreOffice oder {apple} benötigt. "
+                    "Nichts davon wurde gefunden."
+                ).format(programm=programm, apple=apple)
             )
         raise KeinUmwandlerGefunden(
-            f"Zum Umwandeln wird {programm} oder LibreOffice benötigt. "
-            "Beides wurde nicht gefunden."
+            tr(
+                "Zum Umwandeln wird {programm} oder LibreOffice benötigt. Beides wurde nicht "
+                "gefunden."
+            ).format(programm=programm)
         )
 
     ergebnis = UmwandlungsErgebnis(pdf=ziel, werkzeug="")
@@ -1008,8 +1018,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
                 _mit_office_mac("word" if ist_word else "excel", kopie, pdf_tmp)
                 if pdfa:
                     ergebnis.hinweise.append(
-                        f"{'Word' if ist_word else 'Excel'} kann auf dem Mac kein PDF/A erzeugen "
-                        "- normales PDF erstellt."
+                        tr("{0} kann auf dem Mac kein PDF/A erzeugen - normales PDF erstellt.").format('Word' if ist_word else 'Excel')
                     )
                 ergebnis.werkzeug = "Word" if ist_word else "Excel"
             except UmwandlungFehler as e:
@@ -1023,7 +1032,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
                 else:
                     _mit_excel(kopie, pdf_tmp)
                     if pdfa:
-                        ergebnis.hinweise.append("Excel kann kein PDF/A erzeugen - normales PDF erstellt.")
+                        ergebnis.hinweise.append(tr("Excel kann kein PDF/A erzeugen - normales PDF erstellt."))
                 ergebnis.werkzeug = "Word" if ist_word else "Excel"
             except Exception as e:  # noqa: BLE001 - COM wirft vielfaeltige Fehler; Rueckfall versuchen
                 fehler = e
@@ -1035,7 +1044,7 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
                 _mit_libreoffice(soffice, kopie, lo_ziel, pdfa)
                 lo_ziel.replace(pdf_tmp)
                 if fehler is not None:
-                    ergebnis.hinweise.append(f"{office_name} ging nicht ({fehler}) - LibreOffice verwendet.")
+                    ergebnis.hinweise.append(tr("{office_name} ging nicht ({fehler}) - LibreOffice verwendet.").format(office_name=office_name, fehler=fehler))
                 ergebnis.werkzeug = "LibreOffice"
                 ergebnis.pdfa = pdfa
             except UmwandlungFehler as e:
@@ -1047,14 +1056,14 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
             apple = _MAC_APPS[iwork][0]
             _mit_office_mac(iwork, kopie, pdf_tmp)
             if fehler is not None:
-                ergebnis.hinweise.append(f"{office_name} ging nicht ({fehler}) - {apple} verwendet.")
+                ergebnis.hinweise.append(tr("{office_name} ging nicht ({fehler}) - {apple} verwendet.").format(office_name=office_name, fehler=fehler, apple=apple))
             if pdfa:
-                ergebnis.hinweise.append(f"{apple} kann kein PDF/A erzeugen - normales PDF erstellt.")
+                ergebnis.hinweise.append(tr("{apple} kann kein PDF/A erzeugen - normales PDF erstellt.").format(apple=apple))
             ergebnis.werkzeug = apple
         if not ergebnis.werkzeug:
-            raise UmwandlungFehler(f"Umwandlung mit {office_name} fehlgeschlagen: {fehler}")
+            raise UmwandlungFehler(tr("Umwandlung mit {office_name} fehlgeschlagen: {fehler}").format(office_name=office_name, fehler=fehler))
         if not pdf_tmp.exists() or pdf_tmp.stat().st_size == 0:
-            raise UmwandlungFehler("Die Umwandlung hat kein PDF erzeugt.")
+            raise UmwandlungFehler(tr("Die Umwandlung hat kein PDF erzeugt."))
         shutil.move(str(pdf_tmp), str(ziel))
     finally:
         shutil.rmtree(arbeit, ignore_errors=True)

@@ -25,14 +25,15 @@ from PyQt6.QtWidgets import QCheckBox, QMessageBox
 
 from src.core.file_manager import PapierkorbNichtVerfuegbar
 from src.search.meldungen import melden as index_melden
+from src.i18n import tr
 
 CONFIG_SCHLUESSEL = "original_wegraeumen"
 AKTIONEN = {
-    "umwandeln": "Nach dem Umwandeln in PDF",
-    "trennen": "Nach dem Trennen eines PDFs",
-    "zusammenfuegen": "Nach dem Zusammenfügen von PDFs",
+    "umwandeln": tr("Nach dem Umwandeln in PDF"),
+    "trennen": tr("Nach dem Trennen eines PDFs"),
+    "zusammenfuegen": tr("Nach dem Zusammenfügen von PDFs"),
 }
-HINWEIS = "Mit Strg+Z holst du es zurück."
+HINWEIS = tr("Mit Strg+Z holst du es zurück.")
 
 
 def gespeicherte_antwort(config, aktion: str) -> Optional[bool]:
@@ -54,13 +55,13 @@ class OriginalFragenDialog(QMessageBox):
 
     def __init__(self, parent, text: str):
         super().__init__(parent)
-        self.setWindowTitle("Original wegräumen")
+        self.setWindowTitle(tr("Original wegräumen"))
         self.setIcon(QMessageBox.Icon.Question)
         self.setText(text)
         self.setInformativeText(HINWEIS)
         self.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         self.setDefaultButton(QMessageBox.StandardButton.Yes)
-        self.nicht_mehr_fragen = QCheckBox("Nicht mehr fragen")
+        self.nicht_mehr_fragen = QCheckBox(tr("Nicht mehr fragen"))
         self.setCheckBox(self.nicht_mehr_fragen)
 
 
@@ -97,7 +98,7 @@ def original_wegraeumen(mw, pfade: list[Path], aktion: str, text: str, beschreib
         try:
             papierkorb = mw.file_manager.delete_file(pfad)
         except PapierkorbNichtVerfuegbar:
-            fehler.append(f"{pfad.name}: Papierkorb nicht verfügbar - das Original bleibt liegen.")
+            fehler.append(tr("{name}: Papierkorb nicht verfügbar - das Original bleibt liegen.").format(name=pfad.name))
             continue
         except Exception as e:  # noqa: BLE001 - je Datei melden
             fehler.append(f"{pfad.name}: {e}")
@@ -109,7 +110,7 @@ def original_wegraeumen(mw, pfade: list[Path], aktion: str, text: str, beschreib
     if eintraege:
         mw._push_undo({"type": "wegraeumen", "eintraege": eintraege, "description": beschreibung})
     if fehler:
-        QMessageBox.warning(mw, "Original wegräumen", "\n".join(fehler))
+        QMessageBox.warning(mw, tr("Original wegräumen"), "\n".join(fehler))
     return entfernt
 
 
@@ -122,10 +123,10 @@ def rueckgaengig(mw, entry: dict) -> None:
     for original, papierkorb in entry["eintraege"]:
         original, papierkorb = Path(original), Path(papierkorb)
         if not papierkorb.exists():
-            probleme.append(f"'{original.name}' ist nicht mehr im Papierkorb.")
+            probleme.append(tr("'{name}' ist nicht mehr im Papierkorb.").format(name=original.name))
             continue
         if original.exists():
-            probleme.append(f"Am ursprünglichen Ort existiert bereits eine Datei '{original.name}'.")
+            probleme.append(tr("Am ursprünglichen Ort existiert bereits eine Datei '{name}'.").format(name=original.name))
             continue
         try:
             original.parent.mkdir(parents=True, exist_ok=True)
@@ -136,7 +137,7 @@ def rueckgaengig(mw, entry: dict) -> None:
         index_melden("datei_aufnehmen", str(original))
         geholt += 1
     if probleme:
-        QMessageBox.warning(mw, "Rückgängig nicht (ganz) möglich", "\n".join(probleme))
+        QMessageBox.warning(mw, tr("Rückgängig nicht (ganz) möglich"), "\n".join(probleme))
     if geholt:
-        mw.statusbar.showMessage(f"Rückgängig: {entry['description']}", 3000)
+        mw.statusbar.showMessage(tr("Rückgängig: {description}").format(description=entry['description']), 3000)
         mw.refresh_view()

@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from src.i18n import tr
 
 APP_DIR_NAME = "PDF_Sortier_Meister"
 
@@ -57,4 +58,4 @@ def file_manager_name() -> str:
         return "Explorer"
     if sys.platform == "darwin":
         return "Finder"
-    return "Dateimanager"
+    return tr("Dateimanager")

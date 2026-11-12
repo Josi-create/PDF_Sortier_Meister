@@ -36,6 +36,7 @@ from src.ml.openrouter_provider import OpenRouterProvider
 from src.ml.ollama_provider import OllamaProvider, OllamaCloudProvider
 from src.ml.strata_provider import StrataProvider
 from src.ml.lmstudio_provider import LMStudioProvider
+from src.i18n import tr
 
 
 # Grund-Codes von erzeuge_provider()
@@ -156,14 +157,14 @@ def grund_text(grund: str) -> str:
     if not grund:
         return ""
     if grund == GRUND_KEIN_PROVIDER:
-        return "Kein KI-Anbieter eingestellt."
+        return tr("Kein KI-Anbieter eingestellt.")
     if grund == GRUND_KEINE_EINWILLIGUNG:
         return (
-            "Für diesen Cloud-Anbieter fehlt die Einwilligung zur Übertragung "
-            "von Dokumentinhalten (Einstellungen → KI)."
+            tr("Für diesen Cloud-Anbieter fehlt die Einwilligung zur Übertragung "
+            "von Dokumentinhalten (Einstellungen → KI).")
         )
     if grund == GRUND_KEIN_API_KEY:
-        return "Für diesen Anbieter fehlt der API-Key (Einstellungen → KI)."
+        return tr("Für diesen Anbieter fehlt der API-Key (Einstellungen → KI).")
     if grund.startswith(GRUND_FEHLER):
-        return f"Der KI-Anbieter konnte nicht gestartet werden: {grund[len(GRUND_FEHLER):]}"
+        return tr("Der KI-Anbieter konnte nicht gestartet werden: {0}").format(grund[len(GRUND_FEHLER):])
     return grund

@@ -10,7 +10,7 @@ TEXT = (
     "Mandatsreferenz 1708867, Marktlokations ID: 50941885277, Zähler-Nr.: 226541, "
     "Betrag 172,00 € per Lastschrift von IBAN DE05 5706 9144 1205 6190 05. "
     "Verbrauch 11792 kWh/Jahr, Zählerstand 33.683,003 am 01.05.2025. "
-    "Johannes Wack, Kellermannstr. 3, 48149 Münster, Tel. 0251 123456, Fax: 0251 654321. "
+    "Jonas Weber, Kellermannstr. 3, 48149 Münster, Tel. 0251 123456, Fax: 0251 654321. "
     "immergrün energie GmbH, Amtsgericht Köln unter HRB 102538, USt-IdNr. DE212755674, "
     "Gläubiger-ID DE34ZZZ00000117309, Steuernummer 215/5812/3405, BIC GENODED1KAI"
 )

@@ -28,6 +28,7 @@ import re
 from typing import Any, Optional
 
 from src.ml.llm_provider import Werkzeug, WerkzeugAntwort, WerkzeugAufruf
+from src.i18n import tr
 
 
 # "OpenAI HTTP 400: ..." / "Poe HTTP 404: ..." - so formatieren die
@@ -221,17 +222,17 @@ def antwort_parsen(data: Any, api_name: str) -> WerkzeugAntwort:
     in die naechste Assistentennachricht legen kann.
     """
     if not isinstance(data, dict):
-        return WerkzeugAntwort(fehler=f"{api_name}: unlesbare Antwort vom Server.")
+        return WerkzeugAntwort(fehler=tr("{api_name}: unlesbare Antwort vom Server.").format(api_name=api_name))
     choices = data.get("choices") or []
     if not choices:
         fehler = data.get("error")
         if fehler:
             return WerkzeugAntwort(fehler=fehler_aus_antwort(fehler, api_name))
-        return WerkzeugAntwort(fehler=f"{api_name}: keine Antwort vom Modell (choices leer).")
+        return WerkzeugAntwort(fehler=tr("{api_name}: keine Antwort vom Modell (choices leer).").format(api_name=api_name))
     choice = choices[0] if isinstance(choices[0], dict) else {}
     message = choice.get("message") or {}
     if not isinstance(message, dict):
-        return WerkzeugAntwort(fehler=f"{api_name}: unlesbare Nachricht vom Modell.")
+        return WerkzeugAntwort(fehler=tr("{api_name}: unlesbare Nachricht vom Modell.").format(api_name=api_name))
 
     text = _inhalt_als_text(message.get("content"))
     aufrufe: list[WerkzeugAufruf] = []
@@ -252,8 +253,10 @@ def antwort_parsen(data: Any, api_name: str) -> WerkzeugAntwort:
     if not text.strip() and not aufrufe and finish_reason in ("length", "max_tokens"):
         return WerkzeugAntwort(
             roh=message,
-            fehler=f"{api_name}: Antwort leer, Token-Limit erreicht "
-                   "(Max. Tokens erhöhen oder Modell ohne Reasoning wählen).",
+            fehler=tr(
+                "{api_name}: Antwort leer, Token-Limit erreicht (Max. Tokens erhöhen oder "
+                "Modell ohne Reasoning wählen)."
+            ).format(api_name=api_name),
         )
     return WerkzeugAntwort(text=text, aufrufe=aufrufe, roh=message,
                            abgeschnitten=finish_reason in ("length", "max_tokens") and not aufrufe)
@@ -269,7 +272,7 @@ def fehler_aus_antwort(fehler: Any, api_name: str) -> str:
         meldung = fehler.get("message") or json.dumps(fehler, ensure_ascii=False)
         code = fehler.get("code") or fehler.get("status")
         if isinstance(code, int) or (isinstance(code, str) and code.isdigit()):
-            return f"{api_name} HTTP {code}: {meldung}"
+            return tr("{api_name} HTTP {code}: {meldung}").format(api_name=api_name, code=code, meldung=meldung)
         return f"{api_name}-Fehler: {meldung}"
     return f"{api_name}-Fehler: {fehler}"
 
@@ -345,12 +348,12 @@ class OpenAIWerkzeugMixin:
         """
         api_name = getattr(self, "API_NAME", "LLM")
         if not self.config.api_key:
-            return WerkzeugAntwort(fehler=f"{api_name}: kein API-Key hinterlegt.")
+            return WerkzeugAntwort(fehler=tr("{api_name}: kein API-Key hinterlegt.").format(api_name=api_name))
 
         tools = werkzeuge_zu_tools(werkzeuge)
         if tools and self._werkzeuge_abgelehnt:
             return WerkzeugAntwort(
-                fehler=f"{api_name}: Modell unterstützt keine Werkzeuge (bereits abgelehnt)."
+                fehler=tr("{api_name}: Modell unterstützt keine Werkzeuge (bereits abgelehnt).").format(api_name=api_name)
             )
 
         try:
@@ -392,11 +395,11 @@ class OpenAIWerkzeugMixin:
             error = fehler_aus_antwort(data.get("error"), api_name)
 
         if error or not data:
-            error = error or f"{api_name}: leere Antwort vom Server."
+            error = error or tr("{api_name}: leere Antwort vom Server.").format(api_name=api_name)
             if tools and ist_werkzeug_ablehnung(error):
                 self._werkzeuge_abgelehnt = True
                 return WerkzeugAntwort(
-                    fehler=f"Modell '{model}' unterstützt keine Werkzeuge - {error}"
+                    fehler=tr("Modell '{model}' unterstützt keine Werkzeuge - {error}").format(model=model, error=error)
                 )
             return WerkzeugAntwort(fehler=error)
 

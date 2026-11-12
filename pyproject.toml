@@ -87,7 +87,7 @@ where = ["."]
 include = ["src*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.png", "*.ico", "*.json", "*.html"]
+"*" = ["*.png", "*.ico", "*.json", "*.html", "*.po"]
 
 [tool.black]
 line-length = 100
