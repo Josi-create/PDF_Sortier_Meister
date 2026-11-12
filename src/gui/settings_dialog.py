@@ -176,6 +176,23 @@ class SettingsDialog(QDialog):
         button_layout.addWidget(self.cancel_button)
 
         layout.addLayout(button_layout)
+        self._set_initial_height(general_tab)
+
+    def _set_initial_height(self, general_tab: QScrollArea) -> None:
+        """Startgroesse: Reiter „Allgemein“ moeglichst ganz zeigen (Issue #235).
+
+        Seit der Reiter scrollt, richtet sich der Dialog nicht mehr nach seinem
+        Inhalt (ein Scrollbereich meldet hoechstens 24 Zeilen Hoehe). Deshalb
+        so hoch oeffnen, wie der Inhalt braucht, aber nie hoeher als 90 % des
+        Bildschirms; der Rest scrollt.
+        """
+        inner = general_tab.widget()
+        wanted = (self.sizeHint().height() - general_tab.sizeHint().height()
+                  + inner.sizeHint().height())
+        screen = self.screen()
+        if screen is not None:
+            wanted = min(wanted, int(screen.availableGeometry().height() * 0.9))
+        self.resize(self.sizeHint().width(), max(wanted, self.minimumHeight()))
 
     def _create_llm_tab(self) -> QWidget:
         """Erstellt den LLM-Einstellungs-Tab."""
@@ -1234,7 +1251,16 @@ class SettingsDialog(QDialog):
 
         layout.addStretch()
 
-        return tab
+        # Der Reiter ist hoeher als viele Bildschirme (Issue #235): ohne
+        # Scrollbereich quetscht Qt die Gruppen zusammen, bis die Texte
+        # unleserlich uebereinander liegen. Wie im KI-Reiter scrollen lassen.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(tab)
+        from PyQt6.QtWidgets import QAbstractScrollArea
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        return scroll
 
     # ------------------------------------------------------------------ Dokumentensuche (Registerkarte „Suche“)
 

@@ -20,6 +20,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
   Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
 
+### Behoben
+- **Einstellungen, Reiter „Allgemein“ wieder lesbar**: Auf Bildschirmen, die niedriger sind als
+  der Reiter, lagen Häkchen, Auswahllisten und Texte zusammengequetscht übereinander. Der Reiter
+  scrollt jetzt (wie „KI-Assistent“ und „Suche“), und der Dialog öffnet höchstens so hoch wie
+  90 % des Bildschirms. (#235)
+
 ## [0.26.2] - 2026-11-10
 
 ### Neu
