@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.gui.folder_widget import FolderWidget
+from src.i18n import tr
 
 ZEILEN_HOEHE = 44
 ZEILEN_MIN_BREITE = 210  # darunter wird eine Spalte weniger genommen
@@ -137,7 +138,7 @@ class VorschlagZeile(FolderWidget):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._update_style()
-        self.setToolTip(f"{self.folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher.")
+        self.setToolTip(tr("{folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher.").format(folder_path=self.folder_path))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 2, 8, 2)
@@ -209,7 +210,7 @@ class VorschlagZeile(FolderWidget):
         if rest:
             teile.append(f'<span style="color:{self.FARBE_PFAD}">{html.escape(rest)}</span>')
         teile.append(f"<b>{html.escape(fett)}</b>")
-        self.name_label.setText(f'<span style="white-space:pre">{"".join(teile)}</span>')
+        self.name_label.setText('<span style="white-space:pre">{}</span>'.format("".join(teile)))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

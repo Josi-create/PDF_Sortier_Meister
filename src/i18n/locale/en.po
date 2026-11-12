@@ -9,9 +9,2865 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/i18n/__init__.py
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
 msgid "PDF Sortier Meister"
 msgstr "PDF Sortier Meister"
+
+#: src/core/suggestion_order.py
+msgid "KI-Vorschlag"
+msgstr "AI suggestion"
+
+#: src/core/suggestion_order.py
+msgid "KI (gecacht): Vorschlag"
+msgstr "AI (cached): suggestion"
+
+#: src/core/suggestion_order.py
+msgid "Automatisch erkannt"
+msgstr "Detected automatically"
+
+#: src/core/suggestion_order.py
+msgid "Kategorie + Nummer"
+msgstr "Category + number"
+
+#: src/core/suggestion_order.py
+msgid "Nur Datum"
+msgstr "Date only"
+
+#: src/core/suggestion_order.py
+msgid "Aktuellen Namen behalten"
+msgstr "Keep current name"
+
+#: src/core/suggestion_order.py
+msgid "Gelernt"
+msgstr "Learned"
+
+#: src/core/suggestion_order.py
+msgid "Gelernt: ähnlich zu "
+msgstr "Learned: similar to "
+
+#: src/core/suggestion_order.py
+msgid "Datum + Kategorie ("
+msgstr "Date + category ("
+
+#: src/core/suggestion_order.py
+msgid "Muster: "
+msgstr "Pattern: "
+
+#: src/core/suggestion_order.py
+msgid "KI: "
+msgstr "AI: "
+
+#: src/gui/detail_panel.py
+msgid "PDF auswählen\n\nKlicken Sie links auf ein PDF-Thumbnail,\num hier die Details zu sehen.\n\nDann klicken Sie rechts auf einen\nZielordner zum Verschieben."
+msgstr "Select a PDF\n\nClick a PDF thumbnail on the left\nto see its details here.\n\nThen click a target folder on the right\nto move it."
+
+#: src/gui/detail_panel.py
+msgid "<b>Neuer Dateiname</b>"
+msgstr "<b>New file name</b>"
+
+#: src/gui/detail_panel.py
+msgid "Wird beim Klick auf einen Zielordner übernommen. Der oberste Vorschlag\nsteht automatisch im Feld; weitere Vorschläge über den Pfeil rechts."
+msgstr "Applied when you click a target folder. The top suggestion\nis entered automatically; more suggestions via the arrow on the right."
+
+#: src/gui/detail_panel.py
+msgid "Alle Vorschläge für den Dateinamen ein- oder ausklappen.\nDer Zustand bleibt für die nächsten Dokumente erhalten."
+msgstr "Expand or collapse all file name suggestions.\nThe state is kept for the next documents."
+
+#: src/gui/detail_panel.py
+msgid "Ordnerstruktur im Namen"
+msgstr "Folder structure in name"
+
+#: src/gui/detail_panel.py
+msgid "Beim Verschieben die Nummern/Namen des Zielordners in den Dateinamen\naufnehmen (Vorlage unter Einstellungen > Dateinamen > Beim Verschieben).\nWirkt sofort, auch fuer den naechsten Verschiebe-Vorgang."
+msgstr "When moving, include the numbers/names of the target folder in the file name\n(template under Settings > File names > When moving).\nTakes effect immediately, also for the next move."
+
+#: src/gui/detail_panel.py
+msgid "Muster bearbeiten…"
+msgstr "Edit patterns…"
+
+#: src/gui/detail_panel.py
+msgid "Öffnet Einstellungen > Dateinamen (Muster und Vorlagen)"
+msgstr "Opens Settings > File names (patterns and templates)"
+
+#: src/gui/detail_panel.py
+msgid "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen.\nDie zuletzt gewählte Art von Vorschlag steht beim nächsten Dokument ganz oben\nund wird automatisch als Dateiname vorgeschlagen."
+msgstr "Click a suggestion to copy the name and metadata into the fields below.\nThe kind of suggestion chosen last is at the top for the next document\nand is suggested automatically as the file name."
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Neuen Dateinamen eingeben..."
+msgstr "Enter new file name..."
+
+#: src/gui/detail_panel.py
+msgid "Neuer Dateiname für die PDF - wird beim Klick auf einen Zielordner übernommen."
+msgstr "New file name for the PDF - applied when you click a target folder."
+
+#: src/gui/detail_panel.py
+msgid "Metadaten (werden in PDF gespeichert)"
+msgstr "Metadata (saved in the PDF)"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Datum"
+msgstr "Date"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Steuerjahr"
+msgstr "Tax year"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Kategorie"
+msgstr "Category"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Korrespondent"
+msgstr "Correspondent"
+
+#: src/gui/detail_panel.py
+msgid "Betrag Netto"
+msgstr "Net amount"
+
+#: src/gui/detail_panel.py
+msgid "Betrag Brutto"
+msgstr "Gross amount"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Währung"
+msgstr "Currency"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "MwSt-Satz"
+msgstr "VAT rate"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Zusammenfassung"
+msgstr "Summary"
+
+#: src/gui/detail_panel.py
+msgid "Kategorie des Dokuments (z.B. Rechnung, Vertrag)."
+msgstr "Category of the document (e.g. invoice, contract)."
+
+#: src/gui/detail_panel.py
+msgid "Gegenpartei des Dokuments aus Ihrer Sicht: Absender fremder Post, bei eigenen\nSchreiben der Empfänger bzw. Vertragspartner (Person, Firma oder Behörde).\nRechtsklick: alle Dokumente dieses Korrespondenten anzeigen."
+msgstr "The other party of the document from your point of view: the sender of incoming mail, for your own\nletters the recipient or contracting party (person, company or authority).\nRight-click: show all documents of this correspondent."
+
+#: src/gui/detail_panel.py
+msgid "Rechnungsbetrag ohne MwSt."
+msgstr "Invoice amount excluding VAT."
+
+#: src/gui/detail_panel.py
+msgid "Rechnungsbetrag inkl. MwSt."
+msgstr "Invoice amount including VAT."
+
+#: src/gui/detail_panel.py
+msgid "Währung des Betrags (z.B. EUR)."
+msgstr "Currency of the amount (e.g. EUR)."
+
+#: src/gui/detail_panel.py
+msgid "Mehrwertsteuersatz in Prozent (z.B. 19)."
+msgstr "VAT rate in percent (e.g. 19)."
+
+#: src/gui/detail_panel.py
+msgid "IBAN, falls im Dokument vorhanden."
+msgstr "IBAN, if present in the document."
+
+#: src/gui/detail_panel.py
+msgid "Steuerjahr, dem dieses Dokument zugeordnet wird."
+msgstr "Tax year this document is assigned to."
+
+#: src/gui/detail_panel.py
+msgid "Kurze Zusammenfassung des Dokumentinhalts."
+msgstr "Short summary of the document's content."
+
+#: src/gui/detail_panel.py
+#: src/gui/stapel_ablage.py
+msgid "Metadaten speichern"
+msgstr "Save metadata"
+
+#: src/gui/detail_panel.py
+msgid "Metadaten in die PDF schreiben, ohne die Datei zu verschieben"
+msgstr "Write the metadata into the PDF without moving the file"
+
+#: src/gui/detail_panel.py
+msgid "Umbenennen + Metadaten speichern"
+msgstr "Rename + save metadata"
+
+#: src/gui/detail_panel.py
+msgid "Dateinamen aktualisieren UND Metadaten in die PDF schreiben, ohne sie zu verschieben"
+msgstr "Update the file name AND write the metadata into the PDF without moving it"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "KI-Metadaten neu generieren"
+msgstr "Regenerate AI metadata"
+
+#: src/gui/detail_panel.py
+msgid "Metadaten und Dateinamen per KI erneut aus dem PDF-Text vorschlagen lassen"
+msgstr "Have the AI suggest metadata and file names again from the PDF text"
+
+#: src/gui/detail_panel.py
+msgid "Suchergebnisse"
+msgstr "Search results"
+
+#: src/gui/detail_panel.py
+msgid "Doppelklick öffnet das Dokument im Standardprogramm."
+msgstr "Double-click opens the document in the default program."
+
+#: src/gui/detail_panel.py
+msgid "Vorschau der ausgewählten PDF.\nDoppelklick auf die Seite oder „Groß“ öffnet die große Ansicht."
+msgstr "Preview of the selected PDF.\nDouble-clicking the page or “Large” opens the large view."
+
+#: src/gui/detail_panel.py
+#: src/gui/main_window.py
+#: src/gui/stapel_ablage.py
+msgid "Original: {name}"
+msgstr "Original: {name}"
+
+#: src/gui/detail_panel.py
+msgid "Metadaten (gelernt + werden in PDF gespeichert)"
+msgstr "Metadata (learned + saved in the PDF)"
+
+#: src/gui/detail_panel.py
+msgid "Suchergebnisse ({anzahl} Treffer)"
+msgstr "Search results ({anzahl} results)"
+
+#: src/gui/detail_panel.py
+msgid "Ordner: {target}"
+msgstr "Folder: {target}"
+
+#: src/gui/detail_panel.py
+msgid "ID: {short_id}…"
+msgstr "ID: {short_id}…"
+
+#: src/gui/detail_panel.py
+msgid "Datei nicht gefunden"
+msgstr "File not found"
+
+#: src/gui/detail_panel.py
+msgid "Die Datei existiert nicht mehr:\n{file_path}"
+msgstr "The file no longer exists:\n{file_path}"
+
+#: src/gui/detail_panel.py
+msgid "Vorschau wird erstellt …"
+msgstr "Creating preview …"
+
+#: src/gui/detail_panel.py
+msgid "Metadaten (aus PDF gelesen, werden in PDF gespeichert)"
+msgstr "Metadata (read from the PDF, saved in the PDF)"
+
+#: src/gui/detail_panel.py
+msgid "Datum des Dokuments - Quelle für {datum} im Dateinamen\nund Vorlage für das Steuerjahr.\nFrei eintippen: 3.5.24, 03.05.2024, 3. Mai 2024 oder 2024-05-03;\ngespeichert wird JJJJ-MM-TT. Oder das Datum in der Vorschau\nmarkieren und per Rechtsklick „Als Datum übernehmen“."
+msgstr "Date of the document - source for {datum} in the file name\nand basis for the tax year.\nType freely: 3.5.24, 03.05.2024, 3. Mai 2024 or 2024-05-03;\nit is saved as YYYY-MM-DD. Or select the date in the preview\nand right-click “Use as date”."
+
+#: src/gui/detail_panel.py
+msgid "\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024."
+msgstr "\n\nNo date recognized - please enter a full day, e.g. 3.5.2024."
+
+#: src/gui/detail_panel.py
+msgid "Metadaten gespeichert"
+msgstr "Metadata saved"
+
+#: src/gui/detail_panel.py
+msgid "Bereits gespeichert"
+msgstr "Already saved"
+
+#: src/gui/detail_panel.py
+msgid "Quelle: aus PDF gelesen"
+msgstr "Source: read from the PDF"
+
+#: src/gui/detail_panel.py
+msgid "Quelle: aus PDF gelesen - grün = neue Vorschläge (noch nicht gespeichert)"
+msgstr "Source: read from the PDF - green = new suggestions (not saved yet)"
+
+#: src/gui/detail_panel.py
+msgid "Quelle: KI-Vorschlag (noch nicht gespeichert)"
+msgstr "Source: AI suggestion (not saved yet)"
+
+#: src/gui/detail_panel.py
+msgid "Quelle: editiert (noch nicht gespeichert)"
+msgstr "Source: edited (not saved yet)"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Keine Vorschläge verfügbar"
+msgstr "No suggestions available"
+
+#: src/gui/detail_panel.py
+msgid "Die Datei behält ihren bisherigen Namen.\nAnklicken übernimmt ihn ins Feld „Neuer Dateiname“."
+msgstr "The file keeps its current name.\nClicking copies it into the “New file name” field."
+
+#: src/gui/detail_panel.py
+msgid "Nach diesem Dateinamen-Muster aus den Metadaten dieses Dokuments gebildet. Anklicken übernimmt den Namen."
+msgstr "Built from this document's metadata using this file name pattern. Clicking applies the name."
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Konfidenz: {confidence_pct}%\n{reason}"
+msgstr "Confidence: {confidence_pct}%\n{reason}"
+
+#: src/gui/detail_panel.py
+msgid "Alle Dokumente von „{name}“ anzeigen"
+msgstr "Show all documents of “{name}”"
+
+#: src/gui/detail_panel.py
+msgid "Alle Dokumente des Korrespondenten anzeigen"
+msgstr "Show all documents of the correspondent"
+
+#: src/gui/detail_panel.py
+msgid "Vorschläge ({count})"
+msgstr "Suggestions ({count})"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Name besteht nur aus ungültigen Zeichen"
+msgstr "The name consists only of invalid characters"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "(ungültig)"
+msgstr "(invalid)"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "E-Mail-Adresse → Name"
+msgstr "E-mail address → name"
+
+#: src/gui/detail_panel.py
+#: src/gui/rename_dialog.py
+msgid "Wird ersetzt: {0}"
+msgstr "Will be replaced: {0}"
+
+#: src/gui/detail_panel.py
+msgid "KI-Fehler: {text}"
+msgstr "AI error: {text}"
+
+#: src/gui/detail_panel.py
+msgid "KI arbeitet… {0}"
+msgstr "AI working… {0}"
+
+#: src/gui/detail_panel.py
+msgid "KI hat keinen Vorschlag geliefert."
+msgstr "The AI did not return a suggestion."
+
+#: src/gui/favoriten_leiste.py
+msgid "★ Als Favorit merken"
+msgstr "★ Add to favorites"
+
+#: src/gui/favoriten_leiste.py
+msgid "Favorit entfernen"
+msgstr "Remove favorite"
+
+#: src/gui/favoriten_leiste.py
+msgid "Aktuellen Ordner als Favorit merken"
+msgstr "Add the current folder to the favorites"
+
+#: src/gui/favoriten_leiste.py
+msgid "{pfad}\nOrdner nicht gefunden"
+msgstr "{pfad}\nFolder not found"
+
+#: src/gui/favoriten_leiste.py
+msgid "Ordner nicht gefunden"
+msgstr "Folder not found"
+
+#: src/gui/favoriten_leiste.py
+msgid "Der Ordner existiert nicht mehr:\n{pfad}\n\nFavorit entfernen?"
+msgstr "The folder no longer exists:\n{pfad}\n\nRemove the favorite?"
+
+#: src/gui/favoriten_leiste.py
+msgid "Favorit umbenennen"
+msgstr "Rename favorite"
+
+#: src/gui/favoriten_leiste.py
+msgid "Anzeigename (leer = Ordnername):"
+msgstr "Display name (empty = folder name):"
+
+#: src/gui/favoriten_leiste.py
+msgid "Entfernen"
+msgstr "Remove"
+
+#: src/gui/favoriten_leiste.py
+msgid "Umbenennen (Anzeigename)"
+msgstr "Rename (display name)"
+
+#: src/gui/favoriten_leiste.py
+msgid "Nach links"
+msgstr "Move left"
+
+#: src/gui/favoriten_leiste.py
+msgid "Nach rechts"
+msgstr "Move right"
+
+#: src/gui/folder_tile.py
+msgid "Übergeordneter Ordner: {folder_path}\nKlick wechselt nach oben, PDFs hierher ziehen verschiebt sie."
+msgstr "Parent folder: {folder_path}\nClick goes up, dragging PDFs here moves them."
+
+#: src/gui/folder_tile.py
+msgid "{folder_path}\nKlick markiert den Ordner (dann rechts das Ziel anklicken), Doppelklick öffnet ihn, Ziehen verschiebt ihn (Strg: kopiert).\nPDFs hierher ziehen verschiebt sie."
+msgstr "{folder_path}\nClick marks the folder (then click the target on the right), double-click opens it, dragging moves it (Ctrl: copies).\nDragging PDFs here moves them."
+
+#: src/gui/folder_tile.py
+msgid "übergeordneter Ordner"
+msgstr "parent folder"
+
+#: src/gui/folder_tile.py
+msgid "📁 Ordner verschieben nach …"
+msgstr "📁 Move folder to …"
+
+#: src/gui/folder_tile.py
+msgid "📁 Ordner kopieren nach …"
+msgstr "📁 Copy folder to …"
+
+#: src/gui/folder_tile.py
+msgid "🌳 Rechts im Baum zeigen"
+msgstr "🌳 Show in the tree on the right"
+
+#: src/gui/folder_tile.py
+#: src/gui/folder_widget.py
+msgid "Aus Zielliste entfernen"
+msgstr "Remove from target list"
+
+#: src/gui/folder_tile.py
+msgid "⭐ Als Zielordner merken"
+msgstr "⭐ Remember as target folder"
+
+#: src/gui/folder_tile.py
+msgid "(noch keine Vorschläge)"
+msgstr "(no suggestions yet)"
+
+#: src/gui/folder_tile.py
+msgid "Anderen Ordner wählen …"
+msgstr "Choose another folder …"
+
+#: src/gui/folder_tree_widget.py
+msgid "\n\nEinfachklick: ausgewaehlte PDF hierher verschieben.\nDoppelklick oder Pfeil rechts klappt auf, * klappt alle Unterordner auf.\nRechtsklick: weitere Aktionen."
+msgstr "\n\nSingle click: move the selected PDF here.\nDouble-click or right arrow expands, * expands all subfolders.\nRight-click: more actions."
+
+#: src/gui/folder_tree_widget.py
+msgid "📁 Zielordner"
+msgstr "📁 Target folders"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordnerstruktur aktualisieren"
+msgstr "Refresh folder structure"
+
+#: src/gui/folder_tree_widget.py
+msgid "↩ Zurück zur Gesamtansicht"
+msgstr "↩ Back to the full view"
+
+#: src/gui/folder_tree_widget.py
+msgid "Einfachklick auf einen Ordner: ausgewaehlte PDF hierher verschieben.\nDoppelklick oder Pfeil rechts klappt einen Ordner auf, * alle Unterordner.\nLinks oeffnen: Rechtsklick > \"Ordner links öffnen\".\nRechtsklick: weitere Aktionen.\nPDFs koennen auch per Drag & Drop hierher gezogen werden.\nLinks markierter Ordner: Klick (oder Ordnerzeile hierher ziehen) verschiebt den ganzen Ordner, Strg+Ziehen kopiert ihn."
+msgstr "Single click on a folder: move the selected PDF here.\nDouble-click or right arrow expands a folder, * all subfolders.\nOpen on the left: right-click > \"Open folder on the left\".\nRight-click: more actions.\nPDFs can also be dragged here.\nFolder marked on the left: a click (or dragging the folder row here) moves the whole folder, Ctrl+drag copies it."
+
+#: src/gui/folder_tree_widget.py
+msgid "{root}\nOrdner werden geladen…"
+msgstr "{root}\nLoading folders…"
+
+#: src/gui/folder_tree_widget.py
+msgid "🔎 Ansicht: {name}"
+msgstr "🔎 View: {name}"
+
+#: src/gui/folder_tree_widget.py
+msgid "„{name}“ hat keine Unterordner"
+msgstr "“{name}” has no subfolders"
+
+#: src/gui/folder_tree_widget.py
+msgid "📁 Ordner links öffnen"
+msgstr "📁 Open folder on the left"
+
+#: src/gui/folder_tree_widget.py
+msgid "📂 Unterordner öffnen"
+msgstr "📂 Open subfolder"
+
+#: src/gui/folder_tree_widget.py
+msgid "➕ Alle Unterordner aufklappen"
+msgstr "➕ Expand all subfolders"
+
+#: src/gui/folder_tree_widget.py
+msgid "➖ Unterordner zuklappen"
+msgstr "➖ Collapse subfolders"
+
+#: src/gui/folder_tree_widget.py
+msgid "➖ Alles zuklappen"
+msgstr "➖ Collapse all"
+
+#: src/gui/folder_tree_widget.py
+msgid "🔎 Diesen Ordner als Wurzel anzeigen"
+msgstr "🔎 Show this folder as root"
+
+#: src/gui/folder_tree_widget.py
+msgid "📥 Hierhin verschieben"
+msgstr "📥 Move here"
+
+#: src/gui/folder_tree_widget.py
+msgid "Links ist keine PDF ausgewählt"
+msgstr "No PDF is selected on the left"
+
+#: src/gui/folder_tree_widget.py
+msgid "➕ Neuen Unterordner erstellen"
+msgstr "➕ Create new subfolder"
+
+#: src/gui/folder_tree_widget.py
+msgid "✏️ Ordner umbenennen"
+msgstr "✏️ Rename folder"
+
+#: src/gui/folder_tree_widget.py
+msgid "🗑️ Ordner löschen (in den Papierkorb)"
+msgstr "🗑️ Delete folder (to the Recycle Bin)"
+
+#: src/gui/folder_tree_widget.py
+msgid "Zielordner zuerst aus der Zielliste entfernen"
+msgstr "Remove target folders from the target list first"
+
+#: src/gui/folder_tree_widget.py
+msgid "Nur leere Ordner können gelöscht werden"
+msgstr "Only empty folders can be deleted"
+
+#: src/gui/folder_tree_widget.py
+msgid "❌ Aus Zielliste entfernen"
+msgstr "❌ Remove from target list"
+
+#: src/gui/folder_tree_widget.py
+msgid "ℹ️ Inhalt anzeigen"
+msgstr "ℹ️ Show contents"
+
+#: src/gui/folder_tree_widget.py
+msgid "📂 Im {0} öffnen"
+msgstr "📂 Open in {0}"
+
+#: src/gui/folder_tree_widget.py
+msgid "… {rest} weitere (im Baum aufklappen)"
+msgstr "… {rest} more (expand in the tree)"
+
+#: src/gui/folder_tree_widget.py
+msgid "(keine Unterordner)"
+msgstr "(no subfolders)"
+
+#: src/gui/folder_tree_widget.py
+msgid "Inhalt von {name} nicht lesbar: {e}"
+msgstr "Contents of {name} not readable: {e}"
+
+#: src/gui/folder_tree_widget.py
+msgid "ℹ️ {name}: {pdfs}, {others}, {dirs} Unterordner"
+msgstr "ℹ️ {name}: {pdfs}, {others}, {dirs} subfolders"
+
+#: src/gui/folder_tree_widget.py
+#: src/gui/pdf_thumbnail.py
+msgid "{anzahl} PDFs"
+msgstr "{anzahl} PDFs"
+
+#: src/gui/folder_tree_widget.py
+msgid "{anzahl} PDF"
+msgstr "{anzahl} PDF"
+
+#: src/gui/folder_tree_widget.py
+msgid "{anzahl} weitere Dateien"
+msgstr "{anzahl} other files"
+
+#: src/gui/folder_tree_widget.py
+msgid "{anzahl} weitere Datei"
+msgstr "{anzahl} other file"
+
+#: src/gui/folder_tree_widget.py
+msgid "Der Name darf keines dieser Zeichen enthalten: < > : \" / \\ | ? *"
+msgstr "The name must not contain any of these characters: < > : \" / \\ | ? *"
+
+#: src/gui/folder_tree_widget.py
+msgid "Der Name darf nicht mit Punkt oder Leerzeichen enden."
+msgstr "The name must not end with a period or a space."
+
+#: src/gui/folder_tree_widget.py
+msgid "Es gibt hier bereits einen Eintrag namens „{name}“."
+msgstr "There is already an entry named “{name}” here."
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner umbenennen"
+msgstr "Rename folder"
+
+#: src/gui/folder_tree_widget.py
+msgid "Neuer Name:"
+msgstr "New name:"
+
+#: src/gui/folder_tree_widget.py
+msgid "Umbenennen nicht möglich"
+msgstr "Renaming not possible"
+
+#: src/gui/folder_tree_widget.py
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+#: src/gui/rename_dialog.py
+#: src/gui/stapel_ablage.py
+msgid "Fehler"
+msgstr "Error"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner konnte nicht umbenannt werden:\n{e}"
+msgstr "The folder could not be renamed:\n{e}"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner nicht leer"
+msgstr "Folder not empty"
+
+#: src/gui/folder_tree_widget.py
+msgid "Es können nur leere Ordner gelöscht werden."
+msgstr "Only empty folders can be deleted."
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner löschen"
+msgstr "Delete folder"
+
+#: src/gui/folder_tree_widget.py
+msgid "Leeren Ordner „{name}“ in den Papierkorb legen?"
+msgstr "Move the empty folder “{name}” to the Recycle Bin?"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner konnte nicht in den Papierkorb gelegt werden:\n{folder}"
+msgstr "The folder could not be moved to the Recycle Bin:\n{folder}"
+
+#: src/gui/folder_tree_widget.py
+msgid "🗑️ Ordner in den Papierkorb gelegt: {name}"
+msgstr "🗑️ Folder moved to the Recycle Bin: {name}"
+
+#: src/gui/folder_tree_widget.py
+msgid "Neuer Unterordner"
+msgstr "New subfolder"
+
+#: src/gui/folder_tree_widget.py
+msgid "Name des neuen Ordners:"
+msgstr "Name of the new folder:"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner konnte nicht erstellt werden:\n{e}"
+msgstr "The folder could not be created:\n{e}"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner nicht im sichtbaren Baum: {name}"
+msgstr "Folder not in the visible tree: {name}"
+
+#: src/gui/folder_widget.py
+#: src/gui/vorschlag_liste.py
+msgid "{folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher."
+msgstr "{folder_path}\nClicking moves the selected PDF here."
+
+#: src/gui/folder_widget.py
+msgid "1 PDF"
+msgstr "1 PDF"
+
+#: src/gui/folder_widget.py
+msgid "{pdf_count} PDFs"
+msgstr "{pdf_count} PDFs"
+
+#: src/gui/folder_widget.py
+#: src/gui/pfad_aktionen.py
+msgid "Im {0} öffnen"
+msgstr "Open in {0}"
+
+#: src/gui/hierhin_kopieren.py
+msgid "In der PDF-Ansicht ist keine Datei ausgewählt"
+msgstr "No file is selected in the PDF view"
+
+#: src/gui/hierhin_kopieren.py
+msgid "📁 Ordner hierhin {verb}"
+msgstr "📁 Folder: {verb} here"
+
+#: src/gui/hierhin_kopieren.py
+msgid "{symbol} {anzahl} Dateien hierhin {verb}"
+msgstr "{symbol} {anzahl} files: {verb} here"
+
+#: src/gui/hierhin_kopieren.py
+msgid "{symbol} Datei hierhin {verb}"
+msgstr "{symbol} File: {verb} here"
+
+#: src/gui/hierhin_kopieren.py
+msgid "{symbol} PDF hierhin {verb}"
+msgstr "{symbol} PDF: {verb} here"
+
+#: src/gui/hierhin_kopieren.py
+msgid "kopieren"
+msgstr "copy"
+
+#: src/gui/hierhin_kopieren.py
+msgid "verschieben"
+msgstr "move"
+
+#: src/gui/hierhin_kopieren.py
+msgid "'{name}' liegt außerhalb der Zielordner rechts"
+msgstr "'{name}' is outside the target folders on the right"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+msgid "Zielordner hinzugefügt: {name}"
+msgstr "Target folder added: {name}"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Zum Kopieren zuerst eine Datei auswählen"
+msgstr "Select a file first to copy it"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} Dateien"
+msgstr "{anzahl} files"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+msgid "Datei"
+msgstr "File"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+msgid "Neuen Ordner anlegen"
+msgstr "Create new folder"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Ordner '{relative_path}' anlegen und {wer} dorthin kopieren?"
+msgstr "Create folder '{relative_path}' and copy {wer} there?"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+msgid "Ordner konnte nicht angelegt werden:\n{e}"
+msgstr "The folder could not be created:\n{e}"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Kopieren fehlgeschlagen"
+msgstr "Copying failed"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "Teilweise fehlgeschlagen"
+msgstr "Partially failed"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Einige Dateien konnten nicht kopiert werden:\n{0}"
+msgstr "Some files could not be copied:\n{0}"
+
+#: src/gui/hierhin_kopieren.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "Gelernt: {0}"
+msgstr "Learned: {0}"
+
+#: src/gui/hierhin_kopieren.py
+msgid " ({anzahl} Dateien)"
+msgstr " ({anzahl} files)"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Kopiert nach '{relative_path}'{suffix}"
+msgstr "Copied to '{relative_path}'{suffix}"
+
+#: src/gui/hierhin_kopieren.py
+msgid "📄 kopiert nach {0}"
+msgstr "📄 copied to {0}"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Kopiert nach {p}"
+msgstr "Copied to {p}"
+
+#: src/gui/main_window.py
+msgid "Unbekannt"
+msgstr "Unknown"
+
+#: src/gui/main_window.py
+msgid "Unerwarteter Fehler: {e}"
+msgstr "Unexpected error: {e}"
+
+#: src/gui/main_window.py
+msgid "PDFs"
+msgstr "PDFs"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken"
+msgstr "Scan folder: select a PDF, check the details, click a target folder"
+
+#: src/gui/main_window.py
+msgid "Chat"
+msgstr "Chat"
+
+#: src/gui/main_window.py
+msgid "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen"
+msgstr "Let the AI answer questions about the selected PDF and your collection"
+
+#: src/gui/main_window.py
+msgid "Suche"
+msgstr "Search"
+
+#: src/gui/main_window.py
+msgid "Korrespondenten"
+msgstr "Correspondents"
+
+#: src/gui/main_window.py
+msgid "Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente"
+msgstr "All correspondents from the search index - click one to show its documents"
+
+#: src/gui/main_window.py
+#: src/gui/rename_dialog.py
+msgid "Vorschau"
+msgstr "Preview"
+
+#: src/gui/main_window.py
+msgid "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
+msgstr "3-column view: select a PDF, check the details, click a target folder"
+
+#: src/gui/main_window.py
+msgid "Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails"
+msgstr "Full-text search in PDFs (including scans), Office files, Markdown and mails"
+
+#: src/gui/main_window.py
+msgid "Diese Dokumente lassen sich hier nicht bearbeiten (Mail oder Datei fehlt)"
+msgstr "These documents cannot be edited here (mail, or the file is missing)"
+
+#: src/gui/main_window.py
+msgid "{anzahl} Dokumente ausgewählt"
+msgstr "{anzahl} documents selected"
+
+#: src/gui/main_window.py
+msgid "Ausgewählt: {name}"
+msgstr "Selected: {name}"
+
+#: src/gui/main_window.py
+msgid "{name} liegt nicht mehr im Scan-Ordner"
+msgstr "{name} is no longer in the scan folder"
+
+#: src/gui/main_window.py
+msgid "„{name}“ gibt es nicht mehr unter {parent}"
+msgstr "“{name}” no longer exists in {parent}"
+
+#: src/gui/main_window.py
+msgid "Den Ordner {ziel} gibt es nicht mehr"
+msgstr "The folder {ziel} no longer exists"
+
+#: src/gui/main_window.py
+msgid "Umbenennen fehlgeschlagen:\n{e}"
+msgstr "Renaming failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Umbenennung: {name} → {name2}"
+msgstr "Rename: {name} → {name2}"
+
+#: src/gui/main_window.py
+msgid "Umbenannt zu: {name}"
+msgstr "Renamed to: {name}"
+
+#: src/gui/main_window.py
+#: src/gui/stapel_ablage.py
+msgid "Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln"
+msgstr "Metadata can only be saved in PDFs - convert to PDF first"
+
+#: src/gui/main_window.py
+msgid "Metadaten in '{name}' gespeichert"
+msgstr "Metadata saved in '{name}'"
+
+#: src/gui/main_window.py
+msgid "Chat bestätigt"
+msgstr "confirmed by chat"
+
+#: src/gui/main_window.py
+#: src/gui/pdf_thumbnail.py
+msgid "PDF öffnen"
+msgstr "Open PDF"
+
+#: src/gui/main_window.py
+msgid "Die Vorschau zeigt nicht die ausgewählte PDF - Text nicht übernommen."
+msgstr "The preview does not show the selected PDF - text not applied."
+
+#: src/gui/main_window.py
+msgid "Zurück zum vorherigen Ordner (Alt+Left)"
+msgstr "Back to the previous folder (Alt+Left)"
+
+#: src/gui/main_window.py
+msgid "Ein Verzeichnis nach oben (Alt+Up)"
+msgstr "Up one folder (Alt+Up)"
+
+#: src/gui/main_window.py
+msgid "Neue PDFs im Scan-Ordner"
+msgstr "New PDFs in the scan folder"
+
+#: src/gui/main_window.py
+msgid "Größe der Kacheln im Scan-Bereich.\nBei kleinen und mittleren Kacheln zeigt der Mauszeiger auf einer PDF\nkurz darauf die große Vorschau."
+msgstr "Size of the tiles in the scan area.\nWith small and medium tiles, hovering over a PDF\nshows the large preview after a moment."
+
+#: src/gui/main_window.py
+msgid "Ansicht:"
+msgstr "View:"
+
+#: src/gui/main_window.py
+msgid "Reihenfolge der Dateien im Scan-Bereich."
+msgstr "Order of the files in the scan area."
+
+#: src/gui/main_window.py
+msgid "Sortieren:"
+msgstr "Sort by:"
+
+#: src/gui/main_window.py
+msgid "Klicken zum Suchen nach Ordnern"
+msgstr "Click to search for folders"
+
+#: src/gui/main_window.py
+msgid "Ordner suchen"
+msgstr "Search folders"
+
+#: src/gui/main_window.py
+msgid "Kein Scan-Ordner ausgewählt.\n\nKlicken Sie auf 'Scan-Ordner' in der Werkzeugleiste,\num einen Ordner mit PDFs auszuwählen."
+msgstr "No scan folder selected.\n\nClick 'Scan folder' in the toolbar\nto choose a folder with PDFs."
+
+#: src/gui/main_window.py
+msgid "Zielordner"
+msgstr "Target folders"
+
+#: src/gui/main_window.py
+msgid "+ Hinzufügen"
+msgstr "+ Add"
+
+#: src/gui/main_window.py
+msgid "Neuen Zielordner hinzufügen"
+msgstr "Add a new target folder"
+
+#: src/gui/main_window.py
+msgid "↻ Neu laden"
+msgstr "↻ Reload"
+
+#: src/gui/main_window.py
+msgid "Zielordner-Ansicht neu aufbauen (Lerninhalte bleiben erhalten)"
+msgstr "Rebuild the target folder view (learned data is kept)"
+
+#: src/gui/main_window.py
+msgid "🗑 Leeren"
+msgstr "🗑 Clear"
+
+#: src/gui/main_window.py
+msgid "Zielordner-Ansicht leeren (Lerninhalte bleiben erhalten)"
+msgstr "Clear the target folder view (learned data is kept)"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "Vorgeschlagene Ziele:"
+msgstr "Suggested targets:"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "Wählen Sie eine PDF aus für Vorschläge"
+msgstr "Select a PDF to get suggestions"
+
+#: src/gui/main_window.py
+msgid "Keine PDFs im Scan-Ordner gefunden.\n\nOrdner: {scan_folder}"
+msgstr "No PDFs found in the scan folder.\n\nFolder: {scan_folder}"
+
+#: src/gui/main_window.py
+msgid "PDFs: 0"
+msgstr "PDFs: 0"
+
+#: src/gui/main_window.py
+msgid "0 Dateien"
+msgstr "0 files"
+
+#: src/gui/main_window.py
+msgid "PDFs in: {name}"
+msgstr "PDFs in: {name}"
+
+#: src/gui/main_window.py
+msgid "PDFs: {anzahl}"
+msgstr "PDFs: {anzahl}"
+
+#: src/gui/main_window.py
+msgid "{anzahl} PDFs geladen"
+msgstr "{anzahl} PDFs loaded"
+
+#: src/gui/main_window.py
+msgid "Vorschau nicht möglich:\n{fehler}"
+msgstr "Preview not possible:\n{fehler}"
+
+#: src/gui/main_window.py
+msgid "Datei löschen"
+msgstr "Delete file"
+
+#: src/gui/main_window.py
+msgid "diese Datei"
+msgstr "this file"
+
+#: src/gui/main_window.py
+msgid "Öffnen"
+msgstr "Open"
+
+#: src/gui/main_window.py
+msgid "Datei konnte nicht geöffnet werden:\n{pfad}"
+msgstr "The file could not be opened:\n{pfad}"
+
+#: src/gui/main_window.py
+msgid "Eine Umwandlung läuft noch - bitte warten."
+msgstr "A conversion is still running - please wait."
+
+#: src/gui/main_window.py
+msgid "Wandle in PDF um: {name}…"
+msgstr "Converting to PDF: {name}…"
+
+#: src/gui/main_window.py
+msgid "Wandle in PDF um ({i}/{n}): {name}…"
+msgstr "Converting to PDF ({i}/{n}): {name}…"
+
+#: src/gui/main_window.py
+msgid "PDF erstellt ({werkzeug}{0}): {name}"
+msgstr "PDF created ({werkzeug}{0}): {name}"
+
+#: src/gui/main_window.py
+msgid "{anzahl} PDFs erstellt"
+msgstr "{anzahl} PDFs created"
+
+#: src/gui/main_window.py
+msgid "In PDF umwandeln"
+msgstr "Convert to PDF"
+
+#: src/gui/main_window.py
+msgid "Analysiere {analysis_n} PDFs im Hintergrund..."
+msgstr "Analyzing {analysis_n} PDFs in the background..."
+
+#: src/gui/main_window.py
+msgid "Hole KI-Vorschläge für {llm_n} PDFs im Hintergrund..."
+msgstr "Getting AI suggestions for {llm_n} PDFs in the background..."
+
+#: src/gui/main_window.py
+msgid "Durchsuche PDFs… {analyzed}/{total}"
+msgstr "Scanning PDFs… {analyzed}/{total}"
+
+#: src/gui/main_window.py
+msgid "KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen"
+msgstr "AI is tagging your PDFs… {llm_done}/{total} done"
+
+#: src/gui/main_window.py
+msgid "KI arbeitet{label} {0}"
+msgstr "AI working{label} {0}"
+
+#: src/gui/main_window.py
+msgid "⚠ KI-Fehler (Doppelklick)"
+msgstr "⚠ AI error (double-click)"
+
+#: src/gui/main_window.py
+msgid "Letzter KI-Fehler bei „{name}“:\n{error}\n\nDoppelklick zeigt Details und öffnet die Log-Datei."
+msgstr "Last AI error for “{name}”:\n{error}\n\nDouble-click shows details and opens the log file."
+
+#: src/gui/main_window.py
+msgid "Doppelklick zeigt Details zur Hintergrund-Analyse."
+msgstr "Double-click shows details about the background analysis."
+
+#: src/gui/main_window.py
+msgid "KI-Vorschläge für {name} eingetragen"
+msgstr "AI suggestions for {name} entered"
+
+#: src/gui/main_window.py
+msgid "verknüpfte Dokumente"
+msgstr "linked documents"
+
+#: src/gui/main_window.py
+msgid "{provider} funktioniert gerade nicht.\n  Problem: {problem}\n  Abhilfe: {abhilfe}"
+msgstr "{provider} is not working right now.\n  Problem: {problem}\n  Remedy: {abhilfe}"
+
+#: src/gui/main_window.py
+msgid "{provider} (Verbindung wird geprüft …)"
+msgstr "{provider} (checking connection …)"
+
+#: src/gui/main_window.py
+msgid "bereit ({provider})"
+msgstr "ready ({provider})"
+
+#: src/gui/main_window.py
+msgid "PDFs im Ordner: {total}"
+msgstr "PDFs in folder: {total}"
+
+#: src/gui/main_window.py
+msgid "Analysiert (Text/Datum): {analyzed}/{total}"
+msgstr "Analyzed (text/date): {analyzed}/{total}"
+
+#: src/gui/main_window.py
+msgid "KI-Vorschläge vorhanden: {llm_done}/{total}"
+msgstr "AI suggestions available: {llm_done}/{total}"
+
+#: src/gui/main_window.py
+msgid "KI-Vorabfrage im Hintergrund: {precache}"
+msgstr "AI pre-query in the background: {precache}"
+
+#: src/gui/main_window.py
+msgid "\nLetzter KI-Fehler ({name}):\n{error}"
+msgstr "\nLast AI error ({name}):\n{error}"
+
+#: src/gui/main_window.py
+msgid "\nLog-Datei: {log_file}"
+msgstr "\nLog file: {log_file}"
+
+#: src/gui/main_window.py
+msgid "Hintergrund-Analyse"
+msgstr "Background analysis"
+
+#: src/gui/main_window.py
+msgid "Einstellungen öffnen"
+msgstr "Open settings"
+
+#: src/gui/main_window.py
+msgid "Log-Datei öffnen"
+msgstr "Open log file"
+
+#: src/gui/main_window.py
+msgid "Log-Datei"
+msgstr "Log file"
+
+#: src/gui/main_window.py
+msgid "Konnte die Log-Datei nicht öffnen:\n{e}"
+msgstr "Could not open the log file:\n{e}"
+
+#: src/gui/main_window.py
+msgid "KI-Modell wird geladen, Vorschläge folgen gleich…"
+msgstr "Loading the AI model, suggestions will follow shortly…"
+
+#: src/gui/main_window.py
+msgid "Zielordner neu laden"
+msgstr "Reload target folders"
+
+#: src/gui/main_window.py
+msgid "Möchten Sie die Zielordner-Ansicht neu aufbauen?\n\n• Die Ordnerstruktur wird neu eingelesen\n• Gelernte Zuordnungen bleiben erhalten\n• Nicht mehr existierende Ordner werden entfernt"
+msgstr "Do you want to rebuild the target folder view?\n\n• The folder structure is read again\n• Learned assignments are kept\n• Folders that no longer exist are removed"
+
+#: src/gui/main_window.py
+msgid "Zielordner neu geladen. {removed_count} nicht mehr existierende Ordner entfernt."
+msgstr "Target folders reloaded. {removed_count} folders that no longer exist were removed."
+
+#: src/gui/main_window.py
+msgid "Zielordner-Ansicht neu aufgebaut."
+msgstr "Target folder view rebuilt."
+
+#: src/gui/main_window.py
+msgid "Zielordner-Ansicht leeren"
+msgstr "Clear target folder view"
+
+#: src/gui/main_window.py
+msgid "Möchten Sie alle Zielordner aus der Ansicht entfernen?\n\n• Die Ansicht wird geleert\n• Gelernte Zuordnungen bleiben erhalten\n• Sie können danach neue Zielordner hinzufügen"
+msgstr "Do you want to remove all target folders from the view?\n\n• The view is cleared\n• Learned assignments are kept\n• You can add new target folders afterwards"
+
+#: src/gui/main_window.py
+msgid "Zielordner-Ansicht geleert. Fügen Sie neue Zielordner hinzu."
+msgstr "Target folder view cleared. Add new target folders."
+
+#: src/gui/main_window.py
+msgid "Fehler beim Leeren der Ansicht:\n{e}"
+msgstr "Error while clearing the view:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner öffnen..."
+msgstr "Open scan folder..."
+
+#: src/gui/main_window.py
+msgid "Zielordner hinzufügen..."
+msgstr "Add target folder..."
+
+#: src/gui/main_window.py
+msgid "Beenden"
+msgstr "Quit"
+
+#: src/gui/main_window.py
+msgid "Bearbeiten"
+msgstr "Edit"
+
+#: src/gui/main_window.py
+msgid "Rückgängig"
+msgstr "Undo"
+
+#: src/gui/main_window.py
+msgid "Letzte Aktion rückgängig machen (Verschieben/Umbenennen)"
+msgstr "Undo the last action (move/rename)"
+
+#: src/gui/main_window.py
+#: src/gui/pdf_thumbnail.py
+msgid "Umbenennen..."
+msgstr "Rename..."
+
+#: src/gui/main_window.py
+msgid "Ausgewählte PDF umbenennen (F2)"
+msgstr "Rename the selected PDF (F2)"
+
+#: src/gui/main_window.py
+msgid "Auswahl aufheben"
+msgstr "Clear selection"
+
+#: src/gui/main_window.py
+msgid "Alle Selektionen aufheben (Escape)"
+msgstr "Clear all selections (Escape)"
+
+#: src/gui/main_window.py
+msgid "Alle markieren"
+msgstr "Select all"
+
+#: src/gui/main_window.py
+msgid "Alle Kacheln im Bereich PDFs markieren (Strg+A)"
+msgstr "Select all tiles in the PDFs area (Ctrl+A)"
+
+#: src/gui/main_window.py
+msgid "Ansicht"
+msgstr "View"
+
+#: src/gui/main_window.py
+msgid "Aktualisieren"
+msgstr "Refresh"
+
+#: src/gui/main_window.py
+msgid "Zurück"
+msgstr "Back"
+
+#: src/gui/main_window.py
+msgid "Zum vorherigen Scan-Ordner zurückkehren"
+msgstr "Return to the previous scan folder"
+
+#: src/gui/main_window.py
+msgid "Übergeordneter Ordner"
+msgstr "Parent folder"
+
+#: src/gui/main_window.py
+msgid "Ein Verzeichnis nach oben (wie im Dateimanager)"
+msgstr "Up one folder (as in the file manager)"
+
+#: src/gui/main_window.py
+msgid "Dokumentensuche..."
+msgstr "Document search..."
+
+#: src/gui/main_window.py
+msgid "Alle sortierten Dokumente durchsuchen"
+msgstr "Search all sorted documents"
+
+#: src/gui/main_window.py
+msgid "Volltextsuche (Reiter „Suche“)"
+msgstr "Full-text search (“Search” tab)"
+
+#: src/gui/main_window.py
+msgid "PDFs, Office-Dateien, Markdown und Mails im Suchindex durchsuchen"
+msgstr "Search PDFs, Office files, Markdown and mails in the search index"
+
+#: src/gui/main_window.py
+msgid "Extras"
+msgstr "Tools"
+
+#: src/gui/main_window.py
+msgid "Steuerauswertung..."
+msgstr "Tax report..."
+
+#: src/gui/main_window.py
+msgid "Jahressummen nach Kategorie anzeigen und als CSV exportieren"
+msgstr "Show yearly totals by category and export them as CSV"
+
+#: src/gui/main_window.py
+msgid "Ordner zum Suchindex hinzufügen..."
+msgstr "Add folder to search index..."
+
+#: src/gui/main_window.py
+msgid "Bestehende PDF-Sammlung scannen und in den Suchindex aufnehmen"
+msgstr "Scan an existing PDF collection and add it to the search index"
+
+#: src/gui/main_window.py
+msgid "Backup-Status prüfen"
+msgstr "Check backup status"
+
+#: src/gui/main_window.py
+msgid "Daten sichern (ZIP)..."
+msgstr "Back up data (ZIP)..."
+
+#: src/gui/main_window.py
+msgid "Datenbank, Suchindex, KI-Cache, Modell und Einstellungen als ZIP sichern"
+msgstr "Back up the database, search index, AI cache, model and settings as a ZIP file"
+
+#: src/gui/main_window.py
+msgid "Daten aus Sicherung wiederherstellen..."
+msgstr "Restore data from backup..."
+
+#: src/gui/main_window.py
+msgid "Eine mit „Daten sichern“ erstellte ZIP-Datei beim nächsten Start einspielen"
+msgstr "Load a ZIP file created with “Back up data” at the next start"
+
+#: src/gui/main_window.py
+msgid "Einrichtungs-Assistent..."
+msgstr "Setup wizard..."
+
+#: src/gui/main_window.py
+msgid "Einstellungen..."
+msgstr "Settings..."
+
+#: src/gui/main_window.py
+msgid "Hilfe"
+msgstr "Help"
+
+#: src/gui/main_window.py
+msgid "Erste Schritte"
+msgstr "Getting started"
+
+#: src/gui/main_window.py
+msgid "Zeigt die Kurzanleitung zum 3-Spalten-Workflow erneut an"
+msgstr "Shows the quick guide to the 3-column workflow again"
+
+#: src/gui/main_window.py
+msgid "Nach Updates suchen..."
+msgstr "Check for updates..."
+
+#: src/gui/main_window.py
+msgid "Prüft, ob auf GitHub eine neuere Version veröffentlicht wurde"
+msgstr "Checks whether a newer version has been published on GitHub"
+
+#: src/gui/main_window.py
+msgid "Unterstützen ..."
+msgstr "Support the project ..."
+
+#: src/gui/main_window.py
+msgid "Freiwillige Unterstützung - keine Freischaltung von Funktionen"
+msgstr "Voluntary support - does not unlock any features"
+
+#: src/gui/main_window.py
+msgid "Über PDF Sortier Meister"
+msgstr "About PDF Sortier Meister"
+
+#: src/gui/main_window.py
+msgid "Hauptwerkzeugleiste"
+msgstr "Main toolbar"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner neu einlesen (F5)"
+msgstr "Re-read the scan folder (F5)"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner"
+msgstr "Scan folder"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner auswählen"
+msgstr "Choose scan folder"
+
+#: src/gui/main_window.py
+msgid "+ Zielordner"
+msgstr "+ Target folder"
+
+#: src/gui/main_window.py
+msgid "↩ Rückgängig"
+msgstr "↩ Undo"
+
+#: src/gui/main_window.py
+msgid "Letzte Aktion rückgängig machen (Ctrl+Z)"
+msgstr "Undo the last action (Ctrl+Z)"
+
+#: src/gui/main_window.py
+msgid " Suche: "
+msgstr " Search: "
+
+#: src/gui/main_window.py
+msgid "Dokumente durchsuchen... (Ctrl+F)"
+msgstr "Search documents... (Ctrl+F)"
+
+#: src/gui/main_window.py
+msgid "Suche leeren"
+msgstr "Clear search"
+
+#: src/gui/main_window.py
+msgid "Suchfilter zurücksetzen"
+msgstr "Reset search filters"
+
+#: src/gui/main_window.py
+msgid "Filter ▼"
+msgstr "Filters ▼"
+
+#: src/gui/main_window.py
+msgid "Erweiterte Filter ein-/ausblenden"
+msgstr "Show/hide advanced filters"
+
+#: src/gui/main_window.py
+msgid "Gelernt: {training_count}"
+msgstr "Learned: {training_count}"
+
+#: src/gui/main_window.py
+msgid "Anzahl gelernter Sortierentscheidungen"
+msgstr "Number of learned sorting decisions"
+
+#: src/gui/main_window.py
+msgid "Kein aktuelles Backup gemacht"
+msgstr "No recent backup made"
+
+#: src/gui/main_window.py
+msgid "Klicken, um ein gemachtes Backup zu bestätigen."
+msgstr "Click to confirm that you have made a backup."
+
+#: src/gui/main_window.py
+msgid "Doppelklick zeigt Details zum Update."
+msgstr "Double-click shows details about the update."
+
+#: src/gui/main_window.py
+msgid "Bereit"
+msgstr "Ready"
+
+#: src/gui/main_window.py
+msgid "Keine Auswahl"
+msgstr "No selection"
+
+#: src/gui/main_window.py
+msgid "{count} PDFs ausgewählt (Shift/Ctrl+Klick für weitere)"
+msgstr "{count} PDFs selected (Shift/Ctrl+click for more)"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "Auswahl aufgehoben"
+msgstr "Selection cleared"
+
+#: src/gui/main_window.py
+msgid "Analysiere {name}… (Texterkennung kann einige Sekunden dauern)"
+msgstr "Analyzing {name}… (text recognition can take a few seconds)"
+
+#: src/gui/main_window.py
+msgid "Ausgewählt: {name} - {anzahl} Vorschläge"
+msgstr "Selected: {name} - {anzahl} suggestions"
+
+#: src/gui/main_window.py
+msgid "Ausgewählt: {name} - Keine Vorschläge verfügbar"
+msgstr "Selected: {name} - no suggestions available"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "➕ neu: "
+msgstr "➕ new: "
+
+#: src/gui/main_window.py
+msgid "Pfad: {voller_pfad}\n"
+msgstr "Path: {voller_pfad}\n"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "Konfidenz: {0}%\n"
+msgstr "Confidence: {0}%\n"
+
+#: src/gui/main_window.py
+msgid "Diesen Ordner gibt es noch nicht. Anklicken legt ihn nach einer Rückfrage an und verschiebt die ausgewählte Datei dorthin (Rechtsklick: hierhin kopieren)."
+msgstr "This folder does not exist yet. Clicking creates it after a confirmation and moves the selected file there (right-click: copy here)."
+
+#: src/gui/main_window.py
+msgid "Anklicken verschiebt die ausgewählte PDF hierher."
+msgstr "Clicking moves the selected PDF here."
+
+#: src/gui/main_window.py
+msgid "Neuer Ordner: bitte nur eine Datei auswählen"
+msgstr "New folder: please select only one file"
+
+#: src/gui/main_window.py
+msgid "Ordner '{relative_path}' anlegen und Datei dorthin verschieben?"
+msgstr "Create folder '{relative_path}' and move the file there?"
+
+#: src/gui/main_window.py
+msgid "'{name}'\n→ '{new_name}'\n\nnach '{relative_path}' verschieben?"
+msgstr "Move '{name}'\n→ '{new_name}'\n\nto '{relative_path}'?"
+
+#: src/gui/main_window.py
+msgid "'{name}' nach '{relative_path}' verschieben?"
+msgstr "Move '{name}' to '{relative_path}'?"
+
+#: src/gui/main_window.py
+msgid "PDF verschieben"
+msgstr "Move PDF"
+
+#: src/gui/main_window.py
+msgid " + {anzahl} Metadaten"
+msgstr " + {anzahl} metadata fields"
+
+#: src/gui/main_window.py
+msgid "Verschoben nach '{relative_path}'{rename_info}{meta_info}"
+msgstr "Moved to '{relative_path}'{rename_info}{meta_info}"
+
+#: src/gui/main_window.py
+msgid "Verschieben fehlgeschlagen:\n{e}"
+msgstr "Moving failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "PDF '{name}' nach '{relative_path}' verschieben?"
+msgstr "Move PDF '{name}' to '{relative_path}'?"
+
+#: src/gui/main_window.py
+msgid "Verschoben nach '{relative_path}' und gelernt! ({training_count} Trainingsbeispiele)"
+msgstr "Moved to '{relative_path}' and learned! ({training_count} training examples)"
+
+#: src/gui/main_window.py
+msgid "Verschoben nach: {relative_path}"
+msgstr "Moved to: {relative_path}"
+
+#: src/gui/main_window.py
+msgid "Keine PDF ausgewaehlt"
+msgstr "No PDF selected"
+
+#: src/gui/main_window.py
+msgid "Keine Metadaten eingegeben"
+msgstr "No metadata entered"
+
+#: src/gui/main_window.py
+msgid "Kein Dateiname eingegeben"
+msgstr "No file name entered"
+
+#: src/gui/main_window.py
+msgid " und umbenannt zu '{new_name}'"
+msgstr " and renamed to '{new_name}'"
+
+#: src/gui/main_window.py
+msgid "Metadaten in '{name}' gespeichert{rename_info}"
+msgstr "Metadata saved in '{name}'{rename_info}"
+
+#: src/gui/main_window.py
+msgid "Umbenennen/Speichern fehlgeschlagen:\n{e}"
+msgstr "Renaming/saving failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Keine PDF ausgewählt zum Umbenennen"
+msgstr "No PDF selected for renaming"
+
+#: src/gui/main_window.py
+msgid "Word-/Excel-/Bilddateien werden beim Verschieben umbenannt (Namensfeld rechts)"
+msgstr "Word/Excel/image files are renamed when they are moved (name field on the right)"
+
+#: src/gui/main_window.py
+msgid "Verwende gecachte KI-Vorschläge..."
+msgstr "Using cached AI suggestions..."
+
+#: src/gui/main_window.py
+msgid "Analysiere PDF für Umbenennung..."
+msgstr "Analyzing PDF for renaming..."
+
+#: src/gui/main_window.py
+msgid "Frage KI nach Vorschlag..."
+msgstr "Asking the AI for a suggestion..."
+
+#: src/gui/main_window.py
+msgid "Umbenannt zu: {name} (gelernt{meta_info})"
+msgstr "Renamed to: {name} (learned{meta_info})"
+
+#: src/gui/main_window.py
+msgid "Umbenennung fehlgeschlagen:\n{e}"
+msgstr "Renaming failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "PDF löschen"
+msgstr "Delete PDF"
+
+#: src/gui/main_window.py
+msgid "diese PDF"
+msgstr "this PDF"
+
+#: src/gui/main_window.py
+msgid "Möchten Sie {objekt} in den Papierkorb verschieben?\n\n{name}"
+msgstr "Do you want to move {objekt} to the Recycle Bin?\n\n{name}"
+
+#: src/gui/main_window.py
+msgid "Papierkorb nicht verfügbar"
+msgstr "Recycle Bin not available"
+
+#: src/gui/main_window.py
+msgid "Papierkorb nicht verfügbar – endgültig löschen?\n\n{name}"
+msgstr "Recycle Bin not available – delete permanently?\n\n{name}"
+
+#: src/gui/main_window.py
+msgid "Gelöscht: {name}"
+msgstr "Deleted: {name}"
+
+#: src/gui/main_window.py
+msgid "Löschen: {name}"
+msgstr "Delete: {name}"
+
+#: src/gui/main_window.py
+msgid "Löschen fehlgeschlagen:\n{e}"
+msgstr "Deleting failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Zielordner auswählen"
+msgstr "Choose target folder"
+
+#: src/gui/main_window.py
+msgid "Verschoben nach: {name}"
+msgstr "Moved to: {name}"
+
+#: src/gui/main_window.py
+msgid "Kopie erstellt: {new_name}"
+msgstr "Copy created: {new_name}"
+
+#: src/gui/main_window.py
+msgid "Kopieren fehlgeschlagen:\n{e}"
+msgstr "Copying failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "PDF konnte nicht geöffnet werden:\n{e}"
+msgstr "The PDF could not be opened:\n{e}"
+
+#: src/gui/main_window.py
+msgid "PDF trennen"
+msgstr "Split PDF"
+
+#: src/gui/main_window.py
+msgid "'{name}' hat nur eine Seite und kann nicht getrennt werden."
+msgstr "'{name}' has only one page and cannot be split."
+
+#: src/gui/main_window.py
+msgid "PDF getrennt: {n} Datei(en) erstellt"
+msgstr "PDF split: {n} file(s) created"
+
+#: src/gui/main_window.py
+msgid "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
+msgstr "PDF split: {n} file(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+
+#: src/gui/main_window.py
+msgid "PDF trennen fehlgeschlagen:\n{e}"
+msgstr "Splitting the PDF failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "PDFs zusammenfügen"
+msgstr "Merge PDFs"
+
+#: src/gui/main_window.py
+msgid "Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen."
+msgstr "Please select at least 2 PDFs with Ctrl+click."
+
+#: src/gui/main_window.py
+msgid "{anzahl} PDFs zusammenfügen.\n\nName der Zieldatei:"
+msgstr "Merge {anzahl} PDFs.\n\nName of the target file:"
+
+#: src/gui/main_window.py
+msgid "Zusammengefügt: {name}, {anzahl} Einzel-PDFs im Papierkorb (Strg+Z holt sie zurück)"
+msgstr "Merged: {name}, {anzahl} single PDFs in the Recycle Bin (Ctrl+Z brings them back)"
+
+#: src/gui/main_window.py
+msgid "Zusammengefügt: {name}"
+msgstr "Merged: {name}"
+
+#: src/gui/main_window.py
+msgid "Zusammenfügen fehlgeschlagen:\n{e}"
+msgstr "Merging failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Stapeln fehlgeschlagen:\n{e}"
+msgstr "Stacking failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "{name} vor {name2} gelegt"
+msgstr "{name} placed in front of {name2}"
+
+#: src/gui/main_window.py
+msgid "{anzahl} PDFs vor {name} gelegt"
+msgstr "{anzahl} PDFs placed in front of {name}"
+
+#: src/gui/main_window.py
+msgid "{desc} (Ctrl+Z macht es rückgängig)"
+msgstr "{desc} (Ctrl+Z undoes it)"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "Rückgängig machen"
+msgstr "Undo"
+
+#: src/gui/main_window.py
+msgid "Stapeln rückgängig machen?\n\n{description}"
+msgstr "Undo stacking?\n\n{description}"
+
+#: src/gui/main_window.py
+msgid "Stapeln konnte nicht rückgängig gemacht werden:\n{e}"
+msgstr "Stacking could not be undone:\n{e}"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/original_wegraeumen.py
+msgid "Rückgängig: {description}"
+msgstr "Undone: {description}"
+
+#: src/gui/main_window.py
+msgid "{name}: Die Datei ist geöffnet oder gesperrt."
+msgstr "{name}: The file is open or locked."
+
+#: src/gui/main_window.py
+#: src/gui/pdf_thumbnail.py
+msgid "90° nach rechts"
+msgstr "90° clockwise"
+
+#: src/gui/main_window.py
+#: src/gui/pdf_thumbnail.py
+msgid "90° nach links"
+msgstr "90° counterclockwise"
+
+#: src/gui/main_window.py
+msgid "{wer} {richtung} gedreht (Ctrl+Z macht es rückgängig)"
+msgstr "{wer} rotated {richtung} (Ctrl+Z undoes it)"
+
+#: src/gui/main_window.py
+msgid "Drehen"
+msgstr "Rotate"
+
+#: src/gui/main_window.py
+msgid "Nicht gedreht:\n\n{0}"
+msgstr "Not rotated:\n\n{0}"
+
+#: src/gui/main_window.py
+msgid " ({fehlen} PDF(s) nicht mehr am alten Ort)"
+msgstr " ({fehlen} PDF(s) no longer in the old location)"
+
+#: src/gui/main_window.py
+msgid "{0} Seiten"
+msgstr "{0} pages"
+
+#: src/gui/main_window.py
+msgid "{wer} gerade ausgerichtet"
+msgstr "{wer} straightened"
+
+#: src/gui/main_window.py
+msgid "{wer} gerade ausgerichtet ({was})"
+msgstr "{wer} straightened ({was})"
+
+#: src/gui/main_window.py
+msgid ", {schon_gerade} PDF(s) waren schon gerade"
+msgstr ", {schon_gerade} PDF(s) were already straight"
+
+#: src/gui/main_window.py
+msgid "{text} – Ctrl+Z macht es rückgängig"
+msgstr "{text} – Ctrl+Z undoes it"
+
+#: src/gui/main_window.py
+msgid "Keine schief gescannte Seite gefunden – nichts geändert."
+msgstr "No skewed page found – nothing changed."
+
+#: src/gui/main_window.py
+msgid "Gerade ausrichten"
+msgstr "Straighten"
+
+#: src/gui/main_window.py
+msgid "Nicht ausgerichtet:\n\n{0}"
+msgstr "Not straightened:\n\n{0}"
+
+#: src/gui/main_window.py
+msgid " ({nicht} PDF(s) nicht mehr möglich)"
+msgstr " ({nicht} PDF(s) no longer possible)"
+
+#: src/gui/main_window.py
+msgid "Die Texterkennung läuft noch - bitte warten."
+msgstr "Text recognition is still running - please wait."
+
+#: src/gui/main_window.py
+msgid "Texterkennung neu: {anzahl} PDF(s)…"
+msgstr "Redoing text recognition: {anzahl} PDF(s)…"
+
+#: src/gui/main_window.py
+msgid "Texterkennung neu ({nummer}/{anzahl}): {name}…"
+msgstr "Redoing text recognition ({nummer}/{anzahl}): {name}…"
+
+#: src/gui/main_window.py
+msgid "Texterkennung neu: {anzahl} PDF(s)"
+msgstr "Text recognition redone: {anzahl} PDF(s)"
+
+#: src/gui/main_window.py
+msgid ", {seiten} Seite(n) erkannt"
+msgstr ", {seiten} page(s) recognized"
+
+#: src/gui/main_window.py
+msgid ", {gedreht} davon erst gedreht lesbar"
+msgstr ", {gedreht} of them readable only after rotating"
+
+#: src/gui/main_window.py
+msgid "OCR neu durchführen"
+msgstr "Redo OCR"
+
+#: src/gui/main_window.py
+msgid "Rückgängig: {desc}"
+msgstr "Undo: {desc}"
+
+#: src/gui/main_window.py
+msgid "Rückgängig: {desc} (Ctrl+Z)"
+msgstr "Undo: {desc} (Ctrl+Z)"
+
+#: src/gui/main_window.py
+msgid "Keine Aktion zum Rückgängig machen"
+msgstr "No action to undo"
+
+#: src/gui/main_window.py
+#: src/gui/stapel_ablage.py
+msgid "Rückgängig nicht möglich"
+msgstr "Undo not possible"
+
+#: src/gui/main_window.py
+msgid "'{name}' ist nicht mehr im Papierkorb.\n\nMöglicherweise wurde der Papierkorb geleert oder die Datei wiederhergestellt."
+msgstr "'{name}' is no longer in the Recycle Bin.\n\nThe Recycle Bin may have been emptied or the file restored."
+
+#: src/gui/main_window.py
+#: src/gui/original_wegraeumen.py
+msgid "Am ursprünglichen Ort existiert bereits eine Datei '{name}'."
+msgstr "A file '{name}' already exists in the original location."
+
+#: src/gui/main_window.py
+msgid "Rückgängig fehlgeschlagen"
+msgstr "Undo failed"
+
+#: src/gui/main_window.py
+msgid "Die Datei '{name}' wurde nicht gefunden.\n\nMöglicherweise wurde sie bereits manuell umbenannt oder gelöscht."
+msgstr "The file '{name}' was not found.\n\nIt may already have been renamed or deleted manually."
+
+#: src/gui/main_window.py
+msgid "Eine Datei mit dem Namen '{name}' existiert bereits."
+msgstr "A file named '{name}' already exists."
+
+#: src/gui/main_window.py
+msgid "Umbenennung rückgängig"
+msgstr "Undo rename"
+
+#: src/gui/main_window.py
+msgid "Umbenennung rückgängig machen?\n\n'{name}'\n→ '{name2}'"
+msgstr "Undo the rename?\n\n'{name}'\n→ '{name2}'"
+
+#: src/gui/main_window.py
+msgid "Rückgängig: {name}"
+msgstr "Undone: {name}"
+
+#: src/gui/main_window.py
+msgid "Umbenennung konnte nicht rückgängig gemacht werden:\n{e}"
+msgstr "The rename could not be undone:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Folgende Dateien wurden am Zielort nicht mehr gefunden:\n{names}\n\nMöglicherweise wurden sie bereits manuell verschoben oder gelöscht."
+msgstr "The following files were no longer found at the target:\n{names}\n\nThey may already have been moved or deleted manually."
+
+#: src/gui/main_window.py
+msgid "Datei zurückverschieben?\n\n{name}\nvon: {parent}\nnach: {parent2}"
+msgstr "Move file back?\n\n{name}\nfrom: {parent}\nto: {parent2}"
+
+#: src/gui/main_window.py
+msgid "{anzahl} Dateien zurückverschieben?\n\nVon: {parent}\nNach: {parent2}"
+msgstr "Move {anzahl} files back?\n\nFrom: {parent}\nTo: {parent2}"
+
+#: src/gui/main_window.py
+msgid "{restored} von {anzahl} Dateien zurückverschoben.\n\nFehler:\n{0}"
+msgstr "{restored} of {anzahl} files moved back.\n\nErrors:\n{0}"
+
+#: src/gui/main_window.py
+msgid "Rückgängig: {restored} Dateien zurückverschoben"
+msgstr "Undone: {restored} files moved back"
+
+#: src/gui/main_window.py
+msgid "Batch-Umbenennung"
+msgstr "Batch rename"
+
+#: src/gui/main_window.py
+msgid "LLM nicht verfügbar"
+msgstr "LLM not available"
+
+#: src/gui/main_window.py
+msgid "Für die automatische Umbenennung wird ein LLM benötigt.\nBitte konfigurieren Sie einen LLM-Provider unter Extras → Einstellungen."
+msgstr "Automatic renaming requires an LLM.\nPlease configure an LLM provider under Tools → Settings."
+
+#: src/gui/main_window.py
+msgid "{anzahl} PDFs automatisch mit LLM umbenennen?\n\nDie PDFs werden analysiert und mit dem besten LLM-Vorschlag umbenannt."
+msgstr "Rename {anzahl} PDFs automatically with the LLM?\n\nThe PDFs are analyzed and renamed with the best LLM suggestion."
+
+#: src/gui/main_window.py
+msgid "Batch-Umbenennung läuft..."
+msgstr "Batch rename in progress..."
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/rename_dialog.py
+#: src/gui/stapel_rueckfrage.py
+msgid "Abbrechen"
+msgstr "Cancel"
+
+#: src/gui/main_window.py
+msgid "Automatische Umbenennung"
+msgstr "Automatic renaming"
+
+#: src/gui/main_window.py
+msgid "Verarbeite: {name}"
+msgstr "Processing: {name}"
+
+#: src/gui/main_window.py
+msgid "Batch-Umbenennung abgeschlossen:\n\n"
+msgstr "Batch rename finished:\n\n"
+
+#: src/gui/main_window.py
+msgid "✓ Umbenannt: {renamed_count}\n"
+msgstr "✓ Renamed: {renamed_count}\n"
+
+#: src/gui/main_window.py
+msgid "○ Übersprungen: {skipped_count}\n"
+msgstr "○ Skipped: {skipped_count}\n"
+
+#: src/gui/main_window.py
+msgid "✗ Fehler: {error_count}"
+msgstr "✗ Errors: {error_count}"
+
+#: src/gui/main_window.py
+msgid "Datei nicht gefunden: {pfad}"
+msgstr "File not found: {pfad}"
+
+#: src/gui/main_window.py
+msgid "„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)"
+msgstr "“{name}” is not visible in the list (filter active?)"
+
+#: src/gui/main_window.py
+msgid "Im Ordner angezeigt: {name}"
+msgstr "Shown in folder: {name}"
+
+#: src/gui/main_window.py
+msgid "Ordner geöffnet: {name}"
+msgstr "Folder opened: {name}"
+
+#: src/gui/main_window.py
+msgid "Zurück zu: {name} (Alt+Left)"
+msgstr "Back to: {name} (Alt+Left)"
+
+#: src/gui/main_window.py
+msgid "Kein vorheriger Ordner"
+msgstr "No previous folder"
+
+#: src/gui/main_window.py
+msgid "Kein vorheriger Ordner in der History"
+msgstr "No previous folder in the history"
+
+#: src/gui/main_window.py
+msgid "Zurück zu: {name}"
+msgstr "Back to: {name}"
+
+#: src/gui/main_window.py
+msgid "Ordner existiert nicht mehr: {previous_folder}"
+msgstr "Folder no longer exists: {previous_folder}"
+
+#: src/gui/main_window.py
+msgid "Ordner existiert nicht mehr: {folder_path}"
+msgstr "Folder no longer exists: {folder_path}"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner gewechselt: {name}"
+msgstr "Scan folder changed: {name}"
+
+#: src/gui/main_window.py
+msgid "Ordner umbenannt: {name} -> {name2}"
+msgstr "Folder renamed: {name} -> {name2}"
+
+#: src/gui/main_window.py
+msgid "Navigiert zu: {name}"
+msgstr "Navigated to: {name}"
+
+#: src/gui/main_window.py
+msgid "Bereits im obersten Verzeichnis"
+msgstr "Already in the top folder"
+
+#: src/gui/main_window.py
+msgid "{moved_count} PDFs nach '{relative_path}' verschoben"
+msgstr "{moved_count} PDFs moved to '{relative_path}'"
+
+#: src/gui/main_window.py
+#: src/gui/stapel_ablage.py
+msgid "Einige Dateien konnten nicht verschoben werden:\n{0}"
+msgstr "Some files could not be moved:\n{0}"
+
+#: src/gui/main_window.py
+msgid "{moved_count} PDFs → {relative_path}"
+msgstr "{moved_count} PDFs → {relative_path}"
+
+#: src/gui/main_window.py
+msgid "Ordner entfernt: {name}"
+msgstr "Folder removed: {name}"
+
+#: src/gui/main_window.py
+msgid "Scan-Ordner gesetzt: {folder}"
+msgstr "Scan folder set: {folder}"
+
+#: src/gui/main_window.py
+msgid "Steuerjahr:"
+msgstr "Tax year:"
+
+#: src/gui/main_window.py
+msgid "Alle"
+msgstr "All"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente aus diesem Steuerjahr anzeigen"
+msgstr "Show only documents from this tax year"
+
+#: src/gui/main_window.py
+msgid "Kategorie:"
+msgstr "Category:"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente dieser Kategorie anzeigen"
+msgstr "Show only documents of this category"
+
+#: src/gui/main_window.py
+msgid "Korrespondent:"
+msgstr "Correspondent:"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente dieses Korrespondenten anzeigen"
+msgstr "Show only documents of this correspondent"
+
+#: src/gui/main_window.py
+msgid "Filter zurücksetzen"
+msgstr "Reset filters"
+
+#: src/gui/main_window.py
+msgid "Alle Filter dieser Leiste auf 'Alle' zurücksetzen"
+msgstr "Reset all filters in this bar to 'All'"
+
+#: src/gui/main_window.py
+msgid "Zeitraum:"
+msgstr "Period:"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente aus diesem Zeitraum anzeigen; leer = keine Grenze"
+msgstr "Show only documents from this period; empty = no limit"
+
+#: src/gui/main_window.py
+msgid "Betrag (€):"
+msgstr "Amount (€):"
+
+#: src/gui/main_window.py
+msgid "ab –"
+msgstr "from –"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente mit mindestens diesem Betrag anzeigen"
+msgstr "Show only documents with at least this amount"
+
+#: src/gui/main_window.py
+msgid "bis –"
+msgstr "to –"
+
+#: src/gui/main_window.py
+msgid "Nur Dokumente bis zu diesem Betrag anzeigen"
+msgstr "Show only documents up to this amount"
+
+#: src/gui/main_window.py
+msgid "Filter ▲"
+msgstr "Filters ▲"
+
+#: src/gui/main_window.py
+msgid "{gesamt} Treffer"
+msgstr "{gesamt} results"
+
+#: src/gui/main_window.py
+msgid "Keine Treffer"
+msgstr "No results"
+
+#: src/gui/main_window.py
+msgid "Ordner zum Suchindex hinzufügen"
+msgstr "Add folder to search index"
+
+#: src/gui/main_window.py
+msgid "Indexierungs-Optionen"
+msgstr "Indexing options"
+
+#: src/gui/main_window.py
+msgid "Ordner:"
+msgstr "Folder:"
+
+#: src/gui/main_window.py
+msgid "Unterordner einbeziehen"
+msgstr "Include subfolders"
+
+#: src/gui/main_window.py
+msgid "KI-Metadaten generieren (Zusammenfassung, Kategorie, ...)"
+msgstr "Generate AI metadata (summary, category, ...)"
+
+#: src/gui/main_window.py
+msgid "Kein LLM konfiguriert - nur Textextraktion"
+msgstr "No LLM configured - text extraction only"
+
+#: src/gui/main_window.py
+msgid "Keine PDFs"
+msgstr "No PDFs"
+
+#: src/gui/main_window.py
+msgid "Keine PDF-Dateien in '{name}' gefunden."
+msgstr "No PDF files found in '{name}'."
+
+#: src/gui/main_window.py
+msgid "Suchindex"
+msgstr "Search index"
+
+#: src/gui/main_window.py
+msgid "Der Indexlauf konnte nicht gestartet werden:\n{e}"
+msgstr "The index run could not be started:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Ein Indexlauf läuft bereits – der Ordner kommt beim nächsten Lauf dazu."
+msgstr "An index run is already in progress – the folder will be included in the next run."
+
+#: src/gui/main_window.py
+msgid "Suchindex: {anzahl} PDFs in '{name}' werden im Hintergrund gelesen"
+msgstr "Search index: {anzahl} PDFs in '{name}' are being read in the background"
+
+#: src/gui/main_window.py
+msgid "Indexiere PDFs..."
+msgstr "Indexing PDFs..."
+
+#: src/gui/main_window.py
+msgid "Suchindex aufbauen"
+msgstr "Build search index"
+
+#: src/gui/main_window.py
+msgid "Analysiere: {name}\n({0}/{anzahl})"
+msgstr "Analyzing: {name}\n({0}/{anzahl})"
+
+#: src/gui/main_window.py
+msgid "{indexed} PDFs indexiert"
+msgstr "{indexed} PDFs indexed"
+
+#: src/gui/main_window.py
+msgid ", {skipped} übersprungen"
+msgstr ", {skipped} skipped"
+
+#: src/gui/main_window.py
+msgid ", {errors} Fehler"
+msgstr ", {errors} errors"
+
+#: src/gui/main_window.py
+msgid "{msg} | Gesamt im Index: {total_indexed}"
+msgstr "{msg} | Total in index: {total_indexed}"
+
+#: src/gui/main_window.py
+msgid "Indexierung abgeschlossen"
+msgstr "Indexing finished"
+
+#: src/gui/main_window.py
+msgid "{msg}\n\nGesamt im Suchindex: {total_indexed} Dokumente"
+msgstr "{msg}\n\nTotal in search index: {total_indexed} documents"
+
+#: src/gui/main_window.py
+msgid "Aktualisiere..."
+msgstr "Refreshing..."
+
+#: src/gui/main_window.py
+msgid "Ansicht aktualisiert"
+msgstr "View refreshed"
+
+#: src/gui/main_window.py
+msgid "Daten sichern"
+msgstr "Back up data"
+
+#: src/gui/main_window.py
+msgid "ZIP-Archiv (*.zip)"
+msgstr "ZIP archive (*.zip)"
+
+#: src/gui/main_window.py
+msgid "Sicherung fehlgeschlagen"
+msgstr "Backup failed"
+
+#: src/gui/main_window.py
+msgid "Daten gesichert"
+msgstr "Data backed up"
+
+#: src/gui/main_window.py
+msgid "{anzahl} Dateien ({size_mb:.1f} MB) gesichert nach:\n{path}\n\nEnthalten: Datenbank (Verlauf, Suchindex, Korrespondenten, Regeln), KI-Cache, ML-Modell und Einstellungen.\n\nHinweis: Die Einstellungen enthalten Ihre API-Schlüssel – bewahren Sie das Archiv entsprechend geschützt auf."
+msgstr "{anzahl} files ({size_mb:.1f} MB) backed up to:\n{path}\n\nIncluded: database (history, search index, correspondents, rules), AI cache, ML model and settings.\n\nNote: the settings contain your API keys – keep the archive protected accordingly."
+
+#: src/gui/main_window.py
+msgid "Daten gesichert: {name}"
+msgstr "Data backed up: {name}"
+
+#: src/gui/main_window.py
+msgid "Sicherung wiederherstellen"
+msgstr "Restore backup"
+
+#: src/gui/main_window.py
+msgid "Keine gültige Sicherung"
+msgstr "Not a valid backup"
+
+#: src/gui/main_window.py
+msgid "Sicherung wiederherstellen?"
+msgstr "Restore backup?"
+
+#: src/gui/main_window.py
+msgid "Sicherung vom {created_display} (Version {version}, {anzahl} Dateien).\n\nBeim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien bleiben im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\nPDF Sortier Meister wird dazu jetzt beendet. Fortfahren?"
+msgstr "Backup from {created_display} (version {version}, {anzahl} files).\n\nAt the next start this data replaces the current database, AI cache, model and settings. The previous files are kept in the data folder under “{PREVIOUS_DIR}”.\n\nPDF Sortier Meister will now close for this. Continue?"
+
+#: src/gui/main_window.py
+msgid "Wiederherstellung fehlgeschlagen"
+msgstr "Restore failed"
+
+#: src/gui/main_window.py
+msgid "Wiederherstellung vorbereitet"
+msgstr "Restore prepared"
+
+#: src/gui/main_window.py
+msgid "Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird beim Start eingespielt."
+msgstr "Please restart PDF Sortier Meister now – the backup is loaded at startup."
+
+#: src/gui/main_window.py
+msgid "So sortieren Sie eine PDF in drei Schritten:"
+msgstr "How to sort a PDF in three steps:"
+
+#: src/gui/main_window.py
+msgid "1. Links: Ein PDF anklicken, um es auszuwaehlen.\n2. Mitte: Vorgeschlagenen Namen und Metadaten pruefen und bei Bedarf anpassen.\n3. Rechts: Auf einen Zielordner klicken - das PDF wird dorthin verschoben, umbenannt und die Metadaten werden gespeichert.\n\nDoppelklick auf einen Ordner im Baum (rechts) klappt ihn auf, ohne etwas zu verschieben. Rechtsklick > \"Ordner links öffnen\" zeigt ihn links an."
+msgstr "1. Left: click a PDF to select it.\n2. Middle: check the suggested name and metadata and adjust them if needed.\n3. Right: click a target folder - the PDF is moved there and renamed, and the metadata is saved.\n\nDouble-clicking a folder in the tree (right) expands it without moving anything. Right-click > \"Open folder on the left\" shows it on the left."
+
+#: src/gui/main_window.py
+msgid "Diesen Hinweis nicht mehr anzeigen"
+msgstr "Do not show this hint again"
+
+#: src/gui/main_window.py
+msgid "Backup-Erinnerung"
+msgstr "Backup reminder"
+
+#: src/gui/main_window.py
+msgid "Haben Sie in den letzten {0} Tagen ein Backup gemacht?"
+msgstr "Have you made a backup in the last {0} days?"
+
+#: src/gui/main_window.py
+msgid "Backup empfohlen"
+msgstr "Backup recommended"
+
+#: src/gui/main_window.py
+msgid "PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten direkt in Ihre PDF-Dateien."
+msgstr "PDF Sortier Meister moves, renames and writes metadata directly into your PDF files."
+
+#: src/gui/main_window.py
+msgid "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie Macrium Reflect.\n\nRueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
+msgstr "Back up your working folder regularly - e.g. with cloud sync (OneDrive, Dropbox) or a backup program such as Macrium Reflect.\n\nUndo (Ctrl+Z) helps with slips, but does not replace a backup."
+
+#: src/gui/main_window.py
+msgid "Update-Prüfung läuft bereits..."
+msgstr "Update check already running..."
+
+#: src/gui/main_window.py
+msgid "Suche nach Updates..."
+msgstr "Checking for updates..."
+
+#: src/gui/main_window.py
+msgid "Update-Prüfung fehlgeschlagen"
+msgstr "Update check failed"
+
+#: src/gui/main_window.py
+msgid "Die Update-Prüfung konnte nicht durchgeführt werden:\n{error}\n\nBitte prüfen Sie Ihre Internetverbindung oder versuchen Sie es später erneut."
+msgstr "The update check could not be carried out:\n{error}\n\nPlease check your internet connection or try again later."
+
+#: src/gui/main_window.py
+msgid "Kein Update verfügbar"
+msgstr "No update available"
+
+#: src/gui/main_window.py
+msgid "Sie verwenden bereits die aktuelle Version {version}."
+msgstr "You are already using the current version {version}."
+
+#: src/gui/main_window.py
+msgid "Update: v{version} verfügbar"
+msgstr "Update: v{version} available"
+
+#: src/gui/main_window.py
+msgid "Update verfügbar"
+msgstr "Update available"
+
+#: src/gui/main_window.py
+msgid "<b>Version {version}</b> von PDF Sortier Meister ist verfügbar.<br>Installiert ist Version {version2}."
+msgstr "<b>Version {version}</b> of PDF Sortier Meister is available.<br>Version {version2} is installed."
+
+#: src/gui/main_window.py
+msgid "Auf der Download-Seite finden Sie den Installer und die Liste der Änderungen. Installieren Sie die neue Version einfach über die bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
+msgstr "The download page has the installer and the list of changes. Simply install the new version over the existing one - your settings and learned data are kept."
+
+#: src/gui/main_window.py
+msgid "\n\nDatei für Ihr System: {asset_name}"
+msgstr "\n\nFile for your system: {asset_name}"
+
+#: src/gui/main_window.py
+msgid "Download-Seite öffnen"
+msgstr "Open download page"
+
+#: src/gui/main_window.py
+msgid "Diese Version überspringen"
+msgstr "Skip this version"
+
+#: src/gui/main_window.py
+msgid "Später"
+msgstr "Later"
+
+#: src/gui/main_window.py
+msgid "Version {version} wird übersprungen (Hilfe > Nach Updates suchen zeigt sie erneut)."
+msgstr "Version {version} will be skipped (Help > Check for updates shows it again)."
+
+#: src/gui/main_window.py
+msgid "Dateinamen"
+msgstr "File names"
+
+#: src/gui/main_window.py
+msgid "Einstellungen gespeichert"
+msgstr "Settings saved"
+
+#: src/gui/main_window.py
+msgid "Kein KI-Anbieter eingestellt."
+msgstr "No AI provider set up."
+
+#: src/gui/main_window.py
+msgid " · Chat: {name} (aus)"
+msgstr " · Chat: {name} (off)"
+
+#: src/gui/main_window.py
+msgid "Chat: {name} – nicht aktiv. {grund}"
+msgstr "Chat: {name} – not active. {grund}"
+
+#: src/gui/main_window.py
+msgid "Chat: {name} – Anbieter nicht verfügbar (Paket oder API-Key fehlt); der Chat nutzt das Modell der Sortierung."
+msgstr "Chat: {name} – provider not available (package or API key missing); the chat uses the sorting model."
+
+#: src/gui/main_window.py
+msgid " · Chat: {name}/{model_short}"
+msgstr " · Chat: {name}/{model_short}"
+
+#: src/gui/main_window.py
+msgid " · Chat: {name}"
+msgstr " · Chat: {name}"
+
+#: src/gui/main_window.py
+msgid "Chat: {name}, Modell: {model_full}"
+msgstr "Chat: {name}, model: {model_full}"
+
+#: src/gui/main_window.py
+msgid "Chat: {name}"
+msgstr "Chat: {name}"
+
+#: src/gui/main_window.py
+msgid "LLM: {provider}/{model_short}"
+msgstr "LLM: {provider}/{model_short}"
+
+#: src/gui/main_window.py
+msgid "{provider}, Modell: {model_full}"
+msgstr "{provider}, model: {model_full}"
+
+#: src/gui/main_window.py
+msgid "KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …"
+msgstr "AI assistant set up ({detail}).\nChecking connection …"
+
+#: src/gui/main_window.py
+msgid "KI-Assistent bereit ({detail})."
+msgstr "AI assistant ready ({detail})."
+
+#: src/gui/main_window.py
+msgid "Die KI funktioniert gerade nicht ({detail}).\n\nProblem: {problem}\nAbhilfe: {abhilfe}"
+msgstr "The AI is not working right now ({detail}).\n\nProblem: {problem}\nRemedy: {abhilfe}"
+
+#: src/gui/main_window.py
+msgid "{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
+msgstr "{state}{chat_zeile}\n\nDouble-click opens the settings."
+
+#: src/gui/main_window.py
+msgid "Keine Einwilligung zur Datenübertragung erteilt."
+msgstr "No consent given for data transfer."
+
+#: src/gui/main_window.py
+msgid "Nicht konfiguriert."
+msgstr "Not configured."
+
+#: src/gui/main_window.py
+msgid "LLM: Aus{chat_text}"
+msgstr "LLM: off{chat_text}"
+
+#: src/gui/main_window.py
+msgid "KI-Assistent deaktiviert. {reason}{chat_zeile}\nDoppelklick öffnet die Einstellungen."
+msgstr "AI assistant disabled. {reason}{chat_zeile}\nDouble-click opens the settings."
+
+#: src/gui/main_window.py
+msgid "Fehler: {e}"
+msgstr "Error: {e}"
+
+#: src/gui/main_window.py
+msgid "Nicht konfiguriert"
+msgstr "Not configured"
+
+#: src/gui/main_window.py
+msgid "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
+msgstr "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
+
+#: src/gui/main_window.py
+msgid "Ein intelligentes Programm zum Sortieren und<br>Umbenennen von gescannten PDF-Dokumenten."
+msgstr "An intelligent program for sorting and<br>renaming scanned PDF documents."
+
+#: src/gui/main_window.py
+msgid "<table style='margin: 10px;'><tr><td><b>LLM-Provider:</b></td><td>{llm_status}</td></tr><tr><td><b>Gelernte Zuordnungen:</b></td><td>{learn_count}</td></tr></table>"
+msgstr "<table style='margin: 10px;'><tr><td><b>LLM provider:</b></td><td>{llm_status}</td></tr><tr><td><b>Learned assignments:</b></td><td>{learn_count}</td></tr></table>"
+
+#: src/gui/main_window.py
+msgid "<b>{supporter_text}</b> - danke!"
+msgstr "<b>{supporter_text}</b> - thank you!"
+
+#: src/gui/main_window.py
+msgid "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Meister\">github.com/Josi-create/PDF_Sortier_Meister</a></p>"
+msgstr "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Meister\">github.com/Josi-create/PDF_Sortier_Meister</a></p>"
+
+#: src/gui/main_window.py
+msgid "<p style='color: #666; font-size: 11px;'><b>Lizenz:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Freie Software - Open Source. Lizenztext: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+msgstr "<p style='color: #666; font-size: 11px;'><b>License:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Free software - open source. License text: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+
+#: src/gui/main_window.py
+msgid "<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>"
+msgstr "<p style='color: #999; font-size: 10px;'>Log file: {log_path}</p>"
+
+#: src/gui/main_window.py
+msgid "OK"
+msgstr "OK"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Ordner suchen … (z. B. Zeugn*)"
+msgstr "Search folders … (e.g. Cert*)"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Suche …"
+msgstr "Searching …"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Kein Ordner gefunden"
+msgstr "No folder found"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Bisher {gelesen} Ordner gelesen"
+msgstr "{gelesen} folders read so far"
+
+#: src/gui/ordner_suchfeld.py
+msgid "… Ordner werden noch eingelesen ({gelesen} bisher)"
+msgstr "… folders are still being read ({gelesen} so far)"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "📁 Ordner hierhin verschieben"
+msgstr "📁 Move folder here"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "📁 Ordner hierhin kopieren"
+msgstr "📁 Copy folder here"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "🤖 KI fragen"
+msgstr "🤖 Ask AI"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Fragt die KI, unter welchen Ordner der markierte Ordner gehört.\nGesendet werden der Ordnername, Dateinamen und Ordnernamen der Ablage."
+msgstr "Asks the AI which folder the marked folder belongs under.\nThe folder name, file names and the folder names of your filing structure are sent."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Vorgeschlagene Ziele für Ordner „{name}“:"
+msgstr "Suggested targets for folder “{name}”:"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Vorschläge für den Ordner werden berechnet …"
+msgstr "Calculating suggestions for the folder …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner markiert: {name} – Ziel rechts anklicken (Vorschlag oder Baum), Strg+Ziehen kopiert"
+msgstr "Folder marked: {name} – click the target on the right (suggestion or tree), Ctrl+drag copies"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Keine Vorschläge für diesen Ordner. Ziel im Baum anklicken oder „KI fragen“."
+msgstr "No suggestions for this folder. Click a target in the tree or “Ask AI”."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ wird nach {rel}/{name} einsortiert.\n{reason}\n"
+msgstr "Folder “{name}” will be filed as {rel}/{name}.\n{reason}\n"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Diesen Ordner gibt es noch nicht, er wird nach einer Rückfrage angelegt.\n"
+msgstr "This folder does not exist yet; it is created after a confirmation.\n"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Anklicken verschiebt den markierten Ordner hierher (Rechtsklick: kopieren)."
+msgstr "Clicking moves the marked folder here (right-click: copy)."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI nicht eingerichtet"
+msgstr "AI not set up"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Für „KI fragen“ muss unter Einstellungen ein KI-Anbieter eingerichtet sein."
+msgstr "“Ask AI” requires an AI provider to be set up under Settings."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "🤖 KI fragt …"
+msgstr "🤖 AI is asking …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI überlegt, wohin „{name}“ gehört …"
+msgstr "The AI is working out where “{name}” belongs …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Die KI konnte keinen passenden Elternordner nennen"
+msgstr "The AI could not name a suitable parent folder"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI bestätigt"
+msgstr "confirmed by AI"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid " + KI bestätigt"
+msgstr " + confirmed by AI"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI-Vorschlag: {relative_path}"
+msgstr "AI suggestion: {relative_path}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI fragen"
+msgstr "Ask AI"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Die KI-Anfrage ist fehlgeschlagen:\n{meldung}"
+msgstr "The AI request failed:\n{meldung}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Zielordner zum Kopieren wählen"
+msgstr "Choose target folder to copy to"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Zielordner zum Verschieben wählen"
+msgstr "Choose target folder to move to"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Es läuft schon ein Ordner-Vorgang"
+msgstr "A folder operation is already running"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner verschieben nicht möglich"
+msgstr "Moving the folder is not possible"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "{anzahl} Datei"
+msgstr "{anzahl} file"
+
+#: src/gui/ordner_verschieben_gui.py
+msgctxt "Einzahl"
+msgid "{anzahl} Unterordner"
+msgstr "{anzahl} subfolder"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "{anzahl} Unterordner"
+msgstr "{anzahl} subfolders"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ ({inhalt}) nach „{rel}“ kopieren?"
+msgstr "Copy folder “{name}” ({inhalt}) to “{rel}”?"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ ({inhalt}) nach „{rel}“ verschieben?"
+msgstr "Move folder “{name}” ({inhalt}) to “{rel}”?"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "\n\nDen Zielordner gibt es noch nicht, er wird angelegt."
+msgstr "\n\nThe target folder does not exist yet; it will be created."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "\n\n„{name}“ gibt es dort schon: Die Inhalte werden zusammengeführt. Gleiche Dateinamen bekommen „ (2)“ angehängt, byte-gleiche Dateien werden nicht doppelt abgelegt{0}"
+msgstr "\n\n“{name}” already exists there: the contents are merged. Identical file names get “ (2)” appended, byte-identical files are not stored twice{0}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid " (die Quelldatei kommt in den Papierkorb)."
+msgstr " (the source file goes to the Recycle Bin)."
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner kopieren"
+msgstr "Copy folder"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner verschieben"
+msgstr "Move folder"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ wird kopiert …"
+msgstr "Copying folder “{name}” …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ wird verschoben …"
+msgstr "Moving folder “{name}” …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Einige Dateien konnten nicht übertragen werden (sie bleiben am alten Platz):\n{0}{1}"
+msgstr "Some files could not be transferred (they stay in the old place):\n{0}{1}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Es wurde nichts übertragen"
+msgstr "Nothing was transferred"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner {name} kopiert → {rel}"
+msgstr "Folder {name} copied → {rel}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner {name} verschoben → {rel}"
+msgstr "Folder {name} moved → {rel}"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid ", {anzahl} identische übersprungen"
+msgstr ", {anzahl} identical ones skipped"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ nach „{rel}“ kopiert ({anzahl} Dateien{extra})"
+msgstr "Folder “{name}” copied to “{rel}” ({anzahl} files{extra})"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ nach „{rel}“ verschoben ({anzahl} Dateien{extra})"
+msgstr "Folder “{name}” moved to “{rel}” ({anzahl} files{extra})"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Die Kopie von „{name}“ in den Papierkorb legen?"
+msgstr "Move the copy of “{name}” to the Recycle Bin?"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ zurück nach „{parent}“ verschieben?"
+msgstr "Move folder “{name}” back to “{parent}”?"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Ordner „{name}“ wird zurückgeholt …"
+msgstr "Bringing back folder “{name}” …"
+
+#: src/gui/ordner_verschieben_gui.py
+msgid "Rückgängig nicht ganz möglich"
+msgstr "Undo not completely possible"
+
+#: src/gui/original_wegraeumen.py
+msgid "Nach dem Umwandeln in PDF"
+msgstr "After converting to PDF"
+
+#: src/gui/original_wegraeumen.py
+msgid "Nach dem Trennen eines PDFs"
+msgstr "After splitting a PDF"
+
+#: src/gui/original_wegraeumen.py
+msgid "Nach dem Zusammenfügen von PDFs"
+msgstr "After merging PDFs"
+
+#: src/gui/original_wegraeumen.py
+msgid "Mit Strg+Z holst du es zurück."
+msgstr "Ctrl+Z brings it back."
+
+#: src/gui/original_wegraeumen.py
+msgid "Original wegräumen"
+msgstr "Clear away the original"
+
+#: src/gui/original_wegraeumen.py
+msgid "Nicht mehr fragen"
+msgstr "Do not ask again"
+
+#: src/gui/original_wegraeumen.py
+msgid "{name}: Papierkorb nicht verfügbar - das Original bleibt liegen."
+msgstr "{name}: Recycle Bin not available - the original stays where it is."
+
+#: src/gui/original_wegraeumen.py
+msgid "'{name}' ist nicht mehr im Papierkorb."
+msgstr "'{name}' is no longer in the Recycle Bin."
+
+#: src/gui/original_wegraeumen.py
+msgid "Rückgängig nicht (ganz) möglich"
+msgstr "Undo not (completely) possible"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\nZiehen verschiebt sie per Drag & Drop in einen Zielordner.\nAuf eine andere PDF gelegt, kommen ihre Seiten davor (Stapeln, wie Papier).\nDoppelklick öffnet die PDF im Standardprogramm."
+msgstr "Clicking selects this PDF (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDropped onto another PDF, its pages are placed in front (stacking, like paper).\nDouble-click opens the PDF in the default program."
+
+#: src/gui/pdf_thumbnail.py
+msgid "\n\nKI-Vorschlag vorhanden (grün hinterlegt)."
+msgstr "\n\nAI suggestion available (green background)."
+
+#: src/gui/pdf_thumbnail.py
+msgid "\n\nText schlecht erkannt – Rechtsklick für andere Erkennung"
+msgstr "\n\nText poorly recognized – right-click for a different recognition"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Laden..."
+msgstr "Loading..."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Fehler\nbeim Laden"
+msgstr "Error\nwhile loading"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Analysiere…"
+msgstr "Analyzing…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Ausgewählte ({selection_count}) auto-umbenennen (LLM)"
+msgstr "Auto-rename selected ({selection_count}) (LLM)"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Verschieben nach..."
+msgstr "Move to..."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Kopie erstellen"
+msgstr "Create copy"
+
+#: src/gui/pdf_thumbnail.py
+msgid "PDF trennen..."
+msgstr "Split PDF..."
+
+#: src/gui/pdf_thumbnail.py
+msgid "KI-unterstütztes Trennen..."
+msgstr "AI-assisted splitting..."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Scan-Stapel von der KI in einzelne Dokumente zerlegen lassen"
+msgstr "Have the AI split a scanned batch into individual documents"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Ausgewählte ({selection_count}) PDFs zusammenfügen..."
+msgstr "Merge selected ({selection_count}) PDFs..."
+
+#: src/gui/pdf_thumbnail.py
+msgid " ({count} PDFs)"
+msgstr " ({count} PDFs)"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Drehen{suffix}"
+msgstr "Rotate{suffix}"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Gerade ausrichten (schief gescannt)"
+msgstr "Straighten (scanned at an angle)"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Schief eingezogene Seiten messen und gerade drehen"
+msgstr "Measure pages fed in at an angle and rotate them straight"
+
+#: src/gui/pdf_thumbnail.py
+msgid "OCR neu durchführen{suffix}"
+msgstr "Redo OCR{suffix}"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Gescannte Seiten neu erkennen, z. B. nach dem Drehen"
+msgstr "Recognize scanned pages again, e.g. after rotating"
+
+#: src/gui/pdf_thumbnail.py
+msgid "OCR wiederholen mit …"
+msgstr "Repeat OCR with …"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Seiten mit anderen Tesseract-Sprachen neu erkennen, z. B. Fraktur"
+msgstr "Recognize pages again with other Tesseract languages, e.g. Fraktur"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Sprachen werden gelesen …"
+msgstr "Reading languages …"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Handschrift mit KI entziffern (Bilderkennung)"
+msgstr "Decipher handwriting with AI (image recognition)"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht"
+msgstr "Sends the pages as images to the AI model, if it understands images"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Löschen"
+msgstr "Delete"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Tesseract nicht gefunden"
+msgstr "Tesseract not found"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Tesseract-Sprache: {code}"
+msgstr "Tesseract language: {code}"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Fraktur (nicht installiert) – so installieren …"
+msgstr "Fraktur (not installed) – how to install …"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Fraktur installieren"
+msgstr "Install Fraktur"
+
+#: src/gui/pfad_aktionen.py
+msgid "Pfad kopieren"
+msgstr "Copy path"
+
+#: src/gui/pfad_aktionen.py
+msgid "Im Finder zeigen"
+msgstr "Show in Finder"
+
+#: src/gui/pfad_aktionen.py
+msgid "Im {0} anzeigen"
+msgstr "Show in {0}"
+
+#: src/gui/rename_dialog.py
+msgid "PDF umbenennen"
+msgstr "Rename PDF"
+
+#: src/gui/rename_dialog.py
+msgid "Aktueller Dateiname"
+msgstr "Current file name"
+
+#: src/gui/rename_dialog.py
+msgid "Vorschläge (zum Auswählen klicken)"
+msgstr "Suggestions (click to select)"
+
+#: src/gui/rename_dialog.py
+msgid "Neuer Dateiname"
+msgstr "New file name"
+
+#: src/gui/rename_dialog.py
+msgid "Die .pdf Endung wird automatisch hinzugefügt"
+msgstr "The .pdf extension is added automatically"
+
+#: src/gui/rename_dialog.py
+msgid "Dokument-Metadaten (gelernt + werden in PDF gespeichert)"
+msgstr "Document metadata (learned + saved in the PDF)"
+
+#: src/gui/rename_dialog.py
+msgid "Dokument-Metadaten (werden in PDF gespeichert)"
+msgstr "Document metadata (saved in the PDF)"
+
+#: src/gui/rename_dialog.py
+msgid "Betrag"
+msgstr "Amount"
+
+#: src/gui/rename_dialog.py
+msgid "LLM erneut aufrufen um Metadaten zu extrahieren"
+msgstr "Call the LLM again to extract metadata"
+
+#: src/gui/rename_dialog.py
+msgid "Erkannte Informationen"
+msgstr "Detected information"
+
+#: src/gui/rename_dialog.py
+msgid "Keine erkannt"
+msgstr "None detected"
+
+#: src/gui/rename_dialog.py
+msgid "Schlüsselwörter: {keywords_text}"
+msgstr "Keywords: {keywords_text}"
+
+#: src/gui/rename_dialog.py
+msgid "Umbenennen"
+msgstr "Rename"
+
+#: src/gui/rename_dialog.py
+msgid "(Bitte Namen eingeben)"
+msgstr "(Please enter a name)"
+
+#: src/gui/rename_dialog.py
+msgid "Bitte geben Sie einen Dateinamen ein."
+msgstr "Please enter a file name."
+
+#: src/gui/rename_dialog.py
+msgid "Der Dateiname besteht nur aus ungültigen Zeichen."
+msgstr "The file name consists only of invalid characters."
+
+#: src/gui/rename_dialog.py
+msgid "KI nicht verfügbar"
+msgstr "AI not available"
+
+#: src/gui/rename_dialog.py
+msgid "Kein LLM konfiguriert. Bitte unter Extras → Einstellungen einen API-Key hinterlegen."
+msgstr "No LLM configured. Please enter an API key under Tools → Settings."
+
+#: src/gui/rename_dialog.py
+msgid "KI arbeitet..."
+msgstr "AI working..."
+
+#: src/gui/rename_dialog.py
+msgid "Keine Metadaten"
+msgstr "No metadata"
+
+#: src/gui/rename_dialog.py
+msgid "Das LLM konnte keine Metadaten aus dem Dokument extrahieren."
+msgstr "The LLM could not extract any metadata from the document."
+
+#: src/gui/rename_dialog.py
+msgid "LLM-Aufruf fehlgeschlagen:\n{e}"
+msgstr "LLM call failed:\n{e}"
 
 #: src/gui/settings_dialog.py
 msgid "Automatisch (Sprache des Systems)"
@@ -28,3 +2884,155 @@ msgstr "Language:"
 #: src/gui/settings_dialog.py
 msgid "Eine andere Sprache gilt nach dem Neustart des Programms."
 msgstr "A different language takes effect after restarting the program."
+
+#: src/gui/stapel_ablage.py
+msgid "Nicht mehr warten"
+msgstr "Stop waiting"
+
+#: src/gui/stapel_ablage.py
+msgid "Namensvorschläge"
+msgstr "Name suggestions"
+
+#: src/gui/stapel_ablage.py
+msgid "Namensvorschläge der KI"
+msgstr "AI name suggestions"
+
+#: src/gui/stapel_ablage.py
+msgid "Texterkennung"
+msgstr "Text recognition"
+
+#: src/gui/stapel_ablage.py
+msgid "Warte auf {was} …\n{fertig} von {gesamt} Dateien fertig"
+msgstr "Waiting for {was} …\n{fertig} of {gesamt} files done"
+
+#: src/gui/stapel_ablage.py
+msgid "\n\nGerade: {name}"
+msgstr "\n\nCurrently: {name}"
+
+#: src/gui/stapel_ablage.py
+msgid "Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …"
+msgstr "The AI is checking what distinguishes {anzahl} documents with the same name …"
+
+#: src/gui/stapel_ablage.py
+msgid "Gleiche Namen nicht unterschieden: {0}"
+msgstr "Identical names not distinguished: {0}"
+
+#: src/gui/stapel_ablage.py
+msgid "\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird „ (1)“, „ (2)“ … angehängt."
+msgstr "\n\nSome files would get the same name; when renaming, “ (1)”, “ (2)” … is appended."
+
+#: src/gui/stapel_ablage.py
+msgid "Mehrere Dateien verschieben"
+msgstr "Move multiple files"
+
+#: src/gui/stapel_ablage.py
+msgid "Datei verschieben"
+msgstr "Move file"
+
+#: src/gui/stapel_ablage.py
+msgid "{wer} nach '{relative_path}' verschieben?"
+msgstr "Move {wer} to '{relative_path}'?"
+
+#: src/gui/stapel_ablage.py
+msgid "\n\nDer Ordner '{relative_path}' wird dafür neu angelegt."
+msgstr "\n\nThe folder '{relative_path}' will be created for this."
+
+#: src/gui/stapel_ablage.py
+msgid "Verschieben und umbenennen"
+msgstr "Move and rename"
+
+#: src/gui/stapel_ablage.py
+msgid "Verschieben"
+msgstr "Move"
+
+#: src/gui/stapel_ablage.py
+msgid "Nur verschieben"
+msgstr "Move only"
+
+#: src/gui/stapel_ablage.py
+msgid "Ordner konnte nicht angelegt werden:\n{ex}"
+msgstr "The folder could not be created:\n{ex}"
+
+#: src/gui/stapel_ablage.py
+msgid " ({umbenannt} umbenannt)"
+msgstr " ({umbenannt} renamed)"
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} Dateien nach '{relative_path}' verschoben{info}"
+msgstr "{anzahl} files moved to '{relative_path}'{info}"
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} Dateien → {relative_path}"
+msgstr "{anzahl} files → {relative_path}"
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} PDFs umbenennen und Metadaten speichern?"
+msgstr "Rename {anzahl} PDFs and save metadata?"
+
+#: src/gui/stapel_ablage.py
+msgid "\n{anders} weitere Datei(en) sind keine PDF und bleiben unverändert."
+msgstr "\n{anders} other file(s) are not PDFs and remain unchanged."
+
+#: src/gui/stapel_ablage.py
+msgid "Mehrere PDFs umbenennen"
+msgstr "Rename multiple PDFs"
+
+#: src/gui/stapel_ablage.py
+msgid "Umbenennen und speichern"
+msgstr "Rename and save"
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} PDFs umbenannt"
+msgstr "{anzahl} PDFs renamed"
+
+#: src/gui/stapel_ablage.py
+msgid "{gespeichert} PDFs gespeichert, {anzahl} umbenannt"
+msgstr "{gespeichert} PDFs saved, {anzahl} renamed"
+
+#: src/gui/stapel_ablage.py
+msgid "Einige PDFs konnten nicht umbenannt/gespeichert werden:\n{0}"
+msgstr "Some PDFs could not be renamed/saved:\n{0}"
+
+#: src/gui/stapel_ablage.py
+msgid "Folgende Dateien wurden nicht mehr gefunden:\n{0}\n\nMöglicherweise wurden sie inzwischen umbenannt, verschoben oder gelöscht."
+msgstr "The following files were no longer found:\n{0}\n\nThey may have been renamed, moved or deleted in the meantime."
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} Umbenennungen rückgängig machen?"
+msgstr "Undo {anzahl} renames?"
+
+#: src/gui/stapel_ablage.py
+msgid "'{name}' gibt es schon"
+msgstr "'{name}' already exists"
+
+#: src/gui/stapel_ablage.py
+msgid "{anzahl} von {anzahl2} Umbenennungen rückgängig gemacht.\n\nFehler:\n{0}"
+msgstr "{anzahl} of {anzahl2} renames undone.\n\nErrors:\n{0}"
+
+#: src/gui/stapel_ablage.py
+msgid "Rückgängig: {anzahl} Umbenennungen"
+msgstr "Undone: {anzahl} renames"
+
+#: src/gui/stapel_rueckfrage.py
+msgid "(Name bleibt)"
+msgstr "(name stays)"
+
+#: src/gui/stapel_rueckfrage.py
+msgid "Bisher"
+msgstr "Before"
+
+#: src/gui/stapel_rueckfrage.py
+msgid "Neu"
+msgstr "New"
+
+#: src/gui/tile_view.py
+msgid "Klein"
+msgstr "Small"
+
+#: src/gui/tile_view.py
+msgid "Mittel"
+msgstr "Medium"
+
+#: src/gui/tile_view.py
+msgid "Groß"
+msgstr "Large"

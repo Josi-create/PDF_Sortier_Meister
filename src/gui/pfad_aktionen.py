@@ -16,20 +16,21 @@ from PyQt6.QtWidgets import QApplication
 
 from src.search.plattform import im_dateimanager_zeigen as _datei_markieren
 from src.utils.platform_paths import file_manager_name, open_with_default_app
+from src.i18n import tr
 
-PFAD_KOPIEREN_TEXT = "Pfad kopieren"
+PFAD_KOPIEREN_TEXT = tr("Pfad kopieren")
 
 
 def zeigen_text() -> str:
     """Menuetext fuer eine Datei: im Dateimanager markieren."""
     if sys.platform == "darwin":
-        return "Im Finder zeigen"
-    return f"Im {file_manager_name()} anzeigen"
+        return tr("Im Finder zeigen")
+    return tr("Im {0} anzeigen").format(file_manager_name())
 
 
 def oeffnen_text() -> str:
     """Menuetext fuer einen Ordner: im Dateimanager oeffnen."""
-    return f"Im {file_manager_name()} öffnen"
+    return tr("Im {0} öffnen").format(file_manager_name())
 
 
 def pfad_kopieren(path: Path | str) -> None:

@@ -34,6 +34,7 @@ from src.gui import stapel_rueckfrage
 from src.gui.detail_panel import DetailPanel
 from src.gui.hierhin_kopieren import AblageNamen
 from src.gui.stapel_rueckfrage import UMBENENNEN
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +131,8 @@ class StapelAblageMixin:
         if not offen():
             return
         gesamt = len(dateien)
-        fortschritt = QProgressDialog("", "Nicht mehr warten", 0, gesamt, self)
-        fortschritt.setWindowTitle("Namensvorschläge")
+        fortschritt = QProgressDialog("", tr("Nicht mehr warten"), 0, gesamt, self)
+        fortschritt.setWindowTitle(tr("Namensvorschläge"))
         fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
         fortschritt.setMinimumDuration(0)
         fortschritt.setAutoClose(False)
@@ -143,10 +144,11 @@ class StapelAblageMixin:
         def pruefen():
             rest = offen()
             fortschritt.setValue(gesamt - len(rest))
-            was = "Namensvorschläge der KI" if mit_ki else "Texterkennung"
+            was = tr("Namensvorschläge der KI") if mit_ki else tr("Texterkennung")
             fortschritt.setLabelText(
-                f"Warte auf {was} …\n{gesamt - len(rest)} von {gesamt} Dateien fertig"
-                + (f"\n\nGerade: {rest[0].name}" if rest else "")
+                tr("Warte auf {was} …\n{fertig} von {gesamt} Dateien fertig").format(
+                    was=was, fertig=gesamt - len(rest), gesamt=gesamt)
+                + (tr("\n\nGerade: {name}").format(name=rest[0].name) if rest else "")
             )
             if not rest or fortschritt.wasCanceled():
                 schleife.quit()
@@ -228,9 +230,9 @@ class StapelAblageMixin:
         if thread.is_alive():
             anzahl = sum(len(g) for g in gruppen)
             fortschritt = QProgressDialog(
-                f"Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …",
-                "Nicht mehr warten", 0, 0, self)
-            fortschritt.setWindowTitle("Namensvorschläge")
+                tr("Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …").format(anzahl=anzahl),
+                tr("Nicht mehr warten"), 0, 0, self)
+            fortschritt.setWindowTitle(tr("Namensvorschläge"))
             fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
             fortschritt.setMinimumDuration(0)
             schleife = QEventLoop()
@@ -256,14 +258,14 @@ class StapelAblageMixin:
                 )
         if fehler:
             logger.info("Namen unterscheiden: %s", "; ".join(fehler))
-            self.statusbar.showMessage(f"Gleiche Namen nicht unterschieden: {fehler[0]}", 6000)
+            self.statusbar.showMessage(tr("Gleiche Namen nicht unterschieden: {0}").format(fehler[0]), 6000)
 
     def _stapel_rueckfrage(self, titel: str, frage: str, eintraege: list[StapelEintrag],
                            ja_text: str, ja_ohne_namen: str, nur_text: Optional[str]) -> Optional[str]:
         zeilen = [(e.pfad.name, e.namen.new_name if e.namen.name_changed else None) for e in eintraege]
         if namen_unterscheiden.doppelte_gruppen([neu for _alt, neu in zeilen]):
-            frage += ("\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird "
-                      "„ (1)“, „ (2)“ … angehängt.")
+            frage += (tr("\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird "
+                      "„ (1)“, „ (2)“ … angehängt."))
         if any(neu for _alt, neu in zeilen):
             return stapel_rueckfrage.frage(self, titel, frage, zeilen, ja_text, nur_text)
         # Kein Name aendert sich: "Nur verschieben" waere dasselbe
@@ -287,14 +289,17 @@ class StapelAblageMixin:
         self._stapel_vorbereiten(dateien)
         eintraege = self._stapel_eintraege(dateien, folder_path, relative_path)
         wahl = self._stapel_rueckfrage(
-            "Mehrere Dateien verschieben" if len(dateien) > 1 else "Datei verschieben",
-            (f"{len(dateien)} Dateien" if len(dateien) > 1 else f"'{dateien[0].name}'")
-            + f" nach '{relative_path}' verschieben?"
-            + (f"\n\nDer Ordner '{relative_path}' wird dafür neu angelegt." if neu_anlegen else ""),
+            tr("Mehrere Dateien verschieben") if len(dateien) > 1 else tr("Datei verschieben"),
+            tr("{wer} nach '{relative_path}' verschieben?").format(
+                wer=(tr("{anzahl} Dateien").format(anzahl=len(dateien)) if len(dateien) > 1
+                     else f"'{dateien[0].name}'"),
+                relative_path=relative_path)
+            + (tr("\n\nDer Ordner '{relative_path}' wird dafür neu angelegt.").format(
+                relative_path=relative_path) if neu_anlegen else ""),
             eintraege,
-            ja_text="Verschieben und umbenennen",
-            ja_ohne_namen="Verschieben",
-            nur_text="Nur verschieben",
+            ja_text=tr("Verschieben und umbenennen"),
+            ja_ohne_namen=tr("Verschieben"),
+            nur_text=tr("Nur verschieben"),
         )
         if wahl is None:
             return
@@ -306,7 +311,7 @@ class StapelAblageMixin:
             try:
                 angelegt = neuer_ordner.anlegen(folder_path)
             except OSError as ex:
-                QMessageBox.critical(self, "Fehler", f"Ordner konnte nicht angelegt werden:\n{ex}")
+                QMessageBox.critical(self, tr("Fehler"), tr("Ordner konnte nicht angelegt werden:\n{ex}").format(ex=ex))
                 return
             self._invalidate_folder_caches()
 
@@ -352,12 +357,12 @@ class StapelAblageMixin:
             if meta and not namen.office_ext:
                 self._write_pdf_metadata_async(neu, neu.name, e.keywords, meta)
 
-        self.training_label.setText(f"Gelernt: {self.classifier.get_training_count()}")
+        self.training_label.setText(tr("Gelernt: {0}").format(self.classifier.get_training_count()))
         if paare:
-            info = f" ({umbenannt} umbenannt)" if umbenannt else ""
-            self.statusbar.showMessage(f"{len(paare)} Dateien nach '{relative_path}' verschoben{info}", 4000)
+            info = tr(" ({umbenannt} umbenannt)").format(umbenannt=umbenannt) if umbenannt else ""
+            self.statusbar.showMessage(tr("{anzahl} Dateien nach '{relative_path}' verschoben{info}").format(anzahl=len(paare), relative_path=relative_path, info=info), 4000)
             desc = (f"{paare[0][0].name} → {relative_path}" if len(paare) == 1
-                    else f"{len(paare)} Dateien → {relative_path}")
+                    else tr("{anzahl} Dateien → {relative_path}").format(anzahl=len(paare), relative_path=relative_path))
             eintrag = {"type": "move", "moves": paare, "description": desc}
             if angelegt:
                 eintrag["created_dirs"] = list(angelegt)  # Rueckgaengig raeumt ihn leer wieder weg
@@ -368,8 +373,8 @@ class StapelAblageMixin:
             self._invalidate_folder_caches()
         if fehler:
             QMessageBox.warning(
-                self, "Teilweise fehlgeschlagen",
-                "Einige Dateien konnten nicht verschoben werden:\n" + "\n".join(fehler),
+                self, tr("Teilweise fehlgeschlagen"),
+                tr("Einige Dateien konnten nicht verschoben werden:\n{0}").format('\n'.join(fehler)),
             )
 
         # Verschobene Kacheln entfernen und die naechste PDF auswaehlen (Issue #75)
@@ -413,17 +418,17 @@ class StapelAblageMixin:
         anders = len(dateien) - len(pdfs)
         if not pdfs:
             self.statusbar.showMessage(
-                "Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln", 4000)
+                tr("Metadaten lassen sich nur in PDFs speichern - erst in PDF umwandeln"), 4000)
             return
 
         self._stapel_vorbereiten(pdfs)
         eintraege = self._stapel_eintraege(pdfs, None, "")
-        frage = f"{len(pdfs)} PDFs umbenennen und Metadaten speichern?"
+        frage = tr("{anzahl} PDFs umbenennen und Metadaten speichern?").format(anzahl=len(pdfs))
         if anders:
-            frage += f"\n{anders} weitere Datei(en) sind keine PDF und bleiben unverändert."
+            frage += tr("\n{anders} weitere Datei(en) sind keine PDF und bleiben unverändert.").format(anders=anders)
         wahl = self._stapel_rueckfrage(
-            "Mehrere PDFs umbenennen", frage, eintraege,
-            ja_text="Umbenennen und speichern", ja_ohne_namen="Metadaten speichern", nur_text=None,
+            tr("Mehrere PDFs umbenennen"), frage, eintraege,
+            ja_text=tr("Umbenennen und speichern"), ja_ohne_namen=tr("Metadaten speichern"), nur_text=None,
         )
         if wahl is None:
             return
@@ -455,7 +460,7 @@ class StapelAblageMixin:
                         self.db.learn_korrespondent_metadata(meta["korrespondent"], meta)
                 if e.pfad == panel_pdf:
                     self.detail_panel._current_pdf = neu
-                    self.detail_panel.header_label.setText(f"Original: {neu.name}")
+                    self.detail_panel.header_label.setText(tr("Original: {name}").format(name=neu.name))
                     self.detail_panel.mark_metadata_saved()
                 gespeichert += 1
             except Exception as ex:  # noqa: BLE001 - die uebrigen trotzdem
@@ -463,15 +468,15 @@ class StapelAblageMixin:
 
         if paare:
             desc = (f"{paare[0][0].name} → {paare[0][1].name}" if len(paare) == 1
-                    else f"{len(paare)} PDFs umbenannt")
+                    else tr("{anzahl} PDFs umbenannt").format(anzahl=len(paare)))
             self._push_undo({"type": "renames", "moves": paare, "description": desc})
         if gespeichert:
             self.statusbar.showMessage(
-                f"{gespeichert} PDFs gespeichert, {len(paare)} umbenannt", 4000)
+                tr("{gespeichert} PDFs gespeichert, {anzahl} umbenannt").format(gespeichert=gespeichert, anzahl=len(paare)), 4000)
         if fehler:
             QMessageBox.warning(
-                self, "Teilweise fehlgeschlagen",
-                "Einige PDFs konnten nicht umbenannt/gespeichert werden:\n" + "\n".join(fehler),
+                self, tr("Teilweise fehlgeschlagen"),
+                tr("Einige PDFs konnten nicht umbenannt/gespeichert werden:\n{0}").format('\n'.join(fehler)),
             )
 
     def _undo_renames(self, entry: dict) -> None:
@@ -481,17 +486,19 @@ class StapelAblageMixin:
         fehlend = [neu for _alt, neu in paare if not neu.exists()]
         if fehlend:
             QMessageBox.warning(
-                self, "Rückgängig nicht möglich",
-                "Folgende Dateien wurden nicht mehr gefunden:\n"
-                + "\n".join(p.name for p in fehlend)
-                + "\n\nMöglicherweise wurden sie inzwischen umbenannt, verschoben oder gelöscht.",
+                self, tr("Rückgängig nicht möglich"),
+                tr(
+                    "Folgende Dateien wurden nicht mehr gefunden:\n"
+                    "{0}\n\nMöglicherweise wurden sie inzwischen umbenannt, verschoben oder "
+                    "gelöscht."
+                ).format('\n'.join((p.name for p in fehlend))),
             )
             self._undo_stack.pop()
             self._update_undo_ui()
             return
         antwort = QMessageBox.question(
-            self, "Rückgängig machen",
-            f"{len(paare)} Umbenennungen rückgängig machen?",
+            self, tr("Rückgängig machen"),
+            tr("{anzahl} Umbenennungen rückgängig machen?").format(anzahl=len(paare)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if antwort != QMessageBox.StandardButton.Yes:
@@ -502,13 +509,13 @@ class StapelAblageMixin:
         for alt, neu in paare:
             try:
                 if alt.exists():
-                    raise FileExistsError(f"'{alt.name}' gibt es schon")
+                    raise FileExistsError(tr("'{name}' gibt es schon").format(name=alt.name))
                 wieder = self.file_manager.rename_file(neu, alt.name)
                 self.pdf_cache.migrate_cache_entry(neu, wieder)
                 self._update_pdf_widget_path(neu, wieder)
                 if self.detail_panel.get_current_pdf() == neu:
                     self.detail_panel._current_pdf = wieder
-                    self.detail_panel.header_label.setText(f"Original: {wieder.name}")
+                    self.detail_panel.header_label.setText(tr("Original: {name}").format(name=wieder.name))
                 zurueck.append((neu, wieder))
             except Exception as ex:  # noqa: BLE001
                 fehler.append(f"{neu.name}: {ex}")
@@ -518,9 +525,8 @@ class StapelAblageMixin:
         self.korrespondenten_view.pfade_aktualisieren(zurueck)
         if fehler:
             QMessageBox.warning(
-                self, "Teilweise fehlgeschlagen",
-                f"{len(zurueck)} von {len(paare)} Umbenennungen rückgängig gemacht.\n\n"
-                "Fehler:\n" + "\n".join(fehler),
+                self, tr("Teilweise fehlgeschlagen"),
+                tr("{anzahl} von {anzahl2} Umbenennungen rückgängig gemacht.\n\nFehler:\n{0}").format('\n'.join(fehler), anzahl=len(zurueck), anzahl2=len(paare)),
             )
         else:
-            self.statusbar.showMessage(f"Rückgängig: {len(zurueck)} Umbenennungen", 3000)
+            self.statusbar.showMessage(tr("Rückgängig: {anzahl} Umbenennungen").format(anzahl=len(zurueck)), 3000)

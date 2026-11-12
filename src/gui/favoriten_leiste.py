@@ -32,10 +32,11 @@ from PyQt6.QtWidgets import (
 
 from src.gui.hierhin_kopieren import kopier_eintrag
 from src.gui.pfad_aktionen import im_dateimanager_zeigen, oeffnen_text
+from src.i18n import tr
 
-FAVORIT_MERKEN_TEXT = "★ Als Favorit merken"
-FAVORIT_ENTFERNEN_TEXT = "Favorit entfernen"
-AKTUELLEN_MERKEN_TEXT = "Aktuellen Ordner als Favorit merken"
+FAVORIT_MERKEN_TEXT = tr("★ Als Favorit merken")
+FAVORIT_ENTFERNEN_TEXT = tr("Favorit entfernen")
+AKTUELLEN_MERKEN_TEXT = tr("Aktuellen Ordner als Favorit merken")
 
 
 def _schluessel(pfad: Path | str) -> str:
@@ -195,7 +196,7 @@ class FavoritenLeiste(QFrame):
             k.setStyleSheet(self._STIL)
             k.setProperty("aktuell", "true" if akt == _schluessel(pfad) else "false")
             k.setProperty("fehlt", "true" if fehlt else "false")
-            k.setToolTip(f"{pfad}\nOrdner nicht gefunden" if fehlt else str(pfad))
+            k.setToolTip(tr("{pfad}\nOrdner nicht gefunden").format(pfad=pfad) if fehlt else str(pfad))
             k.clicked.connect(lambda _=False, p=pfad: self._geklickt(p))
             k.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             k.customContextMenuRequested.connect(
@@ -213,8 +214,8 @@ class FavoritenLeiste(QFrame):
             return
         antwort = QMessageBox.question(
             self,
-            "Ordner nicht gefunden",
-            f"Der Ordner existiert nicht mehr:\n{pfad}\n\nFavorit entfernen?",
+            tr("Ordner nicht gefunden"),
+            tr("Der Ordner existiert nicht mehr:\n{pfad}\n\nFavorit entfernen?").format(pfad=pfad),
         )
         if antwort == QMessageBox.StandardButton.Yes:
             self.entfernen(pfad)
@@ -225,7 +226,7 @@ class FavoritenLeiste(QFrame):
             return
         aktuell = self.anzeigename(self.favoriten()[i])
         name, ok = QInputDialog.getText(
-            self, "Favorit umbenennen", "Anzeigename (leer = Ordnername):", text=aktuell
+            self, tr("Favorit umbenennen"), tr("Anzeigename (leer = Ordnername):"), text=aktuell
         )
         if ok:
             self.umbenennen(pfad, name)
@@ -237,14 +238,14 @@ class FavoritenLeiste(QFrame):
         if pfad.is_dir():
             kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(pfad))
             menu.addSeparator()
-        menu.addAction("Entfernen").triggered.connect(lambda: self.entfernen(pfad))
-        menu.addAction("Umbenennen (Anzeigename)").triggered.connect(
+        menu.addAction(tr("Entfernen")).triggered.connect(lambda: self.entfernen(pfad))
+        menu.addAction(tr("Umbenennen (Anzeigename)")).triggered.connect(
             lambda: self._umbenennen_fragen(pfad)
         )
-        links = menu.addAction("Nach links")
+        links = menu.addAction(tr("Nach links"))
         links.setEnabled(i > 0)
         links.triggered.connect(lambda: self.verschieben(pfad, -1))
-        rechts = menu.addAction("Nach rechts")
+        rechts = menu.addAction(tr("Nach rechts"))
         rechts.setEnabled(0 <= i < len(self.favoriten()) - 1)
         rechts.triggered.connect(lambda: self.verschieben(pfad, 1))
         menu.addSeparator()

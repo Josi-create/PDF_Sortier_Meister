@@ -21,12 +21,13 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
 )
+from src.i18n import tr
 
 # Antworten der Rueckfrage
 UMBENENNEN = "umbenennen"  # mit neuen Namen (und Metadaten)
 NUR_VERSCHIEBEN = "nur_verschieben"  # wie bisher: Namen bleiben, keine Metadaten
 
-NAME_BLEIBT = "(Name bleibt)"
+NAME_BLEIBT = tr("(Name bleibt)")
 
 
 class StapelDialog(QDialog):
@@ -44,7 +45,7 @@ class StapelDialog(QDialog):
         layout.addWidget(label)
 
         self.liste = QTreeWidget()
-        self.liste.setHeaderLabels(["Bisher", "Neu"])
+        self.liste.setHeaderLabels([tr("Bisher"), tr("Neu")])
         self.liste.setRootIsDecorated(False)
         self.liste.setUniformRowHeights(True)
         self.liste.setSelectionMode(QTreeWidget.SelectionMode.NoSelection)
@@ -72,7 +73,7 @@ class StapelDialog(QDialog):
         if nur_text:
             self.nur_knopf = knoepfe.addButton(nur_text, QDialogButtonBox.ButtonRole.ActionRole)
             self.nur_knopf.clicked.connect(lambda: self._waehle(NUR_VERSCHIEBEN))
-        knoepfe.addButton("Abbrechen", QDialogButtonBox.ButtonRole.RejectRole)
+        knoepfe.addButton(tr("Abbrechen"), QDialogButtonBox.ButtonRole.RejectRole)
         knoepfe.rejected.connect(self.reject)
         layout.addWidget(knoepfe)
 

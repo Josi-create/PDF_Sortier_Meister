@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 from src.core import datum_eingabe
 from src.core.document_date import is_iso_date, parse_user_date
+from src.i18n import tr
 
 
 def _datum_iso(text: str) -> Optional[str]:
@@ -259,11 +260,11 @@ class DetailPanel(QWidget):
 
         # Platzhalter wenn nichts ausgewählt
         self.placeholder = QLabel(
-            "PDF auswählen\n\n"
+            tr("PDF auswählen\n\n"
             "Klicken Sie links auf ein PDF-Thumbnail,\n"
             "um hier die Details zu sehen.\n\n"
             "Dann klicken Sie rechts auf einen\n"
-            "Zielordner zum Verschieben."
+            "Zielordner zum Verschieben.")
         )
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setStyleSheet("color: #888; padding: 30px; font-size: 12px;")
@@ -295,10 +296,10 @@ class DetailPanel(QWidget):
 
         head_row = QHBoxLayout()
         head_row.setSpacing(6)
-        name_title = QLabel("<b>Neuer Dateiname</b>")
+        name_title = QLabel(tr("<b>Neuer Dateiname</b>"))
         name_title.setToolTip(
-            "Wird beim Klick auf einen Zielordner übernommen. Der oberste Vorschlag\n"
-            "steht automatisch im Feld; weitere Vorschläge über den Pfeil rechts."
+            tr("Wird beim Klick auf einen Zielordner übernommen. Der oberste Vorschlag\n"
+            "steht automatisch im Feld; weitere Vorschläge über den Pfeil rechts.")
         )
         head_row.addWidget(name_title)
         head_row.addStretch(1)
@@ -309,8 +310,8 @@ class DetailPanel(QWidget):
         self.suggestions_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self.suggestions_toggle.setStyleSheet("QToolButton { font-size: 10px; padding: 0 2px; }")
         self.suggestions_toggle.setToolTip(
-            "Alle Vorschläge für den Dateinamen ein- oder ausklappen.\n"
-            "Der Zustand bleibt für die nächsten Dokumente erhalten."
+            tr("Alle Vorschläge für den Dateinamen ein- oder ausklappen.\n"
+            "Der Zustand bleibt für die nächsten Dokumente erhalten.")
         )
         head_row.addWidget(self.suggestions_toggle)
         name_layout.addLayout(head_row)
@@ -325,24 +326,24 @@ class DetailPanel(QWidget):
         options_row.setSpacing(6)
         # Schalter fuer "Dateiname aus Ordnerstruktur" (Issue #42) direkt am
         # Ort des Geschehens - gleiche Einstellung wie im Einstellungsdialog
-        self.folder_naming_checkbox = QCheckBox("Ordnerstruktur im Namen")
+        self.folder_naming_checkbox = QCheckBox(tr("Ordnerstruktur im Namen"))
         self.folder_naming_checkbox.setStyleSheet("font-size: 10px;")
         self.folder_naming_checkbox.setToolTip(
-            "Beim Verschieben die Nummern/Namen des Zielordners in den Dateinamen\n"
+            tr("Beim Verschieben die Nummern/Namen des Zielordners in den Dateinamen\n"
             "aufnehmen (Vorlage unter Einstellungen > Dateinamen > Beim Verschieben).\n"
-            "Wirkt sofort, auch fuer den naechsten Verschiebe-Vorgang."
+            "Wirkt sofort, auch fuer den naechsten Verschiebe-Vorgang.")
         )
         self.folder_naming_checkbox.toggled.connect(self._on_folder_naming_toggled)
         options_row.addWidget(self.folder_naming_checkbox)
         options_row.addStretch(1)
-        self.edit_pattern_btn = QPushButton("Muster bearbeiten…")
+        self.edit_pattern_btn = QPushButton(tr("Muster bearbeiten…"))
         self.edit_pattern_btn.setFlat(True)
         self.edit_pattern_btn.setStyleSheet(
             "QPushButton { font-size: 10px; color: #1a5fb4; padding: 1px 4px; }"
             "QPushButton:hover { text-decoration: underline; }"
         )
         self.edit_pattern_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.edit_pattern_btn.setToolTip("Öffnet Einstellungen > Dateinamen (Muster und Vorlagen)")
+        self.edit_pattern_btn.setToolTip(tr("Öffnet Einstellungen > Dateinamen (Muster und Vorlagen)"))
         self.edit_pattern_btn.clicked.connect(self.edit_pattern_requested)
         options_row.addWidget(self.edit_pattern_btn)
         suggestions_layout.addLayout(options_row)
@@ -350,18 +351,18 @@ class DetailPanel(QWidget):
         self.suggestions_list = QListWidget()
         self.suggestions_list.setFixedHeight(28)  # wird an die Anzahl angepasst
         self.suggestions_list.setToolTip(
-            "Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen.\n"
+            tr("Vorschlag anklicken, um Namen und Metadaten in die Felder unten zu übernehmen.\n"
             "Die zuletzt gewählte Art von Vorschlag steht beim nächsten Dokument ganz oben\n"
-            "und wird automatisch als Dateiname vorgeschlagen."
+            "und wird automatisch als Dateiname vorgeschlagen.")
         )
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
         self.suggestions_list.installEventFilter(self)
         suggestions_layout.addWidget(self.suggestions_list)
 
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Neuen Dateinamen eingeben...")
+        self.name_input.setPlaceholderText(tr("Neuen Dateinamen eingeben..."))
         self.name_input.setToolTip(
-            "Neuer Dateiname für die PDF - wird beim Klick auf einen Zielordner übernommen."
+            tr("Neuer Dateiname für die PDF - wird beim Klick auf einen Zielordner übernommen.")
         )
         self.name_input.textChanged.connect(self._update_preview)
         # textEdited feuert nur bei Nutzereingaben, nicht bei setText()
@@ -394,7 +395,7 @@ class DetailPanel(QWidget):
         self.suggestions_toggle.toggled.connect(self._on_suggestions_toggled)
 
         # Metadaten
-        self.metadata_group = QGroupBox("Metadaten (werden in PDF gespeichert)")
+        self.metadata_group = QGroupBox(tr("Metadaten (werden in PDF gespeichert)"))
         metadata_layout = QVBoxLayout(self.metadata_group)
         metadata_layout.setSpacing(3)
         metadata_layout.setContentsMargins(6, 4, 6, 6)
@@ -409,35 +410,35 @@ class DetailPanel(QWidget):
         # Grundstil je Feld - fuer die gruene Hervorhebung "neu gegenueber PDF"
         self._field_base_styles: dict[str, str] = {}
         metadata_fields = [
-            ("buchungsdatum", "Datum"),  # Issue #132
-            ("steuerjahr", "Steuerjahr"),
-            ("subject", "Kategorie"),
-            ("korrespondent", "Korrespondent"),
-            ("betrag_netto", "Betrag Netto"),
-            ("betrag_brutto", "Betrag Brutto"),
-            ("waehrung", "Währung"),
-            ("mwst_satz", "MwSt-Satz"),
+            ("buchungsdatum", tr("Datum")),  # Issue #132
+            ("steuerjahr", tr("Steuerjahr")),
+            ("subject", tr("Kategorie")),
+            ("korrespondent", tr("Korrespondent")),
+            ("betrag_netto", tr("Betrag Netto")),
+            ("betrag_brutto", tr("Betrag Brutto")),
+            ("waehrung", tr("Währung")),
+            ("mwst_satz", tr("MwSt-Satz")),
             ("iban", "IBAN"),
-            ("description", "Zusammenfassung"),
+            ("description", tr("Zusammenfassung")),
         ]
         single_count = len(metadata_fields) - 1  # alle ausser der Zusammenfassung
         # Kurze Erklärung je Feld (Issue #51) - hilft neuen Nutzern, die
         # Bedeutung der Metadaten-Felder ohne Nachfragen zu verstehen.
         field_tooltips = {
             "buchungsdatum": self._DATE_TOOLTIP,
-            "subject": "Kategorie des Dokuments (z.B. Rechnung, Vertrag).",
+            "subject": tr("Kategorie des Dokuments (z.B. Rechnung, Vertrag)."),
             "korrespondent": (
-                "Gegenpartei des Dokuments aus Ihrer Sicht: Absender fremder Post, bei eigenen\n"
+                tr("Gegenpartei des Dokuments aus Ihrer Sicht: Absender fremder Post, bei eigenen\n"
                 "Schreiben der Empfänger bzw. Vertragspartner (Person, Firma oder Behörde).\n"
-                "Rechtsklick: alle Dokumente dieses Korrespondenten anzeigen."
+                "Rechtsklick: alle Dokumente dieses Korrespondenten anzeigen.")
             ),
-            "betrag_netto": "Rechnungsbetrag ohne MwSt.",
-            "betrag_brutto": "Rechnungsbetrag inkl. MwSt.",
-            "waehrung": "Währung des Betrags (z.B. EUR).",
-            "mwst_satz": "Mehrwertsteuersatz in Prozent (z.B. 19).",
-            "iban": "IBAN, falls im Dokument vorhanden.",
-            "steuerjahr": "Steuerjahr, dem dieses Dokument zugeordnet wird.",
-            "description": "Kurze Zusammenfassung des Dokumentinhalts.",
+            "betrag_netto": tr("Rechnungsbetrag ohne MwSt."),
+            "betrag_brutto": tr("Rechnungsbetrag inkl. MwSt."),
+            "waehrung": tr("Währung des Betrags (z.B. EUR)."),
+            "mwst_satz": tr("Mehrwertsteuersatz in Prozent (z.B. 19)."),
+            "iban": tr("IBAN, falls im Dokument vorhanden."),
+            "steuerjahr": tr("Steuerjahr, dem dieses Dokument zugeordnet wird."),
+            "description": tr("Kurze Zusammenfassung des Dokumentinhalts."),
         }
 
         # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
@@ -509,9 +510,9 @@ class DetailPanel(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        self.save_metadata_btn = QPushButton("Metadaten speichern")
+        self.save_metadata_btn = QPushButton(tr("Metadaten speichern"))
         self.save_metadata_btn.setToolTip(
-            "Metadaten in die PDF schreiben, ohne die Datei zu verschieben"
+            tr("Metadaten in die PDF schreiben, ohne die Datei zu verschieben")
         )
         self.save_metadata_btn.setStyleSheet(
             "QPushButton { background-color: #1565c0; color: white; "
@@ -522,9 +523,9 @@ class DetailPanel(QWidget):
         self.save_metadata_btn.clicked.connect(self.save_metadata_requested)
         btn_row.addWidget(self.save_metadata_btn)
 
-        self.rename_and_save_btn = QPushButton("Umbenennen + Metadaten speichern")
+        self.rename_and_save_btn = QPushButton(tr("Umbenennen + Metadaten speichern"))
         self.rename_and_save_btn.setToolTip(
-            "Dateinamen aktualisieren UND Metadaten in die PDF schreiben, ohne sie zu verschieben"
+            tr("Dateinamen aktualisieren UND Metadaten in die PDF schreiben, ohne sie zu verschieben")
         )
         self.rename_and_save_btn.setStyleSheet(
             "QPushButton { background-color: #2e7d32; color: white; "
@@ -535,9 +536,9 @@ class DetailPanel(QWidget):
         self.rename_and_save_btn.clicked.connect(self.rename_and_save_metadata_requested)
         btn_row.addWidget(self.rename_and_save_btn)
 
-        self.llm_btn = QPushButton("KI-Metadaten neu generieren")
+        self.llm_btn = QPushButton(tr("KI-Metadaten neu generieren"))
         self.llm_btn.setToolTip(
-            "Metadaten und Dateinamen per KI erneut aus dem PDF-Text vorschlagen lassen"
+            tr("Metadaten und Dateinamen per KI erneut aus dem PDF-Text vorschlagen lassen")
         )
         self.llm_btn.setStyleSheet(
             "QPushButton { background-color: #7b1fa2; color: white; "
@@ -563,7 +564,7 @@ class DetailPanel(QWidget):
         search_layout = QVBoxLayout(self.search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.search_header = QLabel("Suchergebnisse")
+        self.search_header = QLabel(tr("Suchergebnisse"))
         self.search_header.setStyleSheet(
             "font-size: 13px; font-weight: bold; padding: 6px; "
             "background-color: #e3f2fd; border-radius: 3px;"
@@ -572,7 +573,7 @@ class DetailPanel(QWidget):
 
         self.search_results_list = QListWidget()
         self.search_results_list.setStyleSheet("font-size: 11px;")
-        self.search_results_list.setToolTip("Doppelklick öffnet das Dokument im Standardprogramm.")
+        self.search_results_list.setToolTip(tr("Doppelklick öffnet das Dokument im Standardprogramm."))
         self.search_results_list.itemDoubleClicked.connect(self._on_search_result_double_clicked)
         search_layout.addWidget(self.search_results_list)
 
@@ -585,8 +586,8 @@ class DetailPanel(QWidget):
         # Details, unten die Seitenansicht der ausgewählten PDF
         self.preview = PdfPreviewWidget(self, compact=True)
         self.preview.setToolTip(
-            "Vorschau der ausgewählten PDF.\n"
-            "Doppelklick auf die Seite oder „Groß“ öffnet die große Ansicht."
+            tr("Vorschau der ausgewählten PDF.\n"
+            "Doppelklick auf die Seite oder „Groß“ öffnet die große Ansicht.")
         )
         self.preview.enlarge_requested.connect(self.enlarge_preview_requested)
         self.preview.open_external_requested.connect(self.open_pdf_external_requested)
@@ -622,7 +623,7 @@ class DetailPanel(QWidget):
         self._has_learned_overrides = False
 
         # Header
-        self.header_label.setText(f"Original: {pdf_path.name}")
+        self.header_label.setText(tr("Original: {name}").format(name=pdf_path.name))
 
         self._vorschau_laden(pdf_path)
 
@@ -693,9 +694,9 @@ class DetailPanel(QWidget):
 
         # GroupBox-Titel
         if self._has_learned_overrides:
-            self.metadata_group.setTitle("Metadaten (gelernt + werden in PDF gespeichert)")
+            self.metadata_group.setTitle(tr("Metadaten (gelernt + werden in PDF gespeichert)"))
         else:
-            self.metadata_group.setTitle("Metadaten (werden in PDF gespeichert)")
+            self.metadata_group.setTitle(tr("Metadaten (werden in PDF gespeichert)"))
 
         self._refresh_save_btn()
 
@@ -715,7 +716,7 @@ class DetailPanel(QWidget):
         self.detail_container.hide()
         self.search_container.show()
 
-        self.search_header.setText(f"Suchergebnisse ({len(results)} Treffer)")
+        self.search_header.setText(tr("Suchergebnisse ({anzahl} Treffer)").format(anzahl=len(results)))
         self.search_results_list.clear()
 
         for r in results:
@@ -743,12 +744,12 @@ class DetailPanel(QWidget):
             if steuerjahr:
                 details.append(f"SJ {steuerjahr}")
             line2 = " | ".join(details) if details else ""
-            line3 = f"Ordner: {target}" if target else ""
+            line3 = tr("Ordner: {target}").format(target=target) if target else ""
             # Phase 3 (Issue #25): ID-Zeile mit gekuerzter pdf_id (falls
             # vorhanden). Vollstaendige UUID steht im toolTip.
             if pdf_id:
                 short_id = pdf_id[:8] if len(pdf_id) >= 8 else pdf_id
-                line4 = f"ID: {short_id}…"
+                line4 = tr("ID: {short_id}…").format(short_id=short_id)
             else:
                 line4 = ""
 
@@ -784,8 +785,8 @@ class DetailPanel(QWidget):
         if not path.exists():
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(
-                self, "Datei nicht gefunden",
-                f"Die Datei existiert nicht mehr:\n{file_path}"
+                self, tr("Datei nicht gefunden"),
+                tr("Die Datei existiert nicht mehr:\n{file_path}").format(file_path=file_path)
             )
             return
         self.open_pdf_requested.emit(path)
@@ -864,7 +865,7 @@ class DetailPanel(QWidget):
     def _vorschau_laden(self, pdf_path: Path):
         """Vorschau unten nachladen (Issue #74) - liest im Hintergrund."""
         if ist_office_datei(pdf_path):
-            self.preview.show_message("Vorschau wird erstellt …")
+            self.preview.show_message(tr("Vorschau wird erstellt …"))
             self.office_preview_requested.emit(pdf_path)
         else:
             self.preview.load_pdf(pdf_path)
@@ -885,7 +886,7 @@ class DetailPanel(QWidget):
             return  # Nutzer hat inzwischen editiert - nicht ueberschreiben
         self._apply_pdf_metadata(pdf_meta)
         if self._saved_metadata_snapshot:
-            self.metadata_group.setTitle("Metadaten (aus PDF gelesen, werden in PDF gespeichert)")
+            self.metadata_group.setTitle(tr("Metadaten (aus PDF gelesen, werden in PDF gespeichert)"))
             self._populate_suggestions()  # Muster-Vorschlaege mit den PDF-Werten
             if not self.has_user_edits():
                 self._apply_top_suggestion()
@@ -983,13 +984,13 @@ class DetailPanel(QWidget):
     # --- Feld "Datum" (Issue #132) -------------------------------------- #
 
     _DATE_TOOLTIP = (
-        "Datum des Dokuments - Quelle für {datum} im Dateinamen\n"
+        tr("Datum des Dokuments - Quelle für {datum} im Dateinamen\n"
         "und Vorlage für das Steuerjahr.\n"
         "Frei eintippen: 3.5.24, 03.05.2024, 3. Mai 2024 oder 2024-05-03;\n"
         "gespeichert wird JJJJ-MM-TT. Oder das Datum in der Vorschau\n"
-        "markieren und per Rechtsklick „Als Datum übernehmen“."
+        "markieren und per Rechtsklick „Als Datum übernehmen“.")
     )
-    _DATE_INVALID_HINT = "\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024."
+    _DATE_INVALID_HINT = tr("\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024.")
     _INVALID_FIELD_STYLE = " border: 1px solid #d32f2f; background-color: #fdecea; border-radius: 3px;"
 
     @staticmethod
@@ -1091,10 +1092,10 @@ class DetailPanel(QWidget):
         is_saved = (current == self._saved_metadata_snapshot) and bool(self._saved_metadata_snapshot)
 
         if is_saved:
-            self.save_metadata_btn.setText("Metadaten gespeichert")
+            self.save_metadata_btn.setText(tr("Metadaten gespeichert"))
             self.save_metadata_btn.setEnabled(False)
         else:
-            self.save_metadata_btn.setText("Metadaten speichern")
+            self.save_metadata_btn.setText(tr("Metadaten speichern"))
             self.save_metadata_btn.setEnabled(True)
 
         # rename_and_save_btn: ausgrauen, wenn nichts mehr zu tun ist
@@ -1105,16 +1106,16 @@ class DetailPanel(QWidget):
             if desired and desired != self._current_pdf.name:
                 name_pending = True
         if is_saved and not name_pending:
-            self.rename_and_save_btn.setText("Bereits gespeichert")
+            self.rename_and_save_btn.setText(tr("Bereits gespeichert"))
             self.rename_and_save_btn.setEnabled(False)
         else:
-            self.rename_and_save_btn.setText("Umbenennen + Metadaten speichern")
+            self.rename_and_save_btn.setText(tr("Umbenennen + Metadaten speichern"))
             self.rename_and_save_btn.setEnabled(True)
 
         # Status-Label
         source = self._metadata_source
         if source == "pdf":
-            self.metadata_status_label.setText("Quelle: aus PDF gelesen")
+            self.metadata_status_label.setText(tr("Quelle: aus PDF gelesen"))
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
                 "background-color: #e8f5e9; color: #2e7d32;"
@@ -1122,7 +1123,7 @@ class DetailPanel(QWidget):
             self.metadata_status_label.show()
         elif source == "pdf_partial":
             self.metadata_status_label.setText(
-                "Quelle: aus PDF gelesen - grün = neue Vorschläge (noch nicht gespeichert)"
+                tr("Quelle: aus PDF gelesen - grün = neue Vorschläge (noch nicht gespeichert)")
             )
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
@@ -1130,14 +1131,14 @@ class DetailPanel(QWidget):
             )
             self.metadata_status_label.show()
         elif source == "llm":
-            self.metadata_status_label.setText("Quelle: KI-Vorschlag (noch nicht gespeichert)")
+            self.metadata_status_label.setText(tr("Quelle: KI-Vorschlag (noch nicht gespeichert)"))
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
                 "background-color: #f3e5f5; color: #6a1b9a;"
             )
             self.metadata_status_label.show()
         elif source == "user":
-            self.metadata_status_label.setText("Quelle: editiert (noch nicht gespeichert)")
+            self.metadata_status_label.setText(tr("Quelle: editiert (noch nicht gespeichert)"))
             self.metadata_status_label.setStyleSheet(
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
                 "background-color: #fff8e1; color: #e65100;"
@@ -1184,7 +1185,7 @@ class DetailPanel(QWidget):
         zuletzt angeklickte Art zuoberst.
         """
         from src.core.suggestion_order import (
-            KIND_DATE, KIND_KEEP, KIND_KI, KIND_LEARNED, kind_from_reason, sort_by_kind,
+            KIND_DATE, KIND_KEEP, KIND_KI, KIND_LEARNED, kind_from_reason, reason_display, sort_by_kind,
         )
 
         from src.core.llm_name_adapt import adapt_leading_date, adapt_llm_filename
@@ -1239,7 +1240,7 @@ class DetailPanel(QWidget):
         self._displayed_kinds = [k for _s, k in displayed]
 
         if not displayed:
-            item = QListWidgetItem("Keine Vorschläge verfügbar")
+            item = QListWidgetItem(tr("Keine Vorschläge verfügbar"))
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.suggestions_list.addItem(item)
             self._set_suggestion_count(0)
@@ -1251,26 +1252,26 @@ class DetailPanel(QWidget):
             confidence_pct = int(suggestion.confidence * 100)
             display_text = f"{suggestion.name}"
             if suggestion.reason:
-                display_text += f"  [{suggestion.reason}]"
+                display_text += f"  [{reason_display(suggestion.reason)}]"
 
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion.name)
 
             if suggestion is keep_row:
                 item.setToolTip(
-                    "Die Datei behält ihren bisherigen Namen.\n"
-                    "Anklicken übernimmt ihn ins Feld „Neuer Dateiname“."
+                    tr("Die Datei behält ihren bisherigen Namen.\n"
+                    "Anklicken übernimmt ihn ins Feld „Neuer Dateiname“.")
                 )
                 item.setForeground(QColor(90, 90, 90))
             elif id(suggestion) in pattern_rows:
                 item.setToolTip(
-                    "Nach diesem Dateinamen-Muster aus den Metadaten dieses "
-                    "Dokuments gebildet. Anklicken übernimmt den Namen."
+                    tr("Nach diesem Dateinamen-Muster aus den Metadaten dieses "
+                    "Dokuments gebildet. Anklicken übernimmt den Namen.")
                 )
                 item.setBackground(QColor(214, 234, 255))  # hellblau = Muster
                 item.setForeground(QColor(20, 60, 120))
             else:
-                item.setToolTip(f"Konfidenz: {confidence_pct}%\n{suggestion.reason}")
+                item.setToolTip(tr("Konfidenz: {confidence_pct}%\n{reason}").format(confidence_pct=confidence_pct, reason=reason_display(suggestion.reason)))
                 if confidence_pct >= 70:
                     item.setBackground(Qt.GlobalColor.green)
                     item.setForeground(Qt.GlobalColor.darkGreen)
@@ -1359,7 +1360,7 @@ class DetailPanel(QWidget):
         name = feld.text().strip()
         menue.addSeparator()
         aktion = menue.addAction(
-            f"Alle Dokumente von „{name}“ anzeigen" if name else "Alle Dokumente des Korrespondenten anzeigen"
+            tr("Alle Dokumente von „{name}“ anzeigen").format(name=name) if name else tr("Alle Dokumente des Korrespondenten anzeigen")
         )
         aktion.setEnabled(bool(name))
         aktion.triggered.connect(lambda: self.korrespondent_dokumente_requested.emit(name))
@@ -1588,7 +1589,7 @@ class DetailPanel(QWidget):
     def _set_suggestion_count(self, count: int):
         """Zaehler im Pfeil-Knopf (aendert sich auch, wenn KI-Vorschlaege eintreffen)."""
         self._suggestion_count = count
-        self.suggestions_toggle.setText(f"Vorschläge ({count})")
+        self.suggestions_toggle.setText(tr("Vorschläge ({count})").format(count=count))
 
     def _fit_suggestions_height(self):
         """Liste nur so hoch wie noetig (max. ~8 Zeilen) - spart Platz fuer die Vorschau.
@@ -1682,21 +1683,21 @@ class DetailPanel(QWidget):
         has_email = contains_email(text)
 
         if not preview_name:
-            self.warning_label.setText("Name besteht nur aus ungültigen Zeichen")
+            self.warning_label.setText(tr("Name besteht nur aus ungültigen Zeichen"))
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 6px; background-color: #ffebee; "
                 "border: 1px solid #ef9a9a; border-radius: 3px; font-size: 11px;"
             )
-            preview_name = "(ungültig)"
+            preview_name = tr("(ungültig)")
         elif found_invalid or has_email:
             hints = []
             if has_email:
-                hints.append("E-Mail-Adresse → Name")
+                hints.append(tr("E-Mail-Adresse → Name"))
             if found_invalid:
                 shown = ' '.join('␣' if c.isspace() else c for c in found_invalid)
                 hints.append(f"{shown} → _")
-            self.warning_label.setText("Wird ersetzt: " + ", ".join(hints))
+            self.warning_label.setText(tr("Wird ersetzt: {0}").format(', '.join(hints)))
             self.warning_label.show()
             self.preview_label.setStyleSheet(
                 "font-family: monospace; padding: 6px; background-color: #fff8e1; "
@@ -1716,7 +1717,7 @@ class DetailPanel(QWidget):
         unchanged = preview_name == f"{text.strip()}.pdf" or preview_name == text.strip()
         self.preview_label.setVisible(not unchanged)
 
-    LLM_BTN_TEXT = "KI-Metadaten neu generieren"
+    LLM_BTN_TEXT = tr("KI-Metadaten neu generieren")
 
     def ki_metadaten_neu_generieren(self) -> bool:
         """Wie ein Klick auf "KI-Metadaten neu generieren" (z. B. nach "Als Text übernehmen").
@@ -1778,7 +1779,7 @@ class DetailPanel(QWidget):
         text = str(error).strip().splitlines()[0] if error else "KI-Fehler"
         if len(text) > 160:
             text = text[:157] + "…"
-        self.metadata_status_label.setText(f"KI-Fehler: {text}")
+        self.metadata_status_label.setText(tr("KI-Fehler: {text}").format(text=text))
         self.metadata_status_label.setToolTip(str(error))
         self.metadata_status_label.setStyleSheet(
             "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
@@ -1790,7 +1791,7 @@ class DetailPanel(QWidget):
         """Button zeigt laufende Uhr + Schaetzung, solange die KI arbeitet."""
         if self._llm_started is None:
             return
-        text = f"KI arbeitet… {format_elapsed(time.monotonic() - self._llm_started)}"
+        text = tr("KI arbeitet… {0}").format(format_elapsed(time.monotonic() - self._llm_started))
         estimate = format_estimate(get_llm_activity().estimate(KIND_SUGGEST))
         if estimate:
             text += f" ({estimate})"
@@ -1869,7 +1870,7 @@ class DetailPanel(QWidget):
                         reason = get_hybrid_classifier().last_llm_error
                     except Exception:
                         reason = None
-                    self._show_llm_error(reason or "KI hat keinen Vorschlag geliefert.")
+                    self._show_llm_error(reason or tr("KI hat keinen Vorschlag geliefert."))
 
             from src.core.pdf_cache import get_pdf_cache, LLMSuggestion as CacheLLMSuggestion
             llm_cached = [

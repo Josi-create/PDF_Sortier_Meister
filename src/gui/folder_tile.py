@@ -35,6 +35,7 @@ from src.gui.pfad_aktionen import (
     oeffnen_text,
     pfad_kopieren,
 )
+from src.i18n import tr
 
 
 class FolderTileWidget(QFrame):
@@ -144,15 +145,18 @@ class FolderTileWidget(QFrame):
 
         if self.is_parent:
             self.setToolTip(
-                f"Übergeordneter Ordner: {self.folder_path}\n"
-                "Klick wechselt nach oben, PDFs hierher ziehen verschiebt sie."
+                tr(
+                    "Übergeordneter Ordner: {folder_path}\n"
+                    "Klick wechselt nach oben, PDFs hierher ziehen verschiebt sie."
+                ).format(folder_path=self.folder_path)
             )
         else:
             self.setToolTip(
-                f"{self.folder_path}\n"
-                "Klick markiert den Ordner (dann rechts das Ziel anklicken), "
-                "Doppelklick öffnet ihn, Ziehen verschiebt ihn (Strg: kopiert).\n"
-                "PDFs hierher ziehen verschiebt sie."
+                tr(
+                    "{folder_path}\nKlick markiert den Ordner (dann rechts das Ziel "
+                    "anklicken), Doppelklick öffnet ihn, Ziehen verschiebt ihn (Strg: "
+                    "kopiert).\nPDFs hierher ziehen verschiebt sie."
+                ).format(folder_path=self.folder_path)
             )
 
     @property
@@ -183,7 +187,7 @@ class FolderTileWidget(QFrame):
 
     def _count_text(self) -> str:
         if self.is_parent:
-            return "übergeordneter Ordner"
+            return tr("übergeordneter Ordner")
         if self._pdf_count is None:
             return ""
         return f"{self._pdf_count} {'PDF' if self._pdf_count == 1 else 'PDFs'}"
@@ -263,8 +267,8 @@ class FolderTileWidget(QFrame):
         menu = QMenu(self)
         if not self.is_parent:
             # Issue #196: den ganzen Ordner verschieben/kopieren (Untermenue mit Vorschlaegen)
-            self._ordner_ziel_menue(menu, "📁 Ordner verschieben nach …", False)
-            self._ordner_ziel_menue(menu, "📁 Ordner kopieren nach …", True)
+            self._ordner_ziel_menue(menu, tr("📁 Ordner verschieben nach …"), False)
+            self._ordner_ziel_menue(menu, tr("📁 Ordner kopieren nach …"), True)
             menu.addSeparator()
             kopier_eintrag(
                 menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path)
@@ -273,11 +277,11 @@ class FolderTileWidget(QFrame):
             verschieben_eintrag(
                 menu, self.auswahl_pruefer, lambda: self.move_here_requested.emit(self.folder_path)
             )
-            menu.addAction("🌳 Rechts im Baum zeigen").triggered.connect(
+            menu.addAction(tr("🌳 Rechts im Baum zeigen")).triggered.connect(
                 lambda: self.show_in_tree_requested.emit(self.folder_path)
             )
             drin = bool(self.ziel_pruefer and self.ziel_pruefer(self.folder_path))
-            menu.addAction("Aus Zielliste entfernen" if drin else "⭐ Als Zielordner merken").triggered.connect(
+            menu.addAction(tr("Aus Zielliste entfernen") if drin else tr("⭐ Als Zielordner merken")).triggered.connect(
                 lambda: self.target_toggle_requested.emit(self.folder_path)
             )
             menu.addSeparator()
@@ -305,10 +309,10 @@ class FolderTileWidget(QFrame):
                     )
                 )
         else:
-            leer = untermenue.addAction("(noch keine Vorschläge)")
+            leer = untermenue.addAction(tr("(noch keine Vorschläge)"))
             leer.setEnabled(False)
         untermenue.addSeparator()
-        waehlen = untermenue.addAction("Anderen Ordner wählen …")
+        waehlen = untermenue.addAction(tr("Anderen Ordner wählen …"))
         waehlen.triggered.connect(lambda: self.ordner_ziel_waehlen.emit(self.folder_path, kopieren))
         return untermenue
 

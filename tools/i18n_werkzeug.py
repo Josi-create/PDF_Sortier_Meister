@@ -264,7 +264,7 @@ def _sieht_nach_prosa_aus(text: str) -> bool:
     if re.search(r"[äöüÄÖÜß…]", kern):
         return True
     # Einzelnes Wort: nur mit großem Anfangsbuchstaben und ohne Bezeichner-Zeichen
-    if re.fullmatch(r"[A-ZÄÖÜ][a-zäöüß]{2,}[:.!?…]*", kern):
+    if re.fullmatch(r"[A-ZÄÖÜ][A-Za-zäöüß]*[a-zäöüß][A-Za-zäöüß]*(-[A-Za-zäöüßÄÖÜ]+)*[:.!?…]*", kern):
         return True
     return False
 
@@ -322,13 +322,19 @@ class NichtUmstellbar(Exception):
 
 
 def _feldname(expr: ast.expr) -> str | None:
+    if (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name)
+            and expr.func.id == "len" and not expr.keywords):
+        return "anzahl"
+    if (isinstance(expr, ast.Subscript) and isinstance(expr.slice, ast.Constant)
+            and isinstance(expr.slice.value, str) and expr.slice.value.isidentifier()):
+        return expr.slice.value
     if isinstance(expr, ast.Name):
         name = expr.id
     elif isinstance(expr, ast.Attribute):
         name = expr.attr
     else:
         return None
-    name = name.lstrip("_")
+    name = name.strip("_")
     if not name or not name.isidentifier() or name[0].isdigit():
         return None
     return name
@@ -402,18 +408,24 @@ def _py_literal(text: str) -> str:
 
 def _literal_umbrochen(text: str, einzug: int, breite: int = 96) -> str:
     """Python-Literal, bei Bedarf als mehrere nebeneinanderstehende Zeichenketten."""
-    if len(text) + einzug <= breite and text.count("\n") <= 1:
+    if len(_py_literal(text)) + einzug + 4 <= breite:
         return _py_literal(text)
+    grenze = max(breite - einzug - 8, 40)
     stuecke: list[str] = []
-    for absatz in re.split(r"(?<=\n)", text):
-        while len(absatz) > breite - einzug - 6:
-            schnitt = absatz.rfind(" ", 0, breite - einzug - 6)
-            if schnitt <= 0:
-                break
-            stuecke.append(absatz[: schnitt + 1])
-            absatz = absatz[schnitt + 1:]
-        if absatz:
-            stuecke.append(absatz)
+    aktuell = ""
+    # An Zeilenumbrüchen und Leerzeichen teilen, Stücke bis zur Grenze auffüllen
+    for teil in re.findall(r"[^ \n]*(?:\n+| +|$)", text):
+        if not teil:
+            continue
+        if aktuell and len(_py_literal(aktuell + teil)) - 2 > grenze:
+            stuecke.append(aktuell)
+            aktuell = ""
+        aktuell += teil
+        if aktuell.endswith("\n") and len(aktuell) > grenze // 2:
+            stuecke.append(aktuell)
+            aktuell = ""
+    if aktuell:
+        stuecke.append(aktuell)
     if len(stuecke) <= 1:
         return _py_literal(text)
     innen = " " * (einzug + 4)
@@ -446,7 +458,7 @@ def _gleichwertig(node: ast.expr, neu: str) -> bool:
     """Prüft mit Probewerten, dass alter und neuer Ausdruck denselben Text liefern."""
     if isinstance(node, ast.Constant):
         try:
-            return ast.literal_eval(neu[3:-1]) == node.value
+            return ast.literal_eval("(" + neu[3:-1] + ")") == node.value
         except Exception:  # noqa: BLE001
             return False
     alt_baum = ast.parse(ast.unparse(node), mode="eval")
@@ -746,6 +758,7 @@ def _escape(text: str) -> str:
 
 
 def _unescape(text: str) -> str:
+    text = text.replace("␣", " ")  # Leerzeichen am Rand, das Editoren sonst abschneiden
     return re.sub(
         r"\\(.)", lambda m: {"n": "\n", "t": "\t", "\\": "\\"}.get(m.group(1), m.group(0)), text
     )
@@ -776,10 +789,8 @@ def pruefe_paar(deutsch: str, uebersetzt: str) -> list[str]:
         maengel.append("Platzhalter weichen ab")
     if deutsch.count("{{") != uebersetzt.count("{{") or deutsch.count("}}") != uebersetzt.count("}}"):
         maengel.append("geschweifte Klammern weichen ab")
-    if ("&" in deutsch.replace("&&", "").replace("&amp;", "").replace("&nbsp;", "")
-            .replace("&lt;", "").replace("&gt;", "").replace("&quot;", "")) != (
-        "&" in uebersetzt.replace("&&", "").replace("&amp;", "").replace("&nbsp;", "")
-            .replace("&lt;", "").replace("&gt;", "").replace("&quot;", "")):
+    kuerzel = re.compile(r"&(?![&#]|amp;|nbsp;|lt;|gt;|quot;)\w")
+    if bool(kuerzel.search(deutsch)) != bool(kuerzel.search(uebersetzt)):
         maengel.append("Tastenkürzel (&) weicht ab")
     if len(deutsch) - len(deutsch.lstrip()) != len(uebersetzt) - len(uebersetzt.lstrip()) or len(
         deutsch
@@ -793,7 +804,18 @@ def pruefe_paar(deutsch: str, uebersetzt: str) -> list[str]:
 
 
 def cmd_eintragen(args: argparse.Namespace) -> int:
-    offene = _offene(args.sprache)
+    if args.stand:
+        # Nummern beziehen sich auf eine gespeicherte Ausgabe von "offen"
+        offene = []
+        for zeile in Path(args.stand).read_text(encoding="utf-8").splitlines():
+            _, _, deutsch = zeile.partition("\t")
+            treffer = re.match(r"\[([^\]]+)\] (.*)", deutsch, re.DOTALL)
+            if treffer:
+                offene.append((treffer.group(1), _unescape(treffer.group(2))))
+            else:
+                offene.append((None, _unescape(deutsch)))
+    else:
+        offene = _offene(args.sprache)
     uebersetzungen, kopf = _po_laden(args.sprache)
     fehler = 0
     for zeile in Path(args.datei).read_text(encoding="utf-8").splitlines():
@@ -852,6 +874,7 @@ def main() -> int:
     p = sub.add_parser("eintragen")
     p.add_argument("datei")
     p.add_argument("--sprache", default="en")
+    p.add_argument("--stand", help="gespeicherte Ausgabe von 'offen', auf die sich die Nummern beziehen")
     p.set_defaults(func=cmd_eintragen)
 
     args = parser.parse_args()
