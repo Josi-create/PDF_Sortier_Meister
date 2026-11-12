@@ -34,6 +34,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Beispieltexte unter „Persönliche Daten“**: Die grauen Beispiele in den Eingabefeldern zeigen
   jetzt erfundene Angaben (Max Mustermann, Initialen MM).
 
+### Behoben
+- **Einstellungen, Reiter „Allgemein“ wieder lesbar**: Auf Bildschirmen, die niedriger sind als
+  der Reiter, lagen Häkchen, Auswahllisten und Texte zusammengequetscht übereinander. Der Reiter
+  scrollt jetzt (wie „KI-Assistent“ und „Suche“), und der Dialog öffnet höchstens so hoch wie
+  90 % des Bildschirms. (#235)
+
 ## [0.26.2] - 2026-11-10
 
 ### Neu
