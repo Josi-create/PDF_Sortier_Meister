@@ -76,7 +76,7 @@ def test_bilder_erscheinen_als_kacheln_mit_vorschaubild(qtbot, main_window, scan
     for name in ("a.jpg", "b.PNG", "c.tif", "d.bmp", "e.gif", "f.webp"):
         _bild(scan / name)
     (scan / "g.heic").write_bytes(b"x")  # ohne pillow-heif ignoriert
-    (scan / "h.txt").write_text("x")
+    (scan / "h.csv").write_text("x")
     main_window._navigate_to_folder(scan)
     kacheln = main_window.office_widgets
     assert sorted(w.pdf_path.name for w in kacheln) == ["a.jpg", "b.PNG", "c.tif", "d.bmp", "e.gif", "f.webp"]
