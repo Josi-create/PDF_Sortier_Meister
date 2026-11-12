@@ -88,6 +88,7 @@ class StatusAbfrage(QThread):
                 "steuerjahr": self.index.werte("steuerjahr", absteigend=True),
                 "kategorie": self.index.werte("kategorie"),
                 "korrespondent": self.index.werte("korrespondent"),
+                "schlagwort": self.index.schlagwoerter(),
             }
         except Exception as e:  # noqa: BLE001
             status = {"vorhanden": False, "fehler": str(e)}

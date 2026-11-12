@@ -737,8 +737,14 @@ def fts_abfrage(text: str) -> str:
 
 def _filter(typ=None, ordner=None, von=None, bis=None, status=None, steuerjahr=None, kategorie=None,
             korrespondent=None, betrag_von=None, betrag_bis=None, pdf_id=None, steuerjahr_von=None,
-            steuerjahr_bis=None) -> tuple[str, list]:
+            steuerjahr_bis=None, schlagwort=None) -> tuple[str, list]:
     sql, args = [], []
+    schlagwort = _schlagwort_sauber(schlagwort)
+    if schlagwort:
+        # Issue #231: das Schlagwort selbst oder eine Unterebene (Steuer -> Steuer/Werbungskosten);
+        # instr unterscheidet Gross-/Kleinschreibung, das automatische Stichwort "steuer" zaehlt nicht
+        sql.append(f"(instr({_SCHLAGWORT_LISTE}, ?) > 0 OR instr({_SCHLAGWORT_LISTE}, ?) > 0)")
+        args += [f",{schlagwort},", f",{schlagwort}/"]
     if typ:
         typen = [t.strip() for t in str(typ).split(",") if t.strip()]
         sql.append(f"d.typ IN ({','.join('?' * len(typen))})")
@@ -780,6 +786,34 @@ def _filter(typ=None, ordner=None, von=None, bis=None, status=None, steuerjahr=N
     return (" AND " + " AND ".join(sql)) if sql else "", args
 
 
+# Spalte schlagwoerter als ",a,b/c," - Trenner Komma oder Semikolon, mit oder ohne Leerzeichen
+_SCHLAGWORT_LISTE = ("(',' || replace(replace(replace(coalesce(d.schlagwoerter, ''), ';', ','), ', ', ','), "
+                     "' ,', ',') || ',')")
+
+
+def _schlagwort_sauber(schlagwort) -> str:
+    from src.core.schlagwoerter import mit_oberebenen
+
+    stufen = mit_oberebenen(str(schlagwort)) if schlagwort else []
+    return stufen[-1] if stufen else ""
+
+
+def schlagwoerter(con) -> list[tuple[str, int]]:
+    """Schlagwoerter des Nutzers samt Oberebenen mit ihrer Dokumentzahl, haeufigste zuerst (Issue #231).
+
+    Die automatischen Stichwoerter der Analyse (``rechnung``, ``bank``, ...) zaehlen nicht mit.
+    """
+    from src.core.schlagwoerter import zaehlen
+
+    anzahl: dict[str, int] = {}
+    for wert, n in con.execute(
+            "SELECT schlagwoerter, count(*) FROM dokumente WHERE schlagwoerter IS NOT NULL AND schlagwoerter != '' "
+            "GROUP BY schlagwoerter"):
+        for wort in zaehlen([wert]):
+            anzahl[wort] = anzahl.get(wort, 0) + n
+    return sorted(anzahl.items(), key=lambda kv: (-kv[1], kv[0].casefold()))
+
+
 def _zeit(datum: str) -> float:
     datum = str(datum).strip()
     for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%Y"):
@@ -793,7 +827,7 @@ def _zeit(datum: str) -> float:
 def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortierung="relevanz",
           anzahl=30, start=0, max_stellen=3, nur_namen=False, steuerjahr=None, kategorie=None,
           korrespondent=None, betrag_von=None, betrag_bis=None, pdf_id=None, steuerjahr_von=None,
-          steuerjahr_bis=None) -> dict:
+          steuerjahr_bis=None, schlagwort=None) -> dict:
     """Volltextsuche. Liefert ``{'treffer': [...], 'gesamt': n, 'mehr': bool, 'abfrage': fts, 'dauer_ms': ms}``.
 
     Ausschnitte enthalten die Marker ``\\x02`` (Beginn) und ``\\x03`` (Ende) um Fundstellen.
@@ -803,7 +837,7 @@ def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortieru
     Dokumente, die zu den Filtern passen (neueste zuerst bzw. nach ``sortierung``).
     """
     filt, fargs = _filter(typ, ordner, von, bis, None, steuerjahr, kategorie, korrespondent, betrag_von, betrag_bis,
-                          pdf_id, steuerjahr_von, steuerjahr_bis)
+                          pdf_id, steuerjahr_von, steuerjahr_bis, schlagwort)
     t0 = time.perf_counter()
     if not (abfrage or "").strip():
         return _nur_filter(con, filt, fargs, sortierung, anzahl, start, t0)

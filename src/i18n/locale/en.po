@@ -917,6 +917,10 @@ msgid "MwSt-Satz"
 msgstr "VAT rate"
 
 #: src/gui/detail_panel.py
+msgid "Schlagwörter"
+msgstr "Tags"
+
+#: src/gui/detail_panel.py
 #: src/gui/rename_dialog.py
 msgid "Zusammenfassung"
 msgstr "Summary"
@@ -954,8 +958,16 @@ msgid "Steuerjahr, dem dieses Dokument zugeordnet wird."
 msgstr "Tax year this document is assigned to."
 
 #: src/gui/detail_panel.py
+msgid "Zusätzliche Themen neben dem Ordner, mehrere durch Komma getrennt.\nEbenen mit Schrägstrich: „Steuer/Werbungskosten“ wird auch unter „Steuer“ gefunden.\nBeim Tippen erscheinen die schon benutzten Schlagwörter."
+msgstr "Additional topics besides the folder, several separated by commas.\nLevels with a slash: “Tax/Work expenses” is also found under “Tax”.\nWhile you type, the tags already in use are suggested."
+
+#: src/gui/detail_panel.py
 msgid "Kurze Zusammenfassung des Dokumentinhalts."
 msgstr "Short summary of the document's content."
+
+#: src/gui/detail_panel.py
+msgid "z. B. Steuer/Werbungskosten, Haus"
+msgstr "e.g. Tax/Work expenses, House"
 
 #: src/gui/detail_panel.py
 #: src/gui/stapel_ablage.py
@@ -3104,6 +3116,16 @@ msgstr "Correspondent:"
 #: src/gui/main_window.py
 msgid "Nur Dokumente dieses Korrespondenten anzeigen"
 msgstr "Show only documents of this correspondent"
+
+#: src/gui/main_window.py
+#: src/gui/search_view.py
+msgid "Schlagwort:"
+msgstr "Tag:"
+
+#: src/gui/main_window.py
+#: src/gui/search_view.py
+msgid "Nur Dokumente mit diesem Schlagwort anzeigen; Unterebenen zählen mit\n(„Steuer“ findet auch „Steuer/Werbungskosten“)"
+msgstr "Show only documents with this tag; sub-levels are included\n(“Tax” also finds “Tax/Work expenses”)"
 
 #: src/gui/main_window.py
 msgid "Filter zurücksetzen"
@@ -5284,18 +5306,6 @@ msgid "E-Mail-Adressen:"
 msgstr "E-mail addresses:"
 
 #: src/gui/settings_dialog.py
-msgid "Darstellung"
-msgstr "Display"
-
-#: src/gui/settings_dialog.py
-msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."
-msgstr "You set the size of the tiles (Small / Medium / Large) directly above the scan area under “View”."
-
-#: src/gui/settings_dialog.py
-msgid "Max. Vorschläge:"
-msgstr "Max. suggestions:"
-
-#: src/gui/settings_dialog.py
 msgid "Automatisch (Sprache des Systems)"
 msgstr "Automatic (system language)"
 
@@ -5310,6 +5320,18 @@ msgstr "Language:"
 #: src/gui/settings_dialog.py
 msgid "Eine andere Sprache gilt nach dem Neustart des Programms."
 msgstr "A different language takes effect after restarting the program."
+
+#: src/gui/settings_dialog.py
+msgid "Darstellung"
+msgstr "Display"
+
+#: src/gui/settings_dialog.py
+msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."
+msgstr "You set the size of the tiles (Small / Medium / Large) directly above the scan area under “View”."
+
+#: src/gui/settings_dialog.py
+msgid "Max. Vorschläge:"
+msgstr "Max. suggestions:"
 
 #: src/gui/settings_dialog.py
 msgid "Neue Ordner vorschlagen"

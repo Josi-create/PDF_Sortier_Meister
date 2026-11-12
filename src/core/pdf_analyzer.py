@@ -270,6 +270,23 @@ def ocr_wiederholen(pdf_path: Path | str, sprachen: str, abbrechen=None) -> dict
     return erg
 
 
+# Wichtige Kategorien und ihre Schlüsselwörter (PDFAnalyzer.extract_keywords). Die Schlüssel
+# stehen als automatische Stichwörter in pdf:Keywords; src/core/schlagwoerter.py kennt sie,
+# um sie von den Schlagwörtern des Nutzers zu trennen (Issue #231).
+KEYWORD_PATTERNS = {
+    "rechnung": ["rechnung", "invoice", "rechnungsnummer", "rechnungsbetrag", "zahlbar"],
+    "vertrag": ["vertrag", "vereinbarung", "contract", "laufzeit", "kündigung"],
+    "steuer": ["steuer", "finanzamt", "steuernummer", "steuererklärung", "einkommensteuer"],
+    "versicherung": ["versicherung", "police", "versicherungsnummer", "beitrag", "prämie"],
+    "bank": ["bank", "konto", "kontoauszug", "überweisung", "iban", "bic"],
+    "gehalt": ["gehalt", "lohn", "gehaltsabrechnung", "brutto", "netto", "lohnabrechnung"],
+    "arzt": ["arzt", "patient", "diagnose", "rezept", "krankenhaus", "praxis"],
+    "handwerker": ["handwerker", "reparatur", "montage", "material", "arbeitslohn"],
+    "energie": ["strom", "gas", "energie", "verbrauch", "zählerstand", "kwh"],
+    "telefon": ["telefon", "mobilfunk", "internet", "tarif", "anschluss"],
+}
+
+
 class PDFAnalyzer:
     """Analysiert PDF-Dateien und extrahiert Informationen."""
 
@@ -557,22 +574,8 @@ class PDFAnalyzer:
         """
         text = self.extract_text().lower()
 
-        # Wichtige Kategorien und ihre Schlüsselwörter
-        keyword_patterns = {
-            "rechnung": ["rechnung", "invoice", "rechnungsnummer", "rechnungsbetrag", "zahlbar"],
-            "vertrag": ["vertrag", "vereinbarung", "contract", "laufzeit", "kündigung"],
-            "steuer": ["steuer", "finanzamt", "steuernummer", "steuererklärung", "einkommensteuer"],
-            "versicherung": ["versicherung", "police", "versicherungsnummer", "beitrag", "prämie"],
-            "bank": ["bank", "konto", "kontoauszug", "überweisung", "iban", "bic"],
-            "gehalt": ["gehalt", "lohn", "gehaltsabrechnung", "brutto", "netto", "lohnabrechnung"],
-            "arzt": ["arzt", "patient", "diagnose", "rezept", "krankenhaus", "praxis"],
-            "handwerker": ["handwerker", "reparatur", "montage", "material", "arbeitslohn"],
-            "energie": ["strom", "gas", "energie", "verbrauch", "zählerstand", "kwh"],
-            "telefon": ["telefon", "mobilfunk", "internet", "tarif", "anschluss"],
-        }
-
         found_keywords = []
-        for category, keywords in keyword_patterns.items():
+        for category, keywords in KEYWORD_PATTERNS.items():
             for keyword in keywords:
                 if keyword in text:
                     if category not in found_keywords:

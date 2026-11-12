@@ -40,7 +40,9 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 from src.core import datum_eingabe
+from src.core import schlagwoerter as schlagwort_regeln
 from src.core.document_date import is_iso_date, parse_user_date
+from src.gui.schlagwort_feld import SchlagwortFeld
 from src.i18n import tr
 
 
@@ -237,6 +239,9 @@ class DetailPanel(QWidget):
         self._llm_timer = QTimer(self)
         self._llm_timer.setInterval(1000)
         self._llm_timer.timeout.connect(self._tick_llm_button)
+        # Schon benutzte Schlagwoerter (Issue #231): einmal aus dem Suchindex geladen,
+        # danach um die selbst gespeicherten ergaenzt (der Index folgt verzoegert)
+        self._schlagwort_wahl: Optional[list[str]] = None
 
         # Feste Größenpolitik: Panel ändert seine Größe nicht beim Befüllen
         from PyQt6.QtWidgets import QSizePolicy
@@ -419,9 +424,10 @@ class DetailPanel(QWidget):
             ("waehrung", tr("Währung")),
             ("mwst_satz", tr("MwSt-Satz")),
             ("iban", "IBAN"),
+            ("schlagwoerter", tr("Schlagwörter")),  # Issue #231
             ("description", tr("Zusammenfassung")),
         ]
-        single_count = len(metadata_fields) - 1  # alle ausser der Zusammenfassung
+        single_count = len(metadata_fields) - 2  # alle ausser Schlagwoertern und Zusammenfassung
         # Kurze Erklärung je Feld (Issue #51) - hilft neuen Nutzern, die
         # Bedeutung der Metadaten-Felder ohne Nachfragen zu verstehen.
         field_tooltips = {
@@ -438,12 +444,17 @@ class DetailPanel(QWidget):
             "mwst_satz": tr("Mehrwertsteuersatz in Prozent (z.B. 19)."),
             "iban": tr("IBAN, falls im Dokument vorhanden."),
             "steuerjahr": tr("Steuerjahr, dem dieses Dokument zugeordnet wird."),
+            "schlagwoerter": (
+                tr("Zusätzliche Themen neben dem Ordner, mehrere durch Komma getrennt.\n"
+                "Ebenen mit Schrägstrich: „Steuer/Werbungskosten“ wird auch unter „Steuer“ gefunden.\n"
+                "Beim Tippen erscheinen die schon benutzten Schlagwörter.")
+            ),
             "description": tr("Kurze Zusammenfassung des Dokumentinhalts."),
         }
 
         # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
         # Datum|Steuerjahr, Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt,
-        # IBAN (allein, volle Breite); die Zusammenfassung laeuft ueber die volle Breite.
+        # IBAN (allein, volle Breite); Schlagwoerter und Zusammenfassung laufen ueber die volle Breite.
         grid = QGridLayout()
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(3)
@@ -461,7 +472,14 @@ class DetailPanel(QWidget):
                 input_field.setStyleSheet("font-size: 11px; padding: 2px;")
                 input_field.setFixedHeight(58)  # drei Zeilen
                 label.setAlignment(Qt.AlignmentFlag.AlignTop)
-                row_idx = (idx + 1) // 2  # unter den Paaren
+                row_idx = (single_count + 1) // 2 + 1  # unter den Paaren und den Schlagwoertern
+                grid.addWidget(label, row_idx, 0)
+                grid.addWidget(input_field, row_idx, 1, 1, 3)
+            elif field_key == "schlagwoerter":
+                input_field = SchlagwortFeld()
+                input_field.setPlaceholderText(tr("z. B. Steuer/Werbungskosten, Haus"))
+                input_field.setStyleSheet("font-size: 10px; padding: 2px;")
+                row_idx = (single_count + 1) // 2  # unter den Paaren
                 grid.addWidget(label, row_idx, 0)
                 grid.addWidget(input_field, row_idx, 1, 1, 3)
             else:
@@ -689,6 +707,7 @@ class DetailPanel(QWidget):
         # Vorschläge befüllen (nach den Metadaten: die Muster-Vorschlaege
         # rendern aus den Feldern)
         self._load_category_choices()
+        self._load_schlagwort_choices()
         self.refresh_settings()
         self._populate_suggestions()
 
@@ -837,6 +856,9 @@ class DetailPanel(QWidget):
             if field_key == "buchungsdatum":
                 # Nur ein lesbares Datum wird gespeichert - als JJJJ-MM-TT
                 value = _datum_iso(value) or ""
+            elif field_key == "schlagwoerter":
+                # Normalform: "Steuer/Werbungskosten, Haus" (ohne doppelte, ohne leere Eintraege)
+                value = schlagwort_regeln.als_text(schlagwort_regeln.aus_eingabe(value))
             if value:
                 metadata[field_key] = value
         return metadata
@@ -857,6 +879,10 @@ class DetailPanel(QWidget):
         if self._metadata_source == "user":
             return True
         return self.name_input.text().strip() != self._auto_name
+
+    def hat_gespeicherte_schlagwoerter(self) -> bool:
+        """Stehen in der angezeigten PDF Schlagwoerter? Dann heisst ein leeres Feld "entfernen"."""
+        return bool(self._saved_metadata_snapshot.get("schlagwoerter"))
 
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
@@ -919,6 +945,7 @@ class DetailPanel(QWidget):
             "mwst_satz": pdf_meta.mwst_satz,
             "steuerjahr": pdf_meta.steuerjahr,
             "description": pdf_meta.description,
+            "schlagwoerter": pdf_meta.schlagwoerter,
         }
         pdf_keys = set()
         for key, value in field_map.items():
@@ -961,6 +988,7 @@ class DetailPanel(QWidget):
         self._saved_metadata_snapshot = self.get_metadata()
         self._pdf_field_keys = set(self._saved_metadata_snapshot.keys())
         self._remember_category()
+        self._remember_schlagwoerter()
         self._refresh_save_btn()
 
     def _on_metadata_user_edit(self, *args):
@@ -1308,6 +1336,28 @@ class DetailPanel(QWidget):
         widget = self._metadata_inputs.get("subject")
         if isinstance(widget, _CategoryCombo):
             widget.set_choices(category_choices(recent, top))
+
+    def _load_schlagwort_choices(self):
+        """Vorschlagsliste der Schlagwoerter: die schon benutzten (einmal je Sitzung geladen)."""
+        widget = self._metadata_inputs.get("schlagwoerter")
+        if not isinstance(widget, SchlagwortFeld):
+            return
+        if self._schlagwort_wahl is None:
+            self._schlagwort_wahl = schlagwort_regeln.benutzte()
+        widget.set_choices(self._schlagwort_wahl)
+
+    def _remember_schlagwoerter(self):
+        """Gerade gespeicherte Schlagwoerter sofort in die Vorschlagsliste aufnehmen."""
+        widget = self._metadata_inputs.get("schlagwoerter")
+        if not isinstance(widget, SchlagwortFeld):
+            return
+        bekannt = list(self._schlagwort_wahl or [])
+        for wort in schlagwort_regeln.aus_eingabe(widget.text()):
+            for stufe in schlagwort_regeln.mit_oberebenen(wort):
+                if stufe not in bekannt:
+                    bekannt.append(stufe)
+        self._schlagwort_wahl = sorted(bekannt, key=str.casefold)
+        widget.set_choices(self._schlagwort_wahl)
 
     def _remember_category(self):
         """Die gerade gespeicherte Kategorie nach vorn in die Aufklappliste."""
@@ -1829,6 +1879,11 @@ class DetailPanel(QWidget):
                         widget = self._metadata_inputs.get(key)
                         if key == "korrespondent" and value:
                             value = self._kanonisch(str(value))  # Issue #160
+                        if key == "schlagwoerter" and widget:
+                            # Issue #231: KI-Vorschlaege kommen dazu, eigene Schlagwoerter bleiben
+                            value = schlagwort_regeln.als_text(
+                                schlagwort_regeln.aus_eingabe(widget.text())
+                                + schlagwort_regeln.aus_eingabe(value))
                         if widget:
                             if isinstance(widget, QPlainTextEdit):
                                 widget.setPlainText(str(value))
