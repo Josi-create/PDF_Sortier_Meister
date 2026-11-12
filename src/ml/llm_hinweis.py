@@ -26,6 +26,10 @@ _NUR_DOKUMENT = (
     "keinen vorschlag",
     "keinen dateinamen",
     "nur aus ungueltigen zeichen",
+    # dieselben Meldungen in der englischen Oberflaeche (src/i18n/locale/en.po)
+    "not return a suggestion",
+    "not return a file name",
+    "only of invalid characters",
 )
 
 
@@ -53,7 +57,7 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
                 "starten."
             ).format(provider=provider),
         )
-    if _enthaelt(text, "nicht installiert", "not found, try pulling", "model not found",
+    if _enthaelt(text, "nicht installiert", "is not installed", "not found, try pulling", "model not found",
                  "does not exist", "no such model"):
         return KIHinweis(
             tr("Das Modell {modell_name} gibt es bei {provider} nicht.").format(modell_name=modell_name, provider=provider),
@@ -91,7 +95,7 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
             tr("{provider} antwortet zu langsam.").format(provider=provider),
             tr("Kurz warten oder in den Einstellungen ein schnelleres Modell wählen."),
         )
-    if _enthaelt(text, "verbindung", "nicht erreichbar", "connection", "refused",
+    if _enthaelt(text, "verbindung", "nicht erreichbar", "not reachable", "connection", "refused",
                  "10061", "getaddrinfo", "name or service", "unreachable"):
         if server:
             return KIHinweis(

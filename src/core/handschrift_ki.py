@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable, Optional
+from src.i18n import tr
 
 # Hoechstens so viele Seiten je Aufruf: jede Seite ist ein Bild und kostet Zeit (lokal) bzw. Geld (Cloud)
 MAX_SEITEN = 10
@@ -30,11 +31,11 @@ PROMPT = (
 )
 
 HILFE_TEXT = (
-    "Für „Handschrift mit KI entziffern“ braucht der KI-Assistent ein Modell, das Bilder versteht.\n\n"
+    tr("Für „Handschrift mit KI entziffern“ braucht der KI-Assistent ein Modell, das Bilder versteht.\n\n"
     "Möglich sind:\n"
     "• Ollama mit einem Vision-Modell, z. B. qwen2.5vl, llama3.2-vision oder llava\n"
     "• ein Cloud-Anbieter wie Claude, OpenAI oder OpenRouter mit einem Modell, das Bilder versteht\n\n"
-    "Stellen Sie das in den Einstellungen auf der Seite „KI-Assistent (LLM)“ ein."
+    "Stellen Sie das in den Einstellungen auf der Seite „KI-Assistent (LLM)“ ein.")
 )
 
 
@@ -42,14 +43,14 @@ def vision_bereit(classifier) -> tuple[Optional[object], str]:
     """Prueft, ob der eingestellte KI-Anbieter Bilder lesen kann: ``(provider, "")`` oder ``(None, Grund)``."""
     provider = getattr(classifier, "llm_provider", None)
     if provider is None or not classifier.is_llm_available():
-        return None, "Es ist kein KI-Anbieter eingestellt (oder er ist ausgeschaltet)."
+        return None, tr("Es ist kein KI-Anbieter eingestellt (oder er ist ausgeschaltet).")
     if not provider.supports_vision():
         getter = getattr(provider, "_get_model_id", None)
         modell = getter() if callable(getter) else getattr(provider.config, "model", "")
         wer = classifier.get_llm_provider_name()
         if modell:
-            return None, f"Das Modell „{modell}“ ({wer}) versteht keine Bilder."
-        return None, f"{wer} ist als Bildleser nicht möglich."
+            return None, tr("Das Modell „{modell}“ ({wer}) versteht keine Bilder.").format(modell=modell, wer=wer)
+        return None, tr("{wer} ist als Bildleser nicht möglich.").format(wer=wer)
     return provider, ""
 
 
@@ -60,7 +61,7 @@ def seiten_als_bilder(pdf_path: Path | str, max_seiten: int = MAX_SEITEN) -> tup
     doc = pymupdf.open(str(pdf_path))
     try:
         if doc.needs_pass and not doc.authenticate(""):
-            raise RuntimeError("Die PDF ist verschlüsselt.")
+            raise RuntimeError(tr("Die PDF ist verschlüsselt."))
         gesamt = doc.page_count
         bilder: list[bytes] = []
         for i in range(min(gesamt, max_seiten)):
@@ -92,7 +93,7 @@ def entziffern(
     try:
         bilder, gesamt = seiten_als_bilder(pdf_path, max_seiten)
     except Exception as e:  # noqa: BLE001 - dem Nutzer melden
-        erg["fehler"] = f"Die Seiten konnten nicht gerendert werden: {e}"
+        erg["fehler"] = tr("Die Seiten konnten nicht gerendert werden: {e}").format(e=e)
         return erg
     erg["gesamt"] = gesamt
     erg["gekuerzt"] = gesamt > len(bilder)
@@ -158,10 +159,10 @@ def text_uebernehmen(pdf_path: Path | str, texte: dict[int, str]) -> dict:
     pfad = str(pdf_path)
     gelesen = suche_extract.pdf_text(pfad, index.konfig.ocr_min_zeichen)
     if gelesen["status"] in ("fehler", "verschluesselt"):
-        erg["fehler"] = gelesen.get("fehler") or "Die PDF ist verschlüsselt."
+        erg["fehler"] = gelesen.get("fehler") or tr("Die PDF ist verschlüsselt.")
         return erg
     if index.datei_aufnehmen(pfad, erzwingen=True, vorab=gelesen) is None:
-        erg["fehler"] = "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+        erg["fehler"] = tr("Die Datei konnte nicht in den Suchindex aufgenommen werden.")
         return erg
     lesbarkeit = {nr: (n, n) for nr, t in texte.items() for n in [sum(ch.isalnum() for ch in t)]}
     erg["seiten"] = index.ocr_eintragen(pfad, texte, ersetzen=True, lesbarkeit=lesbarkeit, sprachen="ki")

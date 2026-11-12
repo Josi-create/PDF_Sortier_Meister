@@ -19,6 +19,7 @@ from src.ml.llm_provider import (
     WerkzeugAufruf,
     WerkzeugAntwort,
 )
+from src.i18n import tr
 
 
 class ClaudeProvider(LLMProvider):
@@ -107,13 +108,13 @@ class ClaudeProvider(LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="Claude API nicht verfügbar. API-Key prüfen."
+                error_message=tr("Claude API nicht verfügbar. API-Key prüfen.")
             )
 
         if not available_folders:
             return LLMResponse(
                 success=False,
-                error_message="Keine Zielordner verfügbar."
+                error_message=tr("Keine Zielordner verfügbar.")
             )
 
         prompt = self._build_classification_prompt(
@@ -140,7 +141,7 @@ class ClaudeProvider(LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
@@ -164,22 +165,22 @@ class ClaudeProvider(LLMProvider):
         except self._anthropic.APIConnectionError:
             return LLMResponse(
                 success=False,
-                error_message="Keine Verbindung zur Claude API."
+                error_message=tr("Keine Verbindung zur Claude API.")
             )
         except self._anthropic.RateLimitError:
             return LLMResponse(
                 success=False,
-                error_message="Claude API Rate-Limit erreicht. Bitte später versuchen."
+                error_message=tr("Claude API Rate-Limit erreicht. Bitte später versuchen.")
             )
         except self._anthropic.AuthenticationError:
             return LLMResponse(
                 success=False,
-                error_message="Ungültiger Claude API-Key."
+                error_message=tr("Ungültiger Claude API-Key.")
             )
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"Claude API Fehler: {str(e)}"
+                error_message=tr("Claude API Fehler: {0}").format(str(e))
             )
 
     def suggest_filename(
@@ -211,7 +212,7 @@ class ClaudeProvider(LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message="Claude API nicht verfügbar. API-Key prüfen."
+                error_message=tr("Claude API nicht verfügbar. API-Key prüfen.")
             )
 
         prompt = self._build_filename_prompt(
@@ -239,7 +240,7 @@ class ClaudeProvider(LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Dateiname validieren
@@ -261,7 +262,7 @@ class ClaudeProvider(LLMProvider):
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"Claude API Fehler: {str(e)}"
+                error_message=tr("Claude API Fehler: {0}").format(str(e))
             )
 
     def _find_similar_folder(
@@ -334,18 +335,18 @@ class ClaudeProvider(LLMProvider):
                 detail = e.read().decode("utf-8", errors="replace")
             except Exception:
                 detail = ""
-            return None, f"Claude HTTP {e.code}: {detail}"
+            return None, tr("Claude HTTP {code}: {detail}").format(code=e.code, detail=detail)
         except urllib.error.URLError as e:
-            return None, f"Keine Verbindung zur Claude API: {e.reason}"
+            return None, tr("Keine Verbindung zur Claude API: {reason}").format(reason=e.reason)
         except Exception as e:
-            return None, f"Claude-Fehler: {e}"
+            return None, tr("Claude-Fehler: {e}").format(e=e)
 
     def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
         """Bilder (JPEG) mit Anweisung an Claude schicken (Messages API, ``image``-Bloecke; Issue #47)."""
         import base64
 
         if not self.config.api_key:
-            raise RuntimeError("Für Claude fehlt der API-Schlüssel.")
+            raise RuntimeError(tr("Für Claude fehlt der API-Schlüssel."))
         content = [
             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
                                          "data": base64.b64encode(img).decode("ascii")}}
@@ -365,7 +366,7 @@ class ClaudeProvider(LLMProvider):
         }
         data, error = self._http_post_json(self.MESSAGES_URL, body, headers, timeout=300)
         if error or not data:
-            raise RuntimeError(error or "Leere Antwort von Claude.")
+            raise RuntimeError(error or tr("Leere Antwort von Claude."))
         for block in data.get("content") or []:
             if isinstance(block, dict) and block.get("type") == "text":
                 return block.get("text", "") or ""
@@ -406,7 +407,7 @@ class ClaudeProvider(LLMProvider):
         }
         data, error = self._http_post_json(self.MESSAGES_URL, body, self._api_headers())
         if error or not data:
-            return f"[Claude-Fehler: {error}]"
+            return tr("[Claude-Fehler: {error}]").format(error=error)
 
         content = data.get("content") or []
         # Antwort ist eine Liste von Bloecken; wir suchen den ersten text-Block.
@@ -582,7 +583,7 @@ class ClaudeProvider(LLMProvider):
         des Modells und wird fuer die Instanz gemerkt.
         """
         if not self.config.api_key:
-            return WerkzeugAntwort(fehler="Kein API-Key für Claude hinterlegt.")
+            return WerkzeugAntwort(fehler=tr("Kein API-Key für Claude hinterlegt."))
         try:
             system, messages = self._nachrichten_fuer_api(nachrichten)
             body = {
@@ -609,20 +610,20 @@ class ClaudeProvider(LLMProvider):
                 body["tool_choice"] = {"type": "none"}
             data, error = self._http_post_json(self.MESSAGES_URL, body, self._api_headers())
         except Exception as e:  # Umsetzung oder Aufruf darf nie werfen
-            return WerkzeugAntwort(fehler=f"Claude-Fehler: {e}")
+            return WerkzeugAntwort(fehler=tr("Claude-Fehler: {e}").format(e=e))
 
         if error:
             if werkzeuge and error.startswith("Claude HTTP 400") and "tool" in error.lower():
                 self._werkzeuge_abgelehnt = True
                 return WerkzeugAntwort(
-                    fehler=f"Werkzeuge werden von diesem Modell nicht unterstützt ({error})"
+                    fehler=tr("Werkzeuge werden von diesem Modell nicht unterstützt ({error})").format(error=error)
                 )
             return WerkzeugAntwort(fehler=error)
         if not isinstance(data, dict):
-            return WerkzeugAntwort(fehler="Claude-Antwort unlesbar.")
+            return WerkzeugAntwort(fehler=tr("Claude-Antwort unlesbar."))
         content = data.get("content")
         if not isinstance(content, list):
-            return WerkzeugAntwort(fehler=f"Claude-Antwort ohne Inhalt: {str(data)[:300]}")
+            return WerkzeugAntwort(fehler=tr("Claude-Antwort ohne Inhalt: {0}").format(str(data)[:300]))
 
         texte: list[str] = []
         aufrufe: list[WerkzeugAufruf] = []
@@ -650,7 +651,7 @@ class ClaudeProvider(LLMProvider):
                 ))
         if not texte and not aufrufe:
             return WerkzeugAntwort(
-                fehler=f"Claude lieferte keine Antwort (stop_reason={data.get('stop_reason')}).",
+                fehler=tr("Claude lieferte keine Antwort (stop_reason={0}).").format(data.get('stop_reason')),
                 roh=content,
             )
         return WerkzeugAntwort(text="\n".join(texte), aufrufe=aufrufe, roh=content)

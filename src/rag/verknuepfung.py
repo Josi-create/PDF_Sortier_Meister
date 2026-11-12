@@ -26,6 +26,7 @@ from typing import Optional, Sequence
 from src.core.similar_documents import relative_folder, resolve_relative_folder, year_adjusted_folder
 from src.rag.bezug import KENNUNG_TREFFER_JE, gleicher_pfad, kennungen_aus_text
 from src.rag.retrieval import RetrievalService
+from src.i18n import tr
 
 # Hoechstens so viele verknuepfte Dokumente werden ausgewertet
 MAX_TREFFER = 12
@@ -130,8 +131,11 @@ def ordner_vorschlag_aus_kennungen(
 
     arten = _arten(gemeinsame[bester])
     arten_text = ", ".join(arten) if arten else "Kennung"
-    reason = (f"Verknüpft: gleiche {arten_text} in {n} Dokument{'en' if n != 1 else ''} dieses Ordners"
-              + (" (Jahr angepasst)" if rel_final != rel else ""))
+    reason = (tr("Verknüpft: gleiche {arten_text} in {n} Dokumenten dieses Ordners") if n != 1
+              else tr("Verknüpft: gleiche {arten_text} in {n} Dokument dieses Ordners")).format(
+        arten_text=arten_text, n=n)
+    if rel_final != rel:
+        reason += tr(" (Jahr angepasst)")
     return _suggestion(pfad, confidence, reason, rel_final)
 
 
@@ -144,7 +148,7 @@ def ordner_vorschlag_aus_chat(ordner_pfad, begruendung: str, root_folders: Seque
     rel = relative_folder(pfad, roots)
     if not rel or not pfad.is_dir():
         return None
-    return _suggestion(pfad, 0.9, f"Chat: {begruendung}" if begruendung else "Chat: belegt durch die Antwort", rel)
+    return _suggestion(pfad, 0.9, tr("Chat: {begruendung}").format(begruendung=begruendung) if begruendung else tr("Chat: belegt durch die Antwort"), rel)
 
 
 def belegter_ordner(citations, docs, root_folders: Sequence[Path], ausser=None) -> tuple[str, str, str]:
@@ -186,4 +190,4 @@ def belegter_ordner(citations, docs, root_folders: Sequence[Path], ausser=None) 
     bester, n = zaehler.most_common(1)[0]
     ordner, rel = ordner_pfade[bester]
     nummern = ", ".join(f"[{i}]" for i in sorted(set(belege[bester])))
-    return str(ordner), rel, f"belegt durch {nummern}"
+    return str(ordner), rel, tr("belegt durch {nummern}").format(nummern=nummern)

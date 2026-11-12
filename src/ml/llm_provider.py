@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, Any
 from enum import Enum
+from src.i18n import tr
 
 
 # Provider, die Dokumenteninhalte an externe (Cloud-)Dienste uebertragen.
@@ -464,7 +465,7 @@ class LLMProvider(ABC):
         (Netz, Schluessel, Modell ohne Bilder) wird ``RuntimeError`` mit
         verstaendlichem Text geworfen.
         """
-        raise NotImplementedError(f"{type(self).__name__} unterstützt keine Bildeingabe.")
+        raise NotImplementedError(tr("{name} unterstützt keine Bildeingabe.").format(name=type(self).__name__))
 
     @abstractmethod
     def answer_with_context(
@@ -539,7 +540,7 @@ class LLMProvider(ABC):
             :class:`WerkzeugAntwort`. Verbindungs- und API-Fehler stehen in
             ``fehler`` (keine Exception), damit der Controller zurueckfallen kann.
         """
-        return WerkzeugAntwort(fehler="Werkzeuge werden von diesem Provider nicht unterstützt.")
+        return WerkzeugAntwort(fehler=tr("Werkzeuge werden von diesem Provider nicht unterstützt."))
 
     def _truncate_text(self, text: str, max_chars: int = None) -> str:
         """
@@ -880,16 +881,17 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
         text = (response_text or "").strip()
         truncated = str(finish_reason or "").lower() in ("length", "max_tokens")
         hint = (
-            f"Token-Limit ({self.config.max_tokens}) erreicht. Bitte in den "
-            "Einstellungen 'Max. Tokens' erhoehen oder ein Modell ohne "
-            "Reasoning waehlen."
+            tr(
+                "Token-Limit ({max_tokens}) erreicht. Bitte in den Einstellungen 'Max. "
+                "Tokens' erhoehen oder ein Modell ohne Reasoning waehlen."
+            ).format(max_tokens=self.config.max_tokens)
         )
         if not text:
             if truncated:
-                return f"KI-Antwort leer - {hint}"
-            return "KI-Antwort leer (Modell hat keinen Text geliefert)."
+                return tr("KI-Antwort leer - {hint}").format(hint=hint)
+            return tr("KI-Antwort leer (Modell hat keinen Text geliefert).")
         if truncated:
-            return f"KI-Antwort abgeschnitten - {hint}"
+            return tr("KI-Antwort abgeschnitten - {hint}").format(hint=hint)
         return None
 
     def _parse_json_response(

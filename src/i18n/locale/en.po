@@ -47,6 +47,7 @@ msgid "Datei nicht gefunden: {q}"
 msgstr "File not found: {q}"
 
 #: src/core/bild_convert.py
+#: src/core/office_convert.py
 msgid "Dateityp {0} wird nicht unterstützt."
 msgstr "File type {0} is not supported."
 
@@ -150,6 +151,76 @@ msgstr "Invalid page numbers: {invalid_pages}"
 msgid "Ungültige Seitenzahlen: {0}"
 msgstr "Invalid page numbers: {0}"
 
+#: src/core/handschrift_ki.py
+msgid "Für „Handschrift mit KI entziffern“ braucht der KI-Assistent ein Modell, das Bilder versteht.\n\nMöglich sind:\n• Ollama mit einem Vision-Modell, z. B. qwen2.5vl, llama3.2-vision oder llava\n• ein Cloud-Anbieter wie Claude, OpenAI oder OpenRouter mit einem Modell, das Bilder versteht\n\nStellen Sie das in den Einstellungen auf der Seite „KI-Assistent (LLM)“ ein."
+msgstr "“Decipher handwriting with AI” requires a model that understands images.\n\nPossible options:\n• Ollama with a vision model, e.g. qwen2.5vl, llama3.2-vision or llava\n• a cloud provider such as Claude, OpenAI or OpenRouter with a model that understands images\n\nSet this in the settings on the “AI assistant (LLM)” page."
+
+#: src/core/handschrift_ki.py
+msgid "Es ist kein KI-Anbieter eingestellt (oder er ist ausgeschaltet)."
+msgstr "No AI provider is set up (or it is switched off)."
+
+#: src/core/handschrift_ki.py
+msgid "Das Modell „{modell}“ ({wer}) versteht keine Bilder."
+msgstr "The model “{modell}” ({wer}) does not understand images."
+
+#: src/core/handschrift_ki.py
+msgid "{wer} ist als Bildleser nicht möglich."
+msgstr "{wer} cannot be used to read images."
+
+#: src/core/handschrift_ki.py
+#: src/core/pdf_analyzer.py
+msgid "Die PDF ist verschlüsselt."
+msgstr "The PDF is encrypted."
+
+#: src/core/handschrift_ki.py
+msgid "Die Seiten konnten nicht gerendert werden: {e}"
+msgstr "The pages could not be rendered: {e}"
+
+#: src/core/handschrift_ki.py
+#: src/core/pdf_analyzer.py
+msgid "Die Datei konnte nicht in den Suchindex aufgenommen werden."
+msgstr "The file could not be added to the search index."
+
+#: src/core/ki_trennen.py
+msgid "Das PDF ist verschlüsselt und kann nicht gelesen werden."
+msgstr "The PDF is encrypted and cannot be read."
+
+#: src/core/ki_trennen.py
+msgid "Das PDF konnte nicht gelesen werden."
+msgstr "The PDF could not be read."
+
+#: src/core/ki_trennen.py
+#: src/core/namen_unterscheiden.py
+#: src/core/ordner_vorschlaege.py
+msgid "Die KI hat nicht geantwortet."
+msgstr "The AI did not answer."
+
+#: src/core/ki_trennen.py
+msgid "Die KI hat keine brauchbare Aufteilung genannt."
+msgstr "The AI did not name a usable split."
+
+#: src/core/ki_trennen.py
+msgid "Das PDF hat keine Seiten."
+msgstr "The PDF has no pages."
+
+#: src/core/ki_trennen.py
+#: src/gui/chat_view.py
+#: src/rag/rag_controller.py
+msgid "Abgebrochen."
+msgstr "Cancelled."
+
+#: src/core/ki_trennen.py
+msgid "'{stueck}' ist keine Seitenangabe (z.B. 1-3 oder 5)."
+msgstr "'{stueck}' is not a page specification (e.g. 1-3 or 5)."
+
+#: src/core/ki_trennen.py
+msgid "'{stueck}': Seiten müssen zwischen 1 und {seitenzahl} liegen."
+msgstr "'{stueck}': pages must be between 1 and {seitenzahl}."
+
+#: src/core/ki_trennen.py
+msgid "Keine Seiten angegeben."
+msgstr "No pages given."
+
 #: src/core/korrespondenten.py
 msgid "kein Korrespondent"
 msgstr "no correspondent"
@@ -171,11 +242,6 @@ msgid "ca. {0} min"
 msgstr "approx. {0} min"
 
 #: src/core/namen_unterscheiden.py
-#: src/core/ordner_vorschlaege.py
-msgid "Die KI hat nicht geantwortet."
-msgstr "The AI did not answer."
-
-#: src/core/namen_unterscheiden.py
 msgid "Die KI hat keine eindeutigen Unterscheidungen genannt."
 msgstr "The AI did not name any clear distinctions."
 
@@ -186,6 +252,78 @@ msgstr "AI: new folder following the pattern of the existing ones"
 #: src/core/neuer_ordner.py
 msgid "Neuer Ordner: Dokument von {year}, Muster von \"{rel}\""
 msgstr "New folder: document from {year}, pattern of \"{rel}\""
+
+#: src/core/office_convert.py
+msgid "PDF Sortier Meister darf {programm} nicht steuern. Bitte unter Systemeinstellungen › Datenschutz & Sicherheit › Automation „{programm}“ für PDF Sortier Meister erlauben."
+msgstr "PDF Sortier Meister is not allowed to control {programm}. Please allow “{programm}” for PDF Sortier Meister under System Settings › Privacy & Security › Automation."
+
+#: src/core/office_convert.py
+msgid "{programm} konnte nicht umwandeln: {0}"
+msgstr "{programm} could not convert: {0}"
+
+#: src/core/office_convert.py
+msgid "{programm} ist nicht (mehr) installiert."
+msgstr "{programm} is not installed (any more)."
+
+#: src/core/office_convert.py
+msgid "{programm} hat nicht rechtzeitig geantwortet."
+msgstr "{programm} did not respond in time."
+
+#: src/core/office_convert.py
+msgid "{programm} hat kein PDF erzeugt."
+msgstr "{programm} did not create a PDF."
+
+#: src/core/office_convert.py
+msgid "LibreOffice hat nicht rechtzeitig geantwortet."
+msgstr "LibreOffice did not respond in time."
+
+#: src/core/office_convert.py
+msgid "LibreOffice konnte nicht umwandeln: {0}"
+msgstr "LibreOffice could not convert: {0}"
+
+#: src/core/office_convert.py
+msgid "Datei nicht gefunden: {quelle}"
+msgstr "File not found: {quelle}"
+
+#: src/core/office_convert.py
+msgid "{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister läuft, fehlt das Paket \"pywin32\".\nBitte im Programmordner ausführen: python -m pip install -r requirements.txt"
+msgstr "{programm} is installed, but the Python that runs PDF Sortier Meister lacks the \"pywin32\" package.\nPlease run in the program folder: python -m pip install -r requirements.txt"
+
+#: src/core/office_convert.py
+msgid "Zum Umwandeln wird {programm}, LibreOffice oder {apple} benötigt. Nichts davon wurde gefunden."
+msgstr "Converting requires {programm}, LibreOffice or {apple}. None of them was found."
+
+#: src/core/office_convert.py
+msgid "Zum Umwandeln wird {programm} oder LibreOffice benötigt. Beides wurde nicht gefunden."
+msgstr "Converting requires {programm} or LibreOffice. Neither was found."
+
+#: src/core/office_convert.py
+msgid "{0} kann auf dem Mac kein PDF/A erzeugen - normales PDF erstellt."
+msgstr "{0} cannot create PDF/A on the Mac - normal PDF created."
+
+#: src/core/office_convert.py
+msgid "Excel kann kein PDF/A erzeugen - normales PDF erstellt."
+msgstr "Excel cannot create PDF/A - normal PDF created."
+
+#: src/core/office_convert.py
+msgid "{office_name} ging nicht ({fehler}) - LibreOffice verwendet."
+msgstr "{office_name} did not work ({fehler}) - LibreOffice used."
+
+#: src/core/office_convert.py
+msgid "{office_name} ging nicht ({fehler}) - {apple} verwendet."
+msgstr "{office_name} did not work ({fehler}) - {apple} used."
+
+#: src/core/office_convert.py
+msgid "{apple} kann kein PDF/A erzeugen - normales PDF erstellt."
+msgstr "{apple} cannot create PDF/A - normal PDF created."
+
+#: src/core/office_convert.py
+msgid "Umwandlung mit {office_name} fehlgeschlagen: {fehler}"
+msgstr "Conversion with {office_name} failed: {fehler}"
+
+#: src/core/office_convert.py
+msgid "Die Umwandlung hat kein PDF erzeugt."
+msgstr "The conversion did not create a PDF."
 
 #: src/core/ordner_verschieben.py
 msgid "'{name}' ist kein Ordner."
@@ -235,6 +373,25 @@ msgstr "Contents: {0} % of the files belong there according to learning/AI"
 #: src/core/ordner_vorschlaege.py
 msgid "passender Elternordner"
 msgstr "suitable parent folder"
+
+#: src/core/pdf_analyzer.py
+msgid "Tesseract nicht gefunden - keine Texterkennung möglich."
+msgstr "Tesseract not found - text recognition not possible."
+
+#: src/core/pdf_analyzer.py
+#: src/gui/settings_dialog.py
+#: src/search/konfig.py
+msgid "Sprachdaten fehlen: {0}"
+msgstr "Language data missing: {0}"
+
+#: src/core/pdf_analyzer.py
+msgid "Die PDF enthält keine gescannten Seiten."
+msgstr "The PDF contains no scanned pages."
+
+#: src/core/pdf_cache.py
+#: src/gui/detail_panel.py
+msgid "KI hat keinen Vorschlag geliefert."
+msgstr "The AI did not return a suggestion."
 
 #: src/core/pdf_rotate.py
 msgid "Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)"
@@ -560,6 +717,7 @@ msgid "Keine Antwort erhalten."
 msgstr "No answer received."
 
 #: src/gui/chat_view.py
+#: src/rag/rag_controller.py
 msgid "Keine passenden Dokumente gefunden."
 msgstr "No matching documents found."
 
@@ -582,10 +740,6 @@ msgstr "Tool call"
 #: src/gui/chat_view.py
 msgid "Fehler: {error}"
 msgstr "Error: {error}"
-
-#: src/gui/chat_view.py
-msgid "Abgebrochen."
-msgstr "Cancelled."
 
 #: src/gui/chat_view.py
 msgid "Bezug: {name}"
@@ -958,10 +1112,6 @@ msgstr "AI error: {text}"
 #: src/gui/detail_panel.py
 msgid "KI arbeitet… {0}"
 msgstr "AI working… {0}"
-
-#: src/gui/detail_panel.py
-msgid "KI hat keinen Vorschlag geliefert."
-msgstr "The AI did not return a suggestion."
 
 #: src/gui/entzerren_dialog.py
 #: src/gui/main_window.py
@@ -3237,6 +3387,7 @@ msgid "Einstellungen gespeichert"
 msgstr "Settings saved"
 
 #: src/gui/main_window.py
+#: src/ml/provider_factory.py
 msgid "Kein KI-Anbieter eingestellt."
 msgstr "No AI provider set up."
 
@@ -3309,6 +3460,8 @@ msgid "KI-Assistent deaktiviert. {reason}{chat_zeile}\nDoppelklick öffnet die E
 msgstr "AI assistant disabled. {reason}{chat_zeile}\nDouble-click opens the settings."
 
 #: src/gui/main_window.py
+#: src/ml/ollama_provider.py
+#: src/ml/strata_provider.py
 msgid "Fehler: {e}"
 msgstr "Error: {e}"
 
@@ -5626,11 +5779,6 @@ msgid "Tesseract gefunden: {tesseract}"
 msgstr "Tesseract found: {tesseract}"
 
 #: src/gui/settings_dialog.py
-#: src/search/konfig.py
-msgid "Sprachdaten fehlen: {0}"
-msgstr "Language data missing: {0}"
-
-#: src/gui/settings_dialog.py
 msgid "Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist."
 msgstr "Tesseract not found – text recognition stays off until Tesseract is installed."
 
@@ -6954,9 +7102,101 @@ msgstr "Learned (used {usage_count}x)"
 msgid "Existierender Unterordner"
 msgstr "Existing subfolder"
 
+#: src/ml/claude_provider.py
+msgid "Claude API nicht verfügbar. API-Key prüfen."
+msgstr "Claude API not available. Check the API key."
+
+#: src/ml/claude_provider.py
+#: src/ml/openai_provider.py
+#: src/ml/poe_provider.py
+msgid "Keine Zielordner verfügbar."
+msgstr "No target folders available."
+
+#: src/ml/claude_provider.py
+#: src/ml/openai_provider.py
+#: src/ml/poe_provider.py
+msgid "KI-Antwort nicht lesbar: {error}"
+msgstr "AI response not readable: {error}"
+
+#: src/ml/claude_provider.py
+msgid "Keine Verbindung zur Claude API."
+msgstr "No connection to the Claude API."
+
+#: src/ml/claude_provider.py
+msgid "Claude API Rate-Limit erreicht. Bitte später versuchen."
+msgstr "Claude API rate limit reached. Please try again later."
+
+#: src/ml/claude_provider.py
+msgid "Ungültiger Claude API-Key."
+msgstr "Invalid Claude API key."
+
+#: src/ml/claude_provider.py
+msgid "Claude API Fehler: {0}"
+msgstr "Claude API error: {0}"
+
+#: src/ml/claude_provider.py
+msgid "Claude HTTP {code}: {detail}"
+msgstr "Claude HTTP {code}: {detail}"
+
+#: src/ml/claude_provider.py
+msgid "Keine Verbindung zur Claude API: {reason}"
+msgstr "No connection to the Claude API: {reason}"
+
+#: src/ml/claude_provider.py
+msgid "Claude-Fehler: {e}"
+msgstr "Claude error: {e}"
+
+#: src/ml/claude_provider.py
+msgid "Für Claude fehlt der API-Schlüssel."
+msgstr "The API key for Claude is missing."
+
+#: src/ml/claude_provider.py
+msgid "Leere Antwort von Claude."
+msgstr "Empty response from Claude."
+
+#: src/ml/claude_provider.py
+msgid "[Claude-Fehler: {error}]"
+msgstr "[Claude error: {error}]"
+
+#: src/ml/claude_provider.py
+msgid "Kein API-Key für Claude hinterlegt."
+msgstr "No API key stored for Claude."
+
+#: src/ml/claude_provider.py
+msgid "Werkzeuge werden von diesem Modell nicht unterstützt ({error})"
+msgstr "Tools are not supported by this model ({error})"
+
+#: src/ml/claude_provider.py
+msgid "Claude-Antwort unlesbar."
+msgstr "Claude response unreadable."
+
+#: src/ml/claude_provider.py
+msgid "Claude-Antwort ohne Inhalt: {0}"
+msgstr "Claude response without content: {0}"
+
+#: src/ml/claude_provider.py
+msgid "Claude lieferte keine Antwort (stop_reason={0})."
+msgstr "Claude did not return an answer (stop_reason={0})."
+
 #: src/ml/hybrid_classifier.py
 msgid "{reason} + LLM bestätigt"
 msgstr "{reason} + confirmed by LLM"
+
+#: src/ml/hybrid_classifier.py
+msgid "KI-Aufruf fehlgeschlagen."
+msgstr "AI call failed."
+
+#: src/ml/hybrid_classifier.py
+msgid "KI hat keinen Dateinamen geliefert."
+msgstr "The AI did not return a file name."
+
+#: src/ml/hybrid_classifier.py
+msgid "KI-Dateiname bestand nur aus ungueltigen Zeichen."
+msgstr "The AI file name consisted only of invalid characters."
+
+#: src/ml/hybrid_classifier.py
+msgid "Modell „{model}“ ist in Ollama nicht installiert ({anzahl} Modell(e) vorhanden)."
+msgstr "Model “{model}” is not installed in Ollama ({anzahl} model(s) available)."
 
 #: src/ml/hybrid_classifier.py
 msgid "Keiner"
@@ -7057,6 +7297,371 @@ msgstr "{provider} reports an error."
 #: src/ml/llm_hinweis.py
 msgid "Einstellungen öffnen und dort mit „Verbindung testen“ prüfen; Details stehen in der Log-Datei."
 msgstr "Open the settings and check there with “Test connection”; details are in the log file."
+
+#: src/ml/llm_provider.py
+msgid "{name} unterstützt keine Bildeingabe."
+msgstr "{name} does not support image input."
+
+#: src/ml/llm_provider.py
+msgid "Werkzeuge werden von diesem Provider nicht unterstützt."
+msgstr "Tools are not supported by this provider."
+
+#: src/ml/llm_provider.py
+msgid "Token-Limit ({max_tokens}) erreicht. Bitte in den Einstellungen 'Max. Tokens' erhoehen oder ein Modell ohne Reasoning waehlen."
+msgstr "Token limit ({max_tokens}) reached. Please increase 'Max. tokens' in the settings or choose a model without reasoning."
+
+#: src/ml/llm_provider.py
+msgid "KI-Antwort leer - {hint}"
+msgstr "AI response empty - {hint}"
+
+#: src/ml/llm_provider.py
+msgid "KI-Antwort leer (Modell hat keinen Text geliefert)."
+msgstr "AI response empty (the model returned no text)."
+
+#: src/ml/llm_provider.py
+msgid "KI-Antwort abgeschnitten - {hint}"
+msgstr "AI response cut off - {hint}"
+
+#: src/ml/ollama_launcher.py
+msgid "Keine Verbindung zu Ollama ({base_url}): {reason}"
+msgstr "No connection to Ollama ({base_url}): {reason}"
+
+#: src/ml/ollama_launcher.py
+msgid "Download-Fehler: {e}"
+msgstr "Download error: {e}"
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama HTTP {code}: {raw}"
+msgstr "Ollama HTTP {code}: {raw}"
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama HTTP {code}"
+msgstr "Ollama HTTP {code}"
+
+#: src/ml/ollama_launcher.py
+msgid "Download abgebrochen."
+msgstr "Download cancelled."
+
+#: src/ml/ollama_launcher.py
+msgid "Modell installiert."
+msgstr "Model installed."
+
+#: src/ml/ollama_launcher.py
+msgid "Download unvollstaendig (Verbindung beendet)."
+msgstr "Download incomplete (connection closed)."
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama war bereits erreichbar."
+msgstr "Ollama was already reachable."
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama wurde nicht gefunden. Bitte Ollama installieren (https://ollama.com) oder das Programm in den PATH legen."
+msgstr "Ollama was not found. Please install Ollama (https://ollama.com) or add the program to the PATH."
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama ({exe}) konnte nicht gestartet werden."
+msgstr "Ollama ({exe}) could not be started."
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama-Server gestartet ({exe})."
+msgstr "Ollama server started ({exe})."
+
+#: src/ml/ollama_launcher.py
+msgid "Ollama-Server wurde gestartet, antwortet aber nicht innerhalb von {max_wait:.0f} Sekunden. Bitte erneut versuchen."
+msgstr "The Ollama server was started but does not respond within {max_wait:.0f} seconds. Please try again."
+
+#: src/ml/ollama_provider.py
+#: src/ml/strata_provider.py
+msgid "Verbindung fehlgeschlagen: {reason}"
+msgstr "Connection failed: {reason}"
+
+#: src/ml/ollama_provider.py
+msgid "Keine Verbindung"
+msgstr "No connection"
+
+#: src/ml/ollama_provider.py
+msgid "Ollama nicht erreichbar und Auto-Start fehlgeschlagen.\n{msg}"
+msgstr "Ollama not reachable and auto-start failed.\n{msg}"
+
+#: src/ml/ollama_provider.py
+msgid "Ollama hat eine leere Antwort geliefert."
+msgstr "Ollama returned an empty response."
+
+#: src/ml/ollama_provider.py
+msgid "Keine Verbindung zu Ollama ({0}). Details: {reason}"
+msgstr "No connection to Ollama ({0}). Details: {reason}"
+
+#: src/ml/ollama_provider.py
+msgid "Ollama-Fehler: {e}"
+msgstr "Ollama error: {e}"
+
+#: src/ml/ollama_provider.py
+msgid "Ollama-Provider nicht konfiguriert."
+msgstr "Ollama provider not configured."
+
+#: src/ml/ollama_provider.py
+msgid "Keine Zielordner verfuegbar."
+msgstr "No target folders available."
+
+#: src/ml/ollama_provider.py
+msgid "Ollama ist nicht eingerichtet oder nicht erreichbar."
+msgstr "Ollama is not set up or not reachable."
+
+#: src/ml/ollama_provider.py
+msgid "Leere Antwort von Ollama."
+msgstr "Empty response from Ollama."
+
+#: src/ml/ollama_provider.py
+msgid "[Ollama nicht erreichbar: {reason}]"
+msgstr "[Ollama not reachable: {reason}]"
+
+#: src/ml/ollama_provider.py
+msgid "[Ollama-Fehler: {e}]"
+msgstr "[Ollama error: {e}]"
+
+#: src/ml/ollama_provider.py
+msgid "Das Modell '{0}' unterstützt keine Werkzeuge ({grund})."
+msgstr "The model '{0}' does not support tools ({grund})."
+
+#: src/ml/openai_provider.py
+msgid "{API_NAME} API nicht verfügbar. API-Key prüfen."
+msgstr "{API_NAME} API not available. Check the API key."
+
+#: src/ml/openai_provider.py
+msgid "Keine Verbindung zur {API_NAME} API."
+msgstr "No connection to the {API_NAME} API."
+
+#: src/ml/openai_provider.py
+msgid "{API_NAME} API Rate-Limit erreicht. Bitte später versuchen."
+msgstr "{API_NAME} API rate limit reached. Please try again later."
+
+#: src/ml/openai_provider.py
+msgid "Ungültiger {API_NAME} API-Key."
+msgstr "Invalid {API_NAME} API key."
+
+#: src/ml/openai_provider.py
+msgid "{API_NAME} API Fehler: {0}"
+msgstr "{API_NAME} API error: {0}"
+
+#: src/ml/openai_provider.py
+msgid "{API_NAME} HTTP {code}: {detail}"
+msgstr "{API_NAME} HTTP {code}: {detail}"
+
+#: src/ml/openai_provider.py
+msgid "Keine Verbindung zur {API_NAME} API: {reason}"
+msgstr "No connection to the {API_NAME} API: {reason}"
+
+#: src/ml/openai_provider.py
+msgid "Für {API_NAME} fehlt der API-Schlüssel."
+msgstr "The API key for {API_NAME} is missing."
+
+#: src/ml/openai_provider.py
+msgid "Leere Antwort von {API_NAME}."
+msgstr "Empty response from {API_NAME}."
+
+#: src/ml/openai_provider.py
+msgid "[{API_NAME}-Fehler: {error}]"
+msgstr "[{API_NAME} error: {error}]"
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: unlesbare Antwort vom Server."
+msgstr "{api_name}: unreadable response from the server."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: keine Antwort vom Modell (choices leer)."
+msgstr "{api_name}: no answer from the model (choices empty)."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: unlesbare Nachricht vom Modell."
+msgstr "{api_name}: unreadable message from the model."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: Antwort leer, Token-Limit erreicht (Max. Tokens erhöhen oder Modell ohne Reasoning wählen)."
+msgstr "{api_name}: response empty, token limit reached (increase Max. tokens or choose a model without reasoning)."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name} HTTP {code}: {meldung}"
+msgstr "{api_name} HTTP {code}: {meldung}"
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: kein API-Key hinterlegt."
+msgstr "{api_name}: no API key stored."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: Modell unterstützt keine Werkzeuge (bereits abgelehnt)."
+msgstr "{api_name}: the model does not support tools (already rejected)."
+
+#: src/ml/openai_werkzeuge.py
+msgid "{api_name}: leere Antwort vom Server."
+msgstr "{api_name}: empty response from the server."
+
+#: src/ml/openai_werkzeuge.py
+msgid "Modell '{model}' unterstützt keine Werkzeuge - {error}"
+msgstr "Model '{model}' does not support tools - {error}"
+
+#: src/ml/poe_provider.py
+msgid "Poe API nicht verfügbar. API-Key prüfen."
+msgstr "Poe API not available. Check the API key."
+
+#: src/ml/poe_provider.py
+msgid "Keine Verbindung zur Poe API."
+msgstr "No connection to the Poe API."
+
+#: src/ml/poe_provider.py
+msgid "Poe API Rate-Limit erreicht. Bitte später versuchen."
+msgstr "Poe API rate limit reached. Please try again later."
+
+#: src/ml/poe_provider.py
+msgid "Ungültiger Poe API-Key."
+msgstr "Invalid Poe API key."
+
+#: src/ml/poe_provider.py
+msgid "Poe API Fehler: {0}"
+msgstr "Poe API error: {0}"
+
+#: src/ml/poe_provider.py
+msgid "Poe HTTP {code}: {detail}"
+msgstr "Poe HTTP {code}: {detail}"
+
+#: src/ml/poe_provider.py
+msgid "Keine Verbindung zur Poe API: {reason}"
+msgstr "No connection to the Poe API: {reason}"
+
+#: src/ml/poe_provider.py
+msgid "Poe-Fehler: {e}"
+msgstr "Poe error: {e}"
+
+#: src/ml/poe_provider.py
+msgid "[Poe-Fehler: {error}]"
+msgstr "[Poe error: {error}]"
+
+#: src/ml/provider_factory.py
+msgid "Für diesen Cloud-Anbieter fehlt die Einwilligung zur Übertragung von Dokumentinhalten (Einstellungen → KI)."
+msgstr "The consent to transfer document contents is missing for this cloud provider (Settings → AI)."
+
+#: src/ml/provider_factory.py
+msgid "Für diesen Anbieter fehlt der API-Key (Einstellungen → KI)."
+msgstr "The API key is missing for this provider (Settings → AI)."
+
+#: src/ml/provider_factory.py
+msgid "Der KI-Anbieter konnte nicht gestartet werden: {0}"
+msgstr "The AI provider could not be started: {0}"
+
+#: src/ml/strata_provider.py
+msgid "{anzahl} Modell(e) geladen"
+msgstr "{anzahl} model(s) loaded"
+
+#: src/ml/strata_provider.py
+msgid "API-Key wird nicht angenommen"
+msgstr "API key is not accepted"
+
+#: src/rag/rag_controller.py
+msgid "\n\n_(Die Antwort wurde vom Modell am Token-Limit abgeschnitten.)_"
+msgstr "\n\n_(The answer was cut off by the model at the token limit.)_"
+
+#: src/rag/rag_controller.py
+msgid "Bitte stelle eine konkrete Frage."
+msgstr "Please ask a specific question."
+
+#: src/rag/rag_controller.py
+msgid "Keine Dokumente indiziert."
+msgstr "No documents indexed."
+
+#: src/rag/rag_controller.py
+msgid "Suche fehlgeschlagen: {e}"
+msgstr "Search failed: {e}"
+
+#: src/rag/rag_controller.py
+msgid "LLM-Aufruf fehlgeschlagen: {e}"
+msgstr "LLM call failed: {e}"
+
+#: src/rag/rag_controller.py
+msgid "KI denkt (Schritt {schritt}/{max_schritte}) …"
+msgstr "AI is thinking (step {schritt}/{max_schritte}) …"
+
+#: src/rag/rag_controller.py
+msgid "KI formuliert die Antwort …"
+msgstr "AI is writing the answer …"
+
+#: src/rag/rag_controller.py
+msgid "Leere Antwort des Modells."
+msgstr "Empty response from the model."
+
+#: src/rag/rag_controller.py
+msgid "Werkzeuge nicht verfügbar ({grund}) - Antwort ohne Werkzeuge …"
+msgstr "Tools not available ({grund}) - answering without tools …"
+
+#: src/rag/rag_controller.py
+msgid "Werkzeugaufruf fehlgeschlagen: {fehler}"
+msgstr "Tool call failed: {fehler}"
+
+#: src/rag/rag_controller.py
+msgid "Antwort war abgeschnitten - noch einmal mit mehr Platz …"
+msgstr "The answer was cut off - trying again with more room …"
+
+#: src/rag/rag_controller.py
+msgid "Werkzeugaufruf fehlgeschlagen: keine Antwort nach {max_schritte} Schritten."
+msgstr "Tool call failed: no answer after {max_schritte} steps."
+
+#: src/rag/rag_controller.py
+msgid "Ich konnte die Frage in {max_schritte} Schritten nicht abschließend beantworten. Das haben die Werkzeuge bisher ergeben:"
+msgstr "I could not answer the question conclusively in {max_schritte} steps. This is what the tools have found so far:"
+
+#: src/rag/rag_controller.py
+msgid "Gelesene Dokumente: {0}"
+msgstr "Documents read: {0}"
+
+#: src/rag/rag_controller.py
+msgid "Stelle die Frage bitte enger oder nenne das Dokument, in dem ich nachsehen soll."
+msgstr "Please narrow the question or name the document I should look in."
+
+#: src/rag/rag_controller.py
+msgid "Suche „{0}“ …"
+msgstr "Searching “{0}” …"
+
+#: src/rag/rag_controller.py
+msgid "Lese {0} …"
+msgstr "Reading {0} …"
+
+#: src/rag/rag_controller.py
+msgid "Ordnervorschlag für {dok} …"
+msgstr "Folder suggestion for {dok} …"
+
+#: src/rag/rag_controller.py
+msgid "Ordnervorschlag …"
+msgstr "Folder suggestion …"
+
+#: src/rag/rag_controller.py
+msgid "Korrespondent „{0}“ …"
+msgstr "Correspondent “{0}” …"
+
+#: src/rag/rag_controller.py
+msgid "SQL-Abfrage …"
+msgstr "SQL query …"
+
+#: src/rag/verknuepfung.py
+msgid "Verknüpft: gleiche {arten_text} in {n} Dokumenten dieses Ordners"
+msgstr "Linked: same {arten_text} in {n} documents of this folder"
+
+#: src/rag/verknuepfung.py
+msgid "Verknüpft: gleiche {arten_text} in {n} Dokument dieses Ordners"
+msgstr "Linked: same {arten_text} in {n} document of this folder"
+
+#: src/rag/verknuepfung.py
+msgid " (Jahr angepasst)"
+msgstr " (year adjusted)"
+
+#: src/rag/verknuepfung.py
+msgid "Chat: {begruendung}"
+msgstr "Chat: {begruendung}"
+
+#: src/rag/verknuepfung.py
+msgid "Chat: belegt durch die Antwort"
+msgstr "Chat: supported by the answer"
+
+#: src/rag/verknuepfung.py
+msgid "belegt durch {nummern}"
+msgstr "supported by {nummern}"
 
 #: src/search/ausgabe.py
 msgid "Dokument {dok_id} nicht gefunden."
@@ -7875,6 +8480,14 @@ msgstr "{name} is not a ZIP archive."
 #: src/utils/backup.py
 msgid "{name} enthaelt keine Daten von PDF Sortier Meister (erwartet z.B. {0} oder {1})."
 msgstr "{name} does not contain data of PDF Sortier Meister (expected e.g. {0} or {1})."
+
+#: src/utils/database.py
+msgid "Korrespondent-Name darf nicht leer sein"
+msgstr "The correspondent name must not be empty"
+
+#: src/utils/database.py
+msgid "Primaerkorrespondent '{primary_name}' existiert nicht"
+msgstr "Primary correspondent '{primary_name}' does not exist"
 
 #: src/utils/explorer_integration.py
 msgid "PDF Sortier Meister von hier oeffnen"

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from src.utils.filename_sanitizer import sanitize_filename
+from src.i18n import tr
 
 SEITEN_JE_AUFRUF = 20  # grosse Stapel gehen abschnittsweise an die KI
 ZEICHEN_GESAMT = 20000  # Textmenge im Prompt je Aufruf
@@ -71,9 +72,9 @@ def seiten_texte(pdf_path: Path | str, ocr: bool = True) -> list[str]:
         konfig = pa._search_konfig()
         gelesen = suche_extract.pdf_text(pfad, konfig.ocr_min_zeichen if konfig else 25)
         if gelesen["status"] == "verschluesselt":
-            raise RuntimeError("Das PDF ist verschlüsselt und kann nicht gelesen werden.")
+            raise RuntimeError(tr("Das PDF ist verschlüsselt und kann nicht gelesen werden."))
         if gelesen["status"] == "fehler":
-            raise RuntimeError(gelesen.get("fehler") or "Das PDF konnte nicht gelesen werden.")
+            raise RuntimeError(gelesen.get("fehler") or tr("Das PDF konnte nicht gelesen werden."))
         seiten, offen, anzahl = list(gelesen["seiten"]), list(gelesen["ohne_text"]), gelesen["anzahl"]
 
     texte = {nr: (txt or "") for nr, _quelle, txt in seiten}
@@ -247,7 +248,7 @@ def _abschnitt_fragen(provider, texte: Sequence[str], von: int, bis: int) -> dic
     ganze Budget fuers Ueberlegen und kommen nicht mehr zum JSON.
     """
     frage = ki_prompt(texte, von, bis)
-    fehler = "Die KI hat nicht geantwortet."
+    fehler = tr("Die KI hat nicht geantwortet.")
     for versuch, tokens in enumerate(ANTWORT_TOKENS_VERSUCHE, 1):
         if versuch > 1:
             frage_jetzt = frage + ("\n\nWICHTIG: Schreibe keine Überlegungen und keine Begründung. "
@@ -264,13 +265,13 @@ def _abschnitt_fragen(provider, texte: Sequence[str], von: int, bis: int) -> dic
         if antwort.startswith("[") and "fehler" in antwort[:60].lower():
             raise RuntimeError(antwort.strip("[]"))
         if not antwort:
-            fehler = "Die KI hat nicht geantwortet."
+            fehler = tr("Die KI hat nicht geantwortet.")
             logger.warning("KI-Trennen: leere Antwort fuer Seiten %s-%s (Versuch %s)", von, bis, versuch)
             continue
         anfaenge = anfaenge_lesen(antwort, von, bis)
         if anfaenge is not None:
             return anfaenge
-        fehler = "Die KI hat keine brauchbare Aufteilung genannt."
+        fehler = tr("Die KI hat keine brauchbare Aufteilung genannt.")
         logger.warning("KI-Trennen: Antwort fuer Seiten %s-%s nicht lesbar (Versuch %s): %r",
                        von, bis, versuch, antwort[:500])
     raise RuntimeError(fehler)
@@ -289,7 +290,7 @@ def vorschlagen(provider, texte: Sequence[str], ersatzname: str = "Dokument",
     """
     bereiche = abschnitte(len(texte))
     if not bereiche:
-        raise RuntimeError("Das PDF hat keine Seiten.")
+        raise RuntimeError(tr("Das PDF hat keine Seiten."))
     anfaenge: dict[int, str] = {}
     if fortschritt:
         fortschritt(0, len(bereiche))
@@ -312,10 +313,10 @@ def vorschlagen(provider, texte: Sequence[str], ersatzname: str = "Dokument",
                 auftrag.cancel()
             raise
     if abbruch and abbruch():
-        raise RuntimeError("Abgebrochen.")
+        raise RuntimeError(tr("Abgebrochen."))
     if not anfaenge:
         if len(bereiche) == 1:
-            raise RuntimeError("Die KI hat keine brauchbare Aufteilung genannt.")
+            raise RuntimeError(tr("Die KI hat keine brauchbare Aufteilung genannt."))
         anfaenge = {1: ""}
     return teile_aus_anfaengen(anfaenge, len(texte), ersatzname)
 
@@ -332,14 +333,14 @@ def seiten_parsen(text: str, seitenzahl: int) -> list[int]:
             continue
         m = re.fullmatch(r"(\d+)\s*(?:[-–]\s*(\d+))?", stueck)
         if not m:
-            raise ValueError(f"'{stueck}' ist keine Seitenangabe (z.B. 1-3 oder 5).")
+            raise ValueError(tr("'{stueck}' ist keine Seitenangabe (z.B. 1-3 oder 5).").format(stueck=stueck))
         von = int(m.group(1))
         bis = int(m.group(2)) if m.group(2) else von
         if von < 1 or bis > seitenzahl or von > bis:
-            raise ValueError(f"'{stueck}': Seiten müssen zwischen 1 und {seitenzahl} liegen.")
+            raise ValueError(tr("'{stueck}': Seiten müssen zwischen 1 und {seitenzahl} liegen.").format(stueck=stueck, seitenzahl=seitenzahl))
         seiten.extend(range(von, bis + 1))
     if not seiten:
-        raise ValueError("Keine Seiten angegeben.")
+        raise ValueError(tr("Keine Seiten angegeben."))
     return sorted(set(seiten))
 
 

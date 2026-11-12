@@ -64,6 +64,7 @@ from src.rag.prompts import (
 from src.rag.retrieval import RetrievedDoc, RetrievalService
 from src.rag.werkzeug_kern import gleicher_ort
 from src.rag.werkzeuge import Werkzeugkasten
+from src.i18n import tr
 
 # Volltext des Bezugsdokuments hoechstens so weit lesen (der Auszug nimmt
 # davon Anfang und Ende, siehe RetrievalService._build_snippet; die
@@ -79,8 +80,8 @@ WERKZEUG_SCHRITTE_STANDARD = 8
 # das Denken zaehlt mit, die Antwort brach nach wenigen Woertern ab
 ANTWORT_TOKENS = 4000
 ANTWORT_TOKENS_FAKTOR = 3  # Wiederholung einer abgeschnittenen Antwort
-ABGESCHNITTEN_HINWEIS = "\n\n_(Die Antwort wurde vom Modell am Token-Limit abgeschnitten.)_"
-ABGEBROCHEN_TEXT = "Abgebrochen."
+ABGESCHNITTEN_HINWEIS = tr("\n\n_(Die Antwort wurde vom Modell am Token-Limit abgeschnitten.)_")
+ABGEBROCHEN_TEXT = tr("Abgebrochen.")
 # Aufforderungen im letzten Schritt der Schleife (Live-Test: gpt-oss rief sonst
 # trotz leerer Werkzeugliste weiter auf und lieferte keinen Text)
 LETZTER_SCHRITT_HINWEIS = (
@@ -195,7 +196,7 @@ class RAGController:
         question = (question or "").strip()
         if not question:
             return RAGResponse(
-                answer_text="Bitte stelle eine konkrete Frage.",
+                answer_text=tr("Bitte stelle eine konkrete Frage."),
                 citations=[],
                 retrieved_docs=[],
                 used_llm=False,
@@ -216,7 +217,7 @@ class RAGController:
         # laesst sich trotzdem etwas zu diesem Dokument sagen (Issue #148).
         if bezug is None and not self._has_indexed_documents():
             return RAGResponse(
-                answer_text="Keine Dokumente indiziert.",
+                answer_text=tr("Keine Dokumente indiziert."),
                 citations=[],
                 retrieved_docs=[],
                 used_llm=False,
@@ -232,7 +233,7 @@ class RAGController:
                 retrieved = self._treffer_zum_bezug(question, bezug, bezug_doc, k)
         except Exception as e:
             return RAGResponse(
-                answer_text=f"Suche fehlgeschlagen: {e}",
+                answer_text=tr("Suche fehlgeschlagen: {e}").format(e=e),
                 citations=[],
                 retrieved_docs=[],
                 used_llm=False,
@@ -267,7 +268,7 @@ class RAGController:
             # Offline-Modus UND keine Quellen gefunden: ehrliche
             # Standard-Antwort statt leerer Text (M3-Hardening).
             response = RAGResponse(
-                answer_text="Keine passenden Dokumente gefunden.",
+                answer_text=tr("Keine passenden Dokumente gefunden."),
                 citations=[],
                 retrieved_docs=[],
                 used_llm=False,
@@ -431,7 +432,7 @@ class RAGController:
         except Exception as e:
             # LLM-Fehler -> wir liefern immerhin die Quellen
             return RAGResponse(
-                answer_text=f"LLM-Aufruf fehlgeschlagen: {e}",
+                answer_text=tr("LLM-Aufruf fehlgeschlagen: {e}").format(e=e),
                 citations=[],
                 retrieved_docs=retrieved,
                 used_llm=False,
@@ -527,7 +528,7 @@ class RAGController:
         for schritt in range(1, max_schritte + 1):
             if _abgebrochen(abbruch):
                 return self._antwort_abgebrochen(kasten)
-            _melde(fortschritt, f"KI denkt (Schritt {schritt}/{max_schritte}) …")
+            _melde(fortschritt, tr("KI denkt (Schritt {schritt}/{max_schritte}) …").format(schritt=schritt, max_schritte=max_schritte))
             letzter = schritt == max_schritte
             if letzter:
                 # Letzter Schritt: keine Werkzeuge mehr und eine klare Aufforderung
@@ -545,7 +546,7 @@ class RAGController:
             if letzter and not fehler and not text.strip():
                 # Noch ein Anlauf mit Nachdruck (zaehlt nicht als Werkzeugschritt);
                 # bleibt er leer, gibt es den Zwischenstand statt eines Fehlers
-                _melde(fortschritt, "KI formuliert die Antwort …")
+                _melde(fortschritt, tr("KI formuliert die Antwort …"))
                 nachrichten.append({"role": "user", "content": LETZTER_SCHRITT_NACHDRUCK})
                 antwort = self._werkzeug_schritt(nachrichten, [], max_tokens)
                 fehler = str(getattr(antwort, "fehler", "") or "")
@@ -553,14 +554,14 @@ class RAGController:
                 if not fehler and not text.strip():
                     return self._antwort_zwischenstand(kasten, max_schritte)
             if not fehler and not aufrufe and not text.strip():
-                fehler = "Leere Antwort des Modells."
+                fehler = tr("Leere Antwort des Modells.")
             if fehler:
                 if schritt == 1:
                     grund = " ".join(fehler.split())[:90]
-                    _melde(fortschritt, f"Werkzeuge nicht verfügbar ({grund}) - Antwort ohne Werkzeuge …")
+                    _melde(fortschritt, tr("Werkzeuge nicht verfügbar ({grund}) - Antwort ohne Werkzeuge …").format(grund=grund))
                     return self._ask_llm(question, kontext_docs)
                 return RAGResponse(
-                    answer_text=f"Werkzeugaufruf fehlgeschlagen: {fehler}",
+                    answer_text=tr("Werkzeugaufruf fehlgeschlagen: {fehler}").format(fehler=fehler),
                     citations=[],
                     retrieved_docs=kasten.dokumente(),
                     used_llm=False,
@@ -571,7 +572,7 @@ class RAGController:
                 if getattr(antwort, "abgeschnitten", False):
                     # Am Token-Limit abgebrochen (Denkmodelle verbrauchen einen Teil des
                     # Budgets, bevor sie schreiben): einmal mit mehr Platz wiederholen
-                    _melde(fortschritt, "Antwort war abgeschnitten - noch einmal mit mehr Platz …")
+                    _melde(fortschritt, tr("Antwort war abgeschnitten - noch einmal mit mehr Platz …"))
                     neu = self._werkzeug_schritt(nachrichten, [], max_tokens * ANTWORT_TOKENS_FAKTOR)
                     neu_text = str(getattr(neu, "text", "") or "")
                     if not getattr(neu, "fehler", "") and len(neu_text.strip()) > len(text.strip()):
@@ -607,7 +608,7 @@ class RAGController:
 
         # Unerreichbar (der letzte Schritt antwortet immer), zur Sicherheit
         return RAGResponse(
-            answer_text=f"Werkzeugaufruf fehlgeschlagen: keine Antwort nach {max_schritte} Schritten.",
+            answer_text=tr("Werkzeugaufruf fehlgeschlagen: keine Antwort nach {max_schritte} Schritten.").format(max_schritte=max_schritte),
             citations=[],
             retrieved_docs=kasten.dokumente(),
             used_llm=False,
@@ -650,14 +651,16 @@ class RAGController:
         Statt "Werkzeugaufruf fehlgeschlagen" bekommt der Nutzer, was die
         Werkzeuge ergeben haben, und kann gezielt nachfragen.
         """
-        zeilen = [f"Ich konnte die Frage in {max_schritte} Schritten nicht abschließend beantworten. "
-                  "Das haben die Werkzeuge bisher ergeben:"]
+        zeilen = [tr(
+            "Ich konnte die Frage in {max_schritte} Schritten nicht abschließend "
+            "beantworten. Das haben die Werkzeuge bisher ergeben:"
+        ).format(max_schritte=max_schritte)]
         for s in kasten.protokoll:
             zeilen.append(f"- {s.zusammenfassung}")
         gelesen = [d for d in kasten.dokumente() if (d.extra or {}).get("status") in ("gelesen", "zitiert")]
         if gelesen:
-            zeilen.append("Gelesene Dokumente: " + ", ".join(f"[{d.index}] {d.filename}" for d in gelesen))
-        zeilen.append("Stelle die Frage bitte enger oder nenne das Dokument, in dem ich nachsehen soll.")
+            zeilen.append(tr("Gelesene Dokumente: {0}").format(', '.join((f'[{d.index}] {d.filename}' for d in gelesen))))
+        zeilen.append(tr("Stelle die Frage bitte enger oder nenne das Dokument, in dem ich nachsehen soll."))
         return RAGResponse(
             answer_text="\n".join(zeilen),
             citations=[],
@@ -906,19 +909,19 @@ def _aufruf_beschreibung(aufruf) -> str:
         return " ".join(str(argumente.get(schluessel) or "").split())
 
     if name == "suche":
-        return f"Suche „{wert('abfrage')}“ …"
+        return tr("Suche „{0}“ …").format(wert('abfrage'))
     if name == "dokument_lesen":
         dok = wert("dokument")
         if dok.isdigit():
             dok = f"D{dok}"
-        return f"Lese {dok or 'Dokument'} …"
+        return tr("Lese {0} …").format(dok or 'Dokument')
     if name == "ordner_vorschlag":
         dok = wert("dokument")
-        return f"Ordnervorschlag für {dok} …" if dok else "Ordnervorschlag …"
+        return tr("Ordnervorschlag für {dok} …").format(dok=dok) if dok else tr("Ordnervorschlag …")
     if name == "korrespondent_info":
-        return f"Korrespondent „{wert('name')}“ …"
+        return tr("Korrespondent „{0}“ …").format(wert('name'))
     if name == "sql_abfrage":
-        return "SQL-Abfrage …"
+        return tr("SQL-Abfrage …")
     return f"{name or 'Werkzeug'} …"
 
 

@@ -14,6 +14,7 @@ from typing import Optional
 
 from src.ml.llm_provider import LLMProvider, LLMConfig, LLMResponse
 from src.ml.openai_werkzeuge import OpenAIWerkzeugMixin
+from src.i18n import tr
 
 
 class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
@@ -109,13 +110,13 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message=f"{self.API_NAME} API nicht verfügbar. API-Key prüfen."
+                error_message=tr("{API_NAME} API nicht verfügbar. API-Key prüfen.").format(API_NAME=self.API_NAME)
             )
 
         if not available_folders:
             return LLMResponse(
                 success=False,
-                error_message="Keine Zielordner verfügbar."
+                error_message=tr("Keine Zielordner verfügbar.")
             )
 
         prompt = self._build_classification_prompt(
@@ -148,7 +149,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Prüfen ob der vorgeschlagene Ordner existiert
@@ -171,22 +172,22 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         except self._openai.APIConnectionError:
             return LLMResponse(
                 success=False,
-                error_message=f"Keine Verbindung zur {self.API_NAME} API."
+                error_message=tr("Keine Verbindung zur {API_NAME} API.").format(API_NAME=self.API_NAME)
             )
         except self._openai.RateLimitError:
             return LLMResponse(
                 success=False,
-                error_message=f"{self.API_NAME} API Rate-Limit erreicht. Bitte später versuchen."
+                error_message=tr("{API_NAME} API Rate-Limit erreicht. Bitte später versuchen.").format(API_NAME=self.API_NAME)
             )
         except self._openai.AuthenticationError:
             return LLMResponse(
                 success=False,
-                error_message=f"Ungültiger {self.API_NAME} API-Key."
+                error_message=tr("Ungültiger {API_NAME} API-Key.").format(API_NAME=self.API_NAME)
             )
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"{self.API_NAME} API Fehler: {str(e)}"
+                error_message=tr("{API_NAME} API Fehler: {0}").format(str(e), API_NAME=self.API_NAME)
             )
 
     def suggest_filename(
@@ -218,7 +219,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         if not self.is_available():
             return LLMResponse(
                 success=False,
-                error_message=f"{self.API_NAME} API nicht verfügbar. API-Key prüfen."
+                error_message=tr("{API_NAME} API nicht verfügbar. API-Key prüfen.").format(API_NAME=self.API_NAME)
             )
 
         prompt = self._build_filename_prompt(
@@ -252,7 +253,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
             if parsed.get("error"):
                 return LLMResponse(
                     success=False,
-                    error_message=f"KI-Antwort nicht lesbar: {parsed['error']}",
+                    error_message=tr("KI-Antwort nicht lesbar: {error}").format(error=parsed['error']),
                 )
 
             # Dateiname validieren
@@ -274,7 +275,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         except Exception as e:
             return LLMResponse(
                 success=False,
-                error_message=f"{self.API_NAME} API Fehler: {str(e)}"
+                error_message=tr("{API_NAME} API Fehler: {0}").format(str(e), API_NAME=self.API_NAME)
             )
 
     # Reasoning-Modelle bei OpenAI direkt: o1/o3/o4-mini, gpt-5-Familie.
@@ -385,9 +386,9 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
                 detail = e.read().decode("utf-8", errors="replace")
             except Exception:
                 detail = ""
-            return None, f"{self.API_NAME} HTTP {e.code}: {detail}"
+            return None, tr("{API_NAME} HTTP {code}: {detail}").format(API_NAME=self.API_NAME, code=e.code, detail=detail)
         except urllib.error.URLError as e:
-            return None, f"Keine Verbindung zur {self.API_NAME} API: {e.reason}"
+            return None, tr("Keine Verbindung zur {API_NAME} API: {reason}").format(API_NAME=self.API_NAME, reason=e.reason)
         except Exception as e:
             return None, f"{self.API_NAME}-Fehler: {e}"
 
@@ -399,7 +400,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         import base64
 
         if not self.config.api_key:
-            raise RuntimeError(f"Für {self.API_NAME} fehlt der API-Schlüssel.")
+            raise RuntimeError(tr("Für {API_NAME} fehlt der API-Schlüssel.").format(API_NAME=self.API_NAME))
         content = [{"type": "text", "text": prompt}]
         content += [
             {"type": "image_url",
@@ -418,7 +419,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         }
         data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers, timeout=300)
         if error or not data:
-            raise RuntimeError(error or f"Leere Antwort von {self.API_NAME}.")
+            raise RuntimeError(error or tr("Leere Antwort von {API_NAME}.").format(API_NAME=self.API_NAME))
         choices = data.get("choices") or []
         if not choices:
             return ""
@@ -461,7 +462,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         }
         data, error = self._http_post_json(self.CHAT_COMPLETIONS_URL, body, headers)
         if error or not data:
-            return f"[{self.API_NAME}-Fehler: {error}]"
+            return tr("[{API_NAME}-Fehler: {error}]").format(API_NAME=self.API_NAME, error=error)
 
         choices = data.get("choices") or []
         if not choices:
