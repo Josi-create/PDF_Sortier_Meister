@@ -14,6 +14,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 from __future__ import annotations
 
 from PyQt6.QtCore import QThread, pyqtSignal
+from src.i18n import tr
 
 
 class SuchAbfrage(QThread):
@@ -66,7 +67,7 @@ class DokumentLaden(QThread):
             dokument = self.index.dokument(self.dok_id)
             seiten = self.index.seiten_text(self.dok_id, hervorheben=self.hervorheben) if dokument else []
         except Exception as e:  # noqa: BLE001
-            dokument, seiten = None, [{"seite": 0, "quelle": "fehler", "text": f"Fehler beim Lesen: {e}"}]
+            dokument, seiten = None, [{"seite": 0, "quelle": "fehler", "text": tr("Fehler beim Lesen: {e}").format(e=e)}]
         self.fertig.emit(self.generation, dokument, seiten)
 
 

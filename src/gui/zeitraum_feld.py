@@ -15,16 +15,17 @@ from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from src.core import datum_eingabe as de
+from src.i18n import tr
 
 HINWEIS_STIL = "color: #888; font-size: 10px;"
 FEHLER_HINWEIS_STIL = "color: #b71c1c; font-size: 10px;"
 FEHLER_RAND_STIL = "QLineEdit { border: 1px solid #d32f2f; border-radius: 3px; padding: 1px 3px; }"
 
 TOOLTIP = (
-    "Zeitraum frei eintippen, leer = keine Grenze.\n"
+    tr("Zeitraum frei eintippen, leer = keine Grenze.\n"
     "Beispiele: 2024 · 12/2024 · Jan 2024 · Q2 2024 · 3.5.2024\n"
     "Bereiche: 2004-2006 · 12/2023-3/2024 · 2004 bis 2006\n"
-    "Offen: ab 2020 · 2020- · bis 12/2023"
+    "Offen: ab 2020 · 2020- · bis 12/2023")
 )
 
 
@@ -38,7 +39,7 @@ class ZeitraumFeld(QWidget):
         super().__init__(parent)
         self._heute = heute
         self.edit = QLineEdit()
-        self.edit.setPlaceholderText("Zeitraum, z. B. 2004-2006")
+        self.edit.setPlaceholderText(tr("Zeitraum, z. B. 2004-2006"))
         self.edit.setClearButtonEnabled(True)
         self.edit.setToolTip(TOOLTIP)
         self.hinweis = QLabel("")

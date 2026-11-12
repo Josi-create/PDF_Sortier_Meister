@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QGroupBox,
 )
+from src.i18n import tr
 
 
 class SplitPDFDialog(QDialog):
@@ -30,7 +31,7 @@ class SplitPDFDialog(QDialog):
         self.page_count = page_count
         self._pages: list[int] | None = None  # None = alle Seiten
 
-        self.setWindowTitle("PDF trennen")
+        self.setWindowTitle(tr("PDF trennen"))
         self.setMinimumWidth(380)
         self.setModal(True)
 
@@ -41,35 +42,35 @@ class SplitPDFDialog(QDialog):
         layout.setSpacing(12)
 
         # Info-Zeile
-        info = QLabel(f"<b>{self.pdf_path.name}</b><br>{self.page_count} Seiten")
+        info = QLabel(tr("<b>{name}</b><br>{page_count} Seiten").format(name=self.pdf_path.name, page_count=self.page_count))
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(info)
 
         # Optionsgruppe
-        group = QGroupBox("Trennmodus")
+        group = QGroupBox(tr("Trennmodus"))
         group_layout = QVBoxLayout(group)
 
         self._btn_group = QButtonGroup(self)
 
         # Option 1: Alle Seiten einzeln
-        self._radio_all = QRadioButton(f"Alle {self.page_count} Seiten einzeln speichern")
+        self._radio_all = QRadioButton(tr("Alle {page_count} Seiten einzeln speichern").format(page_count=self.page_count))
         self._radio_all.setChecked(True)
         self._btn_group.addButton(self._radio_all, 0)
         group_layout.addWidget(self._radio_all)
 
         # Option 2: Seitenbereich
         range_layout = QHBoxLayout()
-        self._radio_range = QRadioButton("Bestimmte Seiten extrahieren:")
+        self._radio_range = QRadioButton(tr("Bestimmte Seiten extrahieren:"))
         self._btn_group.addButton(self._radio_range, 1)
         range_layout.addWidget(self._radio_range)
 
         self._range_input = QLineEdit()
-        self._range_input.setPlaceholderText(f"z.B. 1,3,5-7  (max. {self.page_count})")
+        self._range_input.setPlaceholderText(tr("z.B. 1,3,5-7  (max. {page_count})").format(page_count=self.page_count))
         self._range_input.setEnabled(False)
         range_layout.addWidget(self._range_input)
         group_layout.addLayout(range_layout)
 
-        hint = QLabel("Seiten kommagetrennt oder als Bereich (1-3) angeben.")
+        hint = QLabel(tr("Seiten kommagetrennt oder als Bereich (1-3) angeben."))
         hint.setStyleSheet("color: #666; font-size: 11px;")
         group_layout.addWidget(hint)
 
@@ -79,7 +80,7 @@ class SplitPDFDialog(QDialog):
         self._radio_all.toggled.connect(lambda checked: self._range_input.setEnabled(not checked))
 
         # Zielordner-Info
-        target_label = QLabel(f"Zielordner: <i>{self.pdf_path.parent}</i>")
+        target_label = QLabel(tr("Zielordner: <i>{parent}</i>").format(parent=self.pdf_path.parent))
         target_label.setWordWrap(True)
         target_label.setStyleSheet("color: #555; font-size: 11px;")
         layout.addWidget(target_label)
@@ -88,11 +89,11 @@ class SplitPDFDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        cancel_btn = QPushButton("Abbrechen")
+        cancel_btn = QPushButton(tr("Abbrechen"))
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
-        ok_btn = QPushButton("Trennen")
+        ok_btn = QPushButton(tr("Trennen"))
         ok_btn.setDefault(True)
         ok_btn.clicked.connect(self._on_accept)
         btn_layout.addWidget(ok_btn)
@@ -110,14 +111,14 @@ class SplitPDFDialog(QDialog):
         text = self._range_input.text().strip()
         if not text:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Eingabe fehlt", "Bitte Seitenzahlen eingeben.")
+            QMessageBox.warning(self, tr("Eingabe fehlt"), tr("Bitte Seitenzahlen eingeben."))
             return
 
         try:
             pages = self._parse_pages(text)
         except ValueError as e:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Ungültige Eingabe", str(e))
+            QMessageBox.warning(self, tr("Ungültige Eingabe"), str(e))
             return
 
         self._pages = pages
@@ -136,21 +137,25 @@ class SplitPDFDialog(QDialog):
                 end = int(bounds[1].strip())
                 if start < 1 or end > self.page_count or start > end:
                     raise ValueError(
-                        f"Ungültiger Bereich '{part}'. "
-                        f"Seiten müssen zwischen 1 und {self.page_count} liegen."
+                        tr(
+                            "Ungültiger Bereich '{part}'. Seiten müssen zwischen 1 und "
+                            "{page_count} liegen."
+                        ).format(part=part, page_count=self.page_count)
                     )
                 pages.extend(range(start, end + 1))
             else:
                 page = int(part)
                 if page < 1 or page > self.page_count:
                     raise ValueError(
-                        f"Seite {page} liegt außerhalb des gültigen Bereichs "
-                        f"(1–{self.page_count})."
+                        tr(
+                            "Seite {page} liegt außerhalb des gültigen Bereichs "
+                            "(1–{page_count})."
+                        ).format(page=page, page_count=self.page_count)
                     )
                 pages.append(page)
 
         if not pages:
-            raise ValueError("Keine gültigen Seitenzahlen angegeben.")
+            raise ValueError(tr("Keine gültigen Seitenzahlen angegeben."))
 
         return sorted(set(pages))
 

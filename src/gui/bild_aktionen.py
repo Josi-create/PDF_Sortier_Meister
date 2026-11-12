@@ -20,6 +20,7 @@ from src.gui import original_wegraeumen as ow
 from src.gui.bild_convert_worker import BildConvertWorker, BilderEinzelnWorker, EntzerrErkennungWorker
 from src.gui.entzerren_dialog import EntzerrenDialog
 from src.search.meldungen import melden as index_melden
+from src.i18n import tr
 
 
 def _seiten_summe(pdfs: list[Path]) -> int:
@@ -86,11 +87,11 @@ class BildAktionenMixin:
     def bilder_entzerren(self, pfade: list[Path], art: str, modus: str):
         """Sucht im Hintergrund das Blatt je Foto; danach Dialog (von Hand / unsichere) oder direkt umwandeln."""
         if self._bild_beschaeftigt():
-            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            self.statusbar.showMessage(tr("Eine Umwandlung läuft noch - bitte warten."), 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        text = pfade[0].name if len(pfade) == 1 else f"{len(pfade)} Bildern"
-        self.statusbar.showMessage(f"Suche das Blatt in {text}…")
+        text = pfade[0].name if len(pfade) == 1 else tr("{anzahl} Bildern").format(anzahl=len(pfade))
+        self.statusbar.showMessage(tr("Suche das Blatt in {text}…").format(text=text))
         worker = EntzerrErkennungWorker(pfade, self)
         worker.fertig.connect(lambda ergebnisse: self._on_erkennung_fertig(ergebnisse, art, modus))
         self._erkennung_worker = worker
@@ -107,9 +108,9 @@ class BildAktionenMixin:
         lesbar = [(p, erk) for p, erk, fehler in ergebnisse if erk is not None]
         fehler = [f"{p.name}: {text}" for p, erk, text in ergebnisse if erk is None]
         if fehler:
-            QMessageBox.warning(self, "Entzerren", "\n".join(fehler))
+            QMessageBox.warning(self, tr("Entzerren"), "\n".join(fehler))
         if not lesbar:
-            self.statusbar.showMessage("Entzerren: kein Bild lesbar.", 6000)
+            self.statusbar.showMessage(tr("Entzerren: kein Bild lesbar."), 6000)
             return
         vorgaben = {p: erk.ecken for p, erk in lesbar}
         unsicher = {p for p, erk in lesbar if not erk.sicher}
@@ -119,7 +120,7 @@ class BildAktionenMixin:
         if im_fenster:
             dialog = EntzerrenDialog(im_fenster, vorgaben, tonwerte, self, unsicher=unsicher)
             if dialog.exec() != EntzerrenDialog.DialogCode.Accepted:
-                self.statusbar.showMessage("Entzerren abgebrochen - nichts wurde geändert.", 5000)
+                self.statusbar.showMessage(tr("Entzerren abgebrochen - nichts wurde geändert."), 5000)
                 return
             auftraege.update(dialog.ergebnis())
             tonwerte = dialog.tonwerte()  # die Wahl im Fenster gilt fuer alle Bilder dieses Auftrags
@@ -134,13 +135,13 @@ class BildAktionenMixin:
     def bilder_einzeln_umwandeln(self, pfade: list[Path], entzerrung: Optional[dict] = None):
         """Mehrfachauswahl "Einzeln in PDFs umwandeln": jedes Bild ein eigenes PDF (Live-Test 08.11.2026)."""
         if self._bild_beschaeftigt():
-            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            self.statusbar.showMessage(tr("Eine Umwandlung läuft noch - bitte warten."), 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self.statusbar.showMessage(f"Wandle {len(pfade)} Bilder einzeln in PDFs um (mit Texterkennung)…")
+        self.statusbar.showMessage(tr("Wandle {anzahl} Bilder einzeln in PDFs um (mit Texterkennung)…").format(anzahl=len(pfade)))
         worker = BilderEinzelnWorker(pfade, self, entzerrung)
         worker.fortschritt.connect(lambda i, n, p: self.statusbar.showMessage(
-            f"Wandle in PDF um ({i}/{n}, mit Texterkennung): {p.name}…"))
+            tr("Wandle in PDF um ({i}/{n}, mit Texterkennung): {name}…").format(i=i, n=n, name=p.name)))
         worker.fertig.connect(self._on_bilder_einzeln_converted)
         self._bild_worker = worker
         worker.start()
@@ -164,20 +165,20 @@ class BildAktionenMixin:
             self.original_nach_umwandeln([q for q, _ in lesbar], [p for _, p in lesbar])
         if erzeugt:
             self.neues_pdf_auswaehlen(erzeugt[0])
-            meldung = f"{len(erzeugt)} PDF(s) erstellt"
+            meldung = tr("{anzahl} PDF(s) erstellt").format(anzahl=len(erzeugt))
             if hinweise:
                 meldung += f" - {hinweise[0]}"  # z. B. "ohne Texterkennung", gilt fuer alle
             self.statusbar.showMessage(meldung, 10000 if hinweise else 6000)  # nach der Auswahl
         if fehler:
-            QMessageBox.warning(self, "In PDF umwandeln", "\n".join(fehler))
+            QMessageBox.warning(self, tr("In PDF umwandeln"), "\n".join(fehler))
 
     def _bilder_umwandeln(self, pfade: list[Path], entzerrung: Optional[dict] = None):
         if self._bild_beschaeftigt():
-            self.statusbar.showMessage("Eine Umwandlung läuft noch - bitte warten.", 4000)
+            self.statusbar.showMessage(tr("Eine Umwandlung läuft noch - bitte warten."), 4000)
             return
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        text = pfade[0].name if len(pfade) == 1 else f"{len(pfade)} Bilder"
-        self.statusbar.showMessage(f"Wandle in PDF um (mit Texterkennung): {text}…")
+        text = pfade[0].name if len(pfade) == 1 else tr("{anzahl} Bilder").format(anzahl=len(pfade))
+        self.statusbar.showMessage(tr("Wandle in PDF um (mit Texterkennung): {text}…").format(text=text))
         worker = BildConvertWorker(pfade, self, entzerrung)
         worker.fertig.connect(self._on_bild_converted)
         self._bild_worker = worker
@@ -187,11 +188,11 @@ class BildAktionenMixin:
         self._bild_worker = None
         QApplication.restoreOverrideCursor()
         if erg is None:
-            QMessageBox.warning(self, "In PDF umwandeln", f"{_namen(quellen)}: {fehlertext}")
+            QMessageBox.warning(self, tr("In PDF umwandeln"), f"{_namen(quellen)}: {fehlertext}")
             return
         index_melden("datei_aufnehmen", str(erg.pdf))
-        meldung = f"PDF erstellt ({erg.seiten} Seite(n)"
-        meldung += ", durchsuchbar)" if erg.ocr_seiten else ")"
+        meldung = tr("PDF erstellt ({seiten} Seite(n)").format(seiten=erg.seiten)
+        meldung += tr(", durchsuchbar)") if erg.ocr_seiten else ")"
         meldung += f": {erg.pdf.name}"
         if erg.ocr_hinweis:
             meldung += f" - {erg.ocr_hinweis}"
@@ -210,32 +211,41 @@ class BildAktionenMixin:
         """
         pdfs = list(pdf) if isinstance(pdf, (list, tuple)) else [pdf]
         if len(pdfs) == 1:
-            text = (f"Das PDF '{pdfs[0].name}' wurde erstellt.\n\n"
-                    f"Original in den Papierkorb verschieben?\n{_namen(quellen)}")
+            text = (tr(
+                "Das PDF '{name}' wurde erstellt.\n\nOriginal in den Papierkorb "
+                "verschieben?\n{0}"
+            ).format(_namen(quellen), name=pdfs[0].name))
         else:
-            text = (f"{len(pdfs)} PDFs wurden erstellt.\n\n"
-                    f"Die {len(quellen)} Originale in den Papierkorb verschieben?\n{_namen(quellen)}")
-        beschreibung = f"Original weggeräumt: {_namen(quellen)}"
+            text = (tr(
+                "{anzahl} PDFs wurden erstellt.\n\nDie {anzahl2} Originale in den Papierkorb "
+                "verschieben?\n{0}"
+            ).format(_namen(quellen), anzahl=len(pdfs), anzahl2=len(quellen)))
+        beschreibung = tr("Original weggeräumt: {0}").format(_namen(quellen))
         return ow.original_wegraeumen(self, quellen, "umwandeln", text, beschreibung)
 
     def original_nach_trennen(self, original: Path, teile: list[Path]) -> list[Path]:
         """Wie ``original_nach_umwandeln``, nach dem Trennen eines PDFs."""
         if not teile or not all(pdf_lesbar(t) for t in teile):
             return []  # nur nach erfolgreichem Trennen
-        text = (f"'{original.name}' wurde in {len(teile)} Datei(en) getrennt.\n\n"
-                "Original in den Papierkorb verschieben?")
+        text = (tr(
+            "'{name}' wurde in {anzahl} Datei(en) getrennt.\n\n"
+            "Original in den Papierkorb verschieben?"
+        ).format(name=original.name, anzahl=len(teile)))
         return ow.original_wegraeumen(self, [original], "trennen", text,
-                                      f"Original nach dem Trennen weggeräumt: {original.name}")
+                                      tr("Original nach dem Trennen weggeräumt: {name}").format(name=original.name))
 
     def originale_nach_zusammenfuegen(self, quellen: list[Path], ziel: Path) -> list[Path]:
         """Wie ``original_nach_trennen``: die Einzel-PDFs nach dem Zusammenfügen wegräumen."""
         quellen = [q for q in quellen if q != ziel]
         if not quellen or not pdf_lesbar(ziel, _seiten_summe(quellen)):
             return []  # nur wenn das zusammengefügte PDF wirklich alle Seiten hat
-        text = (f"{len(quellen)} PDFs wurden zu '{ziel.name}' zusammengefügt.\n\n"
-                f"Die {len(quellen)} einzelnen PDFs in den Papierkorb verschieben?\n{_namen(quellen)}")
+        text = (tr(
+            "{anzahl} PDFs wurden zu '{name}' zusammengefügt.\n\n"
+            "Die {anzahl} einzelnen PDFs in den Papierkorb verschieben?\n"
+            "{0}"
+        ).format(_namen(quellen), anzahl=len(quellen), name=ziel.name))
         return ow.original_wegraeumen(self, quellen, "zusammenfuegen", text,
-                                      f"Einzel-PDFs nach dem Zusammenfügen weggeräumt: {_namen(quellen)}")
+                                      tr("Einzel-PDFs nach dem Zusammenfügen weggeräumt: {0}").format(_namen(quellen)))
 
     def original_entfernt(self, pfad: Path):
         """Kachel, Analyse und Detailansicht eines weggeraeumten Originals aufraeumen."""

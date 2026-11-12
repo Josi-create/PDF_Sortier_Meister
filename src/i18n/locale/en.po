@@ -58,6 +58,276 @@ msgstr "Pattern: "
 msgid "KI: "
 msgstr "AI: "
 
+#: src/gui/bild_aktionen.py
+#: src/gui/main_window.py
+msgid "Eine Umwandlung läuft noch - bitte warten."
+msgstr "A conversion is still running - please wait."
+
+#: src/gui/bild_aktionen.py
+msgid "{anzahl} Bildern"
+msgstr "{anzahl} images"
+
+#: src/gui/bild_aktionen.py
+msgid "Suche das Blatt in {text}…"
+msgstr "Looking for the sheet in {text}…"
+
+#: src/gui/bild_aktionen.py
+msgid "Entzerren"
+msgstr "Correct perspective"
+
+#: src/gui/bild_aktionen.py
+msgid "Entzerren: kein Bild lesbar."
+msgstr "Correct perspective: no image readable."
+
+#: src/gui/bild_aktionen.py
+msgid "Entzerren abgebrochen - nichts wurde geändert."
+msgstr "Perspective correction cancelled - nothing was changed."
+
+#: src/gui/bild_aktionen.py
+msgid "Wandle {anzahl} Bilder einzeln in PDFs um (mit Texterkennung)…"
+msgstr "Converting {anzahl} images to separate PDFs (with text recognition)…"
+
+#: src/gui/bild_aktionen.py
+msgid "Wandle in PDF um ({i}/{n}, mit Texterkennung): {name}…"
+msgstr "Converting to PDF ({i}/{n}, with text recognition): {name}…"
+
+#: src/gui/bild_aktionen.py
+msgid "{anzahl} PDF(s) erstellt"
+msgstr "{anzahl} PDF(s) created"
+
+#: src/gui/bild_aktionen.py
+#: src/gui/main_window.py
+#: src/gui/office_thumbnail.py
+msgid "In PDF umwandeln"
+msgstr "Convert to PDF"
+
+#: src/gui/bild_aktionen.py
+msgid "{anzahl} Bilder"
+msgstr "{anzahl} images"
+
+#: src/gui/bild_aktionen.py
+msgid "Wandle in PDF um (mit Texterkennung): {text}…"
+msgstr "Converting to PDF (with text recognition): {text}…"
+
+#: src/gui/bild_aktionen.py
+msgid "PDF erstellt ({seiten} Seite(n)"
+msgstr "PDF created ({seiten} page(s)"
+
+#: src/gui/bild_aktionen.py
+msgid ", durchsuchbar)"
+msgstr ", searchable)"
+
+#: src/gui/bild_aktionen.py
+msgid "Das PDF '{name}' wurde erstellt.\n\nOriginal in den Papierkorb verschieben?\n{0}"
+msgstr "The PDF '{name}' was created.\n\nMove the original to the Recycle Bin?\n{0}"
+
+#: src/gui/bild_aktionen.py
+msgid "{anzahl} PDFs wurden erstellt.\n\nDie {anzahl2} Originale in den Papierkorb verschieben?\n{0}"
+msgstr "{anzahl} PDFs were created.\n\nMove the {anzahl2} originals to the Recycle Bin?\n{0}"
+
+#: src/gui/bild_aktionen.py
+msgid "Original weggeräumt: {0}"
+msgstr "Original cleared away: {0}"
+
+#: src/gui/bild_aktionen.py
+msgid "'{name}' wurde in {anzahl} Datei(en) getrennt.\n\nOriginal in den Papierkorb verschieben?"
+msgstr "'{name}' was split into {anzahl} file(s).\n\nMove the original to the Recycle Bin?"
+
+#: src/gui/bild_aktionen.py
+msgid "Original nach dem Trennen weggeräumt: {name}"
+msgstr "Original cleared away after splitting: {name}"
+
+#: src/gui/bild_aktionen.py
+msgid "{anzahl} PDFs wurden zu '{name}' zusammengefügt.\n\nDie {anzahl} einzelnen PDFs in den Papierkorb verschieben?\n{0}"
+msgstr "{anzahl} PDFs were merged into '{name}'.\n\nMove the {anzahl} single PDFs to the Recycle Bin?\n{0}"
+
+#: src/gui/bild_aktionen.py
+msgid "Einzel-PDFs nach dem Zusammenfügen weggeräumt: {0}"
+msgstr "Single PDFs cleared away after merging: {0}"
+
+#: src/gui/chat_view.py
+msgid "Zitiert"
+msgstr "Cited"
+
+#: src/gui/chat_view.py
+msgid "In der Antwort zitiert"
+msgstr "Cited in the answer"
+
+#: src/gui/chat_view.py
+msgid "Gelesen"
+msgstr "Read"
+
+#: src/gui/chat_view.py
+msgid "Von der KI ganz gelesen, aber nicht zitiert"
+msgstr "Read in full by the AI, but not cited"
+
+#: src/gui/chat_view.py
+msgid "Gefunden"
+msgstr "Found"
+
+#: src/gui/chat_view.py
+msgid "Bei der Suche gefunden, nicht gelesen"
+msgstr "Found by the search, not read"
+
+#: src/gui/chat_view.py
+msgid "Kein LLM verfügbar. Du bekommst nur Dokument-Treffer, keine synthetisierte Antwort."
+msgstr "No LLM available. You only get document results, no synthesized answer."
+
+#: src/gui/chat_view.py
+msgid "Quellen"
+msgstr "Sources"
+
+#: src/gui/chat_view.py
+msgid "Quellen-Panel ein-/ausblenden"
+msgstr "Show/hide the sources panel"
+
+#: src/gui/chat_view.py
+msgid "Bezug entfernen: Fragen gelten wieder der ganzen Sammlung"
+msgstr "Remove reference: questions apply to the whole collection again"
+
+#: src/gui/chat_view.py
+msgid "Schnellfragen ein-/ausklappen"
+msgstr "Expand/collapse quick questions"
+
+#: src/gui/chat_view.py
+msgid "Frage eingeben…  (Return = senden, Shift+Return = neue Zeile)"
+msgstr "Enter a question…  (Return = send, Shift+Return = new line)"
+
+#: src/gui/chat_view.py
+msgid "Senden"
+msgstr "Send"
+
+#: src/gui/chat_view.py
+msgid "Zurücksetzen"
+msgstr "Reset"
+
+#: src/gui/chat_view.py
+#: src/gui/entzerren_dialog.py
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/korrespondenten_view.py
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/rename_dialog.py
+#: src/gui/search_migration_dialog.py
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+#: src/gui/split_pdf_dialog.py
+#: src/gui/stapel_rueckfrage.py
+msgid "Abbrechen"
+msgstr "Cancel"
+
+#: src/gui/chat_view.py
+msgid "Suche läuft…"
+msgstr "Searching…"
+
+#: src/gui/chat_view.py
+msgid "⚠ Einige Quellenangaben konnten nicht verifiziert werden."
+msgstr "⚠ Some source references could not be verified."
+
+#: src/gui/chat_view.py
+msgid "Keine Antwort erhalten."
+msgstr "No answer received."
+
+#: src/gui/chat_view.py
+msgid "Keine passenden Dokumente gefunden."
+msgstr "No matching documents found."
+
+#: src/gui/chat_view.py
+msgid "Kein LLM verfügbar – hier sind die passenden Dokument-Treffer:"
+msgstr "No LLM available – here are the matching document results:"
+
+#: src/gui/chat_view.py
+msgid "Werkzeugaufrufe der KI ein-/ausblenden"
+msgstr "Show/hide the AI's tool calls"
+
+#: src/gui/chat_view.py
+msgid "{pfeil} 🔧 Arbeitsschritte ({anzahl})"
+msgstr "{pfeil} 🔧 Steps ({anzahl})"
+
+#: src/gui/chat_view.py
+msgid "Werkzeugaufruf"
+msgstr "Tool call"
+
+#: src/gui/chat_view.py
+msgid "Fehler: {error}"
+msgstr "Error: {error}"
+
+#: src/gui/chat_view.py
+msgid "Abgebrochen."
+msgstr "Cancelled."
+
+#: src/gui/chat_view.py
+msgid "Bezug: {name}"
+msgstr "Reference: {name}"
+
+#: src/gui/chat_view.py
+msgid "{bezug}\nFragen beziehen sich auf dieses PDF; ähnliche Dokumente kommen aus der Sammlung dazu."
+msgstr "{bezug}\nQuestions refer to this PDF; similar documents from the collection are added."
+
+#: src/gui/chat_view.py
+msgid "Frage zum Bezugsdokument stellen"
+msgstr "Ask a question about the reference document"
+
+#: src/gui/chat_view.py
+msgid "{0}Schnellfragen"
+msgstr "{0}Quick questions"
+
+#: src/gui/chat_view.py
+msgid "📁 Nach {anzeige} verschieben"
+msgstr "📁 Move to {anzeige}"
+
+#: src/gui/chat_view.py
+msgid "{name} nach {ordner} verschieben"
+msgstr "Move {name} to {ordner}"
+
+#: src/gui/chat_view.py
+msgid "📁 {vor}Nach {anzeige} verschieben"
+msgstr "📁 {vor}Move to {anzeige}"
+
+#: src/gui/chat_view.py
+msgid "{quelle} nach {ziel} verschieben"
+msgstr "Move {quelle} to {ziel}"
+
+#: src/gui/chat_view.py
+msgid "✏️ {vor}Umbenennen in {name}"
+msgstr "✏️ {vor}Rename to {name}"
+
+#: src/gui/chat_view.py
+msgid "{quelle} umbenennen in {name}"
+msgstr "Rename {quelle} to {name}"
+
+#: src/gui/chat_view.py
+msgid "🏷️ {vor}Metadaten übernehmen: {felder_text}"
+msgstr "🏷️ {vor}Apply metadata: {felder_text}"
+
+#: src/gui/chat_view.py
+msgid "In {quelle} speichern:\n{felder_text}"
+msgstr "Save in {quelle}:\n{felder_text}"
+
+#: src/gui/chat_view.py
+msgid "{0}\n(erledigt)"
+msgstr "{0}\n(done)"
+
+#: src/gui/chat_view.py
+msgid "Quellen ({anzahl})"
+msgstr "Sources ({anzahl})"
+
+#: src/gui/chat_view.py
+#: src/gui/main_window.py
+#: src/gui/office_thumbnail.py
+#: src/gui/search_view.py
+msgid "Öffnen"
+msgstr "Open"
+
+#: src/gui/chat_view.py
+#: src/gui/search_view.py
+msgid "📂 Im Ordner anzeigen"
+msgstr "📂 Show in folder"
+
+#: src/gui/chat_worker.py
+msgid "KI denkt…"
+msgstr "AI is thinking…"
+
 #: src/gui/detail_panel.py
 msgid "PDF auswählen\n\nKlicken Sie links auf ein PDF-Thumbnail,\num hier die Details zu sehen.\n\nDann klicken Sie rechts auf einen\nZielordner zum Verschieben."
 msgstr "Select a PDF\n\nClick a PDF thumbnail on the left\nto see its details here.\n\nThen click a target folder on the right\nto move it."
@@ -108,17 +378,21 @@ msgid "Metadaten (werden in PDF gespeichert)"
 msgstr "Metadata (saved in the PDF)"
 
 #: src/gui/detail_panel.py
+#: src/gui/korrespondenten_view.py
 #: src/gui/rename_dialog.py
 msgid "Datum"
 msgstr "Date"
 
 #: src/gui/detail_panel.py
 #: src/gui/rename_dialog.py
+#: src/gui/steuerauswertung_dialog.py
 msgid "Steuerjahr"
 msgstr "Tax year"
 
 #: src/gui/detail_panel.py
+#: src/gui/korrespondenten_view.py
 #: src/gui/rename_dialog.py
+#: src/gui/steuerauswertung_dialog.py
 msgid "Kategorie"
 msgstr "Category"
 
@@ -356,6 +630,71 @@ msgstr "AI working… {0}"
 msgid "KI hat keinen Vorschlag geliefert."
 msgstr "The AI did not return a suggestion."
 
+#: src/gui/entzerren_dialog.py
+#: src/gui/main_window.py
+#: src/gui/rename_dialog.py
+msgid "Vorschau"
+msgstr "Preview"
+
+#: src/gui/entzerren_dialog.py
+msgid "Foto entzerren"
+msgstr "Correct photo perspective"
+
+#: src/gui/entzerren_dialog.py
+msgid "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis."
+msgstr "Drag the four corners onto the corners of the sheet. On the right you see the corrected result."
+
+#: src/gui/entzerren_dialog.py
+#: src/gui/settings_dialog.py
+msgid "Farbe aufgehellt: Papier weiß, Schrift kräftig, Stempel und Logos bleiben farbig.\nGraustufen: wie oben, ohne Farbe.\nSchwarzweiß: nur Schwarz und Weiß (kleinste Datei)."
+msgstr "Brightened color: paper white, text strong, stamps and logos stay in color.\nGrayscale: as above, without color.\nBlack and white: only black and white (smallest file)."
+
+#: src/gui/entzerren_dialog.py
+msgid "◀ Zurück"
+msgstr "◀ Back"
+
+#: src/gui/entzerren_dialog.py
+msgid "Weiter ▶"
+msgstr "Next ▶"
+
+#: src/gui/entzerren_dialog.py
+msgid "Zurücksetzen (automatisch)"
+msgstr "Reset (automatic)"
+
+#: src/gui/entzerren_dialog.py
+msgid "Die Ecken dieses Bildes auf die automatische Erkennung zurücksetzen"
+msgstr "Reset the corners of this image to the automatic detection"
+
+#: src/gui/entzerren_dialog.py
+#: src/gui/search_migration_dialog.py
+msgid "Übernehmen"
+msgstr "Import"
+
+#: src/gui/entzerren_dialog.py
+msgid "Foto"
+msgstr "Photo"
+
+#: src/gui/entzerren_dialog.py
+msgid "Ergebnis (Vorschau)"
+msgstr "Result (preview)"
+
+#: src/gui/entzerren_dialog.py
+#: src/gui/settings_dialog.py
+msgid "Tonwerte:"
+msgstr "Tones:"
+
+#: src/gui/entzerren_dialog.py
+msgid "Bild {0} von {n}: {name}"
+msgstr "Image {0} of {n}: {name}"
+
+#: src/gui/entzerren_dialog.py
+msgid "Das Bild konnte nicht gelesen werden: {fehler}"
+msgstr "The image could not be read: {fehler}"
+
+#: src/gui/entzerren_dialog.py
+msgid "Die automatische Erkennung war bei diesem Bild unsicher - bitte die Ecken prüfen."
+msgstr "The automatic detection was uncertain for this image - please check the corners."
+
 #: src/gui/favoriten_leiste.py
 msgid "★ Als Favorit merken"
 msgstr "★ Add to favorites"
@@ -389,6 +728,7 @@ msgid "Anzeigename (leer = Ordnername):"
 msgstr "Display name (empty = folder name):"
 
 #: src/gui/favoriten_leiste.py
+#: src/gui/settings_dialog.py
 msgid "Entfernen"
 msgstr "Remove"
 
@@ -600,9 +940,13 @@ msgstr "Renaming not possible"
 
 #: src/gui/folder_tree_widget.py
 #: src/gui/hierhin_kopieren.py
+#: src/gui/ki_trennen_dialog.py
 #: src/gui/main_window.py
 #: src/gui/rename_dialog.py
+#: src/gui/search_view.py
+#: src/gui/settings_dialog.py
 #: src/gui/stapel_ablage.py
+#: src/gui/steuerauswertung_dialog.py
 msgid "Fehler"
 msgstr "Error"
 
@@ -717,6 +1061,7 @@ msgstr "{anzahl} files"
 
 #: src/gui/hierhin_kopieren.py
 #: src/gui/main_window.py
+#: src/gui/textebene_dialog.py
 msgid "Datei"
 msgstr "File"
 
@@ -771,6 +1116,288 @@ msgstr "📄 copied to {0}"
 msgid "Kopiert nach {p}"
 msgstr "Copied to {p}"
 
+#: src/gui/ki_trennen_dialog.py
+msgid "KI-unterstütztes Trennen"
+msgstr "AI-assisted splitting"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "<b>{name}</b> ({seitenzahl} Seiten)<br>Die KI hat {anzahl} Dokumente erkannt. Jede Zeile wird ein eigenes PDF; Seiten und Namen lassen sich ändern."
+msgstr "<b>{name}</b> ({seitenzahl} pages)<br>The AI found {anzahl} documents. Each row becomes a separate PDF; pages and names can be changed."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "<b>{name}</b> ({seitenzahl} Seiten)<br>Die KI hält das für ein einziges Dokument. Mit „Dokument aufteilen …“ kannst du es selbst zerlegen; jede Zeile wird ein eigenes PDF."
+msgstr "<b>{name}</b> ({seitenzahl} pages)<br>The AI considers this a single document. With “Split document …” you can divide it yourself; each row becomes a separate PDF."
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/textebene_dialog.py
+msgid "Seiten"
+msgstr "Pages"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Dateiname (ohne .pdf)"
+msgstr "File name (without .pdf)"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Dokument aufteilen …"
+msgstr "Split document …"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Im markierten Dokument stecken zwei Schriftstücke?\nHier angeben, auf welcher Seite das zweite beginnt."
+msgstr "Does the marked document contain two separate documents?\nSpecify here on which page the second one begins."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Mit dem Dokument davor zusammenlegen"
+msgstr "Merge with the document before"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Das markierte Dokument ist gar kein eigenes Schriftstück?\nSeine Seiten kommen zum Dokument in der Zeile darüber\n(beim ersten Dokument: in der Zeile darunter)."
+msgstr "The marked document is not a separate document at all?\nIts pages are added to the document in the row above\n(for the first document: in the row below)."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seiten als Bereich (1-3) oder kommagetrennt (1-3, 7). Die neuen PDFs entstehen in: {parent}"
+msgstr "Pages as a range (1-3) or comma-separated (1-3, 7). The new PDFs are created in: {parent}"
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/split_pdf_dialog.py
+msgid "Trennen"
+msgstr "Split"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite {erste}: {anfang}"
+msgstr "Page {erste}: {anfang}"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite {erste} (kein Text)"
+msgstr "Page {erste} (no text)"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Mit dem Dokument danach zusammenlegen"
+msgstr "Merge with the document after"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Dokument aufteilen"
+msgstr "Split document"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Das Dokument hat die Seiten {0}.\n\nAuf welcher Seite beginnt das zweite Schriftstück?"
+msgstr "The document has the pages {0}.\n\nOn which page does the second document begin?"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Zeile {0}: {e}"
+msgstr "Row {0}: {e}"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Zeile {0}: Der Dateiname fehlt."
+msgstr "Row {0}: The file name is missing."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite(n) {0} kommen in keinem Dokument vor"
+msgstr "Page(s) {0} do not occur in any document"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite(n) {0} sind mehrfach vergeben"
+msgstr "Page(s) {0} are assigned more than once"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "✓ Alle {seitenzahl} Seiten sind auf {anzahl} Dokument(e) verteilt."
+msgstr "✓ All {seitenzahl} pages are distributed among {anzahl} document(s)."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Eingabe prüfen"
+msgstr "Check input"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite(n) {0} kommen in keinem Dokument vor."
+msgstr "Page(s) {0} do not occur in any document."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Seite(n) {0} sind mehrfach vergeben."
+msgstr "Page(s) {0} are assigned more than once."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "{0}\n\nTrotzdem so trennen?"
+msgstr "{0}\n\nSplit like this anyway?"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Das geht nur mit PDF-Dateien."
+msgstr "This only works with PDF files."
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/main_window.py
+msgid "PDF konnte nicht geöffnet werden:\n{e}"
+msgstr "The PDF could not be opened:\n{e}"
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/main_window.py
+msgid "'{name}' hat nur eine Seite und kann nicht getrennt werden."
+msgstr "'{name}' has only one page and cannot be split."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Dafür ist eine KI nötig. Bitte in den Einstellungen einen KI-Anbieter einrichten oder das PDF mit „PDF trennen...“ von Hand trennen."
+msgstr "This requires an AI. Please set up an AI provider in the settings or split the PDF by hand with “Split PDF...”."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Der Text der Seiten wird gelesen …"
+msgstr "Reading the text of the pages …"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …\nAbschnitt {0} von {gesamt}"
+msgstr "The AI is looking for the document boundaries in the {seitenzahl} pages …\nSection {0} of {gesamt}"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Die KI sucht die Dokumentgrenzen in den {seitenzahl} Seiten …"
+msgstr "The AI is looking for the document boundaries in the {seitenzahl} pages …"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "In dem PDF wurde kein Text gefunden (auch nicht per Texterkennung). Ohne Text kann die KI die Dokumente nicht unterscheiden."
+msgstr "No text was found in the PDF (not even with text recognition). Without text the AI cannot tell the documents apart."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "KI-unterstütztes Trennen abgebrochen"
+msgstr "AI-assisted splitting cancelled"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "Die KI hat keine Aufteilung geliefert."
+msgstr "The AI did not return a split."
+
+#: src/gui/ki_trennen_dialog.py
+msgid "PDF getrennt: {n} Dokument(e) erstellt"
+msgstr "PDF split: {n} document(s) created"
+
+#: src/gui/ki_trennen_dialog.py
+msgid "PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
+msgstr "PDF split: {n} document(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/main_window.py
+msgid "PDF trennen fehlgeschlagen:\n{e}"
+msgstr "Splitting the PDF failed:\n{e}"
+
+#: src/gui/korrespondenten_view.py
+msgid "{anzahl} Dokumente"
+msgstr "{anzahl} documents"
+
+#: src/gui/korrespondenten_view.py
+msgid "Die Korrespondenten kommen aus dem Suchindex. Richten Sie dazu die Dokumentensuche ein – sie bleibt ganz auf diesem Rechner."
+msgstr "The correspondents come from the search index. Set up the document search for this – it stays entirely on this computer."
+
+#: src/gui/korrespondenten_view.py
+msgid "Suche einrichten…"
+msgstr "Set up search…"
+
+#: src/gui/korrespondenten_view.py
+#: src/gui/search_view.py
+msgid "Einstellungen > Suche öffnen"
+msgstr "Open Settings > Search"
+
+#: src/gui/korrespondenten_view.py
+msgid "Korrespondent suchen…"
+msgstr "Search correspondent…"
+
+#: src/gui/korrespondenten_view.py
+msgid "Aufräumen…"
+msgstr "Clean up…"
+
+#: src/gui/korrespondenten_view.py
+msgid "Korrespondenten aufräumen: Dokumente in den Zielordnern ohne Korrespondent, mit Ihrem\neigenen Namen oder einem Formularverlag (z. B. „Haus & Grund“) von der KI neu bewerten\nlassen. Vorher erscheint die Anzahl; abbrechen geht jederzeit."
+msgstr "Clean up correspondents: have the AI re-evaluate documents in the target folders that have no correspondent,\nyour own name or a form publisher (e.g. “Haus & Grund”).\nThe number is shown first; you can cancel at any time."
+
+#: src/gui/korrespondenten_view.py
+msgid "Korrespondent anklicken, um seine Dokumente zu sehen."
+msgstr "Click a correspondent to see its documents."
+
+#: src/gui/korrespondenten_view.py
+msgid "Dateiname"
+msgstr "File name"
+
+#: src/gui/korrespondenten_view.py
+msgid "Ablageort"
+msgstr "Location"
+
+#: src/gui/korrespondenten_view.py
+msgid "Klick: Dokument wie unter „PDFs“ bearbeiten · Strg/Umschalt: mehrere markieren · auf einen Ordner ziehen (Strg: kopieren) · Doppelklick: öffnen · Rechtsklick: weitere Aktionen"
+msgstr "Click: edit the document as under “PDFs” · Ctrl/Shift: select several · drag onto a folder (Ctrl: copy) · double-click: open · right-click: more actions"
+
+#: src/gui/korrespondenten_view.py
+msgid "Schreibweisen: {0}"
+msgstr "Spellings: {0}"
+
+#: src/gui/korrespondenten_view.py
+msgid "Auffällig ({0}) – „Aufräumen…“ bewertet diese Dokumente neu."
+msgstr "Conspicuous ({0}) – “Clean up…” re-evaluates these documents."
+
+#: src/gui/korrespondenten_view.py
+msgid "Noch keine Korrespondenten im Suchindex. Sie entstehen beim Sortieren und mit „Metadaten speichern“."
+msgstr "No correspondents in the search index yet. They are created when sorting and with “Save metadata”."
+
+#: src/gui/korrespondenten_view.py
+msgid "{anzahl} Korrespondenten"
+msgstr "{anzahl} correspondents"
+
+#: src/gui/korrespondenten_view.py
+msgid "Keine Dokumente von „{name}“ im Suchindex."
+msgstr "No documents of “{name}” in the search index."
+
+#: src/gui/korrespondenten_view.py
+msgid "Dokumente von „{name}“ ({anzahl})"
+msgstr "Documents of “{name}” ({anzahl})"
+
+#: src/gui/korrespondenten_view.py
+msgid "Die Datei gibt es nicht mehr: {pfad}"
+msgstr "The file no longer exists: {pfad}"
+
+#: src/gui/korrespondenten_view.py
+msgid "Ordner links öffnen"
+msgstr "Open folder on the left"
+
+#: src/gui/korrespondenten_view.py
+msgid "Aufgeräumt wird in den Zielordnern – es ist noch keiner eingerichtet."
+msgstr "Cleaning up works on the target folders – none has been set up yet."
+
+#: src/gui/korrespondenten_view.py
+msgid "Nichts aufzuräumen: Kein Dokument in den Zielordnern ist ohne Korrespondent, trägt Ihren Namen oder einen Formularverlag."
+msgstr "Nothing to clean up: no document in the target folders is without a correspondent, carries your name or a form publisher."
+
+#: src/gui/korrespondenten_view.py
+msgid "{anzahl} Dokumente wären neu zu bewerten ({teile}) – dafür braucht es einen KI-Anbieter (Einstellungen > KI-Assistent)."
+msgstr "{anzahl} documents would have to be re-evaluated ({teile}) – this requires an AI provider (Settings > AI assistant)."
+
+#: src/gui/korrespondenten_view.py
+msgid "Korrespondenten aufräumen"
+msgstr "Clean up correspondents"
+
+#: src/gui/korrespondenten_view.py
+msgid "{anzahl} Dokumente werden neu bewertet ({teile}).\n\nDabei geht der Text jedes Dokuments an {name}. Das ist ein KI-Aufruf je Dokument und kann je nach Tarif Kosten verursachen.\n\nJetzt starten?"
+msgstr "{anzahl} documents will be re-evaluated ({teile}).\n\nThe text of each document is sent to {name}. That is one AI call per document and may incur costs depending on your plan.\n\nStart now?"
+
+#: src/gui/korrespondenten_view.py
+msgid "{anzahl} Dokumente: {teile}"
+msgstr "{anzahl} documents: {teile}"
+
+#: src/gui/korrespondenten_view.py
+msgid "Korrespondenten werden aufgeräumt …"
+msgstr "Cleaning up correspondents …"
+
+#: src/gui/korrespondenten_view.py
+msgid "Wird nach dem laufenden Dokument abgebrochen …"
+msgstr "Cancelling after the current document …"
+
+#: src/gui/korrespondenten_view.py
+msgid "Bewerte {name} …"
+msgstr "Evaluating {name} …"
+
+#: src/gui/korrespondenten_view.py
+msgid "Aufräumen abgebrochen: {geaendert} geändert, {unveraendert} unverändert"
+msgstr "Clean-up cancelled: {geaendert} changed, {unveraendert} unchanged"
+
+#: src/gui/korrespondenten_view.py
+msgid "Aufräumen fertig: {geaendert} geändert, {unveraendert} unverändert"
+msgstr "Clean-up finished: {geaendert} changed, {unveraendert} unchanged"
+
+#: src/gui/korrespondenten_view.py
+msgid ", {fehler} ohne KI-Antwort"
+msgstr ", {fehler} without an AI answer"
+
 #: src/gui/main_window.py
 msgid "Unbekannt"
 msgstr "Unknown"
@@ -796,6 +1423,7 @@ msgid "Fragen zur ausgewählten PDF und zur Sammlung per KI beantworten lassen"
 msgstr "Let the AI answer questions about the selected PDF and your collection"
 
 #: src/gui/main_window.py
+#: src/gui/settings_dialog.py
 msgid "Suche"
 msgstr "Search"
 
@@ -806,11 +1434,6 @@ msgstr "Correspondents"
 #: src/gui/main_window.py
 msgid "Alle Korrespondenten aus dem Suchindex - anklicken zeigt ihre Dokumente"
 msgstr "All correspondents from the search index - click one to show its documents"
-
-#: src/gui/main_window.py
-#: src/gui/rename_dialog.py
-msgid "Vorschau"
-msgstr "Preview"
 
 #: src/gui/main_window.py
 msgid "3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken"
@@ -993,16 +1616,8 @@ msgid "diese Datei"
 msgstr "this file"
 
 #: src/gui/main_window.py
-msgid "Öffnen"
-msgstr "Open"
-
-#: src/gui/main_window.py
 msgid "Datei konnte nicht geöffnet werden:\n{pfad}"
 msgstr "The file could not be opened:\n{pfad}"
-
-#: src/gui/main_window.py
-msgid "Eine Umwandlung läuft noch - bitte warten."
-msgstr "A conversion is still running - please wait."
 
 #: src/gui/main_window.py
 msgid "Wandle in PDF um: {name}…"
@@ -1019,10 +1634,6 @@ msgstr "PDF created ({werkzeug}{0}): {name}"
 #: src/gui/main_window.py
 msgid "{anzahl} PDFs erstellt"
 msgstr "{anzahl} PDFs created"
-
-#: src/gui/main_window.py
-msgid "In PDF umwandeln"
-msgstr "Convert to PDF"
 
 #: src/gui/main_window.py
 msgid "Analysiere {analysis_n} PDFs im Hintergrund..."
@@ -1105,6 +1716,7 @@ msgid "Hintergrund-Analyse"
 msgstr "Background analysis"
 
 #: src/gui/main_window.py
+#: src/gui/ocr_schwer_lesbar.py
 msgid "Einstellungen öffnen"
 msgstr "Open settings"
 
@@ -1210,6 +1822,7 @@ msgid "Ansicht"
 msgstr "View"
 
 #: src/gui/main_window.py
+#: src/gui/steuerauswertung_dialog.py
 msgid "Aktualisieren"
 msgstr "Refresh"
 
@@ -1593,16 +2206,9 @@ msgid "Kopieren fehlgeschlagen:\n{e}"
 msgstr "Copying failed:\n{e}"
 
 #: src/gui/main_window.py
-msgid "PDF konnte nicht geöffnet werden:\n{e}"
-msgstr "The PDF could not be opened:\n{e}"
-
-#: src/gui/main_window.py
+#: src/gui/split_pdf_dialog.py
 msgid "PDF trennen"
 msgstr "Split PDF"
-
-#: src/gui/main_window.py
-msgid "'{name}' hat nur eine Seite und kann nicht getrennt werden."
-msgstr "'{name}' has only one page and cannot be split."
 
 #: src/gui/main_window.py
 msgid "PDF getrennt: {n} Datei(en) erstellt"
@@ -1611,10 +2217,6 @@ msgstr "PDF split: {n} file(s) created"
 #: src/gui/main_window.py
 msgid "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
 msgstr "PDF split: {n} file(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
-
-#: src/gui/main_window.py
-msgid "PDF trennen fehlgeschlagen:\n{e}"
-msgstr "Splitting the PDF failed:\n{e}"
 
 #: src/gui/main_window.py
 msgid "PDFs zusammenfügen"
@@ -1659,6 +2261,7 @@ msgstr "{desc} (Ctrl+Z undoes it)"
 #: src/gui/main_window.py
 #: src/gui/ordner_verschieben_gui.py
 #: src/gui/stapel_ablage.py
+#: src/gui/textebene_dialog.py
 msgid "Rückgängig machen"
 msgstr "Undo"
 
@@ -1865,13 +2468,6 @@ msgid "Batch-Umbenennung läuft..."
 msgstr "Batch rename in progress..."
 
 #: src/gui/main_window.py
-#: src/gui/ordner_verschieben_gui.py
-#: src/gui/rename_dialog.py
-#: src/gui/stapel_rueckfrage.py
-msgid "Abbrechen"
-msgstr "Cancel"
-
-#: src/gui/main_window.py
 msgid "Automatische Umbenennung"
 msgstr "Automatic renaming"
 
@@ -1977,6 +2573,8 @@ msgid "Steuerjahr:"
 msgstr "Tax year:"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
+#: src/gui/settings_dialog.py
 msgid "Alle"
 msgstr "All"
 
@@ -2009,6 +2607,7 @@ msgid "Alle Filter dieser Leiste auf 'Alle' zurücksetzen"
 msgstr "Reset all filters in this bar to 'All'"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
 msgid "Zeitraum:"
 msgstr "Period:"
 
@@ -2057,6 +2656,7 @@ msgid "Indexierungs-Optionen"
 msgstr "Indexing options"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
 msgid "Ordner:"
 msgstr "Folder:"
 
@@ -2205,6 +2805,7 @@ msgid "Diesen Hinweis nicht mehr anzeigen"
 msgstr "Do not show this hint again"
 
 #: src/gui/main_window.py
+#: src/gui/settings_dialog.py
 msgid "Backup-Erinnerung"
 msgstr "Backup reminder"
 
@@ -2285,6 +2886,7 @@ msgid "Version {version} wird übersprungen (Hilfe > Nach Updates suchen zeigt s
 msgstr "Version {version} will be skipped (Help > Check for updates shows it again)."
 
 #: src/gui/main_window.py
+#: src/gui/settings_dialog.py
 msgid "Dateinamen"
 msgstr "File names"
 
@@ -2404,11 +3006,221 @@ msgstr "<p style='color: #999; font-size: 10px;'>Log file: {log_path}</p>"
 msgid "OK"
 msgstr "OK"
 
+#: src/gui/ocr_schwer_lesbar.py
+#: src/gui/settings_dialog.py
+msgid "KI-Assistent (LLM)"
+msgstr "AI assistant (LLM)"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Handschrift mit KI entziffern"
+msgstr "Decipher handwriting with AI"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Dafür ist ein KI-Modell mit Bilderkennung nötig."
+msgstr "This requires an AI model with image recognition."
+
+#: src/gui/ocr_schwer_lesbar.py
+#: src/gui/textebene_dialog.py
+msgid "Schließen"
+msgstr "Close"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Handschrift entziffert"
+msgstr "Handwriting deciphered"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Alles kopieren"
+msgstr "Copy all"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Als Text übernehmen"
+msgstr "Use as text"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Speichert den Text wie erkannten OCR-Text (Suche, Analyse)"
+msgstr "Saves the text like recognized OCR text (search, analysis)"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Eine Erkennung läuft noch - bitte warten."
+msgstr "A recognition is still running - please wait."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Text übernommen - für KI-Metadaten ist keine KI eingerichtet."
+msgstr "Text applied - no AI is set up for AI metadata."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "OCR wiederholen mit {0}: {name}…"
+msgstr "Repeating OCR with {0}: {name}…"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "OCR wiederholen"
+msgstr "Repeat OCR"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Der Text wird im Suchindex gespeichert, und der ist nicht eingerichtet. Richten Sie die Suche in den Einstellungen ein."
+msgstr "The text is saved in the search index, which is not set up. Set up the search in the settings."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Mit „{name}“ wurde der Text besser erkannt{0} und ersetzt den bisherigen ({1} Seite(n))."
+msgstr "With “{name}” the text was recognized better{0}; it replaces the previous one ({1} page(s))."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "OCR wiederholt mit {name}: Text ersetzt"
+msgstr "OCR repeated with {name}: text replaced"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Mit „{name}“ wurde der Text nicht besser erkannt{0}. Der bisherige Text bleibt."
+msgstr "With “{name}” the text was not recognized better{0}. The previous text is kept."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "OCR wiederholt mit {name}: nicht besser, Text bleibt"
+msgstr "OCR repeated with {name}: not better, text kept"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Die PDF lässt sich nicht lesen: {e}"
+msgstr "The PDF cannot be read: {e}"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Die PDF hat {gesamt} Seiten; gelesen werden nur die ersten {n}.\n\n"
+msgstr "The PDF has {gesamt} pages; only the first {n} are read.\n\n"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Seitenbilder hochladen?"
+msgstr "Upload page images?"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "{hinweis}Die Bilder von {n} Seite(n) werden an {wer} hochgeladen. Dabei können Kosten entstehen.\n\nFortfahren?"
+msgstr "{hinweis}The images of {n} page(s) are uploaded to {wer}. This may incur costs.\n\nContinue?"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Handschrift entziffern: Seite {nr}/{anzahl}…"
+msgstr "Deciphering handwriting: page {nr}/{anzahl}…"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Handschrift entziffern: {name}…"
+msgstr "Deciphering handwriting: {name}…"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Die KI konnte die Seiten nicht lesen:\n\n{fehler}"
+msgstr "The AI could not read the pages:\n\n{fehler}"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Die KI hat keinen Text erkannt."
+msgstr "The AI did not recognize any text."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "{name}: {anzahl} Seite(n) entziffert."
+msgstr "{name}: {anzahl} page(s) deciphered."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid " Die PDF hat {gesamt} Seiten, gelesen wurden nur die ersten {MAX_SEITEN}."
+msgstr " The PDF has {gesamt} pages, only the first {MAX_SEITEN} were read."
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "\nAbgebrochen: {fehler}"
+msgstr "\nCancelled: {fehler}"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Für diese Seiten ist schon Text gespeichert. Er wird durch den entzifferten Text ersetzt.\n\nErsetzen?"
+msgstr "Text is already saved for these pages. It will be replaced by the deciphered text.\n\nReplace?"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid "Entzifferter Text gespeichert ({0} Seite(n))"
+msgstr "Deciphered text saved ({0} page(s))"
+
+#: src/gui/ocr_schwer_lesbar.py
+msgid " (sicher erkannte Zeichen: {0} statt {1})"
+msgstr " (reliably recognized characters: {0} instead of {1})"
+
+#: src/gui/office_thumbnail.py
+msgid "Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\nZiehen verschiebt sie per Drag & Drop in einen Zielordner.\nDoppelklick öffnet sie im Standardprogramm.\nRechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
+msgstr "Word/Excel file. Clicking selects it (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDouble-click opens it in the default program.\nRight-click: convert to PDF (the original file is kept)."
+
+#: src/gui/office_thumbnail.py
+msgid "Bild. Anklicken wählt es aus (Strg/Umschalt für Mehrfachauswahl).\nZiehen verschiebt es per Drag & Drop in einen Zielordner.\nDoppelklick öffnet es im Standardprogramm.\nRechtsklick: In PDF umwandeln (mit Texterkennung; das Bild bleibt erhalten)."
+msgstr "Image. Clicking selects it (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDouble-click opens it in the default program.\nRight-click: convert to PDF (with text recognition; the image is kept)."
+
+#: src/gui/office_thumbnail.py
+msgid "Bild"
+msgstr "Image"
+
+#: src/gui/office_thumbnail.py
+msgid "OpenDocument-Text"
+msgstr "OpenDocument text"
+
+#: src/gui/office_thumbnail.py
+msgid "Word-Dokument"
+msgstr "Word document"
+
+#: src/gui/office_thumbnail.py
+msgid "Excel-Tabelle"
+msgstr "Excel spreadsheet"
+
+#: src/gui/office_thumbnail.py
+#: src/gui/pdf_thumbnail.py
+msgid "Verschieben nach..."
+msgstr "Move to..."
+
+#: src/gui/office_thumbnail.py
+msgid "Einzeln in PDFs umwandeln ({anzahl} Bilder)"
+msgstr "Convert to separate PDFs ({anzahl} images)"
+
+#: src/gui/office_thumbnail.py
+msgid "Je Bild ein durchsuchbares PDF (Texterkennung) neben dem Bild"
+msgstr "One searchable PDF (text recognition) per image, next to the image"
+
+#: src/gui/office_thumbnail.py
+msgid "Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild"
+msgstr "Creates a searchable PDF (text recognition) next to the image"
+
+#: src/gui/office_thumbnail.py
+msgid "Zu einem PDF zusammenfügen ({anzahl} Bilder)"
+msgstr "Merge into one PDF ({anzahl} images)"
+
+#: src/gui/office_thumbnail.py
+msgid "Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht"
+msgstr "One PDF from the marked images, in the order of the view"
+
+#: src/gui/office_thumbnail.py
+msgid "Fotos entzerren ({anzahl} Bilder)"
+msgstr "Correct perspective of photos ({anzahl} images)"
+
+#: src/gui/office_thumbnail.py
+#: src/gui/pdf_thumbnail.py
+#: src/gui/settings_dialog.py
+msgid "Löschen"
+msgstr "Delete"
+
+#: src/gui/office_thumbnail.py
+msgid "In PDF umwandeln ({anzahl} Dateien)"
+msgstr "Convert to PDF ({anzahl} files)"
+
+#: src/gui/office_thumbnail.py
+msgid "Je Datei ein PDF neben der Datei"
+msgstr "One PDF per file, next to the file"
+
+#: src/gui/office_thumbnail.py
+msgid "In PDF/A umwandeln ({anzahl} Dateien)"
+msgstr "Convert to PDF/A ({anzahl} files)"
+
+#: src/gui/office_thumbnail.py
+msgid "Wie oben, als archivfähiges PDF/A"
+msgstr "As above, as archivable PDF/A"
+
+#: src/gui/office_thumbnail.py
+msgid "Erzeugt ein PDF neben der Datei; das Original bleibt erhalten"
+msgstr "Creates a PDF next to the file; the original is kept"
+
+#: src/gui/office_thumbnail.py
+msgid "In PDF/A umwandeln (Langzeitarchiv)"
+msgstr "Convert to PDF/A (long-term archive)"
+
 #: src/gui/ordner_suchfeld.py
 msgid "Ordner suchen … (z. B. Zeugn*)"
 msgstr "Search folders … (e.g. Cert*)"
 
 #: src/gui/ordner_suchfeld.py
+#: src/gui/search_view.py
 msgid "Suche …"
 msgstr "Searching …"
 
@@ -2653,6 +3465,160 @@ msgstr "'{name}' is no longer in the Recycle Bin."
 msgid "Rückgängig nicht (ganz) möglich"
 msgstr "Undo not (completely) possible"
 
+#: src/gui/pdf_preview_widget.py
+msgid "Als Korrespondent übernehmen"
+msgstr "Use as correspondent"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Kategorie übernehmen"
+msgstr "Use as category"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Zusammenfassung übernehmen"
+msgstr "Use as summary"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Betrag Netto übernehmen"
+msgstr "Use as net amount"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Betrag Brutto übernehmen"
+msgstr "Use as gross amount"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Währung übernehmen"
+msgstr "Use as currency"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als MwSt-Satz übernehmen"
+msgstr "Use as VAT rate"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als IBAN übernehmen"
+msgstr "Use as IBAN"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Datum übernehmen"
+msgstr "Use as date"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Steuerjahr übernehmen"
+msgstr "Use as tax year"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Datei zu groß für die Vorschau ({0} MB)."
+msgstr "File too large for the preview ({0} MB)."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Datei konnte nicht gelesen werden: {e}"
+msgstr "The file could not be read: {e}"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Vorherige Seite (Bild auf)"
+msgstr "Previous page (Page Up)"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Aktuelle Seite / Seitenzahl"
+msgstr "Current page / number of pages"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Nächste Seite (Bild ab)"
+msgstr "Next page (Page Down)"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Verkleinern"
+msgstr "Zoom out"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Vergrößern"
+msgstr "Zoom in"
+
+#: src/gui/pdf_preview_widget.py
+msgid "An Breite anpassen"
+msgstr "Fit to width"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Breite"
+msgstr "Width"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Ganze Seite anzeigen"
+msgstr "Show whole page"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Seite"
+msgstr "Page"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Große Vorschau in eigenem Fenster (auch Doppelklick auf die Seite)"
+msgstr "Large preview in a separate window (also double-click on the page)"
+
+#: src/gui/pdf_preview_widget.py
+#: src/gui/tile_view.py
+msgid "Groß"
+msgstr "Large"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Im externen Programm öffnen (siehe Einstellungen > Allgemein)"
+msgstr "Open in the external program (see Settings > General)"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Extern öffnen"
+msgstr "Open externally"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Text mit der Maus markieren, dann Rechtsklick: in ein Metadaten-Feld übernehmen (Datum, Korrespondent, Betrag, IBAN, ...)."
+msgstr "Select text with the mouse, then right-click: copy it into a metadata field (date, correspondent, amount, IBAN, ...)."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Keine PDF ausgewählt"
+msgstr "No PDF selected"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Lade {name} …"
+msgstr "Loading {name} …"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Unbekannter Fehler"
+msgstr "Unknown error"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Vorschau nicht möglich:\n{message}"
+msgstr "Preview not possible:\n{message}"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Datei nicht gefunden."
+msgstr "File not found."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Keine gültige PDF-Datei."
+msgstr "Not a valid PDF file."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Die PDF ist passwortgeschützt."
+msgstr "The PDF is password-protected."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Nicht unterstützte Verschlüsselung."
+msgstr "Unsupported encryption."
+
+#: src/gui/pdf_preview_widget.py
+msgid "Die PDF konnte nicht gelesen werden."
+msgstr "The PDF could not be read."
+
+#: src/gui/pdf_preview_widget.py
+#: src/gui/settings_dialog.py
+msgid "Kopieren"
+msgstr "Copy"
+
+#: src/gui/pdf_preview_window.py
+msgid "PDF-Vorschau"
+msgstr "PDF preview"
+
+#: src/gui/pdf_preview_window.py
+msgid "PDF-Vorschau – {name}"
+msgstr "PDF preview – {name}"
+
 #: src/gui/pdf_thumbnail.py
 msgid "Anklicken wählt diese PDF aus (Strg/Umschalt für Mehrfachauswahl).\nZiehen verschiebt sie per Drag & Drop in einen Zielordner.\nAuf eine andere PDF gelegt, kommen ihre Seiten davor (Stapeln, wie Papier).\nDoppelklick öffnet die PDF im Standardprogramm."
 msgstr "Clicking selects this PDF (Ctrl/Shift for multiple selection).\nDragging moves it to a target folder.\nDropped onto another PDF, its pages are placed in front (stacking, like paper).\nDouble-click opens the PDF in the default program."
@@ -2680,10 +3646,6 @@ msgstr "Analyzing…"
 #: src/gui/pdf_thumbnail.py
 msgid "Ausgewählte ({selection_count}) auto-umbenennen (LLM)"
 msgstr "Auto-rename selected ({selection_count}) (LLM)"
-
-#: src/gui/pdf_thumbnail.py
-msgid "Verschieben nach..."
-msgstr "Move to..."
 
 #: src/gui/pdf_thumbnail.py
 msgid "Kopie erstellen"
@@ -2750,10 +3712,6 @@ msgid "Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht"
 msgstr "Sends the pages as images to the AI model, if it understands images"
 
 #: src/gui/pdf_thumbnail.py
-msgid "Löschen"
-msgstr "Delete"
-
-#: src/gui/pdf_thumbnail.py
 msgid "Tesseract nicht gefunden"
 msgstr "Tesseract not found"
 
@@ -2770,6 +3728,7 @@ msgid "Fraktur installieren"
 msgstr "Install Fraktur"
 
 #: src/gui/pfad_aktionen.py
+#: src/gui/search_view.py
 msgid "Pfad kopieren"
 msgstr "Copy path"
 
@@ -2869,6 +3828,876 @@ msgstr "The LLM could not extract any metadata from the document."
 msgid "LLM-Aufruf fehlgeschlagen:\n{e}"
 msgstr "LLM call failed:\n{e}"
 
+#: src/gui/search_migration_dialog.py
+msgid "Vorhandene PDFsuche übernehmen"
+msgstr "Import existing PDFsuche"
+
+#: src/gui/search_migration_dialog.py
+msgid "Wenn Sie bisher das eigenständige Programm <b>PDFsuche</b> benutzt haben, übernimmt PDF Sortier Meister dessen Einstellungen (config.toml) und die Suchdatenbank. Die Datenbank bleibt an ihrem bisherigen Ort, es wird nichts gelöscht; den bisherigen Projektordner räumen Sie später selbst auf. Die Aufgaben der Aufgabenplanung werden hier nicht verändert."
+msgstr "If you have been using the stand-alone program <b>PDFsuche</b>, PDF Sortier Meister imports its settings (config.toml) and the search database. The database stays in its current location and nothing is deleted; you clean up the old project folder yourself later. The Task Scheduler tasks are not changed here."
+
+#: src/gui/search_migration_dialog.py
+msgid "PDFsuche-Ordner:"
+msgstr "PDFsuche folder:"
+
+#: src/gui/search_migration_dialog.py
+#: src/gui/settings_dialog.py
+msgid "Durchsuchen…"
+msgstr "Browse…"
+
+#: src/gui/search_migration_dialog.py
+msgid "Prüfen"
+msgstr "Check"
+
+#: src/gui/search_migration_dialog.py
+msgid "Noch nicht geprüft. Ordner wählen und auf „Prüfen“ klicken."
+msgstr "Not checked yet. Choose the folder and click “Check”."
+
+#: src/gui/search_migration_dialog.py
+msgid "Datenbank in das Datenverzeichnis von PDF Sortier Meister kopieren (sonst bleibt sie am bisherigen Ort; die Kopie wird geprüft)"
+msgstr "Copy the database into the data folder of PDF Sortier Meister (otherwise it stays in its current location; the copy is verified)"
+
+#: src/gui/search_migration_dialog.py
+msgid "Keine PDFsuche gefunden – bitte den Projektordner (mit config.toml) wählen."
+msgstr "No PDFsuche found – please choose the project folder (with config.toml)."
+
+#: src/gui/search_migration_dialog.py
+msgid "Projektordner der PDFsuche wählen"
+msgstr "Choose the PDFsuche project folder"
+
+#: src/gui/search_migration_dialog.py
+msgid "Bitte zuerst den Projektordner wählen."
+msgstr "Please choose the project folder first."
+
+#: src/gui/search_migration_dialog.py
+msgid "Prüfe … (bei großen Datenbanken dauert die Integritätsprüfung einige Minuten)"
+msgstr "Checking … (for large databases the integrity check takes a few minutes)"
+
+#: src/gui/search_migration_dialog.py
+msgid "Bereit zur Übernahme."
+msgstr "Ready to import."
+
+#: src/gui/search_migration_dialog.py
+msgid "Übernahme nicht möglich – siehe Hinweise oben."
+msgstr "Import not possible – see the notes above."
+
+#: src/gui/search_migration_dialog.py
+msgid "Übernehme …"
+msgstr "Importing …"
+
+#: src/gui/search_migration_dialog.py
+msgid " Datenbank wird kopiert."
+msgstr " Copying the database."
+
+#: src/gui/search_migration_dialog.py
+msgid "Übernommen. Datenbank: {text}"
+msgstr "Imported. Database: {text}"
+
+#: src/gui/search_migration_dialog.py
+msgid "Fehler: {text}"
+msgstr "Error: {text}"
+
+#: src/gui/search_view.py
+msgid "Office"
+msgstr "Office"
+
+#: src/gui/search_view.py
+msgid "Markdown"
+msgstr "Markdown"
+
+#: src/gui/search_view.py
+msgid "Mail"
+msgstr "Mail"
+
+#: src/gui/search_view.py
+msgid "Relevanz"
+msgstr "Relevance"
+
+#: src/gui/search_view.py
+msgid "Neueste zuerst"
+msgstr "Newest first"
+
+#: src/gui/search_view.py
+msgid "Älteste zuerst"
+msgstr "Oldest first"
+
+#: src/gui/search_view.py
+msgid "OCR ausstehend"
+msgstr "OCR pending"
+
+#: src/gui/search_view.py
+msgid "OCR teilweise"
+msgstr "OCR partial"
+
+#: src/gui/search_view.py
+msgid "nur in der Cloud"
+msgstr "cloud only"
+
+#: src/gui/search_view.py
+msgid "zu groß"
+msgstr "too large"
+
+#: src/gui/search_view.py
+msgid "verschlüsselt"
+msgstr "encrypted"
+
+#: src/gui/search_view.py
+msgid "ohne Text"
+msgstr "no text"
+
+#: src/gui/search_view.py
+msgid "noch nicht gelesen"
+msgstr "not read yet"
+
+#: src/gui/search_view.py
+msgid "Mails"
+msgstr "Mails"
+
+#: src/gui/search_view.py
+msgid "<b>So wird gesucht</b><ul><li>Mehrere Wörter: alle müssen vorkommen – <code>Rechnung Telekom</code></li><li>Genaue Wortfolge: <code>\"Betrag in Höhe von\"</code></li><li>Oder / Nicht: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li><li>Wortanfang: <code>Rechnung*</code> findet Rechnungen, Rechnungsnummer …</li><li>Nähe: <code>NEAR(Kündigung Frist, 10)</code> – höchstens 10 Wörter auseinander</li><li>Umlaute sind egal: <code>Muller</code> findet auch <code>Müller</code></li><li>Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht.</li></ul>"
+msgstr "<b>How to search</b><ul><li>Several words: all must occur – <code>Rechnung Telekom</code></li><li>Exact phrase: <code>\"Betrag in Höhe von\"</code></li><li>Or / not: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li><li>Word beginning: <code>Rechnung*</code> finds Rechnungen, Rechnungsnummer …</li><li>Proximity: <code>NEAR(Kündigung Frist, 10)</code> – at most 10 words apart</li><li>Umlauts do not matter: <code>Muller</code> also finds <code>Müller</code></li><li>File names, folders and mail subjects are searched as well.</li></ul>"
+
+#: src/gui/search_view.py
+msgid "Von: {0}"
+msgstr "From: {0}"
+
+#: src/gui/search_view.py
+msgid "Anhänge: {mail_anhaenge}"
+msgstr "Attachments: {mail_anhaenge}"
+
+#: src/gui/search_view.py
+msgid "{ocr_seiten} S. per OCR"
+msgstr "{ocr_seiten} p. by OCR"
+
+#: src/gui/search_view.py
+msgid "Steuerjahr {steuerjahr}"
+msgstr "Tax year {steuerjahr}"
+
+#: src/gui/search_view.py
+msgid "Blatt {seite}"
+msgstr "Sheet {seite}"
+
+#: src/gui/search_view.py
+msgid "Indexstand nicht lesbar: {fehler}"
+msgstr "Index status not readable: {fehler}"
+
+#: src/gui/search_view.py
+msgid "Noch kein Index vorhanden – „Jetzt indizieren“ liest die Vorrang-Ordner ein, „Kompletten Lauf starten“ alle Ordner."
+msgstr "No index yet – “Index now” reads the priority folders, “Start full run” all folders."
+
+#: src/gui/search_view.py
+msgid "{0} Dokumente{1}"
+msgstr "{0} documents{1}"
+
+#: src/gui/search_view.py
+msgid "OCR ausstehend: {0} Seiten"
+msgstr "OCR pending: {0} pages"
+
+#: src/gui/search_view.py
+msgid "Texterkennung aus ({ocr_grund})"
+msgstr "Text recognition off ({ocr_grund})"
+
+#: src/gui/search_view.py
+msgid "Textebene in {0} PDFs"
+msgstr "Text layer in {0} PDFs"
+
+#: src/gui/search_view.py
+msgid "Indexlauf aktiv{0}"
+msgstr "Index run active{0}"
+
+#: src/gui/search_view.py
+msgid "Letzter Lauf: {0} ({1})"
+msgstr "Last run: {0} ({1})"
+
+#: src/gui/search_view.py
+msgid "An: {0}"
+msgstr "To: {0}"
+
+#: src/gui/search_view.py
+msgid "Datum: {0}"
+msgstr "Date: {0}"
+
+#: src/gui/search_view.py
+msgid "Anhänge: {0}"
+msgstr "Attachments: {0}"
+
+#: src/gui/search_view.py
+msgid "<p style='color:#9a3412'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
+msgstr "<p style='color:#9a3412'>The file no longer exists – here is the text stored in the index.</p>"
+
+#: src/gui/search_view.py
+msgid "Seite {0}{1}"
+msgstr "Page {0}{1}"
+
+#: src/gui/search_view.py
+msgid "Blatt {0}"
+msgstr "Sheet {0}"
+
+#: src/gui/search_view.py
+msgid "<i>(kein Text)</i>"
+msgstr "<i>(no text)</i>"
+
+#: src/gui/search_view.py
+msgid "<p style='color:#888888'>Kein Text vorhanden.</p>"
+msgstr "<p style='color:#888888'>No text available.</p>"
+
+#: src/gui/search_view.py
+msgid "Treffer im Namen"
+msgstr "Match in name"
+
+#: src/gui/search_view.py
+msgid "Treffer in Metadaten"
+msgstr "Match in metadata"
+
+#: src/gui/search_view.py
+msgid "(Treffer im Datei-/Ordnernamen)"
+msgstr "(match in file/folder name)"
+
+#: src/gui/search_view.py
+msgid "… insgesamt {treffer_seiten} Seiten mit Treffern"
+msgstr "… {treffer_seiten} pages with matches in total"
+
+#: src/gui/search_view.py
+msgid "Die Dokumentensuche ist noch nicht eingerichtet. Sie durchsucht PDFs (auch gescannte), Office-Dateien, Markdown und Mails auf diesem Rechner – alles bleibt lokal."
+msgstr "The document search is not set up yet. It searches PDFs (including scans), Office files, Markdown and mails on this computer – everything stays local."
+
+#: src/gui/search_view.py
+msgid "Einrichten…"
+msgstr "Set up…"
+
+#: src/gui/search_view.py
+msgid "Indexstand aktualisieren"
+msgstr "Refresh index status"
+
+#: src/gui/search_view.py
+msgid "Jetzt indizieren"
+msgstr "Index now"
+
+#: src/gui/search_view.py
+msgid "Vorrang-Ordner (z. B. frisch gescannte PDFs) sofort einlesen – läuft im Hintergrund"
+msgstr "Read priority folders (e.g. freshly scanned PDFs) immediately – runs in the background"
+
+#: src/gui/search_view.py
+msgid "Kompletten Lauf starten"
+msgstr "Start full run"
+
+#: src/gui/search_view.py
+msgid "Alle eingerichteten Ordner, Laufwerke und Postfächer einlesen – läuft im Hintergrund"
+msgstr "Read all configured folders, drives and mailboxes – runs in the background"
+
+#: src/gui/search_view.py
+msgid "Im Browser öffnen"
+msgstr "Open in browser"
+
+#: src/gui/search_view.py
+msgid "Browser-Oberfläche der Suche öffnen (nur auf diesem Rechner erreichbar); läuft sie noch nicht, wird sie gestartet"
+msgstr "Open the browser interface of the search (reachable only on this computer); it is started if it is not running yet"
+
+#: src/gui/search_view.py
+msgid "Anhalten"
+msgstr "Pause"
+
+#: src/gui/search_view.py
+msgid "Den laufenden Indexlauf anhalten – laufende Aufträge werden noch fertig, der nächste Lauf setzt fort"
+msgstr "Pause the current index run – running jobs are finished, the next run continues"
+
+#: src/gui/search_view.py
+msgid "Suchen in PDFs, Office-Dateien, Markdown und Mails …"
+msgstr "Search in PDFs, Office files, Markdown and mails …"
+
+#: src/gui/search_view.py
+msgid "Suchen"
+msgstr "Search"
+
+#: src/gui/search_view.py
+msgid "Hilfe zur Suchsyntax"
+msgstr "Help on the search syntax"
+
+#: src/gui/search_view.py
+msgid "Sortierung:"
+msgstr "Sort by:"
+
+#: src/gui/search_view.py
+msgid "Teil des Pfads oder Postfachs, z. B. Steuer"
+msgstr "Part of the path or mailbox, e.g. Steuer"
+
+#: src/gui/search_view.py
+msgid "Dokumentdatum (Dateidatum bzw. Mail-Datum); leer = kein Filter"
+msgstr "Document date (file date or mail date); empty = no filter"
+
+#: src/gui/search_view.py
+msgid "Betrag von:"
+msgstr "Amount from:"
+
+#: src/gui/search_view.py
+msgid "bis:"
+msgstr "to:"
+
+#: src/gui/search_view.py
+msgid "Weitere Treffer laden"
+msgstr "Load more results"
+
+#: src/gui/search_view.py
+msgid "Kein Treffer ausgewählt"
+msgstr "No result selected"
+
+#: src/gui/search_view.py
+msgid "PDFs wie in den Einstellungen gewählt, andere Dateien mit dem Standardprogramm, Mails als .eml mit dem Mailprogramm"
+msgstr "PDFs as chosen in the settings, other files with the default program, mails as .eml with the mail program"
+
+#: src/gui/search_view.py
+#: src/gui/textebene_dialog.py
+msgid "Im {0} zeigen"
+msgstr "Show in {0}"
+
+#: src/gui/search_view.py
+msgid "Als .eml speichern…"
+msgstr "Save as .eml…"
+
+#: src/gui/search_view.py
+msgid "Die Mail als Datei ablegen (z. B. zu den Belegen)"
+msgstr "Store the mail as a file (e.g. with the receipts)"
+
+#: src/gui/search_view.py
+msgid "Treffer auswählen – PDFs erscheinen hier auf der Trefferseite, Office-Dateien, Markdown und Mails als Text."
+msgstr "Select a result – PDFs appear here on the matching page, Office files, Markdown and mails as text."
+
+#: src/gui/search_view.py
+msgid "Bruttobetrag aus den PDFSM-Metadaten; „–“ = kein Filter"
+msgstr "Gross amount from the PDFSM metadata; “–” = no filter"
+
+#: src/gui/search_view.py
+msgid "Dokumentensuche ausgeschaltet (Einstellungen > Suche)."
+msgstr "Document search switched off (Settings > Search)."
+
+#: src/gui/search_view.py
+msgid "Lade weitere Treffer …"
+msgstr "Loading more results …"
+
+#: src/gui/search_view.py
+msgid "{0}{1} Dokumente · {2} ms"
+msgstr "{0}{1} documents · {2} ms"
+
+#: src/gui/search_view.py
+msgid "Keine Treffer für „{text}“ (Abfrage: {0})"
+msgstr "No results for “{text}” (query: {0})"
+
+#: src/gui/search_view.py
+msgid "Keine Dokumente mit diesen Filtern"
+msgstr "No documents with these filters"
+
+#: src/gui/search_view.py
+msgid "Suche fehlgeschlagen: {text}"
+msgstr "Search failed: {text}"
+
+#: src/gui/search_view.py
+msgid "<p style='color:#888888'>Lade Text …</p>"
+msgstr "<p style='color:#888888'>Loading text …</p>"
+
+#: src/gui/search_view.py
+msgid "<p>Dieses Dokument ist nicht mehr im Index.</p>"
+msgstr "<p>This document is no longer in the index.</p>"
+
+#: src/gui/search_view.py
+msgid "Mail öffnen"
+msgstr "Open mail"
+
+#: src/gui/search_view.py
+msgid "Die Mail konnte nicht gelesen werden: {e}"
+msgstr "The mail could not be read: {e}"
+
+#: src/gui/search_view.py
+msgid "Die Datei existiert nicht mehr."
+msgstr "The file no longer exists."
+
+#: src/gui/search_view.py
+msgid "Pfad kopiert."
+msgstr "Path copied."
+
+#: src/gui/search_view.py
+msgid "Mail speichern"
+msgstr "Save mail"
+
+#: src/gui/search_view.py
+msgid "E-Mail (*{endung})"
+msgstr "E-mail (*{endung})"
+
+#: src/gui/search_view.py
+msgid "Speichern fehlgeschlagen: {e}"
+msgstr "Saving failed: {e}"
+
+#: src/gui/search_view.py
+msgid "Gespeichert: {ziel}"
+msgstr "Saved: {ziel}"
+
+#: src/gui/search_view.py
+msgid "So wird gesucht"
+msgstr "How to search"
+
+#: src/gui/search_view.py
+msgid "Der Indexlauf konnte nicht gestartet werden: {e}"
+msgstr "The index run could not be started: {e}"
+
+#: src/gui/search_view.py
+msgid "Ein Indexlauf läuft bereits."
+msgstr "An index run is already in progress."
+
+#: src/gui/search_view.py
+msgid "Indexlauf gestartet – die Vorrang-Ordner werden im Hintergrund eingelesen …"
+msgstr "Index run started – the priority folders are being read in the background …"
+
+#: src/gui/search_view.py
+msgid "Indexlauf gestartet – alle Ordner werden im Hintergrund eingelesen …"
+msgstr "Index run started – all folders are being read in the background …"
+
+#: src/gui/search_view.py
+msgid "Der Lauf konnte nicht angehalten werden: {e}"
+msgstr "The run could not be paused: {e}"
+
+#: src/gui/search_view.py
+msgid "Der Indexlauf hält an, sobald die laufenden Aufträge fertig sind – der nächste Lauf setzt fort …"
+msgstr "The index run pauses as soon as the running jobs are finished – the next run continues …"
+
+#: src/gui/search_view.py
+msgid "Die Browser-Oberfläche konnte nicht gestartet werden: {e}"
+msgstr "The browser interface could not be started: {e}"
+
+#: src/gui/search_view.py
+msgid "Die Browser-Oberfläche wird gestartet …"
+msgstr "Starting the browser interface …"
+
+#: src/gui/search_view.py
+msgid "Die Browser-Oberfläche antwortet nicht. Ist Port {web_port} von einem anderen Programm belegt? Der Port lässt sich unter Einstellungen > Suche ändern."
+msgstr "The browser interface is not responding. Is port {web_port} used by another program? The port can be changed under Settings > Search."
+
+#: src/gui/search_worker.py
+msgid "Fehler beim Lesen: {e}"
+msgstr "Error while reading: {e}"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Ollama (lokal auf diesem Rechner, empfohlen — kein API-Key noetig)"
+msgstr "Ollama (local on this computer, recommended — no API key needed)"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Ollama Cloud (Ollama-Modelle in der Cloud, API-Key)"
+msgstr "Ollama Cloud (Ollama models in the cloud, API key)"
+
+#: src/gui/settings_dialog.py
+msgid "Strata (lokaler Modell-Server, OpenAI-kompatibel, eigener Key)"
+msgstr "Strata (local model server, OpenAI-compatible, own key)"
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio (lokal auf diesem Rechner, kein API-Key noetig)"
+msgstr "LM Studio (local on this computer, no API key needed)"
+
+#: src/gui/settings_dialog.py
+msgid "OpenRouter (viele Modelle, ein API-Key)"
+msgstr "OpenRouter (many models, one API key)"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Poe.com (viele KI-Modelle, ein API-Key)"
+msgstr "Poe.com (many AI models, one API key)"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Anthropic Claude"
+msgstr "Anthropic Claude"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "OpenAI GPT"
+msgstr "OpenAI GPT"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Ohne KI-Assistent (nur einfache lokale Stichwort-Zuordnung — stark eingeschraenkt)"
+msgstr "Without AI assistant (simple local keyword matching only — very limited)"
+
+#: src/gui/settings_dialog.py
+msgid "Einstellungen"
+msgstr "Settings"
+
+#: src/gui/settings_dialog.py
+msgid "Persönliche Daten"
+msgstr "Personal data"
+
+#: src/gui/settings_dialog.py
+msgid "Allgemein"
+msgstr "General"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung testen"
+msgstr "Test connection"
+
+#: src/gui/settings_dialog.py
+msgid "Speichern"
+msgstr "Save"
+
+#: src/gui/settings_dialog.py
+msgid "LLM-Provider"
+msgstr "LLM provider"
+
+#: src/gui/settings_dialog.py
+msgid "Provider:"
+msgstr "Provider:"
+
+#: src/gui/settings_dialog.py
+msgid "API-Konfiguration"
+msgstr "API configuration"
+
+#: src/gui/settings_dialog.py
+msgid "sk-... oder anthropic-..."
+msgstr "sk-... or anthropic-..."
+
+#: src/gui/settings_dialog.py
+msgid "API-Key:"
+msgstr "API key:"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Anzeigen"
+msgstr "Show"
+
+#: src/gui/settings_dialog.py
+msgid "Nur fuer lokale Server (Ollama, Strata, LM Studio): URL des Servers.\nLeer = Standard-URL (siehe Platzhalter)."
+msgstr "Only for local servers (Ollama, Strata, LM Studio): URL of the server.\nEmpty = default URL (see placeholder)."
+
+#: src/gui/settings_dialog.py
+msgid "Server-URL:"
+msgstr "Server URL:"
+
+#: src/gui/settings_dialog.py
+msgid "Modelle aktualisieren"
+msgstr "Refresh models"
+
+#: src/gui/settings_dialog.py
+msgid "Ruft die aktuell verfügbaren Modelle vom API-Provider ab.\nErfordert einen gültigen API-Key."
+msgstr "Fetches the currently available models from the API provider.\nRequires a valid API key."
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Modell:"
+msgstr "Model:"
+
+#: src/gui/settings_dialog.py
+msgid "Datenschutz"
+msgstr "Privacy"
+
+#: src/gui/settings_dialog.py
+msgid "Ich willige ein, dass Textauszüge meiner Dokumente an den\ngewählten Cloud-Anbieter übertragen werden."
+msgstr "I consent to text excerpts of my documents being transferred\nto the selected cloud provider."
+
+#: src/gui/settings_dialog.py
+msgid "Erweiterte Einstellungen"
+msgstr "Advanced settings"
+
+#: src/gui/settings_dialog.py
+msgid "Obergrenze fuer die Antwortlaenge. Reasoning-Modelle (z.B. GLM, DeepSeek-R1) verbrauchen davon zuerst ihr 'Nachdenken' - bei zu kleinem Wert kommt eine leere Antwort zurueck."
+msgstr "Upper limit for the response length. Reasoning models (e.g. GLM, DeepSeek-R1) use it for their 'thinking' first - if the value is too small, an empty response comes back."
+
+#: src/gui/settings_dialog.py
+msgid " Tokens"
+msgstr " tokens"
+
+#: src/gui/settings_dialog.py
+msgid "Max. Tokens:"
+msgstr "Max. tokens:"
+
+#: src/gui/settings_dialog.py
+msgid "Temperatur:"
+msgstr "Temperature:"
+
+#: src/gui/settings_dialog.py
+msgid " Zeichen"
+msgstr " characters"
+
+#: src/gui/settings_dialog.py
+msgid "Maximale Textlänge die an die LLM gesendet wird.\nWeniger = schneller + günstiger, aber weniger Kontext.\nEmpfohlen: 1500 (meist ausreichend für Kopfzeile/Absender)"
+msgstr "Maximum text length sent to the LLM.\nLess = faster + cheaper, but less context.\nRecommended: 1500 (usually enough for header/sender)"
+
+#: src/gui/settings_dialog.py
+msgid "Text-Limit:"
+msgstr "Text limit:"
+
+#: src/gui/settings_dialog.py
+msgid "Chat (Reiter „Chat“)"
+msgstr "Chat (“Chat” tab)"
+
+#: src/gui/settings_dialog.py
+msgid "Eigenes Modell für den Chat verwenden"
+msgstr "Use a separate model for the chat"
+
+#: src/gui/settings_dialog.py
+msgid "Aus: Der Chat nutzt das Modell der Sortierung (oben).\nAn: Der Chat nutzt den hier gewählten Anbieter und das Modell - z.B. ein\ngroßes Modell mit Werkzeugunterstützung, während die Sortierung ein\nkleines lokales Modell behält."
+msgstr "Off: the chat uses the sorting model (above).\nOn: the chat uses the provider and model chosen here - e.g. a\nlarge model with tool support, while sorting keeps a\nsmall local model."
+
+#: src/gui/settings_dialog.py
+msgid "Ruft die aktuell verfügbaren Modelle vom gewählten Anbieter ab."
+msgstr "Fetches the currently available models from the selected provider."
+
+#: src/gui/settings_dialog.py
+msgid "Nur für lokale Server (Ollama, Strata): URL des Servers.\nLeer = URL des gleichen Anbieters von oben bzw. Standard-URL."
+msgstr "Only for local servers (Ollama, Strata): URL of the server.\nEmpty = URL of the same provider above, or the default URL."
+
+#: src/gui/settings_dialog.py
+msgid "Werkzeuge im Chat verwenden (Suche, Lesen, Ordnervorschlag, Korrespondent)"
+msgstr "Use tools in the chat (search, read, folder suggestion, correspondent)"
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell darf selbst in der Dokumentensuche suchen, Dokumente lesen,\nOrdner vorschlagen und Korrespondenten nachschlagen - nur bei Anbietern\nund Modellen mit Werkzeugunterstützung, sonst antwortet es wie bisher."
+msgstr "The model may search the document search itself, read documents,\nsuggest folders and look up correspondents - only with providers\nand models that support tools; otherwise it answers as before."
+
+#: src/gui/settings_dialog.py
+msgid "Höchstens"
+msgstr "At most"
+
+#: src/gui/settings_dialog.py
+msgid "Obergrenze für die Modellaufrufe mit Werkzeugen je Frage.\nMehr Schritte = gründlicher, aber langsamer (und bei Cloud-Anbietern teurer)."
+msgstr "Upper limit for model calls with tools per question.\nMore steps = more thorough, but slower (and more expensive with cloud providers)."
+
+#: src/gui/settings_dialog.py
+msgid "Werkzeugschritte je Frage"
+msgstr "tool steps per question"
+
+#: src/gui/settings_dialog.py
+msgid "SQL-Abfragen auf der Suchdatenbank erlauben (nur lesend)"
+msgstr "Allow SQL queries on the search database (read-only)"
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell darf lesende SQL-Abfragen auf der Suchdatenbank stellen\n(z.B. Zählungen, Zeiträume). Kleine Modelle formulieren oft falsches SQL.\nGilt auch für KI-Assistenten über MCP (Reiter „Suche“ › KI-Assistenten)."
+msgstr "The model may run read-only SQL queries on the search database\n(e.g. counts, periods). Small models often write incorrect SQL.\nAlso applies to AI assistants via MCP (“Search” tab › AI assistants)."
+
+#: src/gui/settings_dialog.py
+msgid "Schnellfragen im Chat (eine je Zeile):"
+msgstr "Quick questions in the chat (one per line):"
+
+#: src/gui/settings_dialog.py
+msgid "Standard wiederherstellen"
+msgstr "Restore defaults"
+
+#: src/gui/settings_dialog.py
+msgid "Knöpfe über dem Eingabefeld des Chats, wenn eine PDF der Bezug ist.\nLeer = Standardfragen. Höchstens 12 Fragen."
+msgstr "Buttons above the chat input field when a PDF is the reference.\nEmpty = default questions. At most 12 questions."
+
+#: src/gui/settings_dialog.py
+msgid "Nach diesem Muster schlägt die KI Dateinamen vor."
+msgstr "The AI suggests file names according to this pattern."
+
+#: src/gui/settings_dialog.py
+msgid "Muster speichern…"
+msgstr "Save pattern…"
+
+#: src/gui/settings_dialog.py
+msgid "Das Muster im Feld unter einem Namen in die Vorlagen-Liste aufnehmen."
+msgstr "Add the pattern in the field to the template list under a name."
+
+#: src/gui/settings_dialog.py
+msgid "Das gewählte gespeicherte Muster aus der Liste entfernen."
+msgstr "Remove the selected saved pattern from the list."
+
+#: src/gui/settings_dialog.py
+msgid "Vorlage:"
+msgstr "Template:"
+
+#: src/gui/settings_dialog.py
+msgid "leer = KI entscheidet selbst"
+msgstr "empty = the AI decides"
+
+#: src/gui/settings_dialog.py
+msgid "Platzhalter in geschweiften Klammern, dazwischen beliebige Trennzeichen.\nKlick auf einen Platzhalter unten fügt ihn an der Cursorposition ein."
+msgstr "Placeholders in curly braces, with any separators in between.\nClicking a placeholder below inserts it at the cursor position."
+
+#: src/gui/settings_dialog.py
+msgid "Muster:"
+msgstr "Pattern:"
+
+#: src/gui/settings_dialog.py
+msgid "{label}\nBeispiel: {example}"
+msgstr "{label}\nExample: {example}"
+
+#: src/gui/settings_dialog.py
+msgid "Alle Platzhalter"
+msgstr "All placeholders"
+
+#: src/gui/settings_dialog.py
+msgid "⌫ Zurücknehmen"
+msgstr "⌫ Take back"
+
+#: src/gui/settings_dialog.py
+msgid "Letzten Baustein vor dem Cursor entfernen (ganzer Platzhalter oder ein Trennzeichen)"
+msgstr "Remove the last element before the cursor (a whole placeholder or one separator)"
+
+#: src/gui/settings_dialog.py
+msgid "Mit aktueller PDF"
+msgstr "With current PDF"
+
+#: src/gui/settings_dialog.py
+msgid "Vorschau mit den KI-Metadaten der gerade ausgewählten PDF"
+msgstr "Preview with the AI metadata of the currently selected PDF"
+
+#: src/gui/settings_dialog.py
+msgid "Vorschau:"
+msgstr "Preview:"
+
+#: src/gui/settings_dialog.py
+msgid "Beim Verschieben in einen Ordner"
+msgstr "When moving to a folder"
+
+#: src/gui/settings_dialog.py
+msgid "Nichts ergänzen – Name wie vorgeschlagen bzw. eingegeben"
+msgstr "Add nothing – name as suggested or entered"
+
+#: src/gui/settings_dialog.py
+msgid "Die Datei bekommt genau den Namen aus dem Feld „Neuer Dateiname“\n(KI-Vorschlag oder Ihre Änderung)."
+msgstr "The file gets exactly the name from the “New file name” field\n(AI suggestion or your change)."
+
+#: src/gui/settings_dialog.py
+msgid "Nach Vorlage ergänzen (z. B. Initialen und Ordnernummer voranstellen)"
+msgstr "Extend according to template (e.g. put initials and folder number first)"
+
+#: src/gui/settings_dialog.py
+msgid "Der Name aus dem Feld „Neuer Dateiname“ wird nach der Vorlage unten\nergänzt ({text} steht für diesen Namen). Gleiche Einstellung wie\nder Schalter „Ordnerstruktur im Namen“ über den Vorschlägen."
+msgstr "The name from the “New file name” field is extended according to the template below\n({text} stands for this name). Same setting as\nthe “Folder structure in name” switch above the suggestions."
+
+#: src/gui/settings_dialog.py
+msgid "Platzhalter: {initialen}, {ordnernummern} (Nummernkette aus dem Zielordner-Namen, z.B. 069-03-05), {ordnerpfad} (Ordnernamen mit - verbunden), {datum} (JJJJMMTT), {datum_iso} (JJJJ-MM-TT), {text} (Name aus dem Feld „Neuer Dateiname“ ohne Datum)"
+msgstr "Placeholders: {initialen}, {ordnernummern} (chain of numbers from the target folder name, e.g. 069-03-05), {ordnerpfad} (folder names joined with -), {datum} (YYYYMMDD), {datum_iso} (YYYY-MM-DD), {text} (name from the “New file name” field without the date)"
+
+#: src/gui/settings_dialog.py
+msgid "Ergebnis:"
+msgstr "Result:"
+
+#: src/gui/settings_dialog.py
+msgid "Beispiel für den Zielordner „{PREVIEW_FOLDER}“. Ihre Initialen stellen Sie unter „Persönliche Daten“ ein."
+msgstr "Example for the target folder “{PREVIEW_FOLDER}”. You set your initials under “Personal data”."
+
+#: src/gui/settings_dialog.py
+msgid "Muster speichern"
+msgstr "Save pattern"
+
+#: src/gui/settings_dialog.py
+msgid "Name für dieses Muster:"
+msgstr "Name for this pattern:"
+
+#: src/gui/settings_dialog.py
+msgid "„{name}“ ist eine eingebaute Vorlage - bitte einen anderen Namen wählen."
+msgstr "“{name}” is a built-in template - please choose a different name."
+
+#: src/gui/settings_dialog.py
+msgid "{derived} (aus dem Namen)"
+msgstr "{derived} (from the name)"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. JW"
+msgstr "e.g. JD"
+
+#: src/gui/settings_dialog.py
+msgid "Im Dateinamen nicht erlaubt: {0} – wird durch _ ersetzt"
+msgstr "Not allowed in file names: {0} – replaced by _"
+
+#: src/gui/settings_dialog.py
+msgid "(leer)"
+msgstr "(empty)"
+
+#: src/gui/settings_dialog.py
+msgid "KI entscheidet selbst, z.B. {ki_preview_name}"
+msgstr "The AI decides, e.g. {ki_preview_name}"
+
+#: src/gui/settings_dialog.py
+msgid "Keine PDF ausgewählt oder noch keine KI-Metadaten vorhanden."
+msgstr "No PDF selected or no AI metadata available yet."
+
+#: src/gui/settings_dialog.py
+msgid "Damit das System Sie nicht als Korrespondent erkennt, geben Sie hier\nIhren Namen ein. Der Korrespondent ist immer die andere Partei\n(Firma, Behörde, Person) — nicht Sie selbst."
+msgstr "So that the system does not treat you as a correspondent, enter\nyour name here. The correspondent is always the other party\n(company, authority, person) — not you."
+
+#: src/gui/settings_dialog.py
+msgid "Ihre Daten"
+msgstr "Your data"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. Johannes Härle-Wack"
+msgstr "e.g. Jane Doe"
+
+#: src/gui/settings_dialog.py
+msgid "Ihr vollständiger Name"
+msgstr "Your full name"
+
+#: src/gui/settings_dialog.py
+msgid "Name:"
+msgstr "Name:"
+
+#: src/gui/settings_dialog.py
+msgid "2-3 Großbuchstaben für den Platzhalter {initialen} in Dateinamen.\nLeer = aus dem Namen abgeleitet."
+msgstr "2-3 capital letters for the {initialen} placeholder in file names.\nEmpty = derived from the name."
+
+#: src/gui/settings_dialog.py
+msgid "Initialen:"
+msgstr "Initials:"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. J. Härle-Wack, Härle-Wack"
+msgstr "e.g. J. Doe, Doe"
+
+#: src/gui/settings_dialog.py
+msgid "Weitere Schreibweisen Ihres Namens (kommagetrennt),\ndie auf Dokumenten vorkommen können."
+msgstr "Other spellings of your name (comma-separated)\nthat may appear on documents."
+
+#: src/gui/settings_dialog.py
+msgid "Namensvarianten:"
+msgstr "Name variants:"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. Härle-Wack GbR (optional)"
+msgstr "e.g. Doe Ltd (optional)"
+
+#: src/gui/settings_dialog.py
+msgid "Ihre eigene Firma (falls vorhanden)"
+msgstr "Your own company (if any)"
+
+#: src/gui/settings_dialog.py
+msgid "Eigene Firma:"
+msgstr "Own company:"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. Musterstraße 12, 12345 Berlin (optional)"
+msgstr "e.g. 12 Sample Street, Springfield (optional)"
+
+#: src/gui/settings_dialog.py
+msgid "Ihre Adresse (hilft bei der Erkennung auf Briefen)"
+msgstr "Your address (helps to recognize it on letters)"
+
+#: src/gui/settings_dialog.py
+msgid "Adresse:"
+msgstr "Address:"
+
+#: src/gui/settings_dialog.py
+msgid "z.B. ich@example.com, privat@example.com (kommagetrennt)"
+msgstr "e.g. me@example.com, private@example.com (comma-separated)"
+
+#: src/gui/settings_dialog.py
+msgid "Ihre eigenen E-Mail-Adressen (kommagetrennt).\nMehrere Adressen moeglich. Hilft der KI, Sie als Empfaenger\nund nicht als Korrespondent zu erkennen, wenn die Adresse\nauf einem Dokument steht."
+msgstr "Your own e-mail addresses (comma-separated).\nSeveral addresses are possible. Helps the AI to recognize you as the recipient\nand not as the correspondent when the address\nappears on a document."
+
+#: src/gui/settings_dialog.py
+msgid "E-Mail-Adressen:"
+msgstr "E-mail addresses:"
+
+#: src/gui/settings_dialog.py
+msgid "Darstellung"
+msgstr "Display"
+
+#: src/gui/settings_dialog.py
+msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."
+msgstr "You set the size of the tiles (Small / Medium / Large) directly above the scan area under “View”."
+
+#: src/gui/settings_dialog.py
+msgid "Max. Vorschläge:"
+msgstr "Max. suggestions:"
+
 #: src/gui/settings_dialog.py
 msgid "Automatisch (Sprache des Systems)"
 msgstr "Automatic (system language)"
@@ -2884,6 +4713,1524 @@ msgstr "Language:"
 #: src/gui/settings_dialog.py
 msgid "Eine andere Sprache gilt nach dem Neustart des Programms."
 msgstr "A different language takes effect after restarting the program."
+
+#: src/gui/settings_dialog.py
+msgid "Neue Ordner vorschlagen"
+msgstr "Suggest new folders"
+
+#: src/gui/settings_dialog.py
+msgid "Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\noder nennt die KI einen passenden neuen Unterordner, erscheint er als\nVorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage."
+msgstr "If the folder for the document's year is missing (e.g. “Steuer 2027/Medikamente”)\nor the AI names a suitable new subfolder, it appears as the\nsuggestion “➕ new:”. It is only created after you confirm."
+
+#: src/gui/settings_dialog.py
+msgid "PDF-Analyse-Cache"
+msgstr "PDF analysis cache"
+
+#: src/gui/settings_dialog.py
+msgid "Cache über Programmende hinaus speichern"
+msgstr "Keep the cache after the program closes"
+
+#: src/gui/settings_dialog.py
+msgid "Wenn aktiviert, werden PDF-Analysen auf der Festplatte gespeichert.\nBeim nächsten Start sind bereits analysierte PDFs sofort verfügbar.\nDies beschleunigt besonders große Ordner erheblich."
+msgstr "If enabled, PDF analyses are stored on disk.\nAt the next start, PDFs that were already analyzed are available immediately.\nThis speeds up large folders considerably."
+
+#: src/gui/settings_dialog.py
+msgid "LLM-Vorschläge im Hintergrund vorladen (Pre-Caching)"
+msgstr "Preload LLM suggestions in the background (pre-caching)"
+
+#: src/gui/settings_dialog.py
+msgid "Wenn aktiviert, werden LLM-Namensvorschläge bereits im Hintergrund\nabgerufen, bevor Sie den Umbenennen-Dialog öffnen.\nDies beschleunigt den Dialog, verursacht aber mehr API-Aufrufe.\nDeaktivieren für Debugging oder um API-Kosten zu sparen."
+msgstr "If enabled, LLM name suggestions are fetched in the background\nbefore you open the rename dialog.\nThis speeds up the dialog but causes more API calls.\nDisable for debugging or to save API costs."
+
+#: src/gui/settings_dialog.py
+msgid "Cache leeren"
+msgstr "Clear cache"
+
+#: src/gui/settings_dialog.py
+msgid "Löscht alle gecachten PDF-Analysen"
+msgstr "Deletes all cached PDF analyses"
+
+#: src/gui/settings_dialog.py
+msgid "Windows-Explorer-Integration"
+msgstr "Windows Explorer integration"
+
+#: src/gui/settings_dialog.py
+msgid "Im Rechtsklick-Menue des Explorers anzeigen (\"PDF Sortier Meister von hier oeffnen\")"
+msgstr "Show in the Explorer right-click menu (\"PDF Sortier Meister von hier oeffnen\")"
+
+#: src/gui/settings_dialog.py
+msgid "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n  - Ordner (Rechtsklick auf Ordner-Icon)\n  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\nLaeuft das Programm bereits, wird der Pfad an die offene\nInstanz uebergeben statt eine zweite zu starten."
+msgstr "Adds an entry to the context menu for:\n  - folders (right-click on a folder icon)\n  - folder background (right-click in the empty area)\n  - PDF files (the folder is switched, the PDF selected,\n    the rename dialog with the AI suggestion opens)\nIf the program is already running, the path is passed to the open\ninstance instead of starting a second one."
+
+#: src/gui/settings_dialog.py
+msgid "PDF öffnen (Doppelklick auf ein Thumbnail)"
+msgstr "Open PDF (double-click on a thumbnail)"
+
+#: src/gui/settings_dialog.py
+msgid "Integrierte Vorschau: eigenes Fenster in der App, öffnet sofort.\nStandardprogramm: was Windows/macOS für PDFs eingestellt hat\n(oft der Browser).\nEigenes Programm: z. B. PDF-XChange Editor oder Acrobat."
+msgstr "Built-in preview: separate window in the app, opens immediately.\nDefault program: whatever Windows/macOS has set for PDFs\n(often the browser).\nCustom program: e.g. PDF-XChange Editor or Acrobat."
+
+#: src/gui/settings_dialog.py
+msgid "Öffnen mit:"
+msgstr "Open with:"
+
+#: src/gui/settings_dialog.py
+msgid "Pfad zum Programm, z. B. C:\\Program Files\\Tracker Software\\PDF Editor\\PDFXEdit.exe"
+msgstr "Path to the program, e.g. C:\\Program Files\\Tracker Software\\PDF Editor\\PDFXEdit.exe"
+
+#: src/gui/settings_dialog.py
+msgid "Programm:"
+msgstr "Program:"
+
+#: src/gui/settings_dialog.py
+msgid "Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig und immer aktiv."
+msgstr "The small preview at the bottom of the middle area is independent of this and always active."
+
+#: src/gui/settings_dialog.py
+msgid "Fotos entzerren (Rechtsklick auf ein Bild)"
+msgstr "Correct perspective of photos (right-click on an image)"
+
+#: src/gui/settings_dialog.py
+msgid "Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster lässt sich die Wahl für den einzelnen Auftrag ändern."
+msgstr "Applies to \"Convert to PDF and correct perspective automatically/by hand\". In the perspective window the choice can be changed for the individual job."
+
+#: src/gui/settings_dialog.py
+msgid "Original nach dem Umwandeln und Trennen"
+msgstr "Original after converting and splitting"
+
+#: src/gui/settings_dialog.py
+msgid "Jedes Mal fragen"
+msgstr "Ask every time"
+
+#: src/gui/settings_dialog.py
+msgid "In den Papierkorb verschieben"
+msgstr "Move to the Recycle Bin"
+
+#: src/gui/settings_dialog.py
+msgid "Behalten"
+msgstr "Keep"
+
+#: src/gui/settings_dialog.py
+msgid "Mit Strg+Z holst du ein weggeräumtes Original zurück."
+msgstr "Ctrl+Z brings back an original that was cleared away."
+
+#: src/gui/settings_dialog.py
+msgid "Updates"
+msgstr "Updates"
+
+#: src/gui/settings_dialog.py
+msgid "Beim Programmstart auf neue Versionen prüfen"
+msgstr "Check for new versions at program start"
+
+#: src/gui/settings_dialog.py
+msgid "Fragt kurz nach dem Start die Versionsnummer des neuesten Releases\nauf GitHub ab. Es werden keine Daten über Sie oder Ihre Dokumente\ngesendet. Manuell jederzeit über Hilfe > Nach Updates suchen."
+msgstr "Shortly after the start, asks GitHub for the version number of the\nlatest release. No data about you or your documents is\nsent. Manually at any time via Help > Check for updates."
+
+#: src/gui/settings_dialog.py
+msgid "Es wird nur die Versionsnummer des neuesten Releases abgerufen; heruntergeladen und installiert wird nichts automatisch."
+msgstr "Only the version number of the latest release is fetched; nothing is downloaded or installed automatically."
+
+#: src/gui/settings_dialog.py
+msgid " Tage"
+msgstr " days"
+
+#: src/gui/settings_dialog.py
+msgid "Abstand, in dem gefragt wird, ob ein Backup gemacht wurde.\n0 = Erinnerung aus. Ein aktuelles Macrium-Reflect-Log ersetzt die Frage."
+msgstr "Interval at which you are asked whether a backup was made.\n0 = reminder off. A recent Macrium Reflect log replaces the question."
+
+#: src/gui/settings_dialog.py
+msgid "nach einem Backup fragen (0 = aus)"
+msgstr "ask about a backup (0 = off)"
+
+#: src/gui/settings_dialog.py
+msgid "Unterstützen"
+msgstr "Support the project"
+
+#: src/gui/settings_dialog.py
+msgid "Nicht mehr an das Unterstützen erinnern"
+msgstr "Do not remind me about supporting the project"
+
+#: src/gui/settings_dialog.py
+msgid "Blendet den gelegentlichen Hinweis aus. Über Hilfe > Unterstützen ...\nlässt sich der Dialog jederzeit öffnen."
+msgstr "Hides the occasional hint. The dialog can be opened at any time\nvia Help > Support the project ..."
+
+#: src/gui/settings_dialog.py
+msgid "Debug / Zurücksetzen"
+msgstr "Debug / reset"
+
+#: src/gui/settings_dialog.py
+msgid "<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>"
+msgstr "<i>Caution: these actions cannot be undone!</i>"
+
+#: src/gui/settings_dialog.py
+msgid "🗑 Gelernte Ordnervorschläge löschen"
+msgstr "🗑 Delete learned folder suggestions"
+
+#: src/gui/settings_dialog.py
+msgid "Löscht alle gelernten Zuordnungen (Sortierhistorie, Ordnerstatistiken).\nDas Programm startet danach quasi 'neu' ohne Lernfortschritt."
+msgstr "Deletes all learned assignments (sorting history, folder statistics).\nAfterwards the program starts practically 'new', without anything learned."
+
+#: src/gui/settings_dialog.py
+msgid "Dokumentensuche eingeschaltet (Volltextindex über die unten gewählten Ordner)"
+msgstr "Document search enabled (full-text index of the folders selected below)"
+
+#: src/gui/settings_dialog.py
+msgid "Durchsucht PDFs (mit Texterkennung), Office-Dateien, Markdown und Mails\nnach Stichwörtern. Der Index ist eine lokale Datenbank; Dateien werden\nnur gelesen, nie verändert."
+msgstr "Searches PDFs (with text recognition), Office files, Markdown and mails\nfor keywords. The index is a local database; files are\nonly read, never changed."
+
+#: src/gui/settings_dialog.py
+msgid "Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert."
+msgstr "Everything stays on this computer: the index and the recognized text are stored in a local database, nothing is sent. Nothing is indexed unless you enable it."
+
+#: src/gui/settings_dialog.py
+msgid "Ordner und Laufwerke"
+msgstr "Folders and drives"
+
+#: src/gui/settings_dialog.py
+msgid "Vollständig durchsuchte Ordner oder Laufwerke:"
+msgstr "Folders or drives searched completely:"
+
+#: src/gui/settings_dialog.py
+msgid "Ordner hinzufügen…"
+msgstr "Add folder…"
+
+#: src/gui/settings_dialog.py
+msgid "Ordner oder Laufwerk hinzufügen"
+msgstr "Add folder or drive"
+
+#: src/gui/settings_dialog.py
+msgid "Vorschläge"
+msgstr "Suggestions"
+
+#: src/gui/settings_dialog.py
+msgid "Scan- und Zielordner, Laufwerke bzw. Benutzerordner und Volumes"
+msgstr "Scan and target folders, drives or user folders and volumes"
+
+#: src/gui/settings_dialog.py
+msgid "Vorrang-Ordner (bei jedem Lauf zuerst; neue Scans im ersten Ordner werden sofort texterkannt):"
+msgstr "Priority folders (first in every run; new scans in the first folder get text recognition immediately):"
+
+#: src/gui/settings_dialog.py
+msgid "Vorrang-Ordner hinzufügen"
+msgstr "Add priority folder"
+
+#: src/gui/settings_dialog.py
+msgid "Ordnernamen, die überall übersprungen werden (einer je Zeile):"
+msgstr "Folder names that are skipped everywhere (one per line):"
+
+#: src/gui/settings_dialog.py
+msgid "Vollständige Pfade, die übersprungen werden:"
+msgstr "Full paths that are skipped:"
+
+#: src/gui/settings_dialog.py
+msgid "Pfad hinzufügen…"
+msgstr "Add path…"
+
+#: src/gui/settings_dialog.py
+msgid "Auszuschließenden Ordner wählen"
+msgstr "Choose folder to exclude"
+
+#: src/gui/settings_dialog.py
+msgid "Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
+msgstr "Separated by spaces, e.g.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
+
+#: src/gui/settings_dialog.py
+msgid "Dateiendungen:"
+msgstr "File extensions:"
+
+#: src/gui/settings_dialog.py
+msgid "Mails (Thunderbird-Postfächer)"
+msgstr "Mails (Thunderbird mailboxes)"
+
+#: src/gui/settings_dialog.py
+msgid "Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"
+msgstr "Include mails in the index (each mail separately, attachments by name only)"
+
+#: src/gui/settings_dialog.py
+msgid "Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):"
+msgstr "Mailbox folders (empty = mailboxes of the default Thunderbird profile):"
+
+#: src/gui/settings_dialog.py
+msgid "Postfach-Ordner (Mail/, ImapMail/) wählen"
+msgstr "Choose mailbox folder (Mail/, ImapMail/)"
+
+#: src/gui/settings_dialog.py
+msgid "Texterkennung (OCR) für gescannte PDFs"
+msgstr "Text recognition (OCR) for scanned PDFs"
+
+#: src/gui/settings_dialog.py
+msgid "Bildseiten ohne Text mit Tesseract erkennen"
+msgstr "Recognize image pages without text using Tesseract"
+
+#: src/gui/settings_dialog.py
+msgid "Tesseract-Sprachen, mit + verbunden, z. B. deu+eng"
+msgstr "Tesseract languages, joined with +, e.g. deu+eng"
+
+#: src/gui/settings_dialog.py
+msgid "Sprachen:"
+msgstr "Languages:"
+
+#: src/gui/settings_dialog.py
+msgid "keine Grenze"
+msgstr "no limit"
+
+#: src/gui/settings_dialog.py
+msgid "PDFs mit mehr Bildseiten werden nicht automatisch texterkannt"
+msgstr "PDFs with more image pages do not get automatic text recognition"
+
+#: src/gui/settings_dialog.py
+msgid "Höchstens Bildseiten je PDF:"
+msgstr "Max. image pages per PDF:"
+
+#: src/gui/settings_dialog.py
+msgid "Cloud-Dateien und Grenzen"
+msgstr "Cloud files and limits"
+
+#: src/gui/settings_dialog.py
+msgid "Nur in der Cloud liegende Dateien (OneDrive, iCloud Drive) zum Lesen herunterladen"
+msgstr "Download files that are only in the cloud (OneDrive, iCloud Drive) for reading"
+
+#: src/gui/settings_dialog.py
+msgid "Sonst werden solche Dateien nur mit ihrem Namen aufgenommen."
+msgstr "Otherwise such files are included by name only."
+
+#: src/gui/settings_dialog.py
+msgid "Größere Dateien nur mit Namen aufnehmen ab:"
+msgstr "Include larger files by name only, from:"
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Hintergrundindexierung"
+msgstr "Background indexing"
+
+#: src/gui/settings_dialog.py
+msgid "Einmal täglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird"
+msgstr "Index once a day in the background as soon as the computer is not in use"
+
+#: src/gui/settings_dialog.py
+msgid "Frühestens ab:"
+msgstr "Not before:"
+
+#: src/gui/settings_dialog.py
+msgid "Der Lauf beginnt erst, wenn der Rechner 10 Minuten nicht benutzt wurde, und hält an, sobald Sie weiterarbeiten; im nächsten Leerlauf geht er weiter. War der Rechner zur eingestellten Zeit aus, wird der Lauf nach dem Einschalten nachgeholt – ebenfalls erst im Leerlauf, nicht direkt nach dem Start. Eingerichtet wird er beim Speichern über die Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind nicht nötig."
+msgstr "The run only starts when the computer has not been used for 10 minutes, and pauses as soon as you continue working; it resumes at the next idle time. If the computer was off at the set time, the run is made up after it is switched on – again only when idle, not right after startup. It is set up on saving via Task Scheduler (Windows) or a LaunchAgent (macOS); administrator rights are not needed."
+
+#: src/gui/settings_dialog.py
+msgid "Browser-Oberfläche (nur auf diesem Rechner erreichbar)"
+msgstr "Browser interface (reachable only on this computer)"
+
+#: src/gui/settings_dialog.py
+msgid "Browser-Oberfläche der Suche einschalten"
+msgstr "Enable the browser interface of the search"
+
+#: src/gui/settings_dialog.py
+msgid "Bei der Anmeldung automatisch starten (nicht nötig)"
+msgstr "Start automatically at sign-in (not necessary)"
+
+#: src/gui/settings_dialog.py
+msgid "Legt eine Anmeldeaufgabe an. Manche Virenscanner, z. B. Microsoft Defender, melden das bei unsignierten Programmen als verdächtig und entfernen den Hintergrunddienst."
+msgstr "Creates a sign-in task. Some virus scanners, e.g. Microsoft Defender, report this as suspicious for unsigned programs and remove the background service."
+
+#: src/gui/settings_dialog.py
+msgid "Port:"
+msgstr "Port:"
+
+#: src/gui/settings_dialog.py
+msgid "Geöffnet wird sie im Reiter „Suche“ mit „Im Browser öffnen“; dabei startet sie bei Bedarf von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig."
+msgstr "It is opened in the “Search” tab with “Open in browser”; it starts by itself if needed. With automatic start it runs in the background from sign-in – some virus scanners (e.g. Microsoft Defender) report this as suspicious."
+
+#: src/gui/settings_dialog.py
+msgid "Leistung"
+msgstr "Performance"
+
+#: src/gui/settings_dialog.py
+msgid "automatisch (halbe Kernzahl, höchstens 8)"
+msgstr "automatic (half the number of cores, at most 8)"
+
+#: src/gui/settings_dialog.py
+msgid "Arbeitsprozesse:"
+msgstr "Worker processes:"
+
+#: src/gui/settings_dialog.py
+msgid "Gescannte PDFs verbessern (Textebene, Drehung, Schräglage)"
+msgstr "Improve scanned PDFs (text layer, rotation, skew)"
+
+#: src/gui/settings_dialog.py
+msgid "Textebene schreiben:"
+msgstr "Write text layer:"
+
+#: src/gui/settings_dialog.py
+msgid "unbegrenzt"
+msgstr "unlimited"
+
+#: src/gui/settings_dialog.py
+msgid "Sicherungskopien aufbewahren:"
+msgstr "Keep backup copies:"
+
+#: src/gui/settings_dialog.py
+msgid "Geänderte PDFs anzeigen / rückgängig machen…"
+msgstr "Show changed PDFs / undo…"
+
+#: src/gui/settings_dialog.py
+msgid "Protokoll aller PDFs, die eine Textebene bekommen haben; einzelne Änderungen zurücknehmen"
+msgstr "Log of all PDFs that received a text layer; undo individual changes"
+
+#: src/gui/settings_dialog.py
+msgid "Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit auch andere Programme (Explorer-Suche, Acrobat, PaperPort) ihn finden und man ihn markieren kann. Das Scanbild bleibt unverändert; vor jeder Änderung entsteht eine Sicherungskopie. Geschrieben wird beim nächsten Indexlauf, auch wenn die Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien sowie geöffnete Dateien bleiben unberührt."
+msgstr "The recognized text is placed in the PDF as an invisible text layer so that other programs (Explorer search, Acrobat, PaperPort) can find it and it can be selected. The scanned image stays unchanged; a backup copy is created before every change. Writing happens at the next index run, even if the file has been filed in the meantime. Signed, encrypted and PDF/A files as well as open files are left untouched."
+
+#: src/gui/settings_dialog.py
+msgid "Liest die Texterkennung eine Seite erst gedreht richtig, wird die PDF so gespeichert"
+msgstr "If text recognition can only read a page correctly when rotated, the PDF is saved that way"
+
+#: src/gui/settings_dialog.py
+msgid "Gedrehte Seiten richtig herum speichern:"
+msgstr "Save rotated pages the right way up:"
+
+#: src/gui/settings_dialog.py
+msgid "Liest die Texterkennung eine Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die drei anderen Lagen und nimmt die beste. So herum wird die Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert."
+msgstr "If text recognition cannot read a page because it is upside down or sideways, it tries the three other orientations and takes the best one. The page is saved in that orientation – with a backup copy, in the log above, undoable like the text layer. Only the rotation setting changes, the scanned image stays unchanged."
+
+#: src/gui/settings_dialog.py
+msgid "Schief eingezogene Seiten werden um den kleinen Winkel gerade gedreht"
+msgstr "Pages fed in at an angle are rotated straight by the small angle"
+
+#: src/gui/settings_dialog.py
+msgid "Schief gescannte Seiten gerade ausrichten:"
+msgstr "Straighten pages scanned at an angle:"
+
+#: src/gui/settings_dialog.py
+msgid "Beim Einlesen wird gemessen, ob die Zeilen eines Scans schräg stehen (ab 0,3°). Dann dreht PDFSM den Seiteninhalt um diesen Winkel gerade – mit Sicherungskopie, im Protokoll oben, rückgängig wie die Textebene. Das Scanbild wird dabei nicht neu berechnet, eine vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten."
+msgstr "While reading, the program measures whether the lines of a scan are skewed (from 0.3°). PDFSM then rotates the page content straight by this angle – with a backup copy, in the log above, undoable like the text layer. The scanned image is not recalculated; an existing text layer rotates with it. Individual PDFs: right-click › Rotate › Straighten."
+
+#: src/gui/settings_dialog.py
+msgid "Speicherort und Übernahme"
+msgstr "Storage location and import"
+
+#: src/gui/settings_dialog.py
+msgid "Leer = Standardort im Datenverzeichnis. Bei einer übernommenen PDFsuche\nzeigt der Wert auf deren bisherige Datenbank."
+msgstr "Empty = default location in the data folder. With an imported PDFsuche\nthe value points to its previous database."
+
+#: src/gui/settings_dialog.py
+msgid "Datenbank:"
+msgstr "Database:"
+
+#: src/gui/settings_dialog.py
+msgid "Vorhandene PDFsuche übernehmen…"
+msgstr "Import existing PDFsuche…"
+
+#: src/gui/settings_dialog.py
+msgid "Einstellungen und Datenbank des früheren, eigenständigen Programms PDFsuche übernehmen"
+msgstr "Import the settings and database of the earlier, stand-alone program PDFsuche"
+
+#: src/gui/settings_dialog.py
+msgid "KI-Assistenten (MCP)"
+msgstr "AI assistants (MCP)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Desktop, Claude Code und andere MCP-fähige Programme durchsuchen über den Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst liest den Index nur."
+msgstr "Claude Desktop, Claude Code and other MCP-capable programs search your documents through the “pdfsuche” service. The assistant asks before every action. The service only reads the index."
+
+#: src/gui/settings_dialog.py
+msgid "So startet ein KI-Assistent den Dienst (stdio)."
+msgstr "This is how an AI assistant starts the service (stdio)."
+
+#: src/gui/settings_dialog.py
+msgid "\nEntwicklungsmodus, zusätzlich: {0}"
+msgstr "\nDevelopment mode, additionally: {0}"
+
+#: src/gui/settings_dialog.py
+msgid "Dienst:"
+msgstr "Service:"
+
+#: src/gui/settings_dialog.py
+msgid "Werkzeuge:"
+msgstr "Tools:"
+
+#: src/gui/settings_dialog.py
+msgid "Gibt dem Assistenten zusätzlich das Werkzeug sql_abfrage (Summen, Zählungen).\nDerselbe Schalter wie unter „KI-Assistent (LLM)“ › Chat; er gilt für beide.\nDer Assistent sieht die Änderung nach seinem nächsten Neustart."
+msgstr "Additionally gives the assistant the sql_abfrage tool (totals, counts).\nThe same switch as under “AI assistant (LLM)” › Chat; it applies to both.\nThe assistant sees the change after its next restart."
+
+#: src/gui/settings_dialog.py
+msgid "Einrichten"
+msgstr "Set up"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Code:"
+msgstr "Claude Code:"
+
+#: src/gui/settings_dialog.py
+msgid "Eintrag kopieren"
+msgstr "Copy entry"
+
+#: src/gui/settings_dialog.py
+msgid "Kopiert den Eintrag für claude_desktop_config.json (JSON) in die Zwischenablage."
+msgstr "Copies the entry for claude_desktop_config.json (JSON) to the clipboard."
+
+#: src/gui/settings_dialog.py
+msgid "In Konfiguration eintragen"
+msgstr "Add to configuration"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Desktop:"
+msgstr "Claude Desktop:"
+
+#: src/gui/settings_dialog.py
+msgid "Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten."
+msgstr "Restart the assistant after setting it up and after changing these settings."
+
+#: src/gui/settings_dialog.py
+msgid "wird geprüft …"
+msgstr "checking …"
+
+#: src/gui/settings_dialog.py
+msgid "Prüfung gescheitert: {status}"
+msgstr "Check failed: {status}"
+
+#: src/gui/settings_dialog.py
+msgid "Neu einrichten"
+msgstr "Set up again"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Code richtet den Server „pdfsuche“ für alle Projekte ein:\n\n{befehl}\n\n"
+msgstr "Claude Code sets up the “pdfsuche” server for all projects:\n\n{befehl}\n\n"
+
+#: src/gui/settings_dialog.py
+msgid "Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n"
+msgstr "The existing “pdfsuche” entry will be replaced.\n\n"
+
+#: src/gui/settings_dialog.py
+msgid "Fortfahren?"
+msgstr "Continue?"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Code einrichten"
+msgstr "Set up Claude Code"
+
+#: src/gui/settings_dialog.py
+msgid "wird eingerichtet …"
+msgstr "setting up …"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Code"
+msgstr "Claude Code"
+
+#: src/gui/settings_dialog.py
+msgid "Trägt „pdfsuche“ in {pfad} ein (mit Sicherungskopie)."
+msgstr "Adds “pdfsuche” to {pfad} (with a backup copy)."
+
+#: src/gui/settings_dialog.py
+msgid "Keine beschreibbare Konfiguration von Claude Desktop gefunden – „Eintrag kopieren“ und von Hand einfügen."
+msgstr "No writable Claude Desktop configuration found – use “Copy entry” and paste it by hand."
+
+#: src/gui/settings_dialog.py
+msgid "Eintrag kopiert. In claude_desktop_config.json unter „mcpServers“ einfügen (Claude Desktop: Einstellungen › Entwickler › Konfiguration bearbeiten), dann Claude Desktop neu starten."
+msgstr "Entry copied. Paste it into claude_desktop_config.json under “mcpServers” (Claude Desktop: Settings › Developer › Edit Config), then restart Claude Desktop."
+
+#: src/gui/settings_dialog.py
+msgid "Den Server „pdfsuche“ in die Konfiguration von Claude Desktop eintragen?\n\n{pfad}\n\nAndere Einträge bleiben erhalten; vorher entsteht eine Sicherungskopie."
+msgstr "Add the “pdfsuche” server to the Claude Desktop configuration?\n\n{pfad}\n\nOther entries are kept; a backup copy is created first."
+
+#: src/gui/settings_dialog.py
+msgid "Claude Desktop einrichten"
+msgstr "Set up Claude Desktop"
+
+#: src/gui/settings_dialog.py
+msgid "Claude Desktop"
+msgstr "Claude Desktop"
+
+#: src/gui/settings_dialog.py
+msgid "Keine Vorschläge"
+msgstr "No suggestions"
+
+#: src/gui/settings_dialog.py
+msgid "Datenbank der Dokumentensuche"
+msgstr "Database of the document search"
+
+#: src/gui/settings_dialog.py
+msgid "SQLite-Datenbank (*.db);;Alle Dateien (*)"
+msgstr "SQLite database (*.db);;All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "Thunderbird-Profil erkannt: {0}"
+msgstr "Thunderbird profile detected: {0}"
+
+#: src/gui/settings_dialog.py
+msgid "Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen."
+msgstr "No Thunderbird profile found – enter mailbox folders below."
+
+#: src/gui/settings_dialog.py
+msgid "Tesseract gefunden: {tesseract}"
+msgstr "Tesseract found: {tesseract}"
+
+#: src/gui/settings_dialog.py
+msgid "Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist."
+msgstr "Tesseract not found – text recognition stays off until Tesseract is installed."
+
+#: src/gui/settings_dialog.py
+msgid "Die Einstellungen sind gespeichert, aber der Zeitplan ließ sich nicht anpassen:\n\n{fehler}"
+msgstr "The settings are saved, but the schedule could not be adjusted:\n\n{fehler}"
+
+#: src/gui/settings_dialog.py
+msgid "Der Aufwand lässt sich gerade nicht schätzen ({e})."
+msgstr "The effort cannot be estimated right now ({e})."
+
+#: src/gui/settings_dialog.py
+msgid "Textebene auch für den Altbestand"
+msgstr "Text layer for existing files as well"
+
+#: src/gui/settings_dialog.py
+msgid "{text}\n\nDie Stufe gilt ab dem nächsten Indexlauf; im Reiter „Suche“ lässt sich der Lauf jederzeit anhalten. Einschalten?"
+msgstr "{text}\n\nThe level applies from the next index run; the run can be paused at any time in the “Search” tab. Enable?"
+
+#: src/gui/settings_dialog.py
+msgid "Gelernte Daten löschen"
+msgstr "Delete learned data"
+
+#: src/gui/settings_dialog.py
+msgid "Möchten Sie wirklich ALLE gelernten Daten löschen?\n\n• {entry_count} Sortierhistorie-Einträge\n• {rename_count} Umbenennungs-Einträge\n• Alle Ordnerstatistiken\n\nDiese Aktion kann NICHT rückgängig gemacht werden!"
+msgstr "Do you really want to delete ALL learned data?\n\n• {entry_count} sorting history entries\n• {rename_count} rename entries\n• All folder statistics\n\nThis action CANNOT be undone!"
+
+#: src/gui/settings_dialog.py
+msgid "Wirklich löschen?"
+msgstr "Really delete?"
+
+#: src/gui/settings_dialog.py
+msgid "Sind Sie SICHER? Alle Lernfortschritte gehen verloren!"
+msgstr "Are you SURE? Everything learned will be lost!"
+
+#: src/gui/settings_dialog.py
+msgid "Daten gelöscht"
+msgstr "Data deleted"
+
+#: src/gui/settings_dialog.py
+msgid "Alle gelernten Ordnervorschläge wurden gelöscht.\nDas Programm startet jetzt ohne Lernfortschritt."
+msgstr "All learned folder suggestions were deleted.\nThe program now starts without anything learned."
+
+#: src/gui/settings_dialog.py
+msgid "Fehler beim Löschen der Daten:\n{e}"
+msgstr "Error while deleting the data:\n{e}"
+
+#: src/gui/settings_dialog.py
+msgid "Aktuell: {entry_count} Sortierungen, {rename_count} Umbenennungen gelernt"
+msgstr "Currently: {entry_count} sortings, {rename_count} renames learned"
+
+#: src/gui/settings_dialog.py
+msgid "Möchten Sie den gesamten PDF-Analyse-Cache löschen?\n\nAlle PDFs müssen dann erneut analysiert werden."
+msgstr "Do you want to delete the entire PDF analysis cache?\n\nAll PDFs will then have to be analyzed again."
+
+#: src/gui/settings_dialog.py
+msgid "Cache geleert"
+msgstr "Cache cleared"
+
+#: src/gui/settings_dialog.py
+msgid "Der PDF-Analyse-Cache wurde erfolgreich geleert."
+msgstr "The PDF analysis cache was cleared successfully."
+
+#: src/gui/settings_dialog.py
+msgid "Cache konnte nicht geleert werden:\n{e}"
+msgstr "The cache could not be cleared:\n{e}"
+
+#: src/gui/settings_dialog.py
+msgid "({cached_count} PDFs, {llm_count} mit LLM-Vorschlägen)"
+msgstr "({cached_count} PDFs, {llm_count} with LLM suggestions)"
+
+#: src/gui/settings_dialog.py
+msgid "({cached_count} PDFs im Cache)"
+msgstr "({cached_count} PDFs in the cache)"
+
+#: src/gui/settings_dialog.py
+msgid "haiku-3.5 (günstig, älter)"
+msgstr "haiku-3.5 (cheap, older)"
+
+#: src/gui/settings_dialog.py
+msgid "haiku-4.5 (schnell & günstig)"
+msgstr "haiku-4.5 (fast & cheap)"
+
+#: src/gui/settings_dialog.py
+msgid "sonnet-3.5 (günstig, älter)"
+msgstr "sonnet-3.5 (cheap, older)"
+
+#: src/gui/settings_dialog.py
+msgid "sonnet-4 (ausgewogen)"
+msgstr "sonnet-4 (balanced)"
+
+#: src/gui/settings_dialog.py
+msgid "sonnet-4.5 (beste Qualität)"
+msgstr "sonnet-4.5 (best quality)"
+
+#: src/gui/settings_dialog.py
+msgid "opus-4 (premium)"
+msgstr "opus-4 (premium)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-4o-mini (günstig, älter)"
+msgstr "gpt-4o-mini (cheap, older)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-4.1-nano (schnellstes)"
+msgstr "gpt-4.1-nano (fastest)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-4.1-mini (schnell & günstig)"
+msgstr "gpt-4.1-mini (fast & cheap)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-4o (ausgewogen)"
+msgstr "gpt-4o (balanced)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-4.1 (beste Qualität)"
+msgstr "gpt-4.1 (best quality)"
+
+#: src/gui/settings_dialog.py
+msgid "o3-mini (Reasoning, günstig)"
+msgstr "o3-mini (reasoning, cheap)"
+
+#: src/gui/settings_dialog.py
+msgid "o3 (Reasoning)"
+msgstr "o3 (reasoning)"
+
+#: src/gui/settings_dialog.py
+msgid "o4-mini (Reasoning, neu)"
+msgstr "o4-mini (reasoning, new)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-oss:20b (OpenAI, ab 16 GB Grafikspeicher, empfohlen)"
+msgstr "gpt-oss:20b (OpenAI, from 16 GB graphics memory, recommended)"
+
+#: src/gui/settings_dialog.py
+msgid "gemma4:12b (Google, ab 10 GB Grafikspeicher)"
+msgstr "gemma4:12b (Google, from 10 GB graphics memory)"
+
+#: src/gui/settings_dialog.py
+msgid "gemma3:4b (Google, ab 4 GB Grafikspeicher)"
+msgstr "gemma3:4b (Google, from 4 GB graphics memory)"
+
+#: src/gui/settings_dialog.py
+msgid "gemma4:26b (Google, ab 24 GB Grafikspeicher)"
+msgstr "gemma4:26b (Google, from 24 GB graphics memory)"
+
+#: src/gui/settings_dialog.py
+msgid "gemma3:1b (Google, ohne Grafikkarte, langsam)"
+msgstr "gemma3:1b (Google, without graphics card, slow)"
+
+#: src/gui/settings_dialog.py
+msgid "llama3.1 (Meta, ausgewogen)"
+msgstr "llama3.1 (Meta, balanced)"
+
+#: src/gui/settings_dialog.py
+msgid "qwen2.5 (Alibaba, gut bei strukturiertem Output)"
+msgstr "qwen2.5 (Alibaba, good at structured output)"
+
+#: src/gui/settings_dialog.py
+msgid "GPT-4o-Mini (schnell & günstig)"
+msgstr "GPT-4o-Mini (fast & cheap)"
+
+#: src/gui/settings_dialog.py
+msgid "GPT-4o (OpenAI)"
+msgstr "GPT-4o (OpenAI)"
+
+#: src/gui/settings_dialog.py
+msgid "GPT-4.1-Mini (OpenAI, neu)"
+msgstr "GPT-4.1-Mini (OpenAI, new)"
+
+#: src/gui/settings_dialog.py
+msgid "GPT-4.1 (OpenAI, neu)"
+msgstr "GPT-4.1 (OpenAI, new)"
+
+#: src/gui/settings_dialog.py
+msgid "o3-Mini (Reasoning)"
+msgstr "o3-Mini (reasoning)"
+
+#: src/gui/settings_dialog.py
+msgid "o4-Mini (Reasoning, neu)"
+msgstr "o4-Mini (reasoning, new)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude-3.5-Haiku (schnell)"
+msgstr "Claude-3.5-Haiku (fast)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude-3.5-Sonnet (Anthropic)"
+msgstr "Claude-3.5-Sonnet (Anthropic)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude-Sonnet-4 (Anthropic, neu)"
+msgstr "Claude-Sonnet-4 (Anthropic, new)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude-Sonnet-4.5 (Anthropic, neuestes)"
+msgstr "Claude-Sonnet-4.5 (Anthropic, newest)"
+
+#: src/gui/settings_dialog.py
+msgid "Claude-Opus-4 (Anthropic, premium)"
+msgstr "Claude-Opus-4 (Anthropic, premium)"
+
+#: src/gui/settings_dialog.py
+msgid "Gemini-2-Flash (Google)"
+msgstr "Gemini-2-Flash (Google)"
+
+#: src/gui/settings_dialog.py
+msgid "Gemini-2.5-Flash (Google, neu)"
+msgstr "Gemini-2.5-Flash (Google, new)"
+
+#: src/gui/settings_dialog.py
+msgid "Gemini-2.5-Pro (Google, premium)"
+msgstr "Gemini-2.5-Pro (Google, premium)"
+
+#: src/gui/settings_dialog.py
+msgid "Llama-3.1-405B (Meta)"
+msgstr "Llama-3.1-405B (Meta)"
+
+#: src/gui/settings_dialog.py
+msgid "Mistral-Large (Mistral)"
+msgstr "Mistral-Large (Mistral)"
+
+#: src/gui/settings_dialog.py
+msgid "openai/gpt-4.1-nano (schnell & günstig)"
+msgstr "openai/gpt-4.1-nano (fast & cheap)"
+
+#: src/gui/settings_dialog.py
+msgid "openai/gpt-4.1-mini (ausgewogen)"
+msgstr "openai/gpt-4.1-mini (balanced)"
+
+#: src/gui/settings_dialog.py
+msgid "openai/gpt-4o-mini (OpenAI, älter)"
+msgstr "openai/gpt-4o-mini (OpenAI, older)"
+
+#: src/gui/settings_dialog.py
+msgid "anthropic/claude-3.5-haiku (Anthropic, schnell)"
+msgstr "anthropic/claude-3.5-haiku (Anthropic, fast)"
+
+#: src/gui/settings_dialog.py
+msgid "anthropic/claude-sonnet-4 (Anthropic)"
+msgstr "anthropic/claude-sonnet-4 (Anthropic)"
+
+#: src/gui/settings_dialog.py
+msgid "google/gemini-2.5-flash (Google)"
+msgstr "google/gemini-2.5-flash (Google)"
+
+#: src/gui/settings_dialog.py
+msgid "meta-llama/llama-3.1-70b-instruct (Meta)"
+msgstr "meta-llama/llama-3.1-70b-instruct (Meta)"
+
+#: src/gui/settings_dialog.py
+msgid "mistralai/mistral-small (Mistral)"
+msgstr "mistralai/mistral-small (Mistral)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-oss:120b (OpenAI, gross, empfohlen)"
+msgstr "gpt-oss:120b (OpenAI, large, recommended)"
+
+#: src/gui/settings_dialog.py
+msgid "gpt-oss:20b (OpenAI, schnell)"
+msgstr "gpt-oss:20b (OpenAI, fast)"
+
+#: src/gui/settings_dialog.py
+msgid "gemma4:31b (Google)"
+msgstr "gemma4:31b (Google)"
+
+#: src/gui/settings_dialog.py
+msgid "deepseek-v4.1-flash (DeepSeek)"
+msgstr "deepseek-v4.1-flash (DeepSeek)"
+
+#: src/gui/settings_dialog.py
+msgid "kimi-k3 (Moonshot)"
+msgstr "kimi-k3 (Moonshot)"
+
+#: src/gui/settings_dialog.py
+msgid "glm-5.3 (Zhipu)"
+msgstr "glm-5.3 (Zhipu)"
+
+#: src/gui/settings_dialog.py
+msgid "minimax-m3 (MiniMax)"
+msgstr "minimax-m3 (MiniMax)"
+
+#: src/gui/settings_dialog.py
+msgid "mistral-large-4 (Mistral)"
+msgstr "mistral-large-4 (Mistral)"
+
+#: src/gui/settings_dialog.py
+msgid "sk-strata-... (in Strata unter Connect, Taste k)"
+msgstr "sk-strata-... (in Strata under Connect, key k)"
+
+#: src/gui/settings_dialog.py
+msgid "Poe API-Key von poe.com/api_key"
+msgstr "Poe API key from poe.com/api_key"
+
+#: src/gui/settings_dialog.py
+msgid "Nicht noetig fuer Ollama"
+msgstr "Not needed for Ollama"
+
+#: src/gui/settings_dialog.py
+msgid "Nicht noetig fuer LM Studio"
+msgstr "Not needed for LM Studio"
+
+#: src/gui/settings_dialog.py
+msgid "sk-or-... von openrouter.ai/keys"
+msgstr "sk-or-... from openrouter.ai/keys"
+
+#: src/gui/settings_dialog.py
+msgid "API-Key von ollama.com/settings/keys"
+msgstr "API key from ollama.com/settings/keys"
+
+#: src/gui/settings_dialog.py
+msgid "API-Key ({key_label}):"
+msgstr "API key ({key_label}):"
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio wurde nicht gefunden. LM Studio starten und den lokalen Server aktivieren (Developer > Start Server), dann „Modelle aktualisieren“ klicken."
+msgstr "LM Studio was not found. Start LM Studio and enable the local server (Developer > Start Server), then click “Refresh models”."
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio laeuft, bietet aber kein Modell an. In LM Studio ein Modell herunterladen bzw. laden."
+msgstr "LM Studio is running but offers no model. Download or load a model in LM Studio."
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio erkannt: {anzahl} Modell(e) verfuegbar."
+msgstr "LM Studio detected: {anzahl} model(s) available."
+
+#: src/gui/settings_dialog.py
+msgid "Nur für Cloud-Anbieter relevant (Ollama läuft lokal)."
+msgstr "Only relevant for cloud providers (Ollama runs locally)."
+
+#: src/gui/settings_dialog.py
+msgid "Einwilligung erteilt."
+msgstr "Consent given."
+
+#: src/gui/settings_dialog.py
+msgid "Ohne Einwilligung bleibt der KI-Assistent deaktiviert (Statusleiste: \"LLM: Aus\")."
+msgstr "Without consent the AI assistant stays disabled (status bar: \"LLM: off\")."
+
+#: src/gui/settings_dialog.py
+msgid "Leer = Key des gleichen Anbieters von oben"
+msgstr "Empty = key of the same provider above"
+
+#: src/gui/settings_dialog.py
+msgid "Leer = wie oben bzw. {default_url}"
+msgstr "Empty = as above, or {default_url}"
+
+#: src/gui/settings_dialog.py
+msgid "Die Einwilligung für Cloud-Anbieter gilt auch hier."
+msgstr "The consent for cloud providers applies here as well."
+
+#: src/gui/settings_dialog.py
+msgid "{base} Ohne Einwilligung (oben unter „Datenschutz“) bleibt das Chat-Modell aus."
+msgstr "{base} Without consent (above under “Privacy”) the chat model stays off."
+
+#: src/gui/settings_dialog.py
+#: src/gui/setup_wizard.py
+msgid "Verbergen"
+msgstr "Hide"
+
+#: src/gui/settings_dialog.py
+msgid "Aktuell aktiviert."
+msgstr "Currently enabled."
+
+#: src/gui/settings_dialog.py
+msgid "Aktuell nicht eingerichtet."
+msgstr "Currently not set up."
+
+#: src/gui/settings_dialog.py
+msgid "Programme (*.exe);;Alle Dateien (*)"
+msgstr "Programs (*.exe);;All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "Programme (*.app);;Alle Dateien (*)"
+msgstr "Programs (*.app);;All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "Alle Dateien (*)"
+msgstr "All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "PDF-Programm auswählen"
+msgstr "Choose PDF program"
+
+#: src/gui/settings_dialog.py
+msgid "Explorer-Integration"
+msgstr "Explorer integration"
+
+#: src/gui/settings_dialog.py
+msgid "Die Aenderung konnte nicht angewendet werden:\n{e}"
+msgstr "The change could not be applied:\n{e}"
+
+#: src/gui/settings_dialog.py
+msgid "Bitte geben Sie einen API-Key ein."
+msgstr "Please enter an API key."
+
+#: src/gui/settings_dialog.py
+msgid "Teste..."
+msgstr "Testing..."
+
+#: src/gui/settings_dialog.py
+msgid "Erfolg"
+msgstr "Success"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu Claude erfolgreich!\nModell: {model_id}\nAntwort: {text}"
+msgstr "Connection to Claude successful!\nModel: {model_id}\nResponse: {text}"
+
+#: src/gui/settings_dialog.py
+msgid "Das 'anthropic' Paket ist nicht installiert.\nInstallieren mit: pip install anthropic"
+msgstr "The 'anthropic' package is not installed.\nInstall with: pip install anthropic"
+
+#: src/gui/settings_dialog.py
+msgid "Ungültiger API-Key. Bitte überprüfen Sie Ihren Key."
+msgstr "Invalid API key. Please check your key."
+
+#: src/gui/settings_dialog.py
+msgid "Verbindungsfehler: {0}"
+msgstr "Connection error: {0}"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu OpenAI erfolgreich!\nModell: {model_id}\nAntwort: {content}"
+msgstr "Connection to OpenAI successful!\nModel: {model_id}\nResponse: {content}"
+
+#: src/gui/settings_dialog.py
+msgid "Das 'openai' Paket ist nicht installiert.\nInstallieren mit: pip install openai"
+msgstr "The 'openai' package is not installed.\nInstall with: pip install openai"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu Poe erfolgreich!\nModell: {model_id}\nAntwort: {content}"
+msgstr "Connection to Poe successful!\nModel: {model_id}\nResponse: {content}"
+
+#: src/gui/settings_dialog.py
+msgid "Ungültiger Poe API-Key.\nHolen Sie Ihren Key von: poe.com/api_key"
+msgstr "Invalid Poe API key.\nGet your key from: poe.com/api_key"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama Cloud antwortet nicht:\n{error}\n\nPruefen Sie den API-Key (ollama.com/settings/keys) und den Modellnamen."
+msgstr "Ollama Cloud is not responding:\n{error}\n\nCheck the API key (ollama.com/settings/keys) and the model name."
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu Ollama Cloud erfolgreich!\nModell: {0}\nAntwort: {1}"
+msgstr "Connection to Ollama Cloud successful!\nModel: {0}\nResponse: {1}"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindungsfehler: {e}"
+msgstr "Connection error: {e}"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama-Server nicht erreichbar:\n{msg}\n\nPruefen Sie ob Ollama laeuft (z.B. 'ollama serve')\nund die URL stimmt: {base_url}"
+msgstr "Ollama server not reachable:\n{msg}\n\nCheck whether Ollama is running (e.g. 'ollama serve')\nand the URL is correct: {base_url}"
+
+#: src/gui/settings_dialog.py
+msgid "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der installierten Modelle. Verfuegbar:\n{0}\n\nInstallieren mit: ollama pull {chosen}"
+msgstr "\n\nNote: model '{chosen}' is not in the list of installed models. Available:\n{0}\n\nInstall with: ollama pull {chosen}"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\nVersion: {msg}\nGewaehltes Modell: {chosen}{extra}"
+msgstr "Connection to Ollama successful!\nServer: {base_url}\nVersion: {msg}\nSelected model: {chosen}{extra}"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu OpenRouter erfolgreich!\nModell: {model_id}\nAntwort: {content}"
+msgstr "Connection to OpenRouter successful!\nModel: {model_id}\nResponse: {content}"
+
+#: src/gui/settings_dialog.py
+msgid "Ungültiger OpenRouter API-Key.\nHolen Sie Ihren Key von: openrouter.ai/keys"
+msgstr "Invalid OpenRouter API key.\nGet your key from: openrouter.ai/keys"
+
+#: src/gui/settings_dialog.py
+msgid "OpenAI-kompatibler Client nicht verfuegbar."
+msgstr "OpenAI-compatible client not available."
+
+#: src/gui/settings_dialog.py
+msgid "Kein Modell gefunden. Laeuft Strata unter {base_url}?"
+msgstr "No model found. Is Strata running at {base_url}?"
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu Strata erfolgreich!\nServer: {base_url}\nModell: {model_id}\nAntwort: {content}"
+msgstr "Connection to Strata successful!\nServer: {base_url}\nModel: {model_id}\nResponse: {content}"
+
+#: src/gui/settings_dialog.py
+msgid "Ungueltiger Strata API-Key.\nDen Key zeigt Strata unter Connect (Taste k)."
+msgstr "Invalid Strata API key.\nStrata shows the key under Connect (key k)."
+
+#: src/gui/settings_dialog.py
+msgid "Keine Verbindung zu Strata unter {base_url}.\nLaeuft der Strata-Server?"
+msgstr "No connection to Strata at {base_url}.\nIs the Strata server running?"
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio"
+msgstr "LM Studio"
+
+#: src/gui/settings_dialog.py
+msgid "LM Studio bietet kein Modell an. Bitte in LM Studio ein Modell herunterladen bzw. laden."
+msgstr "LM Studio offers no model. Please download or load a model in LM Studio."
+
+#: src/gui/settings_dialog.py
+msgid "Verbindung zu LM Studio erfolgreich!\nServer: {base_url}\nModell: {model_id}\nAntwort: {content}"
+msgstr "Connection to LM Studio successful!\nServer: {base_url}\nModel: {model_id}\nResponse: {content}"
+
+#: src/gui/settings_dialog.py
+msgid "Keine Modelle gefunden. Laeuft Strata unter {base_url} und stimmt der API-Key?"
+msgstr "No models found. Is Strata running at {base_url} and is the API key correct?"
+
+#: src/gui/settings_dialog.py
+msgid "Hinweis"
+msgstr "Note"
+
+#: src/gui/settings_dialog.py
+msgid "Bitte wählen Sie zuerst einen LLM-Provider aus."
+msgstr "Please select an LLM provider first."
+
+#: src/gui/settings_dialog.py
+msgid "Bitte geben Sie einen API-Key ein, um die Modelle abzurufen."
+msgstr "Please enter an API key to fetch the models."
+
+#: src/gui/settings_dialog.py
+msgid "Lade..."
+msgstr "Loading..."
+
+#: src/gui/settings_dialog.py
+msgid "{anzahl} Modelle gefunden und aktualisiert."
+msgstr "{anzahl} models found and updated."
+
+#: src/gui/settings_dialog.py
+msgid "Modelle konnten nicht abgerufen werden:\n{0}"
+msgstr "The models could not be fetched:\n{0}"
+
+#: src/gui/settings_dialog.py
+msgid "Keine Modelle gefunden. Laeuft Ollama unter {base_url}?\nModelle installieren mit: ollama pull llama3.1"
+msgstr "No models found. Is Ollama running at {base_url}?\nInstall models with: ollama pull llama3.1"
+
+#: src/gui/setup_wizard.py
+msgid "LM Studio (laeuft bereits auf diesem Rechner — kein API-Key noetig)"
+msgstr "LM Studio (already running on this computer — no API key needed)"
+
+#: src/gui/setup_wizard.py
+msgid "OpenRouter (viele KI-Modelle, ein API-Key)"
+msgstr "OpenRouter (many AI models, one API key)"
+
+#: src/gui/setup_wizard.py
+msgid "Beginnt mit \"sk-ant-...\""
+msgstr "Starts with \"sk-ant-...\""
+
+#: src/gui/setup_wizard.py
+msgid "Beginnt mit \"sk-...\""
+msgstr "Starts with \"sk-...\""
+
+#: src/gui/setup_wizard.py
+msgid "Leer lassen fuer Standard (http://localhost:11434)"
+msgstr "Leave empty for the default (http://localhost:11434)"
+
+#: src/gui/setup_wizard.py
+msgid "Zu finden auf ollama.com/settings/keys"
+msgstr "Found at ollama.com/settings/keys"
+
+#: src/gui/setup_wizard.py
+msgid "Beginnt mit \"sk-or-...\""
+msgstr "Starts with \"sk-or-...\""
+
+#: src/gui/setup_wizard.py
+msgid "Zu finden auf poe.com/api_key"
+msgstr "Found at poe.com/api_key"
+
+#: src/gui/setup_wizard.py
+msgid "Willkommen bei PDF Sortier Meister!"
+msgstr "Welcome to PDF Sortier Meister!"
+
+#: src/gui/setup_wizard.py
+msgid "Dieses kurze Setup dauert etwa 2 Minuten.\nSie koennen jeden Schritt ueberspringen und spaeter aendern."
+msgstr "This short setup takes about 2 minutes.\nYou can skip any step and change it later."
+
+#: src/gui/setup_wizard.py
+msgid "<b>Was macht PDF Sortier Meister?</b><br><br>Das Programm schaut Ihre gescannten PDFs an und schlaegt Ihnen vor,\nin welchen Ordner jedes Dokument gehoert — zum Beispiel:\n<ul><li>Rechnung &rarr; Ordner <i>Rechnungen/2024</i></li><li>Kontoauszug &rarr; Ordner <i>Bank/Sparkasse</i></li><li>Arztbrief &rarr; Ordner <i>Gesundheit</i></li></ul>Sie bestimmen immer selbst, was wirklich passiert.\nDas Programm verschiebt nichts ohne Ihre Zustimmung.<br><br><b>KI-Assistent (empfohlen):</b> Erst mit einer KI entfaltet das\nProgramm sein volles Potential — die Vorschlaege werden deutlich\nbesser. Am einfachsten geht das mit <b>Ollama</b>, das kostenlos\nlokal auf Ihrem PC laeuft (kein API-Key noetig, Ihre Dokumente\nbleiben auf diesem Rechner). Wer lieber einen Cloud-Anbieter nutzt\n(z. B. weil er ein Abo hat oder dem Anbieter vertraut), kann\nstattdessen einen API-Key hinterlegen. Im naechsten Schritt waehlen\nSie aus — ganz ohne KI geht es zur Not auch, dann sortiert nur\neine einfache Stichwort-Zuordnung."
+msgstr "<b>What does PDF Sortier Meister do?</b><br><br>The program looks at your scanned PDFs and suggests\nwhich folder each document belongs in — for example:\n<ul><li>Invoice &rarr; folder <i>Invoices/2024</i></li><li>Bank statement &rarr; folder <i>Bank/Savings bank</i></li><li>Doctor's letter &rarr; folder <i>Health</i></li></ul>You always decide yourself what actually happens.\nThe program moves nothing without your approval.<br><br><b>AI assistant (recommended):</b> Only with an AI does the\nprogram reach its full potential — the suggestions become much\nbetter. The easiest way is <b>Ollama</b>, which runs locally on your\nPC free of charge (no API key needed, your documents\nstay on this computer). If you prefer a cloud provider\n(e.g. because you have a subscription or trust the provider), you can\nenter an API key instead. You choose in the next\nstep — it also works without AI if need be; then only\na simple keyword matching does the sorting."
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 1: Scan-Ordner auswaehlen"
+msgstr "Step 1: Choose scan folder"
+
+#: src/gui/setup_wizard.py
+msgid "Hier landen Ihre unsortierten (gescannten) PDFs — hierhin\nspeichert auch Ihr Scanner. Diesen Ordner wird das Programm\nbeim Start anzeigen."
+msgstr "This is where your unsorted (scanned) PDFs arrive — your scanner\nsaves here too. The program shows this folder\nat startup."
+
+#: src/gui/setup_wizard.py
+msgid "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\noder einen anderen Ordner waehlen (z. B. ein Netzlaufwerk)."
+msgstr "A suggestion is already entered. You can accept it\nor choose a different folder (e.g. a network drive)."
+
+#: src/gui/setup_wizard.py
+msgid "Noch kein Ordner ausgewaehlt ..."
+msgstr "No folder selected yet ..."
+
+#: src/gui/setup_wizard.py
+msgid "Ordner auswaehlen ..."
+msgstr "Choose folder ..."
+
+#: src/gui/setup_wizard.py
+msgid "<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\nunter Extras → Einstellungen festlegen.</i>"
+msgstr "<i>You can also skip this now and set the folder later\nunder Tools → Settings.</i>"
+
+#: src/gui/setup_wizard.py
+msgid "Scan-Ordner auswaehlen"
+msgstr "Choose scan folder"
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 2: Zielordner auswaehlen"
+msgstr "Step 2: Choose target folder"
+
+#: src/gui/setup_wizard.py
+msgid "Hierhin werden die sortierten PDFs verschoben — in Unterordner,\ndie Sie selbst anlegen oder die Ihnen vorgeschlagen werden."
+msgstr "The sorted PDFs are moved here — into subfolders\nthat you create yourself or that are suggested to you."
+
+#: src/gui/setup_wizard.py
+msgid "Ein Vorschlag ist schon eingetragen. Sie koennen ihn uebernehmen\noder einen anderen Ordner waehlen."
+msgstr "A suggestion is already entered. You can accept it\nor choose a different folder."
+
+#: src/gui/setup_wizard.py
+msgid "Zielordner auswaehlen"
+msgstr "Choose target folder"
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 3: KI-Assistent auswaehlen"
+msgstr "Step 3: Choose AI assistant"
+
+#: src/gui/setup_wizard.py
+msgid "Ein KI-Assistent liefert deutlich bessere Vorschlaege — wir empfehlen\nOllama (laeuft lokal, kostenlos). Ganz ohne KI geht es zur Not auch."
+msgstr "An AI assistant provides much better suggestions — we recommend\nOllama (runs locally, free). It also works without AI if need be."
+
+#: src/gui/setup_wizard.py
+msgid "    Pruefe Ollama-Installation ..."
+msgstr "    Checking Ollama installation ..."
+
+#: src/gui/setup_wizard.py
+msgid "Hardware wird geprueft ..."
+msgstr "Checking hardware ..."
+
+#: src/gui/setup_wizard.py
+msgid "✓ Ollama ist installiert und laeuft"
+msgstr "✓ Ollama is installed and running"
+
+#: src/gui/setup_wizard.py
+msgid "✓ Ollama ist installiert"
+msgstr "✓ Ollama is installed"
+
+#: src/gui/setup_wizard.py
+msgid "Ollama ist nicht installiert (Download im naechsten Schritt)"
+msgstr "Ollama is not installed (download in the next step)"
+
+#: src/gui/setup_wizard.py
+msgid "✓ LM Studio laeuft ({anzahl} Modell(e))"
+msgstr "✓ LM Studio is running ({anzahl} model(s))"
+
+#: src/gui/setup_wizard.py
+msgid "LM Studio laeuft, aber es ist kein Modell vorhanden"
+msgstr "LM Studio is running, but there is no model"
+
+#: src/gui/setup_wizard.py
+msgid "Hardware konnte nicht geprueft werden."
+msgstr "The hardware could not be checked."
+
+#: src/gui/setup_wizard.py
+msgid "<b>Empfehlung: Ollama lokal.</b> {reason} Ihre Dokumente bleiben dabei auf diesem PC."
+msgstr "<b>Recommendation: Ollama locally.</b> {reason} Your documents stay on this PC."
+
+#: src/gui/setup_wizard.py
+msgid "<b>Ollama lokal nicht empfohlen.</b> {reason} Empfehlung: <b>Ollama Cloud</b> — dieselben Modelle, nur ein API-Key noetig (Dokumentinhalte werden dabei an ollama.com uebertragen)."
+msgstr "<b>Ollama locally not recommended.</b> {reason} Recommendation: <b>Ollama Cloud</b> — the same models, only an API key needed (document contents are transferred to ollama.com)."
+
+#: src/gui/setup_wizard.py
+msgid "{0}  (empfohlen)"
+msgstr "{0}  (recommended)"
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 4: API-Key eingeben"
+msgstr "Step 4: Enter API key"
+
+#: src/gui/setup_wizard.py
+msgid "Erneut pruefen"
+msgstr "Check again"
+
+#: src/gui/setup_wizard.py
+msgid "<i>Ohne API-Key koennen Sie die App trotzdem nutzen.\nKlicken Sie einfach auf 'Weiter' ohne etwas einzugeben.\nDen Key koennen Sie spaeter unter Extras → Einstellungen eintragen.</i>"
+msgstr "<i>You can use the app without an API key.\nSimply click 'Next' without entering anything.\nYou can enter the key later under Tools → Settings.</i>"
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 4: LM Studio"
+msgstr "Step 4: LM Studio"
+
+#: src/gui/setup_wizard.py
+msgid "LM Studio laeuft auf Ihrem Rechner. Sie brauchen keinen API-Key,\nnur ein Modell - waehlen Sie es unten aus."
+msgstr "LM Studio is running on your computer. You do not need an API key,\nonly a model - choose it below."
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 4: Ollama einrichten"
+msgstr "Step 4: Set up Ollama"
+
+#: src/gui/setup_wizard.py
+msgid "Ollama laeuft lokal auf Ihrem Rechner. Sie brauchen keinen API-Key,\nnur die Installation und ein Modell - beides erledigen Sie hier."
+msgstr "Ollama runs locally on your computer. You do not need an API key,\nonly the installation and a model - you do both here."
+
+#: src/gui/setup_wizard.py
+msgid "Geben Sie Ihren {name} API-Key ein.\nDen Key koennen Sie kostenlos erstellen (ein Account genuegt)."
+msgstr "Enter your {name} API key.\nYou can create the key free of charge (an account is enough)."
+
+#: src/gui/setup_wizard.py
+msgid "  Hier klicken um Ollama herunterzuladen: {url}"
+msgstr "  Click here to download Ollama: {url}"
+
+#: src/gui/setup_wizard.py
+msgid "  Hier klicken um API-Key zu erstellen: {url}"
+msgstr "  Click here to create an API key: {url}"
+
+#: src/gui/setup_wizard.py
+msgid "API-Key hier einfuegen ..."
+msgstr "Paste API key here ..."
+
+#: src/gui/setup_wizard.py
+msgid "1. Oeffnen Sie den Link unten (oder gehen Sie zu console.anthropic.com).\n2. Melden Sie sich an oder erstellen Sie ein kostenloses Konto.\n3. Klicken Sie auf 'API Keys' und dann 'Create Key'.\n4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
+msgstr "1. Open the link below (or go to console.anthropic.com).\n2. Sign in or create a free account.\n3. Click 'API Keys' and then 'Create Key'.\n4. Copy the key and paste it below."
+
+#: src/gui/setup_wizard.py
+msgid "1. Oeffnen Sie den Link unten (oder gehen Sie zu platform.openai.com).\n2. Melden Sie sich an oder erstellen Sie ein Konto.\n3. Klicken Sie auf 'API Keys' und dann 'Create new secret key'.\n4. Kopieren Sie den Key und fuegen Sie ihn unten ein."
+msgstr "1. Open the link below (or go to platform.openai.com).\n2. Sign in or create an account.\n3. Click 'API Keys' and then 'Create new secret key'.\n4. Copy the key and paste it below."
+
+#: src/gui/setup_wizard.py
+msgid "Der lokale Server von LM Studio muss beim Sortieren laufen\n(LM Studio starten, Developer > Start Server). Das Modell koennen Sie\nspaeter unter Extras -> Einstellungen aendern."
+msgstr "The local server of LM Studio must be running while sorting\n(start LM Studio, Developer > Start Server). You can change the model\nlater under Tools -> Settings."
+
+#: src/gui/setup_wizard.py
+msgid "Ollama Cloud fuehrt die Ollama-Modelle auf Servern von ollama.com aus -\nideal fuer PCs ohne Grafikkarte. Dokumentinhalte werden dabei uebertragen.\n1. Oeffnen Sie den Link unten und melden Sie sich bei ollama.com an.\n2. Unter 'Keys' einen API-Key erstellen und kopieren.\n3. Fuegen Sie ihn unten ein. Standardmodell: {OLLAMA_CLOUD_DEFAULT_MODEL}\n   (aenderbar unter Extras -> Einstellungen)."
+msgstr "Ollama Cloud runs the Ollama models on servers of ollama.com -\nideal for PCs without a graphics card. Document contents are transferred.\n1. Open the link below and sign in to ollama.com.\n2. Create an API key under 'Keys' and copy it.\n3. Paste it below. Default model: {OLLAMA_CLOUD_DEFAULT_MODEL}\n   (can be changed under Tools -> Settings)."
+
+#: src/gui/setup_wizard.py
+msgid "1. Oeffnen Sie den Link unten (oder gehen Sie zu poe.com).\n2. Melden Sie sich an oder erstellen Sie ein Konto.\n3. Gehen Sie zu poe.com/api_key und kopieren Sie Ihren Key.\n4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n   Extras -> Einstellungen (z.B. GPT-4o-Mini)."
+msgstr "1. Open the link below (or go to poe.com).\n2. Sign in or create an account.\n3. Go to poe.com/api_key and copy your key.\n4. Paste it below. You choose the model later under\n   Tools -> Settings (e.g. GPT-4o-Mini)."
+
+#: src/gui/setup_wizard.py
+msgid "1. Oeffnen Sie den Link unten (oder gehen Sie zu openrouter.ai).\n2. Melden Sie sich an oder erstellen Sie ein Konto.\n3. Unter 'Keys' einen neuen API-Key erstellen und kopieren.\n4. Fuegen Sie ihn unten ein. Modell waehlen Sie spaeter unter\n   Extras -> Einstellungen (z.B. openai/gpt-4.1-nano)."
+msgstr "1. Open the link below (or go to openrouter.ai).\n2. Sign in or create an account.\n3. Create a new API key under 'Keys' and copy it.\n4. Paste it below. You choose the model later under\n   Tools -> Settings (e.g. openai/gpt-4.1-nano)."
+
+#: src/gui/setup_wizard.py
+msgid "Ollama ist installiert. Unten sehen Sie die vorhandenen Modelle;\nfalls noch keines da ist, laden Sie das empfohlene Modell mit einem Klick.\nDie Server-URL koennen Sie leer lassen (Standard: http://localhost:11434)."
+msgstr "Ollama is installed. Below you see the available models;\nif there is none yet, download the recommended model with one click.\nYou can leave the server URL empty (default: http://localhost:11434)."
+
+#: src/gui/setup_wizard.py
+msgid "Ollama ist noch nicht installiert:\n1. Ueber den Link unten Ollama herunterladen und installieren (Standardeinstellungen).\n2. Danach hier auf 'Erneut pruefen' klicken.\n3. Das empfohlene Modell mit einem Klick herunterladen - fertig."
+msgstr "Ollama is not installed yet:\n1. Download and install Ollama via the link below (default settings).\n2. Then click 'Check again' here.\n3. Download the recommended model with one click - done."
+
+#: src/gui/setup_wizard.py
+msgid "Hinweis: {reason} Sie koennen Ollama trotzdem lokal nutzen, muessen aber mit langen Wartezeiten rechnen."
+msgstr "Note: {reason} You can still use Ollama locally, but must expect long waiting times."
+
+#: src/gui/setup_wizard.py
+msgid "Empfohlenes Modell herunterladen: {recommended_model} (ca. {recommended_size_gb:.0f} GB)"
+msgstr "Download recommended model: {recommended_model} (approx. {recommended_size_gb:.0f} GB)"
+
+#: src/gui/setup_wizard.py
+msgid "Ollama nicht gefunden - nach der Installation 'Erneut pruefen' klicken."
+msgstr "Ollama not found - click 'Check again' after installing."
+
+#: src/gui/setup_wizard.py
+msgid "{anzahl} Modell(e) in LM Studio verfuegbar."
+msgstr "{anzahl} model(s) available in LM Studio."
+
+#: src/gui/setup_wizard.py
+msgid "LM Studio bietet noch kein Modell an - bitte in LM Studio ein Modell herunterladen und laden."
+msgstr "LM Studio offers no model yet - please download and load a model in LM Studio."
+
+#: src/gui/setup_wizard.py
+msgid "Ollama wird gestartet und Modelle werden gelesen ..."
+msgstr "Starting Ollama and reading models ..."
+
+#: src/gui/setup_wizard.py
+msgid "Ollama nicht erreichbar: {msg}"
+msgstr "Ollama not reachable: {msg}"
+
+#: src/gui/setup_wizard.py
+msgid "{anzahl} Modell(e) installiert. Empfehlung fuer Ihre Hardware: {recommended_model}."
+msgstr "{anzahl} model(s) installed. Recommendation for your hardware: {recommended_model}."
+
+#: src/gui/setup_wizard.py
+msgid "{recommended_model} ist bereits installiert"
+msgstr "{recommended_model} is already installed"
+
+#: src/gui/setup_wizard.py
+msgid "Ollama laeuft, aber es ist noch kein Modell installiert - bitte unten herunterladen."
+msgstr "Ollama is running, but no model is installed yet - please download one below."
+
+#: src/gui/setup_wizard.py
+msgid "Lade {recommended_model} herunter ..."
+msgstr "Downloading {recommended_model} ..."
+
+#: src/gui/setup_wizard.py
+msgid "Download fehlgeschlagen: {msg}"
+msgstr "Download failed: {msg}"
+
+#: src/gui/setup_wizard.py
+msgid "Schritt 5: Dokumentensuche (optional)"
+msgstr "Step 5: Document search (optional)"
+
+#: src/gui/setup_wizard.py
+msgid "Volltextsuche ueber Ihre Dokumente - auch in gescannten PDFs,\nOffice-Dateien und Mails. Alles bleibt auf diesem Rechner."
+msgstr "Full-text search across your documents - including scanned PDFs,\nOffice files and mails. Everything stays on this computer."
+
+#: src/gui/setup_wizard.py
+msgid "Dokumentensuche einschalten"
+msgstr "Enable document search"
+
+#: src/gui/setup_wizard.py
+msgid "Diese Ordner und Laufwerke durchsuchen (Haken setzen):"
+msgstr "Search these folders and drives (tick the boxes):"
+
+#: src/gui/setup_wizard.py
+msgid "Weiteren Ordner ..."
+msgstr "Another folder ..."
+
+#: src/gui/setup_wizard.py
+msgid "Mails aus Thunderbird aufnehmen"
+msgstr "Include mails from Thunderbird"
+
+#: src/gui/setup_wizard.py
+msgid "Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen"
+msgstr "Make scanned PDFs searchable with text recognition (OCR)"
+
+#: src/gui/setup_wizard.py
+msgid "Erkannten Text unsichtbar in neue Scans schreiben (Textebene, mit Sicherungskopie)"
+msgstr "Write recognized text invisibly into new scans (text layer, with backup copy)"
+
+#: src/gui/setup_wizard.py
+msgid "Dann finden auch andere Programme den Text der Scans. Das Scanbild bleibt unveraendert; abschalten unter Einstellungen > Suche > Textebene."
+msgstr "Then other programs find the text of the scans too. The scanned image stays unchanged; switch off under Settings > Search > Text layer."
+
+#: src/gui/setup_wizard.py
+msgid "Einmal taeglich im Hintergrund indizieren, sobald der Rechner nicht benutzt wird"
+msgstr "Index once a day in the background as soon as the computer is not in use"
+
+#: src/gui/setup_wizard.py
+msgid "<b>Datenschutz:</b> Index und erkannter Text liegen in einer lokalen\nDatenbank, nichts verlaesst den Rechner. Dateien werden nur gelesen;\neinzige Ausnahme ist die Textebene fuer neue Scans (abschaltbar).\nOhne Ihre Zustimmung wird nichts indiziert. Alles laesst sich spaeter\nunter <b>Extras &rarr; Einstellungen &rarr; Suche</b> aendern."
+msgstr "<b>Privacy:</b> The index and the recognized text are stored in a local\ndatabase, nothing leaves the computer. Files are only read;\nthe only exception is the text layer for new scans (can be switched off).\nNothing is indexed without your approval. Everything can be changed later\nunder <b>Tools &rarr; Settings &rarr; Search</b>."
+
+#: src/gui/setup_wizard.py
+msgid "Vorhandene PDFsuche uebernehmen ..."
+msgstr "Import existing PDFsuche ..."
+
+#: src/gui/setup_wizard.py
+msgid "Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\nPDFsuche uebernehmen. Die Datenbank bleibt an ihrem Ort."
+msgstr "Import the settings and database of the earlier, stand-alone program\nPDFsuche. The database stays where it is."
+
+#: src/gui/setup_wizard.py
+msgid "Thunderbird-Profil gefunden: {0}"
+msgstr "Thunderbird profile found: {0}"
+
+#: src/gui/setup_wizard.py
+msgid "Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\nEinstellungen einrichten (Postfach-Ordner angeben)."
+msgstr "No Thunderbird profile found - mails can be set up later in the\nsettings (specify mailbox folders)."
+
+#: src/gui/setup_wizard.py
+msgid "Braucht Rechenzeit und laeuft mit niedriger Prioritaet; der erkannte\nText landet nur im Index."
+msgstr "Needs computing time and runs with low priority; the recognized\ntext only goes into the index."
+
+#: src/gui/setup_wizard.py
+msgid "Tesseract nicht gefunden - die Texterkennung laesst sich spaeter einrichten."
+msgstr "Tesseract not found - text recognition can be set up later."
+
+#: src/gui/setup_wizard.py
+msgid "Ordner oder Laufwerk fuer die Suche waehlen"
+msgstr "Choose folder or drive for the search"
+
+#: src/gui/setup_wizard.py
+msgid "Uebernommen: {db_datei}\nDie Einstellungen der PDFsuche gelten; aendern koennen Sie sie unter\nExtras -> Einstellungen -> Suche."
+msgstr "Imported: {db_datei}\nThe settings of PDFsuche apply; you can change them under\nTools -> Settings -> Search."
+
+#: src/gui/setup_wizard.py
+msgid "Alles bereit!"
+msgstr "All set!"
+
+#: src/gui/setup_wizard.py
+msgid "Das Setup ist abgeschlossen. Sie koennen jetzt loslegen."
+msgstr "The setup is complete. You can get started now."
+
+#: src/gui/setup_wizard.py
+msgid "<b>Was jetzt?</b><br><br>Legen Sie ein paar PDFs in Ihren Scan-Ordner und starten Sie\ndie Sortierung mit einem Doppelklick auf ein Dokument.<br><br><b>Einstellungen aendern:</b><br>Sie finden alle Optionen jederzeit unter\n<b>Extras &rarr; Einstellungen</b> in der Menuleiste.<br><br><b>Assistenten erneut starten:</b><br>Unter <b>Extras &rarr; Einrichtungs-Assistent</b> koennen Sie\ndiesen Assistenten jederzeit erneut oeffnen."
+msgstr "<b>What now?</b><br><br>Put a few PDFs into your scan folder and start\nsorting by double-clicking a document.<br><br><b>Changing settings:</b><br>You can find all options at any time under\n<b>Tools &rarr; Settings</b> in the menu bar.<br><br><b>Starting the wizard again:</b><br>Under <b>Tools &rarr; Setup wizard</b> you can\nopen this wizard again at any time."
+
+#: src/gui/setup_wizard.py
+msgid "PDF Sortier Meister im Rechtsklick-Menue des Explorers anzeigen"
+msgstr "Show PDF Sortier Meister in the Explorer right-click menu"
+
+#: src/gui/setup_wizard.py
+msgid "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\nhinzu, wenn Sie einen Ordner oder dessen Hintergrund\nrechtsklicken. Aenderbar unter Extras -> Einstellungen."
+msgstr "Adds an entry \"PDF Sortier Meister von hier oeffnen\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
+
+#: src/gui/setup_wizard.py
+msgid "PDF Sortier Meister einrichten"
+msgstr "Set up PDF Sortier Meister"
+
+#: src/gui/setup_wizard.py
+msgid "Fertig"
+msgstr "Finish"
+
+#: src/gui/setup_wizard.py
+msgid "Weiter >"
+msgstr "Next >"
+
+#: src/gui/setup_wizard.py
+msgid "< Zurueck"
+msgstr "< Back"
+
+#: src/gui/setup_wizard.py
+msgid "Spaeter"
+msgstr "Later"
+
+#: src/gui/setup_wizard.py
+msgid "Die Dokumentensuche ist eingerichtet, aber der tägliche Lauf ließ sich nicht planen:\n\n{e}\n\nUnter Einstellungen > Suche lässt er sich erneut speichern."
+msgstr "The document search is set up, but the daily run could not be scheduled:\n\n{e}\n\nIt can be saved again under Settings > Search."
+
+#: src/gui/split_pdf_dialog.py
+msgid "<b>{name}</b><br>{page_count} Seiten"
+msgstr "<b>{name}</b><br>{page_count} pages"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Trennmodus"
+msgstr "Split mode"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Alle {page_count} Seiten einzeln speichern"
+msgstr "Save all {page_count} pages separately"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Bestimmte Seiten extrahieren:"
+msgstr "Extract specific pages:"
+
+#: src/gui/split_pdf_dialog.py
+msgid "z.B. 1,3,5-7  (max. {page_count})"
+msgstr "e.g. 1,3,5-7  (max. {page_count})"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Seiten kommagetrennt oder als Bereich (1-3) angeben."
+msgstr "Enter pages comma-separated or as a range (1-3)."
+
+#: src/gui/split_pdf_dialog.py
+msgid "Zielordner: <i>{parent}</i>"
+msgstr "Target folder: <i>{parent}</i>"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Eingabe fehlt"
+msgstr "Input missing"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Bitte Seitenzahlen eingeben."
+msgstr "Please enter page numbers."
+
+#: src/gui/split_pdf_dialog.py
+msgid "Ungültige Eingabe"
+msgstr "Invalid input"
+
+#: src/gui/split_pdf_dialog.py
+msgid "Ungültiger Bereich '{part}'. Seiten müssen zwischen 1 und {page_count} liegen."
+msgstr "Invalid range '{part}'. Pages must be between 1 and {page_count}."
+
+#: src/gui/split_pdf_dialog.py
+msgid "Seite {page} liegt außerhalb des gültigen Bereichs (1–{page_count})."
+msgstr "Page {page} is outside the valid range (1–{page_count})."
+
+#: src/gui/split_pdf_dialog.py
+msgid "Keine gültigen Seitenzahlen angegeben."
+msgstr "No valid page numbers given."
 
 #: src/gui/stapel_ablage.py
 msgid "Nicht mehr warten"
@@ -3025,6 +6372,174 @@ msgstr "Before"
 msgid "Neu"
 msgstr "New"
 
+#: src/gui/steuerauswertung_dialog.py
+msgid "Steuerauswertung"
+msgstr "Tax report"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Steuerauswertung nach Jahr und Kategorie"
+msgstr "Tax report by year and category"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Grundlage: alle sortierten Dokumente mit gespeichertem Steuerjahr. Betraege in EUR."
+msgstr "Basis: all sorted documents with a saved tax year. Amounts in EUR."
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Anzahl"
+msgstr "Count"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Summe Brutto"
+msgstr "Gross total"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Summe Netto"
+msgstr "Net total"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Summe absetzbar"
+msgstr "Deductible total"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Als CSV exportieren"
+msgstr "Export as CSV"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Schliessen"
+msgstr "Close"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Daten konnten nicht geladen werden:\n{e}"
+msgstr "The data could not be loaded:\n{e}"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "CSV exportieren"
+msgstr "Export CSV"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "CSV-Dateien (*.csv)"
+msgstr "CSV files (*.csv)"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Export erfolgreich"
+msgstr "Export successful"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Datei gespeichert:\n{path}"
+msgstr "File saved:\n{path}"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Exportfehler"
+msgstr "Export error"
+
+#: src/gui/steuerauswertung_dialog.py
+msgid "Fehler beim Speichern:\n{e}"
+msgstr "Error while saving:\n{e}"
+
+#: src/gui/support_dialog.py
+msgid "PDF Sortier Meister unterstützen"
+msgstr "Support PDF Sortier Meister"
+
+#: src/gui/support_dialog.py
+msgid "<h3>Gefällt Ihnen PDF Sortier Meister?</h3>"
+msgstr "<h3>Do you like PDF Sortier Meister?</h3>"
+
+#: src/gui/support_dialog.py
+msgid "Das Programm ist freie Software und bleibt es. Wenn es Ihnen Zeit spart, freue ich mich über einen kleinen Beitrag zur Weiterentwicklung.<br><br><b>Ein freiwilliger Beitrag, keine Gegenleistung, keine Freischaltung von Funktionen.</b> Das Programm funktioniert mit und ohne Beitrag gleich."
+msgstr "The program is free software and will stay that way. If it saves you time, I would be glad about a small contribution to its further development.<br><br><b>A voluntary contribution, nothing in return, no unlocking of features.</b> The program works the same with and without a contribution."
+
+#: src/gui/support_dialog.py
+msgid "Die Knöpfe öffnen die Seite bei Buy Me a Coffee. Bitte geben Sie dort den gewünschten Betrag ein bzw. wählen Sie die passende Anzahl Kaffees."
+msgstr "The buttons open the page at Buy Me a Coffee. Please enter the desired amount there or choose the matching number of coffees."
+
+#: src/gui/support_dialog.py
+msgid "Der Zahlungslink ist noch nicht eingerichtet."
+msgstr "The payment link has not been set up yet."
+
+#: src/gui/support_dialog.py
+msgid "<b>Ich habe gerade unterstützt:</b>"
+msgstr "<b>I have just contributed:</b>"
+
+#: src/gui/support_dialog.py
+msgid "Danke, merken"
+msgstr "Thanks, remember this"
+
+#: src/gui/support_dialog.py
+msgid "Speichert nur auf diesem Rechner, dass Sie unterstützt haben - es wird nichts geprüft und nichts übertragen."
+msgstr "Only stores on this computer that you have contributed - nothing is checked and nothing is transmitted."
+
+#: src/gui/support_dialog.py
+msgid "<a href=\"{IMPRESSUM_URL}\">Impressum</a>"
+msgstr "<a href=\"{IMPRESSUM_URL}\">Legal notice</a>"
+
+#: src/gui/support_dialog.py
+msgid "Später erinnern"
+msgstr "Remind me later"
+
+#: src/gui/textebene_dialog.py
+msgid "Geändert am"
+msgstr "Changed on"
+
+#: src/gui/textebene_dialog.py
+msgid "Gedreht"
+msgstr "Rotated"
+
+#: src/gui/textebene_dialog.py
+msgid "Stand"
+msgstr "Status"
+
+#: src/gui/textebene_dialog.py
+msgid "rückgängig gemacht"
+msgstr "undone"
+
+#: src/gui/textebene_dialog.py
+msgid "Sicherung vorhanden"
+msgstr "backup available"
+
+#: src/gui/textebene_dialog.py
+msgid "Sicherung abgelaufen"
+msgstr "backup expired"
+
+#: src/gui/textebene_dialog.py
+msgid "S. {0}: {1}° gerade"
+msgstr "p. {0}: {1}° straightened"
+
+#: src/gui/textebene_dialog.py
+msgid "Rückgängig machen fehlgeschlagen: {e}"
+msgstr "Undo failed: {e}"
+
+#: src/gui/textebene_dialog.py
+msgid "Textebene – geänderte PDFs"
+msgstr "Text layer – changed PDFs"
+
+#: src/gui/textebene_dialog.py
+msgid "Diese PDFs haben eine unsichtbare Textebene mit dem erkannten Text bekommen, wurden richtig herum gedreht oder gerade ausgerichtet. Vor jeder Änderung entstand eine Sicherungskopie; solange sie aufbewahrt wird, lässt sich die Änderung zurücknehmen."
+msgstr "These PDFs received an invisible text layer with the recognized text, were rotated the right way up or straightened. A backup copy was created before every change; as long as it is kept, the change can be undone."
+
+#: src/gui/textebene_dialog.py
+msgid "Noch keine PDF hat eine Textebene bekommen, wurde gedreht oder gerade ausgerichtet."
+msgstr "No PDF has received a text layer, been rotated or straightened yet."
+
+#: src/gui/textebene_dialog.py
+msgid "Die Textebene aus „{name}“ entfernen und das Original wiederherstellen?\n\nDie Datei bekommt danach nicht mehr automatisch eine Textebene."
+msgstr "Remove the text layer from “{name}” and restore the original?\n\nAfterwards the file no longer gets a text layer automatically."
+
+#: src/gui/textebene_dialog.py
+msgid "Datei wurde seither geändert"
+msgstr "File was changed since then"
+
+#: src/gui/textebene_dialog.py
+msgid "{meldung}\n\nTrotzdem das Original wiederherstellen? Die spätere Änderung geht dabei verloren."
+msgstr "{meldung}\n\nRestore the original anyway? The later change will be lost."
+
+#: src/gui/textebene_dialog.py
+msgid "Rückgängig gemacht"
+msgstr "Undone"
+
+#: src/gui/textebene_dialog.py
+msgid "Rückgängig machen nicht möglich"
+msgstr "Undo not possible"
+
 #: src/gui/tile_view.py
 msgid "Klein"
 msgstr "Small"
@@ -3033,6 +6548,10 @@ msgstr "Small"
 msgid "Mittel"
 msgstr "Medium"
 
-#: src/gui/tile_view.py
-msgid "Groß"
-msgstr "Large"
+#: src/gui/zeitraum_feld.py
+msgid "Zeitraum frei eintippen, leer = keine Grenze.\nBeispiele: 2024 · 12/2024 · Jan 2024 · Q2 2024 · 3.5.2024\nBereiche: 2004-2006 · 12/2023-3/2024 · 2004 bis 2006\nOffen: ab 2020 · 2020- · bis 12/2023"
+msgstr "Type the period freely, empty = no limit.\nExamples: 2024 · 12/2024 · Jan 2024 · Q2 2024 · 3.5.2024\nRanges: 2004-2006 · 12/2023-3/2024 · 2004 bis 2006\nOpen: ab 2020 · 2020- · bis 12/2023"
+
+#: src/gui/zeitraum_feld.py
+msgid "Zeitraum, z. B. 2004-2006"
+msgstr "Period, e.g. 2004-2006"

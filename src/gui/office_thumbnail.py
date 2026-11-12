@@ -26,6 +26,7 @@ from src.gui.pfad_aktionen import (
     zeigen_text,
 )
 from src.gui.tile_view import TileView
+from src.i18n import tr
 
 WORD_FARBE = "#2b579a"
 EXCEL_FARBE = "#217346"
@@ -160,17 +161,17 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
     mehrere_umwandeln_requested = pyqtSignal(list, bool)
 
     _OFFICE_TOOLTIP = (
-        "Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        tr("Word-/Excel-Datei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
         "Doppelklick öffnet sie im Standardprogramm.\n"
-        "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten)."
+        "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten).")
     )
 
     _BILD_TOOLTIP = (
-        "Bild. Anklicken wählt es aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        tr("Bild. Anklicken wählt es aus (Strg/Umschalt für Mehrfachauswahl).\n"
         "Ziehen verschiebt es per Drag & Drop in einen Zielordner.\n"
         "Doppelklick öffnet es im Standardprogramm.\n"
-        "Rechtsklick: In PDF umwandeln (mit Texterkennung; das Bild bleibt erhalten)."
+        "Rechtsklick: In PDF umwandeln (mit Texterkennung; das Bild bleibt erhalten).")
     )
 
     @property
@@ -197,9 +198,9 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
             "font-weight: bold; border: none; border-radius: 3px; padding: 1px 4px; }"
         )
         self.typ_label.setToolTip(
-            "Bild" if self._ist_bild
-            else ("OpenDocument-Text" if pfad.suffix.lower() == ".odt"
-                  else "Word-Dokument" if pfad.suffix.lower() in WORD_ENDUNGEN else "Excel-Tabelle")
+            tr("Bild") if self._ist_bild
+            else (tr("OpenDocument-Text") if pfad.suffix.lower() == ".odt"
+                  else tr("Word-Dokument") if pfad.suffix.lower() in WORD_ENDUNGEN else tr("Excel-Tabelle"))
         )
         self.typ_label.adjustSize()
         self.typ_label.move(3, 3)
@@ -237,22 +238,22 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
 
     def _build_context_menu(self) -> QMenu:
         menu = QMenu(self)
-        menu.addAction("Öffnen").triggered.connect(lambda: self.open_requested.emit(self.pdf_path))
+        menu.addAction(tr("Öffnen")).triggered.connect(lambda: self.open_requested.emit(self.pdf_path))
         menu.addAction(zeigen_text()).triggered.connect(lambda: im_dateimanager_zeigen(self.pdf_path))
         menu.addAction(PFAD_KOPIEREN_TEXT).triggered.connect(lambda: pfad_kopieren(self.pdf_path))
         menu.addSeparator()
-        menu.addAction("Verschieben nach...").triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
+        menu.addAction(tr("Verschieben nach...")).triggered.connect(lambda: self.move_requested.emit(self.pdf_path))
         menu.addSeparator()
         if ist_bild_datei(self.pdf_path):
             bilder = self._markierte_bilder()
             if len(bilder) > 1:
                 # Mehrfachauswahl: jedes markierte Bild ein eigenes PDF (vorher nur das angeklickte)
-                convert = menu.addAction(f"Einzeln in PDFs umwandeln ({len(bilder)} Bilder)")
-                convert.setToolTip("Je Bild ein durchsuchbares PDF (Texterkennung) neben dem Bild")
+                convert = menu.addAction(tr("Einzeln in PDFs umwandeln ({anzahl} Bilder)").format(anzahl=len(bilder)))
+                convert.setToolTip(tr("Je Bild ein durchsuchbares PDF (Texterkennung) neben dem Bild"))
                 convert.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(bilder, False))
             else:
-                convert = menu.addAction("In PDF umwandeln")
-                convert.setToolTip("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild")
+                convert = menu.addAction(tr("In PDF umwandeln"))
+                convert.setToolTip(tr("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild"))
                 convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
                 for text, modus, tipp in (
                     ("In PDF umwandeln und automatisch entzerren", "auto",
@@ -266,11 +267,11 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                     aktion.triggered.connect(
                         lambda _c=False, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, "einzeln", m))
             if len(bilder) > 1:
-                zusammen = menu.addAction(f"Zu einem PDF zusammenfügen ({len(bilder)} Bilder)")
-                zusammen.setToolTip("Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht")
+                zusammen = menu.addAction(tr("Zu einem PDF zusammenfügen ({anzahl} Bilder)").format(anzahl=len(bilder)))
+                zusammen.setToolTip(tr("Ein PDF aus den markierten Bildern, in der Reihenfolge der Ansicht"))
                 zusammen.triggered.connect(lambda: self.bilder_zusammenfuegen_requested.emit(self.pdf_path))
                 # Entzerren (Issue #205): Untermenue, damit das Menue schlank bleibt
-                sub = menu.addMenu(f"Fotos entzerren ({len(bilder)} Bilder)")
+                sub = menu.addMenu(tr("Fotos entzerren ({anzahl} Bilder)").format(anzahl=len(bilder)))
                 for text, art, modus, tipp in (
                     ("Einzeln in PDFs umwandeln und automatisch entzerren", "einzeln", "auto",
                      "Je Foto ein PDF; das Blatt wird erkannt und gerade gezogen. "
@@ -287,24 +288,24 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                     aktion.triggered.connect(
                         lambda _c=False, a=art, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, a, m))
             menu.addSeparator()
-            menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
+            menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu
         dateien = self._markierte_office()
         if len(dateien) > 1:
             # Mehrfachauswahl: alle markierten Dateien, je ein PDF (Live-Test 08.11.2026)
-            convert = menu.addAction(f"In PDF umwandeln ({len(dateien)} Dateien)")
-            convert.setToolTip("Je Datei ein PDF neben der Datei")
+            convert = menu.addAction(tr("In PDF umwandeln ({anzahl} Dateien)").format(anzahl=len(dateien)))
+            convert.setToolTip(tr("Je Datei ein PDF neben der Datei"))
             convert.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, False))
-            convert_a = menu.addAction(f"In PDF/A umwandeln ({len(dateien)} Dateien)")
-            convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
+            convert_a = menu.addAction(tr("In PDF/A umwandeln ({anzahl} Dateien)").format(anzahl=len(dateien)))
+            convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
             convert_a.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, True))
         else:
-            convert = menu.addAction("In PDF umwandeln")
-            convert.setToolTip("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten")
+            convert = menu.addAction(tr("In PDF umwandeln"))
+            convert.setToolTip(tr("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten"))
             convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
-            convert_a = menu.addAction("In PDF/A umwandeln (Langzeitarchiv)")
-            convert_a.setToolTip("Wie oben, als archivfähiges PDF/A")
+            convert_a = menu.addAction(tr("In PDF/A umwandeln (Langzeitarchiv)"))
+            convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
             convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
         menu.addSeparator()
-        menu.addAction("Löschen").triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
+        menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
         return menu

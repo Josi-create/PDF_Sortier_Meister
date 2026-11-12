@@ -53,6 +53,7 @@ from PyQt6.QtWidgets import (
 from src.gui.chat_worker import ChatWorker
 from src.rag.bezug import Bezug, schnellfragen_liste
 from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController
+from src.i18n import tr
 
 
 # Stylesheet-Schnipsel fuer die verschiedenen Bubble-Rollen.
@@ -88,9 +89,9 @@ _VORSCHLAG_ERLEDIGT = "✓ "
 # Quellen-Panel: Gruppen nach extra["status"] der Dokumente (Issue #166/#167),
 # in dieser Reihenfolge; Dokumente ohne bekannten Status zaehlen als "gefunden".
 _STATUS_GRUPPEN = (
-    ("zitiert", "Zitiert", "In der Antwort zitiert"),
-    ("gelesen", "Gelesen", "Von der KI ganz gelesen, aber nicht zitiert"),
-    ("gefunden", "Gefunden", "Bei der Suche gefunden, nicht gelesen"),
+    ("zitiert", tr("Zitiert"), tr("In der Antwort zitiert")),
+    ("gelesen", tr("Gelesen"), tr("Von der KI ganz gelesen, aber nicht zitiert")),
+    ("gefunden", tr("Gefunden"), tr("Bei der Suche gefunden, nicht gelesen")),
 )
 _STATUS_STANDARD = "gefunden"
 # Rolle, die eine Kopfzeile im Quellen-Panel markiert (Klick oeffnet nichts)
@@ -103,8 +104,8 @@ _BEZUG_CHIP_STYLE = (
 )
 
 _BANNER_TEXT = (
-    "Kein LLM verfügbar. Du bekommst nur Dokument-Treffer, "
-    "keine synthetisierte Antwort."
+    tr("Kein LLM verfügbar. Du bekommst nur Dokument-Treffer, "
+    "keine synthetisierte Antwort.")
 )
 
 
@@ -255,11 +256,11 @@ class ChatView(QWidget):
         sources_layout.setSpacing(4)
 
         sources_header = QHBoxLayout()
-        self.sources_title = QLabel("Quellen")
+        self.sources_title = QLabel(tr("Quellen"))
         self.sources_title.setStyleSheet("font-weight: bold;")
         self.toggle_sources_btn = QPushButton("▸")
         self.toggle_sources_btn.setFixedWidth(28)
-        self.toggle_sources_btn.setToolTip("Quellen-Panel ein-/ausblenden")
+        self.toggle_sources_btn.setToolTip(tr("Quellen-Panel ein-/ausblenden"))
         self.toggle_sources_btn.clicked.connect(self._toggle_sources)
         sources_header.addWidget(self.sources_title)
         sources_header.addStretch(1)
@@ -301,7 +302,7 @@ class ChatView(QWidget):
         self.bezug_entfernen_btn = QToolButton()
         self.bezug_entfernen_btn.setText("✕")
         self.bezug_entfernen_btn.setAutoRaise(True)
-        self.bezug_entfernen_btn.setToolTip("Bezug entfernen: Fragen gelten wieder der ganzen Sammlung")
+        self.bezug_entfernen_btn.setToolTip(tr("Bezug entfernen: Fragen gelten wieder der ganzen Sammlung"))
         self.bezug_entfernen_btn.clicked.connect(self._on_bezug_entfernen)
         chip_layout.addWidget(self.bezug_entfernen_btn)
         chip_row.addWidget(self.bezug_chip)
@@ -319,7 +320,7 @@ class ChatView(QWidget):
             self.schnellfragen_toggle = QToolButton()
             self.schnellfragen_toggle.setCheckable(True)
             self.schnellfragen_toggle.setAutoRaise(True)
-            self.schnellfragen_toggle.setToolTip("Schnellfragen ein-/ausklappen")
+            self.schnellfragen_toggle.setToolTip(tr("Schnellfragen ein-/ausklappen"))
             self.schnellfragen_toggle.setStyleSheet("QToolButton { color: #555555; padding: 2px 4px; }")
             self.schnellfragen_toggle.toggled.connect(self._on_schnellfragen_toggle)
             bezug_layout.addWidget(self.schnellfragen_toggle, 0, Qt.AlignmentFlag.AlignLeft)
@@ -344,7 +345,7 @@ class ChatView(QWidget):
         input_row = QHBoxLayout()
         self.input_edit = _ChatInput()
         self.input_edit.setPlaceholderText(
-            "Frage eingeben…  (Return = senden, Shift+Return = neue Zeile)"
+            tr("Frage eingeben…  (Return = senden, Shift+Return = neue Zeile)")
         )
         self.input_edit.setMaximumHeight(80)
         self.input_edit.setSizePolicy(
@@ -354,9 +355,9 @@ class ChatView(QWidget):
         input_row.addWidget(self.input_edit, 1)
 
         button_col = QVBoxLayout()
-        self.send_btn = QPushButton("Senden")
+        self.send_btn = QPushButton(tr("Senden"))
         self.send_btn.clicked.connect(self._on_send)
-        self.reset_btn = QPushButton("Zurücksetzen")
+        self.reset_btn = QPushButton(tr("Zurücksetzen"))
         self.reset_btn.clicked.connect(self._on_reset)
         button_col.addWidget(self.send_btn)
         button_col.addWidget(self.reset_btn)
@@ -522,9 +523,9 @@ class ChatView(QWidget):
         # send_btn bleibt klickbar, loest dann aber ``_cancel_current`` aus.
         self.input_edit.setEnabled(False)
         self.send_btn.setEnabled(True)
-        self.send_btn.setText("Abbrechen")
+        self.send_btn.setText(tr("Abbrechen"))
         self.reset_btn.setEnabled(False)
-        self._status_base = "Suche läuft…"
+        self._status_base = tr("Suche läuft…")
         self._request_started = time.monotonic()
         self._tick_status()
         self._status_timer.start()
@@ -602,8 +603,8 @@ class ChatView(QWidget):
             self._zeige_vorschlaege(response)
             if getattr(response, "has_hallucinated_citations", False):
                 self._add_bubble(
-                    "⚠ Einige Quellenangaben konnten nicht verifiziert "
-                    "werden.",
+                    tr("⚠ Einige Quellenangaben konnten nicht verifiziert "
+                    "werden."),
                     "system",
                 )
         elif getattr(response, "werkzeuge_benutzt", False):
@@ -614,7 +615,7 @@ class ChatView(QWidget):
             if text == ABGEBROCHEN_TEXT:
                 self._add_bubble(text, "system")
             else:
-                self._add_bubble(text or "Keine Antwort erhalten.", "error")
+                self._add_bubble(text or tr("Keine Antwort erhalten."), "error")
         else:
             # Offline-Modus: Treffer-Liste als klickbare Bubbles rendern
             docs = response.retrieved_docs or []
@@ -624,12 +625,12 @@ class ChatView(QWidget):
                 self._add_bubble(hinweis, "system")
             if not docs:
                 self._add_bubble(
-                    "Keine passenden Dokumente gefunden.", "system"
+                    tr("Keine passenden Dokumente gefunden."), "system"
                 )
             else:
                 self._add_bubble(
-                    "Kein LLM verfügbar – hier sind die passenden "
-                    "Dokument-Treffer:",
+                    tr("Kein LLM verfügbar – hier sind die passenden "
+                    "Dokument-Treffer:"),
                     "system",
                 )
                 for doc in docs:
@@ -663,7 +664,7 @@ class ChatView(QWidget):
         knopf = QToolButton()
         knopf.setCheckable(True)
         knopf.setAutoRaise(True)
-        knopf.setToolTip("Werkzeugaufrufe der KI ein-/ausblenden")
+        knopf.setToolTip(tr("Werkzeugaufrufe der KI ein-/ausblenden"))
         knopf.setProperty("arbeitsschritte", True)
         knopf.setStyleSheet("QToolButton { color: #555555; padding: 2px 4px; }")
         aussen.addWidget(knopf, 0, Qt.AlignmentFlag.AlignLeft)
@@ -686,7 +687,7 @@ class ChatView(QWidget):
         def umschalten(sichtbar: bool) -> None:
             box.setVisible(sichtbar)
             pfeil = "▾" if sichtbar else "▸"
-            knopf.setText(f"{pfeil} 🔧 Arbeitsschritte ({anzahl})")
+            knopf.setText(tr("{pfeil} 🔧 Arbeitsschritte ({anzahl})").format(pfeil=pfeil, anzahl=anzahl))
 
         knopf.toggled.connect(umschalten)
         knopf.setChecked(True)
@@ -708,7 +709,7 @@ class ChatView(QWidget):
         fehler = str(getattr(schritt, "fehler", "") or "")
         text = str(getattr(schritt, "zusammenfassung", "") or "").strip()
         if not text:
-            text = fehler or werkzeug or "Werkzeugaufruf"
+            text = fehler or werkzeug or tr("Werkzeugaufruf")
         symbol = _WERKZEUG_SYMBOLE.get(werkzeug, _SCHRITT_SYMBOL_STANDARD)
 
         bubble = QLabel()
@@ -781,7 +782,7 @@ class ChatView(QWidget):
             return
         self._teardown_thread()
         self._reset_input_state()
-        self._add_bubble(f"Fehler: {error}", "error")
+        self._add_bubble(tr("Fehler: {error}").format(error=error), "error")
 
     def _cancel_current(self) -> None:
         """Bricht den laufenden Aufruf ab (verwirft das Ergebnis).
@@ -802,14 +803,14 @@ class ChatView(QWidget):
         """
         if self._chat_worker is not None:
             self._chat_worker.cancel()
-        self.status_label.setText("Abgebrochen.")
+        self.status_label.setText(tr("Abgebrochen."))
         # Cancel-Button sofort deaktivieren (Cooldown startet)
         self.send_btn.setEnabled(False)
         # Minimal-Reset: input_edit freigeben, Button-Text zurueck,
         # reset_btn wieder aktivieren. send_btn bleibt disabled.
         self.input_edit.setEnabled(True)
         self.input_edit.setFocus()
-        self.send_btn.setText("Senden")
+        self.send_btn.setText(tr("Senden"))
         self.reset_btn.setEnabled(True)
         self._schnellfragen_freigeben(True)
         self._teardown_thread()
@@ -862,7 +863,7 @@ class ChatView(QWidget):
         """
         self.input_edit.setEnabled(True)
         self.send_btn.setEnabled(True)
-        self.send_btn.setText("Senden")
+        self.send_btn.setText(tr("Senden"))
         self.reset_btn.setEnabled(True)
         self._schnellfragen_freigeben(True)
         self.status_label.setText("")
@@ -889,10 +890,12 @@ class ChatView(QWidget):
             self.bezug_chip.setToolTip("")
             self.bezug_box.setVisible(False)
             return
-        self.bezug_label.setText(f"Bezug: {self._bezug.name}")
+        self.bezug_label.setText(tr("Bezug: {name}").format(name=self._bezug.name))
         self.bezug_chip.setToolTip(
-            f"{self._bezug}\nFragen beziehen sich auf dieses PDF; "
-            "ähnliche Dokumente kommen aus der Sammlung dazu."
+            tr(
+                "{bezug}\nFragen beziehen sich auf dieses PDF; ähnliche Dokumente kommen aus "
+                "der Sammlung dazu."
+            ).format(bezug=self._bezug)
         )
         self.bezug_box.setVisible(True)
 
@@ -933,7 +936,7 @@ class ChatView(QWidget):
         for i, frage in enumerate(schnellfragen_liste(self.chat_config)):
             btn = QPushButton(frage)
             btn.setProperty("frage", frage)
-            btn.setToolTip("Frage zum Bezugsdokument stellen")
+            btn.setToolTip(tr("Frage zum Bezugsdokument stellen"))
             btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             btn.clicked.connect(self._on_schnellfrage)
             if isinstance(self._schnellfragen_layout, QGridLayout):
@@ -969,7 +972,7 @@ class ChatView(QWidget):
         if self.schnellfragen_box is None or self.schnellfragen_toggle is None:
             return
         self.schnellfragen_box.setVisible(sichtbar)
-        self.schnellfragen_toggle.setText(("▾ " if sichtbar else "▸ ") + "Schnellfragen")
+        self.schnellfragen_toggle.setText(tr("{0}Schnellfragen").format('▾ ' if sichtbar else '▸ '))
         if self.schnellfragen_toggle.isChecked() != sichtbar:
             self.schnellfragen_toggle.blockSignals(True)
             self.schnellfragen_toggle.setChecked(sichtbar)
@@ -1011,7 +1014,7 @@ class ChatView(QWidget):
             begruendung = str(getattr(response, "ordner_begruendung", "") or "")
             self.ordner_belegt.emit(ordner, begruendung)
             knopf = self._vorschlag_knopf(
-                f"📁 Nach {anzeige} verschieben", f"{self._bezug.name} nach {ordner} verschieben",
+                tr("📁 Nach {anzeige} verschieben").format(anzeige=anzeige), tr("{name} nach {ordner} verschieben").format(name=self._bezug.name, ordner=ordner),
                 begruendung, art="verschieben", quelle=str(self._bezug),
             )
             knopf.setProperty("ordner_pfad", ordner)
@@ -1059,7 +1062,7 @@ class ChatView(QWidget):
             if not ziel or (ist_bezug and bezug_ordner and gleicher_pfad(ziel, bezug_ordner)):
                 return None  # der Bezug-Knopf oben zeigt ihn schon
             anzeige = str(getattr(vorschlag, "anzeige", "") or "") or Path(ziel).name
-            knopf = self._vorschlag_knopf(f"📁 {vor}Nach {anzeige} verschieben", f"{quelle} nach {ziel} verschieben",
+            knopf = self._vorschlag_knopf(tr("📁 {vor}Nach {anzeige} verschieben").format(vor=vor, anzeige=anzeige), tr("{quelle} nach {ziel} verschieben").format(quelle=quelle, ziel=ziel),
                                           begruendung,
                                           art=art, quelle=quelle)
             knopf.setProperty("ordner_pfad", ziel)
@@ -1068,7 +1071,7 @@ class ChatView(QWidget):
             name = str(getattr(vorschlag, "name", "") or "")
             if not name:
                 return None
-            knopf = self._vorschlag_knopf(f"✏️ {vor}Umbenennen in {name}", f"{quelle} umbenennen in {name}",
+            knopf = self._vorschlag_knopf(tr("✏️ {vor}Umbenennen in {name}").format(vor=vor, name=name), tr("{quelle} umbenennen in {name}").format(quelle=quelle, name=name),
                                           begruendung, art=art, quelle=quelle)
             knopf.setProperty("neuer_name", name)
             return knopf
@@ -1078,8 +1081,8 @@ class ChatView(QWidget):
                 return None
             felder_text = vorschlag.felder_text() if hasattr(vorschlag, "felder_text") else ", ".join(
                 f"{k} {v}" for k, v in felder.items())
-            knopf = self._vorschlag_knopf(f"🏷️ {vor}Metadaten übernehmen: {felder_text}",
-                                          f"In {quelle} speichern:\n{felder_text}", begruendung,
+            knopf = self._vorschlag_knopf(tr("🏷️ {vor}Metadaten übernehmen: {felder_text}").format(vor=vor, felder_text=felder_text),
+                                          tr("In {quelle} speichern:\n{felder_text}").format(quelle=quelle, felder_text=felder_text), begruendung,
                                           art=art, quelle=quelle)
             knopf.setProperty("felder", felder)
             return knopf
@@ -1124,7 +1127,7 @@ class ChatView(QWidget):
                 knopf.setEnabled(False)
                 if not knopf.text().startswith(_VORSCHLAG_ERLEDIGT):
                     knopf.setText(_VORSCHLAG_ERLEDIGT + knopf.text())
-                knopf.setToolTip(knopf.toolTip() + "\n(erledigt)")
+                knopf.setToolTip(tr("{0}\n(erledigt)").format(knopf.toolTip()))
             elif neuer_pfad:
                 knopf.setProperty("vorschlag_quelle", str(neuer_pfad))
 
@@ -1154,7 +1157,7 @@ class ChatView(QWidget):
         """
         self.sources_list.clear()
         anzahl = len(list(docs or []))
-        self.sources_title.setText(f"Quellen ({anzahl})" if anzahl else "Quellen")
+        self.sources_title.setText(tr("Quellen ({anzahl})").format(anzahl=anzahl) if anzahl else tr("Quellen"))
         docs = list(docs or [])
         if not any(_doc_status(doc) for doc in docs):
             for doc in docs:
@@ -1214,14 +1217,14 @@ class ChatView(QWidget):
         pfad = self._resolve_file_path(item.data(Qt.ItemDataRole.UserRole) or "",
                                        item.data(Qt.ItemDataRole.UserRole + 1) or "")
         menue = QMenu(self)
-        menue.addAction("Öffnen", lambda: self._on_source_clicked(item))
+        menue.addAction(tr("Öffnen"), lambda: self._on_source_clicked(item))
         try:
             from src.core.office_convert import ist_sortierbar
             sortierbar = bool(pfad) and ist_sortierbar(pfad) and Path(pfad).is_file()
         except Exception:  # noqa: BLE001 - nur ein Menuepunkt weniger
             sortierbar = False
         if sortierbar:
-            menue.addAction("📂 Im Ordner anzeigen", lambda: self.im_ordner_anzeigen_requested.emit(Path(pfad)))
+            menue.addAction(tr("📂 Im Ordner anzeigen"), lambda: self.im_ordner_anzeigen_requested.emit(Path(pfad)))
         return menue
 
     def _quellen_menue_zeigen(self, pos) -> None:
