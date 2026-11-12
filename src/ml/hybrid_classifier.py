@@ -27,6 +27,7 @@ from src.ml.provider_factory import (
 )
 from src.utils.config import get_config
 from src.utils.database import get_database
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -349,7 +350,7 @@ class HybridClassifier:
                 + self.LLM_WEIGHT * llm.confidence
             )
             matching_local.confidence = min(combined_confidence, 0.98)
-            matching_local.reason = f"{matching_local.reason} + LLM bestätigt"
+            matching_local.reason = tr("{reason} + LLM bestätigt").format(reason=matching_local.reason)
             matching_local.source = "hybrid"
         else:
             # LLM-Vorschlag hinzufügen
@@ -647,7 +648,7 @@ class HybridClassifier:
     def get_llm_provider_name(self) -> str:
         """Gibt den Namen des aktuellen LLM-Providers zurück."""
         if not self.llm_enabled or not self.llm_provider:
-            return "Keiner"
+            return tr("Keiner")
         if isinstance(self.llm_provider, ClaudeProvider):
             return "Claude"
         if isinstance(self.llm_provider, OpenRouterProvider):
@@ -664,7 +665,7 @@ class HybridClassifier:
             return "Ollama Cloud"
         if isinstance(self.llm_provider, OllamaProvider):
             return "Ollama"
-        return "Unbekannt"
+        return tr("Unbekannt")
 
 
 def _ollama_model_installed(model: str, installed: list[str]) -> bool:

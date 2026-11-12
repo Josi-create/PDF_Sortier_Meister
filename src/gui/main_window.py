@@ -1163,7 +1163,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.pdf_header.setText(tr("PDFs in: {name}").format(name=self.file_manager.scan_folder.name))
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
         count = len(pdf_files) + len(office_files)
-        count_text = f"{count} {'Datei' if count == 1 else 'Dateien'}"
+        count_text = (tr("{anzahl} Datei") if count == 1 else tr("{anzahl} Dateien")).format(anzahl=count)
         if subfolders:
             count_text += f" · {len(subfolders)} {'Ordner' if len(subfolders) == 1 else 'Ordner'}"
         self.pdf_folder_count_label.setText(count_text)

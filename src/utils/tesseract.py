@@ -21,6 +21,7 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Optional
+from src.i18n import tr
 
 
 def _tesseract_candidates() -> list[Path]:
@@ -91,26 +92,26 @@ def fehlende_sprachen(tessdata: str | None, sprachen: str) -> list[str]:
 # --------------------------------------------------------------------------- Sprachen (Issue #47)
 
 SPRACHNAMEN = {
-    "deu": "Deutsch",
-    "eng": "Englisch",
-    "fra": "Französisch",
-    "ita": "Italienisch",
-    "spa": "Spanisch",
-    "nld": "Niederländisch",
-    "por": "Portugiesisch",
-    "pol": "Polnisch",
-    "ces": "Tschechisch",
-    "tur": "Türkisch",
-    "rus": "Russisch",
-    "dan": "Dänisch",
-    "swe": "Schwedisch",
-    "nor": "Norwegisch",
-    "fin": "Finnisch",
-    "hun": "Ungarisch",
-    "lat": "Latein",
-    "ell": "Griechisch",
-    "deu_frak": "Deutsch (Fraktur)",
-    "frk": "Fraktur (alt)",
+    "deu": tr("Deutsch"),
+    "eng": tr("Englisch"),
+    "fra": tr("Französisch"),
+    "ita": tr("Italienisch"),
+    "spa": tr("Spanisch"),
+    "nld": tr("Niederländisch"),
+    "por": tr("Portugiesisch"),
+    "pol": tr("Polnisch"),
+    "ces": tr("Tschechisch"),
+    "tur": tr("Türkisch"),
+    "rus": tr("Russisch"),
+    "dan": tr("Dänisch"),
+    "swe": tr("Schwedisch"),
+    "nor": tr("Norwegisch"),
+    "fin": tr("Finnisch"),
+    "hun": tr("Ungarisch"),
+    "lat": tr("Latein"),
+    "ell": tr("Griechisch"),
+    "deu_frak": tr("Deutsch (Fraktur)"),
+    "frk": tr("Fraktur (alt)"),
 }
 # Modelle, die keine Sprache zum Lesen sind
 KEINE_SPRACHE = {"osd", "equ", "snum"}
@@ -183,13 +184,14 @@ def hat_fraktur(installiert: list[str]) -> bool:
 
 def fraktur_hinweis(tessdata: Optional[str]) -> str:
     """Anleitung, das Fraktur-Modell selbst zu installieren (es wird nie automatisch geladen)."""
-    ziel = tessdata or "dem Ordner „tessdata“ der Tesseract-Installation"
+    ziel = tessdata or tr("dem Ordner „tessdata“ der Tesseract-Installation")
     return (
-        "Für Frakturschrift fehlt das Tesseract-Modell „deu_frak“.\n\n"
-        "So installieren Sie es:\n"
-        f"1. Laden Sie die Datei deu_frak.traineddata herunter:\n   {FRAKTUR_URL}\n"
-        f"2. Legen Sie sie in diesen Ordner:\n   {ziel}\n"
-        "   (unter Windows braucht das Kopieren nach „Programme“ ggf. Administratorrechte)\n"
-        "3. Danach erscheint „Deutsch (Fraktur)“ im Menü „OCR wiederholen mit …“.\n\n"
-        "Es wird nichts automatisch heruntergeladen."
+        tr(
+            "Für Frakturschrift fehlt das Tesseract-Modell „deu_frak“.\n\n"
+            "So installieren Sie es:\n1. Laden Sie die Datei deu_frak.traineddata herunter:\n"
+            "   {FRAKTUR_URL}\n2. Legen Sie sie in diesen Ordner:\n"
+            "   {ziel}\n   (unter Windows braucht das Kopieren nach „Programme“ ggf. "
+            "Administratorrechte)\n3. Danach erscheint „Deutsch (Fraktur)“ im Menü „OCR "
+            "wiederholen mit …“.\n\nEs wird nichts automatisch heruntergeladen."
+        ).format(FRAKTUR_URL=FRAKTUR_URL, ziel=ziel)
     )

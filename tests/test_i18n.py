@@ -263,3 +263,33 @@ def test_uebersetzungen_behalten_platzhalter_und_tastenkuerzel():
         if bool(kuerzel.search(deutsch)) != bool(kuerzel.search(englisch)):
             maengel.append(f"Tastenkürzel (&): {deutsch[:60]!r}")
     assert not maengel, "\n".join(maengel)
+
+
+# --- Englische Oberfläche ---------------------------------------------------------
+
+def test_einstellungsdialog_auf_englisch(qtbot, fresh_config, sprache):
+    from src.gui.settings_dialog import SettingsDialog
+
+    sprache("en")
+    dlg = SettingsDialog()
+    qtbot.addWidget(dlg)
+    titel = [dlg.tab_widget.tabText(i) for i in range(dlg.tab_widget.count())]
+    assert titel == ["AI assistant (LLM)", "Personal data", "File names", "General", "Search"]
+    # Reiter werden über ihren Titel angesprungen; der Aufrufer übersetzt mit
+    assert dlg.show_tab(i18n.tr("Suche"))
+    assert dlg.windowTitle() == "Settings"
+
+
+def test_begruendung_wird_erst_bei_der_anzeige_uebersetzt(sprache):
+    """Die Begründung bleibt intern deutsch (kind_from_reason liest sie), nur die Anzeige wechselt."""
+    from src.core.suggestion_order import KIND_KI, KIND_LEARNED, kind_from_reason, reason_display
+
+    assert reason_display("KI-Vorschlag") == "KI-Vorschlag"
+    assert reason_display("Muster: Rechnungen & Belege") == "Muster: Rechnungen & Belege"
+    sprache("en")
+    assert reason_display("KI-Vorschlag") == "AI suggestion"
+    assert reason_display("Gelernt: ähnlich zu brief.pdf") == "Learned: similar to brief.pdf"
+    assert reason_display("Muster: Rechnungen & Belege") == "Pattern: Rechnungen & Belege"
+    assert reason_display("etwas anderes") == "etwas anderes"
+    assert kind_from_reason("KI-Vorschlag") == KIND_KI
+    assert kind_from_reason("Gelernt: ähnlich zu brief.pdf") == KIND_LEARNED

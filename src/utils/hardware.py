@@ -28,6 +28,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Callable, NamedTuple, Optional
+from src.i18n import tr
 
 
 @dataclass
@@ -300,18 +301,22 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
         # Kein dediziertes VRAM, aber die GPU nutzt den gemeinsamen
         # Speicher direkt - Ollama laeuft lokal ueber Metal.
         usable_mb = (ram_mb * 2) // 3
-        gpu = GpuInfo("Apple Silicon (Unified Memory)", usable_mb, True, "apple")
+        gpu = GpuInfo(tr("Apple Silicon (Unified Memory)"), usable_mb, True, "apple")
         for min_mb, model, size_gb in MODEL_TIERS:
             if usable_mb >= min_mb:
                 reason = (
-                    f"Apple Silicon mit {_gb(ram_mb)} gemeinsamem Speicher erkannt - "
-                    f"empfohlenes Modell: {model} (Download ca. {size_gb:.0f} GB)."
+                    tr(
+                        "Apple Silicon mit {0} gemeinsamem Speicher erkannt - empfohlenes "
+                        "Modell: {model} (Download ca. {size_gb:.0f} GB)."
+                    ).format(_gb(ram_mb), model=model, size_gb=size_gb)
                 )
                 return OllamaRecommendation(True, model, size_gb, reason, gpu)
         return OllamaRecommendation(
             False, None, 0.0,
-            f"Apple Silicon erkannt, aber mit {_gb(ram_mb)} Arbeitsspeicher zu wenig "
-            f"fuer ein brauchbares lokales Modell.",
+            tr(
+                "Apple Silicon erkannt, aber mit {0} Arbeitsspeicher zu wenig fuer ein "
+                "brauchbares lokales Modell."
+            ).format(_gb(ram_mb)),
             gpu,
         )
 
@@ -321,19 +326,20 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
     if best is None:
         integrated = next((g for g in gpus if not g.dedicated), None)
         gpu_desc = (
-            f"Nur integrierte Grafik erkannt ({integrated.name})" if integrated
-            else "Keine Grafikkarte erkannt"
+            tr("Nur integrierte Grafik erkannt ({name})").format(name=integrated.name) if integrated
+            else tr("Keine Grafikkarte erkannt")
         )
         if ram_mb >= RAM_ONLY_MIN_RAM_MB:
             # Kein dediziertes VRAM, aber genug Arbeitsspeicher fuer das
             # kleinste Gemma-3-Modell auf der CPU (z.B. Laptop mit schnellem
             # Shared-RAM) - moeglich, aber deutlich langsamer als mit GPU.
             reason = (
-                f"{gpu_desc}, aber {_gb(ram_mb)} Arbeitsspeicher vorhanden. "
-                f"{RAM_ONLY_MODEL.model} laeuft auch ohne Grafikkarte auf dem "
-                f"Prozessor - moeglich, aber je nach Dokument spuerbar langsamer "
-                f"als mit GPU. Alternative: Ollama Cloud (keine Wartezeit, aber "
-                f"Dokumentinhalte werden dabei an ollama.com uebertragen)."
+                tr(
+                    "{gpu_desc}, aber {0} Arbeitsspeicher vorhanden. {model} laeuft auch "
+                    "ohne Grafikkarte auf dem Prozessor - moeglich, aber je nach Dokument "
+                    "spuerbar langsamer als mit GPU. Alternative: Ollama Cloud (keine "
+                    "Wartezeit, aber Dokumentinhalte werden dabei an ollama.com uebertragen)."
+                ).format(_gb(ram_mb), gpu_desc=gpu_desc, model=RAM_ONLY_MODEL.model)
             )
             return OllamaRecommendation(
                 True, RAM_ONLY_MODEL.model, RAM_ONLY_MODEL.size_gb, reason, integrated
@@ -341,12 +347,12 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
         reason = (
             f"{gpu_desc}"
             + (
-                ", die sich den Arbeitsspeicher teilt. Ein lokales Modell wuerde "
+                tr(", die sich den Arbeitsspeicher teilt. Ein lokales Modell wuerde "
                 "auf dem Prozessor laufen - pro Dokument dauert das oft eine "
-                "Minute oder laenger."
+                "Minute oder laenger.")
                 if integrated else
-                ". Ein lokales Modell wuerde auf dem Prozessor laufen - pro "
-                "Dokument dauert das oft eine Minute oder laenger."
+                tr(". Ein lokales Modell wuerde auf dem Prozessor laufen - pro "
+                "Dokument dauert das oft eine Minute oder laenger.")
             )
         )
         return OllamaRecommendation(False, None, 0.0, reason, integrated)
@@ -354,8 +360,10 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
     if best.vendor == "intel":
         return OllamaRecommendation(
             False, None, 0.0,
-            f"{best.name} erkannt - Intel-Grafikkarten werden von Ollama unter "
-            f"Windows nicht unterstuetzt, das Modell liefe auf dem Prozessor.",
+            tr(
+                "{name} erkannt - Intel-Grafikkarten werden von Ollama unter Windows nicht "
+                "unterstuetzt, das Modell liefe auf dem Prozessor."
+            ).format(name=best.name),
             best,
         )
 
@@ -363,26 +371,30 @@ def recommend(gpus: list[GpuInfo], ram_mb: int = 0) -> OllamaRecommendation:
         vram_text = _gb(best.vram_mb) if best.vram_mb else "unbekannt"
         return OllamaRecommendation(
             False, None, 0.0,
-            f"{best.name} erkannt, aber mit {vram_text} Grafikspeicher zu wenig fuer "
-            f"ein brauchbares lokales Modell (mindestens {_gb(MIN_VRAM_MB)}).",
+            tr(
+                "{name} erkannt, aber mit {vram_text} Grafikspeicher zu wenig fuer ein "
+                "brauchbares lokales Modell (mindestens {0})."
+            ).format(_gb(MIN_VRAM_MB), name=best.name, vram_text=vram_text),
             best,
         )
 
     for min_mb, model, size_gb in MODEL_TIERS:
         if best.vram_mb >= min_mb:
             reason = (
-                f"{best.name} mit {_gb(best.vram_mb)} Grafikspeicher erkannt - "
-                f"empfohlenes Modell: {model} (Download ca. {size_gb:.0f} GB)."
+                tr(
+                    "{name} mit {0} Grafikspeicher erkannt - empfohlenes Modell: {model} "
+                    "(Download ca. {size_gb:.0f} GB)."
+                ).format(_gb(best.vram_mb), name=best.name, model=model, size_gb=size_gb)
             )
             if best.vendor == "amd":
                 reason += (
-                    " Hinweis: Ollama unterstuetzt unter Windows nur neuere "
-                    "AMD-Karten (Radeon RX 6000/7000/9000)."
+                    tr(" Hinweis: Ollama unterstuetzt unter Windows nur neuere "
+                    "AMD-Karten (Radeon RX 6000/7000/9000).")
                 )
             return OllamaRecommendation(True, model, size_gb, reason, best)
 
     # unerreichbar (MIN_VRAM_MB entspricht der kleinsten Stufe), Sicherheitsnetz
-    return OllamaRecommendation(False, None, 0.0, "Keine Empfehlung moeglich.", best)
+    return OllamaRecommendation(False, None, 0.0, tr("Keine Empfehlung moeglich."), best)
 
 
 def detect_and_recommend() -> OllamaRecommendation:

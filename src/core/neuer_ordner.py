@@ -25,6 +25,7 @@ from typing import Optional, Sequence
 from src.core.similar_documents import (
     _YEAR_RE, document_year, normalize_relative, relative_folder, resolve_relative_folder,
 )
+from src.i18n import tr
 
 QUELLE_JAHR = "jahr"
 QUELLE_KI = "ki"
@@ -146,7 +147,7 @@ def ki_neuer_ordner(metadata: Optional[dict], root_folders: Sequence[Path]):
         folder_path=path,
         folder_name=path.name,
         confidence=0.8,
-        reason="KI: neuer Ordner nach dem Muster der vorhandenen",
+        reason=tr("KI: neuer Ordner nach dem Muster der vorhandenen"),
         relative_path=relative_folder(path, root_folders) or normalize_relative(rel),
         new_source=QUELLE_KI,
     )
@@ -182,7 +183,7 @@ def jahres_neuer_ordner(suggestions: Sequence, year: Optional[int], root_folders
             folder_path=path,
             folder_name=path.name,
             confidence=float(s.confidence),
-            reason=f'Neuer Ordner: Dokument von {year}, Muster von "{rel}"',
+            reason=tr("Neuer Ordner: Dokument von {year}, Muster von \"{rel}\"").format(year=year, rel=rel),
             relative_path=relative_folder(path, root_folders) or variant_rel,
             new_source=QUELLE_JAHR,
         )

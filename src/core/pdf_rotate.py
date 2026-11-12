@@ -29,6 +29,7 @@ import os
 import time
 from pathlib import Path
 from typing import Iterable, Optional
+from src.i18n import tr
 
 # Gleiche Wartezeiten wie FileManager.MOVE_RETRY_DELAYS (Windows-Dateisperre)
 RETRY_DELAYS = (0.1, 0.2, 0.3, 0.5, 0.8)
@@ -88,26 +89,26 @@ def rotate_pdf(path: Path | str, grad: int, seiten: Optional[Iterable[int]] = No
     import pikepdf
 
     if grad not in ERLAUBT:
-        raise ValueError(f"Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)")
+        raise ValueError(tr("Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)").format(grad=grad))
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(2, "Datei nicht vorhanden", str(path))
+        raise FileNotFoundError(2, tr("Datei nicht vorhanden"), str(path))
     tmp = tmp_pfad(path)
     try:
         try:
             pdf = pikepdf.open(str(path))
         except pikepdf.PasswordError as e:
-            raise DrehenNichtMoeglich("Die PDF ist kennwortgeschützt.") from e
+            raise DrehenNichtMoeglich(tr("Die PDF ist kennwortgeschützt.")) from e
         with pdf:
             if pdf.is_encrypted:
-                raise DrehenNichtMoeglich("Die PDF ist verschlüsselt; beim Drehen ginge der Schutz verloren.")
+                raise DrehenNichtMoeglich(tr("Die PDF ist verschlüsselt; beim Drehen ginge der Schutz verloren."))
             if _signiert(pdf):
-                raise DrehenNichtMoeglich("Die PDF ist digital signiert; Drehen würde die Signatur ungültig machen.")
+                raise DrehenNichtMoeglich(tr("Die PDF ist digital signiert; Drehen würde die Signatur ungültig machen."))
             anzahl = len(pdf.pages)
             nummern = list(range(1, anzahl + 1)) if seiten is None else list(seiten)
             for nr in nummern:
                 if not 1 <= nr <= anzahl:
-                    raise ValueError(f"Seite {nr} gibt es nicht (1 bis {anzahl})")
+                    raise ValueError(tr("Seite {nr} gibt es nicht (1 bis {anzahl})").format(nr=nr, anzahl=anzahl))
                 pdf.pages[nr - 1].rotate(grad, relative=True)
             # Streams unveraendert uebernehmen (keine Neukompression der Scans)
             pdf.save(str(tmp), compress_streams=False, recompress_flate=False)
@@ -139,13 +140,13 @@ def _schreibbar(doc) -> None:
     except Exception:
         verschluesselt = True
     if verschluesselt:
-        raise DrehenNichtMoeglich("Die PDF ist verschlüsselt; beim Speichern ginge der Schutz verloren.")
+        raise DrehenNichtMoeglich(tr("Die PDF ist verschlüsselt; beim Speichern ginge der Schutz verloren."))
     try:
         signiert = doc.get_sigflags() > 0
     except Exception:
         signiert = False
     if signiert:
-        raise DrehenNichtMoeglich("Die PDF ist digital signiert; Ausrichten würde die Signatur ungültig machen.")
+        raise DrehenNichtMoeglich(tr("Die PDF ist digital signiert; Ausrichten würde die Signatur ungültig machen."))
 
 
 def _seiten_aendern(path: Path, aendern) -> None:
@@ -200,7 +201,7 @@ def gerade_ausrichten(path: Path | str, seiten: Optional[Iterable[int]] = None) 
 
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(2, "Datei nicht vorhanden", str(path))
+        raise FileNotFoundError(2, tr("Datei nicht vorhanden"), str(path))
     winkel: dict[int, float] = {}
     with pymupdf.open(str(path)) as doc:
         _schreibbar(doc)
@@ -208,7 +209,7 @@ def gerade_ausrichten(path: Path | str, seiten: Optional[Iterable[int]] = None) 
         nummern = list(range(1, anzahl + 1)) if seiten is None else list(seiten)
         for nr in nummern:
             if not 1 <= nr <= anzahl:
-                raise ValueError(f"Seite {nr} gibt es nicht (1 bis {anzahl})")
+                raise ValueError(tr("Seite {nr} gibt es nicht (1 bis {anzahl})").format(nr=nr, anzahl=anzahl))
             seite = doc[nr - 1]
             if not gerade.ist_scan(seite):
                 continue
@@ -236,7 +237,7 @@ def ausrichtung_zuruecknehmen(path: Path | str, seiten: Iterable[int]) -> list[i
 
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(2, "Datei nicht vorhanden", str(path))
+        raise FileNotFoundError(2, tr("Datei nicht vorhanden"), str(path))
     with pymupdf.open(str(path)) as doc:
         _schreibbar(doc)
         moeglich = [nr for nr in sorted(set(seiten)) if 1 <= nr <= doc.page_count

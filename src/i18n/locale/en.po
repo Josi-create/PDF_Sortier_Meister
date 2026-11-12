@@ -14,6 +14,293 @@ msgstr ""
 msgid "PDF Sortier Meister"
 msgstr "PDF Sortier Meister"
 
+#: src/core/bild_convert.py
+msgid "Für {0}-Bilder wird das Paket \"Pillow\" benötigt."
+msgstr "{0} images require the \"Pillow\" package."
+
+#: src/core/bild_convert.py
+msgid "HEIC-Bilder brauchen das Paket \"pillow-heif\"."
+msgstr "HEIC images require the \"pillow-heif\" package."
+
+#: src/core/bild_convert.py
+msgid "{name}: keine Bildseite gefunden."
+msgstr "{name}: no image page found."
+
+#: src/core/bild_convert.py
+msgid "Keine Texterkennung (Tesseract nicht gefunden) - das PDF ist nicht durchsuchbar."
+msgstr "No text recognition (Tesseract not found) - the PDF is not searchable."
+
+#: src/core/bild_convert.py
+msgid "Texterkennung bei {fehler} Seite(n) fehlgeschlagen."
+msgstr "Text recognition failed for {fehler} page(s)."
+
+#: src/core/bild_convert.py
+msgid "{name}: Bild nicht lesbar ({e})"
+msgstr "{name}: image not readable ({e})"
+
+#: src/core/bild_convert.py
+msgid "Kein Bild angegeben."
+msgstr "No image given."
+
+#: src/core/bild_convert.py
+msgid "Datei nicht gefunden: {q}"
+msgstr "File not found: {q}"
+
+#: src/core/bild_convert.py
+msgid "Dateityp {0} wird nicht unterstützt."
+msgstr "File type {0} is not supported."
+
+#: src/core/bild_convert.py
+msgid "PDF konnte nicht geschrieben werden: {e}"
+msgstr "The PDF could not be written: {e}"
+
+#: src/core/bild_convert.py
+msgid "Das erzeugte PDF ist nicht lesbar."
+msgstr "The created PDF is not readable."
+
+#: src/core/datum_eingabe.py
+msgid "nicht erkannt – z. B. 2024, 12/2024, Jan 2024, 2004-2006"
+msgstr "not recognized – e.g. 2024, 12/2024, Jan 2024, 2004-2006"
+
+#: src/core/datum_eingabe.py
+msgid "nicht erkannt – z. B. 3.5.2024, 3.5.24 oder 3. Mai 2024"
+msgstr "not recognized – e.g. 3.5.2024, 3.5.24 or 3. Mai 2024"
+
+#: src/core/datum_eingabe.py
+msgid "bitte einen ganzen Tag angeben – z. B. 3.5.2024"
+msgstr "please enter a full day – e.g. 3.5.2024"
+
+#: src/core/datum_eingabe.py
+msgid "= ab {0}"
+msgstr "= from {0}"
+
+#: src/core/datum_eingabe.py
+msgid "= bis {0}"
+msgstr "= until {0}"
+
+#: src/core/entzerren.py
+msgid "Farbe aufgehellt"
+msgstr "Brightened color"
+
+#: src/core/entzerren.py
+msgid "Graustufen"
+msgstr "Grayscale"
+
+#: src/core/entzerren.py
+msgid "Schwarzweiß"
+msgstr "Black and white"
+
+#: src/core/file_manager.py
+msgid "Ordner existiert nicht: {folder}"
+msgstr "Folder does not exist: {folder}"
+
+#: src/core/file_manager.py
+msgid "Pfad ist kein Ordner: {folder}"
+msgstr "Path is not a folder: {folder}"
+
+#: src/core/file_manager.py
+msgid "Quelldatei nicht gefunden: {source}"
+msgstr "Source file not found: {source}"
+
+#: src/core/file_manager.py
+msgid "Zielordner existiert nicht: {target_folder}"
+msgstr "Target folder does not exist: {target_folder}"
+
+#: src/core/file_manager.py
+msgid "Datei nicht gefunden: {source}"
+msgstr "File not found: {source}"
+
+#: src/core/file_manager.py
+msgid "Datei nicht gefunden: {file_path}"
+msgstr "File not found: {file_path}"
+
+#: src/core/file_manager.py
+msgid "Papierkorb nicht verfügbar: {file_path}"
+msgstr "Recycle Bin not available: {file_path}"
+
+#: src/core/file_manager.py
+msgid "Es müssen mindestens zwei PDF-Quelldateien angegeben werden."
+msgstr "At least two source PDF files must be given."
+
+#: src/core/file_manager.py
+msgid "Quelldatei nicht gefunden: {source_path}"
+msgstr "Source file not found: {source_path}"
+
+#: src/core/file_manager.py
+msgid "Es muss mindestens eine PDF zum Anhaengen angegeben werden."
+msgstr "At least one PDF to append must be given."
+
+#: src/core/file_manager.py
+msgid "Ziel-PDF nicht gefunden: {target}"
+msgstr "Target PDF not found: {target}"
+
+#: src/core/file_manager.py
+msgid "Eine PDF kann nicht auf sich selbst gestapelt werden."
+msgstr "A PDF cannot be stacked onto itself."
+
+#: src/core/file_manager.py
+msgid "Sicherung nicht gefunden: {backup}"
+msgstr "Backup not found: {backup}"
+
+#: src/core/file_manager.py
+msgid "Ungültige Seitenzahlen: {invalid_pages}"
+msgstr "Invalid page numbers: {invalid_pages}"
+
+#: src/core/file_manager.py
+msgid "Ungültige Seitenzahlen: {0}"
+msgstr "Invalid page numbers: {0}"
+
+#: src/core/korrespondenten.py
+msgid "kein Korrespondent"
+msgstr "no correspondent"
+
+#: src/core/korrespondenten.py
+msgid "der Nutzer selbst"
+msgstr "the user themselves"
+
+#: src/core/korrespondenten.py
+msgid "Formular- bzw. Druckverlag"
+msgstr "form or print publisher"
+
+#: src/core/llm_activity.py
+msgid "ca. {0} s"
+msgstr "approx. {0} s"
+
+#: src/core/llm_activity.py
+msgid "ca. {0} min"
+msgstr "approx. {0} min"
+
+#: src/core/namen_unterscheiden.py
+#: src/core/ordner_vorschlaege.py
+msgid "Die KI hat nicht geantwortet."
+msgstr "The AI did not answer."
+
+#: src/core/namen_unterscheiden.py
+msgid "Die KI hat keine eindeutigen Unterscheidungen genannt."
+msgstr "The AI did not name any clear distinctions."
+
+#: src/core/neuer_ordner.py
+msgid "KI: neuer Ordner nach dem Muster der vorhandenen"
+msgstr "AI: new folder following the pattern of the existing ones"
+
+#: src/core/neuer_ordner.py
+msgid "Neuer Ordner: Dokument von {year}, Muster von \"{rel}\""
+msgstr "New folder: document from {year}, pattern of \"{rel}\""
+
+#: src/core/ordner_verschieben.py
+msgid "'{name}' ist kein Ordner."
+msgstr "'{name}' is not a folder."
+
+#: src/core/ordner_verschieben.py
+msgid "Ein Ordner kann nicht in sich selbst oder einen eigenen Unterordner verschoben werden."
+msgstr "A folder cannot be moved into itself or into one of its own subfolders."
+
+#: src/core/ordner_verschieben.py
+msgid "'{name}' liegt schon in '{name2}'."
+msgstr "'{name}' is already in '{name2}'."
+
+#: src/core/ordner_verschieben.py
+msgid "'{name}' wurde am Zielort nicht mehr gefunden."
+msgstr "'{name}' was no longer found at the target."
+
+#: src/core/ordner_verschieben.py
+msgid "Am ursprünglichen Ort existiert schon '{name}'."
+msgstr "'{name}' already exists in the original location."
+
+#: src/core/ordner_verschieben.py
+#: src/gui/original_wegraeumen.py
+msgid "'{name}' ist nicht mehr im Papierkorb."
+msgstr "'{name}' is no longer in the Recycle Bin."
+
+#: src/core/ordner_vorschlaege.py
+msgid "Gleichnamiger Ordner für {jahr} existiert: \"{vorhanden}\""
+msgstr "A folder of the same name for {jahr} exists: \"{vorhanden}\""
+
+#: src/core/ordner_vorschlaege.py
+msgid "\"{name}\" passt zum Jahr {jahr} (Muster: \"{rel}\")"
+msgstr "\"{name}\" matches the year {jahr} (pattern: \"{rel}\")"
+
+#: src/core/ordner_vorschlaege.py
+msgid "Neuer Ordner \"{name}\" für {jahr} (Muster: \"{rel}\")"
+msgstr "New folder \"{name}\" for {jahr} (pattern: \"{rel}\")"
+
+#: src/core/ordner_vorschlaege.py
+msgid "Gleichnamiger Ordner existiert: \"{0}\""
+msgstr "A folder of the same name exists: \"{0}\""
+
+#: src/core/ordner_vorschlaege.py
+msgid "Inhalt: {0} % der Dateien gehören laut Lernen/KI dorthin"
+msgstr "Contents: {0} % of the files belong there according to learning/AI"
+
+#: src/core/ordner_vorschlaege.py
+msgid "passender Elternordner"
+msgstr "suitable parent folder"
+
+#: src/core/pdf_rotate.py
+msgid "Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)"
+msgstr "Rotation angle {grad} not allowed (90, 180, 270 or -90)"
+
+#: src/core/pdf_rotate.py
+msgid "Datei nicht vorhanden"
+msgstr "File does not exist"
+
+#: src/core/pdf_rotate.py
+msgid "Die PDF ist kennwortgeschützt."
+msgstr "The PDF is password-protected."
+
+#: src/core/pdf_rotate.py
+msgid "Die PDF ist verschlüsselt; beim Drehen ginge der Schutz verloren."
+msgstr "The PDF is encrypted; rotating would remove the protection."
+
+#: src/core/pdf_rotate.py
+msgid "Die PDF ist digital signiert; Drehen würde die Signatur ungültig machen."
+msgstr "The PDF is digitally signed; rotating would invalidate the signature."
+
+#: src/core/pdf_rotate.py
+msgid "Seite {nr} gibt es nicht (1 bis {anzahl})"
+msgstr "Page {nr} does not exist (1 to {anzahl})"
+
+#: src/core/pdf_rotate.py
+msgid "Die PDF ist verschlüsselt; beim Speichern ginge der Schutz verloren."
+msgstr "The PDF is encrypted; saving would remove the protection."
+
+#: src/core/pdf_rotate.py
+msgid "Die PDF ist digital signiert; Ausrichten würde die Signatur ungültig machen."
+msgstr "The PDF is digitally signed; straightening would invalidate the signature."
+
+#: src/core/similar_documents.py
+msgid "KI: ähnliche Dokumente liegen dort"
+msgstr "AI: similar documents are stored there"
+
+#: src/core/similar_documents.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "KI bestätigt"
+msgstr "confirmed by AI"
+
+#: src/core/sortierung.py
+msgid "Datum: neueste zuerst"
+msgstr "Date: newest first"
+
+#: src/core/sortierung.py
+msgid "Datum: älteste zuerst"
+msgstr "Date: oldest first"
+
+#: src/core/sortierung.py
+msgid "Name: A–Z"
+msgstr "Name: A–Z"
+
+#: src/core/sortierung.py
+msgid "Name: Z–A"
+msgstr "Name: Z–A"
+
+#: src/core/sortierung.py
+msgid "Größe: größte zuerst"
+msgstr "Size: largest first"
+
+#: src/core/sortierung.py
+msgid "Größe: kleinste zuerst"
+msgstr "Size: smallest first"
+
 #: src/core/suggestion_order.py
 msgid "KI-Vorschlag"
 msgstr "AI suggestion"
@@ -57,6 +344,50 @@ msgstr "Pattern: "
 #: src/core/suggestion_order.py
 msgid "KI: "
 msgstr "AI: "
+
+#: src/core/suggestion_order.py
+msgid "Mit erkanntem Datum ("
+msgstr "With detected date ("
+
+#: src/core/suggestion_order.py
+msgid "Mit Kategorie ("
+msgstr "With category ("
+
+#: src/core/support.py
+msgid "Eine Zigarette"
+msgstr "A cigarette"
+
+#: src/core/support.py
+msgid "Ein Kaffee"
+msgstr "A coffee"
+
+#: src/core/support.py
+msgid "Zwei Bier"
+msgstr "Two beers"
+
+#: src/core/support.py
+msgid "Mittagessen"
+msgstr "Lunch"
+
+#: src/core/support.py
+msgid "Abendessen"
+msgstr "Dinner"
+
+#: src/core/support.py
+msgid "PRO-Unterstützerlizenz"
+msgstr "PRO supporter license"
+
+#: src/core/support.py
+msgid "Ein neuer Porsche"
+msgstr "A new Porsche"
+
+#: src/core/support.py
+msgid "PRO-Unterstützer seit {datum}"
+msgstr "PRO supporter since {datum}"
+
+#: src/core/support.py
+msgid "Unterstützer seit {datum}"
+msgstr "Supporter since {datum}"
 
 #: src/gui/bild_aktionen.py
 #: src/gui/main_window.py
@@ -1054,6 +1385,7 @@ msgid "Zum Kopieren zuerst eine Datei auswählen"
 msgstr "Select a file first to copy it"
 
 #: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
 #: src/gui/ordner_verschieben_gui.py
 #: src/gui/stapel_ablage.py
 msgid "{anzahl} Dateien"
@@ -1399,6 +1731,7 @@ msgid ", {fehler} ohne KI-Antwort"
 msgstr ", {fehler} without an AI answer"
 
 #: src/gui/main_window.py
+#: src/ml/hybrid_classifier.py
 msgid "Unbekannt"
 msgstr "Unknown"
 
@@ -1594,6 +1927,11 @@ msgstr "0 files"
 #: src/gui/main_window.py
 msgid "PDFs in: {name}"
 msgstr "PDFs in: {name}"
+
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+msgid "{anzahl} Datei"
+msgstr "{anzahl} file"
 
 #: src/gui/main_window.py
 msgid "PDFs: {anzahl}"
@@ -2574,7 +2912,6 @@ msgstr "Tax year:"
 
 #: src/gui/main_window.py
 #: src/gui/search_view.py
-#: src/gui/settings_dialog.py
 msgid "Alle"
 msgstr "All"
 
@@ -3301,10 +3638,6 @@ msgid "Die KI konnte keinen passenden Elternordner nennen"
 msgstr "The AI could not name a suitable parent folder"
 
 #: src/gui/ordner_verschieben_gui.py
-msgid "KI bestätigt"
-msgstr "confirmed by AI"
-
-#: src/gui/ordner_verschieben_gui.py
 msgid " + KI bestätigt"
 msgstr " + confirmed by AI"
 
@@ -3335,10 +3668,6 @@ msgstr "A folder operation is already running"
 #: src/gui/ordner_verschieben_gui.py
 msgid "Ordner verschieben nicht möglich"
 msgstr "Moving the folder is not possible"
-
-#: src/gui/ordner_verschieben_gui.py
-msgid "{anzahl} Datei"
-msgstr "{anzahl} file"
 
 #: src/gui/ordner_verschieben_gui.py
 msgctxt "Einzahl"
@@ -3456,10 +3785,6 @@ msgstr "Do not ask again"
 #: src/gui/original_wegraeumen.py
 msgid "{name}: Papierkorb nicht verfügbar - das Original bleibt liegen."
 msgstr "{name}: Recycle Bin not available - the original stays where it is."
-
-#: src/gui/original_wegraeumen.py
-msgid "'{name}' ist nicht mehr im Papierkorb."
-msgstr "'{name}' is no longer in the Recycle Bin."
 
 #: src/gui/original_wegraeumen.py
 msgid "Rückgängig nicht (ganz) möglich"
@@ -4756,7 +5081,7 @@ msgstr "Windows Explorer integration"
 
 #: src/gui/settings_dialog.py
 msgid "Im Rechtsklick-Menue des Explorers anzeigen (\"PDF Sortier Meister von hier oeffnen\")"
-msgstr "Show in the Explorer right-click menu (\"PDF Sortier Meister von hier oeffnen\")"
+msgstr "Show in the Explorer right-click menu (\"Open PDF Sortier Meister here\")"
 
 #: src/gui/settings_dialog.py
 msgid "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n  - Ordner (Rechtsklick auf Ordner-Icon)\n  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\nLaeuft das Programm bereits, wird der Pfad an die offene\nInstanz uebergeben statt eine zweite zu starten."
@@ -4829,6 +5154,11 @@ msgstr "Shortly after the start, asks GitHub for the version number of the\nlate
 #: src/gui/settings_dialog.py
 msgid "Es wird nur die Versionsnummer des neuesten Releases abgerufen; heruntergeladen und installiert wird nichts automatisch."
 msgstr "Only the version number of the latest release is fetched; nothing is downloaded or installed automatically."
+
+#: src/gui/settings_dialog.py
+msgctxt "Abstand"
+msgid "Alle"
+msgstr "Every"
 
 #: src/gui/settings_dialog.py
 msgid " Tage"
@@ -6154,7 +6484,7 @@ msgstr "Show PDF Sortier Meister in the Explorer right-click menu"
 
 #: src/gui/setup_wizard.py
 msgid "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\nhinzu, wenn Sie einen Ordner oder dessen Hintergrund\nrechtsklicken. Aenderbar unter Extras -> Einstellungen."
-msgstr "Adds an entry \"PDF Sortier Meister von hier oeffnen\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
+msgstr "Adds an entry \"Open PDF Sortier Meister here\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
 
 #: src/gui/setup_wizard.py
 msgid "PDF Sortier Meister einrichten"
@@ -6555,3 +6885,347 @@ msgstr "Type the period freely, empty = no limit.\nExamples: 2024 · 12/2024 · 
 #: src/gui/zeitraum_feld.py
 msgid "Zeitraum, z. B. 2004-2006"
 msgstr "Period, e.g. 2004-2006"
+
+#: src/ml/classifier.py
+msgid "Ähnlicher Inhalt ({0}%)"
+msgstr "Similar content ({0}%)"
+
+#: src/ml/classifier.py
+msgid "Ähnliche Schlüsselwörter"
+msgstr "Similar keywords"
+
+#: src/ml/classifier.py
+msgid "Häufig verwendet ({usage_count}x)"
+msgstr "Frequently used ({usage_count}x)"
+
+#: src/ml/classifier.py
+msgid "Jahr {target_year} im Dokument erkannt - Variante von \"{relative_path}\""
+msgstr "Year {target_year} detected in the document - variant of \"{relative_path}\""
+
+#: src/ml/classifier.py
+msgid "Aktuelles Jahr {target_year} - Variante von \"{relative_path}\""
+msgstr "Current year {target_year} - variant of \"{relative_path}\""
+
+#: src/ml/classifier.py
+msgid "Gelernt ({usage_count}x verwendet)"
+msgstr "Learned (used {usage_count}x)"
+
+#: src/ml/classifier.py
+msgid "Existierender Unterordner"
+msgstr "Existing subfolder"
+
+#: src/ml/hybrid_classifier.py
+msgid "{reason} + LLM bestätigt"
+msgstr "{reason} + confirmed by LLM"
+
+#: src/ml/hybrid_classifier.py
+msgid "Keiner"
+msgstr "None"
+
+#: src/ml/llm_hinweis.py
+msgid "Ollama"
+msgstr "Ollama"
+
+#: src/ml/llm_hinweis.py
+msgid "den Strata-Server"
+msgstr "the Strata server"
+
+#: src/ml/llm_hinweis.py
+msgid "LM Studio (mit lokalem Server)"
+msgstr "LM Studio (with local server)"
+
+#: src/ml/llm_hinweis.py
+msgid "das eingestellte Modell"
+msgstr "the configured model"
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} ist unvollständig installiert und kann keine Modelle laden."
+msgstr "{provider} is not installed completely and cannot load models."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} neu installieren bzw. aktualisieren (ollama.com) und danach neu starten."
+msgstr "Reinstall or update {provider} (ollama.com) and then restart."
+
+#: src/ml/llm_hinweis.py
+msgid "Das Modell {modell_name} gibt es bei {provider} nicht."
+msgstr "The model {modell_name} does not exist at {provider}."
+
+#: src/ml/llm_hinweis.py
+msgid "In den Einstellungen ein vorhandenes Modell auswählen."
+msgstr "Select an existing model in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "Das Modell {modell_name} passt nicht in den Speicher des Rechners."
+msgstr "The model {modell_name} does not fit into the computer's memory."
+
+#: src/ml/llm_hinweis.py
+msgid "In den Einstellungen ein kleineres Modell auswählen."
+msgstr "Select a smaller model in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} nimmt den API-Key nicht an."
+msgstr "{provider} does not accept the API key."
+
+#: src/ml/llm_hinweis.py
+msgid "In den Einstellungen den API-Key prüfen bzw. neu eintragen."
+msgstr "Check the API key in the settings or enter it again."
+
+#: src/ml/llm_hinweis.py
+msgid "Das Guthaben bzw. Kontingent bei {provider} ist aufgebraucht."
+msgstr "The credit or quota at {provider} is used up."
+
+#: src/ml/llm_hinweis.py
+msgid "Guthaben bei {provider} aufladen oder in den Einstellungen einen anderen Anbieter wählen."
+msgstr "Top up your credit at {provider} or choose another provider in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} lehnt gerade zu viele Anfragen ab."
+msgstr "{provider} is currently rejecting too many requests."
+
+#: src/ml/llm_hinweis.py
+msgid "Kurz warten, es geht danach von selbst weiter."
+msgstr "Wait a moment, it continues by itself afterwards."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} antwortet zu langsam."
+msgstr "{provider} is responding too slowly."
+
+#: src/ml/llm_hinweis.py
+msgid "Kurz warten oder in den Einstellungen ein schnelleres Modell wählen."
+msgstr "Wait a moment or choose a faster model in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} läuft nicht oder ist nicht erreichbar."
+msgstr "{provider} is not running or not reachable."
+
+#: src/ml/llm_hinweis.py
+msgid "{0}{1} starten; falls das nicht hilft, in den Einstellungen die Adresse prüfen."
+msgstr "{0}{1}: start it; if that does not help, check the address in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "Keine Verbindung zu {provider}."
+msgstr "No connection to {provider}."
+
+#: src/ml/llm_hinweis.py
+msgid "Internetverbindung prüfen; falls das nicht hilft, in den Einstellungen einen anderen Anbieter wählen."
+msgstr "Check the internet connection; if that does not help, choose another provider in the settings."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} meldet einen Fehler."
+msgstr "{provider} reports an error."
+
+#: src/ml/llm_hinweis.py
+msgid "Einstellungen öffnen und dort mit „Verbindung testen“ prüfen; Details stehen in der Log-Datei."
+msgstr "Open the settings and check there with “Test connection”; details are in the log file."
+
+#: src/utils/backup.py
+msgid "Keine Anwendungsdaten gefunden in {data_dir}"
+msgstr "No application data found in {data_dir}"
+
+#: src/utils/backup.py
+msgid "{name} ist kein ZIP-Archiv."
+msgstr "{name} is not a ZIP archive."
+
+#: src/utils/backup.py
+msgid "{name} enthaelt keine Daten von PDF Sortier Meister (erwartet z.B. {0} oder {1})."
+msgstr "{name} does not contain data of PDF Sortier Meister (expected e.g. {0} or {1})."
+
+#: src/utils/explorer_integration.py
+msgid "PDF Sortier Meister von hier oeffnen"
+msgstr "Open PDF Sortier Meister here"
+
+#: src/utils/explorer_integration.py
+msgid "Explorer-Integration ist nur unter Windows verfuegbar."
+msgstr "Explorer integration is only available on Windows."
+
+#: src/utils/explorer_integration.py
+msgid "Launcher-Skript fehlt: {launcher}"
+msgstr "Launcher script missing: {launcher}"
+
+#: src/utils/hardware.py
+msgid "Apple Silicon (Unified Memory)"
+msgstr "Apple Silicon (unified memory)"
+
+#: src/utils/hardware.py
+msgid "Apple Silicon mit {0} gemeinsamem Speicher erkannt - empfohlenes Modell: {model} (Download ca. {size_gb:.0f} GB)."
+msgstr "Apple Silicon with {0} unified memory detected - recommended model: {model} (download approx. {size_gb:.0f} GB)."
+
+#: src/utils/hardware.py
+msgid "Apple Silicon erkannt, aber mit {0} Arbeitsspeicher zu wenig fuer ein brauchbares lokales Modell."
+msgstr "Apple Silicon detected, but {0} of memory is too little for a usable local model."
+
+#: src/utils/hardware.py
+msgid "Nur integrierte Grafik erkannt ({name})"
+msgstr "Only integrated graphics detected ({name})"
+
+#: src/utils/hardware.py
+msgid "Keine Grafikkarte erkannt"
+msgstr "No graphics card detected"
+
+#: src/utils/hardware.py
+msgid "{gpu_desc}, aber {0} Arbeitsspeicher vorhanden. {model} laeuft auch ohne Grafikkarte auf dem Prozessor - moeglich, aber je nach Dokument spuerbar langsamer als mit GPU. Alternative: Ollama Cloud (keine Wartezeit, aber Dokumentinhalte werden dabei an ollama.com uebertragen)."
+msgstr "{gpu_desc}, but {0} of memory available. {model} also runs without a graphics card on the processor - possible, but noticeably slower than with a GPU, depending on the document. Alternative: Ollama Cloud (no waiting, but document contents are transferred to ollama.com)."
+
+#: src/utils/hardware.py
+msgid ", die sich den Arbeitsspeicher teilt. Ein lokales Modell wuerde auf dem Prozessor laufen - pro Dokument dauert das oft eine Minute oder laenger."
+msgstr ", which shares the main memory. A local model would run on the processor - that often takes a minute or longer per document."
+
+#: src/utils/hardware.py
+msgid ". Ein lokales Modell wuerde auf dem Prozessor laufen - pro Dokument dauert das oft eine Minute oder laenger."
+msgstr ". A local model would run on the processor - that often takes a minute or longer per document."
+
+#: src/utils/hardware.py
+msgid "{name} erkannt - Intel-Grafikkarten werden von Ollama unter Windows nicht unterstuetzt, das Modell liefe auf dem Prozessor."
+msgstr "{name} detected - Intel graphics cards are not supported by Ollama on Windows; the model would run on the processor."
+
+#: src/utils/hardware.py
+msgid "{name} erkannt, aber mit {vram_text} Grafikspeicher zu wenig fuer ein brauchbares lokales Modell (mindestens {0})."
+msgstr "{name} detected, but {vram_text} of graphics memory is too little for a usable local model (at least {0})."
+
+#: src/utils/hardware.py
+msgid "{name} mit {0} Grafikspeicher erkannt - empfohlenes Modell: {model} (Download ca. {size_gb:.0f} GB)."
+msgstr "{name} with {0} of graphics memory detected - recommended model: {model} (download approx. {size_gb:.0f} GB)."
+
+#: src/utils/hardware.py
+msgid " Hinweis: Ollama unterstuetzt unter Windows nur neuere AMD-Karten (Radeon RX 6000/7000/9000)."
+msgstr " Note: on Windows, Ollama only supports newer AMD cards (Radeon RX 6000/7000/9000)."
+
+#: src/utils/hardware.py
+msgid "Keine Empfehlung moeglich."
+msgstr "No recommendation possible."
+
+#: src/utils/pdf_open.py
+msgid "Integrierte Vorschau (schnell, empfohlen)"
+msgstr "Built-in preview (fast, recommended)"
+
+#: src/utils/pdf_open.py
+msgid "Standardprogramm des Systems (z. B. Browser oder Acrobat)"
+msgstr "Default program of the system (e.g. browser or Acrobat)"
+
+#: src/utils/pdf_open.py
+msgid "Eigenes Programm (z. B. PDF-XChange)"
+msgstr "Custom program (e.g. PDF-XChange)"
+
+#: src/utils/pdf_open.py
+msgid "Datei nicht gefunden: {pdf_path}"
+msgstr "File not found: {pdf_path}"
+
+#: src/utils/pdf_open.py
+msgid "Kein eigenes Programm eingetragen - Standardprogramm verwendet."
+msgstr "No custom program entered - default program used."
+
+#: src/utils/pdf_open.py
+msgid "Programm nicht gefunden ({command}) - Standardprogramm verwendet."
+msgstr "Program not found ({command}) - default program used."
+
+#: src/utils/pdf_open.py
+msgid "Programm konnte nicht gestartet werden ({e}) - Standardprogramm verwendet."
+msgstr "The program could not be started ({e}) - default program used."
+
+#: src/utils/pdf_open.py
+msgid "{note} Auch das schlug fehl: {e}"
+msgstr "{note} That failed too: {e}"
+
+#: src/utils/pdf_open.py
+msgid "Standardprogramm konnte nicht gestartet werden: {e}"
+msgstr "The default program could not be started: {e}"
+
+#: src/utils/platform_paths.py
+msgid "Dateimanager"
+msgstr "file manager"
+
+#: src/utils/tesseract.py
+msgid "Deutsch"
+msgstr "German"
+
+#: src/utils/tesseract.py
+msgid "Englisch"
+msgstr "English"
+
+#: src/utils/tesseract.py
+msgid "Französisch"
+msgstr "French"
+
+#: src/utils/tesseract.py
+msgid "Italienisch"
+msgstr "Italian"
+
+#: src/utils/tesseract.py
+msgid "Spanisch"
+msgstr "Spanish"
+
+#: src/utils/tesseract.py
+msgid "Niederländisch"
+msgstr "Dutch"
+
+#: src/utils/tesseract.py
+msgid "Portugiesisch"
+msgstr "Portuguese"
+
+#: src/utils/tesseract.py
+msgid "Polnisch"
+msgstr "Polish"
+
+#: src/utils/tesseract.py
+msgid "Tschechisch"
+msgstr "Czech"
+
+#: src/utils/tesseract.py
+msgid "Türkisch"
+msgstr "Turkish"
+
+#: src/utils/tesseract.py
+msgid "Russisch"
+msgstr "Russian"
+
+#: src/utils/tesseract.py
+msgid "Dänisch"
+msgstr "Danish"
+
+#: src/utils/tesseract.py
+msgid "Schwedisch"
+msgstr "Swedish"
+
+#: src/utils/tesseract.py
+msgid "Norwegisch"
+msgstr "Norwegian"
+
+#: src/utils/tesseract.py
+msgid "Finnisch"
+msgstr "Finnish"
+
+#: src/utils/tesseract.py
+msgid "Ungarisch"
+msgstr "Hungarian"
+
+#: src/utils/tesseract.py
+msgid "Latein"
+msgstr "Latin"
+
+#: src/utils/tesseract.py
+msgid "Griechisch"
+msgstr "Greek"
+
+#: src/utils/tesseract.py
+msgid "Deutsch (Fraktur)"
+msgstr "German (Fraktur)"
+
+#: src/utils/tesseract.py
+msgid "Fraktur (alt)"
+msgstr "Fraktur (old)"
+
+#: src/utils/tesseract.py
+msgid "dem Ordner „tessdata“ der Tesseract-Installation"
+msgstr "the “tessdata” folder of the Tesseract installation"
+
+#: src/utils/tesseract.py
+msgid "Für Frakturschrift fehlt das Tesseract-Modell „deu_frak“.\n\nSo installieren Sie es:\n1. Laden Sie die Datei deu_frak.traineddata herunter:\n   {FRAKTUR_URL}\n2. Legen Sie sie in diesen Ordner:\n   {ziel}\n   (unter Windows braucht das Kopieren nach „Programme“ ggf. Administratorrechte)\n3. Danach erscheint „Deutsch (Fraktur)“ im Menü „OCR wiederholen mit …“.\n\nEs wird nichts automatisch heruntergeladen."
+msgstr "The Tesseract model “deu_frak” for Fraktur type is missing.\n\nHow to install it:\n1. Download the file deu_frak.traineddata:\n   {FRAKTUR_URL}\n2. Put it into this folder:\n   {ziel}\n   (on Windows, copying to “Program Files” may require administrator rights)\n3. Afterwards “German (Fraktur)” appears in the “Repeat OCR with …” menu.\n\nNothing is downloaded automatically."
+
+#: src/utils/update_check.py
+msgid "Unerwartete Antwort von GitHub"
+msgstr "Unexpected response from GitHub"
+
+#: src/utils/update_check.py
+msgid "Unbrauchbare Versionsangabe: {tag!r}"
+msgstr "Unusable version: {tag!r}"

@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from src.i18n import tr
 
 GITHUB_REPO = "Josi-create/PDF_Sortier_Meister"
 LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -129,12 +130,12 @@ def check_for_update(current_version: str,
         raise UpdateCheckError(str(getattr(e, "reason", None) or e)) from e
 
     if not isinstance(release, dict):
-        raise UpdateCheckError("Unerwartete Antwort von GitHub")
+        raise UpdateCheckError(tr("Unerwartete Antwort von GitHub"))
 
     tag = release.get("tag_name") or ""
     parsed = parse_version(tag)
     if not parsed:
-        raise UpdateCheckError(f"Unbrauchbare Versionsangabe: {tag!r}")
+        raise UpdateCheckError(tr("Unbrauchbare Versionsangabe: {tag!r}").format(tag=tag))
     if not is_newer(tag, current_version):
         return None
 

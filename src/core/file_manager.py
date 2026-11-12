@@ -25,6 +25,7 @@ import fitz  # PyMuPDF
 from PyQt6.QtCore import QFile
 
 from src.search.meldungen import melden as index_melden
+from src.i18n import tr
 
 
 class PapierkorbNichtVerfuegbar(OSError):
@@ -62,9 +63,9 @@ class FileManager:
         """
         folder = Path(folder)
         if not folder.exists():
-            raise ValueError(f"Ordner existiert nicht: {folder}")
+            raise ValueError(tr("Ordner existiert nicht: {folder}").format(folder=folder))
         if not folder.is_dir():
-            raise ValueError(f"Pfad ist kein Ordner: {folder}")
+            raise ValueError(tr("Pfad ist kein Ordner: {folder}").format(folder=folder))
         self._scan_folder = folder
 
     def get_pdf_files(self) -> list[Path]:
@@ -144,10 +145,10 @@ class FileManager:
         target_folder = Path(target_folder)
 
         if not source.exists():
-            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+            raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
 
         if not target_folder.exists():
-            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+            raise ValueError(tr("Zielordner existiert nicht: {target_folder}").format(target_folder=target_folder))
 
         # Zieldateiname bestimmen
         if new_name:
@@ -204,10 +205,10 @@ class FileManager:
         target_folder = Path(target_folder)
 
         if not source.exists():
-            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+            raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
 
         if not target_folder.exists():
-            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+            raise ValueError(tr("Zielordner existiert nicht: {target_folder}").format(target_folder=target_folder))
 
         # Zieldateiname bestimmen
         if new_name:
@@ -246,7 +247,7 @@ class FileManager:
         source = Path(source)
 
         if not source.exists():
-            raise FileNotFoundError(f"Datei nicht gefunden: {source}")
+            raise FileNotFoundError(tr("Datei nicht gefunden: {source}").format(source=source))
 
         new_name = self._mit_endung(source, new_name)
 
@@ -277,7 +278,7 @@ class FileManager:
         file_path = Path(file_path)
 
         if not file_path.exists():
-            raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
+            raise FileNotFoundError(tr("Datei nicht gefunden: {file_path}").format(file_path=file_path))
 
         papierkorb_pfad: Optional[Path] = None
         if endgueltig:
@@ -286,7 +287,7 @@ class FileManager:
             ok, pfad = QFile.moveToTrash(str(file_path))
             if not ok:
                 raise PapierkorbNichtVerfuegbar(
-                    f"Papierkorb nicht verfügbar: {file_path}"
+                    tr("Papierkorb nicht verfügbar: {file_path}").format(file_path=file_path)
                 )
             papierkorb_pfad = Path(pfad) if pfad else None
         index_melden("datei_geloescht", str(file_path))
@@ -310,11 +311,11 @@ class FileManager:
             Pfad zur zusammengeführten PDF
         """
         if not sources:
-            raise ValueError("Es müssen mindestens zwei PDF-Quelldateien angegeben werden.")
+            raise ValueError(tr("Es müssen mindestens zwei PDF-Quelldateien angegeben werden."))
 
         target_folder = Path(target_folder)
         if not target_folder.exists():
-            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+            raise ValueError(tr("Zielordner existiert nicht: {target_folder}").format(target_folder=target_folder))
 
         output_name = str(output_name)
         if not output_name.lower().endswith('.pdf'):
@@ -329,7 +330,7 @@ class FileManager:
                 source_path = Path(source)
                 if not source_path.exists():
                     merged_doc.close()
-                    raise FileNotFoundError(f"Quelldatei nicht gefunden: {source_path}")
+                    raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source_path}").format(source_path=source_path))
                 with fitz.open(str(source_path)) as src_doc:
                     merged_doc.insert_pdf(src_doc)
             merged_doc.save(str(output_path))
@@ -369,14 +370,14 @@ class FileManager:
         target = Path(target)
         source_paths = [Path(s) for s in sources]
         if not source_paths:
-            raise ValueError("Es muss mindestens eine PDF zum Anhaengen angegeben werden.")
+            raise ValueError(tr("Es muss mindestens eine PDF zum Anhaengen angegeben werden."))
         if not target.exists():
-            raise FileNotFoundError(f"Ziel-PDF nicht gefunden: {target}")
+            raise FileNotFoundError(tr("Ziel-PDF nicht gefunden: {target}").format(target=target))
         for source in source_paths:
             if source == target:
-                raise ValueError("Eine PDF kann nicht auf sich selbst gestapelt werden.")
+                raise ValueError(tr("Eine PDF kann nicht auf sich selbst gestapelt werden."))
             if not source.exists():
-                raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+                raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
 
         temp_path = target.with_name(f"{target.stem}.stapel-tmp.pdf")
         try:
@@ -454,7 +455,7 @@ class FileManager:
         for i, (original, backup) in enumerate(backups):
             original, backup = Path(original), Path(backup)
             if not backup.exists():
-                raise FileNotFoundError(f"Sicherung nicht gefunden: {backup}")
+                raise FileNotFoundError(tr("Sicherung nicht gefunden: {backup}").format(backup=backup))
             if i == 0:
                 self._ersetzen_ueber_laufwerke(backup, original)
                 restored.append(original)
@@ -487,10 +488,10 @@ class FileManager:
         target_folder = Path(target_folder)
 
         if not source.exists():
-            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+            raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
 
         if not target_folder.exists():
-            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+            raise ValueError(tr("Zielordner existiert nicht: {target_folder}").format(target_folder=target_folder))
 
         with fitz.open(str(source)) as doc:
             page_count = len(doc)
@@ -502,7 +503,7 @@ class FileManager:
             else:
                 invalid_pages = [p for p in pages if p < 1 or p > page_count]
                 if invalid_pages:
-                    raise ValueError(f"Ungültige Seitenzahlen: {invalid_pages}")
+                    raise ValueError(tr("Ungültige Seitenzahlen: {invalid_pages}").format(invalid_pages=invalid_pages))
 
             output_paths: list[Path] = []
             for page_number in pages:
@@ -544,16 +545,16 @@ class FileManager:
         target_folder = Path(target_folder)
 
         if not source.exists():
-            raise FileNotFoundError(f"Quelldatei nicht gefunden: {source}")
+            raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
         if not target_folder.exists():
-            raise ValueError(f"Zielordner existiert nicht: {target_folder}")
+            raise ValueError(tr("Zielordner existiert nicht: {target_folder}").format(target_folder=target_folder))
 
         with fitz.open(str(source)) as doc:
             page_count = len(doc)
         for seiten, _name in teile:
             invalid_pages = [p for p in seiten if p < 1 or p > page_count]
             if invalid_pages or not seiten:
-                raise ValueError(f"Ungültige Seitenzahlen: {invalid_pages or seiten}")
+                raise ValueError(tr("Ungültige Seitenzahlen: {0}").format(invalid_pages or seiten))
 
         output_paths: list[Path] = []
         for seiten, name in teile:
@@ -610,7 +611,7 @@ class FileManager:
         file_path = Path(file_path)
 
         if not file_path.exists():
-            raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
+            raise FileNotFoundError(tr("Datei nicht gefunden: {file_path}").format(file_path=file_path))
 
         stat = file_path.stat()
 
@@ -658,7 +659,7 @@ class FolderManager:
         folder = Path(folder)
 
         if not folder.exists():
-            raise ValueError(f"Ordner existiert nicht: {folder}")
+            raise ValueError(tr("Ordner existiert nicht: {folder}").format(folder=folder))
 
         if folder not in self._target_folders:
             self._target_folders.append(folder)
@@ -703,7 +704,7 @@ class FolderManager:
         folder = Path(folder)
 
         if not folder.exists():
-            raise ValueError(f"Ordner existiert nicht: {folder}")
+            raise ValueError(tr("Ordner existiert nicht: {folder}").format(folder=folder))
 
         # PDFs im Ordner zählen
         pdf_count = len(list(folder.glob("*.pdf"))) + len(list(folder.glob("*.PDF")))

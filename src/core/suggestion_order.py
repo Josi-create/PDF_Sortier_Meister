@@ -81,6 +81,8 @@ def reason_display(reason: str) -> str:
         ("Datum + Kategorie (", tr("Datum + Kategorie (")),
         ("Muster: ", tr("Muster: ")),
         ("KI: ", tr("KI: ")),
+        ("Mit erkanntem Datum (", tr("Mit erkanntem Datum (")),
+        ("Mit Kategorie (", tr("Mit Kategorie (")),
     )
     for anfang, uebersetzt in anfaenge:
         if reason.startswith(anfang):

@@ -22,13 +22,14 @@ import sys
 from pathlib import Path
 
 from src.utils.platform_paths import get_app_data_dir
+from src.i18n import tr
 
 logger = logging.getLogger("pdf_sortier_meister.explorer_integration")
 
 # Name unter dem der Eintrag im Registry-Pfad erscheint.
 REGISTRY_KEY_NAME = "PDFSortierMeister"
 # Beschriftung die im Kontextmenue erscheint.
-CONTEXT_MENU_LABEL = "PDF Sortier Meister von hier oeffnen"
+CONTEXT_MENU_LABEL = tr("PDF Sortier Meister von hier oeffnen")
 
 
 def _app_data_dir() -> Path:
@@ -108,7 +109,7 @@ def _ensure_winreg():
     """Importiert winreg oder wirft eine aussagekraeftige Fehlermeldung."""
     if sys.platform != "win32":
         raise RuntimeError(
-            "Explorer-Integration ist nur unter Windows verfuegbar."
+            tr("Explorer-Integration ist nur unter Windows verfuegbar.")
         )
     import winreg  # type: ignore
     return winreg
@@ -156,7 +157,7 @@ def register_context_menu() -> None:
 
     launcher = update_launcher_script()
     if not launcher.exists():
-        raise RuntimeError(f"Launcher-Skript fehlt: {launcher}")
+        raise RuntimeError(tr("Launcher-Skript fehlt: {launcher}").format(launcher=launcher))
 
     # Icon: bevorzugt die laufende .exe, sonst leer.
     icon_path = ""

@@ -20,13 +20,14 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from typing import NamedTuple, Optional, Union
+from src.i18n import tr
 
 MIN_JAHR = 1900
 MAX_JAHR = 2100
 
-HINWEIS_ZEITRAUM = "nicht erkannt – z. B. 2024, 12/2024, Jan 2024, 2004-2006"
-HINWEIS_TAG = "nicht erkannt – z. B. 3.5.2024, 3.5.24 oder 3. Mai 2024"
-HINWEIS_TAG_UNGENAU = "bitte einen ganzen Tag angeben – z. B. 3.5.2024"
+HINWEIS_ZEITRAUM = tr("nicht erkannt – z. B. 2024, 12/2024, Jan 2024, 2004-2006")
+HINWEIS_TAG = tr("nicht erkannt – z. B. 3.5.2024, 3.5.24 oder 3. Mai 2024")
+HINWEIS_TAG_UNGENAU = tr("bitte einen ganzen Tag angeben – z. B. 3.5.2024")
 
 
 class Zeitraum(NamedTuple):
@@ -230,7 +231,7 @@ def beschreibe(ergebnis: Union[Zeitraum, date, Fehler]) -> str:
     if von and bis:
         return f"= {tag_text(von)}" if von == bis else f"= {tag_text(von)} – {tag_text(bis)}"
     if von:
-        return f"= ab {tag_text(von)}"
+        return tr("= ab {0}").format(tag_text(von))
     if bis:
-        return f"= bis {tag_text(bis)}"
+        return tr("= bis {0}").format(tag_text(bis))
     return ""

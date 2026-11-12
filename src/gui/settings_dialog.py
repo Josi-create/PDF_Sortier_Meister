@@ -1199,7 +1199,7 @@ class SettingsDialog(QDialog):
         # Backup-Erinnerung (Issue #14)
         backup_group = QGroupBox(tr("Backup-Erinnerung"))
         backup_layout = QHBoxLayout(backup_group)
-        backup_layout.addWidget(QLabel(tr("Alle")))
+        backup_layout.addWidget(QLabel(tr("Alle", "Abstand")))
         self.backup_days_spin = QSpinBox()
         self.backup_days_spin.setRange(0, 365)
         self.backup_days_spin.setSuffix(tr(" Tage"))
