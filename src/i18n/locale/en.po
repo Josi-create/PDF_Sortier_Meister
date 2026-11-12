@@ -4916,7 +4916,7 @@ msgid "{derived} (aus dem Namen)"
 msgstr "{derived} (from the name)"
 
 #: src/gui/settings_dialog.py
-msgid "z.B. JW"
+msgid "z.B. MM"
 msgstr "e.g. JD"
 
 #: src/gui/settings_dialog.py
@@ -4944,7 +4944,7 @@ msgid "Ihre Daten"
 msgstr "Your data"
 
 #: src/gui/settings_dialog.py
-msgid "z.B. Johannes Härle-Wack"
+msgid "z.B. Max Mustermann"
 msgstr "e.g. Jane Doe"
 
 #: src/gui/settings_dialog.py
@@ -4964,7 +4964,7 @@ msgid "Initialen:"
 msgstr "Initials:"
 
 #: src/gui/settings_dialog.py
-msgid "z.B. J. Härle-Wack, Härle-Wack"
+msgid "z.B. M. Mustermann, Mustermann"
 msgstr "e.g. J. Doe, Doe"
 
 #: src/gui/settings_dialog.py
@@ -4976,7 +4976,7 @@ msgid "Namensvarianten:"
 msgstr "Name variants:"
 
 #: src/gui/settings_dialog.py
-msgid "z.B. Härle-Wack GbR (optional)"
+msgid "z.B. Mustermann GbR (optional)"
 msgstr "e.g. Doe Ltd (optional)"
 
 #: src/gui/settings_dialog.py

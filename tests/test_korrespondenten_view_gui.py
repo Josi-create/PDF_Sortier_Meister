@@ -212,11 +212,11 @@ def test_ki_sagt_verschieden_dann_bleibt_es_getrennt(umgebung, view_bauen, qtbot
 
 @pytest.fixture
 def aufraeumen_umgebung(umgebung):
-    umgebung.cfg.set("owner_name", "Dr. Johannes Härle-Wack")
-    umgebung.cfg.set("owner_name_variants", "J. Härle")
+    umgebung.cfg.set("owner_name", "Dr. Jonas Huber-Weber")
+    umgebung.cfg.set("owner_name_variants", "J. Huber")
     pfade = SimpleNamespace(
         mietvertrag=umgebung.dok("Miete/mietvertrag.pdf", "Haus & Grund"),
-        eigener=umgebung.dok("Praxis/arztbrief.pdf", "J. Härle"),
+        eigener=umgebung.dok("Praxis/arztbrief.pdf", "J. Huber"),
         leer=umgebung.dok("Sonstiges/leer.pdf", ""),
         gut=umgebung.dok("Energie/strom.pdf", "Stadtwerke"),
     )

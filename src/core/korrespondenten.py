@@ -222,8 +222,8 @@ def _kern(name: str) -> list[str]:
 
 def ist_nutzer(name: str, owner: Iterable[str]) -> bool:
     """Ist ``name`` der Nutzer selbst? Gleiche Woerter (ohne Titel), oder bei mindestens
-    zwei Woertern sind die einen ganz in den anderen enthalten ("Härle-Wack" in
-    "Dr. Johannes Härle-Wack")."""
+    zwei Woertern sind die einen ganz in den anderen enthalten ("Huber-Weber" in
+    "Dr. Jonas Huber-Weber")."""
     t = _kern(name)
     if not t:
         return False

@@ -19,7 +19,7 @@ class _Entry:
 
 
 TEXT = (
-    "Commerzbank AG Depotauszug per 31.12.2024 fuer Johannes Wack. "
+    "Commerzbank AG Depotauszug per 31.12.2024 fuer Jonas Weber. "
     "Wertpapiere und Kurswerte. Rechnung fuer Depotgebuehren."
 )
 

@@ -27,7 +27,7 @@ _TITLE_TOKENS = {
 
 
 def derive_initials(full_name: str, max_letters: int = 3) -> str:
-    """Leitet Initialen aus einem Namen ab: "Dr. med. Johannes Härle-Wack" -> "JHW".
+    """Leitet Initialen aus einem Namen ab: "Dr. med. Jonas Huber-Weber" -> "JHW".
 
     Titel (Dr., Prof., med. ...) werden uebersprungen, Bindestrich-Namen
     liefern je einen Buchstaben. Umlaute werden zu ASCII (Ä -> A).
@@ -730,9 +730,9 @@ REGELN FÜR DEN DATEINAMEN:
    Steuerjahr = Jahr des Dokumentdatums, ausser das Dokument betrifft ausdruecklich ein
    anderes Jahr (z.B. Steuerbescheid fuer 2003).
 5. Kontakt/Korrespondent ist immer der NAME einer Person oder Organisation
-   (z.B. Kathrin_Haerle, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
+   (z.B. Karin_Huber, Agentur_fuer_Arbeit, HUK-Coburg), niemals eine E-Mail-Adresse,
    Telefonnummer, IBAN oder Web-Adresse. Steht nur eine E-Mail-Adresse im Dokument,
-   leite den Namen daraus ab (kathrin.haerle@web.de -> Kathrin_Haerle).
+   leite den Namen daraus ab (karin.huber@example.com -> Karin_Huber).
 6. Keine nichtssagenden Woerter wie "Sonstiges", "Unbekannt", "Dokument" oder "Scan"
    im Dateinamen. Passt keine der Standard-Kategorien, benenne konkret, worum es
    geht (z.B. Klaviernoten_Bach_Praeludium, Bedienungsanleitung_Waschmaschine).

@@ -834,7 +834,7 @@ class SettingsDialog(QDialog):
         from src.ml.llm_provider import derive_initials
         derived = derive_initials(text)
         self.owner_initials_input.setPlaceholderText(
-            tr("{derived} (aus dem Namen)").format(derived=derived) if derived else tr("z.B. JW")
+            tr("{derived} (aus dem Namen)").format(derived=derived) if derived else tr("z.B. MM")
         )
         self._update_filename_previews()
 
@@ -942,12 +942,12 @@ class SettingsDialog(QDialog):
         user_layout = QFormLayout(user_group)
 
         self.owner_name_input = QLineEdit()
-        self.owner_name_input.setPlaceholderText(tr("z.B. Johannes Härle-Wack"))
+        self.owner_name_input.setPlaceholderText(tr("z.B. Max Mustermann"))
         self.owner_name_input.setToolTip(tr("Ihr vollständiger Name"))
         user_layout.addRow(tr("Name:"), self.owner_name_input)
 
         self.owner_initials_input = QLineEdit()
-        self.owner_initials_input.setPlaceholderText(tr("z.B. JW"))
+        self.owner_initials_input.setPlaceholderText(tr("z.B. MM"))
         self.owner_initials_input.setMaximumWidth(80)
         self.owner_initials_input.setToolTip(
             tr("2-3 Großbuchstaben für den Platzhalter {initialen} in Dateinamen.\n"
@@ -956,7 +956,7 @@ class SettingsDialog(QDialog):
         user_layout.addRow(tr("Initialen:"), self.owner_initials_input)
 
         self.owner_variants_input = QLineEdit()
-        self.owner_variants_input.setPlaceholderText(tr("z.B. J. Härle-Wack, Härle-Wack"))
+        self.owner_variants_input.setPlaceholderText(tr("z.B. M. Mustermann, Mustermann"))
         self.owner_variants_input.setToolTip(
             tr("Weitere Schreibweisen Ihres Namens (kommagetrennt),\n"
             "die auf Dokumenten vorkommen können.")
@@ -964,7 +964,7 @@ class SettingsDialog(QDialog):
         user_layout.addRow(tr("Namensvarianten:"), self.owner_variants_input)
 
         self.owner_company_input = QLineEdit()
-        self.owner_company_input.setPlaceholderText(tr("z.B. Härle-Wack GbR (optional)"))
+        self.owner_company_input.setPlaceholderText(tr("z.B. Mustermann GbR (optional)"))
         self.owner_company_input.setToolTip(tr("Ihre eigene Firma (falls vorhanden)"))
         user_layout.addRow(tr("Eigene Firma:"), self.owner_company_input)
 

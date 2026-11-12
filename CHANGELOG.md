@@ -28,6 +28,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Dateinamen vor“ und „Welche Metadaten erkennst du?“. Quellen im Chat lassen sich per
   Rechtsklick „Im Ordner anzeigen“, wie im Reiter „Suche“.
 
+### Geändert
+- **Beispieltexte unter „Persönliche Daten“**: Die grauen Beispiele in den Eingabefeldern zeigen
+  jetzt erfundene Angaben (Max Mustermann, Initialen MM).
+
 ## [0.26.2] - 2026-11-10
 
 ### Neu
@@ -1130,7 +1134,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Behoben
 - **Dateinamen ohne verbotene/unguenstige Zeichen**: KI-Vorschlaege wie
-  `..._kathrin.haerle@web.de.pdf` enthielten Punkte und Klammeraffen.
+  `..._karin.huber@example.com.pdf` enthielten Punkte und Klammeraffen.
   Neue zentrale Bereinigung (`src/utils/filename_sanitizer.py`) ersetzt
   Windows-verbotene Zeichen (`<>:"/\|?*`), Steuerzeichen,
   `.` und `@` durch `_`, wandelt Umlaute/Akzente um, fasst Unterstriche
@@ -1141,11 +1145,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Umbenennung zu blockieren. Der KI-Prompt verbietet Punkte/E-Mail-Adressen
   im Namen explizit und verlangt fuer Kontakt/Absender den Namen einer
   Person oder Organisation. Rutscht doch eine Adresse durch, wird sie in
-  einen Namen umgewandelt (`kathrin.haerle@web.de` -> `Kathrin_Haerle`,
+  einen Namen umgewandelt (`karin.huber@example.com` -> `Karin_Huber`,
   `info@huk-coburg.de` -> `Huk-Coburg`); die Vorschau weist darauf hin.
   Enthaelt das Dateinamen-Muster `INITIALEN`/`INITIALIEN`, erklaert der
   Prompt jetzt, dass 2-3 Grossbuchstaben gemeint sind (vorher kam
-  `J_Haerle-Wack` statt `JHW`), und gibt die Initialen aus den
+  `J_Huber-Weber` statt `JHW`), und gibt die Initialen aus den
   Einstellungen bzw. aus dem Besitzernamen abgeleitet vor.
 - **KI-Vorschlaege fehlten still** bei Reasoning-Modellen (z.B. GLM-5.3-flash
   via OpenRouter): das Modell verbrauchte das Token-Budget fuers Nachdenken,

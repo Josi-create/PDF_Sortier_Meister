@@ -94,12 +94,12 @@ class Config:
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
         # Persönliche Daten (damit das System den Benutzer kennt)
-        "owner_name": "",           # z.B. "Johannes Härle-Wack"
+        "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
         "owner_company": "",        # Eigene Firma (falls vorhanden)
         "owner_address": "",        # Adresse (für Erkennung auf Dokumenten)
         "owner_emails": "",         # Eigene E-Mail-Adressen (kommagetrennt)
-        "owner_initials": "",       # z.B. "JW" - fuer {initialen} in Dateinamen
+        "owner_initials": "",       # z.B. "MM" - fuer {initialen} in Dateinamen
         # Benutzerdefiniertes Dateinamen-Muster (leer = LLM-Default).
         # Wird als Few-Shot-Hinweis in den Filename-Prompt eingeflochten.
         "filename_pattern": "",

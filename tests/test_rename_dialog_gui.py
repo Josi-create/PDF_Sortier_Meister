@@ -231,8 +231,8 @@ def test_preview_shows_sanitized_name_and_keeps_button_enabled(qtbot, pdf_path):
     """Punkt/@ werden in der Vorschau ersetzt; Umbenennen bleibt moeglich."""
     dlg = RenameDialog(pdf_path=pdf_path)
     qtbot.addWidget(dlg)
-    dlg.name_input.setText("Meldung: kathrin.haerle@web.de")
-    assert dlg.preview_label.text() == "Meldung_Kathrin_Haerle.pdf"
+    dlg.name_input.setText("Meldung: karin.huber@example.com")
+    assert dlg.preview_label.text() == "Meldung_Karin_Huber.pdf"
     assert dlg.warning_label.isVisibleTo(dlg)
     assert "E-Mail" in dlg.warning_label.text()
     assert ":" in dlg.warning_label.text()
