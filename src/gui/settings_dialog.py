@@ -552,9 +552,9 @@ class SettingsDialog(QDialog):
         sep_row.setSpacing(4)
         self.pattern_sep_buttons = []
         for label, sep, tip in (
-            ("Leerzeichen", " ", "Leerzeichen einfuegen"),
-            ("_", "_", "Unterstrich einfuegen"),
-            ("-", "-", "Bindestrich einfuegen"),
+            (tr("Leerzeichen"), " ", tr("Leerzeichen einfuegen")),
+            ("_", "_", tr("Unterstrich einfuegen")),
+            ("-", "-", tr("Bindestrich einfuegen")),
         ):
             btn = QPushButton(label)
             btn.setToolTip(tip)
@@ -1486,9 +1486,9 @@ class SettingsDialog(QDialog):
         text_layout = QFormLayout(text_group)
         self.search_textlayer_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – keine PDF wird verändert", "aus"),
-            ("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – keine PDF wird verändert"), "aus"),
+            (tr("Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)"), "alle"),
         ):
             self.search_textlayer_combo.addItem(label, stufe)
         self._search_textlayer_previous = "aus"
@@ -1519,9 +1519,9 @@ class SettingsDialog(QDialog):
         # Gedrehte Scans (Issue #151)
         self.search_autorotate_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – Seiten bleiben, wie sie gescannt wurden", "aus"),
-            ("Alle PDFs, deren Texterkennung eine gedrehte Seite findet", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – Seiten bleiben, wie sie gescannt wurden"), "aus"),
+            (tr("Alle PDFs, deren Texterkennung eine gedrehte Seite findet"), "alle"),
         ):
             self.search_autorotate_combo.addItem(label, stufe)
         self.search_autorotate_combo.setToolTip(
@@ -1540,9 +1540,9 @@ class SettingsDialog(QDialog):
         # Schief gescannte Seiten (Issue #165)
         self.search_deskew_combo = QComboBox()
         for label, stufe in (
-            ("Nur neue Scans im ersten Vorrang-Ordner (Standard)", "neue_scans"),
-            ("Aus – Seiten bleiben, wie sie gescannt wurden", "aus"),
-            ("Alle neu eingelesenen gescannten PDFs", "alle"),
+            (tr("Nur neue Scans im ersten Vorrang-Ordner (Standard)"), "neue_scans"),
+            (tr("Aus – Seiten bleiben, wie sie gescannt wurden"), "aus"),
+            (tr("Alle neu eingelesenen gescannten PDFs"), "alle"),
         ):
             self.search_deskew_combo.addItem(label, stufe)
         self.search_deskew_combo.setToolTip(

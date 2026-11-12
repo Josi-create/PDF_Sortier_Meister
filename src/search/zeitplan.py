@@ -484,7 +484,7 @@ def zustand_text(z: dict) -> str:
     if not z.get("unterstuetzt"):
         return tr("Hintergrundindexierung: auf diesem Betriebssystem nicht unterstützt.")
     zeilen = []
-    for art, titel in (("index", "Hintergrundindexierung"), ("web", "Web-Oberfläche bei Anmeldung")):
+    for art, titel in (("index", tr("Hintergrundindexierung")), ("web", tr("Web-Oberfläche bei Anmeldung"))):
         ist = z.get(art)
         if not ist:
             zeilen.append(tr("{titel}: nicht eingerichtet").format(titel=titel))

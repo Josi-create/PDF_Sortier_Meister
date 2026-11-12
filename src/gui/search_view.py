@@ -562,8 +562,8 @@ class SearchView(QWidget):
         # PDFSM-Metadaten (Phase 5): Steuerjahr, Kategorie, Korrespondent, Betrag
         filter3 = QHBoxLayout()
         self.meta_combos: dict[str, QComboBox] = {}
-        for feld, beschriftung in (("steuerjahr", "Steuerjahr:"), ("kategorie", "Kategorie:"),
-                                   ("korrespondent", "Korrespondent:")):
+        for feld, beschriftung in (("steuerjahr", tr("Steuerjahr:")), ("kategorie", tr("Kategorie:")),
+                                   ("korrespondent", tr("Korrespondent:"))):
             filter3.addWidget(QLabel(beschriftung))
             combo = QComboBox()
             combo.addItem(tr("Alle"), "")

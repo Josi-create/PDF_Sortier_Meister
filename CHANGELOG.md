@@ -12,10 +12,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   deutsch eingestellt, bleibt alles deutsch; bei jeder anderen Systemsprache erscheint das
   Programm englisch. Umstellen lässt sich das unter Einstellungen → Allgemein → „Sprache“, die
   Änderung gilt nach dem Neustart. Wer das Programm schon benutzt, behält Deutsch. Englisch sind
-  Hauptfenster, Menüs, Einstellungen, Einrichtungsassistent, Suche, Chat, Korrespondenten und die
-  Dialoge. Noch deutsch bleiben vorerst: Dateinamen, Kategorien und Zusammenfassungen der KI, die
-  Platzhalter für Dateinamen, Statustexte und Browser-Oberfläche der Dokumentensuche sowie einige
-  seltene Meldungen. Dazu gibt es eine englische Programmbeschreibung (README.en.md).
+  Hauptfenster, Menüs, Einstellungen, Einrichtungsassistent, Suche, Chat, Korrespondenten, die
+  Dialoge und Meldungen sowie die Browser-Oberfläche und die Kommandozeile der Dokumentensuche.
+  Noch deutsch bleiben vorerst: Dateinamen, Kategorien und Zusammenfassungen der KI, die
+  Platzhalter und Vorlagen für Dateinamen und die Schnellfragen im Chat. Die Schlüsselwörter der
+  Suche (ODER, NICHT, ab, bis) sind in beiden Sprachen gleich. Dazu gibt es eine englische
+  Programmbeschreibung (README.en.md).
 - **Der Chat schlägt Aktionen vor, du entscheidest per Klick**: Unter einer Antwort erscheinen
   Knöpfe wie „📁 Nach Ablage/Energie/2024 verschieben“, „✏️ Umbenennen in 2024-03-01 Stadtwerke
   Jahresabrechnung.pdf“ oder „🏷️ Metadaten übernehmen: Korrespondent Stadtwerke, Steuerjahr

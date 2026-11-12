@@ -27,8 +27,8 @@ in German; with any other system language it starts in English. You can change t
 *Settings → General → Language* (takes effect after a restart).
 
 Still German in the English version for now: file names, categories and summaries suggested by
-the AI, the file name placeholders, parts of the document search (status texts, browser
-interface, command line) and some rarely seen messages.
+the AI, the file name placeholders and templates, and the quick questions in the chat. The search
+keywords (`ODER`, `NICHT`, `ab`, `bis`) are the same in both languages.
 
 ## Installation
 

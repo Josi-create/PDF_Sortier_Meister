@@ -256,11 +256,11 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                 convert.setToolTip(tr("Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild"))
                 convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
                 for text, modus, tipp in (
-                    ("In PDF umwandeln und automatisch entzerren", "auto",
-                     "Erkennt das Blatt im Foto, zieht es gerade und gleicht die Tonwerte an. "
-                     "Ist die Erkennung unsicher, öffnet sich das Entzerren-Fenster."),
-                    ("In PDF umwandeln und von Hand entzerren", "hand",
-                     "Öffnet ein Fenster, in dem Sie die vier Ecken des Blatts selbst setzen."),
+                    (tr("In PDF umwandeln und automatisch entzerren"), "auto",
+                     tr("Erkennt das Blatt im Foto, zieht es gerade und gleicht die Tonwerte an. "
+                     "Ist die Erkennung unsicher, öffnet sich das Entzerren-Fenster.")),
+                    (tr("In PDF umwandeln und von Hand entzerren"), "hand",
+                     tr("Öffnet ein Fenster, in dem Sie die vier Ecken des Blatts selbst setzen.")),
                 ):
                     aktion = menu.addAction(text)
                     aktion.setToolTip(tipp)
@@ -273,15 +273,15 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                 # Entzerren (Issue #205): Untermenue, damit das Menue schlank bleibt
                 sub = menu.addMenu(tr("Fotos entzerren ({anzahl} Bilder)").format(anzahl=len(bilder)))
                 for text, art, modus, tipp in (
-                    ("Einzeln in PDFs umwandeln und automatisch entzerren", "einzeln", "auto",
-                     "Je Foto ein PDF; das Blatt wird erkannt und gerade gezogen. "
-                     "Bei unsicherer Erkennung öffnet sich das Entzerren-Fenster."),
-                    ("Einzeln in PDFs umwandeln und von Hand entzerren", "einzeln", "hand",
-                     "Je Foto ein PDF; die Ecken legen Sie selbst im Entzerren-Fenster fest."),
-                    ("Zu einem PDF zusammenfügen und automatisch entzerren", "zusammen", "auto",
-                     "Ein PDF aus allen markierten Fotos; Blatt erkannt und gerade gezogen."),
-                    ("Zu einem PDF zusammenfügen und von Hand entzerren", "zusammen", "hand",
-                     "Ein PDF aus allen markierten Fotos; die Ecken legen Sie selbst fest."),
+                    (tr("Einzeln in PDFs umwandeln und automatisch entzerren"), "einzeln", "auto",
+                     tr("Je Foto ein PDF; das Blatt wird erkannt und gerade gezogen. "
+                     "Bei unsicherer Erkennung öffnet sich das Entzerren-Fenster.")),
+                    (tr("Einzeln in PDFs umwandeln und von Hand entzerren"), "einzeln", "hand",
+                     tr("Je Foto ein PDF; die Ecken legen Sie selbst im Entzerren-Fenster fest.")),
+                    (tr("Zu einem PDF zusammenfügen und automatisch entzerren"), "zusammen", "auto",
+                     tr("Ein PDF aus allen markierten Fotos; Blatt erkannt und gerade gezogen.")),
+                    (tr("Zu einem PDF zusammenfügen und von Hand entzerren"), "zusammen", "hand",
+                     tr("Ein PDF aus allen markierten Fotos; die Ecken legen Sie selbst fest.")),
                 ):
                     aktion = sub.addAction(text)
                     aktion.setToolTip(tipp)

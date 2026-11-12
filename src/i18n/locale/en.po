@@ -3061,6 +3061,7 @@ msgid "Scan-Ordner gesetzt: {folder}"
 msgstr "Scan folder set: {folder}"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
 msgid "Steuerjahr:"
 msgstr "Tax year:"
 
@@ -3075,6 +3076,7 @@ msgid "Nur Dokumente aus diesem Steuerjahr anzeigen"
 msgstr "Show only documents from this tax year"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
 msgid "Kategorie:"
 msgstr "Category:"
 
@@ -3083,6 +3085,7 @@ msgid "Nur Dokumente dieser Kategorie anzeigen"
 msgstr "Show only documents of this category"
 
 #: src/gui/main_window.py
+#: src/gui/search_view.py
 msgid "Korrespondent:"
 msgstr "Correspondent:"
 
@@ -3670,6 +3673,22 @@ msgid "Erzeugt ein durchsuchbares PDF (Texterkennung) neben dem Bild"
 msgstr "Creates a searchable PDF (text recognition) next to the image"
 
 #: src/gui/office_thumbnail.py
+msgid "In PDF umwandeln und automatisch entzerren"
+msgstr "Convert to PDF and correct perspective automatically"
+
+#: src/gui/office_thumbnail.py
+msgid "Erkennt das Blatt im Foto, zieht es gerade und gleicht die Tonwerte an. Ist die Erkennung unsicher, öffnet sich das Entzerren-Fenster."
+msgstr "Detects the sheet in the photo, straightens it and adjusts the tones. If the detection is uncertain, the perspective window opens."
+
+#: src/gui/office_thumbnail.py
+msgid "In PDF umwandeln und von Hand entzerren"
+msgstr "Convert to PDF and correct perspective by hand"
+
+#: src/gui/office_thumbnail.py
+msgid "Öffnet ein Fenster, in dem Sie die vier Ecken des Blatts selbst setzen."
+msgstr "Opens a window in which you set the four corners of the sheet yourself."
+
+#: src/gui/office_thumbnail.py
 msgid "Zu einem PDF zusammenfügen ({anzahl} Bilder)"
 msgstr "Merge into one PDF ({anzahl} images)"
 
@@ -3680,6 +3699,38 @@ msgstr "One PDF from the marked images, in the order of the view"
 #: src/gui/office_thumbnail.py
 msgid "Fotos entzerren ({anzahl} Bilder)"
 msgstr "Correct perspective of photos ({anzahl} images)"
+
+#: src/gui/office_thumbnail.py
+msgid "Einzeln in PDFs umwandeln und automatisch entzerren"
+msgstr "Convert to separate PDFs and correct perspective automatically"
+
+#: src/gui/office_thumbnail.py
+msgid "Je Foto ein PDF; das Blatt wird erkannt und gerade gezogen. Bei unsicherer Erkennung öffnet sich das Entzerren-Fenster."
+msgstr "One PDF per photo; the sheet is detected and straightened. If the detection is uncertain, the perspective window opens."
+
+#: src/gui/office_thumbnail.py
+msgid "Einzeln in PDFs umwandeln und von Hand entzerren"
+msgstr "Convert to separate PDFs and correct perspective by hand"
+
+#: src/gui/office_thumbnail.py
+msgid "Je Foto ein PDF; die Ecken legen Sie selbst im Entzerren-Fenster fest."
+msgstr "One PDF per photo; you set the corners yourself in the perspective window."
+
+#: src/gui/office_thumbnail.py
+msgid "Zu einem PDF zusammenfügen und automatisch entzerren"
+msgstr "Merge into one PDF and correct perspective automatically"
+
+#: src/gui/office_thumbnail.py
+msgid "Ein PDF aus allen markierten Fotos; Blatt erkannt und gerade gezogen."
+msgstr "One PDF from all marked photos; sheet detected and straightened."
+
+#: src/gui/office_thumbnail.py
+msgid "Zu einem PDF zusammenfügen und von Hand entzerren"
+msgstr "Merge into one PDF and correct perspective by hand"
+
+#: src/gui/office_thumbnail.py
+msgid "Ein PDF aus allen markierten Fotos; die Ecken legen Sie selbst fest."
+msgstr "One PDF from all marked photos; you set the corners yourself."
 
 #: src/gui/office_thumbnail.py
 #: src/gui/pdf_thumbnail.py
@@ -5033,6 +5084,22 @@ msgid "Alle Platzhalter"
 msgstr "All placeholders"
 
 #: src/gui/settings_dialog.py
+msgid "Leerzeichen"
+msgstr "Space"
+
+#: src/gui/settings_dialog.py
+msgid "Leerzeichen einfuegen"
+msgstr "Insert a space"
+
+#: src/gui/settings_dialog.py
+msgid "Unterstrich einfuegen"
+msgstr "Insert an underscore"
+
+#: src/gui/settings_dialog.py
+msgid "Bindestrich einfuegen"
+msgstr "Insert a hyphen"
+
+#: src/gui/settings_dialog.py
 msgid "⌫ Zurücknehmen"
 msgstr "⌫ Take back"
 
@@ -5515,6 +5582,7 @@ msgstr "Include larger files by name only, from:"
 
 #: src/gui/settings_dialog.py
 #: src/gui/setup_wizard.py
+#: src/search/zeitplan.py
 msgid "Hintergrundindexierung"
 msgstr "Background indexing"
 
@@ -5571,6 +5639,18 @@ msgid "Gescannte PDFs verbessern (Textebene, Drehung, Schräglage)"
 msgstr "Improve scanned PDFs (text layer, rotation, skew)"
 
 #: src/gui/settings_dialog.py
+msgid "Nur neue Scans im ersten Vorrang-Ordner (Standard)"
+msgstr "Only new scans in the first priority folder (default)"
+
+#: src/gui/settings_dialog.py
+msgid "Aus – keine PDF wird verändert"
+msgstr "Off – no PDF is changed"
+
+#: src/gui/settings_dialog.py
+msgid "Alle texterkannten PDFs (auch Altbestand, nur auf ausdrücklichen Wunsch)"
+msgstr "All text-recognized PDFs (including existing files, only on explicit request)"
+
+#: src/gui/settings_dialog.py
 msgid "Textebene schreiben:"
 msgstr "Write text layer:"
 
@@ -5595,6 +5675,14 @@ msgid "Der erkannte Text wird als unsichtbare Textebene in die PDF gelegt, damit
 msgstr "The recognized text is placed in the PDF as an invisible text layer so that other programs (Explorer search, Acrobat, PaperPort) can find it and it can be selected. The scanned image stays unchanged; a backup copy is created before every change. Writing happens at the next index run, even if the file has been filed in the meantime. Signed, encrypted and PDF/A files as well as open files are left untouched."
 
 #: src/gui/settings_dialog.py
+msgid "Aus – Seiten bleiben, wie sie gescannt wurden"
+msgstr "Off – pages stay as they were scanned"
+
+#: src/gui/settings_dialog.py
+msgid "Alle PDFs, deren Texterkennung eine gedrehte Seite findet"
+msgstr "All PDFs in which text recognition finds a rotated page"
+
+#: src/gui/settings_dialog.py
 msgid "Liest die Texterkennung eine Seite erst gedreht richtig, wird die PDF so gespeichert"
 msgstr "If text recognition can only read a page correctly when rotated, the PDF is saved that way"
 
@@ -5605,6 +5693,10 @@ msgstr "Save rotated pages the right way up:"
 #: src/gui/settings_dialog.py
 msgid "Liest die Texterkennung eine Seite nicht, weil sie auf dem Kopf steht oder quer liegt, versucht sie die drei anderen Lagen und nimmt die beste. So herum wird die Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert."
 msgstr "If text recognition cannot read a page because it is upside down or sideways, it tries the three other orientations and takes the best one. The page is saved in that orientation – with a backup copy, in the log above, undoable like the text layer. Only the rotation setting changes, the scanned image stays unchanged."
+
+#: src/gui/settings_dialog.py
+msgid "Alle neu eingelesenen gescannten PDFs"
+msgstr "All newly read scanned PDFs"
 
 #: src/gui/settings_dialog.py
 msgid "Schief eingezogene Seiten werden um den kleinen Winkel gerade gedreht"
@@ -8456,6 +8548,10 @@ msgstr "Background indexing is not supported on this operating system."
 #: src/search/zeitplan.py
 msgid "Hintergrundindexierung: auf diesem Betriebssystem nicht unterstützt."
 msgstr "Background indexing: not supported on this operating system."
+
+#: src/search/zeitplan.py
+msgid "Web-Oberfläche bei Anmeldung"
+msgstr "Web interface at sign-in"
 
 #: src/search/zeitplan.py
 msgid "{titel}: nicht eingerichtet"
