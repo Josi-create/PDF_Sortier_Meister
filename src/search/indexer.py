@@ -38,6 +38,7 @@ from pathlib import Path
 
 from src.search import db, extract, mbox, office, plattform, textebene
 from src.search.konfig import SearchConfig
+from src.i18n import tr
 
 log = logging.getLogger("pdf_sortier_meister.suche")
 
@@ -405,7 +406,7 @@ class Indexer:
             if haengt is not None:
                 a = self.offen.pop(haengt)
                 log.warning("Zeitüberschreitung: %s", a.info.get("pfad"))
-                self._fehlgeschlagen(a, "Zeitüberschreitung")
+                self._fehlgeschlagen(a, tr("Zeitüberschreitung"))
                 rest = list(self.offen.values())
                 self.offen.clear()
                 self._pool_beenden()
@@ -429,11 +430,11 @@ class Indexer:
             res = fut.result(timeout=a.zeitlimit)
         except BrokenProcessPool:
             self._pool_beenden()
-            self._fehlgeschlagen(a, "Absturz beim Lesen (Datei beschädigt?)")
+            self._fehlgeschlagen(a, tr("Absturz beim Lesen (Datei beschädigt?)"))
             return
         except TimeoutError:
             self._pool_beenden()
-            self._fehlgeschlagen(a, "Zeitüberschreitung")
+            self._fehlgeschlagen(a, tr("Zeitüberschreitung"))
             return
         except Exception as e:
             self._fehlgeschlagen(a, extract.fehlertext(e, a.info.get("pfad")))
@@ -585,7 +586,7 @@ class Indexer:
 
     def _zeit_pruefen(self) -> None:
         if self.ende_zeit and time.monotonic() > self.ende_zeit:
-            raise Abbruch("Zeitlimit erreicht")
+            raise Abbruch(tr("Zeitlimit erreicht"))
         if self._anhalten_angefordert():
             raise Abbruch("angehalten")
         self._leerlauf_warten()
@@ -617,10 +618,10 @@ class Indexer:
         vorher = self.phase
         log.info("Nutzer aktiv – Lauf pausiert")
         self.stat["pausen"] += 1
-        self._phase(f"{vorher} – Pause (Nutzer aktiv)")
+        self._phase(tr("{vorher} – Pause (Nutzer aktiv)").format(vorher=vorher))
         while not self._leerlauf():
             if self.ende_zeit and time.monotonic() > self.ende_zeit:
-                raise Abbruch("Zeitlimit erreicht")
+                raise Abbruch(tr("Zeitlimit erreicht"))
             time.sleep(LEERLAUF_PAUSE_S)
         log.info("Leerlauf – Lauf geht weiter")
         self._phase(vorher)
@@ -963,7 +964,7 @@ class Indexer:
         for d in zeilen:
             if (self.ende_zeit and time.monotonic() > self.ende_zeit) or self._anhalten_angefordert():
                 self._abarbeiten()
-                raise Abbruch("angehalten" if anhalten_datei(self.konfig).exists() else "Zeitlimit erreicht")
+                raise Abbruch("angehalten" if anhalten_datei(self.konfig).exists() else tr("Zeitlimit erreicht"))
             a = textebene.auftrag(self.con, d, self.konfig, ocr, altbestand=altbestand)
             if a is None:
                 self.aenderungen += 1
@@ -1094,55 +1095,55 @@ class Indexer:
             self._bekannte_laden()
             erledigt: set[str] = set()
             if nur_textebene:
-                self._phase("Textebene schreiben")
+                self._phase(tr("Textebene schreiben"))
                 self._textebene()
                 if self.konfig.textebene == "alle":
-                    self._phase("Textebene Altbestand")
+                    self._phase(tr("Textebene Altbestand"))
                     self._textebene(altbestand=True)
             elif nur_pfad:
                 p = os.path.normpath(nur_pfad)
-                self._phase(f"Ordner {p}")
+                self._phase(tr("Ordner {p}").format(p=p))
                 if self._durchlaufen(p, 9, set()):
                     self._abarbeiten()
                     self._aufraeumen(p)
                 if not ohne_ocr:
-                    self._phase("Texterkennung (OCR)")
+                    self._phase(tr("Texterkennung (OCR)"))
                     self._ocr(p)
                 if self._schreiben_an():
-                    self._phase("Textebene schreiben")
+                    self._phase(tr("Textebene schreiben"))
                     self._textebene()
             else:
                 for prio, wurzel in enumerate(self.konfig.prioritaet):
-                    self._phase(f"Vorrang {prio + 1}: {wurzel}")
+                    self._phase(tr("Vorrang {0}: {wurzel}").format(prio + 1, wurzel=wurzel))
                     if self._durchlaufen(wurzel, prio, erledigt):
                         self._abarbeiten()
                         self._aufraeumen(wurzel)
                     erledigt.add(wurzel.lower())
                     if prio == 0 and not ohne_ocr:
-                        self._phase(f"OCR neue Scans: {wurzel}")
+                        self._phase(tr("OCR neue Scans: {wurzel}").format(wurzel=wurzel))
                         self._ocr(wurzel)
                 if not nur_prioritaet:
                     for wurzel in self.konfig.wurzeln:
-                        self._phase(f"Ordner {wurzel}")
+                        self._phase(tr("Ordner {wurzel}").format(wurzel=wurzel))
                         if self._durchlaufen(wurzel, 9, erledigt):
                             self._abarbeiten()
                             self._aufraeumen(wurzel)
                     self._abarbeiten()
                     self._aufraeumen_ausserhalb()
                     if not ohne_mail and self.konfig.mails_aktiv:
-                        self._phase("Thunderbird-Mails")
+                        self._phase(tr("Thunderbird-Mails"))
                         self._mails()
                 if not ohne_ocr:
-                    self._phase("Texterkennung (OCR)")
+                    self._phase(tr("Texterkennung (OCR)"))
                     self._ocr()
                     if not nur_prioritaet:
-                        self._phase("OCR-Cache ergänzen")
+                        self._phase(tr("OCR-Cache ergänzen"))
                         self._ocr_cache_ergaenzen()
                 if self._schreiben_an():
-                    self._phase("Textebene schreiben")
+                    self._phase(tr("Textebene schreiben"))
                     self._textebene()
                     if self.konfig.textebene == "alle" and not nur_prioritaet and not ohne_ocr:
-                        self._phase("Textebene Altbestand")
+                        self._phase(tr("Textebene Altbestand"))
                         self._textebene(altbestand=True)
             self._abarbeiten()
         except (KeyboardInterrupt, Abbruch) as e:

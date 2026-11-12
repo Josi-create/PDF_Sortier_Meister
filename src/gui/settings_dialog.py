@@ -1747,8 +1747,8 @@ class SettingsDialog(QDialog):
 
     def _mcp_code_eingerichtet(self, text) -> None:
         if isinstance(text, Exception):
-            text = f"Fehler: {text}"
-        if str(text).startswith("Fehler"):
+            text = tr("Fehler: {text}").format(text=text)
+        if str(text).startswith(tr("Fehler")):
             QMessageBox.warning(self, tr("Claude Code"), str(text))
         else:
             QMessageBox.information(self, tr("Claude Code"), str(text))
@@ -1792,7 +1792,7 @@ class SettingsDialog(QDialog):
         if antwort != QMessageBox.StandardButton.Yes:
             return
         text = mcp_einrichtung.claude_desktop_eintragen(status.pfad)
-        if text.startswith("Fehler"):
+        if text.startswith(tr("Fehler")):
             QMessageBox.warning(self, tr("Claude Desktop"), text)
         else:
             QMessageBox.information(self, tr("Claude Desktop"), text)
@@ -1907,7 +1907,7 @@ class SettingsDialog(QDialog):
         ocr = cfg.ocr_einstellungen()
         if ocr["tesseract"]:
             status = tr("Tesseract gefunden: {tesseract}").format(tesseract=ocr['tesseract'])
-            if ocr["grund"] and "Sprachdaten" in ocr["grund"]:
+            if ocr["grund"] and ocr["grund"].startswith(tr("Sprachdaten fehlen: {0}").format("")):
                 status += f" – {ocr['grund']}"
         else:
             status = tr("Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist.")

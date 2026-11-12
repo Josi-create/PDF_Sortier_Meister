@@ -40,6 +40,9 @@ def markierte_texte() -> dict[str, list[str]]:
                     kontext = ast.literal_eval(kw.value)
             schluessel = f"{kontext}\x04{node.args[0].value}" if kontext else node.args[0].value
             texte.setdefault(schluessel, []).append(ort)
+    for pfad in sorted(SRC.rglob("static/*.html")):
+        for text in i18n.texte_in_html(pfad.read_text(encoding="utf-8")):
+            texte.setdefault(text, []).append(pfad.relative_to(SRC.parent).as_posix())
     return texte
 
 
@@ -293,3 +296,37 @@ def test_begruendung_wird_erst_bei_der_anzeige_uebersetzt(sprache):
     assert reason_display("etwas anderes") == "etwas anderes"
     assert kind_from_reason("KI-Vorschlag") == KIND_KI
     assert kind_from_reason("Gelernt: ähnlich zu brief.pdf") == KIND_LEARNED
+
+
+def test_keine_lokale_variable_verdeckt_tr():
+    """Eine lokale Variable ``tr`` würde in derselben Funktion jeden ``tr("...")``-Aufruf brechen."""
+    funde = []
+    for pfad in sorted(SRC.rglob("*.py")):
+        tree = ast.parse(pfad.read_text(encoding="utf-8"))
+        for funktion in ast.walk(tree):
+            if not isinstance(funktion, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            knoten = list(ast.walk(funktion))
+            zuweisung = any(isinstance(k, ast.Name) and k.id == "tr" and isinstance(k.ctx, ast.Store)
+                            for k in knoten)
+            aufruf = any(isinstance(k, ast.Call) and isinstance(k.func, ast.Name) and k.func.id == "tr"
+                         for k in knoten)
+            if zuweisung and aufruf:
+                funde.append(f"{pfad.relative_to(SRC.parent).as_posix()}:{funktion.lineno} {funktion.name}")
+    assert not funde, funde
+
+
+def test_browser_oberflaeche_bekommt_die_texte_aus_derselben_po_datei(sprache):
+    from src.search import web
+
+    roh = (web.STATIC / "index.html").read_text(encoding="utf-8")
+    texte = i18n.texte_in_html(roh)
+    assert "Suchen" in texte and "Weitere Treffer laden" in texte and "z. B. Steuer" in texte
+    assert '"sprache": "de"' in web.startseite()
+    sprache("en")
+    seite = web.startseite()
+    assert '"sprache": "en"' in seite
+    assert '"Weitere Treffer laden": "Load more results"' in seite
+    assert "/*I18N*/" not in seite
+    # Schlüsselwörter der Suchsyntax bleiben in jeder Sprache gleich
+    assert "Mietvertrag ODER Pachtvertrag" in seite and "Rechnung NICHT Mahnung" in seite

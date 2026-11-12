@@ -28,6 +28,7 @@ from __future__ import annotations
 import ast
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -129,6 +130,7 @@ def po_literal(text: str) -> str:
     """Schreibt Text als .po-Zeichenkettenliteral (Gegenstück zu ``_po_text``)."""
     ersetzt = (
         text.replace("\\", "\\\\").replace('"', '\\"').replace("\t", "\\t").replace("\n", "\\n")
+        .replace("\r", "\\r")
     )
     return f'"{ersetzt}"'
 
@@ -286,6 +288,37 @@ def app_name() -> str:
     return _app_name
 
 
+# Texte der Browser-Oberflaeche (src/search/static/*.html): t("...") im Skript,
+# data-t am Element (Text des Elements) und data-tp vor placeholder="...".
+_HTML_MUSTER = (
+    re.compile(r'(?<![\w$.])t\("((?:[^"\\]|\\.)*)"'),
+    re.compile(r"\bdata-t>\s*([^<]+?)\s*<"),
+    re.compile(r'\bdata-tp placeholder="([^"]*)"'),
+)
+
+
+def texte_in_html(html: str) -> list[str]:
+    """Die übersetzbaren Texte einer HTML-Seite, in der Reihenfolge des Vorkommens."""
+    funde: list[tuple[int, str]] = []
+    for nummer, muster in enumerate(_HTML_MUSTER):
+        for treffer in muster.finditer(html):
+            text = treffer.group(1)
+            if nummer == 0:
+                text = text.replace('\\"', '"').replace("\\\\", "\\")
+            funde.append((treffer.start(), text))
+    ergebnis: list[str] = []
+    for _, text in sorted(funde):
+        if text not in ergebnis:
+            ergebnis.append(text)
+    return ergebnis
+
+
+def translate(text: str) -> str:
+    """Wie :func:`tr`, aber für Texte, die nicht als Literal im Python-Code stehen
+    (Texte aus HTML-Seiten). Im Python-Code immer ``tr("...")`` verwenden."""
+    return _uebersetze(text, None)
+
+
 def tr(text: str, kontext: str | None = None) -> str:
     """Übersetzt einen Text der Oberfläche in die eingestellte Sprache.
 
@@ -297,6 +330,10 @@ def tr(text: str, kontext: str | None = None) -> str:
         kontext: unterscheidet gleiche deutsche Texte mit verschiedenen
             Übersetzungen (``msgctxt`` in der .po-Datei)
     """
+    return _uebersetze(text, kontext)
+
+
+def _uebersetze(text: str, kontext: str | None) -> str:
     if _language is None:
         _initialise()
     if _language == SOURCE_LANGUAGE:

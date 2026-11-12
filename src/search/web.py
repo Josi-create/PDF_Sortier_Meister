@@ -9,8 +9,10 @@ lesen; „Jetzt indizieren“ startet den Dienst als eigenen Prozess.
 from __future__ import annotations
 
 import io
+import json
 import mimetypes
 import os
+import re
 import threading
 import webbrowser
 from pathlib import Path
@@ -19,8 +21,21 @@ from src.search import fenster, mbox
 from src.search.konfig import SearchConfig
 from src.search.plattform import im_dateimanager_zeigen as _im_dateimanager_zeigen
 from src.search.suchindex import Suchindex
+from src.i18n import tr
 
 STATIC = Path(__file__).parent / "static"
+_I18N_ZEILE = re.compile(r"const I18N = .*?; /\*I18N\*/")
+
+
+def startseite() -> str:
+    """index.html mit Sprache und Texten aus src/i18n (dieselbe .po-Datei wie das Programm)."""
+    from src.i18n import current_language, texte_in_html, translate
+
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    daten = {"sprache": current_language(),
+             "texte": {text: translate(text) for text in texte_in_html(html)}}
+    einsatz = "const I18N = " + json.dumps(daten, ensure_ascii=False).replace("</", "<\\/") + ";"
+    return _I18N_ZEILE.sub(lambda _treffer: einsatz, html, count=1)
 ERLAUBTE_HOSTS = {"127.0.0.1", "localhost"}
 
 
@@ -44,7 +59,7 @@ def erstelle_app(konfig: SearchConfig):
 
     @app.get("/")
     def start():
-        return send_from_directory(STATIC, "index.html")
+        return app.response_class(startseite(), mimetype="text/html")
 
     @app.get("/static/<path:name>")
     def statisch(name):
@@ -89,7 +104,7 @@ def erstelle_app(konfig: SearchConfig):
             return send_file(io.BytesIO(roh), mimetype="message/rfc822", as_attachment=True,
                              download_name=_dateiname(d["name"]) + ".eml")
         if not os.path.exists(d["datei"]):
-            abort(404, "Datei existiert nicht mehr")
+            abort(404, tr("Datei existiert nicht mehr"))
         if d["format"] == "md":
             return send_file(d["datei"], mimetype="text/plain; charset=utf-8")
         mt = mimetypes.guess_type(d["datei"])[0] or "application/octet-stream"
@@ -106,21 +121,21 @@ def erstelle_app(konfig: SearchConfig):
         elif os.path.exists(d["datei"]):
             fenster.starte(d["datei"])
         else:
-            return jsonify({"ok": False, "fehler": "Datei existiert nicht mehr"}), 404
+            return jsonify({"ok": False, "fehler": tr("Datei existiert nicht mehr")}), 404
         return jsonify({"ok": True})
 
     @app.post("/api/ordner/<int:dok_id>")
     def ordner(dok_id):
         d = _dok_oder_404(dok_id)
         if not os.path.exists(d["datei"]):
-            return jsonify({"ok": False, "fehler": "Datei existiert nicht mehr"}), 404
+            return jsonify({"ok": False, "fehler": tr("Datei existiert nicht mehr")}), 404
         fenster.ordner_zeigen(d["datei"], _im_dateimanager_zeigen)
         return jsonify({"ok": True})
 
     @app.post("/api/index-starten")
     def index_starten():
         if idx.laeuft_gerade():
-            return jsonify({"ok": False, "fehler": "Läuft bereits"})
+            return jsonify({"ok": False, "fehler": tr("Läuft bereits")})
         idx.lauf_starten(nur_prioritaet=request.args.get("nur_prioritaet") == "1")
         return jsonify({"ok": True})
 
@@ -133,7 +148,7 @@ def starte(konfig: SearchConfig, port: int | None = None, oeffnen: bool = True) 
     app = erstelle_app(konfig)
     if oeffnen:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    print(f"Dokumentensuche läuft auf {url}  (Beenden: Strg+C)")
+    print(tr("Dokumentensuche läuft auf {url}  (Beenden: Strg+C)").format(url=url))
     try:
         from waitress import serve
         serve(app, host=konfig.web_host, port=port, threads=8)

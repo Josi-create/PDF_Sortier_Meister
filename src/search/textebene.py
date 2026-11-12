@@ -67,6 +67,7 @@ from pathlib import Path
 
 from src.search import db, extract, plattform
 from src.search import gerade as geraderichten
+from src.i18n import tr
 
 log = logging.getLogger("pdf_sortier_meister.suche")
 
@@ -76,25 +77,25 @@ BYTES_JE_SEITE = 4 * 1024      # Zuwachs einer PDF je Seite mit Textebene (Schri
 EBENE_AUFBEWAHREN_TAGE = 60    # so lange bleibt die Text-PDF im OCR-Cache (verlorene Textebene neu schreiben)
 
 GRUENDE = {
-    "signiert": "digital signiert",
-    "verschluesselt": "verschlüsselt",
-    "pdfa": "PDF/A (die Konformität bliebe nicht erhalten)",
-    "schreibgeschuetzt": "schreibgeschützt",
-    "leer": "keine erkannte Schrift",
-    "rueckgaengig": "Textebene wurde rückgängig gemacht",
-    "fehler": "Fehler beim Schreiben (siehe Protokoll)",
-    "nur_cloud": "liegt nur in der Cloud",
-    "gesperrt": "in einem anderen Programm geöffnet",
-    "geaendert": "seit der Texterkennung geändert",
-    "fehlt": "Datei nicht gefunden",
+    "signiert": tr("digital signiert"),
+    "verschluesselt": tr("verschlüsselt"),
+    "pdfa": tr("PDF/A (die Konformität bliebe nicht erhalten)"),
+    "schreibgeschuetzt": tr("schreibgeschützt"),
+    "leer": tr("keine erkannte Schrift"),
+    "rueckgaengig": tr("Textebene wurde rückgängig gemacht"),
+    "fehler": tr("Fehler beim Schreiben (siehe Protokoll)"),
+    "nur_cloud": tr("liegt nur in der Cloud"),
+    "gesperrt": tr("in einem anderen Programm geöffnet"),
+    "geaendert": tr("seit der Texterkennung geändert"),
+    "fehlt": tr("Datei nicht gefunden"),
 }
 # Gruende, bei denen kein Lauf es erneut versucht; die uebrigen sind voruebergehend
 DAUERHAFT = ("signiert", "verschluesselt", "pdfa", "schreibgeschuetzt", "leer", "rueckgaengig", "fehler")
 
 _DAUERHAFT_SQL = ", ".join(f"'{g}'" for g in DAUERHAFT)
 # Antwort von ``rueckgaengig``, wenn die Datei seither geaendert wurde (die Oberflaeche bietet dann ``erzwingen`` an)
-MELDUNG_GEAENDERT = ("Die Datei wurde seit dem Schreiben der Textebene geändert (z. B. Metadaten). "
-                     "Rückgängig machen würde diese Änderung verwerfen.")
+MELDUNG_GEAENDERT = (tr("Die Datei wurde seit dem Schreiben der Textebene geändert (z. B. Metadaten). "
+                     "Rückgängig machen würde diese Änderung verwerfen."))
 _SICHERUNG_ZEIT = re.compile(r"^(\d{8}-\d{6})_")
 
 
@@ -373,32 +374,32 @@ def pruefen(original: str, neu: str, ebenen, drehen: dict[int, int] | None = Non
         b = pymupdf.open(neu)
     except Exception as e:
         a.close()
-        raise PruefungFehlgeschlagen(f"neue Datei lässt sich nicht öffnen: {e}") from e
+        raise PruefungFehlgeschlagen(tr("neue Datei lässt sich nicht öffnen: {e}").format(e=e)) from e
     try:
         if b.is_repaired:
-            raise PruefungFehlgeschlagen("neue Datei musste beim Öffnen repariert werden")
+            raise PruefungFehlgeschlagen(tr("neue Datei musste beim Öffnen repariert werden"))
         if a.page_count != b.page_count:
-            raise PruefungFehlgeschlagen(f"Seitenzahl {a.page_count} -> {b.page_count}")
+            raise PruefungFehlgeschlagen(tr("Seitenzahl {page_count} -> {page_count2}").format(page_count=a.page_count, page_count2=b.page_count))
         for i in range(a.page_count):
             pa, pb = a[i], b[i]
             erwartet = (pa.rotation + drehen.get(i + 1, 0)) % 360
             if (pb.rotation != erwartet or _rechteck(pa.mediabox) != _rechteck(pb.mediabox)
                     or _rechteck(pa.cropbox) != _rechteck(pb.cropbox)):
-                raise PruefungFehlgeschlagen(f"Seite {i + 1}: Größe oder Drehung verändert")
+                raise PruefungFehlgeschlagen(tr("Seite {0}: Größe oder Drehung verändert").format(i + 1))
             soll = gerade[i + 1] if i + 1 in gerade else geraderichten.ausrichtung(a, pa)
             if abs(geraderichten.ausrichtung(b, pb) - soll) > 0.005:
-                raise PruefungFehlgeschlagen(f"Seite {i + 1}: Ausrichtung verändert")
+                raise PruefungFehlgeschlagen(tr("Seite {0}: Ausrichtung verändert").format(i + 1))
         for x in _bild_und_inhalt_xrefs(a):
             try:
                 gleich = a.xref_stream_raw(x) == b.xref_stream_raw(x)
             except Exception:
                 gleich = False
             if not gleich:
-                raise PruefungFehlgeschlagen(f"Bild- oder Inhalts-Stream {x} verändert")
+                raise PruefungFehlgeschlagen(tr("Bild- oder Inhalts-Stream {x} verändert").format(x=x))
         for nr in ebenen:
             seite = b[nr - 1]
             if not seite.get_text("text").strip() or not extract.hat_ocr_textebene(seite):
-                raise PruefungFehlgeschlagen(f"Seite {nr}: Textebene fehlt")
+                raise PruefungFehlgeschlagen(tr("Seite {nr}: Textebene fehlt").format(nr=nr))
     finally:
         b.close()
         a.close()
@@ -688,21 +689,21 @@ def rueckgaengig(con, konfig, eintrag_id: int, erzwingen: bool = False) -> tuple
 
     r = con.execute("SELECT * FROM textebene_protokoll WHERE id = ?", (eintrag_id,)).fetchone()
     if r is None:
-        return False, "Eintrag nicht gefunden."
+        return False, tr("Eintrag nicht gefunden.")
     if r["status"] != "geschrieben":
-        return False, "Diese Änderung wurde schon rückgängig gemacht."
+        return False, tr("Diese Änderung wurde schon rückgängig gemacht.")
     sicherung = r["sicherung"]
     if not sicherung or not os.path.isfile(sicherung):
-        return False, "Die Sicherungskopie gibt es nicht mehr (Aufbewahrungsfrist abgelaufen)."
+        return False, tr("Die Sicherungskopie gibt es nicht mehr (Aufbewahrungsfrist abgelaufen).")
     aktuell = con.execute("SELECT pfad FROM dokumente WHERE id = ?", (r["dok_id"],)).fetchone() if r["dok_id"] else None
     pfad = aktuell["pfad"] if aktuell else r["pfad"]
     if not os.path.isfile(pfad):
-        return False, f"Die Datei wurde nicht gefunden: {pfad}"
+        return False, tr("Die Datei wurde nicht gefunden: {pfad}").format(pfad=pfad)
     st = os.stat(pfad)
     if not erzwingen and (st.st_size, st.st_mtime_ns) != (r["groesse_nachher"], r["mtime_ns_nachher"]):
         return False, MELDUNG_GEAENDERT
     if plattform.gesperrt(pfad):
-        return False, "Die Datei ist in einem anderen Programm geöffnet. Bitte schließen und erneut versuchen."
+        return False, tr("Die Datei ist in einem anderen Programm geöffnet. Bitte schließen und erneut versuchen.")
     tmp = tmp_pfad(pfad)
     try:
         shutil.copyfile(sicherung, tmp)
@@ -712,11 +713,11 @@ def rueckgaengig(con, konfig, eintrag_id: int, erzwingen: bool = False) -> tuple
         os.utime(tmp, ns=(alt.st_atime_ns, alt.st_mtime_ns))   # urspruengliche Aenderungszeit zurueck
         plattform.datei_ersetzen(pfad, tmp)
     except FileNotFoundError:
-        return False, "Die Datei wurde währenddessen verschoben oder gelöscht."
+        return False, tr("Die Datei wurde währenddessen verschoben oder gelöscht.")
     except PermissionError:
-        return False, "Die Datei ist in einem anderen Programm geöffnet. Bitte schließen und erneut versuchen."
+        return False, tr("Die Datei ist in einem anderen Programm geöffnet. Bitte schließen und erneut versuchen.")
     except Exception as e:  # noqa: BLE001 - Original bleibt unveraendert
-        return False, f"Rückgängig machen fehlgeschlagen: {extract.fehlertext(e, pfad)}"
+        return False, tr("Rückgängig machen fehlgeschlagen: {0}").format(extract.fehlertext(e, pfad))
     finally:
         _weg(tmp)
     dok_id = einzeldatei_indizieren(con, konfig, pfad) or r["dok_id"]
@@ -728,7 +729,7 @@ def rueckgaengig(con, konfig, eintrag_id: int, erzwingen: bool = False) -> tuple
     con.commit()
     _weg(sicherung)
     log.info("Textebene rückgängig gemacht: %s", pfad)
-    return True, f"Das Original ist wiederhergestellt: {os.path.basename(pfad)}"
+    return True, tr("Das Original ist wiederhergestellt: {0}").format(os.path.basename(pfad))
 
 
 def aufraeumen(con, konfig, jetzt: datetime | None = None) -> dict:
@@ -810,32 +811,38 @@ def groesse_text(n: int) -> str:
 
 def dauer_text(sekunden: float) -> str:
     if sekunden < 90:
-        return "wenige Minuten"
+        return tr("wenige Minuten")
     minuten = sekunden / 60
     if minuten < 90:
-        return f"etwa {round(minuten)} Minuten"
+        return tr("etwa {0} Minuten").format(round(minuten))
     stunden = minuten / 60
     if stunden < 48:
-        return f"etwa {round(stunden)} Stunden"
-    return f"etwa {round(stunden / 24)} Tage"
+        return tr("etwa {0} Stunden").format(round(stunden))
+    return tr("etwa {0} Tage").format(round(stunden / 24))
 
 
 def schaetzung_text(s: dict) -> str:
     """Schaetzung als kurzer Text (Einstellungen, ``pdfsm-dienst textebene schaetzen``)."""
     if not s["dateien"]:
-        return "Im Index gibt es keine texterkannten PDFs ohne Textebene."
+        return tr("Im Index gibt es keine texterkannten PDFs ohne Textebene.")
     teile = [
-        f"{_zahl(s['dateien'])} texterkannte PDFs mit {_zahl(s['seiten'])} Seiten bekommen eine Textebene.",
-        f"Tesseract muss jede Seite noch einmal lesen (der Index kennt nur den Text, nicht seine Lage): "
-        f"{dauer_text(s['sekunden'])} mit {s['prozesse']} Prozessen, im Hintergrund und jederzeit anhaltbar.",
+        tr("{0} texterkannte PDFs mit {1} Seiten bekommen eine Textebene.").format(_zahl(s['dateien']), _zahl(s['seiten'])),
+        tr(
+            "Tesseract muss jede Seite noch einmal lesen (der Index kennt nur den Text, "
+            "nicht seine Lage): {0} mit {prozesse} Prozessen, im Hintergrund und jederzeit "
+            "anhaltbar."
+        ).format(dauer_text(s['sekunden']), prozesse=s['prozesse']),
     ]
     if s["onedrive_dateien"]:
-        teile.append(f"{_zahl(s['onedrive_dateien'])} Dateien liegen in OneDrive und werden neu hochgeladen "
-                     f"(etwa {groesse_text(s['onedrive_bytes'])}).")
+        teile.append(tr("{0} Dateien liegen in OneDrive und werden neu hochgeladen (etwa {1}).").format(_zahl(s['onedrive_dateien']), groesse_text(s['onedrive_bytes'])))
     if s["sicherung_tage"]:
-        teile.append(f"Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu "
-                     f"{groesse_text(s['bytes'])} und werden nach {s['sicherung_tage']} Tagen gelöscht.")
+        teile.append(tr(
+            "Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu {0} und "
+            "werden nach {sicherung_tage} Tagen gelöscht."
+        ).format(groesse_text(s['bytes']), sicherung_tage=s['sicherung_tage']))
     else:
-        teile.append(f"Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu "
-                     f"{groesse_text(s['bytes'])} und bleiben unbegrenzt erhalten.")
+        teile.append(tr(
+            "Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu {0} und "
+            "bleiben unbegrenzt erhalten."
+        ).format(groesse_text(s['bytes'])))
     return "\n\n".join(teile)

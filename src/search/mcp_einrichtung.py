@@ -26,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.search import plattform
+from src.i18n import tr
 
 SERVER_NAME = "pdfsuche"
 
@@ -161,15 +162,15 @@ def claude_code_status(aufruf: DienstAufruf | None = None) -> Status:
     """``nicht_gefunden`` (kein ``claude``), ``installiert``, ``eingerichtet`` oder ``anderer_pfad``."""
     programm = claude_programm()
     if not programm:
-        return Status(NICHT_GEFUNDEN, "nicht gefunden (Befehl „claude“ fehlt im Suchpfad)")
+        return Status(NICHT_GEFUNDEN, tr("nicht gefunden (Befehl „claude“ fehlt im Suchpfad)"))
     try:
         r = _ausfuehren([programm, "mcp", "get", SERVER_NAME])
     except subprocess.TimeoutExpired:
-        return Status(FEHLER, f"keine Antwort von „claude mcp get“ nach {CLAUDE_ZEITLIMIT_S:.0f} s")
+        return Status(FEHLER, tr("keine Antwort von „claude mcp get“ nach {CLAUDE_ZEITLIMIT_S:.0f} s").format(CLAUDE_ZEITLIMIT_S=CLAUDE_ZEITLIMIT_S))
     except OSError as exc:
-        return Status(FEHLER, f"„claude“ ließ sich nicht starten: {exc}")
+        return Status(FEHLER, tr("„claude“ ließ sich nicht starten: {exc}").format(exc=exc))
     if r.returncode != 0:
-        return Status(INSTALLIERT, f"installiert, „{SERVER_NAME}“ noch nicht eingerichtet")
+        return Status(INSTALLIERT, tr("installiert, „{SERVER_NAME}“ noch nicht eingerichtet").format(SERVER_NAME=SERVER_NAME))
     aufruf = aufruf or dienst_aufruf()
     befehl = _feld(r.stdout, "Command")
     argumente = _feld(r.stdout, "Args")
@@ -178,7 +179,7 @@ def claude_code_status(aufruf: DienstAufruf | None = None) -> Status:
     if befehl is None or _gleicher_aufruf(befehl, (argumente or "").split(), aufruf) or (
             aufruf.gebaut and _gleicher_pfad(befehl, aufruf.programm) and argumente is None):
         return Status(EINGERICHTET, f"eingerichtet{zusatz}")
-    return Status(ANDERER_PFAD, f"eingerichtet, startet aber {befehl}{zusatz}")
+    return Status(ANDERER_PFAD, tr("eingerichtet, startet aber {befehl}{zusatz}").format(befehl=befehl, zusatz=zusatz))
 
 
 def claude_code_einrichten(ersetzen: bool = False, aufruf: DienstAufruf | None = None) -> str:
@@ -188,20 +189,22 @@ def claude_code_einrichten(ersetzen: bool = False, aufruf: DienstAufruf | None =
     """
     programm = claude_programm()
     if not programm:
-        return "Fehler: Claude Code nicht gefunden (Befehl „claude“ fehlt im Suchpfad)."
+        return tr("Fehler: Claude Code nicht gefunden (Befehl „claude“ fehlt im Suchpfad).")
     try:
         if ersetzen:
             _ausfuehren([programm, "mcp", "remove", SERVER_NAME, "-s", "user"])
         r = _ausfuehren(claude_code_befehl(aufruf, programm))
     except subprocess.TimeoutExpired:
-        return f"Fehler: „claude mcp add“ hat nach {CLAUDE_ZEITLIMIT_S:.0f} s nicht geantwortet."
+        return tr("Fehler: „claude mcp add“ hat nach {CLAUDE_ZEITLIMIT_S:.0f} s nicht geantwortet.").format(CLAUDE_ZEITLIMIT_S=CLAUDE_ZEITLIMIT_S)
     except OSError as exc:
-        return f"Fehler: „claude“ ließ sich nicht starten: {exc}"
+        return tr("Fehler: „claude“ ließ sich nicht starten: {exc}").format(exc=exc)
     if r.returncode != 0:
-        grund = _letzte_zeilen(r.stderr, r.stdout) or f"Rückgabewert {r.returncode}"
-        return f"Fehler: Claude Code hat „{SERVER_NAME}“ nicht eingerichtet.\n{grund}"
-    return (f"Claude Code: „{SERVER_NAME}“ ist eingerichtet (für alle Projekte). "
-            "In laufenden Sitzungen erscheint der Server nach einem Neustart von Claude Code.")
+        grund = _letzte_zeilen(r.stderr, r.stdout) or tr("Rückgabewert {returncode}").format(returncode=r.returncode)
+        return tr("Fehler: Claude Code hat „{SERVER_NAME}“ nicht eingerichtet.\n{grund}").format(SERVER_NAME=SERVER_NAME, grund=grund)
+    return (tr(
+        "Claude Code: „{SERVER_NAME}“ ist eingerichtet (für alle Projekte). In laufenden "
+        "Sitzungen erscheint der Server nach einem Neustart von Claude Code."
+    ).format(SERVER_NAME=SERVER_NAME))
 
 
 # --------------------------------------------------------------------------- Claude Desktop
@@ -279,17 +282,17 @@ def _konfig_lesen(pfad: Path) -> tuple[dict | None, str]:
     except FileNotFoundError:
         return {}, ""
     except (OSError, UnicodeDecodeError) as exc:
-        return None, f"{pfad} lässt sich nicht lesen: {exc}"
+        return None, tr("{pfad} lässt sich nicht lesen: {exc}").format(pfad=pfad, exc=exc)
     if not roh.strip():
         return {}, ""
     try:
         daten = json.loads(roh)
     except json.JSONDecodeError as exc:
-        return None, f"{pfad} ist kein gültiges JSON (Zeile {exc.lineno}, Spalte {exc.colno})."
+        return None, tr("{pfad} ist kein gültiges JSON (Zeile {lineno}, Spalte {colno}).").format(pfad=pfad, lineno=exc.lineno, colno=exc.colno)
     if not isinstance(daten, dict):
-        return None, f"{pfad} enthält kein JSON-Objekt."
+        return None, tr("{pfad} enthält kein JSON-Objekt.").format(pfad=pfad)
     if not isinstance(daten.get("mcpServers", {}), dict):
-        return None, f"„mcpServers“ in {pfad} ist kein JSON-Objekt."
+        return None, tr("„mcpServers“ in {pfad} ist kein JSON-Objekt.").format(pfad=pfad)
     return daten, ""
 
 
@@ -297,20 +300,20 @@ def claude_desktop_status(pfad: Path | None = None, aufruf: DienstAufruf | None 
     """``nicht_gefunden``, ``installiert``, ``eingerichtet``, ``anderer_pfad`` oder ``fehler``."""
     pfad = pfad or claude_desktop_konfig()
     if pfad is None:
-        return Status(NICHT_GEFUNDEN, "nicht gefunden")
+        return Status(NICHT_GEFUNDEN, tr("nicht gefunden"))
     daten, fehler = _konfig_lesen(pfad)
     if daten is None:
-        return Status(FEHLER, f"Konfiguration nicht lesbar: {fehler}", pfad)
+        return Status(FEHLER, tr("Konfiguration nicht lesbar: {fehler}").format(fehler=fehler), pfad)
     eintrag = daten.get("mcpServers", {}).get(SERVER_NAME)
     if not isinstance(eintrag, dict):
-        return Status(INSTALLIERT, f"installiert, „{SERVER_NAME}“ noch nicht eingetragen", pfad)
+        return Status(INSTALLIERT, tr("installiert, „{SERVER_NAME}“ noch nicht eingetragen").format(SERVER_NAME=SERVER_NAME), pfad)
     befehl = str(eintrag.get("command", ""))
     argumente = eintrag.get("args") or []
     if not isinstance(argumente, list):
         argumente = []
     if _gleicher_aufruf(befehl, [str(a) for a in argumente], aufruf or dienst_aufruf()):
         return Status(EINGERICHTET, "eingerichtet", pfad)
-    return Status(ANDERER_PFAD, f"eingetragen, startet aber {befehl or '(kein Programm)'}", pfad)
+    return Status(ANDERER_PFAD, tr("eingetragen, startet aber {0}").format(befehl or tr("(kein Programm)")), pfad)
 
 
 def _sicherung(pfad: Path, jetzt: datetime) -> Path:
@@ -334,11 +337,11 @@ def claude_desktop_eintragen(pfad: Path, aufruf: DienstAufruf | None = None,
     pfad = Path(pfad)
     daten, fehler = _konfig_lesen(pfad)
     if daten is None:
-        return f"Fehler: {fehler} Nichts geändert."
+        return tr("Fehler: {fehler} Nichts geändert.").format(fehler=fehler)
     eintrag = claude_desktop_eintrag(aufruf)
     server = daten.setdefault("mcpServers", {})
     if server.get(SERVER_NAME) == eintrag:
-        return f"„{SERVER_NAME}“ ist in {pfad} bereits so eingetragen."
+        return tr("„{SERVER_NAME}“ ist in {pfad} bereits so eingetragen.").format(SERVER_NAME=SERVER_NAME, pfad=pfad)
     server[SERVER_NAME] = eintrag
     neu = pfad.with_name(pfad.name + ".neu")
     try:
@@ -351,8 +354,8 @@ def claude_desktop_eintragen(pfad: Path, aufruf: DienstAufruf | None = None,
             neu.unlink(missing_ok=True)
         except OSError:
             pass
-        return f"Fehler: {pfad} ließ sich nicht schreiben: {exc}"
-    text = f"„{SERVER_NAME}“ in {pfad} eingetragen."
+        return tr("Fehler: {pfad} ließ sich nicht schreiben: {exc}").format(pfad=pfad, exc=exc)
+    text = tr("„{SERVER_NAME}“ in {pfad} eingetragen.").format(SERVER_NAME=SERVER_NAME, pfad=pfad)
     if sicherung:
-        text += f" Sicherungskopie: {sicherung.name}."
-    return text + " Claude Desktop neu starten, damit der Server erscheint."
+        text += tr(" Sicherungskopie: {name}.").format(name=sicherung.name)
+    return tr("{text} Claude Desktop neu starten, damit der Server erscheint.").format(text=text)

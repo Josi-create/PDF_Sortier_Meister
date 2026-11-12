@@ -852,6 +852,8 @@ msgid "ID: {short_id}…"
 msgstr "ID: {short_id}…"
 
 #: src/gui/detail_panel.py
+#: src/search/suchindex.py
+#: src/search/textebene.py
 msgid "Datei nicht gefunden"
 msgstr "File not found"
 
@@ -1278,6 +1280,7 @@ msgstr "Renaming not possible"
 #: src/gui/settings_dialog.py
 #: src/gui/stapel_ablage.py
 #: src/gui/steuerauswertung_dialog.py
+#: src/search/static/index.html
 msgid "Fehler"
 msgstr "Error"
 
@@ -1757,6 +1760,7 @@ msgstr "Let the AI answer questions about the selected PDF and your collection"
 
 #: src/gui/main_window.py
 #: src/gui/settings_dialog.py
+#: src/search/static/index.html
 msgid "Suche"
 msgstr "Search"
 
@@ -2912,6 +2916,7 @@ msgstr "Tax year:"
 
 #: src/gui/main_window.py
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Alle"
 msgstr "All"
 
@@ -3358,6 +3363,7 @@ msgstr "This requires an AI model with image recognition."
 
 #: src/gui/ocr_schwer_lesbar.py
 #: src/gui/textebene_dialog.py
+#: src/search/static/index.html
 msgid "Schließen"
 msgstr "Close"
 
@@ -3558,6 +3564,7 @@ msgstr "Search folders … (e.g. Cert*)"
 
 #: src/gui/ordner_suchfeld.py
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Suche …"
 msgstr "Searching …"
 
@@ -4037,6 +4044,7 @@ msgid "Schickt die Seiten als Bilder an das KI-Modell, falls es Bilder versteht"
 msgstr "Sends the pages as images to the AI model, if it understands images"
 
 #: src/gui/pdf_thumbnail.py
+#: src/search/konfig.py
 msgid "Tesseract nicht gefunden"
 msgstr "Tesseract not found"
 
@@ -4054,6 +4062,7 @@ msgstr "Install Fraktur"
 
 #: src/gui/pfad_aktionen.py
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Pfad kopieren"
 msgstr "Copy path"
 
@@ -4219,6 +4228,7 @@ msgid "Übernommen. Datenbank: {text}"
 msgstr "Imported. Database: {text}"
 
 #: src/gui/search_migration_dialog.py
+#: src/gui/settings_dialog.py
 msgid "Fehler: {text}"
 msgstr "Error: {text}"
 
@@ -4231,42 +4241,53 @@ msgid "Markdown"
 msgstr "Markdown"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Mail"
 msgstr "Mail"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Relevanz"
 msgstr "Relevance"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Neueste zuerst"
 msgstr "Newest first"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Älteste zuerst"
 msgstr "Oldest first"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "OCR ausstehend"
 msgstr "OCR pending"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "OCR teilweise"
 msgstr "OCR partial"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "nur in der Cloud"
 msgstr "cloud only"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "zu groß"
 msgstr "too large"
 
 #: src/gui/search_view.py
+#: src/search/textebene.py
+#: src/search/static/index.html
 msgid "verschlüsselt"
 msgstr "encrypted"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "ohne Text"
 msgstr "no text"
 
@@ -4275,6 +4296,7 @@ msgid "noch nicht gelesen"
 msgstr "not read yet"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Mails"
 msgstr "Mails"
 
@@ -4283,6 +4305,7 @@ msgid "<b>So wird gesucht</b><ul><li>Mehrere Wörter: alle müssen vorkommen –
 msgstr "<b>How to search</b><ul><li>Several words: all must occur – <code>Rechnung Telekom</code></li><li>Exact phrase: <code>\"Betrag in Höhe von\"</code></li><li>Or / not: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li><li>Word beginning: <code>Rechnung*</code> finds Rechnungen, Rechnungsnummer …</li><li>Proximity: <code>NEAR(Kündigung Frist, 10)</code> – at most 10 words apart</li><li>Umlauts do not matter: <code>Muller</code> also finds <code>Müller</code></li><li>File names, folders and mail subjects are searched as well.</li></ul>"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Von: {0}"
 msgstr "From: {0}"
 
@@ -4335,10 +4358,12 @@ msgid "Letzter Lauf: {0} ({1})"
 msgstr "Last run: {0} ({1})"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "An: {0}"
 msgstr "To: {0}"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Datum: {0}"
 msgstr "Date: {0}"
 
@@ -4355,6 +4380,7 @@ msgid "Seite {0}{1}"
 msgstr "Page {0}{1}"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Blatt {0}"
 msgstr "Sheet {0}"
 
@@ -4367,6 +4393,7 @@ msgid "<p style='color:#888888'>Kein Text vorhanden.</p>"
 msgstr "<p style='color:#888888'>No text available.</p>"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Treffer im Namen"
 msgstr "Match in name"
 
@@ -4403,6 +4430,7 @@ msgid "Vorrang-Ordner (z. B. frisch gescannte PDFs) sofort einlesen – läuft i
 msgstr "Read priority folders (e.g. freshly scanned PDFs) immediately – runs in the background"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Kompletten Lauf starten"
 msgstr "Start full run"
 
@@ -4431,6 +4459,7 @@ msgid "Suchen in PDFs, Office-Dateien, Markdown und Mails …"
 msgstr "Search in PDFs, Office files, Markdown and mails …"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Suchen"
 msgstr "Search"
 
@@ -4459,6 +4488,7 @@ msgid "bis:"
 msgstr "to:"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "Weitere Treffer laden"
 msgstr "Load more results"
 
@@ -4500,6 +4530,7 @@ msgid "Lade weitere Treffer …"
 msgstr "Loading more results …"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "{0}{1} Dokumente · {2} ms"
 msgstr "{0}{1} documents · {2} ms"
 
@@ -4556,6 +4587,7 @@ msgid "Gespeichert: {ziel}"
 msgstr "Saved: {ziel}"
 
 #: src/gui/search_view.py
+#: src/search/static/index.html
 msgid "So wird gesucht"
 msgstr "How to search"
 
@@ -5592,6 +5624,11 @@ msgstr "No Thunderbird profile found – enter mailbox folders below."
 #: src/gui/settings_dialog.py
 msgid "Tesseract gefunden: {tesseract}"
 msgstr "Tesseract found: {tesseract}"
+
+#: src/gui/settings_dialog.py
+#: src/search/konfig.py
+msgid "Sprachdaten fehlen: {0}"
+msgstr "Language data missing: {0}"
 
 #: src/gui/settings_dialog.py
 msgid "Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist."
@@ -6819,14 +6856,17 @@ msgid "Stand"
 msgstr "Status"
 
 #: src/gui/textebene_dialog.py
+#: src/search/dienst.py
 msgid "rückgängig gemacht"
 msgstr "undone"
 
 #: src/gui/textebene_dialog.py
+#: src/search/dienst.py
 msgid "Sicherung vorhanden"
 msgstr "backup available"
 
 #: src/gui/textebene_dialog.py
+#: src/search/dienst.py
 msgid "Sicherung abgelaufen"
 msgstr "backup expired"
 
@@ -7017,6 +7057,812 @@ msgstr "{provider} reports an error."
 #: src/ml/llm_hinweis.py
 msgid "Einstellungen öffnen und dort mit „Verbindung testen“ prüfen; Details stehen in der Log-Datei."
 msgstr "Open the settings and check there with “Test connection”; details are in the log file."
+
+#: src/search/ausgabe.py
+msgid "Dokument {dok_id} nicht gefunden."
+msgstr "Document {dok_id} not found."
+
+#: src/search/ausgabe.py
+msgid "Pfad: {pfad}"
+msgstr "Path: {pfad}"
+
+#: src/search/ausgabe.py
+msgid "Typ: {typ}  Status: {textstatus}  Datum: {0}"
+msgstr "Type: {typ}  Status: {textstatus}  Date: {0}"
+
+#: src/search/ausgabe.py
+msgid "Von: {mail_von}\nAn: {mail_an}\nAnhänge: {0}"
+msgstr "From: {mail_von}\nTo: {mail_an}\nAttachments: {0}"
+
+#: src/search/ausgabe.py
+msgid "Seiten: {seiten}  (davon OCR: {ocr_seiten})"
+msgstr "Pages: {seiten}  (of which OCR: {ocr_seiten})"
+
+#: src/search/ausgabe.py
+msgid "\n--- Seite {seite}{0} ---"
+msgstr "\n--- Page {seite}{0} ---"
+
+#: src/search/ausgabe.py
+msgid " (OCR)"
+msgstr " (OCR)"
+
+#: src/search/ausgabe.py
+msgid "\n--- Blatt {seite} ---"
+msgstr "\n--- Sheet {seite} ---"
+
+#: src/search/ausgabe.py
+msgid "{0}\n\n[… gekürzt, insgesamt {anzahl} Zeichen – mit Seitenangabe weiterlesen]"
+msgstr "{0}\n\n[… truncated, {anzahl} characters in total – continue reading with a page number]"
+
+#: src/search/ausgabe.py
+msgid "Datenbank: {db_datei} (noch nicht vorhanden – erster Lauf steht aus)\nIndexierung läuft gerade: {0}"
+msgstr "Database: {db_datei} (does not exist yet – first run pending)\nIndexing currently running: {0}"
+
+#: src/search/ausgabe.py
+msgid "ja"
+msgstr "yes"
+
+#: src/search/ausgabe.py
+msgid "nein"
+msgstr "no"
+
+#: src/search/ausgabe.py
+msgid "Datenbank: {db_datei}"
+msgstr "Database: {db_datei}"
+
+#: src/search/ausgabe.py
+msgid "Dokumente: {dokumente}  ({0})"
+msgstr "Documents: {dokumente}  ({0})"
+
+#: src/search/ausgabe.py
+msgid "Seiten: {seiten}, davon per OCR erkannt: {ocr_seiten}, OCR ausstehend: {ocr_ausstehend_seiten}"
+msgstr "Pages: {seiten}, of which recognized by OCR: {ocr_seiten}, OCR pending: {ocr_ausstehend_seiten}"
+
+#: src/search/ausgabe.py
+#: src/search/static/index.html
+msgid "Status: {0}"
+msgstr "Status: {0}"
+
+#: src/search/ausgabe.py
+msgid "Indexierung läuft gerade: {0}"
+msgstr "Indexing currently running: {0}"
+
+#: src/search/ausgabe.py
+msgid "Fortschritt: {fortschritt}"
+msgstr "Progress: {fortschritt}"
+
+#: src/search/ausgabe.py
+msgid "Texterkennung (OCR): aus – {ocr_grund}"
+msgstr "Text recognition (OCR): off – {ocr_grund}"
+
+#: src/search/ausgabe.py
+msgid "Textebene in PDFs ({stufe}): {0} geschrieben"
+msgstr "Text layer in PDFs ({stufe}): {0} written"
+
+#: src/search/ausgabe.py
+msgid " – nicht geschrieben: {0}"
+msgstr " – not written: {0}"
+
+#: src/search/ausgabe.py
+msgid "Gedrehte Scans richtig herum gespeichert ({drehen}): {0} PDFs"
+msgstr "Rotated scans saved the right way up ({drehen}): {0} PDFs"
+
+#: src/search/ausgabe.py
+msgid "Schiefe Scans gerade ausgerichtet ({gerade}): {0} PDFs"
+msgstr "Skewed scans straightened ({gerade}): {0} PDFs"
+
+#: src/search/ausgabe.py
+msgid "Letzter Lauf: {beginn} bis {0} – {status} ({phase})"
+msgstr "Last run: {beginn} to {0} – {status} ({phase})"
+
+#: src/search/ausgabe.py
+msgid "Keine Treffer für: {abfrage}  (FTS-Abfrage: {abfrage2})"
+msgstr "No results for: {abfrage}  (FTS query: {abfrage2})"
+
+#: src/search/ausgabe.py
+msgid "{gesamt}{0} Dokumente für „{abfrage}“ – {anzahl} angezeigt ({dauer_ms} ms)"
+msgstr "{gesamt}{0} documents for “{abfrage}” – {anzahl} shown ({dauer_ms} ms)"
+
+#: src/search/ausgabe.py
+msgid "[{id}] MAIL {0}  {name}{status}"
+msgstr "[{id}] MAIL {0}  {name}{status}"
+
+#: src/search/ausgabe.py
+msgid "      Von: {mail_von}  |  {ordner}"
+msgstr "      From: {mail_von}  |  {ordner}"
+
+#: src/search/ausgabe.py
+msgid ", OCR"
+msgstr ", OCR"
+
+#: src/search/ausgabe.py
+msgid "      (Treffer im Datei-/Ordnernamen)"
+msgstr "      (match in file/folder name)"
+
+#: src/search/ausgabe.py
+msgid "Blatt {seite}: "
+msgstr "Sheet {seite}: "
+
+#: src/search/ausgabe.py
+msgid "      … insgesamt {treffer_seiten} Seiten mit Treffern"
+msgstr "      … {treffer_seiten} pages with matches in total"
+
+#: src/search/db.py
+msgid "Unbekanntes Datum: {datum!r} (erwartet JJJJ-MM-TT oder TT.MM.JJJJ)"
+msgstr "Unknown date: {datum!r} (expected YYYY-MM-DD or DD.MM.YYYY)"
+
+#: src/search/dienst.py
+msgid "PDF Sortier Meister – Dokumentensuche (Indexierung, MCP, Web, Kommandozeile)"
+msgstr "PDF Sortier Meister – document search (indexing, MCP, web, command line)"
+
+#: src/search/dienst.py
+msgid "andere config.json oder eine config.toml von PDFsuche"
+msgstr "a different config.json or a config.toml of PDFsuche"
+
+#: src/search/dienst.py
+msgid "Volltextsuche"
+msgstr "full-text search"
+
+#: src/search/dienst.py
+msgid "pdf, office, md, mail (mehrere mit Komma)"
+msgstr "pdf, office, md, mail (several separated by commas)"
+
+#: src/search/dienst.py
+msgid "Teil des Pfads/Postfachs"
+msgstr "part of the path/mailbox"
+
+#: src/search/dienst.py
+msgid "ab Datum (JJJJ-MM-TT)"
+msgstr "from date (YYYY-MM-DD)"
+
+#: src/search/dienst.py
+msgid "bis Datum (JJJJ-MM-TT)"
+msgstr "until date (YYYY-MM-DD)"
+
+#: src/search/dienst.py
+msgid "PDFSM-Metadaten: Steuerjahr, z. B. 2024"
+msgstr "PDFSM metadata: tax year, e.g. 2024"
+
+#: src/search/dienst.py
+msgid "PDFSM-Metadaten: Kategorie, z. B. Rechnung"
+msgstr "PDFSM metadata: category, e.g. Rechnung"
+
+#: src/search/dienst.py
+msgid "PDFSM-Metadaten: Korrespondent, z. B. Telekom"
+msgstr "PDFSM metadata: correspondent, e.g. Telekom"
+
+#: src/search/dienst.py
+msgid "Text eines Dokuments ausgeben"
+msgstr "print the text of a document"
+
+#: src/search/dienst.py
+msgid "z. B. 3 oder 2-5"
+msgstr "e.g. 3 or 2-5"
+
+#: src/search/dienst.py
+msgid "höchstens so viele Zeichen"
+msgstr "at most this many characters"
+
+#: src/search/dienst.py
+msgid "Indexstand anzeigen"
+msgstr "show the index status"
+
+#: src/search/dienst.py
+msgid "Indexierungslauf starten"
+msgstr "start an indexing run"
+
+#: src/search/dienst.py
+msgid "nur die Vorrang-Ordner"
+msgstr "only the priority folders"
+
+#: src/search/dienst.py
+msgid "nur diesen Ordner indizieren"
+msgstr "index only this folder"
+
+#: src/search/dienst.py
+msgid "niedrige Priorität, keine Konsolenausgabe"
+msgstr "low priority, no console output"
+
+#: src/search/dienst.py
+msgid "pausieren, solange der Nutzer aktiv ist (für Zeitpläne ohne Leerlaufbedingung, z. B. macOS)"
+msgstr "pause while the user is active (for schedules without an idle condition, e.g. macOS)"
+
+#: src/search/dienst.py
+msgid "nichts tun, wenn heute schon ein vollständiger Lauf fertig wurde (Start bei der Anmeldung)"
+msgstr "do nothing if a complete run has already finished today (start at sign-in)"
+
+#: src/search/dienst.py
+msgid "Browser-Oberfläche starten"
+msgstr "start the browser interface"
+
+#: src/search/dienst.py
+msgid "MCP-Server (stdio) für KI-Assistenten starten"
+msgstr "start the MCP server (stdio) for AI assistants"
+
+#: src/search/dienst.py
+msgid "vorhandene PDFsuche übernehmen (Einstellungen und Datenbank)"
+msgstr "import an existing PDFsuche (settings and database)"
+
+#: src/search/dienst.py
+msgid "Projektordner der PDFsuche (mit config.toml); ohne Angabe wird gesucht"
+msgstr "project folder of PDFsuche (with config.toml); searched for if not given"
+
+#: src/search/dienst.py
+msgid "Datenbank in das Datenverzeichnis kopieren statt sie am bisherigen Ort zu lassen"
+msgstr "copy the database into the data folder instead of leaving it in its current location"
+
+#: src/search/dienst.py
+msgid "ohne Rückfrage übernehmen (sonst nur Vorschau)"
+msgstr "import without confirmation (otherwise preview only)"
+
+#: src/search/dienst.py
+msgid "unsichtbare OCR-Textebene in gescannten PDFs (Schätzung, Protokoll, Rückgängig, Schreiben)"
+msgstr "invisible OCR text layer in scanned PDFs (estimate, log, undo, write)"
+
+#: src/search/dienst.py
+msgid "Aufwand für den Altbestand (Stufe „alle“) schätzen"
+msgstr "estimate the effort for existing files (level “alle”)"
+
+#: src/search/dienst.py
+msgid "geänderte Dateien anzeigen"
+msgstr "show changed files"
+
+#: src/search/dienst.py
+msgid "eine Änderung zurücknehmen (Nummer aus dem Protokoll)"
+msgstr "undo a change (number from the log)"
+
+#: src/search/dienst.py
+msgid "auch wenn die Datei seither geändert wurde (diese Änderung geht verloren)"
+msgstr "even if the file has been changed since (that change is lost)"
+
+#: src/search/dienst.py
+msgid "nur die Textebene schreiben (Stufe aus den Einstellungen)"
+msgstr "only write the text layer (level from the settings)"
+
+#: src/search/dienst.py
+msgid "Hintergrundindexierung und Web-Oberfläche bei Anmeldung (Aufgabenplanung bzw. LaunchAgent)"
+msgstr "background indexing and web interface at sign-in (Task Scheduler or LaunchAgent)"
+
+#: src/search/dienst.py
+msgid "nach den Einstellungen einrichten (Ausgeschaltetes wird entfernt)"
+msgstr "set up according to the settings (whatever is switched off is removed)"
+
+#: src/search/dienst.py
+msgid "alles entfernen (z. B. beim Deinstallieren)"
+msgstr "remove everything (e.g. when uninstalling)"
+
+#: src/search/dienst.py
+msgid "eingerichtete Einträge anzeigen"
+msgstr "show the entries that are set up"
+
+#: src/search/dienst.py
+msgid "Stufe in den Einstellungen: {textebene}"
+msgstr "Level in the settings: {textebene}"
+
+#: src/search/dienst.py
+msgid "Noch keine Datei mit Textebene versehen."
+msgstr "No file has received a text layer yet."
+
+#: src/search/dienst.py
+msgid "[{id}] {am}  Seiten {0}{gedreht}  ({zusatz})  {pfad}"
+msgstr "[{id}] {am}  pages {0}{gedreht}  ({zusatz})  {pfad}"
+
+#: src/search/dienst.py
+msgid "Textebene, automatisches Drehen und Ausrichten sind in den Einstellungen ausgeschaltet (Suche › Gescannte PDFs verbessern)."
+msgstr "Text layer, automatic rotation and straightening are switched off in the settings (Search › Improve scanned PDFs)."
+
+#: src/search/dienst.py
+msgid "Keine PDFsuche gefunden – Projektordner mit --von ORDNER angeben."
+msgstr "No PDFsuche found – specify the project folder with --von ORDNER."
+
+#: src/search/dienst.py
+msgid "Mehrere Kandidaten, der erste wird geprüft: {0}"
+msgstr "Several candidates, the first one is checked: {0}"
+
+#: src/search/dienst.py
+msgid "\nVorschau – zum Übernehmen erneut mit --ja aufrufen{0}"
+msgstr "\nPreview – run again with --ja to import{0}"
+
+#: src/search/dienst.py
+msgid " (Datenbank wird kopiert)."
+msgstr " (the database is copied)."
+
+#: src/search/dienst.py
+msgid " (Datenbank bleibt am Ort)."
+msgstr " (the database stays in place)."
+
+#: src/search/dienst.py
+msgid "\rKopiere Datenbank … {0} %"
+msgstr "\rCopying database … {0} %"
+
+#: src/search/dienst.py
+msgid "Übernommen. Datenbank: {db_datei}\nEinstellungen gespeichert in {config_path}"
+msgstr "Imported. Database: {db_datei}\nSettings saved in {config_path}"
+
+#: src/search/dienst.py
+msgid "PDFSM-Metadaten aus dem bisherigen Index mitgenommen: {mitgenommen} Dokumente"
+msgstr "PDFSM metadata carried over from the previous index: {mitgenommen} documents"
+
+#: src/search/indexer.py
+msgid "Zeitüberschreitung"
+msgstr "Timeout"
+
+#: src/search/indexer.py
+msgid "Absturz beim Lesen (Datei beschädigt?)"
+msgstr "Crash while reading (file damaged?)"
+
+#: src/search/indexer.py
+msgid "Zeitlimit erreicht"
+msgstr "Time limit reached"
+
+#: src/search/indexer.py
+msgid "{vorher} – Pause (Nutzer aktiv)"
+msgstr "{vorher} – paused (user active)"
+
+#: src/search/indexer.py
+msgid "Textebene schreiben"
+msgstr "Writing text layer"
+
+#: src/search/indexer.py
+msgid "Textebene Altbestand"
+msgstr "Text layer for existing files"
+
+#: src/search/indexer.py
+msgid "Ordner {p}"
+msgstr "Folder {p}"
+
+#: src/search/indexer.py
+msgid "Texterkennung (OCR)"
+msgstr "Text recognition (OCR)"
+
+#: src/search/indexer.py
+msgid "Vorrang {0}: {wurzel}"
+msgstr "Priority {0}: {wurzel}"
+
+#: src/search/indexer.py
+msgid "OCR neue Scans: {wurzel}"
+msgstr "OCR of new scans: {wurzel}"
+
+#: src/search/indexer.py
+msgid "Ordner {wurzel}"
+msgstr "Folder {wurzel}"
+
+#: src/search/indexer.py
+msgid "Thunderbird-Mails"
+msgstr "Thunderbird mails"
+
+#: src/search/indexer.py
+msgid "OCR-Cache ergänzen"
+msgstr "Completing OCR cache"
+
+#: src/search/konfig.py
+msgid "in den Einstellungen ausgeschaltet"
+msgstr "switched off in the settings"
+
+#: src/search/mcp_einrichtung.py
+msgid "nicht gefunden (Befehl „claude“ fehlt im Suchpfad)"
+msgstr "not found (the “claude” command is missing from the search path)"
+
+#: src/search/mcp_einrichtung.py
+msgid "keine Antwort von „claude mcp get“ nach {CLAUDE_ZEITLIMIT_S:.0f} s"
+msgstr "no response from “claude mcp get” after {CLAUDE_ZEITLIMIT_S:.0f} s"
+
+#: src/search/mcp_einrichtung.py
+msgid "„claude“ ließ sich nicht starten: {exc}"
+msgstr "“claude” could not be started: {exc}"
+
+#: src/search/mcp_einrichtung.py
+msgid "installiert, „{SERVER_NAME}“ noch nicht eingerichtet"
+msgstr "installed, “{SERVER_NAME}” not set up yet"
+
+#: src/search/mcp_einrichtung.py
+msgid "eingerichtet, startet aber {befehl}{zusatz}"
+msgstr "set up, but starts {befehl}{zusatz}"
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Claude Code nicht gefunden (Befehl „claude“ fehlt im Suchpfad)."
+msgstr "Error: Claude Code not found (the “claude” command is missing from the search path)."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: „claude mcp add“ hat nach {CLAUDE_ZEITLIMIT_S:.0f} s nicht geantwortet."
+msgstr "Error: “claude mcp add” did not respond after {CLAUDE_ZEITLIMIT_S:.0f} s."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: „claude“ ließ sich nicht starten: {exc}"
+msgstr "Error: “claude” could not be started: {exc}"
+
+#: src/search/mcp_einrichtung.py
+#: src/search/zeitplan.py
+msgid "Rückgabewert {returncode}"
+msgstr "Return code {returncode}"
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Claude Code hat „{SERVER_NAME}“ nicht eingerichtet.\n{grund}"
+msgstr "Error: Claude Code did not set up “{SERVER_NAME}”.\n{grund}"
+
+#: src/search/mcp_einrichtung.py
+msgid "Claude Code: „{SERVER_NAME}“ ist eingerichtet (für alle Projekte). In laufenden Sitzungen erscheint der Server nach einem Neustart von Claude Code."
+msgstr "Claude Code: “{SERVER_NAME}” is set up (for all projects). In running sessions the server appears after restarting Claude Code."
+
+#: src/search/mcp_einrichtung.py
+msgid "{pfad} lässt sich nicht lesen: {exc}"
+msgstr "{pfad} cannot be read: {exc}"
+
+#: src/search/mcp_einrichtung.py
+msgid "{pfad} ist kein gültiges JSON (Zeile {lineno}, Spalte {colno})."
+msgstr "{pfad} is not valid JSON (line {lineno}, column {colno})."
+
+#: src/search/mcp_einrichtung.py
+msgid "{pfad} enthält kein JSON-Objekt."
+msgstr "{pfad} does not contain a JSON object."
+
+#: src/search/mcp_einrichtung.py
+msgid "„mcpServers“ in {pfad} ist kein JSON-Objekt."
+msgstr "“mcpServers” in {pfad} is not a JSON object."
+
+#: src/search/mcp_einrichtung.py
+msgid "nicht gefunden"
+msgstr "not found"
+
+#: src/search/mcp_einrichtung.py
+msgid "Konfiguration nicht lesbar: {fehler}"
+msgstr "Configuration not readable: {fehler}"
+
+#: src/search/mcp_einrichtung.py
+msgid "installiert, „{SERVER_NAME}“ noch nicht eingetragen"
+msgstr "installed, “{SERVER_NAME}” not entered yet"
+
+#: src/search/mcp_einrichtung.py
+msgid "eingetragen, startet aber {0}"
+msgstr "entered, but starts {0}"
+
+#: src/search/mcp_einrichtung.py
+msgid "(kein Programm)"
+msgstr "(no program)"
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: {fehler} Nichts geändert."
+msgstr "Error: {fehler} Nothing changed."
+
+#: src/search/mcp_einrichtung.py
+msgid "„{SERVER_NAME}“ ist in {pfad} bereits so eingetragen."
+msgstr "“{SERVER_NAME}” is already entered like this in {pfad}."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: {pfad} ließ sich nicht schreiben: {exc}"
+msgstr "Error: {pfad} could not be written: {exc}"
+
+#: src/search/mcp_einrichtung.py
+msgid "„{SERVER_NAME}“ in {pfad} eingetragen."
+msgstr "“{SERVER_NAME}” entered in {pfad}."
+
+#: src/search/mcp_einrichtung.py
+msgid " Sicherungskopie: {name}."
+msgstr " Backup copy: {name}."
+
+#: src/search/mcp_einrichtung.py
+msgid "{text} Claude Desktop neu starten, damit der Server erscheint."
+msgstr "{text} Restart Claude Desktop so that the server appears."
+
+#: src/search/migration.py
+msgid "PDFsuche-Ordner: {ordner}"
+msgstr "PDFsuche folder: {ordner}"
+
+#: src/search/migration.py
+msgid "Datenbank: {db_pfad}{0}"
+msgstr "Database: {db_pfad}{0}"
+
+#: src/search/migration.py
+msgid "  (nicht gefunden)"
+msgstr "  (not found)"
+
+#: src/search/migration.py
+msgid "Dokumente: {0}{1}"
+msgstr "Documents: {0}{1}"
+
+#: src/search/migration.py
+msgid "Seiten: {0}, davon per OCR erkannt: {1}, OCR ausstehend: {2}"
+msgstr "Pages: {0}, of which recognized by OCR: {1}, OCR pending: {2}"
+
+#: src/search/migration.py
+msgid "Schema-Version: {schema_version}, Integrität: {0}"
+msgstr "Schema version: {schema_version}, integrity: {0}"
+
+#: src/search/migration.py
+msgid "Vorrang-Ordner: {0}"
+msgstr "Priority folders: {0}"
+
+#: src/search/migration.py
+msgid "Mail-Ordner: {0}"
+msgstr "Mail folders: {0}"
+
+#: src/search/migration.py
+msgid "Texterkennung: {0} ({ocr_sprachen}){1}"
+msgstr "Text recognition: {0} ({ocr_sprachen}){1}"
+
+#: src/search/migration.py
+msgid "ein"
+msgstr "on"
+
+#: src/search/migration.py
+msgid "aus"
+msgstr "off"
+
+#: src/search/migration.py
+msgid "Ausschlüsse: {anzahl} Ordnernamen, {anzahl2} Pfade; Endungen: {0}"
+msgstr "Exclusions: {anzahl} folder names, {anzahl2} paths; extensions: {0}"
+
+#: src/search/migration.py
+msgid "Browser-Oberfläche: Port {web_port}; Arbeitsprozesse: {0}"
+msgstr "Browser interface: port {web_port}; worker processes: {0}"
+
+#: src/search/migration.py
+msgid "automatisch"
+msgstr "automatic"
+
+#: src/search/migration.py
+msgid "Achtung: Ein Indexierungslauf ist gerade aktiv."
+msgstr "Caution: an indexing run is currently active."
+
+#: src/search/migration.py
+msgid "Fehler: {f}"
+msgstr "Error: {f}"
+
+#: src/search/migration.py
+msgid "Keine {KONFIG_DATEI} in {ordner}"
+msgstr "No {KONFIG_DATEI} in {ordner}"
+
+#: src/search/migration.py
+msgid "{KONFIG_DATEI} nicht lesbar: {e}"
+msgstr "{KONFIG_DATEI} not readable: {e}"
+
+#: src/search/migration.py
+msgid "Datenbank nicht gefunden: {db_pfad}"
+msgstr "Database not found: {db_pfad}"
+
+#: src/search/migration.py
+msgid "Ein Indexierungslauf ist gerade aktiv – bitte warten, bis er beendet ist."
+msgstr "An indexing run is currently active – please wait until it has finished."
+
+#: src/search/migration.py
+msgid "Datenbank nicht lesbar: {e}"
+msgstr "Database not readable: {e}"
+
+#: src/search/migration.py
+msgid "Integritätsprüfung fehlgeschlagen: {integritaet}"
+msgstr "Integrity check failed: {integritaet}"
+
+#: src/search/migration.py
+msgid "Unbekannte Schema-Version {schema_version!r} (erwartet 1 oder 2)"
+msgstr "Unknown schema version {schema_version!r} (expected 1 or 2)"
+
+#: src/search/migration.py
+msgid "Prüfung fehlt"
+msgstr "Check missing"
+
+#: src/search/migration.py
+msgid "Ziel existiert schon: {ziel}"
+msgstr "Target already exists: {ziel}"
+
+#: src/search/migration.py
+msgid "Kopie fehlerhaft (quick_check: {befund}, Dokumente {n_kopie} statt {n_quelle})"
+msgstr "Copy faulty (quick_check: {befund}, documents {n_kopie} instead of {n_quelle})"
+
+#: src/search/plattform.py
+msgid "Datei nicht mehr vorhanden"
+msgstr "File no longer exists"
+
+#: src/search/plattform.py
+msgid "Datei ist geöffnet oder gesperrt"
+msgstr "File is open or locked"
+
+#: src/search/suchindex.py
+msgid "Mail {id} ist nicht mehr im Index"
+msgstr "Mail {id} is no longer in the index"
+
+#: src/search/suchindex.py
+msgid "Kein Suchindex vorhanden."
+msgstr "No search index available."
+
+#: src/search/textebene.py
+msgid "digital signiert"
+msgstr "digitally signed"
+
+#: src/search/textebene.py
+msgid "PDF/A (die Konformität bliebe nicht erhalten)"
+msgstr "PDF/A (conformance would be lost)"
+
+#: src/search/textebene.py
+msgid "schreibgeschützt"
+msgstr "read-only"
+
+#: src/search/textebene.py
+msgid "keine erkannte Schrift"
+msgstr "no recognized text"
+
+#: src/search/textebene.py
+msgid "Textebene wurde rückgängig gemacht"
+msgstr "text layer was undone"
+
+#: src/search/textebene.py
+msgid "Fehler beim Schreiben (siehe Protokoll)"
+msgstr "error while writing (see log)"
+
+#: src/search/textebene.py
+msgid "liegt nur in der Cloud"
+msgstr "only in the cloud"
+
+#: src/search/textebene.py
+msgid "in einem anderen Programm geöffnet"
+msgstr "open in another program"
+
+#: src/search/textebene.py
+msgid "seit der Texterkennung geändert"
+msgstr "changed since text recognition"
+
+#: src/search/textebene.py
+msgid "Die Datei wurde seit dem Schreiben der Textebene geändert (z. B. Metadaten). Rückgängig machen würde diese Änderung verwerfen."
+msgstr "The file was changed after the text layer was written (e.g. metadata). Undoing would discard this change."
+
+#: src/search/textebene.py
+msgid "neue Datei lässt sich nicht öffnen: {e}"
+msgstr "new file cannot be opened: {e}"
+
+#: src/search/textebene.py
+msgid "neue Datei musste beim Öffnen repariert werden"
+msgstr "new file had to be repaired when opening"
+
+#: src/search/textebene.py
+msgid "Seitenzahl {page_count} -> {page_count2}"
+msgstr "page count {page_count} -> {page_count2}"
+
+#: src/search/textebene.py
+msgid "Seite {0}: Größe oder Drehung verändert"
+msgstr "page {0}: size or rotation changed"
+
+#: src/search/textebene.py
+msgid "Seite {0}: Ausrichtung verändert"
+msgstr "page {0}: orientation changed"
+
+#: src/search/textebene.py
+msgid "Bild- oder Inhalts-Stream {x} verändert"
+msgstr "image or content stream {x} changed"
+
+#: src/search/textebene.py
+msgid "Seite {nr}: Textebene fehlt"
+msgstr "page {nr}: text layer missing"
+
+#: src/search/textebene.py
+msgid "Eintrag nicht gefunden."
+msgstr "Entry not found."
+
+#: src/search/textebene.py
+msgid "Diese Änderung wurde schon rückgängig gemacht."
+msgstr "This change has already been undone."
+
+#: src/search/textebene.py
+msgid "Die Sicherungskopie gibt es nicht mehr (Aufbewahrungsfrist abgelaufen)."
+msgstr "The backup copy no longer exists (retention period expired)."
+
+#: src/search/textebene.py
+msgid "Die Datei wurde nicht gefunden: {pfad}"
+msgstr "The file was not found: {pfad}"
+
+#: src/search/textebene.py
+msgid "Die Datei ist in einem anderen Programm geöffnet. Bitte schließen und erneut versuchen."
+msgstr "The file is open in another program. Please close it and try again."
+
+#: src/search/textebene.py
+msgid "Die Datei wurde währenddessen verschoben oder gelöscht."
+msgstr "The file was moved or deleted in the meantime."
+
+#: src/search/textebene.py
+msgid "Rückgängig machen fehlgeschlagen: {0}"
+msgstr "Undo failed: {0}"
+
+#: src/search/textebene.py
+msgid "Das Original ist wiederhergestellt: {0}"
+msgstr "The original has been restored: {0}"
+
+#: src/search/textebene.py
+msgid "wenige Minuten"
+msgstr "a few minutes"
+
+#: src/search/textebene.py
+msgid "etwa {0} Minuten"
+msgstr "about {0} minutes"
+
+#: src/search/textebene.py
+msgid "etwa {0} Stunden"
+msgstr "about {0} hours"
+
+#: src/search/textebene.py
+msgid "etwa {0} Tage"
+msgstr "about {0} days"
+
+#: src/search/textebene.py
+msgid "Im Index gibt es keine texterkannten PDFs ohne Textebene."
+msgstr "There are no text-recognized PDFs without a text layer in the index."
+
+#: src/search/textebene.py
+msgid "{0} texterkannte PDFs mit {1} Seiten bekommen eine Textebene."
+msgstr "{0} text-recognized PDFs with {1} pages get a text layer."
+
+#: src/search/textebene.py
+msgid "Tesseract muss jede Seite noch einmal lesen (der Index kennt nur den Text, nicht seine Lage): {0} mit {prozesse} Prozessen, im Hintergrund und jederzeit anhaltbar."
+msgstr "Tesseract has to read every page again (the index only knows the text, not its position): {0} with {prozesse} processes, in the background and pausable at any time."
+
+#: src/search/textebene.py
+msgid "{0} Dateien liegen in OneDrive und werden neu hochgeladen (etwa {1})."
+msgstr "{0} files are in OneDrive and will be uploaded again (about {1})."
+
+#: src/search/textebene.py
+msgid "Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu {0} und werden nach {sicherung_tage} Tagen gelöscht."
+msgstr "A backup copy is created before every change; they take up to {0} and are deleted after {sicherung_tage} days."
+
+#: src/search/textebene.py
+msgid "Vor jeder Änderung entsteht eine Sicherungskopie; sie belegen bis zu {0} und bleiben unbegrenzt erhalten."
+msgstr "A backup copy is created before every change; they take up to {0} and are kept indefinitely."
+
+#: src/search/web.py
+msgid "Datei existiert nicht mehr"
+msgstr "File no longer exists"
+
+#: src/search/web.py
+msgid "Läuft bereits"
+msgstr "Already running"
+
+#: src/search/web.py
+msgid "Dokumentensuche läuft auf {url}  (Beenden: Strg+C)"
+msgstr "Document search is running at {url}  (quit: Ctrl+C)"
+
+#: src/search/zeitplan.py
+msgid "PDF Sortier Meister: liest täglich bei Leerlauf neue und geänderte Dokumente in den Suchindex ein (zuerst die Vorrang-Ordner) und erkennt Scans per OCR. Bricht ab, sobald am Rechner gearbeitet wird."
+msgstr "PDF Sortier Meister: reads new and changed documents into the search index once a day when idle (priority folders first) and recognizes scans by OCR. Stops as soon as the computer is used."
+
+#: src/search/zeitplan.py
+msgid "PDF Sortier Meister: Browser-Oberfläche der Dokumentensuche (nur auf diesem Rechner erreichbar)."
+msgstr "PDF Sortier Meister: browser interface of the document search (reachable only on this computer)."
+
+#: src/search/zeitplan.py
+msgid "Aufgabenplanung"
+msgstr "Task Scheduler"
+
+#: src/search/zeitplan.py
+msgid "Aufgabe „{0}“ ließ sich nicht einrichten: {1}"
+msgstr "Task “{0}” could not be set up: {1}"
+
+#: src/search/zeitplan.py
+msgid "Aufgabe „{0}“ ließ sich nicht entfernen: {1}"
+msgstr "Task “{0}” could not be removed: {1}"
+
+#: src/search/zeitplan.py
+msgid "LaunchAgent „{0}“ ließ sich nicht laden: {1}"
+msgstr "LaunchAgent “{0}” could not be loaded: {1}"
+
+#: src/search/zeitplan.py
+msgid "LaunchAgent „{0}“ ließ sich nicht entfernen: {ex}"
+msgstr "LaunchAgent “{0}” could not be removed: {ex}"
+
+#: src/search/zeitplan.py
+msgid "Die Hintergrundindexierung wird auf diesem Betriebssystem nicht unterstützt."
+msgstr "Background indexing is not supported on this operating system."
+
+#: src/search/zeitplan.py
+msgid "Hintergrundindexierung: auf diesem Betriebssystem nicht unterstützt."
+msgstr "Background indexing: not supported on this operating system."
+
+#: src/search/zeitplan.py
+msgid "{titel}: nicht eingerichtet"
+msgstr "{titel}: not set up"
+
+#: src/search/zeitplan.py
+msgid "täglich beim ersten Leerlauf ab {uhrzeit} (nach dem Einschalten nachgeholt)"
+msgstr "daily at the first idle time from {uhrzeit} (made up after switching on)"
+
+#: src/search/zeitplan.py
+msgid "bei der Anmeldung"
+msgstr "at sign-in"
 
 #: src/utils/backup.py
 msgid "Keine Anwendungsdaten gefunden in {data_dir}"
@@ -7229,3 +8075,203 @@ msgstr "Unexpected response from GitHub"
 #: src/utils/update_check.py
 msgid "Unbrauchbare Versionsangabe: {tag!r}"
 msgstr "Unusable version: {tag!r}"
+
+#: src/search/static/index.html
+msgid "Suchen in PDFs, Office-Dateien, Notizen und Mails …"
+msgstr "Search in PDFs, Office files, notes and mails …"
+
+#: src/search/static/index.html
+msgid "Status"
+msgstr "Status"
+
+#: src/search/static/index.html
+msgid "Ordner"
+msgstr "Folder"
+
+#: src/search/static/index.html
+msgid "z. B. Steuer"
+msgstr "e.g. Steuer"
+
+#: src/search/static/index.html
+msgid "von"
+msgstr "from"
+
+#: src/search/static/index.html
+msgid "bis"
+msgstr "to"
+
+#: src/search/static/index.html
+msgid "Sortierung"
+msgstr "Sort by"
+
+#: src/search/static/index.html
+msgid "… insgesamt {0} Seiten mit Treffern"
+msgstr "… {0} pages with matches in total"
+
+#: src/search/static/index.html
+msgid "{0} Blätter"
+msgstr "{0} sheets"
+
+#: src/search/static/index.html
+msgid "{0} Blatt"
+msgstr "{0} sheet"
+
+#: src/search/static/index.html
+msgid "{0} S."
+msgstr "{0} p."
+
+#: src/search/static/index.html
+msgid "{0} S. per OCR"
+msgstr "{0} p. by OCR"
+
+#: src/search/static/index.html
+msgid "S. {0}"
+msgstr "p. {0}"
+
+#: src/search/static/index.html
+msgid "Text ansehen"
+msgstr "Show text"
+
+#: src/search/static/index.html
+msgid "Mit Programm öffnen"
+msgstr "Open with program"
+
+#: src/search/static/index.html
+msgid "Im Ordner zeigen"
+msgstr "Show in folder"
+
+#: src/search/static/index.html
+msgid ".eml laden"
+msgstr "Download .eml"
+
+#: src/search/static/index.html
+msgid "Keine Treffer."
+msgstr "No results."
+
+#: src/search/static/index.html
+msgid "Abfrage: {0}"
+msgstr "Query: {0}"
+
+#: src/search/static/index.html
+msgid "{0} Seite(n)"
+msgstr "{0} page(s)"
+
+#: src/search/static/index.html
+msgid "Original im Browser"
+msgstr "Original in browser"
+
+#: src/search/static/index.html
+msgid "Zum ersten Treffer"
+msgstr "Go to first match"
+
+#: src/search/static/index.html
+msgid "Seite {0}"
+msgstr "Page {0}"
+
+#: src/search/static/index.html
+msgid "(kein Text)"
+msgstr "(no text)"
+
+#: src/search/static/index.html
+msgid "Kein Text vorhanden."
+msgstr "No text available."
+
+#: src/search/static/index.html
+msgid "Mehrere Wörter: alle müssen vorkommen –"
+msgstr "Several words: all must occur –"
+
+#: src/search/static/index.html
+msgid "Genaue Wortfolge:"
+msgstr "Exact phrase:"
+
+#: src/search/static/index.html
+msgid "Oder / Nicht:"
+msgstr "Or / not:"
+
+#: src/search/static/index.html
+msgid "Wortanfang:"
+msgstr "Word beginning:"
+
+#: src/search/static/index.html
+msgid "findet Rechnungen, Rechnungsnummer …"
+msgstr "finds Rechnungen, Rechnungsnummer …"
+
+#: src/search/static/index.html
+msgid "Nähe:"
+msgstr "Proximity:"
+
+#: src/search/static/index.html
+msgid "beide Wörter höchstens 10 Wörter auseinander"
+msgstr "both words at most 10 words apart"
+
+#: src/search/static/index.html
+msgid "Umlaute sind egal:"
+msgstr "Umlauts do not matter:"
+
+#: src/search/static/index.html
+msgid "findet auch"
+msgstr "also finds"
+
+#: src/search/static/index.html
+msgid "Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht."
+msgstr "File names, folders and mail subjects are searched as well."
+
+#: src/search/static/index.html
+msgid "läuft"
+msgstr "running"
+
+#: src/search/static/index.html
+msgid "Dokumente"
+msgstr "Documents"
+
+#: src/search/static/index.html
+msgid "Seiten im Index"
+msgstr "Pages in the index"
+
+#: src/search/static/index.html
+msgid "Seiten per OCR erkannt"
+msgstr "Pages recognized by OCR"
+
+#: src/search/static/index.html
+msgid "Seiten warten auf OCR"
+msgstr "Pages waiting for OCR"
+
+#: src/search/static/index.html
+msgid "Datenbank"
+msgstr "Database"
+
+#: src/search/static/index.html
+msgid "Indexierung:"
+msgstr "Indexing:"
+
+#: src/search/static/index.html
+msgid "läuft gerade"
+msgstr "running now"
+
+#: src/search/static/index.html
+msgid "ruht"
+msgstr "idle"
+
+#: src/search/static/index.html
+msgid "Jetzt neue Scans einlesen"
+msgstr "Read new scans now"
+
+#: src/search/static/index.html
+msgid "Textstatus:"
+msgstr "Text status:"
+
+#: src/search/static/index.html
+msgid "Letzte Läufe"
+msgstr "Recent runs"
+
+#: src/search/static/index.html
+msgid "Beginn"
+msgstr "Start"
+
+#: src/search/static/index.html
+msgid "Ende"
+msgstr "End"
+
+#: src/search/static/index.html
+msgid "Statistik"
+msgstr "Statistics"

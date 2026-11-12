@@ -87,29 +87,29 @@ th{color:var(--leise);font-weight:600;background:var(--bg)}
 <header>
   <div class="kopf">
     <div class="zeile1">
-      <div class="logo" onclick="zeige('suche')">PDF Sortier Meister <span>Suche</span></div>
+      <div class="logo" onclick="zeige('suche')">PDF Sortier Meister <span data-t>Suche</span></div>
       <form class="suchfeld" id="form">
-        <input id="q" type="search" placeholder="Suchen in PDFs, Office-Dateien, Notizen und Mails …" autocomplete="off" autofocus>
-        <button type="submit">Suchen</button>
+        <input id="q" type="search" data-tp placeholder="Suchen in PDFs, Office-Dateien, Notizen und Mails …" autocomplete="off" autofocus>
+        <button type="submit" data-t>Suchen</button>
       </form>
       <nav class="reiter">
-        <button id="r-suche" class="aktiv" onclick="zeige('suche')">Suche</button>
-        <button id="r-status" onclick="zeige('status')">Status</button>
+        <button id="r-suche" class="aktiv" onclick="zeige('suche')" data-t>Suche</button>
+        <button id="r-status" onclick="zeige('status')" data-t>Status</button>
       </nav>
     </div>
     <div class="filter" id="filter">
       <div class="chips" id="typen">
-        <button class="chip aktiv" data-typ="">Alle</button>
+        <button class="chip aktiv" data-typ="" data-t>Alle</button>
         <button class="chip" data-typ="pdf">PDF</button>
         <button class="chip" data-typ="office">Office</button>
         <button class="chip" data-typ="md">Markdown</button>
-        <button class="chip" data-typ="mail">Mail</button>
+        <button class="chip" data-typ="mail" data-t>Mail</button>
       </div>
-      <label>Ordner <input class="ordner" id="ordner" placeholder="z. B. Steuer"></label>
-      <label>von <input type="date" id="von"></label>
-      <label>bis <input type="date" id="bis"></label>
-      <label>Sortierung
-        <select id="sort"><option value="relevanz">Relevanz</option><option value="neu">Neueste zuerst</option><option value="alt">Älteste zuerst</option></select>
+      <label data-t>Ordner <input class="ordner" id="ordner" data-tp placeholder="z. B. Steuer"></label>
+      <label data-t>von <input type="date" id="von"></label>
+      <label data-t>bis <input type="date" id="bis"></label>
+      <label data-t>Sortierung
+        <select id="sort"><option value="relevanz" data-t>Relevanz</option><option value="neu" data-t>Neueste zuerst</option><option value="alt" data-t>Älteste zuerst</option></select>
       </label>
     </div>
   </div>
@@ -131,6 +131,18 @@ th{color:var(--leise);font-weight:600;background:var(--bg)}
 </div>
 
 <script>
+// Sprache und Texte: src/search/web.py ersetzt die naechste Zeile durch die Uebersetzungen aus
+// src/i18n/locale/<sprache>.po (dieselbe Quelle wie das Programm). Unersetzt bleibt die Seite deutsch.
+const I18N = {"sprache": "de", "texte": {}}; /*I18N*/
+// t(deutscher Text, Werte ...): Text in der Sprache der Oberflaeche; {0}, {1} ... werden durch die Werte ersetzt.
+// Nur mit Zeichenkette in doppelten Anfuehrungszeichen aufrufen, sonst findet die Pruefung den Text nicht.
+function t(s, ...werte){ let r = I18N.texte[s] || s; werte.forEach((w,i)=>{ r = r.split("{"+i+"}").join(w) }); return r }
+const LOCALE = I18N.sprache === "de" ? "de-DE" : "en-GB";
+document.documentElement.lang = I18N.sprache;
+document.title = "PDF Sortier Meister – " + t("Suche");
+document.querySelectorAll("[data-t]").forEach(e=>{ const k = e.firstChild; if(k && k.nodeType===3){ const roh = k.nodeValue; k.nodeValue = roh.replace(roh.trim(), t(roh.trim())) } });
+document.querySelectorAll("[data-tp]").forEach(e=>{ e.placeholder = t(e.placeholder) });
+
 const $ = s => document.querySelector(s);
 const zustand = {typ:"", start:0, treffer:[]};
 const SEITE = 50;
@@ -138,12 +150,12 @@ const SEITE = 50;
 function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function marken(s){return esc(s).replace(/\x02/g,"<mark>").replace(/\x03/g,"</mark>")}
 const TABELLE = d => ["xlsx","xlsm","xls"].includes(d.format);
-function datum(ts){ if(!ts) return ""; const d=new Date(ts*1000); return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}) }
+function datum(ts){ if(!ts) return ""; const d=new Date(ts*1000); return d.toLocaleDateString(LOCALE,{day:"2-digit",month:"2-digit",year:"numeric"}) }
 function groesse(b){ if(b==null) return ""; if(b<1024) return b+" B"; if(b<1048576) return (b/1024).toFixed(0)+" KB"; if(b<1073741824) return (b/1048576).toFixed(1)+" MB"; return (b/1073741824).toFixed(2)+" GB" }
-const STATUS = {ocr_ausstehend:["OCR ausstehend","warn"], ocr_teilweise:["OCR teilweise","warn"], fehler:["Fehler","fehler"],
-  cloud:["nur in der Cloud","warn"], zu_gross:["zu groß","warn"], verschluesselt:["verschlüsselt","warn"], leer:["ohne Text","warn"]};
+const STATUS = {ocr_ausstehend:[t("OCR ausstehend"),"warn"], ocr_teilweise:[t("OCR teilweise"),"warn"], fehler:[t("Fehler"),"fehler"],
+  cloud:[t("nur in der Cloud"),"warn"], zu_gross:[t("zu groß"),"warn"], verschluesselt:[t("verschlüsselt"),"warn"], leer:[t("ohne Text"),"warn"]};
 
-async function post(url){ const r = await fetch(url,{method:"POST",headers:{"X-PDFsuche":"1"}}); const j = await r.json().catch(()=>({})); if(!r.ok||j.ok===false) alert(j.fehler||"Fehler"); return j }
+async function post(url){ const r = await fetch(url,{method:"POST",headers:{"X-PDFsuche":"1"}}); const j = await r.json().catch(()=>({})); if(!r.ok||j.ok===false) alert(j.fehler||t("Fehler")); return j }
 
 function parameter(){
   return new URLSearchParams(Object.fromEntries(Object.entries({
@@ -156,25 +168,26 @@ async function suche(anhaengen=false){
   if(!anhaengen){ zustand.start=0; history.replaceState(null,"","?"+p.toString()); }
   if(!p.get("q")){ hilfe(); return; }
   p.set("start", zustand.start); p.set("anzahl", SEITE);
-  $("#info").textContent = "Suche …";
+  $("#info").textContent = t("Suche …");
   const r = await fetch("/api/suche?"+p);
   const j = await r.json();
-  if(!r.ok){ $("#info").textContent = j.fehler || "Fehler"; return; }
+  if(!r.ok){ $("#info").textContent = j.fehler || t("Fehler"); return; }
   zustand.treffer = anhaengen ? zustand.treffer.concat(j.treffer) : j.treffer;
-  $("#info").textContent = j.gesamt ? `${j.gesamt.toLocaleString("de-DE")}${j.mehr?"+":""} Dokumente · ${j.dauer_ms} ms` : "";
+  $("#info").textContent = j.gesamt ? t("{0}{1} Dokumente · {2} ms", j.gesamt.toLocaleString(LOCALE), j.mehr?"+":"", j.dauer_ms) : "";
   zeichne(j);
 }
 
 function karte(d){
   const st = STATUS[d.textstatus];
   const titel = d.typ==="mail" ? (d.mail_betreff||d.name) : d.name;
-  const mehrSeiten = d.treffer_seiten > d.stellen.length ? `<div class="meta">… insgesamt ${d.treffer_seiten} Seiten mit Treffern</div>` : "";
+  const mehrSeiten = d.treffer_seiten > d.stellen.length ? `<div class="meta">${esc(t("… insgesamt {0} Seiten mit Treffern", d.treffer_seiten))}</div>` : "";
+  const umfang = !d.seiten ? "" : TABELLE(d) ? (d.seiten>1 ? t("{0} Blätter", d.seiten) : t("{0} Blatt", d.seiten)) : t("{0} S.", d.seiten);
   const meta = d.typ==="mail"
-    ? `${esc(datum(d.datum))} · Von: ${esc(d.mail_von)}${d.mail_anhaenge?` · 📎 ${esc(d.mail_anhaenge)}`:""}`
-    : [datum(d.datum), d.seiten?d.seiten+(TABELLE(d)?(d.seiten>1?" Blätter":" Blatt"):" S."):"", groesse(d.groesse), d.ocr_seiten?d.ocr_seiten+" S. per OCR":""].filter(Boolean).map(esc).join(" · ");
+    ? `${esc(datum(d.datum))} · ${esc(t("Von: {0}", d.mail_von))}${d.mail_anhaenge?` · 📎 ${esc(d.mail_anhaenge)}`:""}`
+    : [datum(d.datum), umfang, groesse(d.groesse), d.ocr_seiten?t("{0} S. per OCR", d.ocr_seiten):""].filter(Boolean).map(esc).join(" · ");
   const stellen = d.stellen.map(s=>{
-    const lbl = d.typ==="pdf" ? `<a class="s" href="/datei/${d.id}#page=${s.seite}" target="_blank">S. ${s.seite}</a>`
-              : TABELLE(d) ? `<span class="s">Blatt ${s.seite}</span>` : "";
+    const lbl = d.typ==="pdf" ? `<a class="s" href="/datei/${d.id}#page=${s.seite}" target="_blank">${esc(t("S. {0}", s.seite))}</a>`
+              : TABELLE(d) ? `<span class="s">${esc(t("Blatt {0}", s.seite))}</span>` : "";
     return `<div class="stelle">${lbl}${marken(s.text.replace(/\s+/g," "))}</div>`}).join("");
   const oeffnenLink = d.typ==="mail" ? `href="#" onclick="vorschau(${d.id});return false"`
                     : d.typ==="office" ? `href="#" onclick="post('/api/oeffnen/${d.id}');return false"`
@@ -183,43 +196,43 @@ function karte(d){
   return `<article class="karte">
     <div class="k-kopf"><span class="typ ${d.typ}">${esc(typName)}</span>
       <a class="titel" ${oeffnenLink}>${esc(titel)}</a>
-      ${st?`<span class="marke ${st[1]}">${st[0]}</span>`:""}${d.im_namen?`<span class="marke">Treffer im Namen</span>`:""}</div>
+      ${st?`<span class="marke ${st[1]}">${esc(st[0])}</span>`:""}${d.im_namen?`<span class="marke">${esc(t("Treffer im Namen"))}</span>`:""}</div>
     <div class="meta">${meta}</div>
     <div class="pfad">${esc(d.typ==="mail"?d.ordner:d.pfad)}</div>
     ${stellen}${mehrSeiten}
     <div class="aktionen">
-      <button class="knopf" onclick="vorschau(${d.id})">Text ansehen</button>
-      <button class="knopf" onclick="post('/api/oeffnen/${d.id}')">Mit Programm öffnen</button>
-      ${d.format!=="mbox"?`<button class="knopf" onclick="post('/api/ordner/${d.id}')">Im Ordner zeigen</button>`:""}
-      ${d.format!=="mbox"?`<button class="knopf" onclick="kopiere(${JSON.stringify(d.pfad).replace(/"/g,'&quot;')})">Pfad kopieren</button>`:`<a class="knopf" href="/datei/${d.id}">.eml laden</a>`}
+      <button class="knopf" onclick="vorschau(${d.id})">${esc(t("Text ansehen"))}</button>
+      <button class="knopf" onclick="post('/api/oeffnen/${d.id}')">${esc(t("Mit Programm öffnen"))}</button>
+      ${d.format!=="mbox"?`<button class="knopf" onclick="post('/api/ordner/${d.id}')">${esc(t("Im Ordner zeigen"))}</button>`:""}
+      ${d.format!=="mbox"?`<button class="knopf" onclick="kopiere(${JSON.stringify(d.pfad).replace(/"/g,'&quot;')})">${esc(t("Pfad kopieren"))}</button>`:`<a class="knopf" href="/datei/${d.id}">${esc(t(".eml laden"))}</a>`}
     </div></article>`;
 }
 
 function zeichne(j){
   const l = $("#liste");
-  if(!zustand.treffer.length){ l.innerHTML = `<div class="leer">Keine Treffer.<br><small>Abfrage: ${esc(j.abfrage)}</small></div>`; return; }
+  if(!zustand.treffer.length){ l.innerHTML = `<div class="leer">${esc(t("Keine Treffer."))}<br><small>${esc(t("Abfrage: {0}", j.abfrage))}</small></div>`; return; }
   l.innerHTML = zustand.treffer.map(karte).join("") +
-    (zustand.treffer.length < j.gesamt ? `<button class="knopf mehr" onclick="zustand.start+=${SEITE};suche(true)">Weitere Treffer laden</button>` : "");
+    (zustand.treffer.length < j.gesamt ? `<button class="knopf mehr" onclick="zustand.start+=${SEITE};suche(true)">${esc(t("Weitere Treffer laden"))}</button>` : "");
 }
 
-function kopiere(t){ navigator.clipboard.writeText(t) }
+function kopiere(text){ navigator.clipboard.writeText(text) }
 
 async function vorschau(id){
   const q = $("#q").value.trim();
   const j = await (await fetch(`/api/dokument/${id}?q=${encodeURIComponent(q)}`)).json();
   const d = j.dokument;
-  $("#v-kopf").innerHTML = `<button class="knopf schliessen" onclick="schliessen()">Schließen ✕</button>
+  $("#v-kopf").innerHTML = `<button class="knopf schliessen" onclick="schliessen()">${esc(t("Schließen"))} ✕</button>
     <div class="titel">${esc(d.name)}</div>
     <div class="pfad">${esc(d.pfad)}</div>
-    ${d.typ==="mail"?`<div class="meta">Von: ${esc(d.mail_von)}<br>An: ${esc(d.mail_an)}<br>Datum: ${esc(d.mail_datum||"")}</div>`:
-      `<div class="meta">${esc(datum(d.datum))} · ${d.seiten||1} Seite(n) · Status: ${esc(d.textstatus)}</div>`}
-    <div class="aktionen">${d.typ!=="mail"?`<a class="knopf" href="/datei/${id}" target="_blank">Original im Browser</a>`:""}
-      <button class="knopf" onclick="post('/api/oeffnen/${id}')">Mit Programm öffnen</button>
-      ${j.seiten.some(s=>s.treffer)?`<button class="knopf" onclick="document.querySelector('.panel-inhalt mark')?.scrollIntoView({block:'center'})">Zum ersten Treffer</button>`:""}</div>`;
+    ${d.typ==="mail"?`<div class="meta">${esc(t("Von: {0}", d.mail_von))}<br>${esc(t("An: {0}", d.mail_an))}<br>${esc(t("Datum: {0}", d.mail_datum||""))}</div>`:
+      `<div class="meta">${esc(datum(d.datum))} · ${esc(t("{0} Seite(n)", d.seiten||1))} · ${esc(t("Status: {0}", d.textstatus))}</div>`}
+    <div class="aktionen">${d.typ!=="mail"?`<a class="knopf" href="/datei/${id}" target="_blank">${esc(t("Original im Browser"))}</a>`:""}
+      <button class="knopf" onclick="post('/api/oeffnen/${id}')">${esc(t("Mit Programm öffnen"))}</button>
+      ${j.seiten.some(s=>s.treffer)?`<button class="knopf" onclick="document.querySelector('.panel-inhalt mark')?.scrollIntoView({block:'center'})">${esc(t("Zum ersten Treffer"))}</button>`:""}</div>`;
   $("#v-inhalt").innerHTML = j.seiten.length ? j.seiten.map(s=>`<div class="seite">
-    ${d.typ==="pdf"?`<h4><a href="/datei/${id}#page=${s.seite}" target="_blank">Seite ${s.seite}</a>${s.quelle==="ocr"?" · OCR":s.quelle!=="text"?" · "+esc(s.quelle):""}</h4>`:
-      TABELLE(d)?`<h4>Blatt ${s.seite}</h4>`:""}
-    <pre>${marken(s.text)||"<i>(kein Text)</i>"}</pre></div>`).join("") : `<p class="leer">Kein Text vorhanden.</p>`;
+    ${d.typ==="pdf"?`<h4><a href="/datei/${id}#page=${s.seite}" target="_blank">${esc(t("Seite {0}", s.seite))}</a>${s.quelle==="ocr"?" · OCR":s.quelle!=="text"?" · "+esc(s.quelle):""}</h4>`:
+      TABELLE(d)?`<h4>${esc(t("Blatt {0}", s.seite))}</h4>`:""}
+    <pre>${marken(s.text)||"<i>"+esc(t("(kein Text)"))+"</i>"}</pre></div>`).join("") : `<p class="leer">${esc(t("Kein Text vorhanden."))}</p>`;
   $("#vorschau").classList.add("offen");
   $("#v-inhalt").scrollTop = 0;
   setTimeout(()=>document.querySelector(".panel-inhalt mark")?.scrollIntoView({block:"center"}), 50);
@@ -227,46 +240,47 @@ async function vorschau(id){
 function schliessen(){ $("#vorschau").classList.remove("offen") }
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") schliessen() });
 
+// Die Schluesselwoerter der Suchsyntax (ODER, NICHT, NEAR) und die Beispiele bleiben in jeder Sprache gleich.
 function hilfe(){
   $("#info").textContent = "";
-  $("#liste").innerHTML = `<div class="hilfe"><b>So wird gesucht</b>
+  $("#liste").innerHTML = `<div class="hilfe"><b>${esc(t("So wird gesucht"))}</b>
   <ul>
-    <li>Mehrere Wörter: alle müssen vorkommen – <code>Rechnung Telekom</code></li>
-    <li>Genaue Wortfolge: <code>"Betrag in Höhe von"</code></li>
-    <li>Oder / Nicht: <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li>
-    <li>Wortanfang: <code>Rechnung*</code> findet Rechnungen, Rechnungsnummer …</li>
-    <li>Nähe: <code>NEAR(Kündigung Frist, 10)</code> – beide Wörter höchstens 10 Wörter auseinander</li>
-    <li>Umlaute sind egal: <code>Muller</code> findet auch <code>Müller</code></li>
-    <li>Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht.</li>
+    <li>${esc(t("Mehrere Wörter: alle müssen vorkommen –"))} <code>Rechnung Telekom</code></li>
+    <li>${esc(t("Genaue Wortfolge:"))} <code>"Betrag in Höhe von"</code></li>
+    <li>${esc(t("Oder / Nicht:"))} <code>Mietvertrag ODER Pachtvertrag</code>, <code>Rechnung NICHT Mahnung</code></li>
+    <li>${esc(t("Wortanfang:"))} <code>Rechnung*</code> ${esc(t("findet Rechnungen, Rechnungsnummer …"))}</li>
+    <li>${esc(t("Nähe:"))} <code>NEAR(Kündigung Frist, 10)</code> – ${esc(t("beide Wörter höchstens 10 Wörter auseinander"))}</li>
+    <li>${esc(t("Umlaute sind egal:"))} <code>Muller</code> ${esc(t("findet auch"))} <code>Müller</code></li>
+    <li>${esc(t("Auch Dateinamen, Ordner und Mail-Betreffs werden durchsucht."))}</li>
   </ul></div>`;
 }
 
 async function status(){
   const s = await (await fetch("/api/status")).json();
-  const n = x => (x||0).toLocaleString("de-DE");
+  const n = x => (x||0).toLocaleString(LOCALE);
   const st = s.pro_status||{};
   const zeilen = (s.laeufe||[]).map(l=>`<tr><td>${esc((l.beginn||"").replace("T"," "))}</td><td>${esc((l.ende||"").replace("T"," "))}</td>
-    <td>${l.status==="laeuft"?'<span class="laeuft">läuft</span>':esc(l.status)}</td><td>${esc(l.phase||"")}</td>
+    <td>${l.status==="laeuft"?'<span class="laeuft">'+esc(t("läuft"))+'</span>':esc(l.status)}</td><td>${esc(l.phase||"")}</td>
     <td>${esc(Object.entries(l.statistik||{}).map(([k,v])=>k+": "+v).join(", "))}</td></tr>`).join("");
   $("#v-status").innerHTML = `
     <div class="kacheln">
-      <div class="kachel"><b>${n(s.dokumente)}</b><span>Dokumente</span></div>
+      <div class="kachel"><b>${n(s.dokumente)}</b><span>${esc(t("Dokumente"))}</span></div>
       <div class="kachel"><b>${n(s.pro_typ?.pdf)}</b><span>PDFs</span></div>
-      <div class="kachel"><b>${n(s.pro_typ?.mail)}</b><span>Mails</span></div>
+      <div class="kachel"><b>${n(s.pro_typ?.mail)}</b><span>${esc(t("Mails"))}</span></div>
       <div class="kachel"><b>${n(s.pro_typ?.md)}</b><span>Markdown</span></div>
-      <div class="kachel"><b>${n(s.seiten)}</b><span>Seiten im Index</span></div>
-      <div class="kachel"><b>${n(s.ocr_seiten)}</b><span>Seiten per OCR erkannt</span></div>
-      <div class="kachel"><b>${n(s.ocr_ausstehend_seiten)}</b><span>Seiten warten auf OCR</span></div>
-      <div class="kachel"><b>${groesse(s.db_groesse)}</b><span>Datenbank</span></div>
+      <div class="kachel"><b>${n(s.seiten)}</b><span>${esc(t("Seiten im Index"))}</span></div>
+      <div class="kachel"><b>${n(s.ocr_seiten)}</b><span>${esc(t("Seiten per OCR erkannt"))}</span></div>
+      <div class="kachel"><b>${n(s.ocr_ausstehend_seiten)}</b><span>${esc(t("Seiten warten auf OCR"))}</span></div>
+      <div class="kachel"><b>${groesse(s.db_groesse)}</b><span>${esc(t("Datenbank"))}</span></div>
     </div>
-    <p>Indexierung: ${s.laeuft?'<span class="laeuft">läuft gerade</span>':"ruht"} — ${esc(s.fortschritt||"")}</p>
+    <p>${esc(t("Indexierung:"))} ${s.laeuft?'<span class="laeuft">'+esc(t("läuft gerade"))+'</span>':esc(t("ruht"))} — ${esc(s.fortschritt||"")}</p>
     <div class="aktionen" style="margin-bottom:14px">
-      <button class="knopf" onclick="post('/api/index-starten?nur_prioritaet=1').then(()=>setTimeout(status,1500))">Jetzt neue Scans einlesen</button>
-      <button class="knopf" onclick="post('/api/index-starten').then(()=>setTimeout(status,1500))">Kompletten Lauf starten</button>
+      <button class="knopf" onclick="post('/api/index-starten?nur_prioritaet=1').then(()=>setTimeout(status,1500))">${esc(t("Jetzt neue Scans einlesen"))}</button>
+      <button class="knopf" onclick="post('/api/index-starten').then(()=>setTimeout(status,1500))">${esc(t("Kompletten Lauf starten"))}</button>
     </div>
-    <p class="meta">Textstatus: ${Object.entries(st).map(([k,v])=>esc(k)+": "+n(v)).join(" · ")}</p>
-    <h3>Letzte Läufe</h3>
-    <table><tr><th>Beginn</th><th>Ende</th><th>Status</th><th>Phase</th><th>Statistik</th></tr>${zeilen}</table>`;
+    <p class="meta">${esc(t("Textstatus:"))} ${Object.entries(st).map(([k,v])=>esc(k)+": "+n(v)).join(" · ")}</p>
+    <h3>${esc(t("Letzte Läufe"))}</h3>
+    <table><tr><th>${esc(t("Beginn"))}</th><th>${esc(t("Ende"))}</th><th>Status</th><th>Phase</th><th>${esc(t("Statistik"))}</th></tr>${zeilen}</table>`;
 }
 
 let statusTimer;

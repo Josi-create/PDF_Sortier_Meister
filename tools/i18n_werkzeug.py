@@ -37,7 +37,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.i18n import LOCALE_DIR, po_literal, read_po  # noqa: E402
+from src.i18n import LOCALE_DIR, po_literal, read_po, texte_in_html  # noqa: E402
 
 # Aufrufe, deren Zeichenketten-Argumente sicher Oberfläche sind
 UI_AUFRUFE = {
@@ -692,6 +692,13 @@ def markierte_texte(wurzel: Path = ROOT / "src") -> dict[tuple[str | None, str],
             dateien = ergebnis.setdefault((kontext, node.args[0].value), [])
             if rel not in dateien:
                 dateien.append(rel)
+    # Browser-Oberflaeche: t("...") und data-t in den HTML-Seiten
+    for pfad in sorted(wurzel.rglob("static/*.html")):
+        rel = pfad.relative_to(wurzel.parent).as_posix()
+        for text in texte_in_html(pfad.read_text(encoding="utf-8")):
+            dateien = ergebnis.setdefault((None, text), [])
+            if rel not in dateien:
+                dateien.append(rel)
     return ergebnis
 
 
@@ -754,13 +761,14 @@ def _po_laden(sprache: str) -> tuple[dict[str, str], dict[str, str]]:
 
 
 def _escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+    return (text.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+            .replace("\r", "\\r"))
 
 
 def _unescape(text: str) -> str:
     text = text.replace("␣", " ")  # Leerzeichen am Rand, das Editoren sonst abschneiden
     return re.sub(
-        r"\\(.)", lambda m: {"n": "\n", "t": "\t", "\\": "\\"}.get(m.group(1), m.group(0)), text
+        r"\\(.)", lambda m: {"n": "\n", "t": "\t", "r": "\r", "\\": "\\"}.get(m.group(1), m.group(0)), text
     )
 
 
@@ -771,7 +779,7 @@ def _offene(sprache: str) -> list[tuple[str | None, str]]:
 
 def cmd_offen(args: argparse.Namespace) -> int:
     for nummer, (kontext, text) in enumerate(_offene(args.sprache), 1):
-        vor = f"[{kontext}] " if kontext else ""
+        vor = f"⟦{kontext}⟧ " if kontext else ""
         print(f"{nummer}\t{vor}{_escape(text)}")
     return 0
 
@@ -809,7 +817,7 @@ def cmd_eintragen(args: argparse.Namespace) -> int:
         offene = []
         for zeile in Path(args.stand).read_text(encoding="utf-8").splitlines():
             _, _, deutsch = zeile.partition("\t")
-            treffer = re.match(r"\[([^\]]+)\] (.*)", deutsch, re.DOTALL)
+            treffer = re.match(r"⟦([^⟧]+)⟧ (.*)", deutsch, re.DOTALL)
             if treffer:
                 offene.append((treffer.group(1), _unescape(treffer.group(2))))
             else:

@@ -22,6 +22,7 @@ import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
+from src.i18n import tr
 
 SCHEMA_VERSION = 2
 
@@ -786,7 +787,7 @@ def _zeit(datum: str) -> float:
             return datetime.strptime(datum, fmt).timestamp()
         except ValueError:
             pass
-    raise ValueError(f"Unbekanntes Datum: {datum!r} (erwartet JJJJ-MM-TT oder TT.MM.JJJJ)")
+    raise ValueError(tr("Unbekanntes Datum: {datum!r} (erwartet JJJJ-MM-TT oder TT.MM.JJJJ)").format(datum=datum))
 
 
 def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortierung="relevanz",
