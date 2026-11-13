@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 from src.core import datum_eingabe
 from src.core import schlagwoerter as schlagwort_regeln
-from src.core.document_date import is_iso_date, parse_user_date
+from src.core.document_date import bezugsjahr, is_iso_date, parse_user_date
 from src.gui.schlagwort_feld import SchlagwortFeld
 from src.i18n import tr
 
@@ -639,6 +639,8 @@ class DetailPanel(QWidget):
         self._suggestions = suggestions or []
         self._detected_date = detected_date
         self._has_learned_overrides = False
+        jahr = bezugsjahr(extracted_text or "")
+        self._bezugsjahr = str(jahr) if jahr else ""
 
         # Header
         self.header_label.setText(tr("Original: {name}").format(name=pdf_path.name))
@@ -690,6 +692,11 @@ class DetailPanel(QWidget):
                         self._has_learned_overrides = True
                 except Exception:
                     pass
+
+            # Issue #254: Nennt das Dokument sein Bezugsjahr ("Bescheid fuer
+            # 2020"), ist das das Steuerjahr - auch wenn die KI das Briefjahr liefert
+            if self._bezugsjahr:
+                self._metadata["steuerjahr"] = self._bezugsjahr
 
             # Steuerjahr = Jahr des Dokumentdatums, solange weder KI noch
             # Gelerntes ein Jahr gesetzt haben (Issue #132)
@@ -1906,6 +1913,11 @@ class DetailPanel(QWidget):
                                             w.setText(str(lv))
                         except Exception:
                             pass
+                    # Issue #254: Bezugsjahr aus dem Text schlaegt das Jahr der KI
+                    sj = self._metadata_inputs.get("steuerjahr")
+                    if sj is not None and getattr(self, "_bezugsjahr", "") and (
+                            s.metadata.get("steuerjahr") or not sj.text().strip()):
+                        sj.setText(self._bezugsjahr)
                     self._derive_steuerjahr_from_field()
                     self._loading_metadata = False
                     self._metadata_source = "llm"

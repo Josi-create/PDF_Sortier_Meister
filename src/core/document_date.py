@@ -11,6 +11,8 @@ Steuerjahr abgeleitet. Hier steht die Auswahl an einer Stelle:
   alle anderen; Daten hinter "geboren", "gueltig bis", "faellig", "Frist",
   "Eingang" u.ae. zaehlen nur als Notnagel; bei Gleichstand gewinnt das erste
   Datum in Lesereihenfolge (Briefkopf), nicht das juengste.
+- :func:`bezugsjahr` findet das Jahr, das ein Steuerdokument betrifft
+  ("Bescheid fuer 2020"), auch wenn der Brief spaeter datiert ist (Issue #254).
 - :func:`parse_user_date` macht aus markiertem oder getipptem Text
   ("12.3.2004", "12. Maerz 2004", "2004-03-12") ein ISO-Datum fuer das
   Feld "Datum" im Detail-Panel.
@@ -149,6 +151,39 @@ def ordered_dates(text: str) -> list[datetime]:
         return []
     others = sorted({f.value for f in found} - {best}, reverse=True)
     return [best] + others
+
+
+# Bezugsjahr (Issue #254): "Bescheid fuer 2020 ueber Einkommensteuer",
+# "Einkommensteuer 2020", "Lohnsteuerbescheinigung fuer 2020",
+# "Veranlagungszeitraum 2020". Die Jahreszahl muss unmittelbar folgen; ein
+# Datum ("Bescheid vom 12.03.2022", "Steuer 2022-03-12") zaehlt nicht.
+_BEZUGSJAHR_RE = re.compile(
+    r"(?:\bbescheid|steuer(?:bescheid|bescheinigung|erkl(?:ä|ae|a)rung)?"
+    r"|veranlagungs(?:zeitraum|jahr)|solidarit(?:ä|ae|a)tszuschlag)"
+    r"\s*:?\s*(?:f(?:ü|ue|u)r\s+)?(?:das\s+)?(?:(?:kalender|veranlagungs|steuer)?jahr\s+)?"
+    r"((?:19|20)\d{2})(?!\d)(?!\s*[./-]\s*\d)",
+    re.IGNORECASE,
+)
+# Der Titel steht vorn; weiter hinten nennen Bescheide auch andere Jahre
+# (Vorauszahlungen, Verlustvortrag)
+_BEZUGSJAHR_CHARS = 4000
+
+
+def bezugsjahr(text: str) -> Optional[int]:
+    """Jahr, das ein Steuerdokument ausdruecklich betrifft (oder None).
+
+    Ein Bescheid "fuer 2020", ausgestellt 2022, gehoert zum Steuerjahr 2020
+    und in den Ordner fuer 2020 - nicht in den des Briefdatums. Es zaehlt die
+    erste Nennung im vorderen Teil des Textes; Jahre nach dem naechsten Jahr
+    (OCR-Lesefehler) fallen weg.
+    """
+    if not text:
+        return None
+    for m in _BEZUGSJAHR_RE.finditer(text[:_BEZUGSJAHR_CHARS]):
+        year = _year(m.group(1), MIN_TEXT_YEAR)
+        if year and year <= datetime.now().year + 1:
+            return year
+    return None
 
 
 def parse_user_date(text: str) -> Optional[str]:
