@@ -9,6 +9,8 @@
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-black?logo=apple)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
+▶️ **[Short video: what the program does (45 seconds, in German, YouTube)](https://youtube.com/shorts/ym5YqVzNk0Q)**
+
 ![Main window: PDF preview on the left, suggestions and metadata in the middle, target folders on the right](docs/screenshots/hauptfenster-en.png)
 
 Your scanner saves `scan_0042.pdf` — and then? PDF Sortier Meister shows the scans as previews,

@@ -39,6 +39,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Start der Setup-Datei „Der Computer wurde durch Windows geschützt“ meldet, warum (das Programm
   ist noch nicht signiert, #163) und wie es weitergeht: „Weitere Informationen“, dann „Trotzdem
   ausführen“.
+- **Kurzvideo im README**: README.md und README.en.md verlinken oben das Kurzvideo (45 Sekunden,
+  YouTube), das zeigt, was das Programm macht.
 
 ## [0.27.0] - 2026-11-12
 
