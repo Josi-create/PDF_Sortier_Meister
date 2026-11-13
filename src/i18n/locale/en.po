@@ -4940,6 +4940,14 @@ msgid "Speichern"
 msgstr "Save"
 
 #: src/gui/settings_dialog.py
+msgid "Anwenden"
+msgstr "Apply"
+
+#: src/gui/settings_dialog.py
+msgid "Übernimmt die Einstellungen sofort und lässt dieses Fenster offen."
+msgstr "Applies the settings immediately and keeps this window open."
+
+#: src/gui/settings_dialog.py
 msgid "LLM-Provider"
 msgstr "LLM provider"
 

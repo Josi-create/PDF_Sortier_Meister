@@ -149,6 +149,8 @@ class Config:
         # "farbe" (aufgehellt) | "grau" | "sw" (Schwarzweiss)
         "bild_tonwerte": "farbe",
         "preview_window_geometry": [],  # [x, y, w, h] des Vorschau-Fensters
+        # [Breite, Hoehe] des Einstellungsfensters; leer = passend zum Inhalt (Issue #255)
+        "settings_dialog_size": [],
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
         # Vorschlagsliste unter "Neuer Dateiname" aufgeklappt (Issue #146)
         "suggestions_expanded": False,

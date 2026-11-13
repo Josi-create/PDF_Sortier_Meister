@@ -33,6 +33,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
 
+### Geändert
+- **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
+  Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
+  „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
