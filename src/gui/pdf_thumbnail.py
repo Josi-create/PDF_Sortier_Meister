@@ -525,8 +525,8 @@ class PDFThumbnailWidget(QFrame):
         if value:
             self._original_pixmap = None
             self.thumbnail_label.clear()
-            self.thumbnail_label.setStyleSheet(
-                "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;"
+            stil(self.thumbnail_label,
+                "background-color: $grau_f5; border: 1px solid $grau_dd; border-radius: 3px;"
             )
         self._update_tooltip()
 

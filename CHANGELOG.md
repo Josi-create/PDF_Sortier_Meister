@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-13
+
 ### Neu
 - **Textdateien (.txt) sortieren und in PDF umwandeln** (#227): .txt-Dateien im Scan-Ordner
   erscheinen jetzt als Kachel (Etikett „TXT“) mit Vorschau, fließen in die Ordner-Vorschläge ein,
@@ -64,16 +66,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Antwort lässt sich unter Einstellungen → Allgemein merken). Digital signierte Originale bleiben
   immer liegen, weil die Signatur nur für das Original gilt. Passwörter werden nicht erraten oder
   geknackt; PDFs, die nur das Drucken oder Kopieren einschränken, sind nicht betroffen.
-
-### Behoben
-- **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein
-  KI-Assistent wie Claude mit der Dokumentensuche verbunden, laufen im Hintergrund Dienstprogramme
-  (`pdfsm-dienst.exe`) ohne Fenster und ohne Symbol im Infobereich. Das Setup meldete sie bisher
-  als „kann nicht automatisch geschlossen werden“ und brach beim Ersetzen der Dateien ab. Jetzt
-  beendet das Setup diese Programme selbst, ebenso die Browser-Oberfläche der Suche und einen
-  laufenden Indexlauf (er setzt beim nächsten Mal fort). Dasselbe gilt für die Deinstallation.
-  Auf der letzten Seite steht dann der Hinweis, den KI-Assistenten einmal neu zu starten, damit er
-  die Dokumentensuche wieder findet.
 - **Bedeutungssuche für den Chat** (#230, Standard aus): Bisher fand der Chat ein Dokument nur,
   wenn die Wörter der Frage darin stehen. Mit dem neuen Schalter unter Einstellungen › Suche findet
   er auch Dokumente, die dasselbe meinen: Die Frage „Was zahle ich für meine Autoversicherung?“
@@ -85,13 +77,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   großes Archiv dauert mit Grafikkarte etwa eine Stunde je 100.000 Seiten, ohne deutlich länger;
   er läuft in Etappen und setzt beim nächsten Mal fort. Die Wortsuche und der Reiter „Suche“
   bleiben unverändert, und wer Ollama nicht nutzt, merkt von alldem nichts.
-
-### Geändert
-- **Ein zweiter Klick wählt die markierte Kachel nicht mehr ab** (#251): Klickst du eine Kachel an,
-  die schon als einzige markiert ist, bleibt sie markiert; Detailansicht, Vorschau und Vorschläge
-  bleiben stehen. Abgewählt wird mit einem Klick in den leeren Bereich der Kachelansicht (oder über
-  das Menü). Strg-Klick schaltet einzelne Kacheln weiterhin um, Umschalt-Klick, Ziehen und
-  Doppelklick verhalten sich wie bisher.
 - **Bilder im Scan-Ordner drehen** (#252): Ein hochkant oder auf dem Kopf fotografiertes Bild lässt
   sich jetzt wie eine PDF drehen: Rechtsklick auf die Kachel → „Drehen“ → 90° nach links, 90° nach
   rechts oder 180°. Sind mehrere Bilder markiert, werden alle gedreht; Strg+Z dreht zurück. Die
@@ -104,16 +89,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Zuletzt verschoben nach …** (#253): Nach dem Verschieben steht der Zielordner unten in der
   Statusleiste. Ein Klick darauf öffnet ihn links und markiert die gerade verschobenen Dateien;
   frühere Ziele zeigt der Rechtsklick oder „Ansicht → Zuletzt verschoben nach“.
-
-### Behoben
-- **Steuerbescheid für ein früheres Jahr** (#254): Ein Bescheid „für 2020“, der 2022 ausgestellt
-  wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
-  zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
-
-### Geändert
-- **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
-  Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
-  „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
 - **Dunkles Farbschema** (#238): Das Programm gibt es jetzt auch in Dunkel. Unter Einstellungen →
   Allgemein → Darstellung → „Farbschema“ wählst du „Wie das System“ (Standard), „Hell“ oder
   „Dunkel“. „Wie das System“ folgt dem hellen oder dunklen Modus von Windows oder macOS, auch wenn
@@ -121,6 +96,29 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Dokumente (Vorschau, Miniaturen) bleiben in beiden Farbschemata, wie sie sind. Wer sein System
   dunkel eingestellt hat, sieht das Programm nach dem Update also dunkel; mit „Hell“ sieht es aus
   wie bisher.
+
+### Geändert
+- **Ein zweiter Klick wählt die markierte Kachel nicht mehr ab** (#251): Klickst du eine Kachel an,
+  die schon als einzige markiert ist, bleibt sie markiert; Detailansicht, Vorschau und Vorschläge
+  bleiben stehen. Abgewählt wird mit einem Klick in den leeren Bereich der Kachelansicht (oder über
+  das Menü). Strg-Klick schaltet einzelne Kacheln weiterhin um, Umschalt-Klick, Ziehen und
+  Doppelklick verhalten sich wie bisher.
+- **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
+  Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
+  „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
+
+### Behoben
+- **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein
+  KI-Assistent wie Claude mit der Dokumentensuche verbunden, laufen im Hintergrund Dienstprogramme
+  (`pdfsm-dienst.exe`) ohne Fenster und ohne Symbol im Infobereich. Das Setup meldete sie bisher
+  als „kann nicht automatisch geschlossen werden“ und brach beim Ersetzen der Dateien ab. Jetzt
+  beendet das Setup diese Programme selbst, ebenso die Browser-Oberfläche der Suche und einen
+  laufenden Indexlauf (er setzt beim nächsten Mal fort). Dasselbe gilt für die Deinstallation.
+  Auf der letzten Seite steht dann der Hinweis, den KI-Assistenten einmal neu zu starten, damit er
+  die Dokumentensuche wieder findet.
+- **Steuerbescheid für ein früheres Jahr** (#254): Ein Bescheid „für 2020“, der 2022 ausgestellt
+  wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
+  zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
 
 ## [0.27.0] - 2026-11-12
 

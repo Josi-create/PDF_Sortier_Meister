@@ -38,6 +38,7 @@ from src.core.pdf_entsperren import (
     entsperren,
 )
 from src.gui import original_wegraeumen as ow
+from src.gui.farben import stil
 from src.i18n import tr
 from src.search.meldungen import melden as index_melden
 
@@ -72,7 +73,7 @@ class PasswortDialog(QDialog):
         self.fehler_label = QLabel(fehler)
         self.fehler_label.setTextFormat(Qt.TextFormat.PlainText)
         self.fehler_label.setWordWrap(True)
-        self.fehler_label.setStyleSheet("color: #b00020;")
+        stil(self.fehler_label, "color: $rot_text;")
         self.fehler_label.setVisible(bool(fehler))
         layout.addWidget(self.fehler_label)
 
@@ -90,7 +91,7 @@ class PasswortDialog(QDialog):
             "Das Passwort wird nicht gespeichert und nicht an die KI gegeben."
         ))
         hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #555;")
+        stil(hinweis, "color: $grau_55;")
         layout.addWidget(hinweis)
 
         self.knoepfe = QDialogButtonBox(

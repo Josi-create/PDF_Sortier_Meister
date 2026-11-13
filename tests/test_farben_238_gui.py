@@ -237,7 +237,7 @@ def test_stylesheet_mit_farbnamen_laeuft_ueber_stil():
 # selbst gezeichneter Seitenbilder, Kennfarben der Dateitypen, Warndreieck, Griffe auf dem Foto).
 _FEST_ERLAUBT = {
     "office_thumbnail.py": {"#2b579a", "#217346", "#7a5195", "#5f6368", "#d6336c", "#d0d0d0", "#333333"},
-    "pdf_thumbnail.py": {"#f39c12", "#b9770e"},
+    "pdf_thumbnail.py": {"#f39c12", "#b9770e", "#8a6d1d", "#e8c96a"},  # Warndreieck, Schloss (#244)
     "chat_view.py": {"#0000ff"},  # entfernt die Standard-Linkfarbe aus Qt-HTML
     "checkbox_style.py": {"#ffffff"},  # weisses Haekchen auf blauem Kaestchen (SVG)
 }
