@@ -33,6 +33,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
 
+### Geändert
+- **Ein zweiter Klick wählt die markierte Kachel nicht mehr ab** (#251): Klickst du eine Kachel an,
+  die schon als einzige markiert ist, bleibt sie markiert; Detailansicht, Vorschau und Vorschläge
+  bleiben stehen. Abgewählt wird mit einem Klick in den leeren Bereich der Kachelansicht (oder über
+  das Menü). Strg-Klick schaltet einzelne Kacheln weiterhin um, Umschalt-Klick, Ziehen und
+  Doppelklick verhalten sich wie bisher.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
