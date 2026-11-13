@@ -3770,8 +3770,8 @@ msgid "Nicht konfiguriert"
 msgstr "Not configured"
 
 #: src/gui/main_window.py
-msgid "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
-msgstr "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
+msgid "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
+msgstr "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
 
 #: src/gui/main_window.py
 msgid "Ein intelligentes Programm zum Sortieren und<br>Umbenennen von gescannten PDF-Dokumenten."
@@ -3790,12 +3790,12 @@ msgid "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Me
 msgstr "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Meister\">github.com/Josi-create/PDF_Sortier_Meister</a></p>"
 
 #: src/gui/main_window.py
-msgid "<p style='color: #666; font-size: 11px;'><b>Lizenz:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Freie Software - Open Source. Lizenztext: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
-msgstr "<p style='color: #666; font-size: 11px;'><b>License:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Free software - open source. License text: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+msgid "<p style='color: $grau_66; font-size: 11px;'><b>Lizenz:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Freie Software - Open Source. Lizenztext: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+msgstr "<p style='color: $grau_66; font-size: 11px;'><b>License:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Free software - open source. License text: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
 
 #: src/gui/main_window.py
-msgid "<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>"
-msgstr "<p style='color: #999; font-size: 10px;'>Log file: {log_path}</p>"
+msgid "<p style='color: $grau_99; font-size: 10px;'>Log-Datei: {log_path}</p>"
+msgstr "<p style='color: $grau_99; font-size: 10px;'>Log file: {log_path}</p>"
 
 #: src/gui/main_window.py
 msgid "OK"
@@ -4921,8 +4921,8 @@ msgid "Anhänge: {0}"
 msgstr "Attachments: {0}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#9a3412'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
-msgstr "<p style='color:#9a3412'>The file no longer exists – here is the text stored in the index.</p>"
+msgid "<p style='color:$rost_text'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
+msgstr "<p style='color:$rost_text'>The file no longer exists – here is the text stored in the index.</p>"
 
 #: src/gui/search_view.py
 msgid "Seite {0}{1}"
@@ -4938,8 +4938,8 @@ msgid "<i>(kein Text)</i>"
 msgstr "<i>(no text)</i>"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Kein Text vorhanden.</p>"
-msgstr "<p style='color:#888888'>No text available.</p>"
+msgid "<p style='color:$grau_88'>Kein Text vorhanden.</p>"
+msgstr "<p style='color:$grau_88'>No text available.</p>"
 
 #: src/gui/search_view.py
 #: src/search/static/index.html
@@ -5096,8 +5096,8 @@ msgid "Suche fehlgeschlagen: {text}"
 msgstr "Search failed: {text}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Lade Text …</p>"
-msgstr "<p style='color:#888888'>Loading text …</p>"
+msgid "<p style='color:$grau_88'>Lade Text …</p>"
+msgstr "<p style='color:$grau_88'>Loading text …</p>"
 
 #: src/gui/search_view.py
 msgid "<p>Dieses Dokument ist nicht mehr im Index.</p>"
@@ -5635,6 +5635,26 @@ msgstr "A different language takes effect after restarting the program."
 #: src/gui/settings_dialog.py
 msgid "Darstellung"
 msgstr "Display"
+
+#: src/gui/settings_dialog.py
+msgid "Wie das System"
+msgstr "Same as system"
+
+#: src/gui/settings_dialog.py
+msgid "Hell"
+msgstr "Light"
+
+#: src/gui/settings_dialog.py
+msgid "Dunkel"
+msgstr "Dark"
+
+#: src/gui/settings_dialog.py
+msgid "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\noder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\nDie Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+msgstr "“Same as system” follows the Windows or macOS setting (light or dark\nmode), even if it changes while the program is running.\nThe pages of your documents look the same in every color scheme."
+
+#: src/gui/settings_dialog.py
+msgid "Farbschema:"
+msgstr "Color scheme:"
 
 #: src/gui/settings_dialog.py
 msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."

@@ -28,7 +28,7 @@ from pathlib import Path
 
 from PyQt6 import sip
 from PyQt6.QtCore import QMimeData, QPoint, Qt, QThread, QUrl, pyqtSignal
-from PyQt6.QtGui import QColor, QDrag
+from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -50,6 +50,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core import korrespondenten as kr
+from src.gui.farben import qfarbe, stil
 from src.i18n import tr
 
 logger = logging.getLogger(__name__)
@@ -253,7 +254,7 @@ class KorrespondentenView(QWidget):
 
         self.hinweis = QFrame()
         self.hinweis.setObjectName("korrHinweis")
-        self.hinweis.setStyleSheet("QFrame#korrHinweis { background: #fff8e1; border: 1px solid #f0d58c; "
+        stil(self.hinweis, "QFrame#korrHinweis { background: $hinweis_flaeche; border: 1px solid $hinweis_rand; "
                                    "border-radius: 6px; }")
         h = QVBoxLayout(self.hinweis)
         h.setContentsMargins(10, 8, 10, 8)
@@ -304,7 +305,7 @@ class KorrespondentenView(QWidget):
         self.fortschritt_box.hide()
         lay.addWidget(self.fortschritt_box)
         self.fortschritt_label = QLabel("")
-        self.fortschritt_label.setStyleSheet("color: #666; font-size: 10px;")
+        stil(self.fortschritt_label, "color: $grau_66; font-size: 10px;")
         self.fortschritt_label.hide()
         lay.addWidget(self.fortschritt_label)
 
@@ -344,7 +345,7 @@ class KorrespondentenView(QWidget):
 
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet("color: #666; font-size: 10px;")
+        stil(self.status_label, "color: $grau_66; font-size: 10px;")
         lay.addWidget(self.status_label)
         aussen.addWidget(self.inhalt, 1)
 
@@ -405,7 +406,7 @@ class KorrespondentenView(QWidget):
                     tipp.append(tr("Schreibweisen: {0}").format(', '.join(g.schreibweisen)))
                 grund = kr.auffaelligkeit(g.name, owner)
                 if grund:
-                    item.setForeground(QColor("#9e9e9e"))
+                    item.setForeground(qfarbe("grau_9e"))
                     tipp.append(tr("Auffällig ({0}) – „Aufräumen…“ bewertet diese Dokumente neu.").format(kr.GRUND_TEXT[grund]))
                 item.setToolTip("\n".join(tipp))
                 self.liste.addItem(item)

@@ -14,7 +14,7 @@ import logging
 import time
 
 from PyQt6.QtCore import Qt, QEvent, QTimer, pyqtSignal, QThread
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 from src.core import datum_eingabe
 from src.core import schlagwoerter as schlagwort_regeln
 from src.core.document_date import bezugsjahr, is_iso_date, parse_user_date
+from src.gui.farben import css, melder, qfarbe, stil
 from src.gui.schlagwort_feld import SchlagwortFeld
 from src.i18n import tr
 
@@ -272,7 +273,7 @@ class DetailPanel(QWidget):
             "Zielordner zum Verschieben.")
         )
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.placeholder.setStyleSheet("color: #888; padding: 30px; font-size: 12px;")
+        stil(self.placeholder, "color: $grau_88; padding: 30px; font-size: 12px;")
         layout.addWidget(self.placeholder)
 
         # === Detail-Bereich (zunächst versteckt) ===
@@ -283,9 +284,9 @@ class DetailPanel(QWidget):
 
         # Header: Aktueller Dateiname
         self.header_label = QLabel()
-        self.header_label.setStyleSheet(
-            "font-size: 11px; color: #666; padding: 4px; "
-            "background-color: #f5f5f5; border-radius: 3px;"
+        stil(self.header_label,
+            "font-size: 11px; color: $grau_66; padding: 4px; "
+            "background-color: $grau_f5; border-radius: 3px;"
         )
         self.header_label.setWordWrap(True)
         detail_layout.addWidget(self.header_label)
@@ -343,8 +344,8 @@ class DetailPanel(QWidget):
         options_row.addStretch(1)
         self.edit_pattern_btn = QPushButton(tr("Muster bearbeiten…"))
         self.edit_pattern_btn.setFlat(True)
-        self.edit_pattern_btn.setStyleSheet(
-            "QPushButton { font-size: 10px; color: #1a5fb4; padding: 1px 4px; }"
+        stil(self.edit_pattern_btn,
+            "QPushButton { font-size: 10px; color: $blau_text; padding: 1px 4px; }"
             "QPushButton:hover { text-decoration: underline; }"
         )
         self.edit_pattern_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -379,15 +380,15 @@ class DetailPanel(QWidget):
 
         # Vorschau
         self.preview_label = QLabel()
-        self.preview_label.setStyleSheet(
-            "font-family: monospace; padding: 3px 6px; background-color: #e8f5e9; "
-            "border: 1px solid #a5d6a7; border-radius: 3px; font-size: 11px;"
+        stil(self.preview_label,
+            "font-family: monospace; padding: 3px 6px; background-color: $gruen_flaeche; "
+            "border: 1px solid $gruen_rand; border-radius: 3px; font-size: 11px;"
         )
         self.preview_label.setWordWrap(True)
         name_layout.addWidget(self.preview_label)
 
         self.warning_label = QLabel()
-        self.warning_label.setStyleSheet("color: #d32f2f; font-size: 10px;")
+        stil(self.warning_label, "color: $rot; font-size: 10px;")
         self.warning_label.hide()
         name_layout.addWidget(self.warning_label)
 
@@ -414,6 +415,7 @@ class DetailPanel(QWidget):
         self._metadata_inputs = {}
         # Grundstil je Feld - fuer die gruene Hervorhebung "neu gegenueber PDF"
         self._field_base_styles: dict[str, str] = {}
+        melder.geaendert.connect(self._populate_suggestions)  # Listenfarben folgen dem Farbschema
         metadata_fields = [
             ("buchungsdatum", tr("Datum")),  # Issue #132
             ("steuerjahr", tr("Steuerjahr")),
@@ -464,7 +466,7 @@ class DetailPanel(QWidget):
 
         for idx, (field_key, field_label) in enumerate(metadata_fields):
             label = QLabel(f"{field_label}:")
-            label.setStyleSheet("color: #555; font-size: 10px;")
+            stil(label, "color: $grau_55; font-size: 10px;")
 
             if field_key == "description":
                 input_field = QPlainTextEdit()
@@ -532,11 +534,11 @@ class DetailPanel(QWidget):
         self.save_metadata_btn.setToolTip(
             tr("Metadaten in die PDF schreiben, ohne die Datei zu verschieben")
         )
-        self.save_metadata_btn.setStyleSheet(
-            "QPushButton { background-color: #1565c0; color: white; "
+        stil(self.save_metadata_btn,
+            "QPushButton { background-color: $knopf_blau; color: $weiss_schrift; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
-            "QPushButton:hover { background-color: #0d47a1; }"
-            "QPushButton:disabled { background-color: #bdbdbd; color: #777; }"
+            "QPushButton:hover { background-color: $knopf_blau_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; color: $grau_77; }"
         )
         self.save_metadata_btn.clicked.connect(self.save_metadata_requested)
         btn_row.addWidget(self.save_metadata_btn)
@@ -545,11 +547,11 @@ class DetailPanel(QWidget):
         self.rename_and_save_btn.setToolTip(
             tr("Dateinamen aktualisieren UND Metadaten in die PDF schreiben, ohne sie zu verschieben")
         )
-        self.rename_and_save_btn.setStyleSheet(
-            "QPushButton { background-color: #2e7d32; color: white; "
+        stil(self.rename_and_save_btn,
+            "QPushButton { background-color: $knopf_gruen; color: $weiss_schrift; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
-            "QPushButton:hover { background-color: #1b5e20; }"
-            "QPushButton:disabled { background-color: #bdbdbd; color: #777; }"
+            "QPushButton:hover { background-color: $knopf_gruen_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; color: $grau_77; }"
         )
         self.rename_and_save_btn.clicked.connect(self.rename_and_save_metadata_requested)
         btn_row.addWidget(self.rename_and_save_btn)
@@ -558,11 +560,11 @@ class DetailPanel(QWidget):
         self.llm_btn.setToolTip(
             tr("Metadaten und Dateinamen per KI erneut aus dem PDF-Text vorschlagen lassen")
         )
-        self.llm_btn.setStyleSheet(
-            "QPushButton { background-color: #7b1fa2; color: white; "
+        stil(self.llm_btn,
+            "QPushButton { background-color: $knopf_lila; color: $weiss_schrift; "
             "padding: 3px 10px; border: none; border-radius: 3px; font-size: 10px; }"
-            "QPushButton:hover { background-color: #6a1b9a; }"
-            "QPushButton:disabled { background-color: #bdbdbd; }"
+            "QPushButton:hover { background-color: $knopf_lila_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; }"
         )
         self.llm_btn.clicked.connect(self._request_llm_metadata)
         btn_row.addWidget(self.llm_btn)
@@ -583,9 +585,9 @@ class DetailPanel(QWidget):
         search_layout.setContentsMargins(0, 0, 0, 0)
 
         self.search_header = QLabel(tr("Suchergebnisse"))
-        self.search_header.setStyleSheet(
+        stil(self.search_header,
             "font-size: 13px; font-weight: bold; padding: 6px; "
-            "background-color: #e3f2fd; border-radius: 3px;"
+            "background-color: $blau_flaeche; border-radius: 3px;"
         )
         search_layout.addWidget(self.search_header)
 
@@ -1026,7 +1028,7 @@ class DetailPanel(QWidget):
         "markieren und per Rechtsklick „Als Datum übernehmen“.")
     )
     _DATE_INVALID_HINT = tr("\n\nKein Datum erkannt - bitte einen ganzen Tag eingeben, z. B. 3.5.2024.")
-    _INVALID_FIELD_STYLE = " border: 1px solid #d32f2f; background-color: #fdecea; border-radius: 3px;"
+    _INVALID_FIELD_STYLE = " border: 1px solid $rot; background-color: $rot_flaeche_feld; border-radius: 3px;"
 
     @staticmethod
     def _derive_steuerjahr_into(metadata: dict) -> None:
@@ -1082,10 +1084,10 @@ class DetailPanel(QWidget):
             return
         if iso:
             hint.setText(f"= {datum_eingabe.tag_text(date.fromisoformat(iso))}")
-            hint.setStyleSheet("color: #888; font-size: 10px;")
+            stil(hint, "color: $grau_88; font-size: 10px;")
         else:
             hint.setText(datum_eingabe.beschreibe(datum_eingabe.parse_tag(text)))
-            hint.setStyleSheet("color: #b71c1c; font-size: 10px;")
+            stil(hint, "color: $rot_text; font-size: 10px;")
         hint.setVisible(True)
 
     def _normalize_date_field(self):
@@ -1151,32 +1153,32 @@ class DetailPanel(QWidget):
         source = self._metadata_source
         if source == "pdf":
             self.metadata_status_label.setText(tr("Quelle: aus PDF gelesen"))
-            self.metadata_status_label.setStyleSheet(
+            stil(self.metadata_status_label,
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
-                "background-color: #e8f5e9; color: #2e7d32;"
+                "background-color: $gruen_flaeche; color: $gruen_text_hell;"
             )
             self.metadata_status_label.show()
         elif source == "pdf_partial":
             self.metadata_status_label.setText(
                 tr("Quelle: aus PDF gelesen - grün = neue Vorschläge (noch nicht gespeichert)")
             )
-            self.metadata_status_label.setStyleSheet(
+            stil(self.metadata_status_label,
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
-                "background-color: #fff8e1; color: #e65100;"
+                "background-color: $hinweis_flaeche; color: $orange_text_kraeftig;"
             )
             self.metadata_status_label.show()
         elif source == "llm":
             self.metadata_status_label.setText(tr("Quelle: KI-Vorschlag (noch nicht gespeichert)"))
-            self.metadata_status_label.setStyleSheet(
+            stil(self.metadata_status_label,
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
-                "background-color: #f3e5f5; color: #6a1b9a;"
+                "background-color: $lila_flaeche; color: $lila_text;"
             )
             self.metadata_status_label.show()
         elif source == "user":
             self.metadata_status_label.setText(tr("Quelle: editiert (noch nicht gespeichert)"))
-            self.metadata_status_label.setStyleSheet(
+            stil(self.metadata_status_label,
                 "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
-                "background-color: #fff8e1; color: #e65100;"
+                "background-color: $hinweis_flaeche; color: $orange_text_kraeftig;"
             )
             self.metadata_status_label.show()
         else:
@@ -1184,7 +1186,7 @@ class DetailPanel(QWidget):
         self._highlight_new_fields()
 
     # Pastellgruen wie die Kacheln mit KI-Vorschlag (PDFThumbnailWidget.AI_BACKGROUND)
-    _NEW_FIELD_STYLE = " background-color: #e6f4e6; border: 1px solid #7cc47f; border-radius: 3px;"
+    _NEW_FIELD_STYLE = " background-color: $ki_flaeche; border: 1px solid $ki_rand; border-radius: 3px;"
 
     def _highlight_new_fields(self):
         """Felder gruen, deren Wert nicht (so) im PDF steht - erst nach dem Speichern weiss.
@@ -1202,12 +1204,12 @@ class DetailPanel(QWidget):
             style = self._field_base_styles.get(key, "") + (self._NEW_FIELD_STYLE if is_new else "")
             if key == "buchungsdatum" and self._date_invalid:
                 style = self._field_base_styles.get(key, "") + self._INVALID_FIELD_STYLE
-            if widget.styleSheet() != style:
-                widget.setStyleSheet(style)
+            if widget.styleSheet() != css(style):
+                stil(widget, style)
             if isinstance(widget, _CategoryCombo):
-                edit_style = "background-color: #e6f4e6;" if is_new else ""
-                if widget.lineEdit().styleSheet() != edit_style:
-                    widget.lineEdit().setStyleSheet(edit_style)
+                edit_style = "background-color: $ki_flaeche;" if is_new else ""
+                if widget.lineEdit().styleSheet() != css(edit_style):
+                    stil(widget.lineEdit(), edit_style)
 
     # === Interne Methoden ===
 
@@ -1297,21 +1299,21 @@ class DetailPanel(QWidget):
                     tr("Die Datei behält ihren bisherigen Namen.\n"
                     "Anklicken übernimmt ihn ins Feld „Neuer Dateiname“.")
                 )
-                item.setForeground(QColor(90, 90, 90))
+                item.setForeground(qfarbe("grau_5a"))
             elif id(suggestion) in pattern_rows:
                 item.setToolTip(
                     tr("Nach diesem Dateinamen-Muster aus den Metadaten dieses "
                     "Dokuments gebildet. Anklicken übernimmt den Namen.")
                 )
-                item.setBackground(QColor(214, 234, 255))  # hellblau = Muster
-                item.setForeground(QColor(20, 60, 120))
+                item.setBackground(qfarbe("muster_flaeche"))  # hellblau = Muster
+                item.setForeground(qfarbe("muster_text"))
             else:
                 item.setToolTip(tr("Konfidenz: {confidence_pct}%\n{reason}").format(confidence_pct=confidence_pct, reason=reason_display(suggestion.reason)))
                 if confidence_pct >= 70:
-                    item.setBackground(Qt.GlobalColor.green)
-                    item.setForeground(Qt.GlobalColor.darkGreen)
+                    item.setBackground(qfarbe("liste_ok_flaeche"))
+                    item.setForeground(qfarbe("liste_ok_text"))
                 elif confidence_pct >= 40:
-                    item.setBackground(Qt.GlobalColor.yellow)
+                    item.setBackground(qfarbe("liste_warn_flaeche"))
 
             self.suggestions_list.addItem(item)
         # "Aktuellen Namen behalten" ist kein Vorschlag und zaehlt nicht mit
@@ -1742,9 +1744,9 @@ class DetailPanel(QWidget):
         if not preview_name:
             self.warning_label.setText(tr("Name besteht nur aus ungültigen Zeichen"))
             self.warning_label.show()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 6px; background-color: #ffebee; "
-                "border: 1px solid #ef9a9a; border-radius: 3px; font-size: 11px;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 6px; background-color: $rot_flaeche; "
+                "border: 1px solid $rot_rand; border-radius: 3px; font-size: 11px;"
             )
             preview_name = tr("(ungültig)")
         elif found_invalid or has_email:
@@ -1756,15 +1758,15 @@ class DetailPanel(QWidget):
                 hints.append(f"{shown} → _")
             self.warning_label.setText(tr("Wird ersetzt: {0}").format(', '.join(hints)))
             self.warning_label.show()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 6px; background-color: #fff8e1; "
-                "border: 1px solid #ffe082; border-radius: 3px; font-size: 11px;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 6px; background-color: $hinweis_flaeche; "
+                "border: 1px solid $hinweis_rand_kraeftig; border-radius: 3px; font-size: 11px;"
             )
         else:
             self.warning_label.hide()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 6px; background-color: #e8f5e9; "
-                "border: 1px solid #a5d6a7; border-radius: 3px; font-size: 11px;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 6px; background-color: $gruen_flaeche; "
+                "border: 1px solid $gruen_rand; border-radius: 3px; font-size: 11px;"
             )
 
         self._refresh_save_btn()
@@ -1838,9 +1840,9 @@ class DetailPanel(QWidget):
             text = text[:157] + "…"
         self.metadata_status_label.setText(tr("KI-Fehler: {text}").format(text=text))
         self.metadata_status_label.setToolTip(str(error))
-        self.metadata_status_label.setStyleSheet(
+        stil(self.metadata_status_label,
             "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
-            "background-color: #ffebee; color: #b71c1c;"
+            "background-color: $rot_flaeche; color: $rot_text;"
         )
         self.metadata_status_label.show()
 

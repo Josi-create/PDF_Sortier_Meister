@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
+from src.gui.farben import css, stil
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
@@ -859,8 +860,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Anzahl der PDFs im Ordner
         self.pdf_folder_count_label = QLabel("")
-        self.pdf_folder_count_label.setStyleSheet(
-            "color: #888; font-size: 12px; padding: 5px;"
+        stil(self.pdf_folder_count_label,
+            "color: $grau_88; font-size: 12px; padding: 5px;"
         )
         header_layout.addWidget(self.pdf_folder_count_label)
 
@@ -876,7 +877,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
         view_label = QLabel(tr("Ansicht:"))
-        view_label.setStyleSheet("color: #888; font-size: 12px;")
+        stil(view_label, "color: $grau_88; font-size: 12px;")
         header_layout.addWidget(view_label)
         header_layout.addWidget(self.tile_view_combo)
 
@@ -892,7 +893,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
         sort_label = QLabel(tr("Sortieren:"))
-        sort_label.setStyleSheet("color: #888; font-size: 12px;")
+        stil(sort_label, "color: $grau_88; font-size: 12px;")
         header_layout.addWidget(sort_label)
         header_layout.addWidget(self.sort_combo)
 
@@ -952,7 +953,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "um einen Ordner mit PDFs auszuwählen.")
         )
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setStyleSheet("color: #666; padding: 40px;")
+        stil(self.empty_label, "color: $grau_66; padding: 40px;")
         layout.addWidget(self.empty_label)
 
         # Scroll-Bereich für PDF-Thumbnails
@@ -1056,7 +1057,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Platzhalter wenn keine Vorschläge
         self.no_suggestions_label = QLabel(tr("Wählen Sie eine PDF aus für Vorschläge"))
-        self.no_suggestions_label.setStyleSheet("color: #999; font-style: italic; padding: 10px;")
+        stil(self.no_suggestions_label, "color: $grau_99; font-style: italic; padding: 10px;")
         self.suggestions_layout.addWidget(self.no_suggestions_label)
 
         # Trennlinie
@@ -2288,7 +2289,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         toolbar.addWidget(self.search_input)
 
         self.search_count_label = QLabel("")
-        self.search_count_label.setStyleSheet("color: #666; padding-left: 5px;")
+        stil(self.search_count_label, "color: $grau_66; padding-left: 5px;")
         toolbar.addWidget(self.search_count_label)
 
         clear_search_action = QAction(tr("Suche leeren"), self)
@@ -2322,7 +2323,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Cache-Status (Pre-Caching-Fortschritt)
         self.cache_status_label = _ClickableLabel("")
-        self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        stil(self.cache_status_label, "color: $grau_88; font-size: 11px;")
         self.cache_status_label.setToolTip(tr("Doppelklick zeigt Details zur Hintergrund-Analyse."))
         self.cache_status_label.doubleClicked.connect(self._show_precache_details)
         self.statusbar.addPermanentWidget(self.cache_status_label)
@@ -2348,7 +2349,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Backup-Erinnerung (Issue #14): nur sichtbar, solange "Nein" gilt
         self.backup_status_label = _ClickableLabel(tr("Kein aktuelles Backup gemacht"))
-        self.backup_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        stil(self.backup_status_label, "color: $orange_text_hell; font-weight: bold;")
         self.backup_status_label.setToolTip(tr("Klicken, um ein gemachtes Backup zu bestätigen."))
         self.backup_status_label.clicked.connect(self.confirm_backup_done)
         self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
@@ -2356,7 +2357,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
         self.update_status_label = _ClickableLabel("")
-        self.update_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        stil(self.update_status_label, "color: $orange_text_hell; font-weight: bold;")
         self.update_status_label.setToolTip(tr("Doppelklick zeigt Details zum Update."))
         self.update_status_label.doubleClicked.connect(self._show_available_update)
         self.update_status_label.setVisible(False)
@@ -3041,8 +3042,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # Konfidenz im Namen anzeigen
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
-            farbe = "#1e6fd9" if is_new else "#28a745"
-            widget.count_label.setStyleSheet(
+            farbe = "$neu_blau" if is_new else "$vorschlag_gruen"
+            stil(widget.count_label,
                 f"font-size: 11px; color: {farbe}; font-weight: bold; background: transparent; border: none;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
@@ -4979,7 +4980,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         pos = 0
         if start > 0:
             ellipsis = QLabel("…")
-            ellipsis.setStyleSheet("color: #888; padding: 0 2px;")
+            stil(ellipsis, "color: $grau_88; padding: 0 2px;")
             self.breadcrumb_layout.insertWidget(pos, ellipsis)
             pos += 1
         for i in range(start, len(parts)):
@@ -4990,16 +4991,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             btn.setText(parts[i].rstrip("\\/") or parts[i])
             btn.setToolTip(str(target))
             btn.setEnabled(not is_last)
-            btn.setStyleSheet(
+            stil(btn,
                 "QToolButton { padding: 0px 4px; margin: 0px; font-size: 11px; }"
-                + (" QToolButton:disabled { color: #222; font-weight: bold; }" if is_last else "")
+                + (" QToolButton:disabled { color: $grau_22; font-weight: bold; }" if is_last else "")
             )
             btn.clicked.connect(lambda _=False, p=target: self.on_folder_tile_double_clicked(p))
             self.breadcrumb_layout.insertWidget(pos, btn)
             pos += 1
             if not is_last:
                 sep = QLabel("›")
-                sep.setStyleSheet("color: #999;")
+                stil(sep, "color: $grau_99;")
                 self.breadcrumb_layout.insertWidget(pos, sep)
                 pos += 1
 
@@ -5213,8 +5214,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Erstellt die ausklappbare Filterleiste."""
         bar = QWidget()
         bar.setVisible(False)
-        bar.setStyleSheet(
-            "QWidget { background: #f5f5f5; border-bottom: 1px solid #ccc; }"
+        stil(bar,
+            "QWidget { background: $grau_f5; border-bottom: 1px solid $grau_cc; }"
         )
 
         layout = QGridLayout(bar)
@@ -6079,7 +6080,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         else:
             self._update_cache_status()
 
-    LLM_STATUS_RED = "#c0392b"
+    LLM_STATUS_RED = "$rot_text_status"
 
     def _llm_health(self):
         """Zustand des KI-Assistenten fuer Statusleiste und Details-Dialog.
@@ -6183,10 +6184,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             text = tr("LLM: {provider}/{model_short}").format(provider=provider, model_short=model_short) if model_short else f"LLM: {provider}"
             detail = tr("{provider}, Modell: {model_full}").format(provider=provider, model_full=model_full) if model_full else provider
             if health == "pruefen":
-                color = "gray"
+                color = "$grau_hinweis"
                 state = tr("KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …").format(detail=detail)
             elif health == "bereit":
-                color = "green"
+                color = "$gruen_status"
                 state = tr("KI-Assistent bereit ({detail}).").format(detail=detail)
             else:
                 color = self.LLM_STATUS_RED
@@ -6196,7 +6197,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     "Problem: {problem}\nAbhilfe: {abhilfe}"
                 ).format(detail=detail, problem=hinweis.problem, abhilfe=hinweis.abhilfe))
             self.llm_status_label.setText(text + chat_text)
-            self.llm_status_label.setStyleSheet(f"color: {color};")
+            stil(self.llm_status_label, f"color: {color};")
             self.llm_status_label.setToolTip(
                 tr("{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen.").format(state=state, chat_zeile=chat_zeile)
             )
@@ -6209,7 +6210,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 reason = tr("Nicht konfiguriert.")
             self.llm_status_label.setText(tr("LLM: Aus{chat_text}").format(chat_text=chat_text))
-            self.llm_status_label.setStyleSheet("color: gray;")
+            stil(self.llm_status_label, "color: $grau_hinweis;")
             self.llm_status_label.setToolTip(
                 tr(
                     "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
@@ -6299,7 +6300,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Titel und Version
         title_label = QLabel(
-            tr("<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>").format(version=__version__)
+            css(tr("<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>")).format(version=__version__)
         )
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
@@ -6342,11 +6343,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Lizenz
         license_label = QLabel(
-            tr("<p style='color: #666; font-size: 11px;'>"
+            css(tr("<p style='color: $grau_66; font-size: 11px;'>"
             "<b>Lizenz:</b> GPL-3.0-or-later<br>"
             "Copyright (c) 2024-2026<br>"
             "Freie Software - Open Source. Lizenztext: "
-            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>')
+            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>'))
         )
         license_label.setOpenExternalLinks(True)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -6356,7 +6357,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from src.utils.logging_config import get_log_file_path
         log_path = get_log_file_path()
         log_label = QLabel(
-            tr("<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>").format(log_path=log_path)
+            css(tr("<p style='color: $grau_99; font-size: 10px;'>Log-Datei: {log_path}</p>")).format(log_path=log_path)
         )
         log_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         log_label.setWordWrap(True)

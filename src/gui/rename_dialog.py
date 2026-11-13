@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QMessageBox,
 )
+from src.gui.farben import qfarbe, stil
 from src.i18n import tr
 from src.core.suggestion_order import reason_display
 
@@ -112,8 +113,8 @@ class RenameDialog(QDialog):
         original_layout = QVBoxLayout(original_group)
 
         self.original_label = QLabel(self.pdf_path.name)
-        self.original_label.setStyleSheet(
-            "font-family: monospace; padding: 8px; background-color: #f5f5f5; "
+        stil(self.original_label,
+            "font-family: monospace; padding: 8px; background-color: $grau_f5; "
             "border-radius: 3px;"
         )
         self.original_label.setWordWrap(True)
@@ -147,7 +148,7 @@ class RenameDialog(QDialog):
 
         # Hinweis zur .pdf Endung
         hint_label = QLabel(tr("Die .pdf Endung wird automatisch hinzugefügt"))
-        hint_label.setStyleSheet("color: #666; font-size: 10px;")
+        stil(hint_label, "color: $grau_66; font-size: 10px;")
         new_name_layout.addWidget(hint_label)
 
         layout.addWidget(new_name_group)
@@ -157,16 +158,16 @@ class RenameDialog(QDialog):
         preview_layout = QVBoxLayout(preview_group)
 
         self.preview_label = QLabel()
-        self.preview_label.setStyleSheet(
-            "font-family: monospace; padding: 10px; background-color: #e8f5e9; "
-            "border: 1px solid #a5d6a7; border-radius: 3px; font-weight: bold;"
+        stil(self.preview_label,
+            "font-family: monospace; padding: 10px; background-color: $gruen_flaeche; "
+            "border: 1px solid $gruen_rand; border-radius: 3px; font-weight: bold;"
         )
         self.preview_label.setWordWrap(True)
         preview_layout.addWidget(self.preview_label)
 
         # Warnung bei ungültigen Zeichen
         self.warning_label = QLabel()
-        self.warning_label.setStyleSheet("color: #d32f2f; font-size: 11px;")
+        stil(self.warning_label, "color: $rot; font-size: 11px;")
         self.warning_label.hide()
         preview_layout.addWidget(self.warning_label)
 
@@ -198,7 +199,7 @@ class RenameDialog(QDialog):
             row = QHBoxLayout()
             label = QLabel(f"{field_label}:")
             label.setFixedWidth(110)
-            label.setStyleSheet("color: #555; font-size: 11px;")
+            stil(label, "color: $grau_55; font-size: 11px;")
             if field_key == "description":
                 label.setAlignment(Qt.AlignmentFlag.AlignTop)
             row.addWidget(label)
@@ -228,11 +229,11 @@ class RenameDialog(QDialog):
         llm_btn_row.addStretch()
         self.llm_metadata_btn = QPushButton(tr("KI-Metadaten neu generieren"))
         self.llm_metadata_btn.setToolTip(tr("LLM erneut aufrufen um Metadaten zu extrahieren"))
-        self.llm_metadata_btn.setStyleSheet(
-            "QPushButton { background-color: #7b1fa2; color: white; "
+        stil(self.llm_metadata_btn,
+            "QPushButton { background-color: $knopf_lila; color: $weiss_schrift; "
             "padding: 4px 12px; border: none; border-radius: 3px; font-size: 11px; }"
-            "QPushButton:hover { background-color: #6a1b9a; }"
-            "QPushButton:disabled { background-color: #bdbdbd; }"
+            "QPushButton:hover { background-color: $knopf_lila_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; }"
         )
         self.llm_metadata_btn.clicked.connect(self._request_llm_metadata)
         llm_btn_row.addWidget(self.llm_metadata_btn)
@@ -247,7 +248,7 @@ class RenameDialog(QDialog):
 
             keywords_text = ", ".join(self.keywords) if self.keywords else tr("Keine erkannt")
             keywords_label = QLabel(tr("Schlüsselwörter: {keywords_text}").format(keywords_text=keywords_text))
-            keywords_label.setStyleSheet("color: #666;")
+            stil(keywords_label, "color: $grau_66;")
             info_layout.addWidget(keywords_label)
 
             layout.addWidget(info_group)
@@ -263,11 +264,11 @@ class RenameDialog(QDialog):
         self.rename_button = QPushButton(tr("Umbenennen"))
         self.rename_button.setDefault(True)
         self.rename_button.clicked.connect(self.accept_rename)
-        self.rename_button.setStyleSheet(
-            "QPushButton { background-color: #1976d2; color: white; "
+        stil(self.rename_button,
+            "QPushButton { background-color: $knopf_blau_hell; color: $weiss_schrift; "
             "padding: 8px 20px; border: none; border-radius: 4px; }"
-            "QPushButton:hover { background-color: #1565c0; }"
-            "QPushButton:disabled { background-color: #bdbdbd; }"
+            "QPushButton:hover { background-color: $knopf_blau_hell_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; }"
         )
         button_layout.addWidget(self.rename_button)
 
@@ -300,10 +301,10 @@ class RenameDialog(QDialog):
 
             # Farbcodierung nach Konfidenz
             if confidence_pct >= 70:
-                item.setBackground(Qt.GlobalColor.green)
-                item.setForeground(Qt.GlobalColor.darkGreen)
+                item.setBackground(qfarbe("liste_ok_flaeche"))
+                item.setForeground(qfarbe("liste_ok_text"))
             elif confidence_pct >= 40:
-                item.setBackground(Qt.GlobalColor.yellow)
+                item.setBackground(qfarbe("liste_warn_flaeche"))
 
             self.suggestions_list.addItem(item)
 
@@ -336,9 +337,9 @@ class RenameDialog(QDialog):
         """Aktualisiert die Vorschau."""
         if not text.strip():
             self.preview_label.setText(tr("(Bitte Namen eingeben)"))
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 10px; background-color: #fff3e0; "
-                "border: 1px solid #ffcc80; border-radius: 3px;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 10px; background-color: $stapel_flaeche; "
+                "border: 1px solid $orange_rand; border-radius: 3px;"
             )
             self.rename_button.setEnabled(False)
             return
@@ -355,9 +356,9 @@ class RenameDialog(QDialog):
         if not preview_name:
             self.warning_label.setText(tr("Name besteht nur aus ungültigen Zeichen"))
             self.warning_label.show()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 10px; background-color: #ffebee; "
-                "border: 1px solid #ef9a9a; border-radius: 3px;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 10px; background-color: $rot_flaeche; "
+                "border: 1px solid $rot_rand; border-radius: 3px;"
             )
             self.rename_button.setEnabled(False)
             preview_name = tr("(ungültig)")
@@ -370,16 +371,16 @@ class RenameDialog(QDialog):
                 hints.append(f"{shown} → _")
             self.warning_label.setText(tr("Wird ersetzt: {0}").format(', '.join(hints)))
             self.warning_label.show()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 10px; background-color: #fff8e1; "
-                "border: 1px solid #ffe082; border-radius: 3px; font-weight: bold;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 10px; background-color: $hinweis_flaeche; "
+                "border: 1px solid $hinweis_rand_kraeftig; border-radius: 3px; font-weight: bold;"
             )
             self.rename_button.setEnabled(True)
         else:
             self.warning_label.hide()
-            self.preview_label.setStyleSheet(
-                "font-family: monospace; padding: 10px; background-color: #e8f5e9; "
-                "border: 1px solid #a5d6a7; border-radius: 3px; font-weight: bold;"
+            stil(self.preview_label,
+                "font-family: monospace; padding: 10px; background-color: $gruen_flaeche; "
+                "border: 1px solid $gruen_rand; border-radius: 3px; font-weight: bold;"
             )
             self.rename_button.setEnabled(True)
 

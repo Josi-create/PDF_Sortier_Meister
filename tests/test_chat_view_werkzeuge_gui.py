@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QListWidgetItem, QToolButton, QWidget
 
 from src.gui.chat_view import _BUBBLE_STYLES, ChatView
+from src.gui.farben import css
 from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGResponse
 from src.rag.retrieval import RetrievedDoc
 from src.rag.werkzeuge import Schritt
@@ -220,7 +221,7 @@ def test_schritte_werden_als_block_vor_der_antwort_gerendert(chat_view):
         if any("Die Rechnung ist da." in lbl.text() for lbl in w.findChildren(QLabel))
     )
     assert index_schritte < index_antwort
-    assert _bubbles(chat_view)[-1].styleSheet() == _BUBBLE_STYLES["assistant"]
+    assert _bubbles(chat_view)[-1].styleSheet() == css(_BUBBLE_STYLES["assistant"])
 
 
 def test_symbole_je_werkzeug_und_fehlerstil(chat_view):
@@ -285,7 +286,7 @@ def test_abbruch_mit_schritten_zeigt_schritte_und_system_bubble(chat_view):
     assert len(_schritt_labels(chat_view)) == 1
     bubbles = _bubbles(chat_view)
     assert [b.text() for b in bubbles] == ["Abgebrochen."]
-    assert bubbles[0].styleSheet() == _BUBBLE_STYLES["system"]
+    assert bubbles[0].styleSheet() == css(_BUBBLE_STYLES["system"])
     # Kein Offline-Hinweis, die Quellen stehen trotzdem im Panel
     assert chat_view.sources_list.count() == 2  # Kopfzeile "Gefunden" + D1
 
@@ -300,7 +301,7 @@ def test_werkzeugfehler_mit_schritten_zeigt_fehler_bubble(chat_view):
 
     bubbles = _bubbles(chat_view)
     assert [b.text() for b in bubbles] == ["Werkzeugaufruf fehlgeschlagen: Verbindung weg"]
-    assert bubbles[0].styleSheet() == _BUBBLE_STYLES["error"]
+    assert bubbles[0].styleSheet() == css(_BUBBLE_STYLES["error"])
     assert len(_schritt_labels(chat_view)) == 1
 
 

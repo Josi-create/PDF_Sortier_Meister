@@ -18,6 +18,8 @@ from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 import sys
 import threading
 
+from src.gui import farben
+from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
@@ -534,7 +536,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         intro = QLabel(tr("Nach diesem Muster schlägt die KI Dateinamen vor."))
-        intro.setStyleSheet("color: #555; padding: 2px 0 6px 0;")
+        stil(intro, "color: $grau_55; padding: 2px 0 6px 0;")
         layout.addWidget(intro)
 
         form = QFormLayout()
@@ -644,7 +646,7 @@ class SettingsDialog(QDialog):
         form.addRow("", self.pattern_legend_label)
 
         self.pattern_warning_label = QLabel()
-        self.pattern_warning_label.setStyleSheet("color: #d32f2f; font-size: 11px;")
+        stil(self.pattern_warning_label, "color: $rot; font-size: 11px;")
         self.pattern_warning_label.hide()
         form.addRow("", self.pattern_warning_label)
 
@@ -656,9 +658,9 @@ class SettingsDialog(QDialog):
         # (wie bei QLabel+wordWrap im QFormLayout) vertikal abgeschnitten.
         self.pattern_preview_label = QLineEdit()
         self.pattern_preview_label.setReadOnly(True)
-        self.pattern_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #e8f5e9; "
-            "border: 1px solid #a5d6a7; border-radius: 3px; color: #1b5e20;"
+        stil(self.pattern_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $gruen_flaeche; "
+            "border: 1px solid $gruen_rand; border-radius: 3px; color: $gruen_text;"
         )
         preview_row.addWidget(self.pattern_preview_label, 1)
         self.pattern_try_button = QPushButton(tr("Mit aktueller PDF"))
@@ -712,9 +714,9 @@ class SettingsDialog(QDialog):
 
         self.folder_naming_preview_label = QLineEdit()
         self.folder_naming_preview_label.setReadOnly(True)
-        self.folder_naming_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #f5f5f5; "
-            "border: 1px solid #ddd; border-radius: 3px; color: #444;"
+        stil(self.folder_naming_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $grau_f5; "
+            "border: 1px solid $grau_dd; border-radius: 3px; color: $grau_44;"
         )
         move_form.addRow(tr("Ergebnis:"), self.folder_naming_preview_label)
         move_layout.addLayout(move_form)
@@ -726,7 +728,7 @@ class SettingsDialog(QDialog):
             ).format(PREVIEW_FOLDER=self._PREVIEW_FOLDER)
         )
         move_hint.setWordWrap(True)
-        move_hint.setStyleSheet("color: #777; font-size: 11px;")
+        stil(move_hint, "color: $grau_77; font-size: 11px;")
         move_layout.addWidget(move_hint)
 
         layout.addWidget(move_group)
@@ -993,7 +995,7 @@ class SettingsDialog(QDialog):
             "Ihren Namen ein. Der Korrespondent ist immer die andere Partei\n"
             "(Firma, Behörde, Person) — nicht Sie selbst.")
         )
-        info_label.setStyleSheet("color: #555; font-size: 11px; padding: 5px;")
+        stil(info_label, "color: $grau_55; font-size: 11px; padding: 5px;")
         layout.addWidget(info_label)
 
         # Benutzerinformationen
@@ -1069,7 +1071,7 @@ class SettingsDialog(QDialog):
         ))
         language_layout.addRow(tr("Sprache:"), self.language_combo)
         language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
-        language_hint.setStyleSheet("color: gray;")
+        stil(language_hint, "color: $grau_hinweis;")
         language_hint.setWordWrap(True)
         language_layout.addRow(language_hint)
         layout.addWidget(language_group)
@@ -1078,11 +1080,23 @@ class SettingsDialog(QDialog):
         display_group = QGroupBox(tr("Darstellung"))
         display_layout = QFormLayout(display_group)
 
+        # Issue #238: helles oder dunkles Farbschema, Standard: wie das System
+        self.farbschema_combo = QComboBox()
+        self.farbschema_combo.addItem(tr("Wie das System"), farben.SYSTEM)
+        self.farbschema_combo.addItem(tr("Hell"), farben.HELL)
+        self.farbschema_combo.addItem(tr("Dunkel"), farben.DUNKEL)
+        self.farbschema_combo.setToolTip(tr(
+            "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\n"
+            "oder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\n"
+            "Die Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+        ))
+        display_layout.addRow(tr("Farbschema:"), self.farbschema_combo)
+
         tile_hint = QLabel(
             tr("Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
             "über dem Scan-Bereich unter „Ansicht“ ein.")
         )
-        tile_hint.setStyleSheet("color: gray;")
+        stil(tile_hint, "color: $grau_hinweis;")
         tile_hint.setWordWrap(True)
         display_layout.addRow(tile_hint)
 
@@ -1172,7 +1186,7 @@ class SettingsDialog(QDialog):
             explorer_layout.addWidget(self.explorer_menu_checkbox)
 
             self.explorer_info_label = QLabel("")
-            self.explorer_info_label.setStyleSheet("color: gray;")
+            stil(self.explorer_info_label, "color: $grau_hinweis;")
             self.explorer_info_label.setWordWrap(True)
             explorer_layout.addWidget(self.explorer_info_label)
 
@@ -1209,7 +1223,7 @@ class SettingsDialog(QDialog):
             tr("Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
             "und immer aktiv.")
         )
-        open_hint.setStyleSheet("color: gray;")
+        stil(open_hint, "color: $grau_hinweis;")
         open_hint.setWordWrap(True)
         open_layout.addRow(open_hint)
 
@@ -1230,7 +1244,7 @@ class SettingsDialog(QDialog):
             tr("Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
             "lässt sich die Wahl für den einzelnen Auftrag ändern.")
         )
-        foto_hint.setStyleSheet("color: gray;")
+        stil(foto_hint, "color: $grau_hinweis;")
         foto_hint.setWordWrap(True)
         foto_layout.addRow(foto_hint)
         layout.addWidget(foto_group)
@@ -1265,7 +1279,7 @@ class SettingsDialog(QDialog):
             tr("Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
             "heruntergeladen und installiert wird nichts automatisch.")
         )
-        update_info.setStyleSheet("color: gray;")
+        stil(update_info, "color: $grau_hinweis;")
         update_info.setWordWrap(True)
         update_layout.addWidget(update_info)
 
@@ -1305,7 +1319,7 @@ class SettingsDialog(QDialog):
         debug_info = QLabel(
             tr("<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>")
         )
-        debug_info.setStyleSheet("color: #cc0000;")
+        stil(debug_info, "color: $rot_text_kraeftig;")
         debug_layout.addWidget(debug_info)
 
         debug_buttons_layout = QHBoxLayout()
@@ -1367,7 +1381,7 @@ class SettingsDialog(QDialog):
             tr("Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
             "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert.")
         )
-        search_hint.setStyleSheet("color: gray;")
+        stil(search_hint, "color: $grau_hinweis;")
         search_hint.setWordWrap(True)
         layout.addWidget(search_hint)
 
@@ -1452,7 +1466,7 @@ class SettingsDialog(QDialog):
         self.search_mails_check = QCheckBox(tr("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"))
         mail_layout.addWidget(self.search_mails_check)
         self.search_thunderbird_label = QLabel("")
-        self.search_thunderbird_label.setStyleSheet("color: gray;")
+        stil(self.search_thunderbird_label, "color: $grau_hinweis;")
         self.search_thunderbird_label.setWordWrap(True)
         mail_layout.addWidget(self.search_thunderbird_label)
         mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):")))
@@ -1488,7 +1502,7 @@ class SettingsDialog(QDialog):
         self.search_ocr_max_pages_spin.setToolTip(tr("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt"))
         ocr_layout.addRow(tr("Höchstens Bildseiten je PDF:"), self.search_ocr_max_pages_spin)
         self.search_ocr_status_label = QLabel("")
-        self.search_ocr_status_label.setStyleSheet("color: gray;")
+        stil(self.search_ocr_status_label, "color: $grau_hinweis;")
         self.search_ocr_status_label.setWordWrap(True)
         ocr_layout.addRow(self.search_ocr_status_label)
         layout.addWidget(ocr_group)
@@ -1527,7 +1541,7 @@ class SettingsDialog(QDialog):
             "Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind "
             "nicht nötig.")
         )
-        bg_hint.setStyleSheet("color: gray;")
+        stil(bg_hint, "color: $grau_hinweis;")
         bg_hint.setWordWrap(True)
         bg_layout.addRow(bg_hint)
         layout.addWidget(bg_group)
@@ -1551,7 +1565,7 @@ class SettingsDialog(QDialog):
             "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
             "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig.")
         )
-        web_hint.setStyleSheet("color: gray;")
+        stil(web_hint, "color: $grau_hinweis;")
         web_hint.setWordWrap(True)
         web_layout.addRow(web_hint)
         layout.addWidget(web_group)
@@ -1600,7 +1614,7 @@ class SettingsDialog(QDialog):
             "Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien "
             "sowie geöffnete Dateien bleiben unberührt.")
         )
-        text_hint.setStyleSheet("color: gray;")
+        stil(text_hint, "color: $grau_hinweis;")
         text_hint.setWordWrap(True)
         text_layout.addRow(text_hint)
         # Gedrehte Scans (Issue #151)
@@ -1621,7 +1635,7 @@ class SettingsDialog(QDialog):
             "Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die "
             "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert.")
         )
-        rotate_hint.setStyleSheet("color: gray;")
+        stil(rotate_hint, "color: $grau_hinweis;")
         rotate_hint.setWordWrap(True)
         text_layout.addRow(rotate_hint)
         # Schief gescannte Seiten (Issue #165)
@@ -1642,7 +1656,7 @@ class SettingsDialog(QDialog):
             "oben, rückgängig wie die Textebene. Das Scanbild wird dabei nicht neu berechnet, eine "
             "vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten.")
         )
-        deskew_hint.setStyleSheet("color: gray;")
+        stil(deskew_hint, "color: $grau_hinweis;")
         deskew_hint.setWordWrap(True)
         text_layout.addRow(deskew_hint)
         layout.addWidget(text_group)
@@ -1821,7 +1835,7 @@ class SettingsDialog(QDialog):
             "Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst "
             "liest den Index nur.")
         )
-        self.mcp_hint_label.setStyleSheet("color: gray;")
+        stil(self.mcp_hint_label, "color: $grau_hinweis;")
         self.mcp_hint_label.setWordWrap(True)
         form.addRow(self.mcp_hint_label)
 
@@ -1891,7 +1905,7 @@ class SettingsDialog(QDialog):
         self.mcp_meldung_label = QLabel(
             tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
-        self.mcp_meldung_label.setStyleSheet("color: gray;")
+        stil(self.mcp_meldung_label, "color: $grau_hinweis;")
         self.mcp_meldung_label.setWordWrap(True)
         form.addRow(self.mcp_meldung_label)
 
@@ -2584,15 +2598,15 @@ class SettingsDialog(QDialog):
         self.model_combo.clear()
         if models is None:
             self.lmstudio_status_label.setText(self._LMSTUDIO_START_HINT)
-            self.lmstudio_status_label.setStyleSheet("color: #c0392b;")
+            stil(self.lmstudio_status_label, "color: $rot_text_status;")
         else:
             self.model_combo.addItems(models)
             if models:
-                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "green"
+                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "$gruen_status"
             else:
-                text, color = self._LMSTUDIO_KEIN_MODELL, "#b35c00"
+                text, color = self._LMSTUDIO_KEIN_MODELL, "$orange_text"
             self.lmstudio_status_label.setText(text)
-            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            stil(self.lmstudio_status_label, f"color: {color};")
         if current:
             self.model_combo.setCurrentText(current)
         return models
@@ -2604,16 +2618,16 @@ class SettingsDialog(QDialog):
             self.consent_hint_label.setText(
                 tr("Nur für Cloud-Anbieter relevant (Ollama läuft lokal).")
             )
-            self.consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.consent_hint_label, "color: $grau_hinweis;")
         elif self.cloud_consent_check.isChecked():
             self.consent_hint_label.setText(tr("Einwilligung erteilt."))
-            self.consent_hint_label.setStyleSheet("color: green;")
+            stil(self.consent_hint_label, "color: $gruen_status;")
         else:
             self.consent_hint_label.setText(
                 tr("Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
                 "(Statusleiste: \"LLM: Aus\").")
             )
-            self.consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.consent_hint_label, "color: $rot_text_status;")
 
     # Chat-Gruppe (Issue #166/#167): eigenes Modell fuer den Chat
 
@@ -2716,10 +2730,10 @@ class SettingsDialog(QDialog):
                     "Chat-Modell aus."
                 ).format(base=base)
             )
-            self.chat_consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.chat_consent_hint_label, "color: $rot_text_status;")
         else:
             self.chat_consent_hint_label.setText(base)
-            self.chat_consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.chat_consent_hint_label, "color: $grau_hinweis;")
 
     def _test_chat_connection(self):
         """„Verbindung testen“ der Chat-Gruppe: dieselbe Testlogik mit den Chat-Werten.
@@ -2838,6 +2852,8 @@ class SettingsDialog(QDialog):
         )
 
         # Allgemeine Einstellungen
+        schema_index = self.farbschema_combo.findData(farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)))
+        self.farbschema_combo.setCurrentIndex(max(schema_index, 0))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
         sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
@@ -2951,6 +2967,10 @@ class SettingsDialog(QDialog):
         self.config.set("llm", llm_config)
 
         # Allgemeine Einstellungen
+        farbschema = self.farbschema_combo.currentData() or farben.SYSTEM
+        if farbschema != farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)):
+            self.config.set(farben.KONFIG_SCHLUESSEL, farbschema)
+            farben.anwenden(farbschema)  # gilt sofort, ohne Neustart
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())

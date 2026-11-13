@@ -89,6 +89,8 @@ class Config:
         # wie "de" oder "en" (siehe src/i18n). Wirkt nach dem Neustart.
         "language": "auto",
         "theme": "light",
+        # Farbschema (Issue #238): "system" (wie Windows/macOS), "hell" oder "dunkel"
+        "farbschema": "system",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)

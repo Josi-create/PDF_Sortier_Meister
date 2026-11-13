@@ -114,6 +114,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
   Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
   „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
+- **Dunkles Farbschema** (#238): Das Programm gibt es jetzt auch in Dunkel. Unter Einstellungen →
+  Allgemein → Darstellung → „Farbschema“ wählst du „Wie das System“ (Standard), „Hell“ oder
+  „Dunkel“. „Wie das System“ folgt dem hellen oder dunklen Modus von Windows oder macOS, auch wenn
+  du ihn bei laufendem Programm umstellst. Die Wahl gilt sofort, ohne Neustart. Die Seiten deiner
+  Dokumente (Vorschau, Miniaturen) bleiben in beiden Farbschemata, wie sie sind. Wer sein System
+  dunkel eingestellt hat, sieht das Programm nach dem Update also dunkel; mit „Hell“ sieht es aus
+  wie bisher.
 
 ## [0.27.0] - 2026-11-12
 
