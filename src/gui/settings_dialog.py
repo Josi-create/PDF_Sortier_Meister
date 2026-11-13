@@ -11,9 +11,9 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle
 )
-from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
 import sys
 import threading
@@ -103,6 +103,8 @@ class SettingsDialog(QDialog):
         self._ki_preview_name = ""
         self._setup_ui()
         self._load_settings()
+        # Erst nach dem Laden: gespeicherte Modellnamen machen die Auswahlfelder breiter
+        self._set_initial_size()
 
     def show_tab(self, title: str) -> bool:
         """Schaltet auf den Tab mit diesem Titel (z.B. "Dateinamen")."""
@@ -176,24 +178,64 @@ class SettingsDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_button)
 
+        # Issue #255: uebernehmen, ohne das Fenster zu schliessen
+        self.apply_button = QPushButton(tr("Anwenden"))
+        self.apply_button.setToolTip(
+            tr("Übernimmt die Einstellungen sofort und lässt dieses Fenster offen.")
+        )
+        self.apply_button.clicked.connect(self._apply_settings)
+        button_layout.addWidget(self.apply_button)
+
         layout.addLayout(button_layout)
-        self._set_initial_height(general_tab)
 
-    def _set_initial_height(self, general_tab: QScrollArea) -> None:
-        """Startgroesse: Reiter „Allgemein“ moeglichst ganz zeigen (Issue #235).
+    # Konfigurationsschluessel der gemerkten Fenstergroesse [Breite, Hoehe]
+    _SIZE_KEY = "settings_dialog_size"
 
-        Seit der Reiter scrollt, richtet sich der Dialog nicht mehr nach seinem
-        Inhalt (ein Scrollbereich meldet hoechstens 24 Zeilen Hoehe). Deshalb
-        so hoch oeffnen, wie der Inhalt braucht, aber nie hoeher als 90 % des
-        Bildschirms; der Rest scrollt.
+    def _content_size(self) -> QSize:
+        """Groesse, bei der jeder Reiter ohne Bildlaufleiste passt (Issue #235, #255).
+
+        Die Reiter mit Scrollbereich melden dem Dialog nur eine kleine feste
+        Wunschgroesse (hoechstens 36 Zeichen breit, 24 Zeilen hoch), deshalb
+        wird ihr Inhalt selbst gemessen.
         """
-        inner = general_tab.widget()
-        wanted = (self.sizeHint().height() - general_tab.sizeHint().height()
-                  + inner.sizeHint().height())
+        pages = [self.tab_widget.widget(i) for i in range(self.tab_widget.count())]
+        hint = self.sizeHint()
+        # Rahmen des Dialogs um die Reiter-Seite (Reiterleiste, Knoepfe, Raender)
+        frame_w = hint.width() - max(p.sizeHint().width() for p in pages)
+        frame_h = hint.height() - max(p.sizeHint().height() for p in pages)
+        bar = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        width = height = 0
+        for page in pages:
+            inner = page.widget() if isinstance(page, QScrollArea) else page
+            size = inner.sizeHint().expandedTo(inner.minimumSizeHint())
+            # Platz fuer die senkrechte Leiste, falls die Hoehe am Bildschirm endet
+            extra = bar + 2 * page.frameWidth() if isinstance(page, QScrollArea) else 0
+            width = max(width, size.width() + extra)
+            height = max(height, size.height())
+        return QSize(frame_w + width, frame_h + height)
+
+    def _set_initial_size(self) -> None:
+        """Startgroesse: zuletzt benutzte Groesse, sonst passend zum Inhalt (Issue #255).
+
+        Nie groesser als 90 % des Bildschirms; was dann nicht passt, scrollt.
+        """
+        size = self._content_size()
+        saved = self.config.get(self._SIZE_KEY)
+        if (isinstance(saved, (list, tuple)) and len(saved) == 2
+                and all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in saved)):
+            size = QSize(saved[0], saved[1])
         screen = self.screen()
         if screen is not None:
-            wanted = min(wanted, int(screen.availableGeometry().height() * 0.9))
-        self.resize(self.sizeHint().width(), max(wanted, self.minimumHeight()))
+            available = screen.availableGeometry().size()
+            size = size.boundedTo(QSize(int(available.width() * 0.9), int(available.height() * 0.9)))
+        self.resize(size.expandedTo(self.minimumSize()))
+        self._initial_size = self.size()
+
+    def done(self, result: int) -> None:
+        """Merkt sich beim Schliessen die Groesse, wenn sie von Hand geaendert wurde."""
+        if self.size() != self._initial_size and not (self.isMaximized() or self.isFullScreen()):
+            self.config.set(self._SIZE_KEY, [self.width(), self.height()])
+        super().done(result)
 
     def _create_llm_tab(self) -> QWidget:
         """Erstellt den LLM-Einstellungs-Tab."""
@@ -2872,7 +2914,12 @@ class SettingsDialog(QDialog):
         self._load_search_settings()
 
     def _save_settings(self):
-        """Speichert die Einstellungen."""
+        """Speichert die Einstellungen und schliesst das Fenster."""
+        self._apply_settings()
+        self.accept()
+
+    def _apply_settings(self):
+        """Speichert die Einstellungen; das Fenster bleibt offen („Anwenden“, Issue #255)."""
         # LLM-Einstellungen
         provider_index = self.provider_combo.currentIndex()
         provider = self._provider_id_at(provider_index) or "none"
@@ -3000,7 +3047,6 @@ class SettingsDialog(QDialog):
         self.config.update_chat_config(**chat_felder)
 
         self.settings_changed.emit()
-        self.accept()
 
     def _update_pdf_open_command_enabled(self, *_):
         """Programm-Feld nur bei "Eigenes Programm" aktiv (Issue #76)."""

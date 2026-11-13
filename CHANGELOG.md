@@ -110,6 +110,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
   zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
 
+### Geändert
+- **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
+  Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
+  „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
