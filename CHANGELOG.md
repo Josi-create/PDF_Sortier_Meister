@@ -32,6 +32,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Passwortgeschützte PDFs entsperren** (#244): Kontoauszüge oder Lohnabrechnungen, die sich nur
+  mit Passwort öffnen lassen, zeigen auf der Kachel jetzt ein Schloss statt „Fehler beim Laden“.
+  Rechtsklick → „Passwortschutz entfernen…“ fragt das Passwort ab (verdeckt) und speichert eine
+  Kopie ohne Schutz neben dem Original, zum Beispiel „Auszug (entsperrt).pdf“. Mit der Kopie geht
+  alles wie mit jeder anderen PDF: Vorschau, Vorschläge, Suche. Sind mehrere geschützte PDFs
+  markiert, gilt das Passwort für alle; passt es bei einigen nicht, fragt das Programm für diese
+  noch einmal. Das Passwort wird nicht gespeichert, nicht protokolliert und nicht an die KI
+  gegeben. Das Original bleibt unverändert, bis die Kopie fertig und geprüft ist; erst dann fragt
+  das Programm, ob das geschützte Original in den Papierkorb soll (Strg+Z holt es zurück, die
+  Antwort lässt sich unter Einstellungen → Allgemein merken). Digital signierte Originale bleiben
+  immer liegen, weil die Signatur nur für das Original gilt. Passwörter werden nicht erraten oder
+  geknackt; PDFs, die nur das Drucken oder Kopieren einschränken, sind nicht betroffen.
 
 ### Behoben
 - **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein

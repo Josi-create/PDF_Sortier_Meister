@@ -405,13 +405,50 @@ msgstr "The PDF contains no scanned pages."
 msgid "KI hat keinen Vorschlag geliefert."
 msgstr "The AI did not return a suggestion."
 
-#: src/core/pdf_rotate.py
-msgid "Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)"
-msgstr "Rotation angle {grad} not allowed (90, 180, 270 or -90)"
+#: src/core/pdf_entsperren.py
+msgid " (entsperrt)"
+msgstr " (unlocked)"
 
+#: src/core/pdf_entsperren.py
+msgid "Das Passwort passt nicht."
+msgstr "The password does not match."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie ist noch geschützt."
+msgstr "The copy is still protected."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie hat nicht alle Seiten des Originals."
+msgstr "The copy does not have all pages of the original."
+
+#: src/core/pdf_entsperren.py
 #: src/core/pdf_rotate.py
 msgid "Datei nicht vorhanden"
 msgstr "File does not exist"
+
+#: src/core/pdf_entsperren.py
+msgid "Die PDF braucht kein Passwort zum Öffnen."
+msgstr "The PDF does not need a password to open."
+
+#: src/core/pdf_entsperren.py
+msgid "Die PDF konnte nicht gelesen werden: {grund}"
+msgstr "The PDF could not be read: {grund}"
+
+#: src/core/pdf_entsperren.py
+msgid "Im Ordner kann nicht geschrieben werden."
+msgstr "Cannot write to the folder."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie konnte nicht geschrieben werden: {grund}"
+msgstr "The copy could not be written: {grund}"
+
+#: src/core/pdf_entsperren.py
+msgid "Kein freier Dateiname für die Kopie gefunden."
+msgstr "No free file name found for the copy."
+
+#: src/core/pdf_rotate.py
+msgid "Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)"
+msgstr "Rotation angle {grad} not allowed (90, 180, 270 or -90)"
 
 #: src/core/pdf_rotate.py
 msgid "Die PDF ist kennwortgeschützt."
@@ -1136,6 +1173,90 @@ msgstr "AI error: {text}"
 #: src/gui/detail_panel.py
 msgid "KI arbeitet… {0}"
 msgstr "AI working… {0}"
+
+#: src/gui/entsperren.py
+msgid "Passwortschutz entfernen"
+msgstr "Remove password protection"
+
+#: src/gui/entsperren.py
+msgid "Passwort für diese PDF:"
+msgstr "Password for this PDF:"
+
+#: src/gui/entsperren.py
+msgid "Passwort für diese {anzahl} PDFs (es wird bei allen versucht):"
+msgstr "Password for these {anzahl} PDFs (it is tried on all of them):"
+
+#: src/gui/entsperren.py
+msgid "Passwort"
+msgstr "Password"
+
+#: src/gui/entsperren.py
+msgid "Passwort anzeigen"
+msgstr "Show password"
+
+#: src/gui/entsperren.py
+msgid "Es entsteht eine Kopie ohne Schutz neben dem Original; das Original bleibt unverändert.\nDas Passwort wird nicht gespeichert und nicht an die KI gegeben."
+msgstr "A copy without protection is created next to the original; the original stays unchanged.\nThe password is not saved and not passed to the AI."
+
+#: src/gui/entsperren.py
+msgid "Kopie ohne Schutz erstellen"
+msgstr "Create copy without protection"
+
+#: src/gui/entsperren.py
+msgid "Kein Passwortschutz gefunden - nichts geändert."
+msgstr "No password protection found - nothing changed."
+
+#: src/gui/entsperren.py
+msgid "{name}: Die Datei ist nicht mehr da."
+msgstr "{name}: The file is no longer there."
+
+#: src/gui/entsperren.py
+msgid "{name}: unerwarteter Fehler ({art})."
+msgstr "{name}: unexpected error ({art})."
+
+#: src/gui/entsperren.py
+msgid "Bei diesen PDFs passt das Passwort nicht. Anderes Passwort?"
+msgstr "The password does not match these PDFs. Another password?"
+
+#: src/gui/entsperren.py
+msgid "Das Passwort passt nicht. Bitte noch einmal eingeben."
+msgstr "The password does not match. Please enter it again."
+
+#: src/gui/entsperren.py
+msgid "Abgebrochen - nichts wurde geändert."
+msgstr "Cancelled - nothing was changed."
+
+#: src/gui/entsperren.py
+msgid "Kopie ohne Passwortschutz erstellt: {name}"
+msgstr "Copy without password protection created: {name}"
+
+#: src/gui/entsperren.py
+msgid "{anzahl} Kopien ohne Passwortschutz erstellt"
+msgstr "{anzahl} copies without password protection created"
+
+#: src/gui/entsperren.py
+msgid ", {anzahl} PDF(s) bleiben geschützt"
+msgstr ", {anzahl} PDF(s) remain protected"
+
+#: src/gui/entsperren.py
+msgid ", {anzahl} PDF(s) hatten keinen Passwortschutz"
+msgstr ", {anzahl} PDF(s) had no password protection"
+
+#: src/gui/entsperren.py
+msgid "Diese PDFs sind digital signiert. Die Signatur gilt nur für das geschützte Original, nicht für die Kopie - das Original bleibt deshalb liegen:\n{namen}"
+msgstr "These PDFs are digitally signed. The signature is only valid for the protected original, not for the copy - the original therefore stays where it is:\n{namen}"
+
+#: src/gui/entsperren.py
+msgid "'{name}' wurde ohne Passwortschutz als '{kopie}' gespeichert.\n\nDas geschützte Original in den Papierkorb verschieben?"
+msgstr "'{name}' was saved without password protection as '{kopie}'.\n\nMove the protected original to the Recycle Bin?"
+
+#: src/gui/entsperren.py
+msgid "{anzahl} PDFs wurden ohne Passwortschutz als Kopie gespeichert.\n\nDie {anzahl} geschützten Originale in den Papierkorb verschieben?\n{namen}"
+msgstr "{anzahl} PDFs were saved as copies without password protection.\n\nMove the {anzahl} protected originals to the Recycle Bin?\n{namen}"
+
+#: src/gui/entsperren.py
+msgid "Geschütztes Original weggeräumt: {namen}"
+msgstr "Protected original cleared away: {namen}"
 
 #: src/gui/entzerren_dialog.py
 #: src/gui/main_window.py
@@ -4024,6 +4145,10 @@ msgid "Nach dem Zusammenfügen von PDFs"
 msgstr "After merging PDFs"
 
 #: src/gui/original_wegraeumen.py
+msgid "Nach dem Entfernen des Passwortschutzes"
+msgstr "After removing password protection"
+
+#: src/gui/original_wegraeumen.py
 msgid "Mit Strg+Z holst du es zurück."
 msgstr "Ctrl+Z brings it back."
 
@@ -4210,6 +4335,10 @@ msgid "\n\nText schlecht erkannt – Rechtsklick für andere Erkennung"
 msgstr "\n\nText poorly recognized – right-click for a different recognition"
 
 #: src/gui/pdf_thumbnail.py
+msgid "\n\nPasswortgeschützt – Rechtsklick: Passwortschutz entfernen (Kopie ohne Schutz)"
+msgstr "\n\nPassword-protected – right-click: remove password protection (copy without protection)"
+
+#: src/gui/pdf_thumbnail.py
 msgid "Laden..."
 msgstr "Loading..."
 
@@ -4220,6 +4349,18 @@ msgstr "Error\nwhile loading"
 #: src/gui/pdf_thumbnail.py
 msgid "Analysiere…"
 msgstr "Analyzing…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Passwortschutz entfernen ({anzahl} PDFs)…"
+msgstr "Remove password protection ({anzahl} PDFs)…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Passwortschutz entfernen…"
+msgstr "Remove password protection…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Fragt das Passwort ab und speichert eine Kopie ohne Schutz neben dem Original"
+msgstr "Asks for the password and saves a copy without protection next to the original"
 
 #: src/gui/pdf_thumbnail.py
 msgid "Ausgewählte ({selection_count}) auto-umbenennen (LLM)"
