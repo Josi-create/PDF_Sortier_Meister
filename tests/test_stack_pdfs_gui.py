@@ -77,6 +77,9 @@ def main_window(qtbot, fresh_singletons, no_background_threads, monkeypatch):
     monkeypatch.setattr(win.classifier, "is_model_ready", lambda: True)
     # Analyse/Vorschlaege sind hier egal und starten sonst Hintergrund-Worker
     monkeypatch.setattr(win, "update_suggestions_for_pdf", lambda path: None)
+    win.vorgezogen = []  # (pdf, mit_ki): was nach dem Stapeln dringend ausgewertet werden soll
+    monkeypatch.setattr(win.pdf_cache, "vorziehen",
+                        lambda pfad, mit_ki, analysiert=None: win.vorgezogen.append((pfad, mit_ki)))
     backup_root = fresh_singletons["tmp_path"] / "stapel_sicherung"
     monkeypatch.setattr(win, "_stack_backup_root", lambda: backup_root)
 
@@ -206,6 +209,38 @@ def test_stack_appends_pages_removes_tile_and_undo_restores(main_window, fresh_s
     assert _page_count(b) == 2
     assert sorted(w.pdf_path.name for w in main_window.pdf_widgets) == ["a.pdf", "b.pdf"]
     assert main_window._undo_stack == []
+
+
+def test_stack_holt_analyse_und_ki_vorschlag_des_stapels_vor(main_window, fresh_singletons):
+    """Befund 13.11.2026: der Stapel bekam keinen KI-Vorschlag - er stand hinter der Vorabfrage
+    des ganzen Ordners und galt dort noch mit seinem alten Inhalt als eingereiht."""
+    scan = fresh_singletons["tmp_path"] / "Scan"
+    scan.mkdir()
+    a, b = scan / "a.pdf", scan / "b.pdf"
+    _create_pdf(a, 1, "A")
+    _create_pdf(b, 1, "B")
+    main_window._navigate_to_folder(scan)
+    kachel = next(w for w in main_window.pdf_widgets if w.pdf_path == a)
+    kachel.has_ai_suggestion = True  # Vorschlag zum alten, einseitigen Inhalt
+
+    main_window.on_pdf_stacked([b], a)
+
+    assert main_window.vorgezogen == [(a, True)]
+    assert kachel.has_ai_suggestion is False  # gruen erst wieder mit dem neuen Vorschlag
+
+
+def test_stack_ohne_vorabfrage_fragt_die_ki_nicht_von_selbst(main_window, fresh_singletons):
+    scan = fresh_singletons["tmp_path"] / "Scan"
+    scan.mkdir()
+    a, b = scan / "a.pdf", scan / "b.pdf"
+    _create_pdf(a, 1, "A")
+    _create_pdf(b, 1, "B")
+    main_window._navigate_to_folder(scan)
+    fresh_singletons["config"].set("llm_precache_enabled", False)
+
+    main_window.on_pdf_stacked([b], a)
+
+    assert main_window.vorgezogen == [(a, False)]  # Analyse ja, KI nur auf Wunsch
 
 
 def test_old_stack_backups_are_pruned(main_window):

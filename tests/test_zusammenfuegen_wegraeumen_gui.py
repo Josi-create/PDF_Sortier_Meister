@@ -33,6 +33,8 @@ def zwei(main_window, scan, monkeypatch):  # noqa: F811
     main_window._navigate_to_folder(scan)
     main_window.selected_pdfs = [a, b]
     monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *x, **k: ("gesamt.pdf", True)))
+    # Keine echten Hintergrund-Worker fuer das neue PDF (ein Test unten prueft den Aufruf)
+    monkeypatch.setattr(main_window.pdf_cache, "vorziehen", lambda pfad, mit_ki, analysiert=None: None)
     return a, b
 
 
@@ -57,6 +59,19 @@ def test_einzel_pdfs_gehen_in_den_papierkorb_und_strg_z_holt_sie_zurueck(main_wi
 
     main_window.undo_last_action()
     assert a.exists() and b.exists() and (scan / "gesamt.pdf").exists()
+
+
+def test_zusammengefuegtes_pdf_wird_vor_allen_anderen_ausgewertet(main_window, scan, zwei, monkeypatch):  # noqa: F811
+    """Befund 13.11.2026: das neue PDF soll von selbst seinen KI-Vorschlag bekommen - nicht erst
+    hinter der Vorabfrage des ganzen Ordners."""
+    _fragen(monkeypatch, (False, False))
+    vorgezogen = []
+    monkeypatch.setattr(main_window.pdf_cache, "vorziehen",
+                        lambda pfad, mit_ki, analysiert=None: vorgezogen.append((pfad, mit_ki)))
+
+    main_window.on_pdf_merge()
+
+    assert vorgezogen == [(scan / "gesamt.pdf", True)]
 
 
 def test_einzel_pdfs_bleiben_auf_wunsch(main_window, scan, zwei, monkeypatch):  # noqa: F811
