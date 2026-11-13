@@ -214,3 +214,36 @@ def test_mehrfachauswahl_nutzt_neuen_ordner_nicht(main_window, fresh_singletons)
 
     assert not (ablage / "Steuer 2027").exists()
     assert (scan / "a.pdf").exists() and (scan / "b.pdf").exists()
+
+
+def test_ki_ordner_folgt_bezugsjahr_statt_briefdatum(main_window, fresh_singletons, monkeypatch):
+    """Issue #254: Die KI nennt den Ordner des Briefjahrs, der Text das Bezugsjahr 2020."""
+    tmp = fresh_singletons["tmp_path"]
+    scan = _make_scan_folder(tmp, ["a.pdf"])
+    ablage = _ablage(main_window, tmp, "Steuer 2020", "Steuer 2022")
+    pdf = _select(main_window, scan, "a.pdf")
+    _ki_antwort(monkeypatch, main_window, SimpleNamespace(
+        filename="x.pdf", confidence=0.9, metadata={"zielordner": "Ablage/Steuer 2022", "steuerjahr": "2022"},
+    ))
+    monkeypatch.setattr(main_window, "_vorschlag_text", lambda p: "Bescheid für 2020 über Einkommensteuer")
+    base = [_bestehend(ablage / "Steuer 2022", "Ablage/Steuer 2022", 0.8)]
+
+    out = main_window._with_ki_folder(pdf, base, "2022-03-14")
+
+    assert out[0].folder_path == ablage / "Steuer 2020"
+    assert not neuer_ordner.ist_neu(out[0])
+
+
+def test_ki_ordner_folgt_steuerjahr_der_ki_ohne_bezugsjahr_im_text(main_window, fresh_singletons, monkeypatch):
+    tmp = fresh_singletons["tmp_path"]
+    scan = _make_scan_folder(tmp, ["a.pdf"])
+    ablage = _ablage(main_window, tmp, "Steuer 2020", "Steuer 2022")
+    pdf = _select(main_window, scan, "a.pdf")
+    _ki_antwort(monkeypatch, main_window, SimpleNamespace(
+        filename="x.pdf", confidence=0.9, metadata={"zielordner": "Ablage/Steuer 2022", "steuerjahr": "2020"},
+    ))
+    monkeypatch.setattr(main_window, "_vorschlag_text", lambda p: "Schreiben ohne Jahresangabe")
+
+    out = main_window._with_ki_folder(pdf, [], "2022-03-14")
+
+    assert out[0].folder_path == ablage / "Steuer 2020"

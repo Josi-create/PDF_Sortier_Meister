@@ -584,7 +584,10 @@ class PDFClassifier:
 
         # Aktuelles Jahr für Muster-Erkennung
         current_year = datetime.now().year
-        detected_year = self._extract_year_from_date(detected_date)
+        # Issue #254: Ein Bescheid "fuer 2020" gehoert in den Ordner fuer 2020,
+        # auch wenn der Brief von 2022 ist
+        from src.core.document_date import bezugsjahr
+        detected_year = bezugsjahr(text) or self._extract_year_from_date(detected_date)
 
         target_year = detected_year or current_year
 

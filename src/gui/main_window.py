@@ -1586,7 +1586,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             roots = self.folder_manager.target_folders
             metas = [m for s in (self.pdf_cache.get_llm_suggestions(pdf_path) or [])
                      if isinstance(m := getattr(s, "metadata", None), dict)]
-            year = neuer_ordner.dokument_jahr(detected_date, metas[0] if metas else None)
+            year = neuer_ordner.dokument_jahr(
+                detected_date, metas[0] if metas else None, self._vorschlag_text(pdf_path))
             neu = neuer_ordner.jahres_neuer_ordner(suggestions, year, roots)
             for meta in metas:
                 if neu is not None:
@@ -1599,17 +1600,34 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             logging.getLogger(__name__).debug(f"Neuer-Ordner-Vorschlag nicht verfuegbar: {e}")
             return list(suggestions)
 
+    def _vorschlag_text(self, pdf_path: Path) -> str:
+        """Text der PDF fuer die Ordnervorschlaege (Cache, sonst die angezeigte PDF)."""
+        try:
+            result = self.pdf_cache.get(pdf_path)
+        except Exception:  # noqa: BLE001 - Text ist optional
+            result = None
+        text = (getattr(result, "extracted_text", "") or "") if result is not None else ""
+        if not text and self.selected_pdf == pdf_path:
+            text = self.selected_pdf_text or ""
+        return text
+
     def _with_existing_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
         """KI-Ordner und verknuepfte Dokumente (nur bestehende Ordner)."""
+        # Issue #254: Bezugsjahr im Text ("Bescheid fuer 2020"), sonst Steuerjahr der KI,
+        # erst danach das Briefdatum
+        text = self._vorschlag_text(pdf_path)
+        year = None
         try:
             from src.core.similar_documents import (
-                document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
+                folder_suggestion_from_metadata, merge_folder_suggestion, vorschlag_jahr,
             )
             roots = self.folder_manager.target_folders
-            year = document_year(detected_date)
+            metas = [getattr(s, "metadata", None) for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []]
+            steuerjahr = next((m["steuerjahr"] for m in metas if isinstance(m, dict) and m.get("steuerjahr")), None)
+            year = vorschlag_jahr(text, detected_date, steuerjahr)
             ki = None
-            for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
-                ki = folder_suggestion_from_metadata(getattr(s, "metadata", None), roots, year)
+            for meta in metas:
+                ki = folder_suggestion_from_metadata(meta, roots, year)
                 if ki:
                     break
             merged = merge_folder_suggestion(suggestions, ki)
@@ -1620,16 +1638,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # oder Kundennummer liegen schon in einem Zielordner -> staerkster Beleg,
         # darum ganz oben
         try:
-            from src.core.similar_documents import document_year as _jahr
             from src.rag.verknuepfung import ordner_vorschlag_aus_kennungen
-            text = ""
-            result = self.pdf_cache.get(pdf_path)
-            if result is not None:
-                text = result.extracted_text or ""
-            if not text and self.selected_pdf == pdf_path:
-                text = self.selected_pdf_text or ""
             verknuepft = ordner_vorschlag_aus_kennungen(
-                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
+                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=year,
             )
             return merge_folder_suggestion(merged, verknuepft, bestaetigung=tr("verknüpfte Dokumente"))
         except Exception as e:  # noqa: BLE001 - Vorschlag ist optional

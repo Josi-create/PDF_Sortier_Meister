@@ -33,6 +33,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
 
+### Behoben
+- **Steuerbescheid für ein früheres Jahr** (#254): Ein Bescheid „für 2020“, der 2022 ausgestellt
+  wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
+  zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
