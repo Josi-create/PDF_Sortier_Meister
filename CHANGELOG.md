@@ -7,6 +7,32 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Textdateien (.txt) sortieren und in PDF umwandeln** (#227): .txt-Dateien im Scan-Ordner
+  erscheinen jetzt als Kachel (Etikett „TXT“) mit Vorschau, fließen in die Ordner-Vorschläge ein,
+  behalten beim Verschieben, Umbenennen und Hierhin-Kopieren ihre Endung und lassen sich per
+  Rechtsklick (auch mehrere) in PDF umwandeln. Dafür braucht es weder Word noch LibreOffice: PDF
+  Sortier Meister setzt das PDF selbst (A4, Schreibmaschinenschrift, lange Zeilen werden
+  umbrochen), der Text bleibt durchsuchbar. Ob die Datei als UTF-8 oder als älterer Windows-Text
+  mit Umlauten gespeichert ist, wird erkannt; es fragt kein Programm nach der Kodierung. PDF/A
+  gibt es für Textdateien nicht, Dateien über 5 MB werden nicht umgewandelt.
+- **Textdateien in der Dokumentensuche nur auf Wunsch** (#227): Die Suche nimmt .txt-Dateien nicht
+  von sich aus auf, weil auf einem PC sehr viele technische Textdateien liegen (Protokolle,
+  Lizenztexte). Eine .txt, die du in PDF Sortier Meister in einen Zielordner verschiebst,
+  ist danach aber auffindbar und bleibt es auch, wenn du sie später änderst. Wer alle
+  Textdateien durchsuchen will, trägt `.txt` in den Einstellungen der Suche bei den Dateiendungen
+  ein.
+- **Schlagwörter mit Ebenen, zusätzlich zum Ordner** (#231): Im Detail-Panel gibt es das Feld
+  „Schlagwörter“. Mehrere Einträge trennt ein Komma, Ebenen ein Schrägstrich, zum Beispiel
+  „Steuer/Werbungskosten, Haus“. Beim Tippen erscheinen die schon benutzten Schlagwörter zur
+  Auswahl. Gespeichert wird in der PDF selbst (Feld „Stichwörter“ der PDF-Eigenschaften), die
+  Schlagwörter reisen also mit der Datei. Im Reiter „Suche“ und in der Filterleiste gibt es den
+  Filter „Schlagwort“; er schließt Unterebenen ein: „Steuer“ findet auch „Steuer/Werbungskosten“.
+  Zusammen mit dem Steuerjahr ergibt das „alle Werbungskosten 2026“. Die KI schlägt nur
+  Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
+  PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
+  gibt es das Steuerjahr.
+
 ### Behoben
 - **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein
   KI-Assistent wie Claude mit der Dokumentensuche verbunden, laufen im Hintergrund Dienstprogramme

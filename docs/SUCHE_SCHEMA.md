@@ -61,7 +61,7 @@ weiter: Version 2 entfernt und benennt nichts.
 | `name` | Dateiname bzw. Mail-Betreff |
 | `ordner` | Ordner bzw. `Thunderbird/<Konto>/<Postfach>` |
 | `typ` | `pdf`, `md`, `mail`, `office` |
-| `format` | `pdf`, `md`, `eml`, `msg`, `mbox`, `doc`, `docx`, `docm`, `xls`, `xlsx`, `xlsm`, `odt` |
+| `format` | `pdf`, `md`, `eml`, `msg`, `mbox`, `doc`, `docx`, `docm`, `xls`, `xlsx`, `xlsm`, `odt`, `txt` |
 | `groesse`, `mtime_ns` | Dateigroesse (Bytes) und Aenderungszeit (Nanosekunden) |
 | `datum` | Unix-Zeit: Mail-Datum bzw. Aenderungsdatum der Datei |
 | `seiten` | Seitenzahl (PDF) bzw. Zahl der Tabellenblaetter, sonst 1 |

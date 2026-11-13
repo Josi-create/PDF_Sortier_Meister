@@ -33,7 +33,7 @@ def test_endungen_und_sortierbar(tmp_path, monkeypatch):
     monkeypatch.setattr(bc, "heif_verfuegbar", lambda: False)
     for name in ("a.jpg", "a.JPEG", "a.png", "a.tif", "a.TIFF", "a.bmp", "a.gif", "a.webp"):
         assert bc.ist_bild_datei(name) and ist_sortierbar(name) and ist_office_datei(name), name
-    for name in ("a.heic", "a.HEIF", "a.doc", "a.txt", "a"):
+    for name in ("a.heic", "a.HEIF", "a.doc", "a.csv", "a"):
         assert not bc.ist_bild_datei(name) and not ist_sortierbar(name), name
     assert ist_sortierbar("a.pdf") and ist_sortierbar("a.docx")
     monkeypatch.setattr(bc, "heif_verfuegbar", lambda: True)  # mit pillow-heif

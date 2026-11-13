@@ -1,4 +1,4 @@
-"""Text aus Office-Dateien (docx, xlsx, odt, doc, xls) – weitgehend Standardbibliothek.
+"""Text aus Office-Dateien (docx, xlsx, odt, doc, xls) und Textdateien (txt) – weitgehend Standardbibliothek.
 
 Uebernommen aus PDFsuche (``office.py``). docx/xlsx/odt sind ZIP-Archive mit
 XML darin; ``.doc`` wird ueber den Word-97-Piece-Table (olefile) gelesen, ``.xls``
@@ -7,6 +7,7 @@ ueber xlrd. Laeuft in den Arbeitsprozessen.
 
 from __future__ import annotations
 
+import codecs
 import posixpath
 import re
 import zipfile
@@ -54,6 +55,13 @@ def office_text(pfad: str, fmt: str) -> dict:
     """Text je "Seite" (Dokument bzw. Tabellenblatt) samt Titel/Autor; Status wie bei PDFs."""
     erg = {"status": "text", "fehler": None, "seiten": [], "titel": None, "autor": None}
     try:
+        if fmt == "txt":
+            with open(pfad, "rb") as f:
+                t = _knapp(txt_dekodieren(f.read(MAX_TXT_BYTES)))
+            erg["seiten"] = [(1, "text", t)]
+            if not t:
+                erg["status"] = "leer"
+            return erg
         with open(pfad, "rb") as f:
             kopf = f.read(4)
         if fmt in ("doc", "xls"):
@@ -90,6 +98,29 @@ def office_text(pfad: str, fmt: str) -> dict:
 
 class Verschluesselt(Exception):
     pass
+
+
+# --------------------------------------------------------------------------- Textdateien (.txt)
+
+MAX_TXT_BYTES = 20 * 1024 * 1024
+
+
+def txt_dekodieren(roh: bytes) -> str:
+    """Bytes einer Textdatei als Text: UTF-8 (mit/ohne BOM), UTF-16 mit BOM, sonst Windows-1252.
+
+    Aeltere Windows-Texte (Umlaute als ein Byte) sind kein gueltiges UTF-8 und
+    landen deshalb bei cp1252; dort nicht belegte Bytes liest zuletzt latin-1.
+    """
+    if roh.startswith(codecs.BOM_UTF8):
+        roh = roh[len(codecs.BOM_UTF8):]
+    elif roh.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return roh.decode("utf-16", "replace")
+    for kodierung in ("utf-8", "cp1252"):
+        try:
+            return roh.decode(kodierung)
+        except UnicodeDecodeError:
+            continue
+    return roh.decode("latin-1")
 
 
 # --------------------------------------------------------------------------- Word 97–2003 (.doc)

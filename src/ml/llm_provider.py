@@ -110,7 +110,15 @@ METADATA_KEY_ALIASES: dict[str, str] = {
     "dokumentdatum": "buchungsdatum",
     "date": "buchungsdatum",
     "document_date": "buchungsdatum",
+    # Schlagwoerter des Nutzers (Issue #231) - nur aus der Liste der schon benutzten
+    "schlagwoerter": "schlagwoerter",
+    "schlagwörter": "schlagwoerter",
+    "schlagworte": "schlagwoerter",
+    "tags": "schlagwoerter",
 }
+
+# So viele der meistbenutzten Schlagwoerter nennt der Prompt der KI zur Auswahl (Issue #231)
+SCHLAGWOERTER_IM_PROMPT = 40
 
 # Feld "korrespondent" (Issue #160): Gegenpartei aus Sicht des Nutzers, Person oder
 # Firma/Institution - nie der Nutzer selbst, nie ein Formularverlag. Die Regel steht
@@ -225,6 +233,13 @@ def normalize_llm_metadata(metadata) -> dict:
             # Nur eine Kategorie: keine abgeschriebene Auswahlliste, keine Mengen-Textform
             from src.core.metadata_choices import clean_category
             value = clean_category(value)
+            if not value:
+                continue
+        if canonical == "schlagwoerter":
+            # Issue #231: nur schon benutzte Schlagwoerter, in deren Schreibweise - kein Wildwuchs
+            from src.core import schlagwoerter as schlagwort_regeln
+            value = schlagwort_regeln.als_text(
+                schlagwort_regeln.nur_bekannte(value, schlagwort_regeln.benutzte()))
             if not value:
                 continue
         if canonical in result and result[canonical] not in (None, ""):
@@ -710,6 +725,22 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
                 'Dokument angepasst); passt keiner: neuer Pfad, der mit einem Zielordner beginnt; sonst UNBEKANNT",'
             )
 
+        # Issue #231: Schlagwoerter nur aus den schon benutzten - ohne solche fragt der Prompt nicht danach
+        from src.core import schlagwoerter as schlagwort_regeln
+        benutzte = schlagwort_regeln.benutzte(SCHLAGWOERTER_IM_PROMPT)
+        schlagwort_info = ""
+        schlagwort_field = ""
+        if benutzte:
+            schlagwort_info = (
+                "\nSCHLAGWÖRTER DES NUTZERS (zusätzliche Themen neben dem Ordner, Ebenen mit Schrägstrich):\n"
+                + "; ".join(benutzte)
+                + "\nNenne unter \"schlagwoerter\" nur Einträge aus dieser Liste, in genau dieser Schreibweise, "
+                "und nur, wenn sie eindeutig zum Dokument passen. Erfinde keine neuen.\n"
+            )
+            schlagwort_field = (
+                '\n    "schlagwoerter": ["passende Einträge aus SCHLAGWÖRTER DES NUTZERS; passt keiner: leere Liste"],'
+            )
+
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}
 AKTUELLER DATEINAME: {current_filename}
@@ -717,7 +748,7 @@ AKTUELLER DATEINAME: {current_filename}
 DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}{source_info}
-{pattern_info}{examples_info}{similar_info}
+{pattern_info}{examples_info}{similar_info}{schlagwort_info}
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
@@ -757,7 +788,7 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
     "datum": "JJJJ-MM-TT (Datum des Dokuments) oder UNBEKANNT",
-    "steuerjahr": "JJJJ oder UNBEKANNT",{zielordner_field}
+    "steuerjahr": "JJJJ oder UNBEKANNT",{zielordner_field}{schlagwort_field}
     "beschreibung": "Zusammenfassung in einem Satz"
   }}
 }}"""

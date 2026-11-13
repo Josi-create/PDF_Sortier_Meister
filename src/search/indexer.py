@@ -45,8 +45,13 @@ log = logging.getLogger("pdf_sortier_meister.suche")
 TYP = {".pdf": ("pdf", "pdf"), ".md": ("md", "md"), ".eml": ("mail", "eml"), ".msg": ("mail", "msg"),
        ".docx": ("office", "docx"), ".docm": ("office", "docm"), ".xlsx": ("office", "xlsx"),
        ".xlsm": ("office", "xlsm"), ".odt": ("office", "odt"),
-       ".doc": ("office", "doc"), ".xls": ("office", "xls")}
-OFFICE = {"docx", "docm", "xlsx", "xlsm", "odt", "doc", "xls"}
+       ".doc": ("office", "doc"), ".xls": ("office", "xls"), ".txt": ("office", "txt")}
+OFFICE = {"docx", "docm", "xlsx", "xlsm", "odt", "doc", "xls", "txt"}
+# Endungen, die der Lauf nicht von sich aus aufnimmt (Issue #227): .txt liegt massenhaft als
+# Protokoll oder Lizenztext herum. In den Index kommt eine solche Datei erst, wenn der Nutzer
+# sie in PDFSM einsortiert (verschiebt, kopiert, Metadaten setzt); danach haelt der Lauf sie
+# aktuell. Wer alle will, traegt die Endung in den Einstellungen ein (``SearchConfig.endungen``).
+NUR_AUF_WUNSCH = {".txt"}
 OCR_STUECK = 8            # Seiten je OCR-Auftrag
 MBOX_STAPEL_MAILS = 200
 MBOX_STAPEL_BYTES = 24 * 1024 * 1024
@@ -723,7 +728,9 @@ class Indexer:
                             unterordner.append(e.path)
                         elif e.is_file(follow_symlinks=False):
                             ext = os.path.splitext(e.name)[1].lower()
-                            if ext in konfig.endungen and ext in TYP and not e.name.startswith("~$"):
+                            if ext in TYP and not e.name.startswith("~$") and (
+                                    ext in konfig.endungen
+                                    or (ext in NUR_AUF_WUNSCH and e.path.lower() in self.bekannt)):
                                 self._datei(e, ext, prio)
                             elif ext == ".icloud":
                                 self._cloud_platzhalter(e, prio)

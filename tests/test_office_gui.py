@@ -361,7 +361,7 @@ def test_ordner_kacheln_nehmen_office_drops_an(qtbot):
     from src.gui.folder_tile import FolderTileWidget
 
     mime = QMimeData()
-    mime.setUrls([QUrl.fromLocalFile(str(Path("C:/x") / n)) for n in ("a.docx", "b.xlsx", "c.pdf", "d.txt")])
+    mime.setUrls([QUrl.fromLocalFile(str(Path("C:/x") / n)) for n in ("a.docx", "b.xlsx", "c.pdf", "d.csv")])
     assert [p.name for p in FolderTileWidget._pdf_paths(mime)] == ["a.docx", "b.xlsx", "c.pdf"]
 
 

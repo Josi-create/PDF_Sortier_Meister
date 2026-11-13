@@ -269,7 +269,7 @@ def test_umwandeln_word_da_aber_pywin32_fehlt(tmp_path, monkeypatch):
 
 
 def test_umwandeln_lehnt_falschen_dateityp_ab(tmp_path):
-    p = tmp_path / "a.txt"
+    p = tmp_path / "a.csv"
     p.write_text("x")
     with pytest.raises(oc.UmwandlungFehler):
         oc.umwandeln(p)

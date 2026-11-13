@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import QMenu, QMessageBox
 
 from src.core.folder_naming import DEFAULT_TEMPLATE, build_folder_based_name, coerce_date
 from src.core.office_convert import endung_tauschen, ist_office_datei
+from src.core.schlagwoerter import zusammenfuehren
 from src.i18n import tr
 
 NICHTS_AUSGEWAEHLT_TIP = tr("In der PDF-Ansicht ist keine Datei ausgewählt")
@@ -462,7 +463,7 @@ class HierhinKopierenMixin:
             new_path=str(new_path),
             filename=new_path.name,
             extracted_text=text or "",
-            keywords=", ".join(keywords) if keywords else "",
+            keywords=zusammenfuehren(keywords, metadata.get("schlagwoerter")),  # Issue #231
             korrespondent=metadata.get("korrespondent", ""),
             kategorie=metadata.get("subject", ""),
             steuerjahr=metadata.get("steuerjahr", ""),

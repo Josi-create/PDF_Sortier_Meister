@@ -44,6 +44,11 @@ Umwandlung
    oeffnen und kein PDF/A koennen.
 4. Ist nichts davon da, gibt es ``KeinUmwandlerGefunden`` mit klarer Meldung.
 
+Textdateien (.txt, Issue #227) brauchen kein Office: ``_txt_in_pdf`` setzt den
+Text mit pymupdf selbst (A4, Schreibmaschinenschrift, 80 Zeichen je Zeile).
+Die Zeichenkodierung wird erkannt (``src.search.office.txt_dekodieren``), es
+fragt also kein Programm nach. PDF/A gibt es dafuer nicht.
+
 PDF/A: Word per ``ExportAsFixedFormat(UseISO19005_1=True)`` (Stufe B),
 LibreOffice per ``SelectPdfVersion`` (PDF/A-2b). Excel (COM) und Word/Excel auf
 dem Mac koennen das nicht; dort wird bei PDF/A LibreOffice bevorzugt, sonst
@@ -71,7 +76,8 @@ from src.i18n import tr
 
 WORD_ENDUNGEN = (".docx", ".odt")  # .odt (OpenDocument-Text) wird wie .docx behandelt
 EXCEL_ENDUNGEN = (".xlsx",)
-OFFICE_ENDUNGEN = WORD_ENDUNGEN + EXCEL_ENDUNGEN
+TEXT_ENDUNGEN = (".txt",)  # Issue #227: PDFSM wandelt selbst um, ohne Word/LibreOffice
+OFFICE_ENDUNGEN = WORD_ENDUNGEN + EXCEL_ENDUNGEN + TEXT_ENDUNGEN
 
 # Felder, die beim Umwandeln auf "jetzt" springen wuerden
 DATUMSFELDER = ("PRINTDATE", "DATE", "TIME")
@@ -100,7 +106,7 @@ class KeinUmwandlerGefunden(UmwandlungFehler):
 @dataclass
 class UmwandlungsErgebnis:
     pdf: Path
-    werkzeug: str  # "Word", "Excel", "LibreOffice", "Pages" oder "Numbers"
+    werkzeug: str  # "Word", "Excel", "LibreOffice", "Pages", "Numbers"; bei .txt "PDF Sortier Meister"
     datum: Optional[datetime] = None  # nur .docx/.odt: eingesetztes Datum der Datumsfelder
     datum_quelle: Optional[str] = None  # "lastPrinted", "modified", "created" oder "Dateizeit"
     ersetzte_felder: int = 0
@@ -109,7 +115,7 @@ class UmwandlungsErgebnis:
 
 
 def ist_office_datei(pfad: Path | str) -> bool:
-    """Sortierbare Nicht-PDF-Datei: .docx/.odt/.xlsx und seit Issue #184 auch Bilder.
+    """Sortierbare Nicht-PDF-Datei: .docx/.odt/.xlsx, .txt (Issue #227) und seit Issue #184 auch Bilder.
 
     Sie erscheinen als eigene Kachel, tragen keine PDF-Metadaten und lassen
     sich in PDF umwandeln (Bilder: ``bild_convert``).
@@ -595,7 +601,9 @@ def finde_libreoffice() -> Optional[str]:
 
 
 def umwandler_verfuegbar(endung: str) -> bool:
-    """Gibt es fuer diese Dateiendung (.docx/.odt/.xlsx) irgendeinen Umwandler?"""
+    """Gibt es fuer diese Dateiendung (.docx/.odt/.xlsx/.txt) irgendeinen Umwandler?"""
+    if endung.lower() in TEXT_ENDUNGEN:
+        return True  # wandelt PDFSM selbst um
     ist_word = endung.lower() in WORD_ENDUNGEN
     com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
     mac = mac_office_verfuegbar("word" if ist_word else "excel")
@@ -941,11 +949,95 @@ def _freier_pfad(pfad: Path) -> Path:
         n += 1
 
 
+# --------------------------------------------------------------- Textdateien (.txt)
+TXT_MAX_BYTES = 5 * 1024 * 1024  # groessere Dateien sind Protokolle; das PDF haette weit ueber 1000 Seiten
+TXT_SEITE = (595, 842)  # A4 in Punkt
+TXT_RAND = 57  # 20 mm
+TXT_SCHRIFT_PT = 10
+TXT_ZEILE_PT = 12
+TXT_SPALTEN = 80  # 80 Zeichen zu 6 pt fuellen genau die Satzbreite
+TXT_ZEILEN = (TXT_SEITE[1] - 2 * TXT_RAND - TXT_SCHRIFT_PT) // TXT_ZEILE_PT + 1
+_TXT_STEUERZEICHEN = re.compile(r"[\x00-\x08\x0b\x0e-\x1f\x7f]")
+WERKZEUG_TEXT = "PDF Sortier Meister"
+
+
+def txt_zeilen(text: str, spalten: int = TXT_SPALTEN) -> list[str]:
+    """Text in Druckzeilen: Zeilenenden vereinheitlicht, Tabulatoren zu Leerzeichen, lange Zeilen umbrochen.
+
+    Umbrochen wird an Wortgrenzen; die Einrueckung am Zeilenanfang bleibt. Ein
+    Seitenvorschub (Form Feed) zaehlt als Zeilenende.
+    """
+    import textwrap
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n")
+    text = _TXT_STEUERZEICHEN.sub("", text)
+    zeilen: list[str] = []
+    for zeile in text.split("\n"):
+        zeile = zeile.expandtabs(8).rstrip()
+        if len(zeile) <= spalten:
+            zeilen.append(zeile)
+        else:
+            zeilen.extend(textwrap.wrap(zeile, spalten, replace_whitespace=False) or [""])
+    while zeilen and not zeilen[-1]:
+        zeilen.pop()
+    return zeilen
+
+
+def _txt_in_pdf(quelle: Path, pdf: Path) -> None:
+    """Setzt eine Textdatei als PDF (A4, Schreibmaschinenschrift); der Text bleibt durchsuchbar."""
+    import pymupdf
+
+    from src.search.office import txt_dekodieren
+
+    if quelle.stat().st_size > TXT_MAX_BYTES:
+        raise UmwandlungFehler(
+            tr("Die Textdatei ist zu groß zum Umwandeln (über {mb} MB).").format(mb=TXT_MAX_BYTES // (1024 * 1024))
+        )
+    zeilen = txt_zeilen(txt_dekodieren(quelle.read_bytes()))
+    if not zeilen:
+        raise UmwandlungFehler(tr("Die Textdatei ist leer."))
+    schrift = pymupdf.Font("cour")  # mitgelieferte Schrift: Latein, Griechisch, Kyrillisch
+    fehlt = {z for z in set("".join(zeilen)) if not schrift.has_glyph(ord(z))}
+    if fehlt:  # sonst stuenden im PDF Null-Zeichen
+        tabelle = {ord(z): "?" for z in fehlt}
+        zeilen = [z.translate(tabelle) for z in zeilen]
+    doc = pymupdf.open()
+    try:
+        for start in range(0, len(zeilen), TXT_ZEILEN):
+            seite = doc.new_page(width=TXT_SEITE[0], height=TXT_SEITE[1])
+            seite.insert_font(fontname="F0", fontbuffer=schrift.buffer)
+            seite.insert_text(
+                (TXT_RAND, TXT_RAND + TXT_SCHRIFT_PT), zeilen[start:start + TXT_ZEILEN],
+                fontname="F0", fontsize=TXT_SCHRIFT_PT, lineheight=TXT_ZEILE_PT / TXT_SCHRIFT_PT,
+            )
+        try:
+            doc.subset_fonts()  # nur die benutzten Zeichen einbetten
+        except Exception:  # noqa: BLE001 - aeltere pymupdf ohne fontTools: PDF wird nur etwas groesser
+            pass
+        doc.save(str(pdf), garbage=3, deflate=True)
+    finally:
+        doc.close()
+
+
+def _txt_umwandeln(quelle: Path, ziel: Path, pdfa: bool) -> UmwandlungsErgebnis:
+    ergebnis = UmwandlungsErgebnis(pdf=ziel, werkzeug=WERKZEUG_TEXT)
+    if pdfa:
+        ergebnis.hinweise.append(tr("Textdateien werden als normales PDF erstellt (kein PDF/A)."))
+    arbeit = Path(tempfile.mkdtemp(prefix="pdfsm-office-"))
+    try:
+        pdf_tmp = arbeit / "ergebnis.pdf"
+        _txt_in_pdf(quelle, pdf_tmp)
+        shutil.move(str(pdf_tmp), str(ziel))
+    finally:
+        shutil.rmtree(arbeit, ignore_errors=True)
+    return ergebnis
+
+
 def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = False) -> UmwandlungsErgebnis:
-    """Wandelt eine .docx/.odt/.xlsx in PDF um; die Quelle bleibt unveraendert.
+    """Wandelt eine .docx/.odt/.xlsx/.txt in PDF um; die Quelle bleibt unveraendert.
 
     Args:
-        quelle: .docx, .odt oder .xlsx
+        quelle: .docx, .odt, .xlsx oder .txt
         ziel: gewuenschter PDF-Pfad; Standard: gleicher Ordner, gleicher Name, ``.pdf``.
             Existiert er schon, wird ``Name (1).pdf`` verwendet (nichts wird ueberschrieben).
         pdfa: PDF/A erzeugen, wenn der Umwandler es kann.
@@ -962,6 +1054,8 @@ def umwandeln(quelle: Path | str, ziel: Path | str | None = None, pdfa: bool = F
         raise UmwandlungFehler(tr("Datei nicht gefunden: {quelle}").format(quelle=quelle))
     ist_word = endung in WORD_ENDUNGEN
     ziel = _freier_pfad(Path(ziel) if ziel else quelle.with_suffix(".pdf"))
+    if endung in TEXT_ENDUNGEN:
+        return _txt_umwandeln(quelle, ziel, pdfa)
 
     com = word_com_verfuegbar() if ist_word else excel_com_verfuegbar()
     mac = not com and mac_office_verfuegbar("word" if ist_word else "excel")

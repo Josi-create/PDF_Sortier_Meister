@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import QLabel, QMenu
 
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
-from src.core.office_convert import WORD_ENDUNGEN, ist_office_datei
+from src.core.office_convert import TEXT_ENDUNGEN, WORD_ENDUNGEN, ist_office_datei
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
@@ -31,11 +31,14 @@ from src.i18n import tr
 WORD_FARBE = "#2b579a"
 EXCEL_FARBE = "#217346"
 BILD_FARBE = "#7a5195"
+TEXT_FARBE = "#5f6368"  # .txt (Issue #227)
 
 
 def _typfarbe(pfad: Path) -> str:
     if ist_bild_datei(pfad):
         return BILD_FARBE
+    if pfad.suffix.lower() in TEXT_ENDUNGEN:
+        return TEXT_FARBE
     return WORD_FARBE if pfad.suffix.lower() in WORD_ENDUNGEN else EXCEL_FARBE
 
 
@@ -174,9 +177,18 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         "Rechtsklick: In PDF umwandeln (mit Texterkennung; das Bild bleibt erhalten).")
     )
 
+    _TEXT_TOOLTIP = (
+        tr("Textdatei. Anklicken wählt sie aus (Strg/Umschalt für Mehrfachauswahl).\n"
+        "Ziehen verschiebt sie per Drag & Drop in einen Zielordner.\n"
+        "Doppelklick öffnet sie im Standardprogramm.\n"
+        "Rechtsklick: In PDF umwandeln (die Originaldatei bleibt erhalten).")
+    )
+
     @property
     def _BASE_TOOLTIP(self) -> str:  # noqa: N802 - ersetzt das Klassenattribut der PDF-Kachel
-        return self._BILD_TOOLTIP if ist_bild_datei(self.pdf_path) else self._OFFICE_TOOLTIP
+        if ist_bild_datei(self.pdf_path):
+            return self._BILD_TOOLTIP
+        return self._TEXT_TOOLTIP if self.pdf_path.suffix.lower() in TEXT_ENDUNGEN else self._OFFICE_TOOLTIP
 
     # Farben nach Dateityp (nach der Erkennung statt Gruen): (Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen)
     OFFICE_FARBEN = ("#e3edfb", "#6a9be0", "#d3e3f9", "#4f86d6")
@@ -200,6 +212,7 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self.typ_label.setToolTip(
             tr("Bild") if self._ist_bild
             else (tr("OpenDocument-Text") if pfad.suffix.lower() == ".odt"
+                  else tr("Textdatei") if pfad.suffix.lower() in TEXT_ENDUNGEN
                   else tr("Word-Dokument") if pfad.suffix.lower() in WORD_ENDUNGEN else tr("Excel-Tabelle"))
         )
         self.typ_label.adjustSize()
@@ -291,21 +304,25 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
             menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu
         dateien = self._markierte_office()
+        # Textdateien (.txt, Issue #227) wandelt PDFSM selbst um - ohne PDF/A
+        nur_text = all(p.suffix.lower() in TEXT_ENDUNGEN for p in (dateien or [self.pdf_path]))
         if len(dateien) > 1:
             # Mehrfachauswahl: alle markierten Dateien, je ein PDF (Live-Test 08.11.2026)
             convert = menu.addAction(tr("In PDF umwandeln ({anzahl} Dateien)").format(anzahl=len(dateien)))
             convert.setToolTip(tr("Je Datei ein PDF neben der Datei"))
             convert.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, False))
-            convert_a = menu.addAction(tr("In PDF/A umwandeln ({anzahl} Dateien)").format(anzahl=len(dateien)))
-            convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
-            convert_a.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, True))
+            if not nur_text:
+                convert_a = menu.addAction(tr("In PDF/A umwandeln ({anzahl} Dateien)").format(anzahl=len(dateien)))
+                convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
+                convert_a.triggered.connect(lambda: self.mehrere_umwandeln_requested.emit(dateien, True))
         else:
             convert = menu.addAction(tr("In PDF umwandeln"))
             convert.setToolTip(tr("Erzeugt ein PDF neben der Datei; das Original bleibt erhalten"))
             convert.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, False))
-            convert_a = menu.addAction(tr("In PDF/A umwandeln (Langzeitarchiv)"))
-            convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
-            convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
+            if not nur_text:
+                convert_a = menu.addAction(tr("In PDF/A umwandeln (Langzeitarchiv)"))
+                convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
+                convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
         menu.addSeparator()
         menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
         return menu
