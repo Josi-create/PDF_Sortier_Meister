@@ -1684,6 +1684,7 @@ msgstr "Select a file first to copy it"
 
 #: src/gui/hierhin_kopieren.py
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 #: src/gui/ordner_verschieben_gui.py
 #: src/gui/stapel_ablage.py
 msgid "{anzahl} Dateien"
@@ -2228,11 +2229,13 @@ msgid "PDFs in: {name}"
 msgstr "PDFs in: {name}"
 
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 #: src/gui/ordner_verschieben_gui.py
 msgid "{anzahl} Datei"
 msgstr "{anzahl} file"
 
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 msgid "PDFs: {anzahl}"
 msgstr "PDFs: {anzahl}"
 
@@ -3925,6 +3928,22 @@ msgstr "Creates a PDF next to the file; the original is kept"
 msgid "In PDF/A umwandeln (Langzeitarchiv)"
 msgstr "Convert to PDF/A (long-term archive)"
 
+#: src/gui/ordner_beobachtung.py
+msgid "Nicht mehr im Ordner: {name}"
+msgstr "No longer in the folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} Dateien sind nicht mehr im Ordner"
+msgstr "{anzahl} files are no longer in the folder"
+
+#: src/gui/ordner_beobachtung.py
+msgid "Neu im Scan-Ordner: {name}"
+msgstr "New in the scan folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} neue Dateien im Scan-Ordner"
+msgstr "{anzahl} new files in the scan folder"
+
 #: src/gui/ordner_suchfeld.py
 msgid "Ordner suchen … (z. B. Zeugn*)"
 msgstr "Search folders … (e.g. Cert*)"
@@ -5481,6 +5500,14 @@ msgstr "Suggest new folders"
 #: src/gui/settings_dialog.py
 msgid "Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\noder nennt die KI einen passenden neuen Unterordner, erscheint er als\nVorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage."
 msgstr "If the folder for the document's year is missing (e.g. “Steuer 2027/Medikamente”)\nor the AI names a suitable new subfolder, it appears as the\nsuggestion “➕ new:”. It is only created after you confirm."
+
+#: src/gui/settings_dialog.py
+msgid "Scan-Ordner beobachten (neue Dateien erscheinen von selbst)"
+msgstr "Watch the scan folder (new files appear on their own)"
+
+#: src/gui/settings_dialog.py
+msgid "Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\nOrdner nach wenigen Sekunden als Kachel, sobald sie fertig geschrieben ist.\nVerschwundene Dateien werden aus der Ansicht genommen.\nAusgeschaltet zeigt erst F5 den neuen Stand."
+msgstr "While the program is open, a new file in the open folder appears\nas a tile after a few seconds, as soon as it has been written completely.\nFiles that are gone are removed from the view.\nWhen switched off, only F5 shows the new state."
 
 #: src/gui/settings_dialog.py
 msgid "PDF-Analyse-Cache"

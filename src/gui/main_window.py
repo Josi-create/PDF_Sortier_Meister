@@ -85,6 +85,7 @@ from src.core.pdf_rotate import (
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
+from src.gui.ordner_beobachtung import OrdnerBeobachtung
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
@@ -282,6 +283,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_neu_paths: list[Path] = []
         # Schwer lesbare Scans: OCR mit anderen Sprachen, Handschrift per KI (Issue #47)
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
+        # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
+        self._ordner_beobachtung = OrdnerBeobachtung(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -1217,35 +1220,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
-            widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
-            self._kopie_hinweis_anwenden(widget)  # Issue #179
-            widget.clicked.connect(self.on_pdf_clicked)
-            widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
-            widget.shift_clicked.connect(self.on_pdf_shift_clicked)
-            widget.double_clicked.connect(self.on_pdf_double_clicked)
-            widget.open_requested.connect(self.open_pdf)
-            widget.rename_requested.connect(self.on_pdf_rename)
-            widget.delete_requested.connect(self.on_pdf_delete)
-            widget.move_requested.connect(self.on_pdf_move)
-            widget.copy_requested.connect(self.on_pdf_copy)
-            widget.batch_rename_requested.connect(self.on_batch_rename)
-            widget.split_requested.connect(self.on_pdf_split)
-            widget.ki_split_requested.connect(self.on_pdf_ki_split)
-            widget.merge_requested.connect(self.on_pdf_merge)
-            widget.stack_requested.connect(self.on_pdf_stacked)
-            widget.rotate_requested.connect(self.on_pdf_rotate)
-            widget.reocr_requested.connect(self.on_pdf_reocr)
-            widget.straighten_requested.connect(self.on_pdf_straighten)
-            widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
-            widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
-            widget.entsperren_requested.connect(self.on_pdf_entsperren)  # Issue #244
-            # Thumbnail-Ladetracking
-            widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
-            # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
-            widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
-            # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
-            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
-
+            widget = self._erzeuge_pdf_kachel(pdf_path)
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
 
@@ -1265,6 +1240,37 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
+
+    def _erzeuge_pdf_kachel(self, pdf_path: Path) -> PDFThumbnailWidget:
+        """Kachel einer PDF mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #232)."""
+        widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
+        self._kopie_hinweis_anwenden(widget)  # Issue #179
+        widget.clicked.connect(self.on_pdf_clicked)
+        widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
+        widget.shift_clicked.connect(self.on_pdf_shift_clicked)
+        widget.double_clicked.connect(self.on_pdf_double_clicked)
+        widget.open_requested.connect(self.open_pdf)
+        widget.rename_requested.connect(self.on_pdf_rename)
+        widget.delete_requested.connect(self.on_pdf_delete)
+        widget.move_requested.connect(self.on_pdf_move)
+        widget.copy_requested.connect(self.on_pdf_copy)
+        widget.batch_rename_requested.connect(self.on_batch_rename)
+        widget.split_requested.connect(self.on_pdf_split)
+        widget.ki_split_requested.connect(self.on_pdf_ki_split)
+        widget.merge_requested.connect(self.on_pdf_merge)
+        widget.stack_requested.connect(self.on_pdf_stacked)
+        widget.rotate_requested.connect(self.on_pdf_rotate)
+        widget.reocr_requested.connect(self.on_pdf_reocr)
+        widget.straighten_requested.connect(self.on_pdf_straighten)
+        widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
+        widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
+        # Thumbnail-Ladetracking
+        widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
+        # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
+        widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
+        # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
+        widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
+        return widget
 
     @property
     def office_widgets(self) -> list[OfficeThumbnailWidget]:
@@ -2396,6 +2402,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self._ocr_neu_worker is not None:
             self._ocr_neu_worker.requestInterruption()
         self._ocr_schwer_lesbar.abbrechen()
+        self._ordner_beobachtung.stoppen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
         if self._erkennung_worker is not None:
@@ -2504,8 +2511,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             combo.setCurrentIndex(combo.findData(view.id))
             combo.blockSignals(False)
 
-    def _sortiere_kacheln(self):
+    def _sortiere_kacheln(self, staende=None):
         """Ordnet die vorhandenen Kacheln nach ``self._sortierung`` um (Issue #33).
+
+        ``staende``: schon bekannte (Aenderungszeit, Groesse) je Dateiname, siehe
+        ``sortiere_pfade`` (Issue #232).
 
         Es werden keine Widgets neu gebaut - Thumbnails, Analyse und Auswahl
         bleiben unberuehrt, nur das Raster wird neu belegt. Weitere Kachellisten
@@ -2517,7 +2527,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             [self.office_widgets] if hasattr(self, "office_widgets") else []
         ):
             nach_pfad = {w.pdf_path: w for w in liste}
-            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung)]
+            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung, staende)]
             if neu != liste:
                 liste[:] = neu
                 geaendert = True

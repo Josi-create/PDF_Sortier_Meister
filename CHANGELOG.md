@@ -22,6 +22,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist danach aber auffindbar und bleibt es auch, wenn du sie später änderst. Wer alle
   Textdateien durchsuchen will, trägt `.txt` in den Einstellungen der Suche bei den Dateiendungen
   ein.
+- **Neue Scans erscheinen von selbst** (#232): Solange das Programm offen ist, beobachtet es den
+  links geöffneten Ordner. Ein neuer Scan erscheint nach wenigen Sekunden als Kachel, ohne F5;
+  Texterkennung und KI-Vorschlag laufen sofort an. Eine Datei erscheint erst, wenn der Scanner
+  (oder OneDrive) sie fertig geschrieben hat. Wird eine Datei außerhalb des Programms gelöscht,
+  verschoben oder umbenannt, verschwindet ihre Kachel bzw. erscheint unter dem neuen Namen. Die
+  übrigen Kacheln, die Auswahl und die Scrollposition bleiben dabei, wie sie sind. Das gilt auch
+  für Word-, Excel-, Text- und Bilddateien. Neue Unterordner zeigt weiterhin F5. Abschalten lässt
+  sich das unter Einstellungen → Allgemein → „Scan-Ordner beobachten“.
 - **Schlagwörter mit Ebenen, zusätzlich zum Ordner** (#231): Im Detail-Panel gibt es das Feld
   „Schlagwörter“. Mehrere Einträge trennt ein Komma, Ebenen ein Schrägstrich, zum Beispiel
   „Steuer/Werbungskosten, Haus“. Beim Tippen erscheinen die schon benutzten Schlagwörter zur
