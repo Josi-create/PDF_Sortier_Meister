@@ -33,6 +33,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
 
+### Geändert
+- **Hinweis auf die Windows-Warnung beim Installieren**: README (deutsch und englisch) und jede
+  künftige Release-Beschreibung sagen jetzt gut sichtbar direkt beim Download, dass Windows beim
+  Start der Setup-Datei „Der Computer wurde durch Windows geschützt“ meldet, warum (das Programm
+  ist noch nicht signiert, #163) und wie es weitergeht: „Weitere Informationen“, dann „Trotzdem
+  ausführen“.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu

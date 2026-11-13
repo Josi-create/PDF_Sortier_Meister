@@ -33,8 +33,20 @@ PDFs samt Scans, Word- und Excel-Dateien, Markdown und Mails — auch für KI-As
 ### Windows
 
 1. **Herunterladen:** 👉 [`PDF_Sortier_Meister_Setup.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_Setup.exe) — dieser Link zeigt immer auf die **neueste Version**
-2. **Doppelklick** auf die Setup-Datei → Weiter → Fertig
+2. **Doppelklick** auf die Setup-Datei. Windows zeigt dann eine Warnung, siehe Kasten. Danach: Weiter → Fertig
 3. Beim ersten Start führt der Einrichtungs-Assistent durch Scan-Ordner, Zielordner und (optional) KI-Anbieter.
+
+> [!IMPORTANT]
+> **Windows warnt beim Start der Setup-Datei. Das ist bei diesem Programm zu erwarten.**
+> Es erscheint ein blaues Fenster **„Der Computer wurde durch Windows geschützt“** (SmartScreen,
+> „Unbekannter Herausgeber“). So geht es weiter:
+>
+> 1. auf **„Weitere Informationen“** klicken,
+> 2. dann auf **„Trotzdem ausführen“**.
+>
+> Der Grund: Das Programm ist noch nicht signiert
+> (siehe [Issue #163](https://github.com/Josi-create/PDF_Sortier_Meister/issues/163)). Windows kennt
+> deshalb den Herausgeber nicht. Der Quellcode ist hier öffentlich einsehbar.
 
 Texterkennung (OCR, Tesseract) ist **enthalten** — Scans ohne Textebene funktionieren ohne weitere Installation.
 
@@ -45,9 +57,6 @@ Lerndaten bleiben dabei erhalten, Reste der Vorversion werden automatisch aufger
 Lerndaten bleiben dabei absichtlich erhalten (praktisch bei Neuinstallation); wer alles restlos entfernen
 möchte, löscht danach noch den Ordner `%APPDATA%\PDF_Sortier_Meister`.
 
-> 🛡️ **Windows SmartScreen warnt?** *„Weitere Informationen“ → „Trotzdem ausführen“.* Das passiert bei
-> unsignierten Programmen — der Quellcode ist hier öffentlich einsehbar.
->
 > 📦 **Lieber ohne Installation?** Auf der [Release-Seite](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest)
 > liegt auch ein portables ZIP: entpacken, `PDF_Sortier_Meister.exe` starten.
 
