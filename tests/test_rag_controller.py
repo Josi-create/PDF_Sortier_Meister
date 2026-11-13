@@ -291,17 +291,19 @@ def test_suche_wird_um_metadaten_des_bezugs_ergaenzt(tmp_path, monkeypatch):
     aufrufe = []
     echt = ctrl.retrieval.retrieve
 
-    def spy(question, k=None, zusatz=""):
-        aufrufe.append((question, zusatz))
-        return echt(question, k=k, zusatz=zusatz)
+    def spy(question, k=None, zusatz="", **mehr):
+        aufrufe.append((question, zusatz, mehr))
+        return echt(question, k=k, zusatz=zusatz, **mehr)
 
     monkeypatch.setattr(ctrl.retrieval, "retrieve", spy)
     ctrl.ask("Zeig mir ähnliche Rechnungen", bezug=_bezug(
         tmp_path / "x.pdf", metadaten={"korrespondent": "Telekom", "kategorie": "Rechnung", "steuerjahr": "2024"}))
 
-    frage, zusatz = aufrufe[-1]
+    frage, zusatz, mehr = aufrufe[-1]
     assert frage == "Zeig mir ähnliche Rechnungen"
     assert "Telekom" in zusatz and "Rechnung" in zusatz and "2024" in zusatz
+    # Fragen zu einem Bezugsdokument laufen ohne Bedeutungssuche (Issue #230)
+    assert mehr == {"bedeutung": False}
 
 
 def test_ordnerfrage_bekommt_vorschlag_der_sortierlogik(tmp_path):

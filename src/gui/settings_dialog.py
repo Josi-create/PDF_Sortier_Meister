@@ -1440,6 +1440,9 @@ class SettingsDialog(QDialog):
         ocr_layout.addRow(self.search_ocr_status_label)
         layout.addWidget(ocr_group)
 
+        # Bedeutungssuche fuer den Chat (Issue #230)
+        layout.addWidget(self._create_meaning_group())
+
         # Cloud-Dateien und Grenzen
         limits_group = QGroupBox(tr("Cloud-Dateien und Grenzen"))
         limits_layout = QFormLayout(limits_group)
@@ -1620,6 +1623,117 @@ class SettingsDialog(QDialog):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(inner)
         return scroll
+
+    # Bedeutungssuche im Reiter „Suche“ (Issue #230)
+
+    def _create_meaning_group(self) -> QGroupBox:
+        """Gruppe „Bedeutungssuche für den Chat“: Schalter (Standard aus), Stand, Modell laden.
+
+        Die Logik liegt Qt-frei in ``src/search/bedeutung.py``. Ollama wird nur gefragt,
+        wenn der Nutzer den Schalter setzt oder das Modell laedt - nicht beim Oeffnen.
+        """
+        from src.search import bedeutung
+
+        group = QGroupBox(tr("Bedeutungssuche für den Chat (lokal über Ollama)"))
+        box = QVBoxLayout(group)
+        self.search_meaning_check = QCheckBox(
+            tr("Im Chat auch Dokumente finden, die dasselbe meinen, aber andere Wörter benutzen"))
+        self.search_meaning_check.clicked.connect(self._on_search_meaning_clicked)
+        box.addWidget(self.search_meaning_check)
+        zeile = QHBoxLayout()
+        self.search_meaning_status_label = QLabel("")
+        self.search_meaning_status_label.setStyleSheet("color: gray;")
+        self.search_meaning_status_label.setWordWrap(True)
+        zeile.addWidget(self.search_meaning_status_label, 1)
+        self.search_meaning_model_button = QPushButton(tr("Modell laden (ca. 620 MB)"))
+        self.search_meaning_model_button.setToolTip(
+            tr("Lädt das Modell {modell} einmalig über Ollama herunter").format(modell=bedeutung.MODELL_STANDARD))
+        self.search_meaning_model_button.clicked.connect(self._search_meaning_model_laden)
+        zeile.addWidget(self.search_meaning_model_button)
+        box.addLayout(zeile)
+        hint = QLabel(
+            tr("Beispiel: Die Frage „Was zahle ich für meine Autoversicherung?“ findet auch die Rechnung, in der "
+               "nur „Kraftfahrtversicherung“ steht. Dazu berechnet der Indexlauf für jede Seite einmalig "
+               "Bedeutungswerte – mit einem kleinen Modell, das über Ollama auf diesem Rechner läuft; kein Text "
+               "verlässt den Rechner. Der erste Lauf über ein großes Archiv kann Stunden dauern (ohne Grafikkarte "
+               "deutlich länger) und geht in Etappen weiter; neue und geänderte Seiten kommen bei jedem Lauf dazu. "
+               "Die Wortsuche und der Reiter „Suche“ bleiben, wie sie sind.")
+        )
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        box.addWidget(hint)
+        self._search_meaning_hintergrund = _Hintergrund(self)
+        self._search_meaning_modell = bedeutung.MODELL_STANDARD
+        self._search_meaning_url = ""
+        return group
+
+    def _search_meaning_stand(self) -> str:
+        """„1.234 von 5.678 Seiten vorbereitet“ aus dem Suchindex; leer ohne Datenbank."""
+        from src.search.suchindex import Suchindex
+
+        try:
+            stand = Suchindex(self.config.get_search_config()).bedeutung_stand()
+        except Exception:  # noqa: BLE001 - nur eine Anzeige
+            stand = None
+        if not stand or not stand["seiten"]:
+            return ""
+        return tr("{fertig} von {seiten} Seiten vorbereitet").format(
+            fertig=f"{stand['fertig']:,}".replace(",", "."), seiten=f"{stand['seiten']:,}".replace(",", "."))
+
+    def _search_meaning_status_setzen(self, vorhanden=...) -> None:
+        """Statuszeile; ``vorhanden`` wie ``bedeutung.modell_vorhanden`` (ohne Angabe: Ollama nicht gefragt)."""
+        teile = []
+        if vorhanden is None:
+            teile.append(tr("Ollama läuft nicht – die Bedeutungssuche braucht Ollama auf diesem Rechner."))
+        elif vorhanden is False:
+            teile.append(tr("Das Modell {modell} fehlt noch – bitte „Modell laden“.").format(
+                modell=self._search_meaning_modell))
+        elif vorhanden is True:
+            teile.append(tr("Modell {modell} ist bereit.").format(modell=self._search_meaning_modell))
+        stand = self._search_meaning_stand()
+        if stand:
+            teile.append(stand)
+        elif self.search_meaning_check.isChecked() and vorhanden is not None:
+            teile.append(tr("Die Seiten werden beim nächsten Indexlauf vorbereitet."))
+        self.search_meaning_status_label.setText(" ".join(teile))
+        self.search_meaning_model_button.setEnabled(vorhanden is not True)
+
+    def _on_search_meaning_clicked(self, an: bool) -> None:
+        """Einschalten geht nur, wenn Ollama läuft; fehlt das Modell, bietet die Zeile darunter den Download an."""
+        from src.search import bedeutung
+
+        if not an:
+            self._search_meaning_status_setzen()
+            return
+        vorhanden = bedeutung.modell_vorhanden(self._search_meaning_url, self._search_meaning_modell)
+        if vorhanden is None:
+            self.search_meaning_check.setChecked(False)
+            QMessageBox.warning(
+                self, tr("Bedeutungssuche"),
+                tr("Ollama läuft nicht. Die Bedeutungssuche rechnet mit einem lokalen Modell über Ollama.\n\n"
+                   "Bitte Ollama starten (oder im Reiter „KI-Assistent (LLM)“ einrichten) und den Schalter noch einmal setzen."))
+        self._search_meaning_status_setzen(vorhanden)
+
+    def _search_meaning_model_laden(self) -> None:
+        from src.ml.ollama_launcher import pull_model
+        from src.search import bedeutung
+
+        url = self._search_meaning_url or bedeutung.URL_STANDARD
+        modell = self._search_meaning_modell
+        self.search_meaning_model_button.setEnabled(False)
+        self.search_meaning_status_label.setText(
+            tr("Modell {modell} wird geladen … das kann einige Minuten dauern.").format(modell=modell))
+        self._search_meaning_hintergrund.starten(lambda: pull_model(url, modell), self._search_meaning_model_geladen)
+
+    def _search_meaning_model_geladen(self, ergebnis) -> None:
+        from src.search import bedeutung
+
+        ok, text = (False, str(ergebnis)) if isinstance(ergebnis, Exception) else ergebnis
+        if not ok:
+            QMessageBox.warning(self, tr("Bedeutungssuche"),
+                                tr("Das Modell konnte nicht geladen werden:\n{text}").format(text=text))
+        self._search_meaning_status_setzen(
+            bedeutung.modell_vorhanden(self._search_meaning_url, self._search_meaning_modell))
 
     # KI-Assistenten (MCP) im Reiter „Suche“ (Baustein 3, docs/CHAT_MCP_PLAN.md)
 
@@ -1944,6 +2058,11 @@ class SettingsDialog(QDialog):
             status = tr("Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist.")
         self.search_ocr_status_label.setText(status)
 
+        self.search_meaning_check.setChecked(cfg.bedeutung_aktiv)
+        self._search_meaning_modell = cfg.bedeutung_modell
+        self._search_meaning_url = cfg.bedeutung_url
+        self._search_meaning_status_setzen()
+
         self.search_cloud_check.setChecked(cfg.cloud_herunterladen)
         self.search_max_size_spin.setValue(cfg.max_dateigroesse_mb)
         self.search_background_check.setChecked(cfg.hintergrund_aktiv)
@@ -2002,6 +2121,9 @@ class SettingsDialog(QDialog):
             textebene_sicherung_ordner=alt.textebene_sicherung_ordner,
             auto_drehen=self.search_autorotate_combo.currentData() or "aus",
             auto_gerade=self.search_deskew_combo.currentData() or "aus",
+            bedeutung_aktiv=self.search_meaning_check.isChecked(),
+            bedeutung_modell=alt.bedeutung_modell,
+            bedeutung_url=alt.bedeutung_url,
         )
         self.config.set_search_config(cfg)
         self._sync_search_schedule(alt, cfg)

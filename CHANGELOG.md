@@ -32,6 +32,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Bedeutungssuche für den Chat** (#230, Standard aus): Bisher fand der Chat ein Dokument nur,
+  wenn die Wörter der Frage darin stehen. Mit dem neuen Schalter unter Einstellungen › Suche findet
+  er auch Dokumente, die dasselbe meinen: Die Frage „Was zahle ich für meine Autoversicherung?“
+  führt zur Rechnung, in der nur „Kraftfahrtversicherung“ steht. Dafür berechnet der Indexlauf
+  einmalig für jede Seite Bedeutungswerte, mit einem kleinen Modell (rund 620 MB, per Klick
+  geladen), das über Ollama auf dem eigenen Rechner läuft. Kein Text verlässt dabei den Rechner.
+  In einem Probelauf mit 50 Alltagsfragen an gut 3.000 erfundene Dokumente nannte der Chat das
+  richtige Dokument mit Bedeutungssuche bei 41 Fragen, ohne bei 22. Der erste Lauf über ein
+  großes Archiv dauert mit Grafikkarte etwa eine Stunde je 100.000 Seiten, ohne deutlich länger;
+  er läuft in Etappen und setzt beim nächsten Mal fort. Die Wortsuche und der Reiter „Suche“
+  bleiben unverändert, und wer Ollama nicht nutzt, merkt von alldem nichts.
 
 ## [0.27.0] - 2026-11-12
 

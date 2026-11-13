@@ -5773,6 +5773,62 @@ msgid "Einstellungen und Datenbank des früheren, eigenständigen Programms PDFs
 msgstr "Import the settings and database of the earlier, stand-alone program PDFsuche"
 
 #: src/gui/settings_dialog.py
+msgid "Bedeutungssuche für den Chat (lokal über Ollama)"
+msgstr "Semantic search for the chat (local, via Ollama)"
+
+#: src/gui/settings_dialog.py
+msgid "Im Chat auch Dokumente finden, die dasselbe meinen, aber andere Wörter benutzen"
+msgstr "In the chat, also find documents that mean the same but use different words"
+
+#: src/gui/settings_dialog.py
+msgid "Modell laden (ca. 620 MB)"
+msgstr "Download model (approx. 620 MB)"
+
+#: src/gui/settings_dialog.py
+msgid "Lädt das Modell {modell} einmalig über Ollama herunter"
+msgstr "Downloads the model {modell} once via Ollama"
+
+#: src/gui/settings_dialog.py
+msgid "Beispiel: Die Frage „Was zahle ich für meine Autoversicherung?“ findet auch die Rechnung, in der nur „Kraftfahrtversicherung“ steht. Dazu berechnet der Indexlauf für jede Seite einmalig Bedeutungswerte – mit einem kleinen Modell, das über Ollama auf diesem Rechner läuft; kein Text verlässt den Rechner. Der erste Lauf über ein großes Archiv kann Stunden dauern (ohne Grafikkarte deutlich länger) und geht in Etappen weiter; neue und geänderte Seiten kommen bei jedem Lauf dazu. Die Wortsuche und der Reiter „Suche“ bleiben, wie sie sind."
+msgstr "Example: the question “What do I pay for my car insurance?” also finds the invoice that only says “motor vehicle insurance”. To do this, the index run computes meaning values once for every page – with a small model that runs on this computer via Ollama; no text leaves the computer. The first run over a large archive can take hours (considerably longer without a graphics card) and continues in stages; new and changed pages are added with every run. The word search and the “Search” tab stay as they are."
+
+#: src/gui/settings_dialog.py
+msgid "{fertig} von {seiten} Seiten vorbereitet"
+msgstr "{fertig} of {seiten} pages prepared"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft nicht – die Bedeutungssuche braucht Ollama auf diesem Rechner."
+msgstr "Ollama is not running – semantic search needs Ollama on this computer."
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell {modell} fehlt noch – bitte „Modell laden“."
+msgstr "The model {modell} is still missing – please use “Download model”."
+
+#: src/gui/settings_dialog.py
+msgid "Modell {modell} ist bereit."
+msgstr "Model {modell} is ready."
+
+#: src/gui/settings_dialog.py
+msgid "Die Seiten werden beim nächsten Indexlauf vorbereitet."
+msgstr "The pages will be prepared during the next index run."
+
+#: src/gui/settings_dialog.py
+msgid "Bedeutungssuche"
+msgstr "Semantic search"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft nicht. Die Bedeutungssuche rechnet mit einem lokalen Modell über Ollama.\n\nBitte Ollama starten (oder im Reiter „KI-Assistent (LLM)“ einrichten) und den Schalter noch einmal setzen."
+msgstr "Ollama is not running. Semantic search computes with a local model via Ollama.\n\nPlease start Ollama (or set it up on the “AI assistant (LLM)” tab) and tick the box again."
+
+#: src/gui/settings_dialog.py
+msgid "Modell {modell} wird geladen … das kann einige Minuten dauern."
+msgstr "Model {modell} is being downloaded … this can take a few minutes."
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell konnte nicht geladen werden:\n{text}"
+msgstr "The model could not be downloaded:\n{text}"
+
+#: src/gui/settings_dialog.py
 msgid "KI-Assistenten (MCP)"
 msgstr "AI assistants (MCP)"
 
@@ -8137,6 +8193,10 @@ msgstr "Time limit reached"
 #: src/search/indexer.py
 msgid "{vorher} – Pause (Nutzer aktiv)"
 msgstr "{vorher} – paused (user active)"
+
+#: src/search/indexer.py
+msgid "Bedeutungssuche vorbereiten"
+msgstr "Preparing semantic search"
 
 #: src/search/indexer.py
 msgid "Textebene schreiben"

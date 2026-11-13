@@ -113,6 +113,19 @@ def kein_echtes_mac_office(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kein_echtes_ollama_fuer_die_bedeutungssuche(monkeypatch):
+    """Kein Test fragt ein echtes Ollama nach Bedeutungsvektoren oder Modellen (Issue #230).
+
+    Tests der Bedeutungssuche ersetzen ``bedeutung._anfrage`` selbst und gewinnen damit."""
+    from src.search import bedeutung
+
+    def gesperrt(url, pfad, daten, zeitlimit):
+        raise bedeutung.BedeutungFehler("Ollama ist in Tests abgeschaltet")
+
+    monkeypatch.setattr(bedeutung, "_anfrage", gesperrt)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

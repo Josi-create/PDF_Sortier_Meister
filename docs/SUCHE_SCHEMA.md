@@ -159,6 +159,23 @@ Nur Seiten, bei denen sich das Ausrichten lohnt (ab 0,3 Grad), stehen hier.
 
 Teilindex `ix_schraeglage_gerade` (nur vorgemerkte Seiten).
 
+## Tabelle `seiten_vektor` (Issue #230, nur mit eingeschalteter Bedeutungssuche)
+
+Bedeutungsvektor je Seite fuer die Bedeutungssuche des Chats. Die Tabelle gehoert
+nicht zum Grundschema: `bedeutung.schema` legt sie an, wenn der Indexlauf die
+Seiten zum ersten Mal vorbereitet. Ohne den Schalter gibt es sie nicht.
+
+| Spalte | Bedeutung |
+|---|---|
+| `seite_id` | Primaerschluessel, `seiten.id` |
+| `modell` | Ollama-Modell, das den Vektor berechnet hat (`bedeutung_modell`); nach einem Modellwechsel rechnet der Lauf neu |
+| `vektor` | 256 Bytes: die ersten 256 Werte des Modells, normiert, mit 508 multipliziert und als `int8` gerundet |
+
+Die Trigger `seiten_vektor_ad` und `seiten_vektor_au` loeschen den Vektor, wenn
+die Seite geloescht oder ihr Text geaendert wird. Seiten unter 40 Zeichen
+bekommen keinen Vektor. Platzbedarf mit Verwaltungsdaten: gemessen rund 0,6 MB
+je 1.000 Seiten.
+
 ## Weitere Tabellen
 
 - `mbox_stand` – je mbox-Datei, bis zu welchem Byte gelesen wurde (`datei`, `groesse`, `mtime_ns`)
