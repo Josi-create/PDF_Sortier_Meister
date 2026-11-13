@@ -2570,10 +2570,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def on_pdf_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF angeklickt wird."""
         self._ordner_markierung_aufheben()  # Issue #196: Ordnermarkierung und PDF-Auswahl schliessen sich aus
-        # Klick auf bereits ausgewähltes PDF -> Auswahl aufheben
-        # Nur wenn wirklich eine Einzelauswahl vorliegt (nicht bei Mehrfachauswahl)
+        # Klick auf die bereits allein ausgewählte PDF: sie bleibt ausgewählt (#251).
+        # Abgewählt wird über einen Klick in den leeren Bereich (_on_pdf_container_clicked).
         if self.selected_pdf == pdf_path and not self.selected_pdfs:
-            self._clear_selection()
+            widget = self._pdf_widget_for(pdf_path)
+            if widget is not None and not widget.selected:
+                widget.selected = True  # z. B. nach einem Neuaufbau der Kacheln
             return
 
         # Alte Auswahl aufheben (Einzelauswahl)
