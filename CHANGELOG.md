@@ -32,6 +32,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Version im Startbild**: Das Startbild zeigt rechts unten in dezentem Grau die Version, die
+  gerade startet, zum Beispiel „v0.27.0“. Beim Start aus dem Quelltext steht dort zusätzlich
+  „dev“ und der Kurz-Hash des Commits.
 
 ### Geändert
 - **Hinweis auf die Windows-Warnung beim Installieren**: README (deutsch und englisch) und jede
@@ -41,6 +44,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ausführen“.
 - **Kurzvideo im README**: README.md und README.en.md verlinken oben das Kurzvideo (45 Sekunden,
   YouTube), das zeigt, was das Programm macht.
+
+### Behoben
+- **Startbild springt auf skalierten Bildschirmen nicht mehr**: Auf Bildschirmen mit
+  Skalierung (etwa 4K mit 150 % oder 175 %) erschien das Startbild der installierten
+  Windows-Fassung erst vergrößert und unscharf, wurde kurz vor dem Hauptfenster kleiner und
+  rutschte nach links oben. Es hat jetzt von Anfang an dieselbe Größe und bleibt in der
+  Bildschirmmitte. Beim Start aus dem Quelltext und unter macOS ist es bei jeder Skalierung scharf.
 
 ## [0.27.0] - 2026-11-12
 

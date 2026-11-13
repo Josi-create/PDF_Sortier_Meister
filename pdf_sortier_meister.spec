@@ -39,6 +39,64 @@ _version_match = re.search(
 )
 APP_VERSION = _version_match.group(1) if _version_match else "0.0.0"
 
+# Startbild des Bootloaders mit eingebrannter Versionsnummer (rechts unten).
+# Der Bootloader zeigt das Bild, bevor Python laeuft; zur Laufzeit laesst sich
+# dort nichts malen, also setzt der Build die Version ein.
+SPLASH_BUILD_IMG = SPLASH_IMG
+if SPLASH_IMG.exists() and not IS_MAC:
+    try:
+        sys.path.insert(0, str(ROOT_DIR))
+        from src.utils.startbild import schreibe_bild_mit_version, versionstext
+        SPLASH_BUILD_IMG = schreibe_bild_mit_version(
+            SPLASH_IMG,
+            Path(workpath) / "splash_mit_version.png",
+            versionstext(APP_VERSION, entwicklung=False),
+        )
+    except Exception as _fehler:
+        print(f"HINWEIS: Startbild ohne Versionsnummer ({_fehler}).")
+
+# Die Oberflaeche meldet sich von Anfang an als DPI-faehig (Per-Monitor V2).
+# Ohne diesen Eintrag startet der Bootloader DPI-unbewusst: Windows vergroessert
+# das Startbild auf skalierten Bildschirmen (4K mit 150/175/200 %), und sobald
+# Qt beim Erzeugen der QApplication die DPI-Faehigkeit des Prozesses einschaltet,
+# schrumpft das Startbild auf seine echten Pixel und springt nach links oben.
+# Ein eigenes Manifest ERSETZT das Standard-Manifest von PyInstaller (nur
+# Ausfuehrungsebene und Common-Controls ergaenzt PyInstaller selbst). Deshalb
+# stehen hier auch dessen uebrige Eintraege: unterstuetzte Windows-Versionen und
+# longPathAware (lange Pfade). Vorlage: PyInstaller/utils/win32/winmanifest.py.
+DPI_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"></requestedExecutionLevel>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"></supportedOS>
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"></supportedOS>
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"></supportedOS>
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"></supportedOS>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"></supportedOS>
+    </application>
+  </compatibility>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"></assemblyIdentity>
+    </dependentAssembly>
+  </dependency>
+</assembly>
+"""
+
 # Daten-Dateien die eingebettet werden sollen
 datas = []
 if SPLASH_IMG.exists():
@@ -187,11 +245,14 @@ pyz_dienst = PYZ(a_dienst.pure, a_dienst.zipped_data, cipher=block_cipher)
 splash = None
 if SPLASH_IMG.exists() and not IS_MAC:
     splash = Splash(
-        str(SPLASH_IMG),
+        str(SPLASH_BUILD_IMG),
         binaries=a.binaries,
         datas=a.datas,
         text_pos=None,          # keine Statustexte auf dem Splash
         text_size=12,
+        # Bild ist schon auf diese Groesse gerechnet (src/utils/startbild.py);
+        # PyInstaller wuerde es sonst auf 760 x 480 verkleinern.
+        max_img_size=(1056, 576),
         minify_script=True,
         always_on_top=True,
     )
@@ -237,6 +298,7 @@ if splash is not None:
         splash,                 # Splash-Script in die EXE
         [],
         exclude_binaries=True,
+        manifest=DPI_MANIFEST,  # Startbild von Anfang an in echter Groesse
         **exe_kwargs,
     )
     coll = COLLECT(

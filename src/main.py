@@ -24,7 +24,7 @@ if str(src_path) not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QSplashScreen
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QPalette, QColor, QIcon
+from PyQt6.QtGui import QPalette, QColor, QIcon
 
 from src.gui.main_window import MainWindow
 from src.gui.setup_wizard import SetupWizard
@@ -211,14 +211,18 @@ def main():
             src_path / "SplashScreen3.png",
         ]
         splash_path = next((p for p in candidates if p.exists()), None)
+        scaled_pixmap = None
         if splash_path is not None:
-            pixmap = QPixmap(str(splash_path))
-            scaled_pixmap = pixmap.scaled(
-                pixmap.width() // 2,
-                pixmap.height() // 2,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+            # Version rechts unten einblenden (aus dem Quelltext mit "dev" und
+            # Kurz-Hash), in echten Pixeln fuer die Bildschirmskalierung gerechnet
+            from src.utils.startbild import qt_startbild, versionstext
+            screen = app.primaryScreen()
+            scaled_pixmap = qt_startbild(
+                splash_path,
+                versionstext(__version__),
+                screen.devicePixelRatio() if screen is not None else 1.0,
             )
+        if scaled_pixmap is not None:
             splash = QSplashScreen(scaled_pixmap)
             splash.setWindowFlags(
                 splash.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
