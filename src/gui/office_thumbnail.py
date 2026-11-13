@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QLabel, QMenu
 
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
+from src.core.bild_drehen import ist_drehbares_bild
 from src.core.office_convert import TEXT_ENDUNGEN, WORD_ENDUNGEN, ist_office_datei
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
@@ -300,6 +301,15 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                     aktion.setToolTip(tipp)
                     aktion.triggered.connect(
                         lambda _c=False, a=art, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, a, m))
+            if ist_drehbares_bild(self.pdf_path):
+                # Issue #252: Bild drehen wie eine PDF; bei Mehrfachauswahl alle markierten drehbaren Bilder
+                menu.addSeparator()
+                count = len([b for b in bilder if ist_drehbares_bild(b)])
+                suffix = tr(" ({count} Bilder)").format(count=count) if count > 1 else ""
+                rotate_menu = menu.addMenu(tr("Drehen{suffix}").format(suffix=suffix))
+                rotate_menu.addAction(tr("90° nach links")).triggered.connect(self._rotate_left)
+                rotate_menu.addAction(tr("90° nach rechts")).triggered.connect(self._rotate_right)
+                rotate_menu.addAction("180°").triggered.connect(self._rotate_180)
             menu.addSeparator()
             menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu

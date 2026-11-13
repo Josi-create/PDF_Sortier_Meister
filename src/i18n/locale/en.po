@@ -413,6 +413,42 @@ msgstr "Rotation angle {grad} not allowed (90, 180, 270 or -90)"
 msgid "Datei nicht vorhanden"
 msgstr "File does not exist"
 
+#: src/core/bild_drehen.py
+msgid "{endung}-Bilder lassen sich hier nicht drehen (nur JPG, PNG und BMP)."
+msgstr "{endung} images cannot be rotated here (only JPG, PNG and BMP)."
+
+#: src/core/bild_drehen.py
+msgid "Die Datei ist kein JPEG-Bild."
+msgstr "The file is not a JPEG image."
+
+#: src/core/bild_drehen.py
+msgid "Das Bild lässt sich nicht lesen: {fehler}"
+msgstr "The image cannot be read: {fehler}"
+
+#: src/core/bild_drehen.py
+msgid "Die Bildinformationen (EXIF) sind zu groß, um die Drehung einzutragen."
+msgstr "The image information (EXIF) is too large to store the rotation."
+
+#: src/core/bild_drehen.py
+msgid "Zum Drehen wird das Paket \"Pillow\" benötigt."
+msgstr "Rotating requires the \"Pillow\" package."
+
+#: src/core/bild_drehen.py
+msgid "Der Inhalt der Datei passt nicht zur Endung {endung}."
+msgstr "The content of the file does not match the extension {endung}."
+
+#: src/core/bild_drehen.py
+msgid "Animierte Bilder werden nicht gedreht."
+msgstr "Animated images are not rotated."
+
+#: src/core/bild_drehen.py
+msgid "Das Bild lässt sich nicht drehen: {fehler}"
+msgstr "The image cannot be rotated: {fehler}"
+
+#: src/core/bild_drehen.py
+msgid "Das gedrehte Bild ließ sich nicht verlustfrei speichern."
+msgstr "The rotated image could not be saved without loss."
+
 #: src/core/pdf_rotate.py
 msgid "Die PDF ist kennwortgeschützt."
 msgstr "The PDF is password-protected."
@@ -4248,6 +4284,10 @@ msgstr "Merge selected ({selection_count}) PDFs..."
 #: src/gui/pdf_thumbnail.py
 msgid " ({count} PDFs)"
 msgstr " ({count} PDFs)"
+
+#: src/gui/office_thumbnail.py
+msgid " ({count} Bilder)"
+msgstr " ({count} images)"
 
 #: src/gui/pdf_thumbnail.py
 msgid "Drehen{suffix}"

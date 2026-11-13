@@ -32,6 +32,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Bilder im Scan-Ordner drehen** (#252): Ein hochkant oder auf dem Kopf fotografiertes Bild lässt
+  sich jetzt wie eine PDF drehen: Rechtsklick auf die Kachel → „Drehen“ → 90° nach links, 90° nach
+  rechts oder 180°. Sind mehrere Bilder markiert, werden alle gedreht; Strg+Z dreht zurück. Die
+  Bildqualität bleibt dabei unverändert: Bei JPG-Fotos wird nur die Ausrichtung in den
+  Bildinformationen (EXIF) eingetragen, das Bild selbst wird nicht neu gespeichert. PNG- und
+  BMP-Bilder werden gedreht und verlustfrei gespeichert. Kachel, Vorschau und die spätere
+  Umwandlung in PDF zeigen das Bild gedreht. Für TIFF, GIF, WEBP und HEIC gibt es den Eintrag
+  nicht, weil das Drehen dort die Qualität oder weitere Seiten kosten könnte. Eine Bildverwaltung
+  ist das nicht: Es gibt nur das Drehen.
 
 ## [0.27.0] - 2026-11-12
 

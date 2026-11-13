@@ -87,6 +87,7 @@ from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
+from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui.bild_aktionen import BildAktionenMixin
@@ -1289,6 +1290,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget.convert_requested.connect(self.on_office_convert)
             widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
             widget.bild_entzerren_requested.connect(self.on_bild_entzerren)  # Issue #205
+            widget.rotate_requested.connect(self.on_bild_rotate)  # Issue #252
             widget.mehrere_umwandeln_requested.connect(self.on_mehrere_umwandeln)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
@@ -3994,8 +3996,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
         self._rotate_pdfs(self._aktion_ziele(pdf_path), grad)
 
+    def on_bild_rotate(self, pfad: Path, grad: int):
+        """Kontextmenue "Drehen" einer Bildkachel (Issue #252): das Bild bzw. alle markierten drehbaren Bilder."""
+        if len(self.selected_pdfs) > 1 and pfad in self.selected_pdfs:
+            ziele = [p for p in self.selected_pdfs if ist_drehbares_bild(p)]
+        else:
+            ziele = [pfad]
+        self._rotate_pdfs(ziele, grad)
+
     def _rotate_pdfs(self, paths: list[Path], grad: int, undo: bool = True) -> list[Path]:
-        """Dreht die PDFs um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
+        """Dreht die PDFs (oder Bilder, Issue #252) um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
 
         Mit ``undo`` kommt ein Eintrag mit der Gegenrotation auf den
         Rueckgaengig-Stapel. Liefert die gedrehten Pfade.
@@ -4006,7 +4016,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             for path in paths:
                 try:
-                    rotate_pdf(path, grad)
+                    if ist_drehbares_bild(path):
+                        bild_drehen(path, grad)
+                    else:
+                        rotate_pdf(path, grad)
                 except DrehenNichtMoeglich as e:
                     fehler.append(f"{path.name}: {e}")
                     continue
@@ -4023,6 +4036,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         richtung = {90: tr("90° nach rechts"), -90: tr("90° nach links"), 270: tr("90° nach links"), 180: "180°"}[grad]
         wer = gedreht[0].name if len(gedreht) == 1 else f"{len(gedreht)} PDFs"
+        if len(gedreht) > 1 and all(ist_drehbares_bild(p) for p in gedreht):
+            wer = tr("{anzahl} Bilder").format(anzahl=len(gedreht))
         if gedreht and undo:
             self._push_undo({
                 "type": "rotate",
@@ -4147,7 +4162,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self.selected_pdf == path and not self.selected_pdfs:
             if self.detail_panel.has_user_edits():
                 # Eingaben des Nutzers nicht verwerfen: nur die Vorschau neu laden
-                self.detail_panel.preview.load_pdf(path)
+                if ist_drehbares_bild(path):
+                    self._on_office_preview_requested(path)  # Bild: Vorschau-PDF im Hintergrund neu
+                else:
+                    self.detail_panel.preview.load_pdf(path)
             else:
                 self.update_suggestions_for_pdf(path)
 
