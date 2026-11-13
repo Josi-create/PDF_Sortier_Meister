@@ -33,6 +33,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
 
+### Behoben
+- **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein
+  KI-Assistent wie Claude mit der Dokumentensuche verbunden, laufen im Hintergrund Dienstprogramme
+  (`pdfsm-dienst.exe`) ohne Fenster und ohne Symbol im Infobereich. Das Setup meldete sie bisher
+  als „kann nicht automatisch geschlossen werden“ und brach beim Ersetzen der Dateien ab. Jetzt
+  beendet das Setup diese Programme selbst, ebenso die Browser-Oberfläche der Suche und einen
+  laufenden Indexlauf (er setzt beim nächsten Mal fort). Dasselbe gilt für die Deinstallation.
+  Auf der letzten Seite steht dann der Hinweis, den KI-Assistenten einmal neu zu starten, damit er
+  die Dokumentensuche wieder findet.
+
 ## [0.27.0] - 2026-11-12
 
 ### Neu
