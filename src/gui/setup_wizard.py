@@ -256,7 +256,7 @@ class ScanFolderPage(QWizardPage):
             tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
             "unter Extras → Einstellungen festlegen.</i>")
         )
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -334,7 +334,7 @@ class TargetFolderPage(QWizardPage):
             tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
             "unter Extras → Einstellungen festlegen.</i>")
         )
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -401,7 +401,7 @@ class ProviderPage(QWizardPage):
                 rb.setChecked(True)
                 # Statuszeile direkt unter dem Ollama-Eintrag
                 self.ollama_status_label = QLabel(tr("    Pruefe Ollama-Installation ..."))
-                self.ollama_status_label.setStyleSheet("color: gray;")
+                stil(self.ollama_status_label, "color: $grau_hinweis;")
                 layout.addWidget(self.ollama_status_label)
             elif _PROVIDER_IDS[i] == "lmstudio":
                 # Nur sichtbar, wenn LM Studio laeuft (siehe _on_detected)
@@ -412,7 +412,7 @@ class ProviderPage(QWizardPage):
 
         self.hardware_label = QLabel(tr("Hardware wird geprueft ..."))
         self.hardware_label.setWordWrap(True)
-        self.hardware_label.setStyleSheet("color: gray;")
+        stil(self.hardware_label, "color: $grau_hinweis;")
         layout.addWidget(self.hardware_label)
 
         # Bestehenden Wert voreintragen. "none" im gespeicherten Config-Default
@@ -561,7 +561,7 @@ class ApiKeyPage(QWizardPage):
         layout.addLayout(key_layout)
 
         self._hint_label = QLabel()
-        self._hint_label.setStyleSheet("color: gray; font-size: 10px;")
+        stil(self._hint_label, "color: $grau_hinweis; font-size: 10px;")
         layout.addWidget(self._hint_label)
 
         # --- Ollama-Bereich (nur bei lokalem Ollama sichtbar) ---------------
@@ -588,7 +588,7 @@ class ApiKeyPage(QWizardPage):
 
         self.models_status_label = QLabel()
         self.models_status_label.setWordWrap(True)
-        self.models_status_label.setStyleSheet("color: gray;")
+        stil(self.models_status_label, "color: $grau_hinweis;")
         ollama_layout.addWidget(self.models_status_label)
 
         pull_row = QHBoxLayout()
@@ -615,7 +615,7 @@ class ApiKeyPage(QWizardPage):
             "Den Key koennen Sie spaeter unter Extras → Einstellungen eintragen.</i>")
         )
         skip_info.setWordWrap(True)
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -1002,14 +1002,14 @@ class SearchPage(QWizardPage):
         self.mails_check = QCheckBox(tr("Mails aus Thunderbird aufnehmen"))
         layout.addWidget(self.mails_check)
         self.mails_label = QLabel("")
-        self.mails_label.setStyleSheet("color: gray;")
+        stil(self.mails_label, "color: $grau_hinweis;")
         self.mails_label.setWordWrap(True)
         layout.addWidget(self.mails_label)
 
         self.ocr_check = QCheckBox(tr("Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen"))
         layout.addWidget(self.ocr_check)
         self.ocr_label = QLabel("")
-        self.ocr_label.setStyleSheet("color: gray;")
+        stil(self.ocr_label, "color: $grau_hinweis;")
         self.ocr_label.setWordWrap(True)
         layout.addWidget(self.ocr_label)
 
@@ -1046,7 +1046,7 @@ class SearchPage(QWizardPage):
         self.migrate_button.clicked.connect(self._migrate)
         layout.addWidget(self.migrate_button)
         self.migrate_label = QLabel("")
-        self.migrate_label.setStyleSheet("color: gray;")
+        stil(self.migrate_label, "color: $grau_hinweis;")
         self.migrate_label.setWordWrap(True)
         self.migrate_label.setVisible(False)
         layout.addWidget(self.migrate_label)

@@ -1,5 +1,6 @@
 """
-Globales Aussehen der Checkboxen (alle Plattformen).
+Globales Aussehen der Checkboxen (alle Plattformen), im dunklen Farbschema
+auch der Auswahlknoepfe.
 
 Fusion zeichnet Checkbox-Kaestchen auf Retina-Macs praktisch ohne Rahmen
 (weisses Quadrat auf hellem Grund) - Nutzer sehen nicht, dass dort etwas
@@ -16,7 +17,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 from pathlib import Path
 from typing import Optional
 
-from src.gui.farben import css
+from src.gui.farben import css, ist_dunkel
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -39,6 +40,21 @@ _BASE = (
     "border-color: $akzent_blass; }"
 )
 
+# Nur im dunklen Farbschema (Issue #238): Fusion zeichnet nicht gewaehlte
+# Auswahlknoepfe dort fast unsichtbar (dunkler Kreis auf dunklem Grund).
+_RADIO_DUNKEL = (
+    "QRadioButton::indicator { width: 14px; height: 14px; border-radius: 8px; "
+    "border: 1px solid $grau_7a; background-color: $weiss; }"
+    "QRadioButton::indicator:hover { border-color: $akzent; }"
+    "QRadioButton::indicator:checked { border-color: $akzent_rand; "
+    "background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, "
+    "stop:0 white, stop:0.36 white, stop:0.42 $akzent, stop:1 $akzent); }"
+    "QRadioButton::indicator:disabled { border-color: $grau_c0; background-color: $grau_f0; }"
+    "QRadioButton::indicator:checked:disabled { border-color: $akzent_blass; "
+    "background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, "
+    "stop:0 $grau_9e, stop:0.36 $grau_9e, stop:0.42 $akzent_blass, stop:1 $akzent_blass); }"
+)
+
 
 def write_check_icon(folder: Path) -> Optional[Path]:
     """Schreibt das Haekchen-SVG nach folder; None, wenn das nicht geht."""
@@ -56,4 +72,4 @@ def checkbox_stylesheet(check_icon: Optional[Path]) -> str:
     """Stylesheet fuer alle Checkboxen; ohne Bild bleibt es beim blauen Kaestchen."""
     # Qt-Stylesheets wollen "/" als Trenner, auch unter Windows
     bild = f' image: url("{Path(check_icon).as_posix()}");' if check_icon else ""
-    return css(_BASE).replace("{bild}", bild)
+    return css(_BASE + (_RADIO_DUNKEL if ist_dunkel() else "")).replace("{bild}", bild)

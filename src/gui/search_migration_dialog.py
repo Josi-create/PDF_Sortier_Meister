@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
 
+from src.gui.farben import stil
 from src.search import migration
 from src.utils.config import get_config
 from src.i18n import tr
@@ -112,7 +113,7 @@ class SearchMigrationDialog(QDialog):
         layout.addWidget(self.progress)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: gray;")
+        stil(self.status_label, "color: $grau_hinweis;")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 

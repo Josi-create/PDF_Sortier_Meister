@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
-from src.gui.farben import css, stil
+from src.gui.farben import css, melder, stil
 from src.gui.folder_widget import FolderWidget
 from src.i18n import tr
 
@@ -130,6 +130,7 @@ class VorschlagZeile(FolderWidget):
         self._zeilen = ("", "", "")  # (oben, unten normal, unten fett) - fuer Tests
         self._geometrie_bekannt = False
         super().__init__(folder_path, 0, parent)
+        melder.geaendert.connect(self._kuerzen)  # die untere Zeile traegt ihre Farben im Text
 
     def setup_ui(self):
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)

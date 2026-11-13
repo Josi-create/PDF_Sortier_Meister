@@ -7,9 +7,11 @@ from pathlib import Path
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QLabel
+from PyQt6.QtWidgets import QLabel, QWidget
 
 from src.gui import farben
+from tests.test_main_window_gui import fresh_singletons, main_window, _scan_tree  # noqa: F401 - Fixtures
+from tests.test_search_view_gui import _suchen, index_konfig, view  # noqa: F401 - Fixtures
 
 GUI = Path(farben.__file__).resolve().parent
 
@@ -229,3 +231,77 @@ def test_stylesheet_mit_farbnamen_laeuft_ueber_stil():
             if "$" in text[m.end():i]:
                 falsch.append(f"{pfad.name}:{text.count(chr(10), 0, m.start()) + 1}")
     assert not falsch, "stil(widget, ...) statt setStyleSheet verwenden: " + ", ".join(falsch)
+
+
+# Feste Farbwerte, die in beiden Farbschemata gleich bleiben sollen (Papier und Druckfarben
+# selbst gezeichneter Seitenbilder, Kennfarben der Dateitypen, Warndreieck, Griffe auf dem Foto).
+_FEST_ERLAUBT = {
+    "office_thumbnail.py": {"#2b579a", "#217346", "#7a5195", "#5f6368", "#d6336c", "#d0d0d0", "#333333"},
+    "pdf_thumbnail.py": {"#f39c12", "#b9770e"},
+    "chat_view.py": {"#0000ff"},  # entfernt die Standard-Linkfarbe aus Qt-HTML
+    "checkbox_style.py": {"#ffffff"},  # weisses Haekchen auf blauem Kaestchen (SVG)
+}
+
+
+def test_keine_festen_farbwerte_ausserhalb_der_farbtabelle():
+    """Neue Farben gehoeren als Zeile in farben.FARBEN, sonst bleiben sie im dunklen Schema hell."""
+    import io
+    import tokenize
+
+    funde = []
+    for pfad in sorted(GUI.glob("*.py")):
+        if pfad.name == "farben.py":
+            continue
+        erlaubt = _FEST_ERLAUBT.get(pfad.name, set())
+        with tokenize.open(pfad) as f:
+            quelle = f.read()
+        for tok in tokenize.generate_tokens(io.StringIO(quelle).readline):
+            if tok.type != tokenize.STRING:
+                continue
+            for wert in re.findall(r"#[0-9a-fA-F]{6}\b", tok.string):
+                if wert.lower() not in erlaubt:
+                    funde.append(f"{pfad.name}:{tok.start[0]}: {wert}")
+            # dreistellig nur im Stylesheet-Zusammenhang ("#231" ist sonst eine Issue-Nummer)
+            for wert in re.findall(r"(?:color|background|border[a-z-]*)\s*:[^;\"']*?(#[0-9a-fA-F]{3})\b", tok.string):
+                funde.append(f"{pfad.name}:{tok.start[0]}: {wert}")
+    assert not funde, (
+        "Fester Farbwert im Quelltext - bitte in src/gui/farben.py benennen und als $name verwenden:\n"
+        + "\n".join(funde)
+    )
+
+
+def test_hauptfenster_enthaelt_keinen_unersetzten_farbnamen(qtbot, main_window):  # noqa: F811
+    """Kein Widget des Hauptfensters traegt ein Stylesheet mit stehengebliebenem ``$name``."""
+    qtbot.wait(200)
+    falsch = [f"{type(w).__name__}: {w.styleSheet()[:80]}" for w in main_window.findChildren(QWidget)
+              if "$" in w.styleSheet()]
+    assert not falsch, "\n".join(falsch)
+
+
+def test_hauptfenster_im_betrieb_dunkel_und_wieder_hell(qtbot, qapp, schema_zurueck, main_window):  # noqa: F811
+    vorher = {w: w.styleSheet() for w in main_window.findChildren(QWidget) if w.styleSheet()}
+    farben.anwenden(farben.DUNKEL, qapp)
+    assert [w for w, s in vorher.items() if w.styleSheet() != s]  # farbige Stylesheets sind umgefaerbt
+    assert not [w for w in main_window.findChildren(QWidget) if "$" in w.styleSheet()]
+    farben.anwenden(farben.HELL, qapp)
+    assert all(w.styleSheet() == s for w, s in vorher.items())
+
+
+def test_vorschlagszeile_faerbt_ihren_text_beim_wechsel_neu(qtbot, qapp, schema_zurueck, tmp_path):
+    from src.gui.vorschlag_liste import VorschlagZeile
+
+    zeile = VorschlagZeile(tmp_path / "Ziel")
+    qtbot.addWidget(zeile)
+    zeile.set_anzeige("Ziel", str(tmp_path))
+    hell = zeile.name_label.text()
+    farben.anwenden(farben.DUNKEL, qapp)
+    assert zeile.name_label.text() != hell or farben.FARBEN["grau_66"][0] not in hell
+    assert farben.FARBEN["grau_66"][0] not in zeile.name_label.text()
+
+
+def test_suchtreffer_werden_beim_wechsel_neu_aufgebaut(qtbot, qapp, schema_zurueck, view):  # noqa: F811
+    karten = _suchen(qtbot, view, "Kuendigungsfrist")
+    assert karten and farben.FARBEN["blau_kraeftig"][0] in karten[0].kopf_label.text()
+    with qtbot.waitSignal(view.suche_fertig, timeout=15000):
+        farben.anwenden(farben.DUNKEL, qapp)
+    assert farben.FARBEN["blau_kraeftig"][1] in view.karten()[0].kopf_label.text()

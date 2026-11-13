@@ -49,6 +49,8 @@ FARBEN: dict[str, tuple[str, str]] = {
     "grau_88": ("#888", "#9c9c9c"),
     "grau_99": ("#999", "#8c8c8c"),
     "grau_9e": ("#9e9e9e", "#858585"),
+    # Hinweistexte unter Feldern ("color: gray")
+    "grau_hinweis": ("gray", "#9a9a9a"),
     # --- Grautoene: Raender und Flaechen
     "grau_7a": ("#7a7a7a", "#8a8a8a"),
     "grau_aa": ("#aaa", "#6a6a6a"),

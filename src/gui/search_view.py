@@ -427,6 +427,12 @@ class SearchView(QWidget):
 
         self._ui_bauen()
         self.refresh_settings()
+        farben.melder.geaendert.connect(self._farbschema_geaendert)
+
+    def _farbschema_geaendert(self) -> None:
+        """Trefferkarten tragen ihre Farben im Text: nach einem Wechsel des Farbschemas neu aufbauen."""
+        if self._karten:
+            self._suche_starten()
 
     # ------------------------------------------------------------------ Aufbau
 

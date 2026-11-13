@@ -1029,7 +1029,7 @@ class SettingsDialog(QDialog):
         ))
         language_layout.addRow(tr("Sprache:"), self.language_combo)
         language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
-        language_hint.setStyleSheet("color: gray;")
+        stil(language_hint, "color: $grau_hinweis;")
         language_hint.setWordWrap(True)
         language_layout.addRow(language_hint)
         layout.addWidget(language_group)
@@ -1054,7 +1054,7 @@ class SettingsDialog(QDialog):
             tr("Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
             "über dem Scan-Bereich unter „Ansicht“ ein.")
         )
-        tile_hint.setStyleSheet("color: gray;")
+        stil(tile_hint, "color: $grau_hinweis;")
         tile_hint.setWordWrap(True)
         display_layout.addRow(tile_hint)
 
@@ -1133,7 +1133,7 @@ class SettingsDialog(QDialog):
             explorer_layout.addWidget(self.explorer_menu_checkbox)
 
             self.explorer_info_label = QLabel("")
-            self.explorer_info_label.setStyleSheet("color: gray;")
+            stil(self.explorer_info_label, "color: $grau_hinweis;")
             self.explorer_info_label.setWordWrap(True)
             explorer_layout.addWidget(self.explorer_info_label)
 
@@ -1170,7 +1170,7 @@ class SettingsDialog(QDialog):
             tr("Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
             "und immer aktiv.")
         )
-        open_hint.setStyleSheet("color: gray;")
+        stil(open_hint, "color: $grau_hinweis;")
         open_hint.setWordWrap(True)
         open_layout.addRow(open_hint)
 
@@ -1191,7 +1191,7 @@ class SettingsDialog(QDialog):
             tr("Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
             "lässt sich die Wahl für den einzelnen Auftrag ändern.")
         )
-        foto_hint.setStyleSheet("color: gray;")
+        stil(foto_hint, "color: $grau_hinweis;")
         foto_hint.setWordWrap(True)
         foto_layout.addRow(foto_hint)
         layout.addWidget(foto_group)
@@ -1226,7 +1226,7 @@ class SettingsDialog(QDialog):
             tr("Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
             "heruntergeladen und installiert wird nichts automatisch.")
         )
-        update_info.setStyleSheet("color: gray;")
+        stil(update_info, "color: $grau_hinweis;")
         update_info.setWordWrap(True)
         update_layout.addWidget(update_info)
 
@@ -1328,7 +1328,7 @@ class SettingsDialog(QDialog):
             tr("Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
             "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert.")
         )
-        search_hint.setStyleSheet("color: gray;")
+        stil(search_hint, "color: $grau_hinweis;")
         search_hint.setWordWrap(True)
         layout.addWidget(search_hint)
 
@@ -1413,7 +1413,7 @@ class SettingsDialog(QDialog):
         self.search_mails_check = QCheckBox(tr("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"))
         mail_layout.addWidget(self.search_mails_check)
         self.search_thunderbird_label = QLabel("")
-        self.search_thunderbird_label.setStyleSheet("color: gray;")
+        stil(self.search_thunderbird_label, "color: $grau_hinweis;")
         self.search_thunderbird_label.setWordWrap(True)
         mail_layout.addWidget(self.search_thunderbird_label)
         mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):")))
@@ -1449,7 +1449,7 @@ class SettingsDialog(QDialog):
         self.search_ocr_max_pages_spin.setToolTip(tr("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt"))
         ocr_layout.addRow(tr("Höchstens Bildseiten je PDF:"), self.search_ocr_max_pages_spin)
         self.search_ocr_status_label = QLabel("")
-        self.search_ocr_status_label.setStyleSheet("color: gray;")
+        stil(self.search_ocr_status_label, "color: $grau_hinweis;")
         self.search_ocr_status_label.setWordWrap(True)
         ocr_layout.addRow(self.search_ocr_status_label)
         layout.addWidget(ocr_group)
@@ -1485,7 +1485,7 @@ class SettingsDialog(QDialog):
             "Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind "
             "nicht nötig.")
         )
-        bg_hint.setStyleSheet("color: gray;")
+        stil(bg_hint, "color: $grau_hinweis;")
         bg_hint.setWordWrap(True)
         bg_layout.addRow(bg_hint)
         layout.addWidget(bg_group)
@@ -1509,7 +1509,7 @@ class SettingsDialog(QDialog):
             "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
             "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig.")
         )
-        web_hint.setStyleSheet("color: gray;")
+        stil(web_hint, "color: $grau_hinweis;")
         web_hint.setWordWrap(True)
         web_layout.addRow(web_hint)
         layout.addWidget(web_group)
@@ -1558,7 +1558,7 @@ class SettingsDialog(QDialog):
             "Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien "
             "sowie geöffnete Dateien bleiben unberührt.")
         )
-        text_hint.setStyleSheet("color: gray;")
+        stil(text_hint, "color: $grau_hinweis;")
         text_hint.setWordWrap(True)
         text_layout.addRow(text_hint)
         # Gedrehte Scans (Issue #151)
@@ -1579,7 +1579,7 @@ class SettingsDialog(QDialog):
             "Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die "
             "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert.")
         )
-        rotate_hint.setStyleSheet("color: gray;")
+        stil(rotate_hint, "color: $grau_hinweis;")
         rotate_hint.setWordWrap(True)
         text_layout.addRow(rotate_hint)
         # Schief gescannte Seiten (Issue #165)
@@ -1600,7 +1600,7 @@ class SettingsDialog(QDialog):
             "oben, rückgängig wie die Textebene. Das Scanbild wird dabei nicht neu berechnet, eine "
             "vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten.")
         )
-        deskew_hint.setStyleSheet("color: gray;")
+        stil(deskew_hint, "color: $grau_hinweis;")
         deskew_hint.setWordWrap(True)
         text_layout.addRow(deskew_hint)
         layout.addWidget(text_group)
@@ -1668,7 +1668,7 @@ class SettingsDialog(QDialog):
             "Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst "
             "liest den Index nur.")
         )
-        self.mcp_hint_label.setStyleSheet("color: gray;")
+        stil(self.mcp_hint_label, "color: $grau_hinweis;")
         self.mcp_hint_label.setWordWrap(True)
         form.addRow(self.mcp_hint_label)
 
@@ -1738,7 +1738,7 @@ class SettingsDialog(QDialog):
         self.mcp_meldung_label = QLabel(
             tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
-        self.mcp_meldung_label.setStyleSheet("color: gray;")
+        stil(self.mcp_meldung_label, "color: $grau_hinweis;")
         self.mcp_meldung_label.setWordWrap(True)
         form.addRow(self.mcp_meldung_label)
 
@@ -2443,7 +2443,7 @@ class SettingsDialog(QDialog):
             self.consent_hint_label.setText(
                 tr("Nur für Cloud-Anbieter relevant (Ollama läuft lokal).")
             )
-            self.consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.consent_hint_label, "color: $grau_hinweis;")
         elif self.cloud_consent_check.isChecked():
             self.consent_hint_label.setText(tr("Einwilligung erteilt."))
             stil(self.consent_hint_label, "color: $gruen_status;")
@@ -2558,7 +2558,7 @@ class SettingsDialog(QDialog):
             stil(self.chat_consent_hint_label, "color: $rot_text_status;")
         else:
             self.chat_consent_hint_label.setText(base)
-            self.chat_consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.chat_consent_hint_label, "color: $grau_hinweis;")
 
     def _test_chat_connection(self):
         """„Verbindung testen“ der Chat-Gruppe: dieselbe Testlogik mit den Chat-Werten.

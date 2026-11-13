@@ -6114,7 +6114,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             text = tr("LLM: {provider}/{model_short}").format(provider=provider, model_short=model_short) if model_short else f"LLM: {provider}"
             detail = tr("{provider}, Modell: {model_full}").format(provider=provider, model_full=model_full) if model_full else provider
             if health == "pruefen":
-                color = "gray"
+                color = "$grau_hinweis"
                 state = tr("KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …").format(detail=detail)
             elif health == "bereit":
                 color = "$gruen_status"
@@ -6140,7 +6140,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 reason = tr("Nicht konfiguriert.")
             self.llm_status_label.setText(tr("LLM: Aus{chat_text}").format(chat_text=chat_text))
-            self.llm_status_label.setStyleSheet("color: gray;")
+            stil(self.llm_status_label, "color: $grau_hinweis;")
             self.llm_status_label.setToolTip(
                 tr(
                     "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
