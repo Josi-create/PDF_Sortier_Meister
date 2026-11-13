@@ -353,7 +353,7 @@ class RAGController:
             ) or []
         # Einer mehr: das Bezugsdokument selbst kann unter den Treffern sein
         frage_treffer = self.retrieval.retrieve(
-            question, k=k + 1, zusatz=self._bezug_suchbegriffe(bezug_doc),
+            question, k=k + 1, zusatz=self._bezug_suchbegriffe(bezug_doc), bedeutung=False,
         ) or []
         zusammen = list(kennung_treffer)
         for d in frage_treffer:
