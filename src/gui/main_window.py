@@ -90,6 +90,7 @@ from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui.bild_aktionen import BildAktionenMixin
+from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
@@ -183,7 +184,7 @@ class _UpdateCheckThread(QThread):
 
 
 class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
-                 KiTrennenMixin, QMainWindow):
+                 KiTrennenMixin, EntsperrenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -1237,6 +1238,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget.straighten_requested.connect(self.on_pdf_straighten)
             widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
             widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
+            widget.entsperren_requested.connect(self.on_pdf_entsperren)  # Issue #244
             # Thumbnail-Ladetracking
             widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
             # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)

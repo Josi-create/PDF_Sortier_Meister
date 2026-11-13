@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QSize, QMimeData, QUrl, QPoint, QTimer
-from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag, QFontMetrics, QPainter, QColor, QPolygonF, QFont
-from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QPixmap, QMouseEvent, QCursor, QDrag, QFontMetrics, QPainter, QColor, QPolygonF, QFont, QPen
+from PyQt6.QtCore import QPointF, QRectF
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -36,6 +36,7 @@ class ThumbnailLoaderThread(QThread):
 
     thumbnail_loaded = pyqtSignal(QPixmap)
     error_occurred = pyqtSignal(str)
+    passwort_noetig = pyqtSignal()  # die PDF laesst sich nur mit Passwort oeffnen (Issue #244)
 
     def __init__(self, pdf_path: Path, width: int = 140, height: int = 160):
         super().__init__()
@@ -50,7 +51,47 @@ class ThumbnailLoaderThread(QThread):
             pixmap = get_thumbnail(self.pdf_path, self.width, self.height)
             self.thumbnail_loaded.emit(pixmap)
         except Exception as e:
+            # Kein Bild: liegt es am Passwortschutz, zeigt die Kachel ein Schloss (Issue #244)
+            from src.core.pdf_entsperren import braucht_passwort
+            if braucht_passwort(self.pdf_path):
+                self.passwort_noetig.emit()
             self.error_occurred.emit(str(e))
+
+
+class SchlossSymbol(QWidget):
+    """Vorhaengeschloss fuer passwortgeschuetzte PDFs (Issue #244), anstelle des Vorschaubilds.
+
+    Selbst gezeichnet wie das Warndreieck; Mausereignisse gehen an die Kachel durch.
+    """
+
+    FARBE = "#8a6d1d"
+    FUELLUNG = "#e8c96a"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def paintEvent(self, event):
+        w, h = self.width(), self.height()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        stift = QPen(QColor(self.FARBE))
+        stift.setWidthF(max(2.0, w / 9))
+        p.setPen(stift)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        # Buegel: oberer Halbkreis mit zwei kurzen Schenkeln
+        buegel = QRectF(w * 0.26, h * 0.06, w * 0.48, h * 0.60)
+        p.drawArc(buegel, 0, 180 * 16)
+        p.drawLine(QPointF(buegel.left(), buegel.center().y()), QPointF(buegel.left(), h * 0.48))
+        p.drawLine(QPointF(buegel.right(), buegel.center().y()), QPointF(buegel.right(), h * 0.48))
+        # Kasten mit Schluesselloch
+        p.setPen(QColor(self.FARBE))
+        p.setBrush(QColor(self.FUELLUNG))
+        p.drawRoundedRect(QRectF(w * 0.12, h * 0.46, w * 0.76, h * 0.48), w * 0.08, w * 0.08)
+        p.setBrush(QColor(self.FARBE))
+        p.drawEllipse(QPointF(w / 2, h * 0.66), w * 0.07, w * 0.07)
+        p.drawRect(QRectF(w / 2 - w * 0.025, h * 0.66, w * 0.05, h * 0.14))
+        p.end()
 
 
 class OcrWarnSymbol(QWidget):
@@ -108,6 +149,7 @@ class PDFThumbnailWidget(QFrame):
     straighten_requested = pyqtSignal(Path)  # "Gerade ausrichten" (Issue #165)
     reocr_sprache_requested = pyqtSignal(Path, str)  # "OCR wiederholen mit ..." (Tesseract-Sprachen, Issue #47)
     handschrift_requested = pyqtSignal(Path)  # "Handschrift mit KI entziffern" (Issue #47)
+    entsperren_requested = pyqtSignal(Path)  # "Passwortschutz entfernen…" (Issue #244)
     thumbnail_ready = pyqtSignal()  # Thumbnail wurde geladen (für SplashScreen)
 
     _BASE_TOOLTIP = (
@@ -118,6 +160,7 @@ class PDFThumbnailWidget(QFrame):
     )
     AI_TOOLTIP_SUFFIX = tr("\n\nKI-Vorschlag vorhanden (grün hinterlegt).")
     OCR_TOOLTIP_SUFFIX = tr("\n\nText schlecht erkannt – Rechtsklick für andere Erkennung")
+    SCHLOSS_TOOLTIP_SUFFIX = tr("\n\nPasswortgeschützt – Rechtsklick: Passwortschutz entfernen (Kopie ohne Schutz)")
 
     # Wartezeit, bis der Mauszeiger ueber einer kompakten Kachel die grosse
     # Vorschau einblendet (Issue #117)
@@ -131,6 +174,7 @@ class PDFThumbnailWidget(QFrame):
         self._stack_target = False  # gerade wird eine PDF darueber gezogen
         self._has_ai_suggestion = False  # Issue #81: KI-Vorschlag im Cache
         self._ocr_schlecht = False  # Issue #47: OCR-Text schlecht erkannt (Warndreieck)
+        self._geschuetzt = False  # Issue #244: laesst sich nur mit Passwort oeffnen (Schloss)
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
@@ -182,6 +226,10 @@ class PDFThumbnailWidget(QFrame):
         self._ocr_symbol = OcrWarnSymbol(self.thumbnail_label)
         self._ocr_symbol.hide()
 
+        # Schloss statt Vorschaubild bei passwortgeschuetzten PDFs (Issue #244)
+        self._schloss_symbol = SchlossSymbol(self.thumbnail_label)
+        self._schloss_symbol.hide()
+
         # Hinweis "kopiert nach ..." (Issue #179): schmaler Streifen am unteren
         # Bildrand, ohne Einfluss auf die Kachelgroesse
         self.kopie_label = QLabel(self.thumbnail_label)
@@ -218,6 +266,8 @@ class PDFThumbnailWidget(QFrame):
         self._layout.setSpacing(v.spacing)
         self.thumbnail_label.setFixedSize(v.thumb_w, v.thumb_h)
         self._ocr_symbol.move(max(0, v.thumb_w - self._ocr_symbol.width() - 3), 3)
+        seite = max(16, int(min(v.thumb_w, v.thumb_h) * 0.5))
+        self._schloss_symbol.setGeometry((v.thumb_w - seite) // 2, (v.thumb_h - seite) // 2, seite, seite)
         self._kopie_label_anpassen()
         self.name_label.setMaximumHeight(v.name_max_height)
         self._apply_name_style()
@@ -281,12 +331,14 @@ class PDFThumbnailWidget(QFrame):
         """Startet das asynchrone Laden des Thumbnails."""
         self._loader_thread = ThumbnailLoaderThread(self.pdf_path)
         self._loader_thread.thumbnail_loaded.connect(self._on_thumbnail_loaded)
+        self._loader_thread.passwort_noetig.connect(self._on_passwort_noetig)
         self._loader_thread.error_occurred.connect(self._on_thumbnail_error)
         self._loader_thread.start()
 
     def _on_thumbnail_loaded(self, pixmap: QPixmap):
         """Wird aufgerufen wenn das Thumbnail geladen wurde."""
         self._original_pixmap = pixmap
+        self.geschuetzt = False  # ein Bild gibt es nur ohne Passwortschutz
         self._apply_thumbnail_pixmap()
         self.thumbnail_label.setStyleSheet(
             "background-color: white; border: 1px solid #ddd; border-radius: 3px;"
@@ -382,8 +434,15 @@ class PDFThumbnailWidget(QFrame):
         self._hide_hover_preview()
         super().leaveEvent(event)
 
+    def _on_passwort_noetig(self):
+        """Der Lade-Thread meldet: Diese PDF laesst sich nur mit Passwort oeffnen."""
+        self.geschuetzt = True
+
     def _on_thumbnail_error(self, error: str):
         """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
+        if self._geschuetzt:
+            self.thumbnail_ready.emit()  # das Schloss steht schon da
+            return
         self.thumbnail_label.setText(tr("Fehler\nbeim Laden"))
         self.thumbnail_label.setStyleSheet(
             "background-color: #ffe0e0; border: 1px solid #ffaaaa; border-radius: 3px; color: #cc0000;"
@@ -447,7 +506,38 @@ class PDFThumbnailWidget(QFrame):
             self._BASE_TOOLTIP
             + (self.AI_TOOLTIP_SUFFIX if self._has_ai_suggestion else "")
             + (self.OCR_TOOLTIP_SUFFIX if self._ocr_schlecht else "")
+            + (self.SCHLOSS_TOOLTIP_SUFFIX if self._geschuetzt else "")
         )
+
+    @property
+    def geschuetzt(self) -> bool:
+        """True, wenn die PDF sich nur mit Passwort oeffnen laesst (Schloss, Issue #244)."""
+        return self._geschuetzt
+
+    @geschuetzt.setter
+    def geschuetzt(self, value: bool):
+        value = bool(value)
+        if value == self._geschuetzt:
+            return
+        self._geschuetzt = value
+        self._schloss_symbol.setVisible(value)
+        if value:
+            self._original_pixmap = None
+            self.thumbnail_label.clear()
+            self.thumbnail_label.setStyleSheet(
+                "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;"
+            )
+        self._update_tooltip()
+
+    def _braucht_passwort(self) -> bool:
+        """Fuer das Kontextmenue: Schloss schon bekannt, sonst (noch kein Bild geladen) kurz nachsehen."""
+        if self._geschuetzt:
+            return True
+        if self._original_pixmap is not None:
+            return False
+        from src.core.pdf_entsperren import braucht_passwort
+        self.geschuetzt = braucht_passwort(self.pdf_path)
+        return self._geschuetzt
 
     @property
     def ocr_schlecht(self) -> bool:
@@ -555,6 +645,19 @@ class PDFThumbnailWidget(QFrame):
 
         # Prüfen ob Mehrfachauswahl aktiv ist
         selection_count = self._get_selection_count()
+
+        # Issue #244: passwortgeschuetzte PDF - Kopie ohne Schutz erstellen (zuoberst, sonst geht hier wenig)
+        if self._braucht_passwort():
+            anzahl = selection_count if selection_count > 1 and self.selected else 1
+            if anzahl > 1:
+                text = tr("Passwortschutz entfernen ({anzahl} PDFs)…").format(anzahl=anzahl)
+            else:
+                text = tr("Passwortschutz entfernen…")
+            entsperren_action = menu.addAction(text)
+            entsperren_action.setToolTip(
+                tr("Fragt das Passwort ab und speichert eine Kopie ohne Schutz neben dem Original"))
+            entsperren_action.triggered.connect(lambda: self.entsperren_requested.emit(self.pdf_path))
+            menu.addSeparator()
 
         # Öffnen
         open_action = menu.addAction(tr("PDF öffnen"))
