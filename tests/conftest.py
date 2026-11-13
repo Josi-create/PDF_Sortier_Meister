@@ -123,6 +123,16 @@ def ordner_beobachtung_ohne_takt(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def doppelte_hinweis_aus(monkeypatch):
+    """Kein Test bekommt von sich aus Hinweise oder Rueckfragen zu doppelten Dateien
+    (Issue #245): Viele Tests legen mehrere Dateien mit demselben Inhalt an. Die Tests
+    des Hinweises stellen ``AUTOMATISCH`` wieder an."""
+    from src.gui import doppelte
+
+    monkeypatch.setattr(doppelte, "AUTOMATISCH", False)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

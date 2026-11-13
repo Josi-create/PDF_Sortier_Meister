@@ -246,6 +246,16 @@ class Suchindex:
         finally:
             con.close()
 
+    def gleiche_groesse(self, groesse: int) -> list[dict]:
+        """Dokumente mit dieser Dateigroesse samt gespeicherter Pruefsumme (Issue #245); ohne Datenbank leer."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.gleiche_groesse(con, groesse)
+        finally:
+            con.close()
+
     def status(self) -> dict:
         """Indexstand; ohne Datenbank nur Nullwerte und ``vorhanden = False``."""
         con = self._lesen()

@@ -86,6 +86,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.gui.ordner_beobachtung import OrdnerBeobachtung
+from src.gui.doppelte import DoppelteImOrdner, DoppelteMixin
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
@@ -185,7 +186,7 @@ class _UpdateCheckThread(QThread):
 
 
 class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
-                 KiTrennenMixin, EntsperrenMixin, QMainWindow):
+                 KiTrennenMixin, EntsperrenMixin, DoppelteMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -285,6 +286,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
         self._ordner_beobachtung = OrdnerBeobachtung(self)
+        # Hinweis auf inhaltsgleiche Dateien im Scan-Bereich (Issue #245)
+        self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -1212,6 +1215,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
             self._schedule_pre_caching([])
+            self._doppelte_im_ordner.neu_geladen()  # Issue #245
             return
 
         # Thumbnail-Ladetracking initialisieren
@@ -1240,6 +1244,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
+        # Inhaltsgleiche Dateien kennzeichnen (Issue #245); gerechnet wird im Hintergrund
+        self._doppelte_im_ordner.neu_geladen()
 
     def _erzeuge_pdf_kachel(self, pdf_path: Path) -> PDFThumbnailWidget:
         """Kachel einer PDF mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #232)."""
@@ -1264,6 +1270,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         widget.straighten_requested.connect(self.on_pdf_straighten)
         widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
         widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
+        widget.entsperren_requested.connect(self.on_pdf_entsperren)  # Issue #244
         # Thumbnail-Ladetracking
         widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
         # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
@@ -1742,6 +1749,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Luecke im Raster schliessen: nachfolgende Kacheln ruecken auf
         if index is not None:
             self._relayout_pdf_grid(force=True)
+            self._doppelte_im_ordner.datei_betroffen(pdf_path)  # Issue #245: Hinweis der Zwillingsdatei
 
         # PDF-Zähler aktualisieren
         self.pdf_count_label.setText(tr("PDFs: {anzahl}").format(anzahl=len(self.pdf_widgets)))
@@ -1811,6 +1819,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     self.selected_pdfs.append(new_path)
 
                 break
+        self._doppelte_im_ordner.datei_betroffen(old_path)  # Issue #245: der Hinweis nennt den Namen
 
     def _start_warmup(self):
         """Laedt teure Module im Hintergrund vor, damit der erste Klick nicht wartet."""
@@ -2403,6 +2412,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._ocr_neu_worker.requestInterruption()
         self._ocr_schwer_lesbar.abbrechen()
         self._ordner_beobachtung.stoppen()
+        self._doppelte_im_ordner.stoppen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
         if self._erkennung_worker is not None:
@@ -3085,6 +3095,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Mit ``create_folder`` (Issue #116) wird der noch fehlende Zielordner nach
         der Rueckfrage angelegt; Rueckgaengig raeumt ihn wieder weg, wenn er leer ist.
         """
+        # Issue #245: Gibt es den Inhalt im Ziel oder im Archiv schon?
+        if not self._doppelte_vor_ablage([pdf_path], folder_path):
+            return
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
         # Name und Metadaten (gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
@@ -3216,6 +3229,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
         """Verschiebt eine PDF und lernt aus der Entscheidung."""
+        # Issue #245: Gibt es den Inhalt im Ziel oder im Archiv schon?
+        if not self._doppelte_vor_ablage([pdf_path], folder_path):
+            return
         # Relativen Pfad für die Baumansicht berechnen
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
@@ -3770,7 +3786,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             tr("Zielordner auswählen"),
         )
 
-        if folder:
+        if folder and self._doppelte_vor_ablage([pdf_path], Path(folder)):  # Issue #245
             try:
                 new_path = self.file_manager.move_file(pdf_path, folder)
                 self.statusbar.showMessage(tr("Verschoben nach: {name}").format(name=new_path.parent.name), 3000)

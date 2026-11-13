@@ -739,6 +739,7 @@ msgid "Zurücksetzen"
 msgstr "Reset"
 
 #: src/gui/chat_view.py
+#: src/gui/doppelte.py
 #: src/gui/entzerren_dialog.py
 #: src/gui/ki_trennen_dialog.py
 #: src/gui/korrespondenten_view.py
@@ -1258,6 +1259,112 @@ msgstr "{anzahl} PDFs were saved as copies without password protection.\n\nMove 
 msgid "Geschütztes Original weggeräumt: {namen}"
 msgstr "Protected original cleared away: {namen}"
 
+#: src/gui/doppelte.py
+msgid "Doppelt: wie {name}"
+msgstr "Duplicate of {name}"
+
+#: src/gui/doppelte.py
+msgid "Gleicher Inhalt wie:\n{liste}"
+msgstr "Same content as:\n{liste}"
+
+#: src/gui/doppelte.py
+msgid "Doppelt"
+msgstr "Duplicate"
+
+#: src/gui/doppelte.py
+msgid "Gleicher Inhalt: „{a}“ und „{b}“"
+msgstr "Same content: “{a}” and “{b}”"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} Dateien in diesem Ordner sind doppelt vorhanden (gleicher Inhalt)"
+msgstr "{anzahl} files in this folder are duplicates (same content)"
+
+#: src/gui/doppelte.py
+msgid "Prüfe, ob es die Datei im Ziel oder im Archiv schon gibt …"
+msgstr "Checking whether the file already exists in the target folder or the archive …"
+
+#: src/gui/doppelte.py
+#: src/gui/stapel_ablage.py
+msgid "Nicht mehr warten"
+msgstr "Stop waiting"
+
+#: src/gui/doppelte.py
+msgid "Doppelte Dateien"
+msgstr "Duplicate files"
+
+#: src/gui/doppelte.py
+msgid "Datei schon vorhanden"
+msgstr "File already exists"
+
+#: src/gui/doppelte.py
+msgid "„{name}“ gibt es schon: Eine Datei mit genau demselben Inhalt liegt unter\n\n{ort}"
+msgstr "“{name}” already exists: a file with exactly the same content is stored at\n\n{ort}"
+
+#: src/gui/doppelte.py
+msgid "\n… und an {anzahl} weiteren Orten"
+msgstr "\n… and in {anzahl} more places"
+
+#: src/gui/doppelte.py
+msgid "„In den Papierkorb“ legt die Datei, die Sie gerade ablegen wollten, in den Papierkorb. Die schon vorhandene Datei bleibt, wo sie ist."
+msgstr "“Move to Recycle Bin” puts the file you were about to file into the Recycle Bin. The existing file stays where it is."
+
+#: src/gui/doppelte.py
+msgid "„{name}“ liegt schon unter {ort}"
+msgstr "“{name}” already exists at {ort}"
+
+#: src/gui/doppelte.py
+msgid "… und {anzahl} weitere"
+msgstr "… and {anzahl} more"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}"
+msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
+
+#: src/gui/doppelte.py
+msgid "„In den Papierkorb“ legt diese Dateien in den Papierkorb, statt sie ein zweites Mal abzulegen; nur die übrigen werden abgelegt. Die schon vorhandenen Dateien bleiben, wo sie sind."
+msgstr "“Move to Recycle Bin” puts these files into the Recycle Bin instead of filing them a second time; only the remaining files are filed. The existing files stay where they are."
+
+#: src/gui/doppelte.py
+msgid "Trotzdem ablegen"
+msgstr "File anyway"
+
+#: src/gui/doppelte.py
+msgid "In den Papierkorb"
+msgstr "Move to Recycle Bin"
+
+#: src/gui/doppelte.py
+msgid "{name}: die vorhandene Datei ist nicht mehr da"
+msgstr "{name}: the existing file is no longer there"
+
+#: src/gui/doppelte.py
+msgid "{name}: Papierkorb nicht verfügbar"
+msgstr "{name}: Recycle Bin not available"
+
+#: src/gui/doppelte.py
+#: src/gui/main_window.py
+msgid "Löschen: {name}"
+msgstr "Delete: {name}"
+
+#: src/gui/doppelte.py
+msgid "Schon vorhanden, in den Papierkorb gelegt: {name}"
+msgstr "Already exists, moved to the Recycle Bin: {name}"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} schon vorhandene Dateien in den Papierkorb gelegt"
+msgstr "{anzahl} already existing files moved to the Recycle Bin"
+
+#: src/gui/doppelte.py
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "Teilweise fehlgeschlagen"
+msgstr "Partially failed"
+
+#: src/gui/doppelte.py
+msgid "Nicht in den Papierkorb gelegt (die Dateien bleiben im Ordner):\n{0}"
+msgstr "Not moved to the Recycle Bin (the files stay in the folder):\n{0}"
+
 #: src/gui/entzerren_dialog.py
 #: src/gui/main_window.py
 #: src/gui/rename_dialog.py
@@ -1713,13 +1820,6 @@ msgstr "The folder could not be created:\n{e}"
 #: src/gui/hierhin_kopieren.py
 msgid "Kopieren fehlgeschlagen"
 msgstr "Copying failed"
-
-#: src/gui/hierhin_kopieren.py
-#: src/gui/main_window.py
-#: src/gui/ordner_verschieben_gui.py
-#: src/gui/stapel_ablage.py
-msgid "Teilweise fehlgeschlagen"
-msgstr "Partially failed"
 
 #: src/gui/hierhin_kopieren.py
 msgid "Einige Dateien konnten nicht kopiert werden:\n{0}"
@@ -2820,10 +2920,6 @@ msgstr "Recycle Bin not available – delete permanently?\n\n{name}"
 #: src/gui/main_window.py
 msgid "Gelöscht: {name}"
 msgstr "Deleted: {name}"
-
-#: src/gui/main_window.py
-msgid "Löschen: {name}"
-msgstr "Delete: {name}"
 
 #: src/gui/main_window.py
 msgid "Löschen fehlgeschlagen:\n{e}"
@@ -7048,10 +7144,6 @@ msgstr "Page {page} is outside the valid range (1–{page_count})."
 #: src/gui/split_pdf_dialog.py
 msgid "Keine gültigen Seitenzahlen angegeben."
 msgstr "No valid page numbers given."
-
-#: src/gui/stapel_ablage.py
-msgid "Nicht mehr warten"
-msgstr "Stop waiting"
 
 #: src/gui/stapel_ablage.py
 msgid "Namensvorschläge"
