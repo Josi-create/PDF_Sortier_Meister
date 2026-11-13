@@ -43,6 +43,7 @@ FARBEN: dict[str, tuple[str, str]] = {
     "grau_33": ("#333", "#dcdcdc"),
     "grau_44": ("#444", "#d0d0d0"),
     "grau_55": ("#555", "#c4c4c4"),
+    "grau_5a": ("#5a5a5a", "#bebebe"),
     "grau_66": ("#666", "#b4b4b4"),
     "grau_77": ("#777", "#a8a8a8"),
     "grau_88": ("#888", "#9c9c9c"),
@@ -239,8 +240,12 @@ def css(text: str) -> str:
     Namen im Quelltext stimmen, prueft tests/test_farben_238_gui.py. Trotzdem nur eigene
     Texte hindurchschicken, nie Dateinamen oder Dokumentinhalt.
     """
+    return _css(text, _dunkel)
+
+
+def _css(text: str, dunkel: bool) -> str:
     return _PLATZHALTER.sub(
-        lambda m: farbe(m.group(1)) if m.group(1) in FARBEN else m.group(0), text)
+        lambda m: FARBEN[m.group(1)][1 if dunkel else 0] if m.group(1) in FARBEN else m.group(0), text)
 
 
 def stil(widget, text: str) -> None:
@@ -290,18 +295,26 @@ def anwenden(wahl: str, app=None) -> None:
             hinweise.setColorScheme(Qt.ColorScheme.Dark if _wahl == DUNKEL else Qt.ColorScheme.Light)
     except AttributeError:  # Qt < 6.8
         pass
+    vorher = _dunkel
     _dunkel = _system_dunkel(app) if _wahl == SYSTEM else _wahl == DUNKEL
-    _umfaerben(app)
+    _umfaerben(app, vorher)
 
 
-def _umfaerben(app) -> None:
+def _umfaerben(app, vorher: bool) -> None:
     app.setPalette(_palette(app))
     if _app_stil is not None:
         app.setStyleSheet(css(_app_stil()))
+    if vorher == _dunkel:
+        return
     for widget in app.allWidgets():
         vorlage = widget.property(_VORLAGE)
-        if vorlage:
-            widget.setStyleSheet(css(vorlage))
+        if not vorlage:
+            continue
+        if widget.styleSheet() != _css(vorlage, vorher):
+            # inzwischen mit setStyleSheet() ueberschrieben: die Vorlage gilt nicht mehr
+            widget.setProperty(_VORLAGE, None)
+            continue
+        widget.setStyleSheet(css(vorlage))
     melder.geaendert.emit()
 
 

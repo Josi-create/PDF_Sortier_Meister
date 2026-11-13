@@ -134,8 +134,13 @@ def test_spaeteres_stylesheet_ohne_farbe_wird_nicht_wieder_ueberschrieben(qtbot,
     qtbot.addWidget(label)
     farben.stil(label, "color: $rot;")
     farben.stil(label, "")
+    direkt = QLabel("y")
+    qtbot.addWidget(direkt)
+    farben.stil(direkt, "color: $rot;")
+    direkt.setStyleSheet("font-style: italic;")  # ohne stil() ueberschrieben
     farben.anwenden(farben.DUNKEL, qapp)
     assert label.styleSheet() == ""
+    assert direkt.styleSheet() == "font-style: italic;"
 
 
 def test_system_folgt_dem_betriebssystem_auch_im_betrieb(qapp, schema_zurueck, monkeypatch):
