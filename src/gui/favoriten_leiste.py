@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.gui.farben import stil
 from src.gui.hierhin_kopieren import kopier_eintrag
 from src.gui.pfad_aktionen import im_dateimanager_zeigen, oeffnen_text
 from src.i18n import tr
@@ -62,12 +63,12 @@ class FavoritenLeiste(QFrame):
     copy_here_requested = pyqtSignal(Path)  # Rechtsklick "Hierhin kopieren" (Issue #179)
 
     _STIL = (
-        "QPushButton { background-color: #ececec; border: 1px solid #b5b5b5; "
-        "border-radius: 3px; padding: 1px 8px; font-size: 11px; color: #333; }"
-        "QPushButton:hover { background-color: #fff3cd; border-color: #daa520; }"
-        "QPushButton[aktuell=\"true\"] { background-color: #ffe9a8; "
-        "border-color: #daa520; font-weight: bold; }"
-        "QPushButton[fehlt=\"true\"] { color: #999; font-style: italic; }"
+        "QPushButton { background-color: $grau_ec; border: 1px solid $grau_b5; "
+        "border-radius: 3px; padding: 1px 8px; font-size: 11px; color: $grau_33; }"
+        "QPushButton:hover { background-color: $gelb_flaeche; border-color: $gelb_rand; }"
+        "QPushButton[aktuell=\"true\"] { background-color: $favorit_aktuell_flaeche; "
+        "border-color: $gelb_rand; font-weight: bold; }"
+        "QPushButton[fehlt=\"true\"] { color: $grau_99; font-style: italic; }"
     )
 
     def __init__(self, config, parent=None):
@@ -193,7 +194,7 @@ class FavoritenLeiste(QFrame):
             k = QPushButton(self.anzeigename(e).replace("&", "&&"))
             k.setFlat(True)
             k.setCursor(Qt.CursorShape.PointingHandCursor)
-            k.setStyleSheet(self._STIL)
+            stil(k, self._STIL)
             k.setProperty("aktuell", "true" if akt == _schluessel(pfad) else "false")
             k.setProperty("fehlt", "true" if fehlt else "false")
             k.setToolTip(tr("{pfad}\nOrdner nicht gefunden").format(pfad=pfad) if fehlt else str(pfad))

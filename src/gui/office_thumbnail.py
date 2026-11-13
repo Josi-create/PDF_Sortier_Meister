@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QLabel, QMenu
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
 from src.core.office_convert import TEXT_ENDUNGEN, WORD_ENDUNGEN, ist_office_datei
+from src.gui.farben import stil
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
@@ -191,8 +192,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         return self._TEXT_TOOLTIP if self.pdf_path.suffix.lower() in TEXT_ENDUNGEN else self._OFFICE_TOOLTIP
 
     # Farben nach Dateityp (nach der Erkennung statt Gruen): (Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen)
-    OFFICE_FARBEN = ("#e3edfb", "#6a9be0", "#d3e3f9", "#4f86d6")
-    BILD_FARBEN = ("#fde6f0", "#e58ab4", "#fbd5e6", "#d96aa0")
+    OFFICE_FARBEN = ("$kachel_office_flaeche", "$kachel_office_rand", "$kachel_office_hover", "$kachel_office_hover_rand")
+    BILD_FARBEN = ("$kachel_bild_flaeche", "$kachel_bild_rand", "$kachel_bild_hover", "$kachel_bild_hover_rand")
     # Etikett mit der Dateiendung (oben links; oben rechts sitzt das Warndreieck, unten "kopiert nach")
     OFFICE_ETIKETT = "#2b579a"
     BILD_ETIKETT = "#d6336c"
@@ -205,8 +206,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self.typ_label = QLabel(pfad.suffix.upper().lstrip("."), self.thumbnail_label)
         # Mit Selektor: sonst erbt der Tooltip des Etiketts Farbe und Mini-Schrift
         self.typ_label.setObjectName("typEtikett")
-        self.typ_label.setStyleSheet(
-            f"QLabel#typEtikett {{ background-color: {farbe}; color: white; font-size: 9px; "
+        stil(self.typ_label,
+            f"QLabel#typEtikett {{ background-color: {farbe}; color: $weiss_schrift; font-size: 9px; "
             "font-weight: bold; border: none; border-radius: 3px; padding: 1px 4px; }"
         )
         self.typ_label.setToolTip(

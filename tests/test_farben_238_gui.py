@@ -69,9 +69,11 @@ def test_ohne_einrichten_gilt_hell_mit_den_bisherigen_werten():
     assert farben.css("font-size: 11px;") == "font-size: 11px;"
 
 
-def test_unbekannter_farbname_faellt_auf():
+def test_unbekannter_name_bleibt_im_text_stehen_farbe_meldet_ihn():
+    assert farben.css("Ordner $gibt_es_nicht, color: $rot;") == "Ordner $gibt_es_nicht, color: #d32f2f;"
+    assert farben.farbe("$rot") == farben.farbe("rot") == "#d32f2f"
     with pytest.raises(KeyError):
-        farben.css("color: $gibt_es_nicht;")
+        farben.farbe("gibt_es_nicht")
 
 
 def test_gespeicherter_wert_wird_geprueft():
@@ -203,3 +205,22 @@ def test_alle_farbnamen_im_quelltext_gibt_es():
                 if name not in farben.FARBEN:
                     unbekannt.append(f"{pfad.name}:{nr}: ${name}")
     assert not unbekannt, "\n".join(unbekannt)
+
+
+def test_stylesheet_mit_farbnamen_laeuft_ueber_stil():
+    """``setStyleSheet("... $name ...")`` braechte den Namen unersetzt ins Stylesheet."""
+    falsch = []
+    for pfad in sorted(GUI.glob("*.py")):
+        text = pfad.read_text(encoding="utf-8")
+        for m in re.finditer(r"\.setStyleSheet\(", text):
+            # bis zur schliessenden Klammer derselben Anweisung (Stylesheets enthalten keine Klammer-Reste)
+            tiefe, i = 0, m.end() - 1
+            while i < len(text):
+                tiefe += text[i] == "("
+                tiefe -= text[i] == ")"
+                if tiefe == 0:
+                    break
+                i += 1
+            if "$" in text[m.end():i]:
+                falsch.append(f"{pfad.name}:{text.count(chr(10), 0, m.start()) + 1}")
+    assert not falsch, "stil(widget, ...) statt setStyleSheet verwenden: " + ", ".join(falsch)

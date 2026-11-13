@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QToolTip,
 )
 
+from src.gui.farben import stil
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
     im_dateimanager_zeigen,
@@ -167,8 +168,8 @@ class PDFThumbnailWidget(QFrame):
         # Thumbnail-Bereich
         self.thumbnail_label = QLabel()
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail_label.setStyleSheet(
-            "background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;"
+        stil(self.thumbnail_label,
+            "background-color: $grau_f5; border: 1px solid $grau_dd; border-radius: 3px;"
         )
         self.thumbnail_label.setText(tr("Laden..."))
         self._layout.addWidget(self.thumbnail_label, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -185,9 +186,9 @@ class PDFThumbnailWidget(QFrame):
         # Hinweis "kopiert nach ..." (Issue #179): schmaler Streifen am unteren
         # Bildrand, ohne Einfluss auf die Kachelgroesse
         self.kopie_label = QLabel(self.thumbnail_label)
-        self.kopie_label.setStyleSheet(
-            "background-color: rgba(255, 243, 205, 230); color: #6b4e00; "
-            "border: none; border-top: 1px solid #daa520; padding: 0 2px;"
+        stil(self.kopie_label,
+            "background-color: $gelb_banner; color: $gelb_banner_text; "
+            "border: none; border-top: 1px solid $gelb_rand; padding: 0 2px;"
         )
         self.kopie_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.kopie_label.hide()
@@ -264,7 +265,7 @@ class PDFThumbnailWidget(QFrame):
         font.setPixelSize(self._view.font_px)
         self.name_label.setFont(font)
         if self._analyzing:
-            self.name_label.setStyleSheet("color: #b8860b; font-style: italic;")
+            stil(self.name_label, "color: $gold_text; font-style: italic;")
         else:
             self.name_label.setStyleSheet("")
 
@@ -288,8 +289,8 @@ class PDFThumbnailWidget(QFrame):
         """Wird aufgerufen wenn das Thumbnail geladen wurde."""
         self._original_pixmap = pixmap
         self._apply_thumbnail_pixmap()
-        self.thumbnail_label.setStyleSheet(
-            "background-color: white; border: 1px solid #ddd; border-radius: 3px;"
+        stil(self.thumbnail_label,
+            "background-color: $weiss; border: 1px solid $grau_dd; border-radius: 3px;"
         )
         self.thumbnail_ready.emit()
 
@@ -346,8 +347,8 @@ class PDFThumbnailWidget(QFrame):
                 | Qt.WindowType.WindowTransparentForInput,
             )
             popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-            popup.setStyleSheet(
-                "QLabel { background-color: white; border: 1px solid #999; padding: 4px; }"
+            stil(popup,
+                "QLabel { background-color: $weiss; border: 1px solid $grau_99; padding: 4px; }"
             )
             self._hover_popup = popup
         popup = self._hover_popup
@@ -385,18 +386,18 @@ class PDFThumbnailWidget(QFrame):
     def _on_thumbnail_error(self, error: str):
         """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
         self.thumbnail_label.setText(tr("Fehler\nbeim Laden"))
-        self.thumbnail_label.setStyleSheet(
-            "background-color: #ffe0e0; border: 1px solid #ffaaaa; border-radius: 3px; color: #cc0000;"
+        stil(self.thumbnail_label,
+            "background-color: $rot_flaeche_kachel; border: 1px solid $rot_rand_kachel; border-radius: 3px; color: $rot_text_kraeftig;"
         )
         self.thumbnail_ready.emit()  # Auch bei Fehler Signal senden
 
     # Farben fuer "KI-Vorschlag vorhanden" (Issue #81)
-    AI_BACKGROUND = "#e6f4e6"
-    AI_BORDER = "#7cc47f"
+    AI_BACKGROUND = "$ki_flaeche"
+    AI_BORDER = "$ki_rand"
 
     # Farben fuer "hier ablegen = Seiten davorlegen"
-    STACK_BACKGROUND = "#fff3e0"
-    STACK_BORDER = "#e67e22"
+    STACK_BACKGROUND = "$stapel_flaeche"
+    STACK_BORDER = "$stapel_rand"
 
     def _typ_farben(self):
         """(Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen) nach KI-Vorschlag; None = gruen (PDF)."""
@@ -406,26 +407,26 @@ class PDFThumbnailWidget(QFrame):
         """Aktualisiert den Style: Stapel-Ziel (orange) vor Auswahl (blau)
         vor KI-Markierung (grün)."""
         if self._stack_target:
-            self.setStyleSheet(
+            stil(self,
                 f"PDFThumbnailWidget {{ background-color: {self.STACK_BACKGROUND}; "
                 f"border: 2px dashed {self.STACK_BORDER}; border-radius: 5px; }}"
             )
         elif self._selected:
-            self.setStyleSheet(
-                "PDFThumbnailWidget { background-color: #cce5ff; border: 2px solid #0066cc; border-radius: 5px; }"
+            stil(self,
+                "PDFThumbnailWidget { background-color: $auswahl_flaeche; border: 2px solid $auswahl_rand; border-radius: 5px; }"
             )
         elif self._has_ai_suggestion:
             bg, border, hover_bg, hover_border = self._typ_farben() or (
-                self.AI_BACKGROUND, self.AI_BORDER, "#d5ecd6", "#5cb860")
-            self.setStyleSheet(
+                self.AI_BACKGROUND, self.AI_BORDER, "$ki_hover_flaeche", "$ki_hover_rand")
+            stil(self,
                 f"PDFThumbnailWidget {{ background-color: {bg}; "
                 f"border: 1px solid {border}; border-radius: 5px; }}"
                 f"PDFThumbnailWidget:hover {{ background-color: {hover_bg}; border: 1px solid {hover_border}; }}"
             )
         else:
-            self.setStyleSheet(
-                "PDFThumbnailWidget { background-color: white; border: 1px solid #ccc; border-radius: 5px; }"
-                "PDFThumbnailWidget:hover { background-color: #f0f7ff; border: 1px solid #99c2ff; }"
+            stil(self,
+                "PDFThumbnailWidget { background-color: $weiss; border: 1px solid $grau_cc; border-radius: 5px; }"
+                "PDFThumbnailWidget:hover { background-color: $kachel_hover_flaeche; border: 1px solid $kachel_hover_rand; }"
             )
 
     @property

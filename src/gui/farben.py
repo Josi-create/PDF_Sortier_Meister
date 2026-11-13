@@ -181,7 +181,7 @@ _PALETTE_DUNKEL = {
     "Window": "#2b2b2b", "WindowText": "#e6e6e6", "Base": "#1e1e1e", "AlternateBase": "#262626",
     "ToolTipBase": "#3c3c3c", "ToolTipText": "#f0f0f0", "Text": "#e6e6e6", "Button": "#3a3a3a",
     "ButtonText": "#e6e6e6", "BrightText": "#ff6b6b", "Link": "#6cb2ff", "Highlight": "#2f7fd6",
-    "HighlightedText": "#ffffff", "PlaceholderText": "#8c8c8c",
+    "HighlightedText": "#ffffff", "PlaceholderText": "#8c8c8c", "LinkVisited": "#b39ddb", "Accent": "#2f7fd6",
     "Light": "#4a4a4a", "Midlight": "#404040", "Mid": "#555555", "Dark": "#1a1a1a", "Shadow": "#000000",
 }
 _PALETTE_DUNKEL_AUS = {
@@ -219,8 +219,12 @@ def ist_dunkel() -> bool:
 
 
 def farbe(name: str) -> str:
-    """Farbwert des aktiven Farbschemas (KeyError bei unbekanntem Namen)."""
-    return FARBEN[name][1 if _dunkel else 0]
+    """Farbwert des aktiven Farbschemas (KeyError bei unbekanntem Namen).
+
+    Auch ``farbe("$name")`` ist erlaubt: So kann eine Konstante, die in Stylesheets
+    als ``$name`` steht, auch fuer selbst Gezeichnetes dienen.
+    """
+    return FARBEN[name.lstrip("$")][1 if _dunkel else 0]
 
 
 def qfarbe(name: str) -> QColor:
@@ -229,8 +233,14 @@ def qfarbe(name: str) -> QColor:
 
 
 def css(text: str) -> str:
-    """Setzt in einem Stylesheet- oder HTML-Text alle ``$name`` durch die Farbwerte."""
-    return _PLATZHALTER.sub(lambda m: farbe(m.group(1)), text)
+    """Setzt in einem Stylesheet- oder HTML-Text alle ``$name`` durch die Farbwerte.
+
+    Unbekannte Namen bleiben stehen (ein Dateiname darf ein ``$`` enthalten); dass alle
+    Namen im Quelltext stimmen, prueft tests/test_farben_238_gui.py. Trotzdem nur eigene
+    Texte hindurchschicken, nie Dateinamen oder Dokumentinhalt.
+    """
+    return _PLATZHALTER.sub(
+        lambda m: farbe(m.group(1)) if m.group(1) in FARBEN else m.group(0), text)
 
 
 def stil(widget, text: str) -> None:
@@ -240,9 +250,14 @@ def stil(widget, text: str) -> None:
 
 
 def _palette(app) -> QPalette:
-    palette = app.style().standardPalette()
+    # Zurueck auf die Grundpalette von Stil und System (eine leere Palette setzt die
+    # eigene zurueck); darauf die eigenen Rollen. So haengt das Ergebnis nicht davon ab,
+    # welches Farbschema vorher galt.
+    app.setPalette(QPalette())
+    palette = QPalette(app.palette())
     for rolle, wert in (_PALETTE_DUNKEL if _dunkel else _PALETTE_HELL).items():
-        palette.setColor(getattr(QPalette.ColorRole, rolle), QColor(wert))
+        if hasattr(QPalette.ColorRole, rolle):  # Accent gibt es erst ab Qt 6.6
+            palette.setColor(getattr(QPalette.ColorRole, rolle), QColor(wert))
     if _dunkel:
         for rolle, wert in _PALETTE_DUNKEL_AUS.items():
             palette.setColor(QPalette.ColorGroup.Disabled, getattr(QPalette.ColorRole, rolle), QColor(wert))

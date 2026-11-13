@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QMimeData, Qt, QUrl
 
+from src.gui.farben import css
 from src.gui.folder_tile import FolderTileWidget
 from tests.test_main_window_gui import fresh_singletons, main_window, _scan_tree  # noqa: F401 - Fixtures
 
@@ -91,9 +92,9 @@ def test_hover_stil(qtbot, tmp_path):
     zeile = FolderTileWidget(tmp_path)
     qtbot.addWidget(zeile)
     zeile.enterEvent(None)
-    assert zeile.styleSheet() == FolderTileWidget._STYLE_HOVER
+    assert zeile.styleSheet() == css(FolderTileWidget._STYLE_HOVER)
     zeile.leaveEvent(None)
-    assert zeile.styleSheet() == FolderTileWidget._STYLE_NORMAL
+    assert zeile.styleSheet() == css(FolderTileWidget._STYLE_NORMAL)
 
 
 # --- Hauptfenster ------------------------------------------------------------
