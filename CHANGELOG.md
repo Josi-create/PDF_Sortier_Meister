@@ -32,6 +32,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Zuletzt verschoben nach …** (#253): Nach dem Verschieben steht der Zielordner unten in der
+  Statusleiste. Ein Klick darauf öffnet ihn links und markiert die gerade verschobenen Dateien;
+  frühere Ziele zeigt der Rechtsklick oder „Ansicht → Zuletzt verschoben nach“.
 
 ## [0.27.0] - 2026-11-12
 

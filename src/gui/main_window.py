@@ -61,6 +61,7 @@ from src.core.folder_naming import coerce_date
 from src.gui.hierhin_kopieren import HierhinKopierenMixin
 from src.gui.stapel_ablage import StapelAblageMixin, erkanntes_datum
 from src.gui.ordner_verschieben_gui import OrdnerVerschiebenMixin
+from src.gui.zuletzt_verschoben import ZuletztVerschobenMixin
 from src.i18n import tr
 
 
@@ -183,7 +184,7 @@ class _UpdateCheckThread(QThread):
 
 
 class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
-                 KiTrennenMixin, QMainWindow):
+                 KiTrennenMixin, ZuletztVerschobenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -2120,6 +2121,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         up_action.triggered.connect(self.on_navigate_up)
         view_menu.addAction(up_action)
 
+        # Issue #253: nach dem Verschieben in den Zielordner springen
+        ziele_menu = view_menu.addMenu(tr("Zuletzt verschoben nach"))
+        ziele_menu.aboutToShow.connect(lambda: self.zuletzt_verschoben_menue_fuellen(ziele_menu))
+
         view_menu.addSeparator()
 
         search_action = QAction(tr("Dokumentensuche..."), self)
@@ -2327,6 +2332,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.statusbar.addPermanentWidget(self.update_status_label)
         self._update_thread: Optional[_UpdateCheckThread] = None
         self._available_update: Optional[UpdateInfo] = None
+
+        self.zuletzt_verschoben_einrichten()  # Issue #253
 
         self.statusbar.showMessage(tr("Bereit"))
 
@@ -4220,6 +4227,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         view = getattr(self, "korrespondenten_view", None)
         if paare and view is not None:
             view.pfade_aktualisieren(paare)
+        if entry.get("type") == "move":
+            self._ziel_merken(entry.get("moves"))  # Issue #253: "Zuletzt verschoben nach"
         # Maximal 20 Einträge behalten
         if len(self._undo_stack) > 20:
             self._undo_stack.pop(0)
@@ -4433,6 +4442,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._undo_stack.pop()
         self._update_undo_ui()
         self.korrespondenten_view.pfade_aktualisieren(zurueck)
+        self._ziel_vergessen([dest for dest, _ in zurueck])  # Issue #253
 
         # Issue #116: beim Verschieben neu angelegte Ordner wieder wegraeumen -
         # nur die aus diesem Schritt und nur, wenn sie jetzt leer sind
