@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QUrl, QThread, QStandardPaths, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont
 
+from src.gui.farben import stil
 from src.utils.config import get_config
 from src.i18n import tr
 
@@ -452,24 +453,24 @@ class ProviderPage(QWizardPage):
 
         # Ollama-Status
         if result.get("running"):
-            status, color = tr("✓ Ollama ist installiert und laeuft"), "green"
+            status, color = tr("✓ Ollama ist installiert und laeuft"), "$gruen_status"
         elif result.get("installed"):
-            status, color = tr("✓ Ollama ist installiert"), "green"
+            status, color = tr("✓ Ollama ist installiert"), "$gruen_status"
         else:
-            status, color = tr("Ollama ist nicht installiert (Download im naechsten Schritt)"), "#b35c00"
+            status, color = tr("Ollama ist nicht installiert (Download im naechsten Schritt)"), "$orange_text"
         self.ollama_status_label.setText("    " + status)
-        self.ollama_status_label.setStyleSheet(f"color: {color};")
+        stil(self.ollama_status_label, f"color: {color};")
 
         # LM Studio nur anbieten, wenn es laeuft (Empfehlung bleibt Ollama)
         lms_models = result.get("lmstudio_models")
         if lms_models is not None:
             self._radios[_PROVIDER_IDS.index("lmstudio")].setVisible(True)
             if lms_models:
-                status, color = tr("✓ LM Studio laeuft ({anzahl} Modell(e))").format(anzahl=len(lms_models)), "green"
+                status, color = tr("✓ LM Studio laeuft ({anzahl} Modell(e))").format(anzahl=len(lms_models)), "$gruen_status"
             else:
-                status, color = tr("LM Studio laeuft, aber es ist kein Modell vorhanden"), "#b35c00"
+                status, color = tr("LM Studio laeuft, aber es ist kein Modell vorhanden"), "$orange_text"
             self.lmstudio_status_label.setText("    " + status)
-            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            stil(self.lmstudio_status_label, f"color: {color};")
             self.lmstudio_status_label.setVisible(True)
 
         # Hardware-Empfehlung
@@ -484,7 +485,7 @@ class ProviderPage(QWizardPage):
                     "auf diesem PC."
                 ).format(reason=rec.reason)
             )
-            self.hardware_label.setStyleSheet("color: #1a6b1a;")
+            stil(self.hardware_label, "color: $gruen_text_hinweis;")
         else:
             recommended_id = "ollama_cloud"
             self.hardware_label.setText(
@@ -494,7 +495,7 @@ class ProviderPage(QWizardPage):
                     "werden dabei an ollama.com uebertragen)."
                 ).format(reason=rec.reason)
             )
-            self.hardware_label.setStyleSheet("color: #7a4a00;")
+            stil(self.hardware_label, "color: $braun_text;")
 
         self._recommended_id = recommended_id
         if recommended_id:
@@ -544,7 +545,7 @@ class ApiKeyPage(QWizardPage):
         self._link_btn = QPushButton()
         self._link_btn.setFlat(True)
         self._link_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._link_btn.setStyleSheet("color: #0066cc; text-align: left;")
+        stil(self._link_btn, "color: $verweis; text-align: left;")
         self._link_btn.clicked.connect(self._open_link)
         layout.addWidget(self._link_btn)
 
@@ -571,7 +572,7 @@ class ApiKeyPage(QWizardPage):
 
         self.ollama_warning_label = QLabel()
         self.ollama_warning_label.setWordWrap(True)
-        self.ollama_warning_label.setStyleSheet("color: #7a4a00;")
+        stil(self.ollama_warning_label, "color: $braun_text;")
         self.ollama_warning_label.setVisible(False)
         ollama_layout.addWidget(self.ollama_warning_label)
 

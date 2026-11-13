@@ -19,6 +19,7 @@ import sys
 import threading
 
 from src.gui import farben
+from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
@@ -493,7 +494,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         intro = QLabel(tr("Nach diesem Muster schlägt die KI Dateinamen vor."))
-        intro.setStyleSheet("color: #555; padding: 2px 0 6px 0;")
+        stil(intro, "color: $grau_55; padding: 2px 0 6px 0;")
         layout.addWidget(intro)
 
         form = QFormLayout()
@@ -603,7 +604,7 @@ class SettingsDialog(QDialog):
         form.addRow("", self.pattern_legend_label)
 
         self.pattern_warning_label = QLabel()
-        self.pattern_warning_label.setStyleSheet("color: #d32f2f; font-size: 11px;")
+        stil(self.pattern_warning_label, "color: $rot; font-size: 11px;")
         self.pattern_warning_label.hide()
         form.addRow("", self.pattern_warning_label)
 
@@ -615,9 +616,9 @@ class SettingsDialog(QDialog):
         # (wie bei QLabel+wordWrap im QFormLayout) vertikal abgeschnitten.
         self.pattern_preview_label = QLineEdit()
         self.pattern_preview_label.setReadOnly(True)
-        self.pattern_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #e8f5e9; "
-            "border: 1px solid #a5d6a7; border-radius: 3px; color: #1b5e20;"
+        stil(self.pattern_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $gruen_flaeche; "
+            "border: 1px solid $gruen_rand; border-radius: 3px; color: $gruen_text;"
         )
         preview_row.addWidget(self.pattern_preview_label, 1)
         self.pattern_try_button = QPushButton(tr("Mit aktueller PDF"))
@@ -671,9 +672,9 @@ class SettingsDialog(QDialog):
 
         self.folder_naming_preview_label = QLineEdit()
         self.folder_naming_preview_label.setReadOnly(True)
-        self.folder_naming_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #f5f5f5; "
-            "border: 1px solid #ddd; border-radius: 3px; color: #444;"
+        stil(self.folder_naming_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $grau_f5; "
+            "border: 1px solid $grau_dd; border-radius: 3px; color: $grau_44;"
         )
         move_form.addRow(tr("Ergebnis:"), self.folder_naming_preview_label)
         move_layout.addLayout(move_form)
@@ -685,7 +686,7 @@ class SettingsDialog(QDialog):
             ).format(PREVIEW_FOLDER=self._PREVIEW_FOLDER)
         )
         move_hint.setWordWrap(True)
-        move_hint.setStyleSheet("color: #777; font-size: 11px;")
+        stil(move_hint, "color: $grau_77; font-size: 11px;")
         move_layout.addWidget(move_hint)
 
         layout.addWidget(move_group)
@@ -952,7 +953,7 @@ class SettingsDialog(QDialog):
             "Ihren Namen ein. Der Korrespondent ist immer die andere Partei\n"
             "(Firma, Behörde, Person) — nicht Sie selbst.")
         )
-        info_label.setStyleSheet("color: #555; font-size: 11px; padding: 5px;")
+        stil(info_label, "color: $grau_55; font-size: 11px; padding: 5px;")
         layout.addWidget(info_label)
 
         # Benutzerinformationen
@@ -1265,7 +1266,7 @@ class SettingsDialog(QDialog):
         debug_info = QLabel(
             tr("<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>")
         )
-        debug_info.setStyleSheet("color: #cc0000;")
+        stil(debug_info, "color: $rot_text_kraeftig;")
         debug_layout.addWidget(debug_info)
 
         debug_buttons_layout = QHBoxLayout()
@@ -2422,15 +2423,15 @@ class SettingsDialog(QDialog):
         self.model_combo.clear()
         if models is None:
             self.lmstudio_status_label.setText(self._LMSTUDIO_START_HINT)
-            self.lmstudio_status_label.setStyleSheet("color: #c0392b;")
+            stil(self.lmstudio_status_label, "color: $rot_text_status;")
         else:
             self.model_combo.addItems(models)
             if models:
-                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "green"
+                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "$gruen_status"
             else:
-                text, color = self._LMSTUDIO_KEIN_MODELL, "#b35c00"
+                text, color = self._LMSTUDIO_KEIN_MODELL, "$orange_text"
             self.lmstudio_status_label.setText(text)
-            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            stil(self.lmstudio_status_label, f"color: {color};")
         if current:
             self.model_combo.setCurrentText(current)
         return models
@@ -2445,13 +2446,13 @@ class SettingsDialog(QDialog):
             self.consent_hint_label.setStyleSheet("color: gray;")
         elif self.cloud_consent_check.isChecked():
             self.consent_hint_label.setText(tr("Einwilligung erteilt."))
-            self.consent_hint_label.setStyleSheet("color: green;")
+            stil(self.consent_hint_label, "color: $gruen_status;")
         else:
             self.consent_hint_label.setText(
                 tr("Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
                 "(Statusleiste: \"LLM: Aus\").")
             )
-            self.consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.consent_hint_label, "color: $rot_text_status;")
 
     # Chat-Gruppe (Issue #166/#167): eigenes Modell fuer den Chat
 
@@ -2554,7 +2555,7 @@ class SettingsDialog(QDialog):
                     "Chat-Modell aus."
                 ).format(base=base)
             )
-            self.chat_consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.chat_consent_hint_label, "color: $rot_text_status;")
         else:
             self.chat_consent_hint_label.setText(base)
             self.chat_consent_hint_label.setStyleSheet("color: gray;")
