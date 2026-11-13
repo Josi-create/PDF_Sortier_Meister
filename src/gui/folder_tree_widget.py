@@ -18,7 +18,7 @@ from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 from src.core.office_convert import ist_sortierbar
 from src.core.ordnersuche import index_ordner_neu, indizes_veraltet
 from src.core.ordner_verschieben import pruefe as ordner_pruefen
-from src.gui.farben import qfarbe, stil
+from src.gui.farben import melder, qfarbe, stil
 from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, ordner_aus_mime
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from PyQt6.QtWidgets import (
@@ -204,6 +204,7 @@ class FolderTreeWidget(QWidget):
 
         # Tree Widget
         self.tree = QTreeWidget()
+        melder.geaendert.connect(self._update_item_styles)
         self.tree.setHeaderHidden(True)
         self.tree.setAnimated(True)
         self.tree.setIndentation(20)

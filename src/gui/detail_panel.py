@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 from src.core import datum_eingabe
 from src.core import schlagwoerter as schlagwort_regeln
 from src.core.document_date import is_iso_date, parse_user_date
-from src.gui.farben import css, qfarbe, stil
+from src.gui.farben import css, melder, qfarbe, stil
 from src.gui.schlagwort_feld import SchlagwortFeld
 from src.i18n import tr
 
@@ -415,6 +415,7 @@ class DetailPanel(QWidget):
         self._metadata_inputs = {}
         # Grundstil je Feld - fuer die gruene Hervorhebung "neu gegenueber PDF"
         self._field_base_styles: dict[str, str] = {}
+        melder.geaendert.connect(self._populate_suggestions)  # Listenfarben folgen dem Farbschema
         metadata_fields = [
             ("buchungsdatum", tr("Datum")),  # Issue #132
             ("steuerjahr", tr("Steuerjahr")),
