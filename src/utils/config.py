@@ -93,6 +93,7 @@ class Config:
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
+        "scan_ordner_beobachten": True,  # Issue #232: neue Dateien im Scan-Ordner erscheinen von selbst
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt

@@ -1059,6 +1059,17 @@ class SettingsDialog(QDialog):
         )
         display_layout.addRow(self.suggest_new_folders_check)
 
+        # Issue #232: neue Scans erscheinen ohne F5
+        self.scan_ordner_beobachten_check = QCheckBox(tr("Scan-Ordner beobachten (neue Dateien erscheinen von selbst)"))
+        self.scan_ordner_beobachten_check.setChecked(True)
+        self.scan_ordner_beobachten_check.setToolTip(
+            tr("Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\n"
+            "Ordner nach wenigen Sekunden als Kachel, sobald sie fertig geschrieben ist.\n"
+            "Verschwundene Dateien werden aus der Ansicht genommen.\n"
+            "Ausgeschaltet zeigt erst F5 den neuen Stand.")
+        )
+        display_layout.addRow(self.scan_ordner_beobachten_check)
+
         layout.addWidget(display_group)
 
         # Cache-Einstellungen
@@ -2667,6 +2678,7 @@ class SettingsDialog(QDialog):
         sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
+        self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -2773,6 +2785,7 @@ class SettingsDialog(QDialog):
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
+        self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
