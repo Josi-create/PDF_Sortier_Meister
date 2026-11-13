@@ -468,12 +468,30 @@ class Indexer:
         self.aenderungen += 1
 
     # ---------------------------------------------------------------- Ergebnisse
+    def _pruefsumme_merken(self, dok_id: int, basis: dict) -> None:
+        """Pruefsumme der eben gelesenen Datei mitschreiben (Issue #245: Hinweis auf doppelte Dateien).
+
+        Sie gilt fuer den Stand, den die Datei beim Bilden hatte; aendert sie sich
+        spaeter (Textebene, Metadaten), verfaellt sie von selbst.
+        """
+        from src.core.duplikate import pruefsumme
+
+        try:
+            vorher = os.stat(basis["pfad"])
+            summe = pruefsumme(basis["pfad"])
+            st = os.stat(basis["pfad"])
+        except OSError:
+            return
+        if (vorher.st_size, vorher.st_mtime_ns) == (st.st_size, st.st_mtime_ns):
+            db.pruefsumme_setzen(self.con, dok_id, summe, st.st_size, st.st_mtime_ns)
+
     def _ergebnis(self, a: Auftrag, res) -> None:
         i = a.info
         if a.art == "datei":
             basis = i["basis"]
             fmt = basis["format"]
             dok_id, dok, zaehler = dokument_speichern(self.con, basis, fmt, res)
+            self._pruefsumme_merken(dok_id, basis)
             if zaehler["ocr_cache"]:
                 self.stat["ocr_cache"] += zaehler["ocr_cache"]
             if zaehler["schief"]:

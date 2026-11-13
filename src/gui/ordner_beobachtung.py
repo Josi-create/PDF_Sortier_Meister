@@ -242,12 +242,14 @@ class OrdnerBeobachtung(QObject):
             return
         if self._entfernt:
             self._entfernen_abschliessen()
+            fenster._doppelte_im_ordner.anstossen()  # Issue #245
 
         # 2) Geaenderte Dateien (z. B. hat der Scanner Seiten angehaengt): Bild und Analyse neu
         while self._geaendert and time.monotonic() < ende and not self._gedrosselt():
             name = next(iter(self._geaendert))
             del self._geaendert[name]
             self._auffrischen(lauf.ordner / name, kacheln)
+            fenster._doppelte_im_ordner.anstossen()  # Issue #245: der Inhalt ist neu
         if self._geaendert:
             self._portion_timer.start(self.DROSSEL_MS if self._gedrosselt() else 0)
             return
@@ -286,6 +288,8 @@ class OrdnerBeobachtung(QObject):
             self._zahlen_anzeigen()
             fenster.pdf_cache.pre_cache(angelegt)  # Analyse und KI-Vorschlag wie nach F5
             self._melden(angelegt)
+            # Issue #245: Liegt eine der neuen Dateien schon einmal im Ordner?
+            fenster._doppelte_im_ordner.anstossen()
 
     @staticmethod
     def _nutzer_beschaeftigt() -> bool:

@@ -154,6 +154,12 @@ PROTOKOLL_SPALTEN = {
     "gedreht": "TEXT",           # Issue #151: gedrehte Seiten, z. B. "1:180,3:90"
     "gerade": "TEXT",            # Issue #165: gerade ausgerichtete Seiten mit Winkel, z. B. "1:-1.75"
 }
+# Issue #245: Pruefsumme des Dateiinhalts fuer den Hinweis auf doppelte Dateien. Bewusst nicht in
+# V2_SPALTEN (die Schema-Version haengt daran) und nicht in DOK_FELDER: der Lauf traegt sie nach.
+PRUEFSUMME_SPALTEN = {
+    "pruefsumme": "TEXT",        # BLAKE2b (16 Byte, hex) ueber die Datei (src.core.duplikate.pruefsumme)
+    "pruefsumme_stand": "TEXT",  # "<Groesse>:<Aenderungszeit ns>" der Datei, zu der sie gehoert; sonst gilt sie nicht
+}
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
                     "schlagwoerter")
 _META_FTS = "korrespondent, kategorie, zusammenfassung, schlagwoerter"
@@ -289,6 +295,12 @@ def ergaenze_schema(con) -> bool:
         if name not in spalten:
             con.execute(f"ALTER TABLE dokumente ADD COLUMN {name} {typ}")
             geaendert = True
+    for name, typ in PRUEFSUMME_SPALTEN.items():
+        if name not in spalten:
+            con.execute(f"ALTER TABLE dokumente ADD COLUMN {name} {typ}")
+            geaendert = True
+    # Issue #245: Dokumente gleicher Groesse schnell finden (nur sie koennen inhaltsgleich sein)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_dok_groesse ON dokumente(groesse)")
     if "bild_hash" not in _spalten(con, "seiten"):
         con.execute("ALTER TABLE seiten ADD COLUMN bild_hash TEXT")
         geaendert = True
@@ -375,6 +387,29 @@ def speichere(con: sqlite3.Connection, dok: dict, seiten: list[tuple[int, str, s
             [(dok_id, s, q, t, hashes.get(s)) for s, q, t in seiten],
         )
     return dok_id
+
+
+def pruefsumme_setzen(con, dok_id: int, summe: str, groesse: int, mtime_ns: int) -> None:
+    """Pruefsumme des Dateiinhalts eintragen (Issue #245); sie gilt fuer genau diesen Stand der Datei."""
+    con.execute("UPDATE dokumente SET pruefsumme = ?, pruefsumme_stand = ? WHERE id = ?",
+                (summe, f"{groesse}:{mtime_ns}", dok_id))
+
+
+def gleiche_groesse(con, groesse: int) -> list[dict]:
+    """Dokumente mit dieser Dateigroesse als ``{"pfad", "pruefsumme", "pruefsumme_stand"}`` (Issue #245).
+
+    Mails aus mbox-Dateien sind keine eigenen Dateien und fehlen. In einer
+    Datenbank, die die Spalten noch nicht hat, bleiben die Pruefsummen leer.
+    """
+    try:
+        zeilen = con.execute(
+            "SELECT pfad, pruefsumme, pruefsumme_stand FROM dokumente WHERE groesse = ? AND format != 'mbox'",
+            (int(groesse),)).fetchall()
+    except sqlite3.OperationalError:
+        zeilen = con.execute(
+            "SELECT pfad, NULL AS pruefsumme, NULL AS pruefsumme_stand FROM dokumente "
+            "WHERE groesse = ? AND format != 'mbox'", (int(groesse),)).fetchall()
+    return [dict(r) for r in zeilen]
 
 
 def loesche(con: sqlite3.Connection, dok_ids) -> None:

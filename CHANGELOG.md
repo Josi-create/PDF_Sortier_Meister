@@ -30,6 +30,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   übrigen Kacheln, die Auswahl und die Scrollposition bleiben dabei, wie sie sind. Das gilt auch
   für Word-, Excel-, Text- und Bilddateien. Neue Unterordner zeigt weiterhin F5. Abschalten lässt
   sich das unter Einstellungen → Allgemein → „Scan-Ordner beobachten“.
+- **Hinweis bei doppelten Dateien** (#245): Liegt dieselbe Datei zweimal im geöffneten Ordner,
+  zum Beispiel ein Foto, das aus dem Messenger zweimal gespeichert wurde, tragen beide Kacheln
+  den Streifen „Doppelt: wie …“, und die Statusleiste meldet es. Das gilt auch für eine Datei,
+  die gerade erst erscheint. Beim Ablegen prüft das Programm, ob im Zielordner oder unter den
+  Dokumenten der Dokumentensuche schon eine Datei mit genau demselben Inhalt liegt, und fragt
+  dann nach: „Trotzdem ablegen“, „In den Papierkorb“ (die vorhandene Datei bleibt, die neue geht
+  in den Papierkorb und lässt sich mit Rückgängig zurückholen) oder „Abbrechen“. Bei mehreren
+  Dateien auf einmal gehen nur die schon vorhandenen in den Papierkorb, die übrigen werden
+  abgelegt. Verglichen wird der Inhalt Byte für Byte, der Dateiname spielt keine Rolle.
+  Als doppelt gilt nur eine wirklich gleiche Datei: Ein Foto und das daraus erzeugte PDF, ein
+  zweiter Scan desselben Blatts oder eine PDF, in die das Programm inzwischen Metadaten oder
+  eine Textebene geschrieben hat, werden nicht gemeldet. Gelöscht wird nie ohne Rückfrage.
 - **Schlagwörter mit Ebenen, zusätzlich zum Ordner** (#231): Im Detail-Panel gibt es das Feld
   „Schlagwörter“. Mehrere Einträge trennt ein Komma, Ebenen ein Schrägstrich, zum Beispiel
   „Steuer/Werbungskosten, Haus“. Beim Tippen erscheinen die schon benutzten Schlagwörter zur
