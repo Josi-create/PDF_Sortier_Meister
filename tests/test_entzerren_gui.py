@@ -301,6 +301,57 @@ def test_dialog_ecken_bleiben_im_bild(qtbot, zwei_fotos):
     assert x == pytest.approx(1200.0) and y == pytest.approx(0.0)
 
 
+def test_dialog_foto_verkleinern_erlaubt_ecken_ausserhalb(qtbot, zwei_fotos):
+    """Angeschnittenes Blatt: Mit "Foto verkleinern" darf eine Ecke in den Rand um das Foto."""
+    dlg = EntzerrenDialog([zwei_fotos[0]], {}, "farbe")
+    qtbot.addWidget(dlg)
+    assert not dlg.rand_knopf.isChecked() and not dlg._rand_item.isVisible()
+    dlg.rand_knopf.click()
+    assert dlg._szene.sceneRect().left() == pytest.approx(-0.35 * 1200)  # Foto 1200 x 900, Rand 35 % der langen Seite
+    dlg._punkte[3].setPos(-150, 1000)       # unten links, ausserhalb des Fotos
+    assert dlg.ecken()[3] == pytest.approx((-150.0, 1000.0))
+    dlg._punkte[1].setPos(5000, -3000)      # der Rand ist die Grenze
+    assert dlg.ecken()[1] == pytest.approx((1200 + 420.0, -420.0))
+    dlg._ecke_losgelassen()
+    qtbot.waitUntil(lambda: not dlg._timer.isActive(), timeout=3000)
+    assert dlg._vorschau._pixmap is not None  # auch mit Ecken ausserhalb gibt es ein Ergebnis
+    assert dlg.ergebnis()[zwei_fotos[0]].ecken[3] == pytest.approx((-150.0, 1000.0))
+    dlg.rand_knopf.click()                  # zurueck: alle Ecken wieder im Foto
+    assert dlg.ecken()[3] == pytest.approx((0.0, 900.0)) and dlg.ecken()[1] == pytest.approx((1200.0, 0.0))
+    assert dlg._szene.sceneRect().left() == pytest.approx(0.0)
+
+
+def test_dialog_erkannte_ecke_ausserhalb_zeigt_den_rand(qtbot, zwei_fotos):
+    """Setzt die Erkennung eine Ecke knapp neben das Foto, bleibt sie dort und der Rand ist sichtbar."""
+    a = zwei_fotos[0]
+    vorgabe = [(-40.0, 30.0), (1100.0, 20.0), (1150.0, 930.0), (20.0, 880.0)]
+    dlg = EntzerrenDialog([a], {a: vorgabe}, "farbe")
+    qtbot.addWidget(dlg)
+    assert dlg.rand_knopf.isChecked()
+    assert dlg.ecken() == vorgabe
+    dlg._punkte[0].setPos(100, 100)
+    dlg.zuruecksetzen()
+    assert dlg.ecken() == vorgabe
+
+
+def test_dialog_vorschau_erst_beim_loslassen(qtbot, zwei_fotos, monkeypatch):
+    """Waehrend des Ziehens wird nichts gerechnet (das hat die Maus ausgebremst), erst beim Loslassen."""
+    import src.gui.entzerren_dialog as modul
+
+    dlg = EntzerrenDialog([zwei_fotos[0]], {}, "farbe")
+    qtbot.addWidget(dlg)
+    aufrufe = []
+    echt = modul.entzerrte_seite
+    monkeypatch.setattr(modul, "entzerrte_seite", lambda *a, **k: (aufrufe.append(1), echt(*a, **k))[1])
+    for x in range(100, 200, 10):
+        dlg._punkte[0].setPos(x, 100)
+    assert dlg._viereck.polygon().at(0).x() == pytest.approx(190.0)  # das Viereck folgt sofort
+    qtbot.wait(400)
+    assert aufrufe == [] and not dlg._timer.isActive()
+    dlg._ecke_losgelassen()
+    qtbot.waitUntil(lambda: aufrufe == [1], timeout=3000)
+
+
 def test_dialog_grosses_foto_ecken_im_vollen_pixelmass(qtbot, tmp_path):
     gross = tmp_path / "gross.jpg"
     foto([(x * 3, y * 3) for x, y in ECKEN], (3600, 2700), art="dunkel").save(gross, quality=90)

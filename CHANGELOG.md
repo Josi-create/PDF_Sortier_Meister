@@ -32,6 +32,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Foto entzerren: Ecke außerhalb des Fotos setzen**: Ist ein Blatt angeschnitten fotografiert,
+  fehlt eine Ecke auf dem Bild. Im Fenster „Foto entzerren“ zeigt der neue Knopf „Foto
+  verkleinern“ einen Rand um das Foto. Dorthin zieht man die fehlende Ecke, an die Stelle, an der
+  sich die beiden sichtbaren Blattkanten treffen würden. Der fehlende Zipfel wird im Ergebnis
+  weiß. Setzt schon die automatische Erkennung eine Ecke knapp neben das Foto, ist der Rand von
+  selbst eingeschaltet.
+
+### Geändert
+- **Foto entzerren: Ziehen der Ecken ruckelt nicht mehr**: Die Vorschau rechts wird erst
+  berechnet, wenn die Maustaste losgelassen wird, nicht mehr schon während des Ziehens. Das
+  gelbe Viereck folgt der Maus weiterhin sofort.
 
 ## [0.27.0] - 2026-11-12
 

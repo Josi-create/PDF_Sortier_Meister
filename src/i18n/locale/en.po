@@ -1148,8 +1148,16 @@ msgid "Foto entzerren"
 msgstr "Correct photo perspective"
 
 #: src/gui/entzerren_dialog.py
-msgid "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis."
-msgstr "Drag the four corners onto the corners of the sheet. On the right you see the corrected result."
+msgid "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie nach dem Loslassen das entzerrte Ergebnis. Fehlt eine Ecke auf dem Foto: „Foto verkleinern“ wählen und die Ecke dorthin ziehen, wo sich die beiden Blattkanten treffen würden."
+msgstr "Drag the four corners onto the corners of the sheet. After you release, the corrected result appears on the right. If a corner is missing from the photo: choose “Shrink photo” and drag the corner to where the two edges of the sheet would meet."
+
+#: src/gui/entzerren_dialog.py
+msgid "Foto verkleinern"
+msgstr "Shrink photo"
+
+#: src/gui/entzerren_dialog.py
+msgid "Zeigt einen Rand um das Foto. Dorthin lässt sich eine Ecke ziehen, die auf dem Foto fehlt, weil das Blatt angeschnitten ist. Der fehlende Zipfel wird weiß."
+msgstr "Shows a margin around the photo. You can drag a corner there that is missing from the photo because the sheet is cut off. The missing tip becomes white."
 
 #: src/gui/entzerren_dialog.py
 #: src/gui/settings_dialog.py
