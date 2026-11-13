@@ -5326,6 +5326,26 @@ msgid "Darstellung"
 msgstr "Display"
 
 #: src/gui/settings_dialog.py
+msgid "Wie das System"
+msgstr "Same as system"
+
+#: src/gui/settings_dialog.py
+msgid "Hell"
+msgstr "Light"
+
+#: src/gui/settings_dialog.py
+msgid "Dunkel"
+msgstr "Dark"
+
+#: src/gui/settings_dialog.py
+msgid "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\noder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\nDie Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+msgstr "“Same as system” follows the Windows or macOS setting (light or dark\nmode), even if it changes while the program is running.\nThe pages of your documents look the same in every color scheme."
+
+#: src/gui/settings_dialog.py
+msgid "Farbschema:"
+msgstr "Color scheme:"
+
+#: src/gui/settings_dialog.py
 msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."
 msgstr "You set the size of the tiles (Small / Medium / Large) directly above the scan area under “View”."
 

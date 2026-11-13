@@ -18,6 +18,7 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 import sys
 import threading
 
+from src.gui import farben
 from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
@@ -1035,6 +1036,18 @@ class SettingsDialog(QDialog):
         # Darstellung
         display_group = QGroupBox(tr("Darstellung"))
         display_layout = QFormLayout(display_group)
+
+        # Issue #238: helles oder dunkles Farbschema, Standard: wie das System
+        self.farbschema_combo = QComboBox()
+        self.farbschema_combo.addItem(tr("Wie das System"), farben.SYSTEM)
+        self.farbschema_combo.addItem(tr("Hell"), farben.HELL)
+        self.farbschema_combo.addItem(tr("Dunkel"), farben.DUNKEL)
+        self.farbschema_combo.setToolTip(tr(
+            "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\n"
+            "oder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\n"
+            "Die Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+        ))
+        display_layout.addRow(tr("Farbschema:"), self.farbschema_combo)
 
         tile_hint = QLabel(
             tr("Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
@@ -2663,6 +2676,8 @@ class SettingsDialog(QDialog):
         )
 
         # Allgemeine Einstellungen
+        schema_index = self.farbschema_combo.findData(farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)))
+        self.farbschema_combo.setCurrentIndex(max(schema_index, 0))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
         sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
@@ -2770,6 +2785,10 @@ class SettingsDialog(QDialog):
         self.config.set("llm", llm_config)
 
         # Allgemeine Einstellungen
+        farbschema = self.farbschema_combo.currentData() or farben.SYSTEM
+        if farbschema != farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)):
+            self.config.set(farben.KONFIG_SCHLUESSEL, farbschema)
+            farben.anwenden(farbschema)  # gilt sofort, ohne Neustart
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())

@@ -32,6 +32,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Dunkles Farbschema** (#238): Das Programm gibt es jetzt auch in Dunkel. Unter Einstellungen →
+  Allgemein → Darstellung → „Farbschema“ wählst du „Wie das System“ (Standard), „Hell“ oder
+  „Dunkel“. „Wie das System“ folgt dem hellen oder dunklen Modus von Windows oder macOS, auch wenn
+  du ihn bei laufendem Programm umstellst. Die Wahl gilt sofort, ohne Neustart. Die Seiten deiner
+  Dokumente (Vorschau, Miniaturen) bleiben in beiden Farbschemata, wie sie sind. Wer sein System
+  dunkel eingestellt hat, sieht das Programm nach dem Update also dunkel; mit „Hell“ sieht es aus
+  wie bisher.
 
 ## [0.27.0] - 2026-11-12
 
