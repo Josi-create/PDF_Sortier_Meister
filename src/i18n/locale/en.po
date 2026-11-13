@@ -4618,8 +4618,8 @@ msgid "Anhänge: {0}"
 msgstr "Attachments: {0}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#9a3412'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
-msgstr "<p style='color:#9a3412'>The file no longer exists – here is the text stored in the index.</p>"
+msgid "<p style='color:$rost_text'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
+msgstr "<p style='color:$rost_text'>The file no longer exists – here is the text stored in the index.</p>"
 
 #: src/gui/search_view.py
 msgid "Seite {0}{1}"
@@ -4635,8 +4635,8 @@ msgid "<i>(kein Text)</i>"
 msgstr "<i>(no text)</i>"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Kein Text vorhanden.</p>"
-msgstr "<p style='color:#888888'>No text available.</p>"
+msgid "<p style='color:$grau_88'>Kein Text vorhanden.</p>"
+msgstr "<p style='color:$grau_88'>No text available.</p>"
 
 #: src/gui/search_view.py
 #: src/search/static/index.html
@@ -4793,8 +4793,8 @@ msgid "Suche fehlgeschlagen: {text}"
 msgstr "Search failed: {text}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Lade Text …</p>"
-msgstr "<p style='color:#888888'>Loading text …</p>"
+msgid "<p style='color:$grau_88'>Lade Text …</p>"
+msgstr "<p style='color:$grau_88'>Loading text …</p>"
 
 #: src/gui/search_view.py
 msgid "<p>Dieses Dokument ist nicht mehr im Index.</p>"

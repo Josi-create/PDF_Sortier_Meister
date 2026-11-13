@@ -45,6 +45,8 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core.office_convert import ist_sortierbar
+from src.gui import farben
+from src.gui.farben import css, farbe, stil
 from src.gui.pdf_preview_widget import PdfPreviewWidget
 from src.gui.search_worker import DokumentLaden, StatusAbfrage, SuchAbfrage
 from src.gui.zeitraum_feld import ZeitraumFeld
@@ -72,7 +74,7 @@ STATUS_INTERVALL_MS = 15_000  # Indexstand waehrend eines Laufs auffrischen
 MELDUNG_MS = 6000
 WEB_PRUEFEN_MS = 6000         # nach dem Start der Browser-Oberflaeche pruefen, ob sie antwortet
 
-_MARK_AUF = '<span style="background-color:#fff0a0; color:#000000;"><b>'
+_MARK_AUF = '<span style="background-color:$treffer_flaeche; color:$treffer_text;"><b>'
 _MARK_ZU = "</b></span>"
 
 HILFE_HTML = (
@@ -99,7 +101,7 @@ def markiert_html(text: str, zeilen: bool = False) -> str:
     t = text or ""
     if not zeilen:
         t = " ".join(t.split())
-    return escape(t).replace("\x02", _MARK_AUF).replace("\x03", _MARK_ZU)
+    return escape(t).replace("\x02", css(_MARK_AUF)).replace("\x03", _MARK_ZU)
 
 
 def zahl(n) -> str:
@@ -217,13 +219,13 @@ def dokument_html(d: dict, seiten: list[dict]) -> str:
                   tr("Datum: {0}").format(escape(datum_text(d.get('datum')) if d.get('datum') else str(d.get('mail_datum') or '')))]
         if d.get("mail_anhaenge"):
             zeilen.append(tr("Anhänge: {0}").format(escape(str(d['mail_anhaenge']))))
-        kopf.append("<p style='color:#666666; margin:0'>" + "<br>".join(zeilen) + "</p>")
+        kopf.append(css("<p style='color:$grau_66; margin:0'>") + "<br>".join(zeilen) + "</p>")
     else:
-        kopf.append(f"<p style='color:#666666; margin:0'>{escape(meta_zeile(d))} · "
+        kopf.append(f"<p style='color:{farbe('grau_66')}; margin:0'>{escape(meta_zeile(d))} · "
                     f"Status: {escape(d.get('textstatus') or '')}</p>")
         if d.get("datei") and not os.path.exists(d["datei"]):
-            kopf.append(tr("<p style='color:#9a3412'>Die Datei existiert nicht mehr – "
-                        "hier der im Index gespeicherte Text.</p>"))
+            kopf.append(css(tr("<p style='color:$rost_text'>Die Datei existiert nicht mehr – "
+                        "hier der im Index gespeicherte Text.</p>")))
     teile = []
     anker_gesetzt = False
     for s in seiten:
@@ -242,7 +244,7 @@ def dokument_html(d: dict, seiten: list[dict]) -> str:
             teile.append(anker)
         teile.append(f"<p style='white-space:pre-wrap; margin:0'>{text}</p>")
     if not seiten:
-        teile.append(tr("<p style='color:#888888'>Kein Text vorhanden.</p>"))
+        teile.append(css(tr("<p style='color:$grau_88'>Kein Text vorhanden.</p>")))
     return "".join(kopf) + "<hr>" + "".join(teile)
 
 
@@ -283,7 +285,7 @@ class TrefferKarte(QFrame):
         lbl.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse if links
                                     else Qt.TextInteractionFlag.NoTextInteraction)
         if stil:
-            lbl.setStyleSheet(stil)
+            farben.stil(lbl, stil)
         return lbl
 
     def _bauen(self) -> None:
@@ -300,26 +302,26 @@ class TrefferKarte(QFrame):
             marken.append(tr("Treffer im Namen"))
         if d.get("im_metadaten"):
             marken.append(tr("Treffer in Metadaten"))
-        kopf = (f'<span style="color:#2563eb; font-weight:bold;">{escape(typ_kuerzel(d))}</span>&nbsp; '
+        kopf = (f'<span style="color:{farbe("blau_kraeftig")}; font-weight:bold;">{escape(typ_kuerzel(d))}</span>&nbsp; '
                 f"<b>{escape(titel_von(d))}</b>"
-                + "".join(f'&nbsp; <span style="color:#9a3412;">[{escape(m)}]</span>' for m in marken))
+                + "".join(f'&nbsp; <span style="color:{farbe("rost_text")};">[{escape(m)}]</span>' for m in marken))
         self.kopf_label = self._label(kopf)
         lay.addWidget(self.kopf_label)
 
-        self.meta_label = self._label(escape(meta_zeile(d)), "color: #666666; font-size: 11px;")
+        self.meta_label = self._label(escape(meta_zeile(d)), "color: $grau_66; font-size: 11px;")
         lay.addWidget(self.meta_label)
         self.metadaten_label = None
         if metadaten_zeile(d):
-            self.metadaten_label = self._label(escape(metadaten_zeile(d)), "color: #166534; font-size: 11px;")
+            self.metadaten_label = self._label(escape(metadaten_zeile(d)), "color: $gruen_text_suche; font-size: 11px;")
             lay.addWidget(self.metadaten_label)
 
         pfad = d.get("ordner") if d.get("typ") == "mail" and d.get("format") == "mbox" else d.get("pfad")
-        self.pfad_label = self._label(escape(pfad or ""), "color: #888888; font-size: 11px;")
+        self.pfad_label = self._label(escape(pfad or ""), "color: $grau_88; font-size: 11px;")
         lay.addWidget(self.pfad_label)
 
         for s in d.get("stellen") or []:
             beschriftung = stellen_beschriftung(d, s.get("seite"))
-            link = (f'<a href="seite:{s.get("seite")}" style="color:#2563eb; text-decoration:none;">'
+            link = (f'<a href="seite:{s.get("seite")}" style="color:{farbe("blau_kraeftig")}; text-decoration:none;">'
                     f"{escape(beschriftung)}</a>&nbsp; ") if beschriftung else ""
             lbl = self._label(link + markiert_html(s.get("text") or ""), links=bool(link))
             lbl.linkActivated.connect(self._link_aktiviert)
@@ -327,14 +329,14 @@ class TrefferKarte(QFrame):
             self.stellen_labels.append(lbl)
 
         if d.get("im_namen") and not d.get("stellen"):
-            lay.addWidget(self._label(tr("(Treffer im Datei-/Ordnernamen)"), "color: #888888; font-size: 11px;"))
+            lay.addWidget(self._label(tr("(Treffer im Datei-/Ordnernamen)"), "color: $grau_88; font-size: 11px;"))
         if (d.get("treffer_seiten") or 0) > len(d.get("stellen") or []):
             lay.addWidget(self._label(tr("… insgesamt {treffer_seiten} Seiten mit Treffern").format(treffer_seiten=d['treffer_seiten']),
-                                      "color: #888888; font-size: 11px;"))
+                                      "color: $grau_88; font-size: 11px;"))
 
     def set_ausgewaehlt(self, an: bool) -> None:
         self._ausgewaehlt = an
-        self.setStyleSheet(self._STIL.format(rand="2px solid #2563eb" if an else "1px solid palette(mid)"))
+        stil(self, self._STIL.format(rand="2px solid $blau_kraeftig" if an else "1px solid palette(mid)"))
 
     def ist_ausgewaehlt(self) -> bool:
         return self._ausgewaehlt
@@ -436,7 +438,7 @@ class SearchView(QWidget):
         # Hinweis, solange die Suche nicht eingerichtet ist
         self.hinweis = QFrame()
         self.hinweis.setObjectName("suchHinweis")
-        self.hinweis.setStyleSheet("QFrame#suchHinweis { background: #fff8e1; border: 1px solid #f0d58c; "
+        stil(self.hinweis, "QFrame#suchHinweis { background: $hinweis_flaeche; border: 1px solid $hinweis_rand; "
                                    "border-radius: 6px; }")
         h = QHBoxLayout(self.hinweis)
         h.setContentsMargins(12, 8, 12, 8)
@@ -465,7 +467,7 @@ class SearchView(QWidget):
         status = QHBoxLayout()
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet("color: #666666; font-size: 11px;")
+        stil(self.status_label, "color: $grau_66; font-size: 11px;")
         status.addWidget(self.status_label, 1)
         self.refresh_button = QToolButton()
         self.refresh_button.setText("↻")
@@ -591,7 +593,7 @@ class SearchView(QWidget):
         lay.addLayout(filter3)
 
         self.count_label = QLabel("")
-        self.count_label.setStyleSheet("color: #666666;")
+        stil(self.count_label, "color: $grau_66;")
         self.count_label.setWordWrap(True)
         lay.addWidget(self.count_label)
 
@@ -606,7 +608,7 @@ class SearchView(QWidget):
         self.hilfe_label = QLabel(HILFE_HTML)
         self.hilfe_label.setWordWrap(True)
         self.hilfe_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        self.hilfe_label.setStyleSheet("color: #444444; padding: 8px;")
+        stil(self.hilfe_label, "color: $grau_44; padding: 8px;")
         self.treffer_layout.addWidget(self.hilfe_label)
         self.mehr_button = QPushButton(tr("Weitere Treffer laden"))
         self.mehr_button.setVisible(False)
@@ -629,7 +631,7 @@ class SearchView(QWidget):
         self.titel_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(self.titel_label)
         self.pfad_label = QLabel("")
-        self.pfad_label.setStyleSheet("color: #888888; font-size: 11px;")
+        stil(self.pfad_label, "color: $grau_88; font-size: 11px;")
         self.pfad_label.setWordWrap(True)
         self.pfad_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(self.pfad_label)
@@ -657,7 +659,7 @@ class SearchView(QWidget):
         self.eml_button.setVisible(False)
 
         self.meldung_label = QLabel("")
-        self.meldung_label.setStyleSheet("color: #9a3412;")
+        stil(self.meldung_label, "color: $rost_text;")
         self.meldung_label.setWordWrap(True)
         self.meldung_label.setVisible(False)
         lay.addWidget(self.meldung_label)
@@ -667,7 +669,7 @@ class SearchView(QWidget):
                                        "Office-Dateien, Markdown und Mails als Text."))
         self.vorschau_hinweis.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.vorschau_hinweis.setWordWrap(True)
-        self.vorschau_hinweis.setStyleSheet("color: #888888; padding: 16px;")
+        stil(self.vorschau_hinweis, "color: $grau_88; padding: 16px;")
         self.vorschau_stack.addWidget(self.vorschau_hinweis)
         self.pdf_vorschau = PdfPreviewWidget(self, compact=False)
         self.pdf_vorschau.document_loaded.connect(self._pdf_geladen)
@@ -1026,7 +1028,7 @@ class SearchView(QWidget):
         self._pdf_pfad = None
         self._pending_seite = None
         self._vorschau_generation += 1
-        self.text_vorschau.setHtml(tr("<p style='color:#888888'>Lade Text …</p>"))
+        self.text_vorschau.setHtml(css(tr("<p style='color:$grau_88'>Lade Text …</p>")))
         self.vorschau_stack.setCurrentWidget(self.text_vorschau)
         thread = DokumentLaden(self.index, self._vorschau_generation, int(d["id"]),
                                self.angezeigte_abfrage or None, self)

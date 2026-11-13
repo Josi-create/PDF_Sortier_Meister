@@ -51,6 +51,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.gui.chat_worker import ChatWorker
+from src.gui.farben import farbe, stil
 from src.rag.bezug import Bezug, schnellfragen_liste
 from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController
 from src.i18n import tr
@@ -58,17 +59,17 @@ from src.i18n import tr
 
 # Stylesheet-Schnipsel fuer die verschiedenen Bubble-Rollen.
 _BUBBLE_STYLES = {
-    "user": "background-color: #d6eaff; border-radius: 8px; padding: 8px;",
-    "assistant": "background-color: #ececec; border-radius: 8px; padding: 8px; color: #202020;",
-    "error": "background-color: #ffd6d6; border-radius: 8px; padding: 8px; color: #8a1f1f;",
-    "system": "background-color: #f0f0f0; border-radius: 8px; padding: 6px; color: #555555;",
+    "user": "background-color: $chat_frage_flaeche; border-radius: 8px; padding: 8px;",
+    "assistant": "background-color: $grau_ec; border-radius: 8px; padding: 8px; color: $grau_20;",
+    "error": "background-color: $rot_flaeche_chat; border-radius: 8px; padding: 8px; color: $rot_text_dunkel;",
+    "system": "background-color: $grau_f0; border-radius: 8px; padding: 6px; color: $grau_55;",
 }
 
 # Arbeitsschritte der Werkzeug-Schleife (Issue #166/#167): eine kompakte Zeile
 # je Werkzeugaufruf, Fehler-Schritte in der Fehlerfarbe der Fehler-Bubble.
 _SCHRITT_STYLES = {
-    "schritt": "background-color: #f0f0f0; border-radius: 6px; padding: 3px 6px; color: #555555;",
-    "fehler": "background-color: #ffd6d6; border-radius: 6px; padding: 3px 6px; color: #8a1f1f;",
+    "schritt": "background-color: $grau_f0; border-radius: 6px; padding: 3px 6px; color: $grau_55;",
+    "fehler": "background-color: $rot_flaeche_chat; border-radius: 6px; padding: 3px 6px; color: $rot_text_dunkel;",
 }
 
 # Symbol je Werkzeug (Namen wie in src/rag/werkzeuge.py); unbekannt -> 🔧
@@ -99,7 +100,7 @@ _ROLLE_KOPFZEILE = Qt.ItemDataRole.UserRole + 3
 
 # Chip "Bezug: <Datei>  ✕" ueber dem Eingabefeld (Issue #148)
 _BEZUG_CHIP_STYLE = (
-    "QFrame#bezugChip { background-color: #e7f0fb; border: 1px solid #b6cdea; "
+    "QFrame#bezugChip { background-color: $bezug_flaeche; border: 1px solid $bezug_rand; "
     "border-radius: 10px; }"
 )
 
@@ -223,9 +224,9 @@ class ChatView(QWidget):
         # Banner (oben, standardmaessig versteckt)
         self.banner = QLabel(_BANNER_TEXT)
         self.banner.setWordWrap(True)
-        self.banner.setStyleSheet(
-            "background-color: #fff3cd; color: #664d03; "
-            "border: 1px solid #ffe69c; border-radius: 6px; padding: 6px;"
+        stil(self.banner,
+            "background-color: $gelb_flaeche; color: $warnung_text; "
+            "border: 1px solid $warnung_rand; border-radius: 6px; padding: 6px;"
         )
         self.banner.setVisible(False)
         layout.addWidget(self.banner)
@@ -292,7 +293,7 @@ class ChatView(QWidget):
         chip_row.setContentsMargins(0, 0, 0, 0)
         self.bezug_chip = QFrame()
         self.bezug_chip.setObjectName("bezugChip")
-        self.bezug_chip.setStyleSheet(_BEZUG_CHIP_STYLE)
+        stil(self.bezug_chip, _BEZUG_CHIP_STYLE)
         chip_layout = QHBoxLayout(self.bezug_chip)
         chip_layout.setContentsMargins(8, 2, 2, 2)
         chip_layout.setSpacing(4)
@@ -321,7 +322,7 @@ class ChatView(QWidget):
             self.schnellfragen_toggle.setCheckable(True)
             self.schnellfragen_toggle.setAutoRaise(True)
             self.schnellfragen_toggle.setToolTip(tr("Schnellfragen ein-/ausklappen"))
-            self.schnellfragen_toggle.setStyleSheet("QToolButton { color: #555555; padding: 2px 4px; }")
+            stil(self.schnellfragen_toggle, "QToolButton { color: $grau_55; padding: 2px 4px; }")
             self.schnellfragen_toggle.toggled.connect(self._on_schnellfragen_toggle)
             bezug_layout.addWidget(self.schnellfragen_toggle, 0, Qt.AlignmentFlag.AlignLeft)
             self.schnellfragen_box = QWidget()
@@ -366,7 +367,7 @@ class ChatView(QWidget):
 
         # Status-Zeile
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #666666;")
+        stil(self.status_label, "color: $grau_66;")
         layout.addWidget(self.status_label)
 
     # ------------------------------------------------------------------ #
@@ -396,7 +397,7 @@ class ChatView(QWidget):
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
-        bubble.setStyleSheet(
+        stil(bubble,
             _BUBBLE_STYLES.get(role, _BUBBLE_STYLES["system"])
         )
         self._bubble_breite(bubble)
@@ -459,7 +460,7 @@ class ChatView(QWidget):
             if idx in valid_indices:
                 return (
                     f'<a href="{idx}" style="text-decoration:none;'
-                    f'color:#1a5fb4;font-weight:bold;">{match.group(0)}</a>'
+                    f'color:{farbe("blau_text")};font-weight:bold;">{match.group(0)}</a>'
                 )
             return match.group(0)
 
@@ -666,7 +667,7 @@ class ChatView(QWidget):
         knopf.setAutoRaise(True)
         knopf.setToolTip(tr("Werkzeugaufrufe der KI ein-/ausblenden"))
         knopf.setProperty("arbeitsschritte", True)
-        knopf.setStyleSheet("QToolButton { color: #555555; padding: 2px 4px; }")
+        stil(knopf, "QToolButton { color: $grau_55; padding: 2px 4px; }")
         aussen.addWidget(knopf, 0, Qt.AlignmentFlag.AlignLeft)
 
         box = QWidget()
@@ -720,7 +721,7 @@ class ChatView(QWidget):
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        bubble.setStyleSheet(_SCHRITT_STYLES["fehler" if fehler else "schritt"])
+        stil(bubble, _SCHRITT_STYLES["fehler" if fehler else "schritt"])
         self._bubble_breite(bubble)
         bubble.setText(f"{symbol} {escape(text)}")
         bubble.setProperty("schritt", True)
@@ -743,11 +744,11 @@ class ChatView(QWidget):
 
         html = (
             f'<a href="{escape(doc.file_path)}" '
-            f'style="text-decoration:none;color:#1a5fb4;font-weight:bold;">'
+            f'style="text-decoration:none;color:{farbe("blau_text")};font-weight:bold;">'
             f"{header}</a>"
         )
         if snippet:
-            html += f'<br><span style="color:#555555;">{snippet}</span>'
+            html += f'<br><span style="color:{farbe("grau_55")};">{snippet}</span>'
 
         bubble = QLabel()
         bubble.setWordWrap(True)
@@ -757,7 +758,7 @@ class ChatView(QWidget):
         bubble.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
-        bubble.setStyleSheet(_BUBBLE_STYLES["assistant"])
+        stil(bubble, _BUBBLE_STYLES["assistant"])
         self._bubble_breite(bubble)
         bubble.setText(html)
         bubble.linkActivated.connect(
@@ -1495,7 +1496,7 @@ def _markdown_zu_html(text: str, citations) -> str:
         inhalt = inhalt.replace("color:#0000ff;", "")
         if href in gueltig:
             return (
-                f'<a href="{href}" style="text-decoration:none;color:#1a5fb4;'
+                f'<a href="{href}" style="text-decoration:none;color:{farbe("blau_text")};'
                 f'font-weight:bold;">{inhalt}</a>'
             )
         return inhalt
