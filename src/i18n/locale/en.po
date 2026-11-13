@@ -2233,6 +2233,7 @@ msgid "„{name}“ gibt es nicht mehr unter {parent}"
 msgstr "“{name}” no longer exists in {parent}"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Den Ordner {ziel} gibt es nicht mehr"
 msgstr "The folder {ziel} no longer exists"
 
@@ -2617,6 +2618,10 @@ msgstr "Parent folder"
 #: src/gui/main_window.py
 msgid "Ein Verzeichnis nach oben (wie im Dateimanager)"
 msgstr "Up one folder (as in the file manager)"
+
+#: src/gui/main_window.py
+msgid "Zuletzt verschoben nach"
+msgstr "Last moved to"
 
 #: src/gui/main_window.py
 msgid "Dokumentensuche..."
@@ -3272,10 +3277,12 @@ msgid "„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)"
 msgstr "“{name}” is not visible in the list (filter active?)"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Im Ordner angezeigt: {name}"
 msgstr "Shown in folder: {name}"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Ordner geöffnet: {name}"
 msgstr "Folder opened: {name}"
 
@@ -7563,6 +7570,22 @@ msgstr "Type the period freely, empty = no limit.\nExamples: 2024 · 12/2024 · 
 #: src/gui/zeitraum_feld.py
 msgid "Zeitraum, z. B. 2004-2006"
 msgstr "Period, e.g. 2004-2006"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "Zuletzt verschoben nach: {name}"
+msgstr "Last moved to: {name}"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "{pfad}\nKlick: Ordner links öffnen und die verschobenen Dateien markieren.\nRechtsklick: frühere Ziele."
+msgstr "{pfad}\nClick: open the folder on the left and select the moved files.\nRight-click: earlier destinations."
+
+#: src/gui/zuletzt_verschoben.py
+msgid "Noch nichts verschoben"
+msgstr "Nothing moved yet"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "{anzahl} verschobene Dateien in „{name}“ markiert"
+msgstr "{anzahl} moved files selected in “{name}”"
 
 #: src/ml/classifier.py
 msgid "Ähnlicher Inhalt ({0}%)"

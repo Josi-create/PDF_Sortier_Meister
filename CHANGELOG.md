@@ -101,6 +101,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Umwandlung in PDF zeigen das Bild gedreht. Für TIFF, GIF, WEBP und HEIC gibt es den Eintrag
   nicht, weil das Drehen dort die Qualität oder weitere Seiten kosten könnte. Eine Bildverwaltung
   ist das nicht: Es gibt nur das Drehen.
+- **Zuletzt verschoben nach …** (#253): Nach dem Verschieben steht der Zielordner unten in der
+  Statusleiste. Ein Klick darauf öffnet ihn links und markiert die gerade verschobenen Dateien;
+  frühere Ziele zeigt der Rechtsklick oder „Ansicht → Zuletzt verschoben nach“.
 
 ## [0.27.0] - 2026-11-12
 
