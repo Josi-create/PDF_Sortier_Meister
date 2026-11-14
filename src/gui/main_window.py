@@ -1452,15 +1452,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def _precache_progress(self) -> tuple[int, int, int]:
         """Liefert (analysiert, mit KI-Vorschlägen, gesamt) für die geladenen PDFs."""
-        total = analyzed = llm_done = 0
-        for widget in self.pdf_widgets:
-            total += 1
-            result = self.pdf_cache.get(widget.pdf_path)
-            if result:
-                analyzed += 1
-                if result.llm_fetched:
-                    llm_done += 1
-        return analyzed, llm_done, total
+        # Ohne Dateizugriffe: wird bei jeder fertigen Analyse und jedem KI-Aufruf gerufen
+        pfade = [widget.pdf_path for widget in self.pdf_widgets]
+        analyzed, llm_done = self.pdf_cache.fortschritt(pfade)
+        return analyzed, llm_done, len(pfade)
 
     def _on_llm_activity_changed(self):
         """KI-Aufruf hat begonnen oder geendet: Uhr starten/stoppen."""
@@ -3931,6 +3926,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.selected_pdfs = []
             entfernt = self.originale_nach_zusammenfuegen(pdfs_to_merge, merged_path)
             self.load_pdfs()
+            # Das neue PDF vor allen wartenden auswerten (wie beim Stapeln per Ziehen)
+            self.pdf_cache.vorziehen(merged_path, mit_ki=bool(self.config.get("llm_precache_enabled", True)))
             # Erst nach dem Neuladen: load_pdfs schreibt selbst in die Statuszeile
             if entfernt:
                 self.statusbar.showMessage(
@@ -3999,7 +3996,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         for widget in self.pdf_widgets:
             if widget.pdf_path == target:
                 widget.load_thumbnail()
+                widget.has_ai_suggestion = False  # der alte Vorschlag galt dem alten Inhalt
                 break
+        # Analyse und KI-Vorschlag des Stapels vor allen wartenden PDFs: sonst stuende er hinter
+        # der ganzen Vorabfrage des Ordners und bekaeme lange (oder mit dem alten Text) nichts
+        self.pdf_cache.vorziehen(target, mit_ki=bool(self.config.get("llm_precache_enabled", True)))
         # Stapel auswaehlen (ein Klick auf die schon gewaehlte PDF wuerde abwaehlen)
         if self.selected_pdf != target or self.selected_pdfs:
             self.on_pdf_clicked(target)
