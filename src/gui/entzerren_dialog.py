@@ -1,8 +1,11 @@
 """Fenster zum Entzerren fotografierter Dokumente von Hand (Issue #205).
 
 Links das Foto mit vier ziehbaren Eckpunkten und dem verbindenden Viereck, rechts die
-Vorschau des entzerrten Ergebnisses (aktualisiert sich beim Loslassen einer Ecke oder
-kurz nach dem Ziehen). Die Ecken sind mit der automatischen Erkennung vorbelegt. Bei
+Vorschau des entzerrten Ergebnisses. Sie wird erst beim Loslassen einer Ecke neu berechnet -
+waehrend des Ziehens wuerde die Rechnung die Maus ausbremsen. Die Ecken sind mit der
+automatischen Erkennung vorbelegt. Ist das Blatt angeschnitten fotografiert, zeigt "Foto
+verkleinern" einen Rand um das Foto, in den man die fehlende Ecke ziehen kann (die Verlaengerung
+der beiden sichtbaren Kanten trifft sie recht genau); der fehlende Zipfel wird weiss. Bei
 mehreren Bildern blaettert man mit "Zurueck" und "Weiter", jedes Bild hat eigene Ecken;
 "Uebernehmen" gilt fuer alle Bilder des Fensters, die Tonwerte ebenso.
 
@@ -17,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QPointF, Qt, QTimer
+from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import (
     QApplication,
@@ -26,6 +29,7 @@ from PyQt6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsPixmapItem,
     QGraphicsPolygonItem,
+    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -50,7 +54,7 @@ from src.i18n import tr
 
 ARBEIT_PX = 1600        # laengste Seite der Anzeigekopie des Fotos
 VORSCHAU_PX = 900       # laengste Seite der Vorschau rechts
-VORSCHAU_VERZOEGERUNG = 300  # ms nach dem letzten Ziehen
+RAND_ANTEIL = 0.35      # "Foto verkleinern": Rand um das Foto (Anteil der laengeren Seite) fuer Ecken ausserhalb
 ECKEN_RADIUS = 11       # Pixel am Bildschirm (unabhaengig vom Zoom)
 FENSTER_ANTEIL = 0.92   # Anteil des verfuegbaren Bildschirms
 
@@ -63,7 +67,7 @@ def _qimage(bild) -> QImage:
 
 
 class _Eckpunkt(QGraphicsEllipseItem):
-    """Ziehbare Ecke; haelt sich im Bild und meldet jede Bewegung dem Fenster."""
+    """Ziehbare Ecke; haelt sich im Bild (oder im Rand darum) und meldet jede Bewegung dem Fenster."""
 
     def __init__(self, nummer: int, fenster: "EntzerrenDialog"):
         r = ECKEN_RADIUS
@@ -83,7 +87,7 @@ class _Eckpunkt(QGraphicsEllipseItem):
 
     def itemChange(self, aenderung, wert):
         if aenderung == QGraphicsEllipseItem.GraphicsItemChange.ItemPositionChange and self._fenster is not None:
-            grenzen = self._fenster._szene.sceneRect()
+            grenzen = self._fenster._grenzen()
             wert = QPointF(min(max(wert.x(), grenzen.left()), grenzen.right()),
                            min(max(wert.y(), grenzen.top()), grenzen.bottom()))
         ergebnis = super().itemChange(aenderung, wert)
@@ -161,13 +165,17 @@ class _Eintrag:
             bild = bild.resize((round(bild.width / self.faktor), round(bild.height / self.faktor)),
                                Image.Resampling.LANCZOS)
         self.klein = bild
-        b, h = self.groesse
-        # Die Erkennung darf eine Blattecke knapp ausserhalb des Fotos setzen; im Fenster muss jeder
-        # Anfasser greifbar bleiben, also an den Bildrand
-        self.automatisch = [(min(max(float(x), 0.0), b), min(max(float(y), 0.0), h)) for x, y in self.vorgabe] \
+        # Die Erkennung darf eine Blattecke knapp ausserhalb des Fotos setzen (Blatt angeschnitten);
+        # das Fenster zeigt dann von selbst den Rand um das Foto, damit der Anfasser greifbar ist
+        self.automatisch = [(float(x), float(y)) for x, y in self.vorgabe] \
             if self.vorgabe else standard_ecken(*self.groesse)
         if not self.ecken:
             self.ecken = list(self.automatisch)
+
+    def ausserhalb(self) -> bool:
+        """True, wenn eine Ecke ausserhalb des Fotos liegt."""
+        b, h = self.groesse
+        return any(x < 0 or y < 0 or x > b or y > h for x, y in self.ecken)
 
 
 class EntzerrenDialog(QDialog):
@@ -187,6 +195,12 @@ class EntzerrenDialog(QDialog):
         self._szene = QGraphicsScene(self)
         self._foto_item = QGraphicsPixmapItem()
         self._szene.addItem(self._foto_item)
+        self._rand_item = QGraphicsRectItem()  # hellerer Rand um das Foto ("Foto verkleinern")
+        self._rand_item.setPen(QPen(Qt.PenStyle.NoPen))
+        self._rand_item.setBrush(QBrush(QColor(96, 96, 96)))
+        self._rand_item.setZValue(-1)
+        self._rand_item.setVisible(False)
+        self._szene.addItem(self._rand_item)
         self._viereck = QGraphicsPolygonItem()
         self._viereck.setPen(QPen(QColor(255, 190, 0), 2, Qt.PenStyle.DashLine))
         self._viereck.setBrush(QBrush(QColor(255, 190, 0, 40)))
@@ -205,7 +219,9 @@ class EntzerrenDialog(QDialog):
         self._kopf = QLabel()
         self._kopf.setStyleSheet("font-weight: bold;")
         self._hinweis = QLabel(
-            tr("Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis.")
+            tr("Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie nach dem Loslassen "
+               "das entzerrte Ergebnis. Fehlt eine Ecke auf dem Foto: „Foto verkleinern“ wählen und die Ecke "
+               "dorthin ziehen, wo sich die beiden Blattkanten treffen würden.")
         )
         self._hinweis.setWordWrap(True)
         self._status = QLabel()
@@ -225,6 +241,13 @@ class EntzerrenDialog(QDialog):
         self.weiter_knopf = QPushButton(tr("Weiter ▶"))
         self.zuruecksetzen_knopf = QPushButton(tr("Zurücksetzen (automatisch)"))
         self.zuruecksetzen_knopf.setToolTip(tr("Die Ecken dieses Bildes auf die automatische Erkennung zurücksetzen"))
+        self.rand_knopf = QPushButton(tr("Foto verkleinern"))
+        self.rand_knopf.setCheckable(True)
+        self.rand_knopf.setToolTip(
+            tr("Zeigt einen Rand um das Foto. Dorthin lässt sich eine Ecke ziehen, die auf dem Foto fehlt, "
+               "weil das Blatt angeschnitten ist. Der fehlende Zipfel wird weiß.")
+        )
+        self.rand_knopf.toggled.connect(self._rand_geschaltet)
         self.uebernehmen_knopf = QPushButton(tr("Übernehmen"))
         self.uebernehmen_knopf.setDefault(True)
         self.abbrechen_knopf = QPushButton(tr("Abbrechen"))
@@ -248,6 +271,7 @@ class EntzerrenDialog(QDialog):
         unten.addWidget(self.tonwerte_combo)
         unten.addSpacing(12)
         unten.addWidget(self.zuruecksetzen_knopf)
+        unten.addWidget(self.rand_knopf)
         unten.addStretch(1)
         unten.addWidget(self.zurueck_knopf)
         unten.addWidget(self.weiter_knopf)
@@ -287,13 +311,18 @@ class EntzerrenDialog(QDialog):
         try:
             if e.klein is None:
                 self._foto_item.setPixmap(QPixmap())
+                self._rand_item.setVisible(False)
                 self._szene.setSceneRect(0, 0, 10, 10)
                 for p in self._punkte:
                     p.setVisible(False)
                 self._viereck.setVisible(False)
             else:
                 self._foto_item.setPixmap(QPixmap.fromImage(_qimage(e.klein)))
-                self._szene.setSceneRect(0, 0, e.klein.width, e.klein.height)
+                if e.ausserhalb() and not self.rand_knopf.isChecked():
+                    self.rand_knopf.blockSignals(True)  # sonst liefe die Umschaltung mitten im Laden
+                    self.rand_knopf.setChecked(True)
+                    self.rand_knopf.blockSignals(False)
+                self._szene_einrichten()
                 for p in self._punkte:
                     p.setVisible(True)
                 self._viereck.setVisible(True)
@@ -314,6 +343,7 @@ class EntzerrenDialog(QDialog):
                   if e.pfad in self._unsicher else "")
         )
         self.zuruecksetzen_knopf.setEnabled(e.klein is not None)
+        self.rand_knopf.setEnabled(e.klein is not None)
         self._ansicht.fitInView(self._szene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         self._vorschau_aktualisieren()
 
@@ -325,6 +355,43 @@ class EntzerrenDialog(QDialog):
         if e.klein is None:
             return
         e.ecken = [(p.pos().x() * e.faktor, p.pos().y() * e.faktor) for p in self._punkte]
+
+    def _foto_rechteck(self) -> QRectF:
+        e = self._eintrag()
+        return QRectF(0, 0, e.klein.width, e.klein.height) if e.klein is not None else QRectF(0, 0, 10, 10)
+
+    def _grenzen(self) -> QRectF:
+        """Bereich, in dem die Ecken liegen duerfen: das Foto, mit "Foto verkleinern" samt Rand."""
+        foto = self._foto_rechteck()
+        if not self.rand_knopf.isChecked() or self._eintrag().klein is None:
+            return foto
+        rand = RAND_ANTEIL * max(foto.width(), foto.height())
+        return foto.adjusted(-rand, -rand, rand, rand)
+
+    def _szene_einrichten(self):
+        """Szene = Foto, mit "Foto verkleinern" samt sichtbarem Rand."""
+        grenzen = self._grenzen()
+        self._rand_item.setRect(grenzen)
+        self._rand_item.setVisible(grenzen != self._foto_rechteck())
+        self._szene.setSceneRect(grenzen)
+
+    def _rand_geschaltet(self, _an: bool):
+        e = self._eintrag()
+        if e.klein is None:
+            return
+        self._szene_einrichten()
+        # Ohne Rand muessen alle Ecken wieder im Foto liegen
+        grenzen = self._grenzen()
+        self._laedt = True
+        try:
+            for p in self._punkte:
+                p.setPos(min(max(p.pos().x(), grenzen.left()), grenzen.right()),
+                         min(max(p.pos().y(), grenzen.top()), grenzen.bottom()))
+            self._viereck_zeichnen()
+        finally:
+            self._laedt = False
+        self._ansicht.fitInView(self._szene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self._vorschau_aktualisieren()
 
     def _blaettern(self, schritt: int):
         neu = self._aktuell + schritt
@@ -339,8 +406,7 @@ class EntzerrenDialog(QDialog):
     def _ecke_bewegt(self, _nummer: int):
         if self._laedt:
             return
-        self._viereck_zeichnen()
-        self._vorschau_planen(VORSCHAU_VERZOEGERUNG)
+        self._viereck_zeichnen()  # die Vorschau folgt erst beim Loslassen (sonst ruckelt das Ziehen)
 
     def _ecke_losgelassen(self):
         self._vorschau_planen(0)

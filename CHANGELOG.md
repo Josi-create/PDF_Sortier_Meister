@@ -41,6 +41,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Windows-Fassung erst vergrößert und unscharf, wurde kurz vor dem Hauptfenster kleiner und
   rutschte nach links oben. Es hat jetzt von Anfang an dieselbe Größe und bleibt in der
   Bildschirmmitte. Beim Start aus dem Quelltext und unter macOS ist es bei jeder Skalierung scharf.
+### Neu
+- **Foto entzerren: Ecke außerhalb des Fotos setzen**: Ist ein Blatt angeschnitten fotografiert,
+  fehlt eine Ecke auf dem Bild. Im Fenster „Foto entzerren“ zeigt der neue Knopf „Foto
+  verkleinern“ einen Rand um das Foto. Dorthin zieht man die fehlende Ecke, an die Stelle, an der
+  sich die beiden sichtbaren Blattkanten treffen würden. Der fehlende Zipfel wird im Ergebnis
+  weiß. Setzt schon die automatische Erkennung eine Ecke knapp neben das Foto, ist der Rand von
+  selbst eingeschaltet.
+
+### Geändert
+- **Foto entzerren: Ziehen der Ecken ruckelt nicht mehr**: Die Vorschau rechts wird erst
+  berechnet, wenn die Maustaste losgelassen wird, nicht mehr schon während des Ziehens. Das
+  gelbe Viereck folgt der Maus weiterhin sofort.
 
 ## [0.28.0] - 2026-11-13
 
