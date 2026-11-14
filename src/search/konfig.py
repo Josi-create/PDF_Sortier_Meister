@@ -28,7 +28,7 @@ DREH_STUFEN = TEXTEBENE_STUFEN
 GERADE_STUFEN = TEXTEBENE_STUFEN
 
 STANDARD_ENDUNGEN = (
-    ".pdf", ".md", ".eml", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
+    ".pdf", ".md", ".eml", ".emlx", ".msg", ".docx", ".docm", ".doc", ".xlsx", ".xlsm", ".xls", ".odt",
 )
 
 # Ordnernamen, die ueberall uebersprungen werden (Gross-/Kleinschreibung egal).
@@ -79,7 +79,7 @@ class SearchConfig:
         cloud_herunterladen: Nur in der Cloud liegende Dateien (OneDrive, iCloud)
             herunterladen? Sonst nur mit Namen aufnehmen.
         max_dateigroesse_mb: groessere Dateien werden nur mit Namen aufgenommen.
-        mails_aktiv / mail_ordner: Thunderbird-Postfaecher (mbox).
+        mails_aktiv / mail_ordner: Thunderbird-Postfaecher (mbox) und Apple Mail (.emlx).
         ocr_*: Texterkennung; ``ocr_tesseract`` leer = automatisch suchen.
         prozesse: Arbeitsprozesse (0 = halbe Kernzahl, hoechstens 8).
         hintergrund_*: taegliche Hintergrundindexierung (Aufgabenplanung / LaunchAgent).
@@ -235,12 +235,13 @@ class SearchConfig:
 
     def mail_ordner_effektiv(self) -> list[str]:
         """Postfach-Ordner fuer den Lauf: die konfigurierten, sonst ``Mail/`` und
-        ``ImapMail/`` des Thunderbird-Standardprofils (``plattform.thunderbird_mail_ordner``)."""
+        ``ImapMail/`` des Thunderbird-Standardprofils (``plattform.thunderbird_mail_ordner``)
+        und auf dem Mac der Ordner von Apple Mail (``plattform.apple_mail_ordner``)."""
         if self.mail_ordner:
             return list(self.mail_ordner)
-        from src.search.plattform import thunderbird_mail_ordner
+        from src.search.plattform import apple_mail_ordner, thunderbird_mail_ordner
 
-        return [norm_pfad(p) for p in thunderbird_mail_ordner()]
+        return [norm_pfad(p) for p in (*thunderbird_mail_ordner(), *apple_mail_ordner())]
 
     def ocr_einstellungen(self) -> dict:
         """Einstellungen fuer ``extract.pdf_ocr`` (picklebar, fuer die Arbeitsprozesse).

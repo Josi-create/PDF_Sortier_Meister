@@ -92,7 +92,7 @@ one; settings and learned data are kept. A portable ZIP is on the
 
 ### Document search across the whole PC
 - **Full-text search** in PDFs (including scans), Word, Excel, OpenDocument, Markdown and mails
-  (Thunderbird, `.eml`, `.msg`) in the folders and drives you choose; off by default
+  (Thunderbird, on the Mac also Apple Mail, plus `.eml` and `.msg` files, e.g. saved from Outlook) in the folders and drives you choose; off by default
 - Runs **once a day in the background** when the computer is idle
 - Optional invisible **text layer** for new scans, rotation and straightening — always with a backup copy
 - **AI assistants (MCP)**: Claude Code, Claude Desktop and other MCP-capable programs can search the

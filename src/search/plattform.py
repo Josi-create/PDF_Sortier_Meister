@@ -509,8 +509,7 @@ def thunderbird_profile(profiles_ini: Path | str | None = None) -> list[Thunderb
     ``[ProfileN]``: ``Name``, ``Path``, ``IsRelative`` (0 = absoluter Pfad, z. B.
     ein Profil auf einem anderen Laufwerk), ``Default=1``. Neuere Versionen
     fuehren das Standardprofil je Installation in ``[InstallXXXX]`` mit
-    ``Default=<Pfad>``; dieser Eintrag hat Vorrang. Apple Mail (``.emlx``) ist
-    nur vorgemerkt, nicht umgesetzt.
+    ``Default=<Pfad>``; dieser Eintrag hat Vorrang. Apple Mail: ``apple_mail_ordner``.
     """
     ini = Path(profiles_ini) if profiles_ini else thunderbird_basis() / "profiles.ini"
     if not ini.is_file():
@@ -556,6 +555,68 @@ def thunderbird_mail_ordner(profiles_ini: Path | str | None = None) -> list[str]
         return []
     profil = profile[0]
     return [str(profil.pfad / n) for n in ("Mail", "ImapMail") if (profil.pfad / n).is_dir()]
+
+
+def apple_mail_ordner() -> list[str]:
+    """Ordner von Apple Mail (``~/Library/Mail``, jede Mail eine ``.emlx``-Datei); nur auf dem Mac, sonst leer."""
+    if sys.platform != "darwin":
+        return []
+    p = _home() / "Library" / "Mail"
+    return [str(p)] if p.is_dir() else []
+
+
+def ordner_lesbar(pfad: str) -> bool:
+    """Darf der Ordner gelesen werden? Auf dem Mac verweigert das System ``~/Library/Mail``,
+    solange das Programm keinen Festplattenvollzugriff hat."""
+    try:
+        with os.scandir(pfad) as it:
+            next(it, None)
+        return True
+    except OSError:
+        return False
+
+
+def mail_quellen_hinweis() -> tuple[bool, str]:
+    """``(gefunden, Text)`` fuer Einstellungen und Einrichtung: welche Mailprogramme erkannt wurden."""
+    try:
+        thunderbird = thunderbird_mail_ordner()
+    except Exception:
+        thunderbird = []
+    apple = apple_mail_ordner()
+    zeilen = []
+    if thunderbird:
+        zeilen.append(tr("Thunderbird-Profil erkannt: {0}").format(", ".join(thunderbird)))
+    for p in apple:
+        if ordner_lesbar(p):
+            zeilen.append(tr("Apple Mail erkannt: {0}").format(p))
+        else:
+            zeilen.append(tr("Apple Mail erkannt, aber der Zugriff ist gesperrt: {0}\n"
+                             "Bitte in den Systemeinstellungen unter Datenschutz & Sicherheit → "
+                             "Festplattenvollzugriff PDF Sortier Meister erlauben und das Programm neu starten.").format(p))
+    if zeilen:
+        return True, "\n".join(zeilen)
+    if sys.platform == "darwin":
+        return False, tr("Weder Thunderbird noch Apple Mail gefunden – Postfach-Ordner unten eintragen.")
+    return False, tr("Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen.")
+
+
+def mail_hilfe_html() -> str:
+    """Anleitung "Mails aus anderen Programmen" (Einstellungen der Dokumentensuche)."""
+    return tr(
+        "<b>Welche Mails findet die Dokumentensuche?</b>"
+        "<p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p>"
+        "<p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn "
+        "erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → "
+        "Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, "
+        "danach das Programm neu starten.</p>"
+        "<p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest "
+        "PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es "
+        "trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. "
+        "Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt "
+        "<code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist "
+        "<code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender "
+        "und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
+    )
 
 
 # --------------------------------------------------------------------------- Wurzeln

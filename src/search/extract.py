@@ -747,6 +747,35 @@ def eml_text(pfad: str) -> dict:
     return mail_aus_bytes(roh)
 
 
+def emlx_roh(roh: bytes) -> bytes:
+    """Die eigentliche Mail aus einer Apple-Mail-Datei (``.emlx``).
+
+    Aufbau: erste Zeile = Laenge der Mail in Bytes (Dezimalzahl), dann die Mail
+    (RFC 822), danach eine Eigenschaftsliste von Apple Mail (XML). Steht vorn
+    keine Zahl, gilt der ganze Inhalt als Mail (wie ``.eml``).
+    """
+    nl = roh.find(b"\n", 0, 32)
+    if nl < 0:
+        return roh
+    zahl = roh[:nl].strip()
+    if not zahl.isdigit():
+        return roh
+    return roh[nl + 1:nl + 1 + int(zahl)]
+
+
+def emlx_text(pfad: str) -> dict:
+    """``.emlx`` (Apple Mail) lesen: Laengenzeile und angehaengte Eigenschaftsliste weg, dann wie ``.eml``."""
+    try:
+        with open(pfad, "rb") as f:
+            roh = f.read(MAX_MAIL_ROH + 32)
+    except Exception as e:
+        return _mail_fehler(fehlertext(e, pfad))
+    roh = emlx_roh(roh)
+    if not roh.strip():
+        return _mail_leer()
+    return mail_aus_bytes(roh)
+
+
 _KOPFZEILE = re.compile(rb"^(?:From |[A-Za-z][A-Za-z0-9-]{0,60}:[ \t])")
 _MAIL_KOEPFE = re.compile(
     rb"^(?:Subject|From|To|Date|Received|Return-Path|Message-ID|MIME-Version|Content-Type|X-[A-Za-z0-9-]+):",

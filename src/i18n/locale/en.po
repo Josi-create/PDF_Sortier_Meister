@@ -5962,24 +5962,24 @@ msgid "Auszuschließenden Ordner wählen"
 msgstr "Choose folder to exclude"
 
 #: src/gui/settings_dialog.py
-msgid "Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
-msgstr "Separated by spaces, e.g.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
+msgid "Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .emlx .msg"
+msgstr "Separated by spaces, e.g.: .pdf .md .docx .xlsx .odt .doc .xls .eml .emlx .msg"
 
 #: src/gui/settings_dialog.py
 msgid "Dateiendungen:"
 msgstr "File extensions:"
 
 #: src/gui/settings_dialog.py
-msgid "Mails (Thunderbird-Postfächer)"
-msgstr "Mails (Thunderbird mailboxes)"
+msgid "Mails (Thunderbird, Apple Mail)"
+msgstr "Mails (Thunderbird, Apple Mail)"
 
 #: src/gui/settings_dialog.py
 msgid "Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"
 msgstr "Include mails in the index (each mail separately, attachments by name only)"
 
 #: src/gui/settings_dialog.py
-msgid "Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):"
-msgstr "Mailbox folders (empty = mailboxes of the default Thunderbird profile):"
+msgid "Postfach-Ordner (leer = von selbst: Thunderbird-Standardprofil, auf dem Mac auch Apple Mail):"
+msgstr "Mailbox folders (empty = automatic: default Thunderbird profile, on the Mac also Apple Mail):"
 
 #: src/gui/settings_dialog.py
 msgid "Postfach-Ordner (Mail/, ImapMail/) wählen"
@@ -7225,8 +7225,8 @@ msgid "Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\nPDF
 msgstr "Import the settings and database of the earlier, stand-alone program\nPDFsuche. The database stays where it is."
 
 #: src/gui/setup_wizard.py
-msgid "Thunderbird-Profil gefunden: {0}"
-msgstr "Thunderbird profile found: {0}"
+msgid "Mails aus Thunderbird und Apple Mail aufnehmen"
+msgstr "Include mails from Thunderbird and Apple Mail"
 
 #: src/gui/setup_wizard.py
 msgid "Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\nEinstellungen einrichten (Postfach-Ordner angeben)."
@@ -8653,9 +8653,9 @@ msgstr "OCR of new scans: {wurzel}"
 msgid "Ordner {wurzel}"
 msgstr "Folder {wurzel}"
 
-#: src/search/indexer.py
-msgid "Thunderbird-Mails"
-msgstr "Thunderbird mails"
+#: src/search/plattform.py
+msgid "Apple Mail erkannt: {0}"
+msgstr "Apple Mail detected: {0}"
 
 #: src/search/indexer.py
 msgid "OCR-Cache ergänzen"
@@ -9545,3 +9545,27 @@ msgstr "Folder not found: {name}"
 #: src/gui/main_window.py
 msgid "Ist schon Zielordner: {name}"
 msgstr "Already a target folder: {name}"
+
+#: src/gui/settings_dialog.py
+msgid "Outlook und andere Mailprogramme…"
+msgstr "Outlook and other mail programs…"
+
+#: src/gui/settings_dialog.py
+msgid "Wie Mails aus Outlook, Apple Mail und anderen Programmen in die Suche kommen"
+msgstr "How mails from Outlook, Apple Mail and other programs get into the search"
+
+#: src/gui/settings_dialog.py
+msgid "Mails aus anderen Programmen"
+msgstr "Mails from other programs"
+
+#: src/search/plattform.py
+msgid "Apple Mail erkannt, aber der Zugriff ist gesperrt: {0}\nBitte in den Systemeinstellungen unter Datenschutz & Sicherheit → Festplattenvollzugriff PDF Sortier Meister erlauben und das Programm neu starten."
+msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortier Meister under System Settings → Privacy & Security → Full Disk Access and restart the program."
+
+#: src/search/plattform.py
+msgid "Weder Thunderbird noch Apple Mail gefunden – Postfach-Ordner unten eintragen."
+msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below."
+
+#: src/search/plattform.py
+msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
+msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"

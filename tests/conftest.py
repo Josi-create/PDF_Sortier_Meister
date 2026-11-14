@@ -113,6 +113,16 @@ def kein_echtes_mac_office(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kein_echtes_apple_mail(monkeypatch):
+    """Kein Test findet von sich aus den Apple-Mail-Ordner des Rechners (Issue #261): Auf einem
+    Mac gehoerte ``~/Library/Mail`` sonst zu den Postfach-Ordnern jeder Konfiguration. Tests der
+    Erkennung setzen die echte Funktion wieder ein."""
+    from src.search import plattform
+
+    monkeypatch.setattr(plattform, "apple_mail_ordner", lambda: [])
+
+
+@pytest.fixture(autouse=True)
 def ordner_beobachtung_ohne_takt(monkeypatch):
     """Kein Hauptfenster eines Tests liest von sich aus alle zwei Sekunden den Scan-Ordner
     (Issue #232): Kacheln entstehen und verschwinden in Tests nur durch den Test selbst.
