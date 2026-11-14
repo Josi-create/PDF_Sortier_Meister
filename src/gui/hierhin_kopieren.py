@@ -126,6 +126,8 @@ class AblageNamen:
     metadata: dict
     office_ext: Optional[str]
     dokument_id: tuple = field(default_factory=tuple)  # (Pfad, mtime) des Originals
+    # Zaehlernummer/Vertragskonto der Einheit aus dem KI-Vorschlag (Issue #257) - nur zum Lernen
+    einheit_kennung: str = ""
 
 
 class HierhinKopierenMixin:
@@ -206,7 +208,19 @@ class HierhinKopierenMixin:
             metadata=metadata,
             office_ext=office_ext,
             dokument_id=dokument_id,
+            einheit_kennung=self._einheit_kennung(pdf_path),
         )
+
+    def _einheit_kennung(self, pdf_path: Path) -> str:
+        """Zaehlernummer/Vertragskonto aus dem gecachten KI-Vorschlag der Datei (Issue #257)."""
+        try:
+            for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
+                meta = getattr(s, "metadata", None)
+                if isinstance(meta, dict) and meta.get("einheit_kennung"):
+                    return str(meta["einheit_kennung"])
+        except Exception:  # noqa: BLE001 - Zusatzwissen, nie Blocker
+            pass
+        return ""
 
     def _aus_ablage_lernen(
         self,
@@ -240,6 +254,14 @@ class HierhinKopierenMixin:
         if metadata and metadata.get("korrespondent"):
             if neu(("korrespondent", namen.dokument_id, metadata["korrespondent"])):
                 self.db.learn_korrespondent_metadata(metadata["korrespondent"], metadata)
+
+        # Issue #257: Einheit/Verbrauchsstelle -> Ordner merken (Feld "Einheit", Kennung aus der KI)
+        einheit = str((metadata or {}).get("einheit") or "")
+        if (einheit or namen.einheit_kennung) and neu(("einheit", namen.dokument_id, str(folder_path))):
+            try:
+                self.db.learn_einheit(einheit, namen.einheit_kennung, folder_path)
+            except Exception as e:  # noqa: BLE001 - Lernen ist Zusatz, die Ablage ist schon erfolgt
+                print(f"Einheit nicht gelernt: {e}")
 
         # Aus der Entscheidung lernen
         if text and neu(("sortierung", namen.dokument_id, str(folder_path))):

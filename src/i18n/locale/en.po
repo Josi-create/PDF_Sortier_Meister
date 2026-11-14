@@ -1028,6 +1028,14 @@ msgid "IBAN, falls im Dokument vorhanden."
 msgstr "IBAN, if present in the document."
 
 #: src/gui/detail_panel.py
+msgid "Einheit"
+msgstr "Unit"
+
+#: src/gui/detail_panel.py
+msgid "Wohnung bzw. Verbrauchsstelle, zu der das Dokument gehört (z. B. bei Strom, Gas,\nNebenkosten) - kann von der Rechnungsanschrift abweichen.\nBeim Ablegen merkt sich das Programm den Ordner dieser Einheit."
+msgstr "Flat or point of consumption the document belongs to (e.g. for electricity, gas,\nservice charges) - may differ from the billing address.\nWhen filing, the program remembers the folder of this unit."
+
+#: src/gui/detail_panel.py
 msgid "Steuerjahr, dem dieses Dokument zugeordnet wird."
 msgstr "Tax year this document is assigned to."
 
@@ -2451,6 +2459,22 @@ msgstr "AI suggestions for {name} entered"
 #: src/gui/main_window.py
 msgid "verknüpfte Dokumente"
 msgstr "linked documents"
+
+#: src/gui/main_window.py
+msgid "Einheit passt"
+msgstr "unit matches"
+
+#: src/core/einheiten.py
+msgid "Einheit „{name}“: gleiche Zählernummer bzw. gleiches Vertragskonto wie zuletzt hier abgelegt"
+msgstr "Unit “{name}”: same meter number or contract account as last filed here"
+
+#: src/core/einheiten.py
+msgid "Gleiche Zählernummer bzw. gleiches Vertragskonto wie zuletzt hier abgelegt"
+msgstr "Same meter number or contract account as last filed here"
+
+#: src/core/einheiten.py
+msgid "Einheit „{name}“: zuletzt hier abgelegt"
+msgstr "Unit “{name}”: last filed here"
 
 #: src/gui/main_window.py
 msgid "{provider} funktioniert gerade nicht.\n  Problem: {problem}\n  Abhilfe: {abhilfe}"
@@ -4357,6 +4381,10 @@ msgstr "Use as VAT rate"
 #: src/gui/pdf_preview_widget.py
 msgid "Als IBAN übernehmen"
 msgstr "Use as IBAN"
+
+#: src/gui/pdf_preview_widget.py
+msgid "Als Einheit übernehmen"
+msgstr "Use as unit"
 
 #: src/gui/pdf_preview_widget.py
 msgid "Als Datum übernehmen"
