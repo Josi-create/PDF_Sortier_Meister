@@ -140,6 +140,27 @@ class KorrespondentMetadata(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class EinheitZuordnung(Base):
+    """Gelernte Zuordnung Einheit/Verbrauchsstelle -> Zielordner (Issue #257).
+
+    Eine Zeile je (Einheit, Kennung, Zielordner): Wird ein Dokument einer Einheit
+    (Wohnung, Zaehler, Vertragskonto) abgelegt, merkt sich das Programm den Ordner
+    und schlaegt ihn beim naechsten Dokument derselben Einheit oben vor.
+    """
+
+    __tablename__ = "einheit_zuordnungen"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    einheit = Column(String(300), nullable=True)        # Anzeige, z.B. "Musterweg 5 Whg 2"
+    einheit_key = Column(String(300), nullable=False, default="")
+    kennung = Column(String(100), nullable=True)        # Zaehlernummer/Vertragskonto wie im Dokument
+    kennung_key = Column(String(100), nullable=False, default="")
+    target_folder = Column(String(1000), nullable=False)
+    usage_count = Column(Integer, default=1)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Korrespondent(Base):
     """Verwaltungstabelle fuer bekannte Korrespondenten (Phase 20 / Issue #21).
 
@@ -1085,6 +1106,10 @@ class Database:
                 row.target_folder = neuer_pfad(row.target_folder)
                 anzahl["rename_history"] += 1
 
+            # Issue #257: gelernte Einheiten zeigen sonst auf den alten Ordner
+            for row in session.query(EinheitZuordnung).filter(betroffen(EinheitZuordnung.target_folder)).all():
+                row.target_folder = neuer_pfad(row.target_folder)
+
             for row in session.query(TargetFolder).filter(betroffen(TargetFolder.path)).all():
                 ziel = neuer_pfad(row.path)
                 vorhanden = session.query(TargetFolder).filter(TargetFolder.path == ziel).first()
@@ -1573,6 +1598,69 @@ class Database:
                 session.add(entry)
 
             session.commit()
+        finally:
+            session.close()
+
+    # === Einheiten / Verbrauchsstellen (Issue #257) ===
+
+    def learn_einheit(self, einheit: str, kennung: str, target_folder) -> bool:
+        """Merkt sich, dass ein Dokument dieser Einheit in ``target_folder`` abgelegt wurde.
+
+        ``einheit`` ist die Bezeichnung der Verbrauchsstelle ("Musterweg 5 Whg 2"),
+        ``kennung`` Zaehlernummer oder Vertragskonto; eines von beiden genuegt.
+        Gibt False zurueck, wenn nichts zu lernen war.
+        """
+        from src.core import einheiten
+
+        einheit = einheiten.saeubern(einheit)[:300]
+        kennung = einheiten.saeubern(kennung)[:100]
+        einheit_key = einheiten.einheit_schluessel(einheit)[:300]
+        kennung_key = einheiten.kennung_schluessel(kennung)[:100]
+        if not kennung_key:
+            kennung = ""
+        ordner = str(target_folder or "").strip()
+        if not ordner or not (einheit_key or kennung_key):
+            return False
+        session = self.get_session()
+        try:
+            zeile = (
+                session.query(EinheitZuordnung)
+                .filter(EinheitZuordnung.einheit_key == einheit_key,
+                        EinheitZuordnung.kennung_key == kennung_key,
+                        EinheitZuordnung.target_folder == ordner)
+                .first()
+            )
+            if zeile is not None:
+                zeile.usage_count = (zeile.usage_count or 0) + 1
+                zeile.updated_at = datetime.utcnow()
+                if einheit:
+                    zeile.einheit = einheit
+            else:
+                session.add(EinheitZuordnung(
+                    einheit=einheit or None, einheit_key=einheit_key,
+                    kennung=kennung or None, kennung_key=kennung_key,
+                    target_folder=ordner,
+                ))
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def get_einheit_zuordnungen(self, limit: int = 500) -> list[dict]:
+        """Gelernte Zuordnungen Einheit -> Zielordner, zuletzt benutzte zuerst."""
+        session = self.get_session()
+        try:
+            zeilen = (
+                session.query(EinheitZuordnung)
+                .order_by(EinheitZuordnung.updated_at.desc(), EinheitZuordnung.id.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                {"einheit": z.einheit or "", "kennung": z.kennung or "",
+                 "target_folder": z.target_folder, "usage_count": z.usage_count or 0}
+                for z in zeilen
+            ]
         finally:
             session.close()
 

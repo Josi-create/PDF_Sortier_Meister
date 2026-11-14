@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Einheit bzw. Verbrauchsstelle erkennen** (#257): Wer mehrere Wohnungen oder Zähler an einer
+  Adresse hat, bekommt im Detail-Panel das neue Feld „Einheit“. Die KI liest dafür Verbrauchsstelle
+  oder Lieferanschrift (auch wenn die Rechnungsanschrift eine andere ist) sowie Zählernummer bzw.
+  Vertragskonto. Beim Ablegen merkt sich das Programm den Ordner dieser Einheit und schlägt ihn
+  beim nächsten Dokument mit derselben Zählernummer oder Einheit ganz oben vor. Für das
+  Dateinamen-Muster gibt es den Platzhalter `{einheit}`.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu

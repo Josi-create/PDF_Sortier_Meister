@@ -59,6 +59,11 @@ PLACEHOLDERS: list[Placeholder] = [
         "Aktenzeichen, Kunden-, Vertrags- oder Rechnungsnummer aus dem Dokument",
     ),
     Placeholder(
+        "einheit", "Wohnung / Verbrauchsstelle", "Musterweg-5-Whg-2",
+        "Einheit des Dokuments: Verbrauchsstelle bzw. Lieferanschrift kurz (Strasse, Hausnummer, "
+        "Wohnung), ohne PLZ und Ort; nennt das Dokument keine, weglassen",
+    ),
+    Placeholder(
         "betrag", "Rechnungsbetrag", "123-45-EUR",
         "Bruttobetrag mit Waehrung, Komma/Punkt durch - ersetzt (123-45-EUR)",
     ),
@@ -291,7 +296,7 @@ def placeholder_values_from_metadata(
     summary = md.get("description") or md.get("beschreibung")
     if summary:
         values["betreff"] = " ".join(str(summary).split()[:4])
-    for key in ("aktenzeichen", "projekt"):
+    for key in ("aktenzeichen", "projekt", "einheit"):
         if md.get(key):
             values[key] = str(md[key]).strip()
     amount = md.get("betrag_brutto") or md.get("betrag")

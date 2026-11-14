@@ -45,6 +45,7 @@ class PDFMetadata:
     waehrung: Optional[str] = None         # EUR/USD
     mwst_satz: Optional[str] = None        # 7 / 19
     steuerlich_absetzbar: Optional[str] = None  # ja / nein / teilweise
+    einheit: Optional[str] = None          # Verbrauchsstelle/Wohnung (Issue #257)
 
     def has_any_data(self) -> bool:
         """Prüft ob mindestens ein Feld gesetzt ist."""
@@ -53,7 +54,7 @@ class PDFMetadata:
             self.korrespondent, self.buchungsdatum, self.steuerjahr,
             self.betrag, self.betrag_netto, self.betrag_brutto,
             self.iban, self.waehrung, self.mwst_satz,
-            self.steuerlich_absetzbar,
+            self.steuerlich_absetzbar, self.einheit,
         ]) or self.schlagwoerter is not None
 
     def to_dict(self) -> dict:
@@ -63,7 +64,7 @@ class PDFMetadata:
             "title", "subject", "description", "keywords", "schlagwoerter",
             "korrespondent", "buchungsdatum", "steuerjahr",
             "betrag", "betrag_netto", "betrag_brutto", "iban",
-            "waehrung", "mwst_satz", "steuerlich_absetzbar",
+            "waehrung", "mwst_satz", "steuerlich_absetzbar", "einheit",
         ]:
             value = getattr(self, field_name)
             if value:
@@ -235,6 +236,7 @@ def _write_custom_fields(pdf, metadata: PDFMetadata):
         "/Waehrung": metadata.waehrung,
         "/MwStSatz": metadata.mwst_satz,
         "/SteuerlichAbsetzbar": metadata.steuerlich_absetzbar,
+        "/Einheit": metadata.einheit,
     }
 
     for key, value in custom_fields.items():
@@ -261,6 +263,7 @@ def _read_custom_fields(pdf, metadata: PDFMetadata):
         "/Waehrung": "waehrung",
         "/MwStSatz": "mwst_satz",
         "/SteuerlichAbsetzbar": "steuerlich_absetzbar",
+        "/Einheit": "einheit",
     }
 
     for pdf_key, attr_name in field_mapping.items():

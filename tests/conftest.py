@@ -239,3 +239,14 @@ def schlagwort_quelle_aus():
     schlagwoerter.quelle_setzen(None)
     yield
     schlagwoerter.quelle_setzen(None)
+
+
+@pytest.fixture(autouse=True)
+def einheiten_quelle_aus():
+    """Die gelernten Einheiten (Issue #257) haengen nach keinem Test mehr an der Datenbank eines
+    frueheren Hauptfensters: ohne Quelle nennt der KI-Prompt keine Einheiten."""
+    from src.core import einheiten
+
+    einheiten.quelle_setzen(None)
+    yield
+    einheiten.quelle_setzen(None)
