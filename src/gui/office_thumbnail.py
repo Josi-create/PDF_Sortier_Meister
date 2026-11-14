@@ -17,7 +17,9 @@ from PyQt6.QtWidgets import QLabel, QMenu
 
 from src.core import office_vorschau
 from src.core.bild_convert import erste_seite_png, ist_bild_datei
+from src.core.bild_drehen import ist_drehbares_bild
 from src.core.office_convert import TEXT_ENDUNGEN, WORD_ENDUNGEN, ist_office_datei
+from src.gui.farben import stil
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.pfad_aktionen import (
     PFAD_KOPIEREN_TEXT,
@@ -191,8 +193,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         return self._TEXT_TOOLTIP if self.pdf_path.suffix.lower() in TEXT_ENDUNGEN else self._OFFICE_TOOLTIP
 
     # Farben nach Dateityp (nach der Erkennung statt Gruen): (Hintergrund, Rahmen, Hover-Hintergrund, Hover-Rahmen)
-    OFFICE_FARBEN = ("#e3edfb", "#6a9be0", "#d3e3f9", "#4f86d6")
-    BILD_FARBEN = ("#fde6f0", "#e58ab4", "#fbd5e6", "#d96aa0")
+    OFFICE_FARBEN = ("$kachel_office_flaeche", "$kachel_office_rand", "$kachel_office_hover", "$kachel_office_hover_rand")
+    BILD_FARBEN = ("$kachel_bild_flaeche", "$kachel_bild_rand", "$kachel_bild_hover", "$kachel_bild_hover_rand")
     # Etikett mit der Dateiendung (oben links; oben rechts sitzt das Warndreieck, unten "kopiert nach")
     OFFICE_ETIKETT = "#2b579a"
     BILD_ETIKETT = "#d6336c"
@@ -205,8 +207,8 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
         self.typ_label = QLabel(pfad.suffix.upper().lstrip("."), self.thumbnail_label)
         # Mit Selektor: sonst erbt der Tooltip des Etiketts Farbe und Mini-Schrift
         self.typ_label.setObjectName("typEtikett")
-        self.typ_label.setStyleSheet(
-            f"QLabel#typEtikett {{ background-color: {farbe}; color: white; font-size: 9px; "
+        stil(self.typ_label,
+            f"QLabel#typEtikett {{ background-color: {farbe}; color: $weiss_schrift; font-size: 9px; "
             "font-weight: bold; border: none; border-radius: 3px; padding: 1px 4px; }"
         )
         self.typ_label.setToolTip(
@@ -300,6 +302,15 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                     aktion.setToolTip(tipp)
                     aktion.triggered.connect(
                         lambda _c=False, a=art, m=modus: self.bild_entzerren_requested.emit(self.pdf_path, a, m))
+            if ist_drehbares_bild(self.pdf_path):
+                # Issue #252: Bild drehen wie eine PDF; bei Mehrfachauswahl alle markierten drehbaren Bilder
+                menu.addSeparator()
+                count = len([b for b in bilder if ist_drehbares_bild(b)])
+                suffix = tr(" ({count} Bilder)").format(count=count) if count > 1 else ""
+                rotate_menu = menu.addMenu(tr("Drehen{suffix}").format(suffix=suffix))
+                rotate_menu.addAction(tr("90° nach links")).triggered.connect(self._rotate_left)
+                rotate_menu.addAction(tr("90° nach rechts")).triggered.connect(self._rotate_right)
+                rotate_menu.addAction("180°").triggered.connect(self._rotate_180)
             menu.addSeparator()
             menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu

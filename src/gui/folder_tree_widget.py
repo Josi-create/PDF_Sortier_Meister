@@ -18,6 +18,7 @@ from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 from src.core.office_convert import ist_sortierbar
 from src.core.ordnersuche import index_ordner_neu, indizes_veraltet
 from src.core.ordner_verschieben import pruefe as ordner_pruefen
+from src.gui.farben import melder, qfarbe, stil
 from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, ordner_aus_mime
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
 from PyQt6.QtWidgets import (
@@ -203,6 +204,7 @@ class FolderTreeWidget(QWidget):
 
         # Tree Widget
         self.tree = QTreeWidget()
+        melder.geaendert.connect(self._update_item_styles)
         self.tree.setHeaderHidden(True)
         self.tree.setAnimated(True)
         self.tree.setIndentation(20)
@@ -229,22 +231,22 @@ class FolderTreeWidget(QWidget):
         )
 
         # Styling
-        self.tree.setStyleSheet("""
+        stil(self.tree, """
             QTreeWidget {
-                border: 1px solid #daa520;
+                border: 1px solid $gelb_rand;
                 border-radius: 5px;
-                background-color: #fffef5;
+                background-color: $gelb_flaeche_blass;
             }
             QTreeWidget::item {
                 padding: 4px;
                 border-radius: 3px;
             }
             QTreeWidget::item:selected {
-                background-color: #fff3cd;
-                color: black;
+                background-color: $gelb_flaeche;
+                color: $schwarz;
             }
             QTreeWidget::item:hover {
-                background-color: #ffecb3;
+                background-color: $gelb_flaeche_hover;
             }
         """)
 
@@ -383,7 +385,7 @@ class FolderTreeWidget(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, str(folder_path))
             item.setToolTip(0, str(folder_path) + self._CLICK_HINT)
             if folder_path in self._suggestion_folders:
-                item.setBackground(0, Qt.GlobalColor.green)
+                item.setBackground(0, qfarbe("baum_ziel_flaeche"))
             self._items[folder_path] = item
             if has_more:
                 self._mark_unloaded(folder_path, item)
@@ -504,7 +506,7 @@ class FolderTreeWidget(QWidget):
 
         # Styling für Vorschläge
         if folder_path in self._suggestion_folders:
-            item.setBackground(0, Qt.GlobalColor.green)
+            item.setBackground(0, qfarbe("baum_ziel_flaeche"))
 
         # Unterordner hinzufügen (rekursiv, bis max_depth)
         if current_depth < max_depth:
@@ -565,7 +567,7 @@ class FolderTreeWidget(QWidget):
         def update_recursive(item: QTreeWidgetItem):
             folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
             if folder_path in self._suggestion_folders:
-                item.setBackground(0, Qt.GlobalColor.green)
+                item.setBackground(0, qfarbe("baum_ziel_flaeche"))
             else:
                 item.setBackground(0, Qt.GlobalColor.transparent)
 
@@ -1138,14 +1140,14 @@ class FolderTreeWidget(QWidget):
 
     def _highlight_drop_target(self, item: QTreeWidgetItem):
         """Hebt ein Item als Drop-Ziel hervor."""
-        from PyQt6.QtGui import QBrush, QColor
-        item.setBackground(0, QBrush(QColor("#90EE90")))  # Hellgrün
+        from PyQt6.QtGui import QBrush
+        item.setBackground(0, QBrush(qfarbe("baum_treffer_flaeche")))  # Hellgrün
 
     def _reset_item_style(self, item: QTreeWidgetItem):
         """Setzt den Style eines Items zurück."""
         folder_path = Path(item.data(0, Qt.ItemDataRole.UserRole))
         if folder_path in self._suggestion_folders:
-            item.setBackground(0, Qt.GlobalColor.green)
+            item.setBackground(0, qfarbe("baum_ziel_flaeche"))
         else:
             item.setBackground(0, Qt.GlobalColor.transparent)
 

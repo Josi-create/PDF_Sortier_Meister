@@ -92,6 +92,57 @@ class Suchindex:
         finally:
             con.close()
 
+    def bedeutung_suche(self, frage: str, anzahl: int = 4) -> list[dict]:
+        """Dokumente, die zur Frage passen, auch wenn sie andere Woerter benutzen (Issue #230).
+
+        Treffer wie in ``suche()["treffer"]`` (``stellen`` nennt die passendste
+        Seite, ohne Ausschnitt), dazu ``aehnlichkeit``. Leer, wenn die
+        Bedeutungssuche aus ist, noch keine Seite vorbereitet wurde oder Ollama
+        die Frage nicht umrechnen kann - der Chat arbeitet dann wie bisher mit
+        der Wortsuche.
+        """
+        frage = (frage or "").strip()
+        if not frage or anzahl <= 0 or not self.konfig.bedeutung_aktiv:
+            return []
+        from src.search import bedeutung
+
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            if not bedeutung.vorhanden(con) or con.execute("SELECT 1 FROM seiten_vektor LIMIT 1").fetchone() is None:
+                return []
+            modell = self.konfig.bedeutung_modell
+            try:
+                vektor = bedeutung.einbetten(self.konfig.bedeutung_url, modell, [frage], frage=True,
+                                             zeitlimit=bedeutung.ZEITLIMIT_FRAGE_S)[0]
+            except bedeutung.BedeutungFehler as e:
+                bedeutung.log.info("Bedeutungssuche übersprungen: %s", e)
+                return []
+            treffer = []
+            for t in bedeutung.suche(con, vektor, modell, anzahl, schluessel=str(self.db_datei)):
+                d = db.dokument(con, t["dok_id"])
+                if d is None:
+                    continue
+                treffer.append({**db._kurz(d), "rang": 0.0, "treffer_seiten": 1, "im_namen": False,
+                                "im_metadaten": False, "aehnlichkeit": t["aehnlichkeit"],
+                                "stellen": [{"seite": t["seite"], "quelle": "bedeutung", "text": ""}]})
+            return treffer
+        finally:
+            con.close()
+
+    def bedeutung_stand(self) -> dict | None:
+        """``{"seiten", "fertig"}`` fuer die Einstellungen; ``None`` ohne Datenbank."""
+        from src.search import bedeutung
+
+        con = self._lesen()
+        if con is None:
+            return None
+        try:
+            return bedeutung.stand(con, self.konfig.bedeutung_modell)
+        finally:
+            con.close()
+
     def werte(self, feld: str, absteigend: bool = False) -> list[str]:
         """Vorkommende Werte eines Metadatenfelds (steuerjahr, kategorie, korrespondent, ...)."""
         con = self._lesen()
@@ -243,6 +294,16 @@ class Suchindex:
             return None
         try:
             return db.ocr_lesbarkeit_holen(con, norm_pfad(pfad))
+        finally:
+            con.close()
+
+    def gleiche_groesse(self, groesse: int) -> list[dict]:
+        """Dokumente mit dieser Dateigroesse samt gespeicherter Pruefsumme (Issue #245); ohne Datenbank leer."""
+        con = self._lesen()
+        if con is None:
+            return []
+        try:
+            return db.gleiche_groesse(con, groesse)
         finally:
             con.close()
 

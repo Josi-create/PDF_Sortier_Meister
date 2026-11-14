@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QUrl, QThread, QStandardPaths, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont
 
+from src.gui.farben import stil
 from src.utils.config import get_config
 from src.i18n import tr
 
@@ -255,7 +256,7 @@ class ScanFolderPage(QWizardPage):
             tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
             "unter Extras → Einstellungen festlegen.</i>")
         )
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -333,7 +334,7 @@ class TargetFolderPage(QWizardPage):
             tr("<i>Sie koennen auch jetzt ueberspringen und den Ordner spaeter\n"
             "unter Extras → Einstellungen festlegen.</i>")
         )
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -400,7 +401,7 @@ class ProviderPage(QWizardPage):
                 rb.setChecked(True)
                 # Statuszeile direkt unter dem Ollama-Eintrag
                 self.ollama_status_label = QLabel(tr("    Pruefe Ollama-Installation ..."))
-                self.ollama_status_label.setStyleSheet("color: gray;")
+                stil(self.ollama_status_label, "color: $grau_hinweis;")
                 layout.addWidget(self.ollama_status_label)
             elif _PROVIDER_IDS[i] == "lmstudio":
                 # Nur sichtbar, wenn LM Studio laeuft (siehe _on_detected)
@@ -411,7 +412,7 @@ class ProviderPage(QWizardPage):
 
         self.hardware_label = QLabel(tr("Hardware wird geprueft ..."))
         self.hardware_label.setWordWrap(True)
-        self.hardware_label.setStyleSheet("color: gray;")
+        stil(self.hardware_label, "color: $grau_hinweis;")
         layout.addWidget(self.hardware_label)
 
         # Bestehenden Wert voreintragen. "none" im gespeicherten Config-Default
@@ -452,24 +453,24 @@ class ProviderPage(QWizardPage):
 
         # Ollama-Status
         if result.get("running"):
-            status, color = tr("✓ Ollama ist installiert und laeuft"), "green"
+            status, color = tr("✓ Ollama ist installiert und laeuft"), "$gruen_status"
         elif result.get("installed"):
-            status, color = tr("✓ Ollama ist installiert"), "green"
+            status, color = tr("✓ Ollama ist installiert"), "$gruen_status"
         else:
-            status, color = tr("Ollama ist nicht installiert (Download im naechsten Schritt)"), "#b35c00"
+            status, color = tr("Ollama ist nicht installiert (Download im naechsten Schritt)"), "$orange_text"
         self.ollama_status_label.setText("    " + status)
-        self.ollama_status_label.setStyleSheet(f"color: {color};")
+        stil(self.ollama_status_label, f"color: {color};")
 
         # LM Studio nur anbieten, wenn es laeuft (Empfehlung bleibt Ollama)
         lms_models = result.get("lmstudio_models")
         if lms_models is not None:
             self._radios[_PROVIDER_IDS.index("lmstudio")].setVisible(True)
             if lms_models:
-                status, color = tr("✓ LM Studio laeuft ({anzahl} Modell(e))").format(anzahl=len(lms_models)), "green"
+                status, color = tr("✓ LM Studio laeuft ({anzahl} Modell(e))").format(anzahl=len(lms_models)), "$gruen_status"
             else:
-                status, color = tr("LM Studio laeuft, aber es ist kein Modell vorhanden"), "#b35c00"
+                status, color = tr("LM Studio laeuft, aber es ist kein Modell vorhanden"), "$orange_text"
             self.lmstudio_status_label.setText("    " + status)
-            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            stil(self.lmstudio_status_label, f"color: {color};")
             self.lmstudio_status_label.setVisible(True)
 
         # Hardware-Empfehlung
@@ -484,7 +485,7 @@ class ProviderPage(QWizardPage):
                     "auf diesem PC."
                 ).format(reason=rec.reason)
             )
-            self.hardware_label.setStyleSheet("color: #1a6b1a;")
+            stil(self.hardware_label, "color: $gruen_text_hinweis;")
         else:
             recommended_id = "ollama_cloud"
             self.hardware_label.setText(
@@ -494,7 +495,7 @@ class ProviderPage(QWizardPage):
                     "werden dabei an ollama.com uebertragen)."
                 ).format(reason=rec.reason)
             )
-            self.hardware_label.setStyleSheet("color: #7a4a00;")
+            stil(self.hardware_label, "color: $braun_text;")
 
         self._recommended_id = recommended_id
         if recommended_id:
@@ -544,7 +545,7 @@ class ApiKeyPage(QWizardPage):
         self._link_btn = QPushButton()
         self._link_btn.setFlat(True)
         self._link_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._link_btn.setStyleSheet("color: #0066cc; text-align: left;")
+        stil(self._link_btn, "color: $verweis; text-align: left;")
         self._link_btn.clicked.connect(self._open_link)
         layout.addWidget(self._link_btn)
 
@@ -560,7 +561,7 @@ class ApiKeyPage(QWizardPage):
         layout.addLayout(key_layout)
 
         self._hint_label = QLabel()
-        self._hint_label.setStyleSheet("color: gray; font-size: 10px;")
+        stil(self._hint_label, "color: $grau_hinweis; font-size: 10px;")
         layout.addWidget(self._hint_label)
 
         # --- Ollama-Bereich (nur bei lokalem Ollama sichtbar) ---------------
@@ -571,7 +572,7 @@ class ApiKeyPage(QWizardPage):
 
         self.ollama_warning_label = QLabel()
         self.ollama_warning_label.setWordWrap(True)
-        self.ollama_warning_label.setStyleSheet("color: #7a4a00;")
+        stil(self.ollama_warning_label, "color: $braun_text;")
         self.ollama_warning_label.setVisible(False)
         ollama_layout.addWidget(self.ollama_warning_label)
 
@@ -587,7 +588,7 @@ class ApiKeyPage(QWizardPage):
 
         self.models_status_label = QLabel()
         self.models_status_label.setWordWrap(True)
-        self.models_status_label.setStyleSheet("color: gray;")
+        stil(self.models_status_label, "color: $grau_hinweis;")
         ollama_layout.addWidget(self.models_status_label)
 
         pull_row = QHBoxLayout()
@@ -614,7 +615,7 @@ class ApiKeyPage(QWizardPage):
             "Den Key koennen Sie spaeter unter Extras → Einstellungen eintragen.</i>")
         )
         skip_info.setWordWrap(True)
-        skip_info.setStyleSheet("color: gray;")
+        stil(skip_info, "color: $grau_hinweis;")
         layout.addWidget(skip_info)
 
         layout.addStretch()
@@ -1001,14 +1002,14 @@ class SearchPage(QWizardPage):
         self.mails_check = QCheckBox(tr("Mails aus Thunderbird aufnehmen"))
         layout.addWidget(self.mails_check)
         self.mails_label = QLabel("")
-        self.mails_label.setStyleSheet("color: gray;")
+        stil(self.mails_label, "color: $grau_hinweis;")
         self.mails_label.setWordWrap(True)
         layout.addWidget(self.mails_label)
 
         self.ocr_check = QCheckBox(tr("Gescannte PDFs per Texterkennung (OCR) durchsuchbar machen"))
         layout.addWidget(self.ocr_check)
         self.ocr_label = QLabel("")
-        self.ocr_label.setStyleSheet("color: gray;")
+        stil(self.ocr_label, "color: $grau_hinweis;")
         self.ocr_label.setWordWrap(True)
         layout.addWidget(self.ocr_label)
 
@@ -1045,7 +1046,7 @@ class SearchPage(QWizardPage):
         self.migrate_button.clicked.connect(self._migrate)
         layout.addWidget(self.migrate_button)
         self.migrate_label = QLabel("")
-        self.migrate_label.setStyleSheet("color: gray;")
+        stil(self.migrate_label, "color: $grau_hinweis;")
         self.migrate_label.setWordWrap(True)
         self.migrate_label.setVisible(False)
         layout.addWidget(self.migrate_label)

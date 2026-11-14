@@ -14,6 +14,7 @@ from PyQt6.QtGui import (
 )
 
 from src.core.office_convert import ist_sortierbar
+from src.gui.farben import stil
 from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag
 from PyQt6.QtWidgets import (
     QFrame,
@@ -100,7 +101,7 @@ class FolderWidget(QFrame):
         # PDF-Anzahl
         self.count_label = QLabel()
         self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.count_label.setStyleSheet("font-size: 10px; color: #666;")
+        stil(self.count_label, "font-size: 10px; color: $grau_66;")
         self._update_count_label()
         layout.addWidget(self.count_label)
 
@@ -114,25 +115,25 @@ class FolderWidget(QFrame):
     def _update_style(self):
         """Aktualisiert den Style basierend auf Status."""
         if self._selected:
-            self.setStyleSheet(
-                "FolderWidget { background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; }"
+            stil(self,
+                "FolderWidget { background-color: $gelb_flaeche; border: 2px solid $gelb_rand_kraeftig; border-radius: 8px; }"
             )
         elif self._is_suggestion and self._neu:
             # Neuer Ordner: blau gestrichelt, damit er sich von den gruenen
             # (bestehenden) Vorschlaegen und dem Regenbogen abhebt
-            self.setStyleSheet(
-                "FolderWidget { background-color: #e7f1ff; border: 2px dashed #1e6fd9; border-radius: 8px; }"
-                "FolderWidget:hover { background-color: #d0e4ff; }"
+            stil(self,
+                "FolderWidget { background-color: $neu_flaeche; border: 2px dashed $neu_blau; border-radius: 8px; }"
+                "FolderWidget:hover { background-color: $neu_flaeche_hover; }"
             )
         elif self._is_suggestion:
-            self.setStyleSheet(
-                "FolderWidget { background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; }"
-                "FolderWidget:hover { background-color: #c3e6cb; }"
+            stil(self,
+                "FolderWidget { background-color: $vorschlag_flaeche; border: 2px solid $vorschlag_gruen; border-radius: 8px; }"
+                "FolderWidget:hover { background-color: $vorschlag_flaeche_hover; }"
             )
         else:
-            self.setStyleSheet(
-                "FolderWidget { background-color: #fff8e7; border: 1px solid #daa520; border-radius: 8px; }"
-                "FolderWidget:hover { background-color: #ffecb3; border: 1px solid #ffc107; }"
+            stil(self,
+                "FolderWidget { background-color: $ordner_flaeche; border: 1px solid $gelb_rand; border-radius: 8px; }"
+                "FolderWidget:hover { background-color: $gelb_flaeche_hover; border: 1px solid $gelb_rand_kraeftig; }"
             )
 
     @property
@@ -309,8 +310,8 @@ class FolderWidget(QFrame):
             for url in event.mimeData().urls():
                 if ist_sortierbar(url.toLocalFile()):
                     drop_aktion_setzen(event)
-                    self.setStyleSheet(
-                        "FolderWidget { background-color: #b8daff; border: 3px solid #007bff; border-radius: 8px; }"
+                    stil(self,
+                        "FolderWidget { background-color: $ablegen_flaeche; border: 3px solid $ablegen_rand; border-radius: 8px; }"
                     )
                     return
         event.ignore()

@@ -9,6 +9,7 @@ from datetime import datetime
 import pytest
 
 from src.core.document_date import (
+    bezugsjahr,
     find_dates,
     is_iso_date,
     ordered_dates,
@@ -105,3 +106,38 @@ def test_is_iso_date():
     assert not is_iso_date("12.03.2004")
     assert not is_iso_date("2004-03-12 00:00:00")
     assert not is_iso_date("")
+
+
+# --- Bezugsjahr (Issue #254) ---------------------------------------------------
+
+@pytest.mark.parametrize("text, jahr", [
+    ("Finanzamt Musterstadt\nBescheid für 2020 über Einkommensteuer\nMusterstadt, 14.03.2022", 2020),
+    ("Einkommensteuer 2020 - Festsetzung", 2020),
+    ("Einkommensteuerbescheid 2019", 2019),
+    ("Ausdruck der elektronischen Lohnsteuerbescheinigung fuer 2021", 2021),
+    ("Jahressteuerbescheinigung für das Kalenderjahr 2018", 2018),
+    ("Veranlagungszeitraum: 2020", 2020),
+    ("Einkommensteuererklärung 2017", 2017),
+    ("BESCHEID FUER 2020", 2020),
+])
+def test_bezugsjahr_erkannt(text, jahr):
+    assert bezugsjahr(text) == jahr
+
+
+@pytest.mark.parametrize("text", [
+    "", None,
+    "Rechnung Nr. 2020 vom 14.03.2022",
+    "Bescheid vom 14.03.2022",
+    "Steuernummer 2020/123/45678",
+    "Steuer 2022-03-14",
+    "Einkommensteuer 2020.50 EUR",
+    "Bescheid für 2999",
+    "Besteuerung 2020",
+])
+def test_bezugsjahr_nicht_erkannt(text):
+    assert bezugsjahr(text) is None
+
+
+def test_bezugsjahr_erste_nennung_zaehlt():
+    text = "Bescheid für 2020 über Einkommensteuer\nVorauszahlungen zur Einkommensteuer 2023"
+    assert bezugsjahr(text) == 2020

@@ -45,6 +45,7 @@ from src.core.entzerren import (
     entzerrte_seite,
     standard_ecken,
 )
+from src.gui.farben import stil
 from src.i18n import tr
 
 ARBEIT_PX = 1600        # laengste Seite der Anzeigekopie des Fotos
@@ -114,7 +115,7 @@ class _VorschauFeld(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(200, 200)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        self.setStyleSheet("QLabel { background-color: #e8e8e8; border: 1px solid #aaa; color: #444; }")
+        stil(self, "QLabel { background-color: $grau_e8; border: 1px solid $grau_aa; color: $grau_44; }")
 
     def pixmap_setzen(self, pixmap: Optional[QPixmap]):
         self._pixmap = pixmap

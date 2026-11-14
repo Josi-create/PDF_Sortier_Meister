@@ -19,3 +19,12 @@ def test_ohne_bild_bleibt_das_blaue_kaestchen(tmp_path):
 
 def test_nicht_beschreibbarer_ordner_liefert_none(tmp_path):
     assert write_check_icon(tmp_path / "gibt-es-nicht") is None
+
+
+def test_auswahlknoepfe_bekommen_nur_im_dunklen_schema_einen_eigenen_stil(monkeypatch):
+    from src.gui import farben
+
+    assert "QRadioButton" not in checkbox_stylesheet(None)  # Hell bleibt wie bisher
+    monkeypatch.setattr(farben, "_dunkel", True)
+    css = checkbox_stylesheet(None)
+    assert "QRadioButton::indicator:checked" in css and "$" not in css
