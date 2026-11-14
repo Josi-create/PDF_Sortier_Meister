@@ -7,6 +7,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Fenster hängt bei großem Scan-Ordner nicht mehr**: Bei einem Ordner mit einigen hundert PDFs
+  stand das Fenster nach dem Start minutenlang mit „Keine Rückmeldung“, solange im Hintergrund
+  die PDFs durchsucht wurden und die KI ihre Vorschläge holte; besonders stark, wenn der Ordner
+  in OneDrive liegt. Ursache war die Fortschrittsanzeige in der Statusleiste: Sie hat bei jedem
+  fertigen PDF und bei jedem KI-Aufruf alle Dateien des Ordners auf der Festplatte nachgeschlagen.
+  Jetzt zählt sie ohne Dateizugriff. Die Ergebnisse der Analyse schreibt außerdem ein
+  Hintergrund-Thread in den Zwischenspeicher, nicht mehr das Fenster selbst.
+- **KI-Vorschlag nach dem Zusammenführen**: Wer ein PDF auf ein anderes zieht (oder mehrere über
+  „PDFs zusammenfügen“ verbindet), bekommt für das zusammengeführte PDF wieder von selbst einen
+  KI-Namensvorschlag mit Metadaten, und zwar vor allen PDFs, die noch auf die KI warten. Bisher
+  blieb der Vorschlag aus, wenn das Ziel-PDF noch in der Warteschlange der KI stand; später wäre
+  die KI dann mit dem Text von vor dem Zusammenführen gefragt worden. Auch nach dem Drehen gilt
+  jetzt: Eine Antwort der KI, die noch zum alten Inhalt gehört, wird verworfen und neu angefordert.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu
@@ -119,21 +134,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Steuerbescheid für ein früheres Jahr** (#254): Ein Bescheid „für 2020“, der 2022 ausgestellt
   wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
   zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
-
-### Behoben
-- **Fenster hängt bei großem Scan-Ordner nicht mehr**: Bei einem Ordner mit einigen hundert PDFs
-  stand das Fenster nach dem Start minutenlang mit „Keine Rückmeldung“, solange im Hintergrund
-  die PDFs durchsucht wurden und die KI ihre Vorschläge holte; besonders stark, wenn der Ordner
-  in OneDrive liegt. Ursache war die Fortschrittsanzeige in der Statusleiste: Sie hat bei jedem
-  fertigen PDF und bei jedem KI-Aufruf alle Dateien des Ordners auf der Festplatte nachgeschlagen.
-  Jetzt zählt sie ohne Dateizugriff. Die Ergebnisse der Analyse schreibt außerdem ein
-  Hintergrund-Thread in den Zwischenspeicher, nicht mehr das Fenster selbst.
-- **KI-Vorschlag nach dem Zusammenführen**: Wer ein PDF auf ein anderes zieht (oder mehrere über
-  „PDFs zusammenfügen“ verbindet), bekommt für das zusammengeführte PDF wieder von selbst einen
-  KI-Namensvorschlag mit Metadaten, und zwar vor allen PDFs, die noch auf die KI warten. Bisher
-  blieb der Vorschlag aus, wenn das Ziel-PDF noch in der Warteschlange der KI stand; später wäre
-  die KI dann mit dem Text von vor dem Zusammenführen gefragt worden. Auch nach dem Drehen gilt
-  jetzt: Eine Antwort der KI, die noch zum alten Inhalt gehört, wird verworfen und neu angefordert.
 
 ## [0.27.0] - 2026-11-12
 
