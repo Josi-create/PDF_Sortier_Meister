@@ -74,6 +74,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Vertragskonto. Beim Ablegen merkt sich das Programm den Ordner dieser Einheit und schlägt ihn
   beim nächsten Dokument mit derselben Zählernummer oder Einheit ganz oben vor. Für das
   Dateinamen-Muster gibt es den Platzhalter `{einheit}`.
+### Neu
+- **Indexlauf zeigt, dass er arbeitet** (#262): Im Reiter „Suche“ läuft während eines Indexlaufs
+  eine Stoppuhr mit („Indexlauf aktiv – Laufzeit 4:12“), dahinter steht in Klammern, wie lange der
+  letzte Lauf gebraucht hat („letzter kompletter Lauf: 38 min“). Verglichen wird mit dem letzten
+  fertigen Lauf gleicher Art, damit ein kurzer Lauf über die Vorrang-Ordner nicht als Maßstab für
+  den kompletten Lauf dient; das greift ab dem ersten Lauf mit dieser Version, bis dahin steht dort
+  die Dauer des letzten fertigen Laufs. Phase und Zähler stehen wie bisher dahinter, neu auch in
+  der Phase „Bedeutungssuche vorbereiten“ („Bedeutungssuche 1200 von 5400 Seiten“). Läuft nichts,
+  nennt die Zeile zum letzten Lauf jetzt auch dessen Dauer.
 
 ## [0.28.0] - 2026-11-13
 

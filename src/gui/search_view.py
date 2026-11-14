@@ -16,6 +16,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from html import escape
 from pathlib import Path
 
@@ -71,6 +72,7 @@ SEITENGROESSE = 50            # Treffer je Ladevorgang („Weitere Treffer laden
 TIPP_VERZOEGERUNG_MS = 500    # Suche beim Tippen erst nach dieser Pause
 MIN_ZEICHEN_TIPPEN = 3        # kuerzere Eingaben nur mit Enter suchen
 STATUS_INTERVALL_MS = 15_000  # Indexstand waehrend eines Laufs auffrischen
+UHR_INTERVALL_MS = 1000       # Stoppuhr eines laufenden Indexlaufs (Issue #262)
 MELDUNG_MS = 6000
 WEB_PRUEFEN_MS = 6000         # nach dem Start der Browser-Oberflaeche pruefen, ob sie antwortet
 
@@ -182,8 +184,80 @@ def stellen_beschriftung(d: dict, seite) -> str:
     return ""
 
 
-def status_zeile(st: dict) -> str:
-    """Indexstand in einem Satz fuer die Statusleiste des Reiters."""
+def _zeitpunkt(text) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(text))
+    except ValueError:
+        return None
+
+
+def stoppuhr_text(sekunden: float) -> str:
+    """Laufzeit als Stoppuhr: 252 -> „4:12“, 3852 -> „1:04:12“."""
+    s = max(0, int(sekunden))
+    if s < 3600:
+        return f"{s // 60}:{s % 60:02d}"
+    return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}"
+
+
+def dauer_text(sekunden: float) -> str:
+    """Dauer eines abgeschlossenen Laufs in Worten: „42 s“, „38 min“, „2 h 05 min“."""
+    s = max(0, int(sekunden))
+    if s < 60:
+        return tr("{0} s").format(s)
+    minuten = round(s / 60)
+    if minuten < 60:
+        return tr("{0} min").format(minuten)
+    return tr("{0} h {1} min").format(minuten // 60, f"{minuten % 60:02d}")
+
+
+def lauf_dauer(lauf: dict) -> int | None:
+    """Dauer eines beendeten Laufs in Sekunden (aus der Statistik, sonst Ende minus Beginn)."""
+    statistik = lauf.get("statistik")
+    if isinstance(statistik, dict) and isinstance(statistik.get("dauer_s"), (int, float)):
+        return int(statistik["dauer_s"])
+    beginn, ende = _zeitpunkt(lauf.get("beginn")), _zeitpunkt(lauf.get("ende"))
+    if beginn is None or ende is None:
+        return None
+    return max(0, int((ende - beginn).total_seconds()))
+
+
+def _lauf_art(lauf: dict) -> str:
+    statistik = lauf.get("statistik")
+    return str(statistik.get("art") or "") if isinstance(statistik, dict) else ""
+
+
+def _lauf_aktiv_text(st: dict, jetzt: datetime | None, start: datetime | None) -> str:
+    """„Indexlauf aktiv – Laufzeit 4:12 (letzter Lauf: 38 min): Phase – Zähler“ (Issue #262)."""
+    laeufe = [lauf for lauf in st.get("laeufe") or [] if isinstance(lauf, dict)]
+    aktuell = laeufe[0] if laeufe and laeufe[0].get("status") == "laeuft" else None
+    if aktuell is not None:
+        # Der Lauf steht schon in der Datenbank: sein Beginn gilt (auch fuer Laeufe des Zeitplans)
+        start = _zeitpunkt(aktuell.get("beginn")) or start
+    text = tr("Indexlauf aktiv")
+    if jetzt is not None and start is not None:
+        text += " – " + tr("Laufzeit {0}").format(stoppuhr_text((jetzt - start).total_seconds()))
+    # Vergleichswert: der letzte fertige Lauf gleicher Art; Laeufe aus aelteren Versionen kennen ihre Art nicht
+    art = _lauf_art(aktuell) if aktuell is not None else ""
+    fertige = [lauf for lauf in laeufe if lauf.get("status") == "fertig" and lauf_dauer(lauf) is not None]
+    gleiche = [lauf for lauf in fertige if art and _lauf_art(lauf) == art]
+    vergleich = gleiche or [lauf for lauf in fertige if not art or not _lauf_art(lauf)]
+    if vergleich:
+        dauer = dauer_text(lauf_dauer(vergleich[0]))
+        if gleiche and art == "voll":
+            text += " " + tr("(letzter kompletter Lauf: {0})").format(dauer)
+        else:
+            text += " " + tr("(letzter Lauf: {0})").format(dauer)
+    if st.get("fortschritt"):
+        text += f": {st['fortschritt']}"
+    return text
+
+
+def status_zeile(st: dict, jetzt: datetime | None = None, start: datetime | None = None) -> str:
+    """Indexstand in einem Satz fuer die Statusleiste des Reiters.
+
+    ``jetzt`` schaltet die Stoppuhr eines laufenden Laufs ein; ``start`` ist der
+    Ersatz-Beginn (Klick auf den Knopf), solange der Lauf noch nicht in der Datenbank steht.
+    """
     if st.get("fehler"):
         return tr("Indexstand nicht lesbar: {fehler}").format(fehler=st['fehler'])
     if not st.get("vorhanden"):
@@ -201,10 +275,14 @@ def status_zeile(st: dict) -> str:
     if geschrieben:
         teile.append(tr("Textebene in {0} PDFs").format(zahl(geschrieben)))
     if st.get("laeuft"):
-        teile.append(tr("Indexlauf aktiv{0}").format(f": {st['fortschritt']}" if st.get('fortschritt') else ''))
+        teile.append(_lauf_aktiv_text(st, jetzt, start))
     elif st.get("laeufe"):
         lauf = st["laeufe"][0]
-        teile.append(tr("Letzter Lauf: {0} ({1})").format(lauf.get('beginn') or '?', lauf.get('status') or '?'))
+        stand = lauf.get('status') or '?'
+        dauer = lauf_dauer(lauf)
+        if dauer is not None:
+            stand = tr("{0}, Dauer {1}").format(stand, dauer_text(dauer))
+        teile.append(tr("Letzter Lauf: {0} ({1})").format(lauf.get('beginn') or '?', stand))
     return " · ".join(teile)
 
 
@@ -408,6 +486,8 @@ class SearchView(QWidget):
         self._pdf_pfad: Path | None = None
         self._pending_seite: int | None = None
         self._status_laeuft = False
+        self._lauf_geklickt: datetime | None = None   # Start per Knopf, bis der Lauf in der Datenbank steht
+        self._uhr_text = ""                           # zuletzt von der Stoppuhr gesetzter Text
 
         self._tipp_timer = QTimer(self)
         self._tipp_timer.setSingleShot(True)
@@ -424,6 +504,9 @@ class SearchView(QWidget):
         self._nachlauf_timer.setSingleShot(True)
         self._nachlauf_timer.setInterval(2000)
         self._nachlauf_timer.timeout.connect(self.refresh_status)
+        self._uhr_timer = QTimer(self)       # Stoppuhr: die Laufzeit zaehlt sichtbar weiter
+        self._uhr_timer.setInterval(UHR_INTERVALL_MS)
+        self._uhr_timer.timeout.connect(self._uhr_tick)
 
         self._ui_bauen()
         self.refresh_settings()
@@ -715,6 +798,7 @@ class SearchView(QWidget):
         self._generation += 1
         self._vorschau_generation += 1
         self._status_timer.stop()
+        self._uhr_timer.stop()
         self._liste_leeren(hilfe=True)
         self.count_label.setText("")
         self.status_label.setText("" if aktiv else tr("Dokumentensuche ausgeschaltet (Einstellungen > Suche)."))
@@ -737,7 +821,8 @@ class SearchView(QWidget):
 
     def shutdown(self, timeout_ms: int = 3000) -> None:
         """Timer anhalten und auf Hintergrund-Threads warten (beim Schliessen)."""
-        for t in (self._tipp_timer, self._status_timer, self._meldung_timer, self._nachlauf_timer):
+        for t in (self._tipp_timer, self._status_timer, self._meldung_timer, self._nachlauf_timer,
+                  self._uhr_timer):
             t.stop()
         self._generation += 1
         self._vorschau_generation += 1
@@ -1193,8 +1278,10 @@ class SearchView(QWidget):
         self._status_laeuft = False
         self.status = dict(st or {})
         self._werte_fuellen(self.status.get("werte"))
-        self.status_label.setText(status_zeile(self.status))
         laeuft = bool(self.status.get("laeuft"))
+        if not laeuft and not self._nachlauf_timer.isActive():
+            self._lauf_geklickt = None
+        self._status_zeigen()
         aktiv = bool(self.konfig and self.konfig.aktiv)
         self.index_button.setEnabled(aktiv and not laeuft)
         self.index_all_button.setEnabled(aktiv and not laeuft)
@@ -1203,9 +1290,20 @@ class SearchView(QWidget):
             self.anhalten_button.setEnabled(True)
         if laeuft:
             self._status_timer.start()
+            self._uhr_timer.start()
         else:
             self._status_timer.stop()
+            self._uhr_timer.stop()
         self.status_aktualisiert.emit(self.status)
+
+    def _status_zeigen(self) -> None:
+        self._uhr_text = status_zeile(self.status, datetime.now(), self._lauf_geklickt)
+        self.status_label.setText(self._uhr_text)
+
+    def _uhr_tick(self) -> None:
+        """Stoppuhr weiterzaehlen; eine andere Meldung in der Zeile (z. B. „hält an“) bleibt stehen."""
+        if self.status.get("laeuft") and self.status_label.text() == self._uhr_text:
+            self._status_zeigen()
 
     def _lauf_starten(self, nur_prioritaet: bool) -> None:
         """Indexlauf als eigenen Prozess starten (``pdfsm-dienst index --hintergrund``)."""
@@ -1222,6 +1320,7 @@ class SearchView(QWidget):
             self.status_label.setText(tr("Indexlauf gestartet – die Vorrang-Ordner werden im Hintergrund eingelesen …")
                 if nur_prioritaet
                 else tr("Indexlauf gestartet – alle Ordner werden im Hintergrund eingelesen …"))
+            self._lauf_geklickt = datetime.now()
         self.index_button.setEnabled(False)
         self.index_all_button.setEnabled(False)
         self._status_timer.start()

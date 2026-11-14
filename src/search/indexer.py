@@ -332,6 +332,7 @@ class Indexer:
         self.pool = None
         self.offen: dict = {}
         self.stat = Counter()
+        self.bedeutung_offen = 0    # Seiten, die der Bedeutungssuche zu Beginn ihrer Phase noch fehlten
         self.phase = ""
         self.letzter_commit = time.monotonic()
         self.aenderungen = 0
@@ -605,6 +606,8 @@ class Indexer:
         if s["textebene_dateien"]:
             erledigt = sum(s[f"textebene_{k}"] for k in ("geschrieben", "vorhanden", "uebersprungen", "fehler"))
             text += f", Textebene {erledigt} von {s['textebene_dateien']} Dateien ({s['textebene_geschrieben']} geschrieben)"
+        if self.bedeutung_offen:
+            text += f", Bedeutungssuche {s['bedeutung_seiten']} von {self.bedeutung_offen} Seiten"
         return text
 
     def _zeit_pruefen(self) -> None:
@@ -1120,6 +1123,9 @@ class Indexer:
 
         def melden(neu: int, offen: int) -> None:
             self.stat["bedeutung_seiten"] = neu
+            self.bedeutung_offen = offen
+            self.aenderungen += 1          # damit der Zaehler im Reiter Suche mitlaeuft (Issue #262)
+            self._commit_wenn_noetig()
             if neu % (bedeutung.STAPEL * 25) == 0:
                 log.info("Bedeutungssuche: %d von %d Seiten", neu, offen)
 
@@ -1144,8 +1150,12 @@ class Indexer:
             plattform.niedrige_prioritaet_setzen()
         self.con.execute("UPDATE laeufe SET status = 'abgebrochen', ende = coalesce(ende, ?) WHERE status = 'laeuft'",
                          (db.jetzt(),))
-        self.lauf_id = self.con.execute("INSERT INTO laeufe (beginn, status) VALUES (?, 'laeuft')",
-                                        (db.jetzt(),)).lastrowid
+        # Art des Laufs: der Reiter Suche vergleicht die Laufzeit mit dem letzten Lauf gleicher Art (Issue #262)
+        art = ("textebene" if nur_textebene else "ordner" if nur_pfad
+               else "vorrang" if nur_prioritaet else "voll")
+        self.lauf_id = self.con.execute(
+            "INSERT INTO laeufe (beginn, status, statistik) VALUES (?, 'laeuft', ?)",
+            (db.jetzt(), json.dumps({"art": art}))).lastrowid
         self.con.commit()
         try:
             anhalten_datei(self.konfig).unlink(missing_ok=True)   # alte Bitte eines frueheren Laufs
@@ -1222,7 +1232,8 @@ class Indexer:
             self.stat["dauer_s"] = round(time.monotonic() - t0)
             try:
                 self.con.execute("UPDATE laeufe SET ende = ?, status = ?, phase = ?, statistik = ? WHERE id = ?",
-                                 (db.jetzt(), status, self.phase, json.dumps(dict(self.stat)), self.lauf_id))
+                                 (db.jetzt(), status, self.phase, json.dumps({**self.stat, "art": art}),
+                                  self.lauf_id))
                 self._commit_wenn_noetig(sofort=True)
                 if status == "fertig":
                     if not (nur_prioritaet or nur_pfad or nur_textebene):

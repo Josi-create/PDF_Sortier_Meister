@@ -327,6 +327,23 @@ def test_indexlauf_bereitet_neue_seiten_vor(tmp_path, ablage, ollama):
     assert ix.stat["bedeutung_seiten"] == 1
 
 
+def test_indexlauf_meldet_den_zaehler_der_bedeutungssuche(tmp_path, ablage, ollama, monkeypatch):
+    """Issue #262: waehrend „Bedeutungssuche vorbereiten“ laeuft im Reiter Suche ein Zaehler mit."""
+    monkeypatch.setattr(bedeutung, "STAPEL", 1)
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(ablage)], bedeutung_aktiv=True)
+    ix = Indexer(konfig, synchron=True)
+    gemeldet = []
+    echt = db.setze_meta
+    monkeypatch.setattr(db, "setze_meta", lambda con, name, wert: (
+        gemeldet.append(wert) if name == "fortschritt" else None, echt(con, name, wert))[1])
+    echt_commit = ix._commit_wenn_noetig         # jede Meldung sofort schreiben statt alle drei Sekunden
+    monkeypatch.setattr(ix, "_commit_wenn_noetig", lambda sofort=False: echt_commit(sofort=True))
+    assert ix.lauf() == 0
+    zaehler = [g for g in gemeldet if "Bedeutungssuche vorbereiten" in g and "Bedeutungssuche 1 von 2 Seiten" in g]
+    assert zaehler, gemeldet
+    assert any(g.endswith("Bedeutungssuche 2 von 2 Seiten") for g in gemeldet)
+
+
 def test_kurzer_lauf_rechnet_nur_die_neuesten_seiten(tmp_path, ablage, ollama, monkeypatch):
     monkeypatch.setattr(bedeutung, "STAPEL", 1)
     monkeypatch.setattr(bedeutung, "KURZLAUF_SEITEN", 1)

@@ -4939,8 +4939,36 @@ msgid "Textebene in {0} PDFs"
 msgstr "Text layer in {0} PDFs"
 
 #: src/gui/search_view.py
-msgid "Indexlauf aktiv{0}"
-msgstr "Index run active{0}"
+msgid "Indexlauf aktiv"
+msgstr "Index run active"
+
+#: src/gui/search_view.py
+msgid "Laufzeit {0}"
+msgstr "running for {0}"
+
+#: src/gui/search_view.py
+msgid "(letzter kompletter Lauf: {0})"
+msgstr "(last complete run: {0})"
+
+#: src/gui/search_view.py
+msgid "(letzter Lauf: {0})"
+msgstr "(last run: {0})"
+
+#: src/gui/search_view.py
+msgid "{0}, Dauer {1}"
+msgstr "{0}, took {1}"
+
+#: src/gui/search_view.py
+msgid "{0} s"
+msgstr "{0} s"
+
+#: src/gui/search_view.py
+msgid "{0} min"
+msgstr "{0} min"
+
+#: src/gui/search_view.py
+msgid "{0} h {1} min"
+msgstr "{0} h {1} min"
 
 #: src/gui/search_view.py
 msgid "Letzter Lauf: {0} ({1})"
