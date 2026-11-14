@@ -9,6 +9,8 @@ from src.search import db, extract, plattform
 from src.search.indexer import Indexer
 from src.search.suchindex import Suchindex
 
+APPLE_MAIL_ORDNER_ECHT = plattform.apple_mail_ordner   # conftest schaltet die Erkennung fuer alle Tests ab
+
 PLIST = (b'<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>'
          b"<key>flags</key><integer>8590195713</integer></dict></plist>\n")
 
@@ -139,6 +141,7 @@ def test_mail_als_eml_wandelt_emlx_um(tmp_path, monkeypatch):
 
 
 def test_apple_mail_ordner_nur_auf_dem_mac(tmp_path, monkeypatch):
+    monkeypatch.setattr(plattform, "apple_mail_ordner", APPLE_MAIL_ORDNER_ECHT)
     monkeypatch.setattr(plattform, "_home", lambda: tmp_path)
     monkeypatch.setattr(plattform, "thunderbird_mail_ordner", lambda profiles_ini=None: [])
     mail = tmp_path / "Library" / "Mail"
