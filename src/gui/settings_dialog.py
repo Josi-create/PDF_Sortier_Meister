@@ -11,13 +11,15 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle
 )
-from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
 import sys
 import threading
 
+from src.gui import farben
+from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
 from src.core.entzerren import TONWERT_NAMEN, TONWERT_STANDARD, TONWERTE
 from src.gui.original_wegraeumen import AKTIONEN, antwort_speichern, gespeicherte_antwort
@@ -103,6 +105,8 @@ class SettingsDialog(QDialog):
         self._ki_preview_name = ""
         self._setup_ui()
         self._load_settings()
+        # Erst nach dem Laden: gespeicherte Modellnamen machen die Auswahlfelder breiter
+        self._set_initial_size()
 
     def show_tab(self, title: str) -> bool:
         """Schaltet auf den Tab mit diesem Titel (z.B. "Dateinamen")."""
@@ -176,24 +180,64 @@ class SettingsDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_button)
 
+        # Issue #255: uebernehmen, ohne das Fenster zu schliessen
+        self.apply_button = QPushButton(tr("Anwenden"))
+        self.apply_button.setToolTip(
+            tr("Übernimmt die Einstellungen sofort und lässt dieses Fenster offen.")
+        )
+        self.apply_button.clicked.connect(self._apply_settings)
+        button_layout.addWidget(self.apply_button)
+
         layout.addLayout(button_layout)
-        self._set_initial_height(general_tab)
 
-    def _set_initial_height(self, general_tab: QScrollArea) -> None:
-        """Startgroesse: Reiter „Allgemein“ moeglichst ganz zeigen (Issue #235).
+    # Konfigurationsschluessel der gemerkten Fenstergroesse [Breite, Hoehe]
+    _SIZE_KEY = "settings_dialog_size"
 
-        Seit der Reiter scrollt, richtet sich der Dialog nicht mehr nach seinem
-        Inhalt (ein Scrollbereich meldet hoechstens 24 Zeilen Hoehe). Deshalb
-        so hoch oeffnen, wie der Inhalt braucht, aber nie hoeher als 90 % des
-        Bildschirms; der Rest scrollt.
+    def _content_size(self) -> QSize:
+        """Groesse, bei der jeder Reiter ohne Bildlaufleiste passt (Issue #235, #255).
+
+        Die Reiter mit Scrollbereich melden dem Dialog nur eine kleine feste
+        Wunschgroesse (hoechstens 36 Zeichen breit, 24 Zeilen hoch), deshalb
+        wird ihr Inhalt selbst gemessen.
         """
-        inner = general_tab.widget()
-        wanted = (self.sizeHint().height() - general_tab.sizeHint().height()
-                  + inner.sizeHint().height())
+        pages = [self.tab_widget.widget(i) for i in range(self.tab_widget.count())]
+        hint = self.sizeHint()
+        # Rahmen des Dialogs um die Reiter-Seite (Reiterleiste, Knoepfe, Raender)
+        frame_w = hint.width() - max(p.sizeHint().width() for p in pages)
+        frame_h = hint.height() - max(p.sizeHint().height() for p in pages)
+        bar = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        width = height = 0
+        for page in pages:
+            inner = page.widget() if isinstance(page, QScrollArea) else page
+            size = inner.sizeHint().expandedTo(inner.minimumSizeHint())
+            # Platz fuer die senkrechte Leiste, falls die Hoehe am Bildschirm endet
+            extra = bar + 2 * page.frameWidth() if isinstance(page, QScrollArea) else 0
+            width = max(width, size.width() + extra)
+            height = max(height, size.height())
+        return QSize(frame_w + width, frame_h + height)
+
+    def _set_initial_size(self) -> None:
+        """Startgroesse: zuletzt benutzte Groesse, sonst passend zum Inhalt (Issue #255).
+
+        Nie groesser als 90 % des Bildschirms; was dann nicht passt, scrollt.
+        """
+        size = self._content_size()
+        saved = self.config.get(self._SIZE_KEY)
+        if (isinstance(saved, (list, tuple)) and len(saved) == 2
+                and all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in saved)):
+            size = QSize(saved[0], saved[1])
         screen = self.screen()
         if screen is not None:
-            wanted = min(wanted, int(screen.availableGeometry().height() * 0.9))
-        self.resize(self.sizeHint().width(), max(wanted, self.minimumHeight()))
+            available = screen.availableGeometry().size()
+            size = size.boundedTo(QSize(int(available.width() * 0.9), int(available.height() * 0.9)))
+        self.resize(size.expandedTo(self.minimumSize()))
+        self._initial_size = self.size()
+
+    def done(self, result: int) -> None:
+        """Merkt sich beim Schliessen die Groesse, wenn sie von Hand geaendert wurde."""
+        if self.size() != self._initial_size and not (self.isMaximized() or self.isFullScreen()):
+            self.config.set(self._SIZE_KEY, [self.width(), self.height()])
+        super().done(result)
 
     def _create_llm_tab(self) -> QWidget:
         """Erstellt den LLM-Einstellungs-Tab."""
@@ -492,7 +536,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         intro = QLabel(tr("Nach diesem Muster schlägt die KI Dateinamen vor."))
-        intro.setStyleSheet("color: #555; padding: 2px 0 6px 0;")
+        stil(intro, "color: $grau_55; padding: 2px 0 6px 0;")
         layout.addWidget(intro)
 
         form = QFormLayout()
@@ -602,7 +646,7 @@ class SettingsDialog(QDialog):
         form.addRow("", self.pattern_legend_label)
 
         self.pattern_warning_label = QLabel()
-        self.pattern_warning_label.setStyleSheet("color: #d32f2f; font-size: 11px;")
+        stil(self.pattern_warning_label, "color: $rot; font-size: 11px;")
         self.pattern_warning_label.hide()
         form.addRow("", self.pattern_warning_label)
 
@@ -614,9 +658,9 @@ class SettingsDialog(QDialog):
         # (wie bei QLabel+wordWrap im QFormLayout) vertikal abgeschnitten.
         self.pattern_preview_label = QLineEdit()
         self.pattern_preview_label.setReadOnly(True)
-        self.pattern_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #e8f5e9; "
-            "border: 1px solid #a5d6a7; border-radius: 3px; color: #1b5e20;"
+        stil(self.pattern_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $gruen_flaeche; "
+            "border: 1px solid $gruen_rand; border-radius: 3px; color: $gruen_text;"
         )
         preview_row.addWidget(self.pattern_preview_label, 1)
         self.pattern_try_button = QPushButton(tr("Mit aktueller PDF"))
@@ -670,9 +714,9 @@ class SettingsDialog(QDialog):
 
         self.folder_naming_preview_label = QLineEdit()
         self.folder_naming_preview_label.setReadOnly(True)
-        self.folder_naming_preview_label.setStyleSheet(
-            "font-family: monospace; padding: 4px; background-color: #f5f5f5; "
-            "border: 1px solid #ddd; border-radius: 3px; color: #444;"
+        stil(self.folder_naming_preview_label,
+            "font-family: monospace; padding: 4px; background-color: $grau_f5; "
+            "border: 1px solid $grau_dd; border-radius: 3px; color: $grau_44;"
         )
         move_form.addRow(tr("Ergebnis:"), self.folder_naming_preview_label)
         move_layout.addLayout(move_form)
@@ -684,7 +728,7 @@ class SettingsDialog(QDialog):
             ).format(PREVIEW_FOLDER=self._PREVIEW_FOLDER)
         )
         move_hint.setWordWrap(True)
-        move_hint.setStyleSheet("color: #777; font-size: 11px;")
+        stil(move_hint, "color: $grau_77; font-size: 11px;")
         move_layout.addWidget(move_hint)
 
         layout.addWidget(move_group)
@@ -951,7 +995,7 @@ class SettingsDialog(QDialog):
             "Ihren Namen ein. Der Korrespondent ist immer die andere Partei\n"
             "(Firma, Behörde, Person) — nicht Sie selbst.")
         )
-        info_label.setStyleSheet("color: #555; font-size: 11px; padding: 5px;")
+        stil(info_label, "color: $grau_55; font-size: 11px; padding: 5px;")
         layout.addWidget(info_label)
 
         # Benutzerinformationen
@@ -1027,7 +1071,7 @@ class SettingsDialog(QDialog):
         ))
         language_layout.addRow(tr("Sprache:"), self.language_combo)
         language_hint = QLabel(tr("Eine andere Sprache gilt nach dem Neustart des Programms."))
-        language_hint.setStyleSheet("color: gray;")
+        stil(language_hint, "color: $grau_hinweis;")
         language_hint.setWordWrap(True)
         language_layout.addRow(language_hint)
         layout.addWidget(language_group)
@@ -1036,11 +1080,23 @@ class SettingsDialog(QDialog):
         display_group = QGroupBox(tr("Darstellung"))
         display_layout = QFormLayout(display_group)
 
+        # Issue #238: helles oder dunkles Farbschema, Standard: wie das System
+        self.farbschema_combo = QComboBox()
+        self.farbschema_combo.addItem(tr("Wie das System"), farben.SYSTEM)
+        self.farbschema_combo.addItem(tr("Hell"), farben.HELL)
+        self.farbschema_combo.addItem(tr("Dunkel"), farben.DUNKEL)
+        self.farbschema_combo.setToolTip(tr(
+            "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\n"
+            "oder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\n"
+            "Die Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+        ))
+        display_layout.addRow(tr("Farbschema:"), self.farbschema_combo)
+
         tile_hint = QLabel(
             tr("Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt "
             "über dem Scan-Bereich unter „Ansicht“ ein.")
         )
-        tile_hint.setStyleSheet("color: gray;")
+        stil(tile_hint, "color: $grau_hinweis;")
         tile_hint.setWordWrap(True)
         display_layout.addRow(tile_hint)
 
@@ -1058,6 +1114,17 @@ class SettingsDialog(QDialog):
             "Vorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage.")
         )
         display_layout.addRow(self.suggest_new_folders_check)
+
+        # Issue #232: neue Scans erscheinen ohne F5
+        self.scan_ordner_beobachten_check = QCheckBox(tr("Scan-Ordner beobachten (neue Dateien erscheinen von selbst)"))
+        self.scan_ordner_beobachten_check.setChecked(True)
+        self.scan_ordner_beobachten_check.setToolTip(
+            tr("Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\n"
+            "Ordner nach wenigen Sekunden als Kachel, sobald sie fertig geschrieben ist.\n"
+            "Verschwundene Dateien werden aus der Ansicht genommen.\n"
+            "Ausgeschaltet zeigt erst F5 den neuen Stand.")
+        )
+        display_layout.addRow(self.scan_ordner_beobachten_check)
 
         layout.addWidget(display_group)
 
@@ -1119,7 +1186,7 @@ class SettingsDialog(QDialog):
             explorer_layout.addWidget(self.explorer_menu_checkbox)
 
             self.explorer_info_label = QLabel("")
-            self.explorer_info_label.setStyleSheet("color: gray;")
+            stil(self.explorer_info_label, "color: $grau_hinweis;")
             self.explorer_info_label.setWordWrap(True)
             explorer_layout.addWidget(self.explorer_info_label)
 
@@ -1156,7 +1223,7 @@ class SettingsDialog(QDialog):
             tr("Die kleine Vorschau unten im mittleren Bereich ist davon unabhängig "
             "und immer aktiv.")
         )
-        open_hint.setStyleSheet("color: gray;")
+        stil(open_hint, "color: $grau_hinweis;")
         open_hint.setWordWrap(True)
         open_layout.addRow(open_hint)
 
@@ -1177,7 +1244,7 @@ class SettingsDialog(QDialog):
             tr("Gilt für \"In PDF umwandeln und automatisch/von Hand entzerren\". Im Entzerren-Fenster "
             "lässt sich die Wahl für den einzelnen Auftrag ändern.")
         )
-        foto_hint.setStyleSheet("color: gray;")
+        stil(foto_hint, "color: $grau_hinweis;")
         foto_hint.setWordWrap(True)
         foto_layout.addRow(foto_hint)
         layout.addWidget(foto_group)
@@ -1212,7 +1279,7 @@ class SettingsDialog(QDialog):
             tr("Es wird nur die Versionsnummer des neuesten Releases abgerufen; "
             "heruntergeladen und installiert wird nichts automatisch.")
         )
-        update_info.setStyleSheet("color: gray;")
+        stil(update_info, "color: $grau_hinweis;")
         update_info.setWordWrap(True)
         update_layout.addWidget(update_info)
 
@@ -1252,7 +1319,7 @@ class SettingsDialog(QDialog):
         debug_info = QLabel(
             tr("<i>Achtung: Diese Aktionen können nicht rückgängig gemacht werden!</i>")
         )
-        debug_info.setStyleSheet("color: #cc0000;")
+        stil(debug_info, "color: $rot_text_kraeftig;")
         debug_layout.addWidget(debug_info)
 
         debug_buttons_layout = QHBoxLayout()
@@ -1314,7 +1381,7 @@ class SettingsDialog(QDialog):
             tr("Alles bleibt auf diesem Rechner: Index und erkannter Text liegen in einer "
             "lokalen Datenbank, nichts wird gesendet. Ohne Einschalten wird nichts indiziert.")
         )
-        search_hint.setStyleSheet("color: gray;")
+        stil(search_hint, "color: $grau_hinweis;")
         search_hint.setWordWrap(True)
         layout.addWidget(search_hint)
 
@@ -1399,7 +1466,7 @@ class SettingsDialog(QDialog):
         self.search_mails_check = QCheckBox(tr("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"))
         mail_layout.addWidget(self.search_mails_check)
         self.search_thunderbird_label = QLabel("")
-        self.search_thunderbird_label.setStyleSheet("color: gray;")
+        stil(self.search_thunderbird_label, "color: $grau_hinweis;")
         self.search_thunderbird_label.setWordWrap(True)
         mail_layout.addWidget(self.search_thunderbird_label)
         mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):")))
@@ -1435,10 +1502,13 @@ class SettingsDialog(QDialog):
         self.search_ocr_max_pages_spin.setToolTip(tr("PDFs mit mehr Bildseiten werden nicht automatisch texterkannt"))
         ocr_layout.addRow(tr("Höchstens Bildseiten je PDF:"), self.search_ocr_max_pages_spin)
         self.search_ocr_status_label = QLabel("")
-        self.search_ocr_status_label.setStyleSheet("color: gray;")
+        stil(self.search_ocr_status_label, "color: $grau_hinweis;")
         self.search_ocr_status_label.setWordWrap(True)
         ocr_layout.addRow(self.search_ocr_status_label)
         layout.addWidget(ocr_group)
+
+        # Bedeutungssuche fuer den Chat (Issue #230)
+        layout.addWidget(self._create_meaning_group())
 
         # Cloud-Dateien und Grenzen
         limits_group = QGroupBox(tr("Cloud-Dateien und Grenzen"))
@@ -1471,7 +1541,7 @@ class SettingsDialog(QDialog):
             "Aufgabenplanung (Windows) bzw. einen LaunchAgent (macOS), Administratorrechte sind "
             "nicht nötig.")
         )
-        bg_hint.setStyleSheet("color: gray;")
+        stil(bg_hint, "color: $grau_hinweis;")
         bg_hint.setWordWrap(True)
         bg_layout.addRow(bg_hint)
         layout.addWidget(bg_group)
@@ -1495,7 +1565,7 @@ class SettingsDialog(QDialog):
             "von selbst. Beim automatischen Start läuft sie ab der Anmeldung im Hintergrund – das "
             "melden manche Virenscanner (z. B. Microsoft Defender) als verdächtig.")
         )
-        web_hint.setStyleSheet("color: gray;")
+        stil(web_hint, "color: $grau_hinweis;")
         web_hint.setWordWrap(True)
         web_layout.addRow(web_hint)
         layout.addWidget(web_group)
@@ -1544,7 +1614,7 @@ class SettingsDialog(QDialog):
             "Datei inzwischen einsortiert ist. Signierte, verschlüsselte und PDF/A-Dateien "
             "sowie geöffnete Dateien bleiben unberührt.")
         )
-        text_hint.setStyleSheet("color: gray;")
+        stil(text_hint, "color: $grau_hinweis;")
         text_hint.setWordWrap(True)
         text_layout.addRow(text_hint)
         # Gedrehte Scans (Issue #151)
@@ -1565,7 +1635,7 @@ class SettingsDialog(QDialog):
             "Seite gespeichert – mit Sicherungskopie, im Protokoll oben, rückgängig wie die "
             "Textebene. Nur die Drehangabe ändert sich, das Scanbild bleibt unverändert.")
         )
-        rotate_hint.setStyleSheet("color: gray;")
+        stil(rotate_hint, "color: $grau_hinweis;")
         rotate_hint.setWordWrap(True)
         text_layout.addRow(rotate_hint)
         # Schief gescannte Seiten (Issue #165)
@@ -1586,7 +1656,7 @@ class SettingsDialog(QDialog):
             "oben, rückgängig wie die Textebene. Das Scanbild wird dabei nicht neu berechnet, eine "
             "vorhandene Textebene dreht mit. Einzelne PDFs: Rechtsklick › Drehen › Gerade ausrichten.")
         )
-        deskew_hint.setStyleSheet("color: gray;")
+        stil(deskew_hint, "color: $grau_hinweis;")
         deskew_hint.setWordWrap(True)
         text_layout.addRow(deskew_hint)
         layout.addWidget(text_group)
@@ -1621,6 +1691,117 @@ class SettingsDialog(QDialog):
         scroll.setWidget(inner)
         return scroll
 
+    # Bedeutungssuche im Reiter „Suche“ (Issue #230)
+
+    def _create_meaning_group(self) -> QGroupBox:
+        """Gruppe „Bedeutungssuche für den Chat“: Schalter (Standard aus), Stand, Modell laden.
+
+        Die Logik liegt Qt-frei in ``src/search/bedeutung.py``. Ollama wird nur gefragt,
+        wenn der Nutzer den Schalter setzt oder das Modell laedt - nicht beim Oeffnen.
+        """
+        from src.search import bedeutung
+
+        group = QGroupBox(tr("Bedeutungssuche für den Chat (lokal über Ollama)"))
+        box = QVBoxLayout(group)
+        self.search_meaning_check = QCheckBox(
+            tr("Im Chat auch Dokumente finden, die dasselbe meinen, aber andere Wörter benutzen"))
+        self.search_meaning_check.clicked.connect(self._on_search_meaning_clicked)
+        box.addWidget(self.search_meaning_check)
+        zeile = QHBoxLayout()
+        self.search_meaning_status_label = QLabel("")
+        self.search_meaning_status_label.setStyleSheet("color: gray;")
+        self.search_meaning_status_label.setWordWrap(True)
+        zeile.addWidget(self.search_meaning_status_label, 1)
+        self.search_meaning_model_button = QPushButton(tr("Modell laden (ca. 620 MB)"))
+        self.search_meaning_model_button.setToolTip(
+            tr("Lädt das Modell {modell} einmalig über Ollama herunter").format(modell=bedeutung.MODELL_STANDARD))
+        self.search_meaning_model_button.clicked.connect(self._search_meaning_model_laden)
+        zeile.addWidget(self.search_meaning_model_button)
+        box.addLayout(zeile)
+        hint = QLabel(
+            tr("Beispiel: Die Frage „Was zahle ich für meine Autoversicherung?“ findet auch die Rechnung, in der "
+               "nur „Kraftfahrtversicherung“ steht. Dazu berechnet der Indexlauf für jede Seite einmalig "
+               "Bedeutungswerte – mit einem kleinen Modell, das über Ollama auf diesem Rechner läuft; kein Text "
+               "verlässt den Rechner. Der erste Lauf über ein großes Archiv kann Stunden dauern (ohne Grafikkarte "
+               "deutlich länger) und geht in Etappen weiter; neue und geänderte Seiten kommen bei jedem Lauf dazu. "
+               "Die Wortsuche und der Reiter „Suche“ bleiben, wie sie sind.")
+        )
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        box.addWidget(hint)
+        self._search_meaning_hintergrund = _Hintergrund(self)
+        self._search_meaning_modell = bedeutung.MODELL_STANDARD
+        self._search_meaning_url = ""
+        return group
+
+    def _search_meaning_stand(self) -> str:
+        """„1.234 von 5.678 Seiten vorbereitet“ aus dem Suchindex; leer ohne Datenbank."""
+        from src.search.suchindex import Suchindex
+
+        try:
+            stand = Suchindex(self.config.get_search_config()).bedeutung_stand()
+        except Exception:  # noqa: BLE001 - nur eine Anzeige
+            stand = None
+        if not stand or not stand["seiten"]:
+            return ""
+        return tr("{fertig} von {seiten} Seiten vorbereitet").format(
+            fertig=f"{stand['fertig']:,}".replace(",", "."), seiten=f"{stand['seiten']:,}".replace(",", "."))
+
+    def _search_meaning_status_setzen(self, vorhanden=...) -> None:
+        """Statuszeile; ``vorhanden`` wie ``bedeutung.modell_vorhanden`` (ohne Angabe: Ollama nicht gefragt)."""
+        teile = []
+        if vorhanden is None:
+            teile.append(tr("Ollama läuft nicht – die Bedeutungssuche braucht Ollama auf diesem Rechner."))
+        elif vorhanden is False:
+            teile.append(tr("Das Modell {modell} fehlt noch – bitte „Modell laden“.").format(
+                modell=self._search_meaning_modell))
+        elif vorhanden is True:
+            teile.append(tr("Modell {modell} ist bereit.").format(modell=self._search_meaning_modell))
+        stand = self._search_meaning_stand()
+        if stand:
+            teile.append(stand)
+        elif self.search_meaning_check.isChecked() and vorhanden is not None:
+            teile.append(tr("Die Seiten werden beim nächsten Indexlauf vorbereitet."))
+        self.search_meaning_status_label.setText(" ".join(teile))
+        self.search_meaning_model_button.setEnabled(vorhanden is not True)
+
+    def _on_search_meaning_clicked(self, an: bool) -> None:
+        """Einschalten geht nur, wenn Ollama läuft; fehlt das Modell, bietet die Zeile darunter den Download an."""
+        from src.search import bedeutung
+
+        if not an:
+            self._search_meaning_status_setzen()
+            return
+        vorhanden = bedeutung.modell_vorhanden(self._search_meaning_url, self._search_meaning_modell)
+        if vorhanden is None:
+            self.search_meaning_check.setChecked(False)
+            QMessageBox.warning(
+                self, tr("Bedeutungssuche"),
+                tr("Ollama läuft nicht. Die Bedeutungssuche rechnet mit einem lokalen Modell über Ollama.\n\n"
+                   "Bitte Ollama starten (oder im Reiter „KI-Assistent (LLM)“ einrichten) und den Schalter noch einmal setzen."))
+        self._search_meaning_status_setzen(vorhanden)
+
+    def _search_meaning_model_laden(self) -> None:
+        from src.ml.ollama_launcher import pull_model
+        from src.search import bedeutung
+
+        url = self._search_meaning_url or bedeutung.URL_STANDARD
+        modell = self._search_meaning_modell
+        self.search_meaning_model_button.setEnabled(False)
+        self.search_meaning_status_label.setText(
+            tr("Modell {modell} wird geladen … das kann einige Minuten dauern.").format(modell=modell))
+        self._search_meaning_hintergrund.starten(lambda: pull_model(url, modell), self._search_meaning_model_geladen)
+
+    def _search_meaning_model_geladen(self, ergebnis) -> None:
+        from src.search import bedeutung
+
+        ok, text = (False, str(ergebnis)) if isinstance(ergebnis, Exception) else ergebnis
+        if not ok:
+            QMessageBox.warning(self, tr("Bedeutungssuche"),
+                                tr("Das Modell konnte nicht geladen werden:\n{text}").format(text=text))
+        self._search_meaning_status_setzen(
+            bedeutung.modell_vorhanden(self._search_meaning_url, self._search_meaning_modell))
+
     # KI-Assistenten (MCP) im Reiter „Suche“ (Baustein 3, docs/CHAT_MCP_PLAN.md)
 
     _MCP_SYMBOL = {
@@ -1654,7 +1835,7 @@ class SettingsDialog(QDialog):
             "Dienst „pdfsuche“ Ihre Dokumente. Der Assistent fragt vor jeder Aktion. Der Dienst "
             "liest den Index nur.")
         )
-        self.mcp_hint_label.setStyleSheet("color: gray;")
+        stil(self.mcp_hint_label, "color: $grau_hinweis;")
         self.mcp_hint_label.setWordWrap(True)
         form.addRow(self.mcp_hint_label)
 
@@ -1724,7 +1905,7 @@ class SettingsDialog(QDialog):
         self.mcp_meldung_label = QLabel(
             tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
-        self.mcp_meldung_label.setStyleSheet("color: gray;")
+        stil(self.mcp_meldung_label, "color: $grau_hinweis;")
         self.mcp_meldung_label.setWordWrap(True)
         form.addRow(self.mcp_meldung_label)
 
@@ -1944,6 +2125,11 @@ class SettingsDialog(QDialog):
             status = tr("Tesseract nicht gefunden – die Texterkennung bleibt aus, bis Tesseract installiert ist.")
         self.search_ocr_status_label.setText(status)
 
+        self.search_meaning_check.setChecked(cfg.bedeutung_aktiv)
+        self._search_meaning_modell = cfg.bedeutung_modell
+        self._search_meaning_url = cfg.bedeutung_url
+        self._search_meaning_status_setzen()
+
         self.search_cloud_check.setChecked(cfg.cloud_herunterladen)
         self.search_max_size_spin.setValue(cfg.max_dateigroesse_mb)
         self.search_background_check.setChecked(cfg.hintergrund_aktiv)
@@ -2002,6 +2188,9 @@ class SettingsDialog(QDialog):
             textebene_sicherung_ordner=alt.textebene_sicherung_ordner,
             auto_drehen=self.search_autorotate_combo.currentData() or "aus",
             auto_gerade=self.search_deskew_combo.currentData() or "aus",
+            bedeutung_aktiv=self.search_meaning_check.isChecked(),
+            bedeutung_modell=alt.bedeutung_modell,
+            bedeutung_url=alt.bedeutung_url,
         )
         self.config.set_search_config(cfg)
         self._sync_search_schedule(alt, cfg)
@@ -2409,15 +2598,15 @@ class SettingsDialog(QDialog):
         self.model_combo.clear()
         if models is None:
             self.lmstudio_status_label.setText(self._LMSTUDIO_START_HINT)
-            self.lmstudio_status_label.setStyleSheet("color: #c0392b;")
+            stil(self.lmstudio_status_label, "color: $rot_text_status;")
         else:
             self.model_combo.addItems(models)
             if models:
-                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "green"
+                text, color = tr("LM Studio erkannt: {anzahl} Modell(e) verfuegbar.").format(anzahl=len(models)), "$gruen_status"
             else:
-                text, color = self._LMSTUDIO_KEIN_MODELL, "#b35c00"
+                text, color = self._LMSTUDIO_KEIN_MODELL, "$orange_text"
             self.lmstudio_status_label.setText(text)
-            self.lmstudio_status_label.setStyleSheet(f"color: {color};")
+            stil(self.lmstudio_status_label, f"color: {color};")
         if current:
             self.model_combo.setCurrentText(current)
         return models
@@ -2429,16 +2618,16 @@ class SettingsDialog(QDialog):
             self.consent_hint_label.setText(
                 tr("Nur für Cloud-Anbieter relevant (Ollama läuft lokal).")
             )
-            self.consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.consent_hint_label, "color: $grau_hinweis;")
         elif self.cloud_consent_check.isChecked():
             self.consent_hint_label.setText(tr("Einwilligung erteilt."))
-            self.consent_hint_label.setStyleSheet("color: green;")
+            stil(self.consent_hint_label, "color: $gruen_status;")
         else:
             self.consent_hint_label.setText(
                 tr("Ohne Einwilligung bleibt der KI-Assistent deaktiviert "
                 "(Statusleiste: \"LLM: Aus\").")
             )
-            self.consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.consent_hint_label, "color: $rot_text_status;")
 
     # Chat-Gruppe (Issue #166/#167): eigenes Modell fuer den Chat
 
@@ -2541,10 +2730,10 @@ class SettingsDialog(QDialog):
                     "Chat-Modell aus."
                 ).format(base=base)
             )
-            self.chat_consent_hint_label.setStyleSheet("color: #c0392b;")
+            stil(self.chat_consent_hint_label, "color: $rot_text_status;")
         else:
             self.chat_consent_hint_label.setText(base)
-            self.chat_consent_hint_label.setStyleSheet("color: gray;")
+            stil(self.chat_consent_hint_label, "color: $grau_hinweis;")
 
     def _test_chat_connection(self):
         """„Verbindung testen“ der Chat-Gruppe: dieselbe Testlogik mit den Chat-Werten.
@@ -2663,10 +2852,13 @@ class SettingsDialog(QDialog):
         )
 
         # Allgemeine Einstellungen
+        schema_index = self.farbschema_combo.findData(farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)))
+        self.farbschema_combo.setCurrentIndex(max(schema_index, 0))
         self.max_suggestions_spin.setValue(self.config.get("max_suggestions", 5))
         sprache_index = self.language_combo.findData(self.config.get("language", AUTO) or AUTO)
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
+        self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -2738,7 +2930,12 @@ class SettingsDialog(QDialog):
         self._load_search_settings()
 
     def _save_settings(self):
-        """Speichert die Einstellungen."""
+        """Speichert die Einstellungen und schliesst das Fenster."""
+        self._apply_settings()
+        self.accept()
+
+    def _apply_settings(self):
+        """Speichert die Einstellungen; das Fenster bleibt offen („Anwenden“, Issue #255)."""
         # LLM-Einstellungen
         provider_index = self.provider_combo.currentIndex()
         provider = self._provider_id_at(provider_index) or "none"
@@ -2770,9 +2967,14 @@ class SettingsDialog(QDialog):
         self.config.set("llm", llm_config)
 
         # Allgemeine Einstellungen
+        farbschema = self.farbschema_combo.currentData() or farben.SYSTEM
+        if farbschema != farben.schema(self.config.get(farben.KONFIG_SCHLUESSEL)):
+            self.config.set(farben.KONFIG_SCHLUESSEL, farbschema)
+            farben.anwenden(farbschema)  # gilt sofort, ohne Neustart
         self.config.set("max_suggestions", self.max_suggestions_spin.value())
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
+        self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
@@ -2865,7 +3067,6 @@ class SettingsDialog(QDialog):
         self.config.update_chat_config(**chat_felder)
 
         self.settings_changed.emit()
-        self.accept()
 
     def _update_pdf_open_command_enabled(self, *_):
         """Programm-Feld nur bei "Eigenes Programm" aktiv (Issue #76)."""

@@ -113,6 +113,39 @@ def kein_echtes_mac_office(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def ordner_beobachtung_ohne_takt(monkeypatch):
+    """Kein Hauptfenster eines Tests liest von sich aus alle zwei Sekunden den Scan-Ordner
+    (Issue #232): Kacheln entstehen und verschwinden in Tests nur durch den Test selbst.
+    Tests der Beobachtung rufen deren Schritte auf oder stellen ``AUTOMATISCH`` wieder an."""
+    from src.gui import ordner_beobachtung
+
+    monkeypatch.setattr(ordner_beobachtung, "AUTOMATISCH", False)
+
+
+@pytest.fixture(autouse=True)
+def doppelte_hinweis_aus(monkeypatch):
+    """Kein Test bekommt von sich aus Hinweise oder Rueckfragen zu doppelten Dateien
+    (Issue #245): Viele Tests legen mehrere Dateien mit demselben Inhalt an. Die Tests
+    des Hinweises stellen ``AUTOMATISCH`` wieder an."""
+    from src.gui import doppelte
+
+    monkeypatch.setattr(doppelte, "AUTOMATISCH", False)
+
+
+@pytest.fixture(autouse=True)
+def kein_echtes_ollama_fuer_die_bedeutungssuche(monkeypatch):
+    """Kein Test fragt ein echtes Ollama nach Bedeutungsvektoren oder Modellen (Issue #230).
+
+    Tests der Bedeutungssuche ersetzen ``bedeutung._anfrage`` selbst und gewinnen damit."""
+    from src.search import bedeutung
+
+    def gesperrt(url, pfad, daten, zeitlimit):
+        raise bedeutung.BedeutungFehler("Ollama ist in Tests abgeschaltet")
+
+    monkeypatch.setattr(bedeutung, "_anfrage", gesperrt)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

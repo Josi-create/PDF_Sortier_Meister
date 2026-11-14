@@ -89,10 +89,13 @@ class Config:
         # wie "de" oder "en" (siehe src/i18n). Wirkt nach dem Neustart.
         "language": "auto",
         "theme": "light",
+        # Farbschema (Issue #238): "system" (wie Windows/macOS), "hell" oder "dunkel"
+        "farbschema": "system",
         "last_used_folders": [],  # Zuletzt verwendete Zielordner
         "max_suggestions": 5,  # Maximale Anzahl Sortiervorschläge
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
+        "scan_ordner_beobachten": True,  # Issue #232: neue Dateien im Scan-Ordner erscheinen von selbst
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
@@ -149,12 +152,14 @@ class Config:
         # "farbe" (aufgehellt) | "grau" | "sw" (Schwarzweiss)
         "bild_tonwerte": "farbe",
         "preview_window_geometry": [],  # [x, y, w, h] des Vorschau-Fensters
+        # [Breite, Hoehe] des Einstellungsfensters; leer = passend zum Inhalt (Issue #255)
+        "settings_dialog_size": [],
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
         # Vorschlagsliste unter "Neuer Dateiname" aufgeklappt (Issue #146)
         "suggestions_expanded": False,
         # Original nach dem Umwandeln in PDF / Trennen (Issues #184, #187):
         # je Aktion None = fragen, True = in den Papierkorb, False = behalten
-        "original_wegraeumen": {"umwandeln": None, "trennen": None, "zusammenfuegen": None},
+        "original_wegraeumen": {"umwandeln": None, "trennen": None, "zusammenfuegen": None, "entsperren": None},
         # Dokumentensuche (src/search): Felder siehe src.search.konfig.SearchConfig.
         # Leer = nicht eingerichtet; Standard-Wurzeln sind Scan- und Zielordner.
         "suche": {},

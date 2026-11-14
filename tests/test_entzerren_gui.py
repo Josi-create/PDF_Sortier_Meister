@@ -112,9 +112,9 @@ def test_menue_der_mehrfachauswahl_hat_untermenue(main_window, scan):  # noqa: F
         "Zu einem PDF zusammenfügen und automatisch entzerren",
         "Zu einem PDF zusammenfügen und von Hand entzerren",
     ]
-    # Einzeln markiert: kein Untermenue, aber die zwei Einzel-Eintraege
+    # Einzeln markiert: kein Entzerren-Untermenue (nur "Drehen", Issue #252), aber die zwei Einzel-Eintraege
     main_window.selected_pdfs = [a]
-    assert not any(x.menu() is not None for x in _menue(_kachel(main_window, b)).actions())
+    assert [x.text() for x in _menue(_kachel(main_window, b)).actions() if x.menu() is not None] == ["Drehen"]
 
 
 def test_office_dateien_haben_keine_entzerren_eintraege(main_window, scan):  # noqa: F811

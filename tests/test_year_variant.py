@@ -93,3 +93,29 @@ def test_max_suggestions_respected(tmp_path):
     )
     assert len(out) == 3
     assert out[0].folder_name == "Ordner 2026"
+
+
+def test_bezugsjahr_im_text_schlaegt_briefdatum(tmp_path):
+    """Issue #254: Bescheid "fuer 2020", Brief von 2022 -> "Steuer 2020" steht oben."""
+    root = _tree(tmp_path, "Steuer 2020", "Steuer 2022", "Steuer 2023")
+    c = _bare_classifier([
+        Suggestion(root / "Steuer 2022", "Steuer 2022", 0.8, "gelernt"),
+        Suggestion(root / "Steuer 2023", "Steuer 2023", 0.7, "gelernt"),
+    ])
+    text = "Finanzamt Musterstadt\nBescheid für 2020 über Einkommensteuer\nMusterstadt, 14.03.2022"
+
+    out = c.suggest_with_subfolders(text, None, detected_date="2022-03-14", root_folders=[root])
+
+    assert out[0].relative_path == f"{root.name}/Steuer 2020"
+    assert out[0].confidence == max(s.confidence for s in out)
+    assert f"{root.name}/Steuer 2022" in [s.relative_path for s in out]  # Gelerntes bleibt
+
+
+def test_ohne_bezugsjahr_bleibt_das_briefdatum(tmp_path):
+    root = _tree(tmp_path, "Steuer 2020", "Steuer 2022")
+    c = _bare_classifier([Suggestion(root / "Steuer 2022", "Steuer 2022", 0.8, "gelernt")])
+
+    out = c.suggest_with_subfolders(
+        "Rechnung Nr. 2020 vom 14.03.2022", None, detected_date="2022-03-14", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Steuer 2022"]

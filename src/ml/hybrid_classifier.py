@@ -482,14 +482,16 @@ class HybridClassifier:
         """
         try:
             from src.core.similar_documents import (
-                describe_similar_for_prompt, document_year, find_similar_documents,
+                describe_similar_for_prompt, find_similar_documents, vorschlag_jahr,
             )
             config = get_config()
             roots = config.get_target_folders()
             if not roots:
                 return ""
             similar = find_similar_documents(text, keywords, roots, db=get_database(), limit=5)
-            info = describe_similar_for_prompt(similar, document_year(detected_date, file_date), roots)
+            # Issue #254: Bezugsjahr im Text ("Bescheid fuer 2020") vor dem Briefdatum
+            info = describe_similar_for_prompt(
+                similar, vorschlag_jahr(text, detected_date, file_date=file_date), roots)
         except Exception as e:  # noqa: BLE001 - Kontext ist optional
             logger.debug(f"Aehnliche Dokumente nicht verfuegbar: {e}")
             return ""

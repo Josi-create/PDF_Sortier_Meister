@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.core import support
+from src.gui.farben import stil
 from src.i18n import tr
 
 
@@ -71,7 +72,7 @@ class SupportDialog(QDialog):
             hint_text = tr("Der Zahlungslink ist noch nicht eingerichtet.")
         self.amount_hint = QLabel(hint_text)
         self.amount_hint.setWordWrap(True)
-        self.amount_hint.setStyleSheet("color: gray;")
+        stil(self.amount_hint, "color: $grau_hinweis;")
         layout.addWidget(self.amount_hint)
 
         separator = QFrame()

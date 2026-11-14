@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdf-sortier-meister"
-version = "0.27.0"
+version = "0.28.0"
 description = "Ein intelligentes Programm zum Sortieren und Umbenennen von gescannten PDF-Dokumenten"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}

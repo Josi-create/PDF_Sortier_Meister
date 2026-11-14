@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from src.core.similar_documents import (
-    _YEAR_RE, document_year, normalize_relative, relative_folder, resolve_relative_folder,
+    _YEAR_RE, normalize_relative, relative_folder, resolve_relative_folder, vorschlag_jahr,
 )
 from src.i18n import tr
 
@@ -190,10 +190,10 @@ def jahres_neuer_ordner(suggestions: Sequence, year: Optional[int], root_folders
     return None
 
 
-def dokument_jahr(detected_date: Optional[str], metadata: Optional[dict] = None) -> Optional[int]:
-    """Jahr fuer die Jahresregel: Steuerjahr aus den KI-Metadaten, sonst Dokumentdatum."""
+def dokument_jahr(detected_date: Optional[str], metadata: Optional[dict] = None, text: str = "") -> Optional[int]:
+    """Jahr fuer die Jahresregel: Bezugsjahr im Text (#254), Steuerjahr der KI, sonst Dokumentdatum."""
     steuerjahr = (metadata or {}).get("steuerjahr") if isinstance(metadata, dict) else None
-    return document_year(str(steuerjahr) if steuerjahr else None) or document_year(detected_date)
+    return vorschlag_jahr(text, detected_date, steuerjahr)
 
 
 def hoechstens_einer_vorne(suggestions: Sequence) -> list:

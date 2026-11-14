@@ -405,13 +405,86 @@ msgstr "The PDF contains no scanned pages."
 msgid "KI hat keinen Vorschlag geliefert."
 msgstr "The AI did not return a suggestion."
 
+#: src/core/pdf_entsperren.py
+msgid " (entsperrt)"
+msgstr " (unlocked)"
+
+#: src/core/pdf_entsperren.py
+msgid "Das Passwort passt nicht."
+msgstr "The password does not match."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie ist noch geschützt."
+msgstr "The copy is still protected."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie hat nicht alle Seiten des Originals."
+msgstr "The copy does not have all pages of the original."
+
+#: src/core/pdf_entsperren.py
+#: src/core/pdf_rotate.py
+msgid "Datei nicht vorhanden"
+msgstr "File does not exist"
+
+#: src/core/pdf_entsperren.py
+msgid "Die PDF braucht kein Passwort zum Öffnen."
+msgstr "The PDF does not need a password to open."
+
+#: src/core/pdf_entsperren.py
+msgid "Die PDF konnte nicht gelesen werden: {grund}"
+msgstr "The PDF could not be read: {grund}"
+
+#: src/core/pdf_entsperren.py
+msgid "Im Ordner kann nicht geschrieben werden."
+msgstr "Cannot write to the folder."
+
+#: src/core/pdf_entsperren.py
+msgid "Die Kopie konnte nicht geschrieben werden: {grund}"
+msgstr "The copy could not be written: {grund}"
+
+#: src/core/pdf_entsperren.py
+msgid "Kein freier Dateiname für die Kopie gefunden."
+msgstr "No free file name found for the copy."
+
 #: src/core/pdf_rotate.py
 msgid "Drehwinkel {grad} nicht erlaubt (90, 180, 270 oder -90)"
 msgstr "Rotation angle {grad} not allowed (90, 180, 270 or -90)"
 
-#: src/core/pdf_rotate.py
-msgid "Datei nicht vorhanden"
-msgstr "File does not exist"
+#: src/core/bild_drehen.py
+msgid "{endung}-Bilder lassen sich hier nicht drehen (nur JPG, PNG und BMP)."
+msgstr "{endung} images cannot be rotated here (only JPG, PNG and BMP)."
+
+#: src/core/bild_drehen.py
+msgid "Die Datei ist kein JPEG-Bild."
+msgstr "The file is not a JPEG image."
+
+#: src/core/bild_drehen.py
+msgid "Das Bild lässt sich nicht lesen: {fehler}"
+msgstr "The image cannot be read: {fehler}"
+
+#: src/core/bild_drehen.py
+msgid "Die Bildinformationen (EXIF) sind zu groß, um die Drehung einzutragen."
+msgstr "The image information (EXIF) is too large to store the rotation."
+
+#: src/core/bild_drehen.py
+msgid "Zum Drehen wird das Paket \"Pillow\" benötigt."
+msgstr "Rotating requires the \"Pillow\" package."
+
+#: src/core/bild_drehen.py
+msgid "Der Inhalt der Datei passt nicht zur Endung {endung}."
+msgstr "The content of the file does not match the extension {endung}."
+
+#: src/core/bild_drehen.py
+msgid "Animierte Bilder werden nicht gedreht."
+msgstr "Animated images are not rotated."
+
+#: src/core/bild_drehen.py
+msgid "Das Bild lässt sich nicht drehen: {fehler}"
+msgstr "The image cannot be rotated: {fehler}"
+
+#: src/core/bild_drehen.py
+msgid "Das gedrehte Bild ließ sich nicht verlustfrei speichern."
+msgstr "The rotated image could not be saved without loss."
 
 #: src/core/pdf_rotate.py
 msgid "Die PDF ist kennwortgeschützt."
@@ -702,6 +775,7 @@ msgid "Zurücksetzen"
 msgstr "Reset"
 
 #: src/gui/chat_view.py
+#: src/gui/doppelte.py
 #: src/gui/entzerren_dialog.py
 #: src/gui/ki_trennen_dialog.py
 #: src/gui/korrespondenten_view.py
@@ -1137,6 +1211,196 @@ msgstr "AI error: {text}"
 msgid "KI arbeitet… {0}"
 msgstr "AI working… {0}"
 
+#: src/gui/entsperren.py
+msgid "Passwortschutz entfernen"
+msgstr "Remove password protection"
+
+#: src/gui/entsperren.py
+msgid "Passwort für diese PDF:"
+msgstr "Password for this PDF:"
+
+#: src/gui/entsperren.py
+msgid "Passwort für diese {anzahl} PDFs (es wird bei allen versucht):"
+msgstr "Password for these {anzahl} PDFs (it is tried on all of them):"
+
+#: src/gui/entsperren.py
+msgid "Passwort"
+msgstr "Password"
+
+#: src/gui/entsperren.py
+msgid "Passwort anzeigen"
+msgstr "Show password"
+
+#: src/gui/entsperren.py
+msgid "Es entsteht eine Kopie ohne Schutz neben dem Original; das Original bleibt unverändert.\nDas Passwort wird nicht gespeichert und nicht an die KI gegeben."
+msgstr "A copy without protection is created next to the original; the original stays unchanged.\nThe password is not saved and not passed to the AI."
+
+#: src/gui/entsperren.py
+msgid "Kopie ohne Schutz erstellen"
+msgstr "Create copy without protection"
+
+#: src/gui/entsperren.py
+msgid "Kein Passwortschutz gefunden - nichts geändert."
+msgstr "No password protection found - nothing changed."
+
+#: src/gui/entsperren.py
+msgid "{name}: Die Datei ist nicht mehr da."
+msgstr "{name}: The file is no longer there."
+
+#: src/gui/entsperren.py
+msgid "{name}: unerwarteter Fehler ({art})."
+msgstr "{name}: unexpected error ({art})."
+
+#: src/gui/entsperren.py
+msgid "Bei diesen PDFs passt das Passwort nicht. Anderes Passwort?"
+msgstr "The password does not match these PDFs. Another password?"
+
+#: src/gui/entsperren.py
+msgid "Das Passwort passt nicht. Bitte noch einmal eingeben."
+msgstr "The password does not match. Please enter it again."
+
+#: src/gui/entsperren.py
+msgid "Abgebrochen - nichts wurde geändert."
+msgstr "Cancelled - nothing was changed."
+
+#: src/gui/entsperren.py
+msgid "Kopie ohne Passwortschutz erstellt: {name}"
+msgstr "Copy without password protection created: {name}"
+
+#: src/gui/entsperren.py
+msgid "{anzahl} Kopien ohne Passwortschutz erstellt"
+msgstr "{anzahl} copies without password protection created"
+
+#: src/gui/entsperren.py
+msgid ", {anzahl} PDF(s) bleiben geschützt"
+msgstr ", {anzahl} PDF(s) remain protected"
+
+#: src/gui/entsperren.py
+msgid ", {anzahl} PDF(s) hatten keinen Passwortschutz"
+msgstr ", {anzahl} PDF(s) had no password protection"
+
+#: src/gui/entsperren.py
+msgid "Diese PDFs sind digital signiert. Die Signatur gilt nur für das geschützte Original, nicht für die Kopie - das Original bleibt deshalb liegen:\n{namen}"
+msgstr "These PDFs are digitally signed. The signature is only valid for the protected original, not for the copy - the original therefore stays where it is:\n{namen}"
+
+#: src/gui/entsperren.py
+msgid "'{name}' wurde ohne Passwortschutz als '{kopie}' gespeichert.\n\nDas geschützte Original in den Papierkorb verschieben?"
+msgstr "'{name}' was saved without password protection as '{kopie}'.\n\nMove the protected original to the Recycle Bin?"
+
+#: src/gui/entsperren.py
+msgid "{anzahl} PDFs wurden ohne Passwortschutz als Kopie gespeichert.\n\nDie {anzahl} geschützten Originale in den Papierkorb verschieben?\n{namen}"
+msgstr "{anzahl} PDFs were saved as copies without password protection.\n\nMove the {anzahl} protected originals to the Recycle Bin?\n{namen}"
+
+#: src/gui/entsperren.py
+msgid "Geschütztes Original weggeräumt: {namen}"
+msgstr "Protected original cleared away: {namen}"
+
+#: src/gui/doppelte.py
+msgid "Doppelt: wie {name}"
+msgstr "Duplicate of {name}"
+
+#: src/gui/doppelte.py
+msgid "Gleicher Inhalt wie:\n{liste}"
+msgstr "Same content as:\n{liste}"
+
+#: src/gui/doppelte.py
+msgid "Doppelt"
+msgstr "Duplicate"
+
+#: src/gui/doppelte.py
+msgid "Gleicher Inhalt: „{a}“ und „{b}“"
+msgstr "Same content: “{a}” and “{b}”"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} Dateien in diesem Ordner sind doppelt vorhanden (gleicher Inhalt)"
+msgstr "{anzahl} files in this folder are duplicates (same content)"
+
+#: src/gui/doppelte.py
+msgid "Prüfe, ob es die Datei im Ziel oder im Archiv schon gibt …"
+msgstr "Checking whether the file already exists in the target folder or the archive …"
+
+#: src/gui/doppelte.py
+#: src/gui/stapel_ablage.py
+msgid "Nicht mehr warten"
+msgstr "Stop waiting"
+
+#: src/gui/doppelte.py
+msgid "Doppelte Dateien"
+msgstr "Duplicate files"
+
+#: src/gui/doppelte.py
+msgid "Datei schon vorhanden"
+msgstr "File already exists"
+
+#: src/gui/doppelte.py
+msgid "„{name}“ gibt es schon: Eine Datei mit genau demselben Inhalt liegt unter\n\n{ort}"
+msgstr "“{name}” already exists: a file with exactly the same content is stored at\n\n{ort}"
+
+#: src/gui/doppelte.py
+msgid "\n… und an {anzahl} weiteren Orten"
+msgstr "\n… and in {anzahl} more places"
+
+#: src/gui/doppelte.py
+msgid "„In den Papierkorb“ legt die Datei, die Sie gerade ablegen wollten, in den Papierkorb. Die schon vorhandene Datei bleibt, wo sie ist."
+msgstr "“Move to Recycle Bin” puts the file you were about to file into the Recycle Bin. The existing file stays where it is."
+
+#: src/gui/doppelte.py
+msgid "„{name}“ liegt schon unter {ort}"
+msgstr "“{name}” already exists at {ort}"
+
+#: src/gui/doppelte.py
+msgid "… und {anzahl} weitere"
+msgstr "… and {anzahl} more"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}"
+msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
+
+#: src/gui/doppelte.py
+msgid "„In den Papierkorb“ legt diese Dateien in den Papierkorb, statt sie ein zweites Mal abzulegen; nur die übrigen werden abgelegt. Die schon vorhandenen Dateien bleiben, wo sie sind."
+msgstr "“Move to Recycle Bin” puts these files into the Recycle Bin instead of filing them a second time; only the remaining files are filed. The existing files stay where they are."
+
+#: src/gui/doppelte.py
+msgid "Trotzdem ablegen"
+msgstr "File anyway"
+
+#: src/gui/doppelte.py
+msgid "In den Papierkorb"
+msgstr "Move to Recycle Bin"
+
+#: src/gui/doppelte.py
+msgid "{name}: die vorhandene Datei ist nicht mehr da"
+msgstr "{name}: the existing file is no longer there"
+
+#: src/gui/doppelte.py
+msgid "{name}: Papierkorb nicht verfügbar"
+msgstr "{name}: Recycle Bin not available"
+
+#: src/gui/doppelte.py
+#: src/gui/main_window.py
+msgid "Löschen: {name}"
+msgstr "Delete: {name}"
+
+#: src/gui/doppelte.py
+msgid "Schon vorhanden, in den Papierkorb gelegt: {name}"
+msgstr "Already exists, moved to the Recycle Bin: {name}"
+
+#: src/gui/doppelte.py
+msgid "{anzahl} schon vorhandene Dateien in den Papierkorb gelegt"
+msgstr "{anzahl} already existing files moved to the Recycle Bin"
+
+#: src/gui/doppelte.py
+#: src/gui/hierhin_kopieren.py
+#: src/gui/main_window.py
+#: src/gui/ordner_verschieben_gui.py
+#: src/gui/stapel_ablage.py
+msgid "Teilweise fehlgeschlagen"
+msgstr "Partially failed"
+
+#: src/gui/doppelte.py
+msgid "Nicht in den Papierkorb gelegt (die Dateien bleiben im Ordner):\n{0}"
+msgstr "Not moved to the Recycle Bin (the files stay in the folder):\n{0}"
+
 #: src/gui/entzerren_dialog.py
 #: src/gui/main_window.py
 #: src/gui/rename_dialog.py
@@ -1571,6 +1835,7 @@ msgstr "Select a file first to copy it"
 
 #: src/gui/hierhin_kopieren.py
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 #: src/gui/ordner_verschieben_gui.py
 #: src/gui/stapel_ablage.py
 msgid "{anzahl} Dateien"
@@ -1599,13 +1864,6 @@ msgstr "The folder could not be created:\n{e}"
 #: src/gui/hierhin_kopieren.py
 msgid "Kopieren fehlgeschlagen"
 msgstr "Copying failed"
-
-#: src/gui/hierhin_kopieren.py
-#: src/gui/main_window.py
-#: src/gui/ordner_verschieben_gui.py
-#: src/gui/stapel_ablage.py
-msgid "Teilweise fehlgeschlagen"
-msgstr "Partially failed"
 
 #: src/gui/hierhin_kopieren.py
 msgid "Einige Dateien konnten nicht kopiert werden:\n{0}"
@@ -1983,6 +2241,7 @@ msgid "„{name}“ gibt es nicht mehr unter {parent}"
 msgstr "“{name}” no longer exists in {parent}"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Den Ordner {ziel} gibt es nicht mehr"
 msgstr "The folder {ziel} no longer exists"
 
@@ -2115,11 +2374,13 @@ msgid "PDFs in: {name}"
 msgstr "PDFs in: {name}"
 
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 #: src/gui/ordner_verschieben_gui.py
 msgid "{anzahl} Datei"
 msgstr "{anzahl} file"
 
 #: src/gui/main_window.py
+#: src/gui/ordner_beobachtung.py
 msgid "PDFs: {anzahl}"
 msgstr "PDFs: {anzahl}"
 
@@ -2365,6 +2626,10 @@ msgstr "Parent folder"
 #: src/gui/main_window.py
 msgid "Ein Verzeichnis nach oben (wie im Dateimanager)"
 msgstr "Up one folder (as in the file manager)"
+
+#: src/gui/main_window.py
+msgid "Zuletzt verschoben nach"
+msgstr "Last moved to"
 
 #: src/gui/main_window.py
 msgid "Dokumentensuche..."
@@ -2706,10 +2971,6 @@ msgid "Gelöscht: {name}"
 msgstr "Deleted: {name}"
 
 #: src/gui/main_window.py
-msgid "Löschen: {name}"
-msgstr "Delete: {name}"
-
-#: src/gui/main_window.py
 msgid "Löschen fehlgeschlagen:\n{e}"
 msgstr "Deleting failed:\n{e}"
 
@@ -3024,10 +3285,12 @@ msgid "„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)"
 msgstr "“{name}” is not visible in the list (filter active?)"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Im Ordner angezeigt: {name}"
 msgstr "Shown in folder: {name}"
 
 #: src/gui/main_window.py
+#: src/gui/zuletzt_verschoben.py
 msgid "Ordner geöffnet: {name}"
 msgstr "Folder opened: {name}"
 
@@ -3515,8 +3778,8 @@ msgid "Nicht konfiguriert"
 msgstr "Not configured"
 
 #: src/gui/main_window.py
-msgid "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
-msgstr "<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>"
+msgid "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
+msgstr "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
 
 #: src/gui/main_window.py
 msgid "Ein intelligentes Programm zum Sortieren und<br>Umbenennen von gescannten PDF-Dokumenten."
@@ -3535,12 +3798,12 @@ msgid "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Me
 msgstr "<p><b>GitHub:</b> <a href=\"https://github.com/Josi-create/PDF_Sortier_Meister\">github.com/Josi-create/PDF_Sortier_Meister</a></p>"
 
 #: src/gui/main_window.py
-msgid "<p style='color: #666; font-size: 11px;'><b>Lizenz:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Freie Software - Open Source. Lizenztext: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
-msgstr "<p style='color: #666; font-size: 11px;'><b>License:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Free software - open source. License text: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+msgid "<p style='color: $grau_66; font-size: 11px;'><b>Lizenz:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Freie Software - Open Source. Lizenztext: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
+msgstr "<p style='color: $grau_66; font-size: 11px;'><b>License:</b> GPL-3.0-or-later<br>Copyright (c) 2024-2026<br>Free software - open source. License text: <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">gnu.org/licenses/gpl-3.0</a></p>"
 
 #: src/gui/main_window.py
-msgid "<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>"
-msgstr "<p style='color: #999; font-size: 10px;'>Log file: {log_path}</p>"
+msgid "<p style='color: $grau_99; font-size: 10px;'>Log-Datei: {log_path}</p>"
+msgstr "<p style='color: $grau_99; font-size: 10px;'>Log file: {log_path}</p>"
 
 #: src/gui/main_window.py
 msgid "OK"
@@ -3812,6 +4075,22 @@ msgstr "Creates a PDF next to the file; the original is kept"
 msgid "In PDF/A umwandeln (Langzeitarchiv)"
 msgstr "Convert to PDF/A (long-term archive)"
 
+#: src/gui/ordner_beobachtung.py
+msgid "Nicht mehr im Ordner: {name}"
+msgstr "No longer in the folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} Dateien sind nicht mehr im Ordner"
+msgstr "{anzahl} files are no longer in the folder"
+
+#: src/gui/ordner_beobachtung.py
+msgid "Neu im Scan-Ordner: {name}"
+msgstr "New in the scan folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} neue Dateien im Scan-Ordner"
+msgstr "{anzahl} new files in the scan folder"
+
 #: src/gui/ordner_suchfeld.py
 msgid "Ordner suchen … (z. B. Zeugn*)"
 msgstr "Search folders … (e.g. Cert*)"
@@ -4032,6 +4311,10 @@ msgid "Nach dem Zusammenfügen von PDFs"
 msgstr "After merging PDFs"
 
 #: src/gui/original_wegraeumen.py
+msgid "Nach dem Entfernen des Passwortschutzes"
+msgstr "After removing password protection"
+
+#: src/gui/original_wegraeumen.py
 msgid "Mit Strg+Z holst du es zurück."
 msgstr "Ctrl+Z brings it back."
 
@@ -4218,6 +4501,10 @@ msgid "\n\nText schlecht erkannt – Rechtsklick für andere Erkennung"
 msgstr "\n\nText poorly recognized – right-click for a different recognition"
 
 #: src/gui/pdf_thumbnail.py
+msgid "\n\nPasswortgeschützt – Rechtsklick: Passwortschutz entfernen (Kopie ohne Schutz)"
+msgstr "\n\nPassword-protected – right-click: remove password protection (copy without protection)"
+
+#: src/gui/pdf_thumbnail.py
 msgid "Laden..."
 msgstr "Loading..."
 
@@ -4228,6 +4515,18 @@ msgstr "Error\nwhile loading"
 #: src/gui/pdf_thumbnail.py
 msgid "Analysiere…"
 msgstr "Analyzing…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Passwortschutz entfernen ({anzahl} PDFs)…"
+msgstr "Remove password protection ({anzahl} PDFs)…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Passwortschutz entfernen…"
+msgstr "Remove password protection…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Fragt das Passwort ab und speichert eine Kopie ohne Schutz neben dem Original"
+msgstr "Asks for the password and saves a copy without protection next to the original"
 
 #: src/gui/pdf_thumbnail.py
 msgid "Ausgewählte ({selection_count}) auto-umbenennen (LLM)"
@@ -4256,6 +4555,10 @@ msgstr "Merge selected ({selection_count}) PDFs..."
 #: src/gui/pdf_thumbnail.py
 msgid " ({count} PDFs)"
 msgstr " ({count} PDFs)"
+
+#: src/gui/office_thumbnail.py
+msgid " ({count} Bilder)"
+msgstr " ({count} images)"
 
 #: src/gui/pdf_thumbnail.py
 msgid "Drehen{suffix}"
@@ -4626,8 +4929,8 @@ msgid "Anhänge: {0}"
 msgstr "Attachments: {0}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#9a3412'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
-msgstr "<p style='color:#9a3412'>The file no longer exists – here is the text stored in the index.</p>"
+msgid "<p style='color:$rost_text'>Die Datei existiert nicht mehr – hier der im Index gespeicherte Text.</p>"
+msgstr "<p style='color:$rost_text'>The file no longer exists – here is the text stored in the index.</p>"
 
 #: src/gui/search_view.py
 msgid "Seite {0}{1}"
@@ -4643,8 +4946,8 @@ msgid "<i>(kein Text)</i>"
 msgstr "<i>(no text)</i>"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Kein Text vorhanden.</p>"
-msgstr "<p style='color:#888888'>No text available.</p>"
+msgid "<p style='color:$grau_88'>Kein Text vorhanden.</p>"
+msgstr "<p style='color:$grau_88'>No text available.</p>"
 
 #: src/gui/search_view.py
 #: src/search/static/index.html
@@ -4801,8 +5104,8 @@ msgid "Suche fehlgeschlagen: {text}"
 msgstr "Search failed: {text}"
 
 #: src/gui/search_view.py
-msgid "<p style='color:#888888'>Lade Text …</p>"
-msgstr "<p style='color:#888888'>Loading text …</p>"
+msgid "<p style='color:$grau_88'>Lade Text …</p>"
+msgstr "<p style='color:$grau_88'>Loading text …</p>"
 
 #: src/gui/search_view.py
 msgid "<p>Dieses Dokument ist nicht mehr im Index.</p>"
@@ -4946,6 +5249,14 @@ msgstr "Test connection"
 #: src/gui/settings_dialog.py
 msgid "Speichern"
 msgstr "Save"
+
+#: src/gui/settings_dialog.py
+msgid "Anwenden"
+msgstr "Apply"
+
+#: src/gui/settings_dialog.py
+msgid "Übernimmt die Einstellungen sofort und lässt dieses Fenster offen."
+msgstr "Applies the settings immediately and keeps this window open."
 
 #: src/gui/settings_dialog.py
 msgid "LLM-Provider"
@@ -5334,6 +5645,26 @@ msgid "Darstellung"
 msgstr "Display"
 
 #: src/gui/settings_dialog.py
+msgid "Wie das System"
+msgstr "Same as system"
+
+#: src/gui/settings_dialog.py
+msgid "Hell"
+msgstr "Light"
+
+#: src/gui/settings_dialog.py
+msgid "Dunkel"
+msgstr "Dark"
+
+#: src/gui/settings_dialog.py
+msgid "„Wie das System“ folgt der Einstellung von Windows oder macOS (heller\noder dunkler Modus), auch wenn sie sich bei laufendem Programm ändert.\nDie Seiten der Dokumente bleiben in jedem Farbschema unverändert."
+msgstr "“Same as system” follows the Windows or macOS setting (light or dark\nmode), even if it changes while the program is running.\nThe pages of your documents look the same in every color scheme."
+
+#: src/gui/settings_dialog.py
+msgid "Farbschema:"
+msgstr "Color scheme:"
+
+#: src/gui/settings_dialog.py
 msgid "Die Größe der Kacheln (Klein / Mittel / Groß) stellen Sie direkt über dem Scan-Bereich unter „Ansicht“ ein."
 msgstr "You set the size of the tiles (Small / Medium / Large) directly above the scan area under “View”."
 
@@ -5348,6 +5679,14 @@ msgstr "Suggest new folders"
 #: src/gui/settings_dialog.py
 msgid "Fehlt der Ordner für das Jahr des Dokuments (z. B. „Steuer 2027/Medikamente“)\noder nennt die KI einen passenden neuen Unterordner, erscheint er als\nVorschlag „➕ neu:“. Angelegt wird er erst nach Ihrer Rückfrage."
 msgstr "If the folder for the document's year is missing (e.g. “Steuer 2027/Medikamente”)\nor the AI names a suitable new subfolder, it appears as the\nsuggestion “➕ new:”. It is only created after you confirm."
+
+#: src/gui/settings_dialog.py
+msgid "Scan-Ordner beobachten (neue Dateien erscheinen von selbst)"
+msgstr "Watch the scan folder (new files appear on their own)"
+
+#: src/gui/settings_dialog.py
+msgid "Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\nOrdner nach wenigen Sekunden als Kachel, sobald sie fertig geschrieben ist.\nVerschwundene Dateien werden aus der Ansicht genommen.\nAusgeschaltet zeigt erst F5 den neuen Stand."
+msgstr "While the program is open, a new file in the open folder appears\nas a tile after a few seconds, as soon as it has been written completely.\nFiles that are gone are removed from the view.\nWhen switched off, only F5 shows the new state."
 
 #: src/gui/settings_dialog.py
 msgid "PDF-Analyse-Cache"
@@ -5779,6 +6118,62 @@ msgstr "Import existing PDFsuche…"
 #: src/gui/settings_dialog.py
 msgid "Einstellungen und Datenbank des früheren, eigenständigen Programms PDFsuche übernehmen"
 msgstr "Import the settings and database of the earlier, stand-alone program PDFsuche"
+
+#: src/gui/settings_dialog.py
+msgid "Bedeutungssuche für den Chat (lokal über Ollama)"
+msgstr "Semantic search for the chat (local, via Ollama)"
+
+#: src/gui/settings_dialog.py
+msgid "Im Chat auch Dokumente finden, die dasselbe meinen, aber andere Wörter benutzen"
+msgstr "In the chat, also find documents that mean the same but use different words"
+
+#: src/gui/settings_dialog.py
+msgid "Modell laden (ca. 620 MB)"
+msgstr "Download model (approx. 620 MB)"
+
+#: src/gui/settings_dialog.py
+msgid "Lädt das Modell {modell} einmalig über Ollama herunter"
+msgstr "Downloads the model {modell} once via Ollama"
+
+#: src/gui/settings_dialog.py
+msgid "Beispiel: Die Frage „Was zahle ich für meine Autoversicherung?“ findet auch die Rechnung, in der nur „Kraftfahrtversicherung“ steht. Dazu berechnet der Indexlauf für jede Seite einmalig Bedeutungswerte – mit einem kleinen Modell, das über Ollama auf diesem Rechner läuft; kein Text verlässt den Rechner. Der erste Lauf über ein großes Archiv kann Stunden dauern (ohne Grafikkarte deutlich länger) und geht in Etappen weiter; neue und geänderte Seiten kommen bei jedem Lauf dazu. Die Wortsuche und der Reiter „Suche“ bleiben, wie sie sind."
+msgstr "Example: the question “What do I pay for my car insurance?” also finds the invoice that only says “motor vehicle insurance”. To do this, the index run computes meaning values once for every page – with a small model that runs on this computer via Ollama; no text leaves the computer. The first run over a large archive can take hours (considerably longer without a graphics card) and continues in stages; new and changed pages are added with every run. The word search and the “Search” tab stay as they are."
+
+#: src/gui/settings_dialog.py
+msgid "{fertig} von {seiten} Seiten vorbereitet"
+msgstr "{fertig} of {seiten} pages prepared"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft nicht – die Bedeutungssuche braucht Ollama auf diesem Rechner."
+msgstr "Ollama is not running – semantic search needs Ollama on this computer."
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell {modell} fehlt noch – bitte „Modell laden“."
+msgstr "The model {modell} is still missing – please use “Download model”."
+
+#: src/gui/settings_dialog.py
+msgid "Modell {modell} ist bereit."
+msgstr "Model {modell} is ready."
+
+#: src/gui/settings_dialog.py
+msgid "Die Seiten werden beim nächsten Indexlauf vorbereitet."
+msgstr "The pages will be prepared during the next index run."
+
+#: src/gui/settings_dialog.py
+msgid "Bedeutungssuche"
+msgstr "Semantic search"
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft nicht. Die Bedeutungssuche rechnet mit einem lokalen Modell über Ollama.\n\nBitte Ollama starten (oder im Reiter „KI-Assistent (LLM)“ einrichten) und den Schalter noch einmal setzen."
+msgstr "Ollama is not running. Semantic search computes with a local model via Ollama.\n\nPlease start Ollama (or set it up on the “AI assistant (LLM)” tab) and tick the box again."
+
+#: src/gui/settings_dialog.py
+msgid "Modell {modell} wird geladen … das kann einige Minuten dauern."
+msgstr "Model {modell} is being downloaded … this can take a few minutes."
+
+#: src/gui/settings_dialog.py
+msgid "Das Modell konnte nicht geladen werden:\n{text}"
+msgstr "The model could not be downloaded:\n{text}"
 
 #: src/gui/settings_dialog.py
 msgid "KI-Assistenten (MCP)"
@@ -6890,10 +7285,6 @@ msgid "Keine gültigen Seitenzahlen angegeben."
 msgstr "No valid page numbers given."
 
 #: src/gui/stapel_ablage.py
-msgid "Nicht mehr warten"
-msgstr "Stop waiting"
-
-#: src/gui/stapel_ablage.py
 msgid "Namensvorschläge"
 msgstr "Name suggestions"
 
@@ -7215,6 +7606,22 @@ msgstr "Type the period freely, empty = no limit.\nExamples: 2024 · 12/2024 · 
 #: src/gui/zeitraum_feld.py
 msgid "Zeitraum, z. B. 2004-2006"
 msgstr "Period, e.g. 2004-2006"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "Zuletzt verschoben nach: {name}"
+msgstr "Last moved to: {name}"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "{pfad}\nKlick: Ordner links öffnen und die verschobenen Dateien markieren.\nRechtsklick: frühere Ziele."
+msgstr "{pfad}\nClick: open the folder on the left and select the moved files.\nRight-click: earlier destinations."
+
+#: src/gui/zuletzt_verschoben.py
+msgid "Noch nichts verschoben"
+msgstr "Nothing moved yet"
+
+#: src/gui/zuletzt_verschoben.py
+msgid "{anzahl} verschobene Dateien in „{name}“ markiert"
+msgstr "{anzahl} moved files selected in “{name}”"
 
 #: src/ml/classifier.py
 msgid "Ähnlicher Inhalt ({0}%)"
@@ -8145,6 +8552,10 @@ msgstr "Time limit reached"
 #: src/search/indexer.py
 msgid "{vorher} – Pause (Nutzer aktiv)"
 msgstr "{vorher} – paused (user active)"
+
+#: src/search/indexer.py
+msgid "Bedeutungssuche vorbereiten"
+msgstr "Preparing semantic search"
 
 #: src/search/indexer.py
 msgid "Textebene schreiben"

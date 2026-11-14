@@ -49,6 +49,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from src.gui.farben import stil
 from src.i18n import tr
 
 # Groessere Dateien werden nicht komplett in den Speicher gelesen.
@@ -267,7 +268,7 @@ class PdfPreviewWidget(QWidget):
         self.message_label = QLabel(tr("Keine PDF ausgewählt"))
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.message_label.setWordWrap(True)
-        self.message_label.setStyleSheet("color: #888; padding: 16px;")
+        stil(self.message_label, "color: $grau_88; padding: 16px;")
         self._stack.addWidget(self.message_label)
         self._stack.setCurrentWidget(self.message_label)
 

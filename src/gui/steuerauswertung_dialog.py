@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QHeaderView,
 )
+from src.gui.farben import stil
 from src.i18n import tr
 
 
@@ -47,7 +48,7 @@ class SteuerauswertungDialog(QDialog):
             tr("Grundlage: alle sortierten Dokumente mit gespeichertem Steuerjahr. "
             "Betraege in EUR.")
         )
-        hint.setStyleSheet("font-size: 10px; color: #666; padding: 2px;")
+        stil(hint, "font-size: 10px; color: $grau_66; padding: 2px;")
         layout.addWidget(hint)
 
         columns = [
@@ -77,11 +78,11 @@ class SteuerauswertungDialog(QDialog):
         btn_row.addWidget(self.refresh_btn)
 
         self.export_btn = QPushButton(tr("Als CSV exportieren"))
-        self.export_btn.setStyleSheet(
-            "QPushButton { background-color: #1565c0; color: white; "
+        stil(self.export_btn,
+            "QPushButton { background-color: $knopf_blau; color: $weiss_schrift; "
             "padding: 4px 12px; border: none; border-radius: 3px; }"
-            "QPushButton:hover { background-color: #0d47a1; }"
-            "QPushButton:disabled { background-color: #bdbdbd; }"
+            "QPushButton:hover { background-color: $knopf_blau_hover; }"
+            "QPushButton:disabled { background-color: $grau_bd; }"
         )
         self.export_btn.clicked.connect(self._export_csv)
         btn_row.addWidget(self.export_btn)
