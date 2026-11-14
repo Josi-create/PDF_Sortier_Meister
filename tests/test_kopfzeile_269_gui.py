@@ -15,9 +15,12 @@ from src.gui.ordner_titel import OrdnerTitel
 from tests.test_main_window_gui import fresh_singletons, main_window  # noqa: F401
 
 
-def _zeige(win, scan, breite: int = 1500):
+def _zeige(win, scan, breite: int = 1500, links_breit: bool = False):
     win.resize(breite, 720)
     QWidget.show(win)  # MainWindow.show() ist in der Fixture ersetzt
+    if links_breit:
+        # linke Spalte so breit wie moeglich: dann passt der Titel mit jeder Schrift
+        win.main_splitter.moveSplitter(win.main_splitter.getRange(1)[1], 1)
     win._navigate_to_folder(scan)
     win.centralWidget().layout().activate()
     return win
@@ -92,10 +95,12 @@ def test_beschriftungen_entfallen(main_window, tmp_path):
 
 
 def test_ordnername_ausgeschrieben(main_window, tmp_path):
-    win = _zeige(main_window, _ordner(tmp_path, "Steuer 2026"))
+    win = _zeige(main_window, _ordner(tmp_path, "Steuer 2026"), breite=3000, links_breit=True)
     assert win.pdf_header.text() == "PDFs in: Steuer 2026"
-    assert win.pdf_header.angezeigter_text().endswith("Steuer 2026")
-    assert "…" not in win.pdf_header.angezeigter_text()
+    assert win.pdf_header.angezeigter_text() == "PDFs in: Steuer 2026"
+    # der Titel bekommt den ganzen freien Platz bis an die Auswahlfelder
+    abstand = win.tile_view_combo.geometry().left() - win.pdf_header.geometry().right()
+    assert 0 < abstand <= 12
 
 
 def test_ordnername_mit_umlauten(main_window, tmp_path):
@@ -119,18 +124,20 @@ def test_auswahlfelder_ganz_rechts_anzahl_darueber(main_window, tmp_path):
     # die Anzahl steht ueber den Auswahlfeldern und ist kleiner geschrieben
     assert zahl.bottom() < ansicht.top()
     assert zahl.bottom() < sortieren.top()
-    assert win.pdf_folder_count_label.font().pixelSize() < win.sort_combo.fontInfo().pixelSize()
+    assert (win.pdf_folder_count_label.fontMetrics().height()
+            < win.sort_combo.fontMetrics().height())
 
 
-def test_zeile_nicht_hoeher_als_die_ueberschrift(main_window, tmp_path):
-    """Vorher bestimmte die Ueberschrift die Hoehe; der rechte Block darf nicht hoeher sein."""
+def test_zeile_nicht_hoeher_als_vorher(main_window, tmp_path):
+    """Die Zeile war mindestens so hoch wie die Navigationsknoepfe; hoeher darf der rechte Block nicht sein."""
     win = _zeige(main_window, _ordner(tmp_path, "Steuer 2026"))
     oben = win.pdf_folder_count_label.geometry().top()
     unten = win.sort_combo.geometry().bottom()
-    assert unten - oben + 1 <= max(win.pdf_header.sizeHint().height(),
-                                   win.navigate_back_btn.height())
+    assert unten - oben + 1 <= win.navigate_back_btn.height()
     assert win.pdf_header.geometry().top() <= oben
     assert unten <= win.pdf_header.geometry().bottom()
+    assert win.pdf_header.height() == max(win.pdf_header.sizeHint().height(),
+                                          win.navigate_back_btn.height())
 
 
 def test_langer_ordnername_zeigt_rechten_teil(main_window, tmp_path):

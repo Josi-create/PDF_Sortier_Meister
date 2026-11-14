@@ -6,9 +6,10 @@ from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QLabel
 
 # Rechter Block der Kopfzeile: Anzahl (sehr klein) ueber den Auswahlfeldern. Zusammen
-# 29 px - so hoch war die Zeile vorher durch die Ueberschrift (14 px fett + Rand).
+# 28 px - so hoch sind die Navigationsknoepfe links daneben; damit wird die Zeile mit
+# keiner Schrift hoeher als vorher.
 KOPF_ZAHL_SCHRIFT = 9
-KOPF_ZAHL_HOEHE = 11
+KOPF_ZAHL_HOEHE = 10
 KOPF_AUSWAHL_HOEHE = 18
 
 
