@@ -53,6 +53,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Foto entzerren: Ziehen der Ecken ruckelt nicht mehr**: Die Vorschau rechts wird erst
   berechnet, wenn die Maustaste losgelassen wird, nicht mehr schon während des Ziehens. Das
   gelbe Viereck folgt der Maus weiterhin sofort.
+- **Stapel: gleichartige Dokumente bekommen gleich aufgebaute Namen** (#256): Wurden mehrere
+  Monatsrechnungen desselben Anbieters zusammen verschoben oder umbenannt, stand der Monat mal im
+  Namen und mal nicht. Trägt jetzt nur ein Teil sonst gleicher Namen so einen Zusatz am Ende,
+  fragt die KI ihn für die übrigen nach; die Rückfrage zeigt die angeglichenen Namen.
 
 ## [0.28.0] - 2026-11-13
 
