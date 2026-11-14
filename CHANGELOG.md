@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Stapel: gleichartige Dokumente bekommen gleich aufgebaute Namen** (#256): Wurden mehrere
+  Monatsrechnungen desselben Anbieters zusammen verschoben oder umbenannt, stand der Monat mal im
+  Namen und mal nicht. Trägt jetzt nur ein Teil sonst gleicher Namen so einen Zusatz am Ende,
+  fragt die KI ihn für die übrigen nach; die Rückfrage zeigt die angeglichenen Namen.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu

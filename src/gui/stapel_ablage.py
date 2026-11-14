@@ -191,8 +191,87 @@ class StapelAblageMixin:
             namen = self._ablage_namen(pfad, folder_path, relative_path,
                                        vorbelegung=vorbelegung, dates=result.dates)
             eintraege.append(StapelEintrag(pfad, namen, text, keywords, dates))
+        self._stapel_vereinheitlichen(eintraege)
         self._stapel_unterscheiden(eintraege)
         return eintraege
+
+    def _stapel_ki_anbieter(self):
+        """Der KI-Anbieter, wenn die KI gerade nutzbar ist, sonst None."""
+        hc = self.hybrid_classifier
+        provider = getattr(hc, "llm_provider", None)
+        try:
+            return provider if provider is not None and hc.is_llm_available() else None
+        except Exception:  # noqa: BLE001 - ohne KI bleiben die Namen
+            return None
+
+    def _stapel_ki_warten(self, arbeit, hinweis: str) -> None:
+        """Laesst ``arbeit`` im Hintergrund laufen; dauert es, zeigt ein Fenster ``hinweis`` mit "Nicht mehr warten"."""
+        thread = threading.Thread(target=arbeit, name="namen-unterscheiden", daemon=True)
+        thread.start()
+        thread.join(0.2)
+        if not thread.is_alive():
+            return
+        fortschritt = QProgressDialog(hinweis, tr("Nicht mehr warten"), 0, 0, self)
+        fortschritt.setWindowTitle(tr("Namensvorschläge"))
+        fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
+        fortschritt.setMinimumDuration(0)
+        schleife = QEventLoop()
+        takt = QTimer()
+        takt.setInterval(150)
+        takt.timeout.connect(lambda: (not thread.is_alive() or fortschritt.wasCanceled()) and schleife.quit())
+        fortschritt.canceled.connect(schleife.quit)
+        takt.start()
+        if thread.is_alive():
+            schleife.exec()
+        takt.stop()
+        fortschritt.close()
+        fortschritt.deleteLater()
+
+    def _stapel_vereinheitlichen(self, eintraege: list[StapelEintrag]) -> None:
+        """Gleichartige Namen im Stapel gleich aufbauen (Issue #256), sonst bleibt es dabei.
+
+        Die KI benennt jede Datei fuer sich; von mehreren Monatsrechnungen bekommt
+        dann eine den Monat in den Namen und die naechste nicht. Tragen im Stapel
+        nur einige von sonst gleichen Namen einen Zusatz am Ende, fragt ein
+        KI-Aufruf je Gruppe nach dem Zusatz fuer die uebrigen. Ohne KI, bei Fehlern
+        oder "Nicht mehr warten" behalten die Dateien ihre Namen.
+        """
+        namen = [e.namen.new_name or e.pfad.name for e in eintraege]
+        gruppen = namen_unterscheiden.uneinheitliche_gruppen(namen)
+        provider = self._stapel_ki_anbieter() if gruppen else None
+        if provider is None:
+            return
+        ergebnis: dict[int, list] = {}
+        fehler: list[str] = []
+
+        def arbeit():
+            for nr, g in enumerate(gruppen):
+                try:
+                    ergebnis[nr] = namen_unterscheiden.ergaenzen(
+                        provider, [(namen[i], zusatz) for i, zusatz in g.mit.items()],
+                        [namen[i] for i in g.ohne], [eintraege[i].text or "" for i in g.ohne])
+                except Exception as ex:  # noqa: BLE001 - die anderen Gruppen trotzdem
+                    fehler.append(str(ex))
+
+        anzahl = sum(len(g.ohne) + len(g.mit) for g in gruppen)
+        self._stapel_ki_warten(arbeit, tr(
+            "Die KI gleicht die Namen von {anzahl} gleichartigen Dokumenten an …").format(anzahl=anzahl))
+
+        for nr, zusaetze in dict(ergebnis).items():
+            for i, zusatz in zip(gruppen[nr].ohne, zusaetze):
+                if not zusatz:
+                    continue
+                n = eintraege[i].namen
+                eintraege[i].namen = replace(
+                    n,
+                    new_name=namen_unterscheiden.zusatz_einfuegen(namen[i], zusatz),
+                    name_changed=True,
+                    learned_name=(namen_unterscheiden.zusatz_einfuegen(n.learned_name, zusatz)
+                                  if n.learned_name else n.learned_name),
+                )
+        if fehler:
+            logger.info("Namen angleichen: %s", "; ".join(fehler))
+            self.statusbar.showMessage(tr("Namen nicht angeglichen: {0}").format(fehler[0]), 6000)
 
     def _stapel_unterscheiden(self, eintraege: list[StapelEintrag]) -> None:
         """Gleiche Namen im Stapel per KI unterscheiden (Issue #221), sonst bleibt es dabei.
@@ -204,13 +283,8 @@ class StapelAblageMixin:
         gruppen = namen_unterscheiden.doppelte_gruppen([e.namen.new_name for e in eintraege])
         if not gruppen:
             return
-        hc = self.hybrid_classifier
-        provider = getattr(hc, "llm_provider", None)
-        try:
-            mit_ki = provider is not None and bool(hc.is_llm_available())
-        except Exception:  # noqa: BLE001 - ohne KI bleiben die Namen
-            mit_ki = False
-        if not mit_ki:
+        provider = self._stapel_ki_anbieter()
+        if provider is None:
             return
         auftraege = [(eintraege[g[0]].namen.new_name, [eintraege[i].text or "" for i in g], tuple(g))
                      for g in gruppen]
@@ -224,28 +298,9 @@ class StapelAblageMixin:
                 except Exception as ex:  # noqa: BLE001 - die anderen Gruppen trotzdem
                     fehler.append(str(ex))
 
-        thread = threading.Thread(target=arbeit, name="namen-unterscheiden", daemon=True)
-        thread.start()
-        thread.join(0.2)
-        if thread.is_alive():
-            anzahl = sum(len(g) for g in gruppen)
-            fortschritt = QProgressDialog(
-                tr("Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …").format(anzahl=anzahl),
-                tr("Nicht mehr warten"), 0, 0, self)
-            fortschritt.setWindowTitle(tr("Namensvorschläge"))
-            fortschritt.setWindowModality(Qt.WindowModality.WindowModal)
-            fortschritt.setMinimumDuration(0)
-            schleife = QEventLoop()
-            takt = QTimer()
-            takt.setInterval(150)
-            takt.timeout.connect(lambda: (not thread.is_alive() or fortschritt.wasCanceled()) and schleife.quit())
-            fortschritt.canceled.connect(schleife.quit)
-            takt.start()
-            if thread.is_alive():
-                schleife.exec()
-            takt.stop()
-            fortschritt.close()
-            fortschritt.deleteLater()
+        self._stapel_ki_warten(arbeit, tr(
+            "Die KI sieht nach, was {anzahl} gleich benannte Dokumente unterscheidet …").format(
+                anzahl=sum(len(g) for g in gruppen)))
 
         for gruppe, woerter in dict(ergebnis).items():
             for i, wort in zip(gruppe, woerter):

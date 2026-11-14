@@ -245,6 +245,10 @@ msgstr "approx. {0} min"
 msgid "Die KI hat keine eindeutigen Unterscheidungen genannt."
 msgstr "The AI did not name any clear distinctions."
 
+#: src/core/namen_unterscheiden.py
+msgid "Die KI hat kein passendes Merkmal für die Namen gefunden."
+msgstr "The AI did not find a matching detail for the names."
+
 #: src/core/neuer_ordner.py
 msgid "KI: neuer Ordner nach dem Muster der vorhandenen"
 msgstr "AI: new folder following the pattern of the existing ones"
@@ -7303,6 +7307,14 @@ msgstr "The AI is checking what distinguishes {anzahl} documents with the same n
 #: src/gui/stapel_ablage.py
 msgid "Gleiche Namen nicht unterschieden: {0}"
 msgstr "Identical names not distinguished: {0}"
+
+#: src/gui/stapel_ablage.py
+msgid "Die KI gleicht die Namen von {anzahl} gleichartigen Dokumenten an …"
+msgstr "The AI is aligning the names of {anzahl} similar documents …"
+
+#: src/gui/stapel_ablage.py
+msgid "Namen nicht angeglichen: {0}"
+msgstr "Names not aligned: {0}"
 
 #: src/gui/stapel_ablage.py
 msgid "\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird „ (1)“, „ (2)“ … angehängt."
