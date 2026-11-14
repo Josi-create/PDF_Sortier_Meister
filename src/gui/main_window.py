@@ -40,6 +40,7 @@ from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
+from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
@@ -1089,6 +1090,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.folder_tree.ordner_copy_dropped.connect(self.on_tree_ordner_copy_dropped)
         self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
         self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
+        self.folder_tree.zielordner_hinzufuegen.connect(self._on_zielordner_hinzufuegen)  # Issue #258
         ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
@@ -5202,11 +5204,29 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.config.dialog_start_dir(),
         )
         if folder:
-            folder_path = Path(folder)
-            self.config.add_target_folder(folder_path)
-            self.folder_manager.add_folder(folder_path)
-            self.load_folders()
-            self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=folder_path.name), 3000)
+            self._zielordner_aufnehmen(Path(folder))
+
+    def _on_zielordner_hinzufuegen(self, pfad):
+        """Plus am Suchfeld des Ordnerbaums (#258): getippten Pfad aufnehmen, sonst Dialog."""
+        if pfad is None:
+            self.add_target_folder()
+        else:
+            self._zielordner_aufnehmen(Path(pfad))
+
+    def _zielordner_aufnehmen(self, folder_path: Path):
+        """Nimmt den Ordner in die Zielordner auf und zeigt ihn im Baum."""
+        if not folder_path.is_dir():
+            self.statusbar.showMessage(tr("Ordner nicht gefunden: {name}").format(name=folder_path), 5000)
+            return
+        if folder_path in self.folder_manager.target_folders:
+            self.folder_tree.reveal_folder(folder_path)
+            self.statusbar.showMessage(tr("Ist schon Zielordner: {name}").format(name=anzeigename(folder_path)), 3000)
+            return
+        self.config.add_target_folder(folder_path)
+        self.folder_manager.add_folder(folder_path)
+        self.folder_tree.reveal_after_scan(folder_path)
+        self.load_folders()
+        self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=anzeigename(folder_path)), 3000)
 
     # === Volltextsuche mit kombinierbaren Filtern (Phase 17/18) ===
 
