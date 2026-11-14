@@ -260,6 +260,10 @@ class Werkzeugkasten:
         self._dokumente.append(kopie)
         return kopie
 
+    def suchversuche(self) -> list[str]:
+        """Zusammenfassungen der bisherigen Aufrufe von ``suche`` (ohne fehlgeschlagene), Issue #264."""
+        return [s.zusammenfassung for s in self.protokoll if s.werkzeug == "suche" and not s.fehler]
+
     def dokumente(self) -> list[RetrievedDoc]:
         """Alle registrierten Dokumente in Nummernreihenfolge (Whitelist fuer den CitationParser)."""
         return list(self._dokumente)
@@ -560,14 +564,20 @@ class Werkzeugkasten:
 
         args = such_argumente(argumente)
         kennung = such_kennung(args)
-        sortierung = args["sortierung"]
-        try:
-            rohe = list(self.db.search_documents(
-                query=fts_abfrage(args["abfrage"]), limit=args["anzahl"], typ=args["typ"],
-                sortierung=sortierung if sortierung != "relevanz" else "", **such_filter(args),
-            ) or [])
-        except Exception as e:  # noqa: BLE001 - Fehler als Text
-            raise _WerkzeugFehler(f"Suche fehlgeschlagen: {e}") from e
+        rohe = self._suche_im_index(args)
+        vorspann = ""
+        if not rohe and args.get("korrespondent"):
+            # Issue #264: Viele Dokumente haben keinen gespeicherten Absender (nie ueber
+            # PDFSM einsortiert). Statt "keine Treffer" dieselbe Suche ohne diesen Filter.
+            ohne = {name: wert for name, wert in args.items() if name != "korrespondent"}
+            rohe = self._suche_im_index(ohne)
+            if rohe:
+                vorspann = (
+                    f"Keine Treffer für {kennung}: Kein Dokument mit diesen Wörtern hat den gespeicherten "
+                    f"Korrespondenten „{args['korrespondent']}“ (viele Dokumente haben gar keinen). "
+                    "Dieselbe Suche ohne den Filter korrespondent:\n"
+                )
+                kennung_mit, kennung = kennung, such_kennung(ohne)
 
         if not rohe:
             text = (
@@ -577,7 +587,7 @@ class Werkzeugkasten:
             )
             return text, f"Suche {kennung}: keine Treffer", []
 
-        zeilen = [f"{len(rohe)} Treffer für {kennung}:"]
+        zeilen = [f"{vorspann}{len(rohe)} Treffer für {kennung}:"]
         laenge = len(zeilen[0])
         hinweis = "[… weitere Treffer weggelassen - mit anzahl oder Filtern eingrenzen]"
         budget = SUCHE_MAX_ZEICHEN - len(hinweis) - 1
@@ -597,7 +607,21 @@ class Werkzeugkasten:
         if len(text) > SUCHE_MAX_ZEICHEN:
             text = text[:SUCHE_MAX_ZEICHEN] + "\n[… gekürzt]"
         liste = ", ".join(f"D{n}" for n in nummern)
+        if vorspann:
+            return text, (f"Suche {kennung_mit}: keine Treffer - ohne Filter korrespondent "
+                          f"{len(rohe)} Treffer ({liste})"), nummern
         return text, f"Suche {kennung}: {len(rohe)} Treffer ({liste})", nummern
+
+    def _suche_im_index(self, args: dict) -> list[dict]:
+        """Suche mit geprueften Argumenten (:func:`such_argumente`); Fehler als :class:`WerkzeugFehler`."""
+        sortierung = args["sortierung"]
+        try:
+            return list(self.db.search_documents(
+                query=fts_abfrage(args["abfrage"]), limit=args["anzahl"], typ=args["typ"],
+                sortierung=sortierung if sortierung != "relevanz" else "", **such_filter(args),
+            ) or [])
+        except Exception as e:  # noqa: BLE001 - Fehler als Text
+            raise _WerkzeugFehler(f"Suche fehlgeschlagen: {e}") from e
 
     @staticmethod
     def _treffer_zeile(nummer: int, raw: dict) -> str:
