@@ -16,6 +16,7 @@ from PyQt6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
+from src.gui.farben import css
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 
 # --------------------------------------------------------------------- #
@@ -145,10 +146,10 @@ def test_thumbnail_accepts_other_pdf_as_copy_and_highlights(qtbot, tmp_path, no_
     enter = _send_drag_enter(w, _mime([other]))
     assert enter.isAccepted()
     assert enter.dropAction() == Qt.DropAction.CopyAction  # nie "Verschieben"
-    assert w.STACK_BORDER in w.styleSheet()
+    assert css(w.STACK_BORDER) in w.styleSheet()
 
     QApplication.sendEvent(w, QDragLeaveEvent())
-    assert w.STACK_BORDER not in w.styleSheet()
+    assert css(w.STACK_BORDER) not in w.styleSheet()
 
 
 def test_thumbnail_drop_requests_stack(qtbot, tmp_path, no_background_threads):
@@ -177,7 +178,7 @@ def test_thumbnail_ignores_itself_and_non_pdfs(qtbot, tmp_path, no_background_th
 
     assert not _send_drag_enter(w, _mime([target])).isAccepted()
     assert not _send_drag_enter(w, _mime([text])).isAccepted()
-    assert w.STACK_BORDER not in w.styleSheet()
+    assert css(w.STACK_BORDER) not in w.styleSheet()
 
 
 # --------------------------------------------------------------------- #

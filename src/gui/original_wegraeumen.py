@@ -32,6 +32,7 @@ AKTIONEN = {
     "umwandeln": tr("Nach dem Umwandeln in PDF"),
     "trennen": tr("Nach dem Trennen eines PDFs"),
     "zusammenfuegen": tr("Nach dem Zusammenfügen von PDFs"),
+    "entsperren": tr("Nach dem Entfernen des Passwortschutzes"),  # Issue #244
 }
 HINWEIS = tr("Mit Strg+Z holst du es zurück.")
 

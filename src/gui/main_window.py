@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
+from src.gui.farben import css, stil
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
@@ -61,6 +62,7 @@ from src.core.folder_naming import coerce_date
 from src.gui.hierhin_kopieren import HierhinKopierenMixin
 from src.gui.stapel_ablage import StapelAblageMixin, erkanntes_datum
 from src.gui.ordner_verschieben_gui import OrdnerVerschiebenMixin
+from src.gui.zuletzt_verschoben import ZuletztVerschobenMixin
 from src.i18n import tr
 
 
@@ -85,11 +87,15 @@ from src.core.pdf_rotate import (
 )
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
+from src.gui.ordner_beobachtung import OrdnerBeobachtung
+from src.gui.doppelte import DoppelteImOrdner, DoppelteMixin
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
+from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui.bild_aktionen import BildAktionenMixin
+from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
 from src.gui.office_convert_worker import OfficeConvertWorker, OfficeVorschauWorker
 from src.gui.office_thumbnail import OfficeThumbnailWidget
@@ -183,7 +189,8 @@ class _UpdateCheckThread(QThread):
 
 
 class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin, StapelAblageMixin,
-                 KiTrennenMixin, QMainWindow):
+                 KiTrennenMixin, EntsperrenMixin, DoppelteMixin,
+                 ZuletztVerschobenMixin, QMainWindow):
     """Hauptfenster der Anwendung."""
 
     # Signal das gefeuert wird wenn alle Thumbnails geladen sind
@@ -281,6 +288,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_neu_paths: list[Path] = []
         # Schwer lesbare Scans: OCR mit anderen Sprachen, Handschrift per KI (Issue #47)
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
+        # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
+        self._ordner_beobachtung = OrdnerBeobachtung(self)
+        # Hinweis auf inhaltsgleiche Dateien im Scan-Bereich (Issue #245)
+        self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
@@ -849,8 +860,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Anzahl der PDFs im Ordner
         self.pdf_folder_count_label = QLabel("")
-        self.pdf_folder_count_label.setStyleSheet(
-            "color: #888; font-size: 12px; padding: 5px;"
+        stil(self.pdf_folder_count_label,
+            "color: $grau_88; font-size: 12px; padding: 5px;"
         )
         header_layout.addWidget(self.pdf_folder_count_label)
 
@@ -866,7 +877,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
         view_label = QLabel(tr("Ansicht:"))
-        view_label.setStyleSheet("color: #888; font-size: 12px;")
+        stil(view_label, "color: $grau_88; font-size: 12px;")
         header_layout.addWidget(view_label)
         header_layout.addWidget(self.tile_view_combo)
 
@@ -882,7 +893,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
         sort_label = QLabel(tr("Sortieren:"))
-        sort_label.setStyleSheet("color: #888; font-size: 12px;")
+        stil(sort_label, "color: $grau_88; font-size: 12px;")
         header_layout.addWidget(sort_label)
         header_layout.addWidget(self.sort_combo)
 
@@ -942,7 +953,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "um einen Ordner mit PDFs auszuwählen.")
         )
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setStyleSheet("color: #666; padding: 40px;")
+        stil(self.empty_label, "color: $grau_66; padding: 40px;")
         layout.addWidget(self.empty_label)
 
         # Scroll-Bereich für PDF-Thumbnails
@@ -1046,7 +1057,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Platzhalter wenn keine Vorschläge
         self.no_suggestions_label = QLabel(tr("Wählen Sie eine PDF aus für Vorschläge"))
-        self.no_suggestions_label.setStyleSheet("color: #999; font-style: italic; padding: 10px;")
+        stil(self.no_suggestions_label, "color: $grau_99; font-style: italic; padding: 10px;")
         self.suggestions_layout.addWidget(self.no_suggestions_label)
 
         # Trennlinie
@@ -1208,6 +1219,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._thumbnails_signal_emitted = True
             self.thumbnails_loaded.emit()
             self._schedule_pre_caching([])
+            self._doppelte_im_ordner.neu_geladen()  # Issue #245
             return
 
         # Thumbnail-Ladetracking initialisieren
@@ -1216,34 +1228,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Widgets erstellen
         for i, pdf_path in enumerate(pdf_files):
-            widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
-            self._kopie_hinweis_anwenden(widget)  # Issue #179
-            widget.clicked.connect(self.on_pdf_clicked)
-            widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
-            widget.shift_clicked.connect(self.on_pdf_shift_clicked)
-            widget.double_clicked.connect(self.on_pdf_double_clicked)
-            widget.open_requested.connect(self.open_pdf)
-            widget.rename_requested.connect(self.on_pdf_rename)
-            widget.delete_requested.connect(self.on_pdf_delete)
-            widget.move_requested.connect(self.on_pdf_move)
-            widget.copy_requested.connect(self.on_pdf_copy)
-            widget.batch_rename_requested.connect(self.on_batch_rename)
-            widget.split_requested.connect(self.on_pdf_split)
-            widget.ki_split_requested.connect(self.on_pdf_ki_split)
-            widget.merge_requested.connect(self.on_pdf_merge)
-            widget.stack_requested.connect(self.on_pdf_stacked)
-            widget.rotate_requested.connect(self.on_pdf_rotate)
-            widget.reocr_requested.connect(self.on_pdf_reocr)
-            widget.straighten_requested.connect(self.on_pdf_straighten)
-            widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
-            widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
-            # Thumbnail-Ladetracking
-            widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
-            # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
-            widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
-            # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
-            widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
-
+            widget = self._erzeuge_pdf_kachel(pdf_path)
             self.pdf_layout.addWidget(widget, i // self._grid_cols, i % self._grid_cols)
             self.pdf_widgets.append(widget)
 
@@ -1263,6 +1248,40 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Pre-Caching starten: PDFs im Hintergrund analysieren
         # Verzögert starten damit UI erstmal fertig geladen wird
         self._schedule_pre_caching(pdf_files)
+        # Inhaltsgleiche Dateien kennzeichnen (Issue #245); gerechnet wird im Hintergrund
+        self._doppelte_im_ordner.neu_geladen()
+
+    def _erzeuge_pdf_kachel(self, pdf_path: Path) -> PDFThumbnailWidget:
+        """Kachel einer PDF mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #232)."""
+        widget = PDFThumbnailWidget(pdf_path, view=self._tile_view)
+        self._kopie_hinweis_anwenden(widget)  # Issue #179
+        widget.clicked.connect(self.on_pdf_clicked)
+        widget.ctrl_clicked.connect(self.on_pdf_ctrl_clicked)
+        widget.shift_clicked.connect(self.on_pdf_shift_clicked)
+        widget.double_clicked.connect(self.on_pdf_double_clicked)
+        widget.open_requested.connect(self.open_pdf)
+        widget.rename_requested.connect(self.on_pdf_rename)
+        widget.delete_requested.connect(self.on_pdf_delete)
+        widget.move_requested.connect(self.on_pdf_move)
+        widget.copy_requested.connect(self.on_pdf_copy)
+        widget.batch_rename_requested.connect(self.on_batch_rename)
+        widget.split_requested.connect(self.on_pdf_split)
+        widget.ki_split_requested.connect(self.on_pdf_ki_split)
+        widget.merge_requested.connect(self.on_pdf_merge)
+        widget.stack_requested.connect(self.on_pdf_stacked)
+        widget.rotate_requested.connect(self.on_pdf_rotate)
+        widget.reocr_requested.connect(self.on_pdf_reocr)
+        widget.straighten_requested.connect(self.on_pdf_straighten)
+        widget.reocr_sprache_requested.connect(self._ocr_schwer_lesbar.sprache_wiederholen)
+        widget.handschrift_requested.connect(self._ocr_schwer_lesbar.handschrift)
+        widget.entsperren_requested.connect(self.on_pdf_entsperren)  # Issue #244
+        # Thumbnail-Ladetracking
+        widget.thumbnail_ready.connect(self._on_thumbnail_loaded)
+        # Gruen, wenn schon ein KI-Vorschlag im Cache liegt (Issue #81)
+        widget.has_ai_suggestion = self.pdf_cache.has_llm_suggestions(pdf_path)
+        # Warndreieck, wenn der OCR-Text laut Analyse schlecht erkannt ist (Issue #47)
+        widget.ocr_schlecht = self.pdf_cache.ocr_schlecht(pdf_path)
+        return widget
 
     @property
     def office_widgets(self) -> list[OfficeThumbnailWidget]:
@@ -1289,6 +1308,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget.convert_requested.connect(self.on_office_convert)
             widget.bilder_zusammenfuegen_requested.connect(self.on_bilder_zusammenfuegen)
             widget.bild_entzerren_requested.connect(self.on_bild_entzerren)  # Issue #205
+            widget.rotate_requested.connect(self.on_bild_rotate)  # Issue #252
             widget.mehrere_umwandeln_requested.connect(self.on_mehrere_umwandeln)
             widget.selected = pfad == self.selected_pdf or pfad in self.selected_pdfs
             i = start_index + j
@@ -1581,7 +1601,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             roots = self.folder_manager.target_folders
             metas = [m for s in (self.pdf_cache.get_llm_suggestions(pdf_path) or [])
                      if isinstance(m := getattr(s, "metadata", None), dict)]
-            year = neuer_ordner.dokument_jahr(detected_date, metas[0] if metas else None)
+            year = neuer_ordner.dokument_jahr(
+                detected_date, metas[0] if metas else None, self._vorschlag_text(pdf_path))
             neu = neuer_ordner.jahres_neuer_ordner(suggestions, year, roots)
             for meta in metas:
                 if neu is not None:
@@ -1594,17 +1615,34 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             logging.getLogger(__name__).debug(f"Neuer-Ordner-Vorschlag nicht verfuegbar: {e}")
             return list(suggestions)
 
+    def _vorschlag_text(self, pdf_path: Path) -> str:
+        """Text der PDF fuer die Ordnervorschlaege (Cache, sonst die angezeigte PDF)."""
+        try:
+            result = self.pdf_cache.get(pdf_path)
+        except Exception:  # noqa: BLE001 - Text ist optional
+            result = None
+        text = (getattr(result, "extracted_text", "") or "") if result is not None else ""
+        if not text and self.selected_pdf == pdf_path:
+            text = self.selected_pdf_text or ""
+        return text
+
     def _with_existing_ki_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
         """KI-Ordner und verknuepfte Dokumente (nur bestehende Ordner)."""
+        # Issue #254: Bezugsjahr im Text ("Bescheid fuer 2020"), sonst Steuerjahr der KI,
+        # erst danach das Briefdatum
+        text = self._vorschlag_text(pdf_path)
+        year = None
         try:
             from src.core.similar_documents import (
-                document_year, folder_suggestion_from_metadata, merge_folder_suggestion,
+                folder_suggestion_from_metadata, merge_folder_suggestion, vorschlag_jahr,
             )
             roots = self.folder_manager.target_folders
-            year = document_year(detected_date)
+            metas = [getattr(s, "metadata", None) for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []]
+            steuerjahr = next((m["steuerjahr"] for m in metas if isinstance(m, dict) and m.get("steuerjahr")), None)
+            year = vorschlag_jahr(text, detected_date, steuerjahr)
             ki = None
-            for s in self.pdf_cache.get_llm_suggestions(pdf_path) or []:
-                ki = folder_suggestion_from_metadata(getattr(s, "metadata", None), roots, year)
+            for meta in metas:
+                ki = folder_suggestion_from_metadata(meta, roots, year)
                 if ki:
                     break
             merged = merge_folder_suggestion(suggestions, ki)
@@ -1615,16 +1653,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # oder Kundennummer liegen schon in einem Zielordner -> staerkster Beleg,
         # darum ganz oben
         try:
-            from src.core.similar_documents import document_year as _jahr
             from src.rag.verknuepfung import ordner_vorschlag_aus_kennungen
-            text = ""
-            result = self.pdf_cache.get(pdf_path)
-            if result is not None:
-                text = result.extracted_text or ""
-            if not text and self.selected_pdf == pdf_path:
-                text = self.selected_pdf_text or ""
             verknuepft = ordner_vorschlag_aus_kennungen(
-                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=_jahr(detected_date),
+                text, self.db, self.folder_manager.target_folders, ausser=pdf_path, year=year,
             )
             return merge_folder_suggestion(merged, verknuepft, bestaetigung=tr("verknüpfte Dokumente"))
         except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
@@ -1729,6 +1760,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Luecke im Raster schliessen: nachfolgende Kacheln ruecken auf
         if index is not None:
             self._relayout_pdf_grid(force=True)
+            self._doppelte_im_ordner.datei_betroffen(pdf_path)  # Issue #245: Hinweis der Zwillingsdatei
 
         # PDF-Zähler aktualisieren
         self.pdf_count_label.setText(tr("PDFs: {anzahl}").format(anzahl=len(self.pdf_widgets)))
@@ -1798,6 +1830,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     self.selected_pdfs.append(new_path)
 
                 break
+        self._doppelte_im_ordner.datei_betroffen(old_path)  # Issue #245: der Hinweis nennt den Namen
 
     def _start_warmup(self):
         """Laedt teure Module im Hintergrund vor, damit der erste Klick nicht wartet."""
@@ -2115,6 +2148,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         up_action.triggered.connect(self.on_navigate_up)
         view_menu.addAction(up_action)
 
+        # Issue #253: nach dem Verschieben in den Zielordner springen
+        ziele_menu = view_menu.addMenu(tr("Zuletzt verschoben nach"))
+        ziele_menu.aboutToShow.connect(lambda: self.zuletzt_verschoben_menue_fuellen(ziele_menu))
+
         view_menu.addSeparator()
 
         search_action = QAction(tr("Dokumentensuche..."), self)
@@ -2247,7 +2284,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         toolbar.addWidget(self.search_input)
 
         self.search_count_label = QLabel("")
-        self.search_count_label.setStyleSheet("color: #666; padding-left: 5px;")
+        stil(self.search_count_label, "color: $grau_66; padding-left: 5px;")
         toolbar.addWidget(self.search_count_label)
 
         clear_search_action = QAction(tr("Suche leeren"), self)
@@ -2281,7 +2318,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Cache-Status (Pre-Caching-Fortschritt)
         self.cache_status_label = _ClickableLabel("")
-        self.cache_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        stil(self.cache_status_label, "color: $grau_88; font-size: 11px;")
         self.cache_status_label.setToolTip(tr("Doppelklick zeigt Details zur Hintergrund-Analyse."))
         self.cache_status_label.doubleClicked.connect(self._show_precache_details)
         self.statusbar.addPermanentWidget(self.cache_status_label)
@@ -2307,7 +2344,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Backup-Erinnerung (Issue #14): nur sichtbar, solange "Nein" gilt
         self.backup_status_label = _ClickableLabel(tr("Kein aktuelles Backup gemacht"))
-        self.backup_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        stil(self.backup_status_label, "color: $orange_text_hell; font-weight: bold;")
         self.backup_status_label.setToolTip(tr("Klicken, um ein gemachtes Backup zu bestätigen."))
         self.backup_status_label.clicked.connect(self.confirm_backup_done)
         self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
@@ -2315,13 +2352,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
         self.update_status_label = _ClickableLabel("")
-        self.update_status_label.setStyleSheet("color: #d17a00; font-weight: bold;")
+        stil(self.update_status_label, "color: $orange_text_hell; font-weight: bold;")
         self.update_status_label.setToolTip(tr("Doppelklick zeigt Details zum Update."))
         self.update_status_label.doubleClicked.connect(self._show_available_update)
         self.update_status_label.setVisible(False)
         self.statusbar.addPermanentWidget(self.update_status_label)
         self._update_thread: Optional[_UpdateCheckThread] = None
         self._available_update: Optional[UpdateInfo] = None
+
+        self.zuletzt_verschoben_einrichten()  # Issue #253
 
         self.statusbar.showMessage(tr("Bereit"))
 
@@ -2389,6 +2428,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self._ocr_neu_worker is not None:
             self._ocr_neu_worker.requestInterruption()
         self._ocr_schwer_lesbar.abbrechen()
+        self._ordner_beobachtung.stoppen()
+        self._doppelte_im_ordner.stoppen()
         if self._office_worker is not None:
             self._office_worker.requestInterruption()
         if self._erkennung_worker is not None:
@@ -2497,8 +2538,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             combo.setCurrentIndex(combo.findData(view.id))
             combo.blockSignals(False)
 
-    def _sortiere_kacheln(self):
+    def _sortiere_kacheln(self, staende=None):
         """Ordnet die vorhandenen Kacheln nach ``self._sortierung`` um (Issue #33).
+
+        ``staende``: schon bekannte (Aenderungszeit, Groesse) je Dateiname, siehe
+        ``sortiere_pfade`` (Issue #232).
 
         Es werden keine Widgets neu gebaut - Thumbnails, Analyse und Auswahl
         bleiben unberuehrt, nur das Raster wird neu belegt. Weitere Kachellisten
@@ -2510,7 +2554,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             [self.office_widgets] if hasattr(self, "office_widgets") else []
         ):
             nach_pfad = {w.pdf_path: w for w in liste}
-            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung)]
+            neu = [nach_pfad[p] for p in sortiere_pfade(nach_pfad, self._sortierung, staende)]
             if neu != liste:
                 liste[:] = neu
                 geaendert = True
@@ -2543,10 +2587,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def on_pdf_clicked(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF angeklickt wird."""
         self._ordner_markierung_aufheben()  # Issue #196: Ordnermarkierung und PDF-Auswahl schliessen sich aus
-        # Klick auf bereits ausgewähltes PDF -> Auswahl aufheben
-        # Nur wenn wirklich eine Einzelauswahl vorliegt (nicht bei Mehrfachauswahl)
+        # Klick auf die bereits allein ausgewählte PDF: sie bleibt ausgewählt (#251).
+        # Abgewählt wird über einen Klick in den leeren Bereich (_on_pdf_container_clicked).
         if self.selected_pdf == pdf_path and not self.selected_pdfs:
-            self._clear_selection()
+            widget = self._pdf_widget_for(pdf_path)
+            if widget is not None and not widget.selected:
+                widget.selected = True  # z. B. nach einem Neuaufbau der Kacheln
             return
 
         # Alte Auswahl aufheben (Einzelauswahl)
@@ -2991,8 +3037,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # Konfidenz im Namen anzeigen
             confidence_text = f"{int(suggestion.confidence * 100)}%"
             widget.count_label.setText(confidence_text)
-            farbe = "#1e6fd9" if is_new else "#28a745"
-            widget.count_label.setStyleSheet(
+            farbe = "$neu_blau" if is_new else "$vorschlag_gruen"
+            stil(widget.count_label,
                 f"font-size: 11px; color: {farbe}; font-weight: bold; background: transparent; border: none;")
 
             widget.clicked.connect(self.on_suggestion_clicked)
@@ -3068,6 +3114,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Mit ``create_folder`` (Issue #116) wird der noch fehlende Zielordner nach
         der Rueckfrage angelegt; Rueckgaengig raeumt ihn wieder weg, wenn er leer ist.
         """
+        # Issue #245: Gibt es den Inhalt im Ziel oder im Archiv schon?
+        if not self._doppelte_vor_ablage([pdf_path], folder_path):
+            return
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
         # Name und Metadaten (gemeinsamer Kern mit "Hierhin kopieren", Issue #179)
@@ -3199,6 +3248,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def move_pdf_to_folder_and_learn(self, pdf_path: Path, folder_path: Path):
         """Verschiebt eine PDF und lernt aus der Entscheidung."""
+        # Issue #245: Gibt es den Inhalt im Ziel oder im Archiv schon?
+        if not self._doppelte_vor_ablage([pdf_path], folder_path):
+            return
         # Relativen Pfad für die Baumansicht berechnen
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
@@ -3753,7 +3805,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             tr("Zielordner auswählen"),
         )
 
-        if folder:
+        if folder and self._doppelte_vor_ablage([pdf_path], Path(folder)):  # Issue #245
             try:
                 new_path = self.file_manager.move_file(pdf_path, folder)
                 self.statusbar.showMessage(tr("Verschoben nach: {name}").format(name=new_path.parent.name), 3000)
@@ -3995,8 +4047,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Kontextmenue "Drehen": ganze PDF(s) verlustfrei drehen."""
         self._rotate_pdfs(self._aktion_ziele(pdf_path), grad)
 
+    def on_bild_rotate(self, pfad: Path, grad: int):
+        """Kontextmenue "Drehen" einer Bildkachel (Issue #252): das Bild bzw. alle markierten drehbaren Bilder."""
+        if len(self.selected_pdfs) > 1 and pfad in self.selected_pdfs:
+            ziele = [p for p in self.selected_pdfs if ist_drehbares_bild(p)]
+        else:
+            ziele = [pfad]
+        self._rotate_pdfs(ziele, grad)
+
     def _rotate_pdfs(self, paths: list[Path], grad: int, undo: bool = True) -> list[Path]:
-        """Dreht die PDFs um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
+        """Dreht die PDFs (oder Bilder, Issue #252) um ``grad`` (im Uhrzeigersinn) und frischt Kachel, Vorschau und Index auf.
 
         Mit ``undo`` kommt ein Eintrag mit der Gegenrotation auf den
         Rueckgaengig-Stapel. Liefert die gedrehten Pfade.
@@ -4007,7 +4067,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             for path in paths:
                 try:
-                    rotate_pdf(path, grad)
+                    if ist_drehbares_bild(path):
+                        bild_drehen(path, grad)
+                    else:
+                        rotate_pdf(path, grad)
                 except DrehenNichtMoeglich as e:
                     fehler.append(f"{path.name}: {e}")
                     continue
@@ -4024,6 +4087,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         richtung = {90: tr("90° nach rechts"), -90: tr("90° nach links"), 270: tr("90° nach links"), 180: "180°"}[grad]
         wer = gedreht[0].name if len(gedreht) == 1 else f"{len(gedreht)} PDFs"
+        if len(gedreht) > 1 and all(ist_drehbares_bild(p) for p in gedreht):
+            wer = tr("{anzahl} Bilder").format(anzahl=len(gedreht))
         if gedreht and undo:
             self._push_undo({
                 "type": "rotate",
@@ -4148,7 +4213,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self.selected_pdf == path and not self.selected_pdfs:
             if self.detail_panel.has_user_edits():
                 # Eingaben des Nutzers nicht verwerfen: nur die Vorschau neu laden
-                self.detail_panel.preview.load_pdf(path)
+                if ist_drehbares_bild(path):
+                    self._on_office_preview_requested(path)  # Bild: Vorschau-PDF im Hintergrund neu
+                else:
+                    self.detail_panel.preview.load_pdf(path)
             else:
                 self.update_suggestions_for_pdf(path)
 
@@ -4221,6 +4289,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         view = getattr(self, "korrespondenten_view", None)
         if paare and view is not None:
             view.pfade_aktualisieren(paare)
+        if entry.get("type") == "move":
+            self._ziel_merken(entry.get("moves"))  # Issue #253: "Zuletzt verschoben nach"
         # Maximal 20 Einträge behalten
         if len(self._undo_stack) > 20:
             self._undo_stack.pop(0)
@@ -4434,6 +4504,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._undo_stack.pop()
         self._update_undo_ui()
         self.korrespondenten_view.pfade_aktualisieren(zurueck)
+        self._ziel_vergessen([dest for dest, _ in zurueck])  # Issue #253
 
         # Issue #116: beim Verschieben neu angelegte Ordner wieder wegraeumen -
         # nur die aus diesem Schritt und nur, wenn sie jetzt leer sind
@@ -4910,7 +4981,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         pos = 0
         if start > 0:
             ellipsis = QLabel("…")
-            ellipsis.setStyleSheet("color: #888; padding: 0 2px;")
+            stil(ellipsis, "color: $grau_88; padding: 0 2px;")
             self.breadcrumb_layout.insertWidget(pos, ellipsis)
             pos += 1
         for i in range(start, len(parts)):
@@ -4921,16 +4992,16 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             btn.setText(parts[i].rstrip("\\/") or parts[i])
             btn.setToolTip(str(target))
             btn.setEnabled(not is_last)
-            btn.setStyleSheet(
+            stil(btn,
                 "QToolButton { padding: 0px 4px; margin: 0px; font-size: 11px; }"
-                + (" QToolButton:disabled { color: #222; font-weight: bold; }" if is_last else "")
+                + (" QToolButton:disabled { color: $grau_22; font-weight: bold; }" if is_last else "")
             )
             btn.clicked.connect(lambda _=False, p=target: self.on_folder_tile_double_clicked(p))
             self.breadcrumb_layout.insertWidget(pos, btn)
             pos += 1
             if not is_last:
                 sep = QLabel("›")
-                sep.setStyleSheet("color: #999;")
+                stil(sep, "color: $grau_99;")
                 self.breadcrumb_layout.insertWidget(pos, sep)
                 pos += 1
 
@@ -5144,8 +5215,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Erstellt die ausklappbare Filterleiste."""
         bar = QWidget()
         bar.setVisible(False)
-        bar.setStyleSheet(
-            "QWidget { background: #f5f5f5; border-bottom: 1px solid #ccc; }"
+        stil(bar,
+            "QWidget { background: $grau_f5; border-bottom: 1px solid $grau_cc; }"
         )
 
         layout = QGridLayout(bar)
@@ -6010,7 +6081,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         else:
             self._update_cache_status()
 
-    LLM_STATUS_RED = "#c0392b"
+    LLM_STATUS_RED = "$rot_text_status"
 
     def _llm_health(self):
         """Zustand des KI-Assistenten fuer Statusleiste und Details-Dialog.
@@ -6114,10 +6185,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             text = tr("LLM: {provider}/{model_short}").format(provider=provider, model_short=model_short) if model_short else f"LLM: {provider}"
             detail = tr("{provider}, Modell: {model_full}").format(provider=provider, model_full=model_full) if model_full else provider
             if health == "pruefen":
-                color = "gray"
+                color = "$grau_hinweis"
                 state = tr("KI-Assistent eingerichtet ({detail}).\nVerbindung wird geprüft …").format(detail=detail)
             elif health == "bereit":
-                color = "green"
+                color = "$gruen_status"
                 state = tr("KI-Assistent bereit ({detail}).").format(detail=detail)
             else:
                 color = self.LLM_STATUS_RED
@@ -6127,7 +6198,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     "Problem: {problem}\nAbhilfe: {abhilfe}"
                 ).format(detail=detail, problem=hinweis.problem, abhilfe=hinweis.abhilfe))
             self.llm_status_label.setText(text + chat_text)
-            self.llm_status_label.setStyleSheet(f"color: {color};")
+            stil(self.llm_status_label, f"color: {color};")
             self.llm_status_label.setToolTip(
                 tr("{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen.").format(state=state, chat_zeile=chat_zeile)
             )
@@ -6140,7 +6211,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 reason = tr("Nicht konfiguriert.")
             self.llm_status_label.setText(tr("LLM: Aus{chat_text}").format(chat_text=chat_text))
-            self.llm_status_label.setStyleSheet("color: gray;")
+            stil(self.llm_status_label, "color: $grau_hinweis;")
             self.llm_status_label.setToolTip(
                 tr(
                     "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
@@ -6230,7 +6301,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Titel und Version
         title_label = QLabel(
-            tr("<h2>PDF Sortier Meister</h2><p style='color: #666;'>Version {version}</p>").format(version=__version__)
+            css(tr("<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>")).format(version=__version__)
         )
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
@@ -6273,11 +6344,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Lizenz
         license_label = QLabel(
-            tr("<p style='color: #666; font-size: 11px;'>"
+            css(tr("<p style='color: $grau_66; font-size: 11px;'>"
             "<b>Lizenz:</b> GPL-3.0-or-later<br>"
             "Copyright (c) 2024-2026<br>"
             "Freie Software - Open Source. Lizenztext: "
-            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>')
+            '<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0</a></p>'))
         )
         license_label.setOpenExternalLinks(True)
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -6287,7 +6358,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from src.utils.logging_config import get_log_file_path
         log_path = get_log_file_path()
         log_label = QLabel(
-            tr("<p style='color: #999; font-size: 10px;'>Log-Datei: {log_path}</p>").format(log_path=log_path)
+            css(tr("<p style='color: $grau_99; font-size: 10px;'>Log-Datei: {log_path}</p>")).format(log_path=log_path)
         )
         log_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         log_label.setWordWrap(True)

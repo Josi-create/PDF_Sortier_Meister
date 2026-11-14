@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from src.gui.farben import css
 from tests.test_main_window_gui import fresh_singletons, main_window, _scan_tree  # noqa: F401 - Fixtures
 
 
@@ -20,14 +21,14 @@ def thumbnail(qtbot, monkeypatch, tmp_path):
 def test_marker_changes_style_and_tooltip(thumbnail):
     from src.gui.pdf_thumbnail import PDFThumbnailWidget
     assert not thumbnail.has_ai_suggestion
-    assert PDFThumbnailWidget.AI_BACKGROUND not in thumbnail.styleSheet()
+    assert css(PDFThumbnailWidget.AI_BACKGROUND) not in thumbnail.styleSheet()
 
     thumbnail.has_ai_suggestion = True
-    assert PDFThumbnailWidget.AI_BACKGROUND in thumbnail.styleSheet()
+    assert css(PDFThumbnailWidget.AI_BACKGROUND) in thumbnail.styleSheet()
     assert "KI-Vorschlag vorhanden" in thumbnail.toolTip()
 
     thumbnail.has_ai_suggestion = False
-    assert PDFThumbnailWidget.AI_BACKGROUND not in thumbnail.styleSheet()
+    assert css(PDFThumbnailWidget.AI_BACKGROUND) not in thumbnail.styleSheet()
     assert "KI-Vorschlag" not in thumbnail.toolTip()
 
 
@@ -36,9 +37,9 @@ def test_selection_wins_over_marker_and_returns_to_green(thumbnail):
     thumbnail.has_ai_suggestion = True
     thumbnail.selected = True
     assert "#cce5ff" in thumbnail.styleSheet()
-    assert PDFThumbnailWidget.AI_BACKGROUND not in thumbnail.styleSheet()
+    assert css(PDFThumbnailWidget.AI_BACKGROUND) not in thumbnail.styleSheet()
     thumbnail.selected = False
-    assert PDFThumbnailWidget.AI_BACKGROUND in thumbnail.styleSheet()
+    assert css(PDFThumbnailWidget.AI_BACKGROUND) in thumbnail.styleSheet()
 
 
 def _cache_llm(win, pdf: Path):

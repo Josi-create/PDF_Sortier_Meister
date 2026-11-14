@@ -137,6 +137,21 @@ def document_year(detected_date: Optional[str], file_date: Optional[str] = None)
     return _year_of(detected_date, file_date)
 
 
+def vorschlag_jahr(
+    text: Optional[str],
+    detected_date: Optional[str],
+    steuerjahr=None,
+    file_date: Optional[str] = None,
+) -> Optional[int]:
+    """Jahr fuer die Ordnervorschlaege (Issue #254).
+
+    Ein im Text genanntes Bezugsjahr ("Bescheid fuer 2020") geht vor, dann das
+    Steuerjahr aus den KI-Metadaten, erst danach das Brief- bzw. Dateidatum.
+    """
+    from src.core.document_date import bezugsjahr
+    return _year_of(bezugsjahr(text or ""), steuerjahr, detected_date, file_date)
+
+
 # --- Aehnlichkeit --------------------------------------------------------------
 
 def _keyword_set(keywords) -> set[str]:
@@ -279,7 +294,7 @@ def describe_similar_for_prompt(
         if adjusted:
             line += f'; für ein Dokument von {year} entspricht das "{adjusted}"'
         lines.append(line)
-    year_hint = f" Dieses Dokument stammt laut Texterkennung aus {year} (am Text prüfen)." if year else ""
+    year_hint = f" Dieses Dokument gehört laut Texterkennung zum Jahr {year} (am Text prüfen)." if year else ""
     lines.append(
         "Diese Ablageorte zeigen die Ordnerstruktur des Nutzers. Ordner mit Jahreszahl gelten "
         "nur für Dokumente dieses Jahres: Ein fast gleiches Dokument aus einem anderen Jahr "

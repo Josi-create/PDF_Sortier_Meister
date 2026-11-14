@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping, Optional
 from src.i18n import tr
 
 # (id, Anzeigetext, Kriterium, absteigend)
@@ -43,8 +43,16 @@ def _stat(pfad: Path):
         return None
 
 
-def sortiere_pfade(pfade: Iterable[Path], sortierung: str) -> list[Path]:
-    """Gibt die Pfade in der gewaehlten Reihenfolge zurueck (stabil, Name als Zweitschluessel)."""
+def sortiere_pfade(
+    pfade: Iterable[Path], sortierung: str, staende: Optional[Mapping[str, tuple[float, int]]] = None
+) -> list[Path]:
+    """Gibt die Pfade in der gewaehlten Reihenfolge zurueck (stabil, Name als Zweitschluessel).
+
+    Args:
+        staende: schon bekannte (Aenderungszeit, Groesse) je Dateiname, wenn alle Pfade im
+            selben Ordner liegen (Ordner-Beobachtung, Issue #232). Fuer diese Dateien wird
+            die Platte nicht gefragt.
+    """
     _, _, kriterium, absteigend = next(
         o for o in SORT_OPTIONEN if o[0] == sortierung_id(sortierung)
     )
@@ -56,6 +64,9 @@ def sortiere_pfade(pfade: Iterable[Path], sortierung: str) -> list[Path]:
         return pfade
 
     def wert(p: Path):
+        bekannt = staende.get(p.name) if staende else None
+        if bekannt is not None:
+            return bekannt[0] if kriterium == "datum" else bekannt[1]
         st = _stat(p)
         if st is None:
             return 0

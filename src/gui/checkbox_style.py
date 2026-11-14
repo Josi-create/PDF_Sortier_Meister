@@ -1,5 +1,6 @@
 """
-Globales Aussehen der Checkboxen (alle Plattformen).
+Globales Aussehen der Checkboxen (alle Plattformen), im dunklen Farbschema
+auch der Auswahlknoepfe.
 
 Fusion zeichnet Checkbox-Kaestchen auf Retina-Macs praktisch ohne Rahmen
 (weisses Quadrat auf hellem Grund) - Nutzer sehen nicht, dass dort etwas
@@ -16,6 +17,7 @@ GPL-3.0-or-later - Copyright (c) 2026
 from pathlib import Path
 from typing import Optional
 
+from src.gui.farben import css, ist_dunkel
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -28,14 +30,29 @@ CHECK_SVG = (
 
 _BASE = (
     "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; "
-    "border: 1px solid #7a7a7a; background-color: #ffffff; }"
-    "QCheckBox::indicator:hover { border-color: #0078d7; }"
-    "QCheckBox::indicator:checked { background-color: #0078d7; "
-    "border-color: #005a9e;{bild} }"
-    "QCheckBox::indicator:disabled { border-color: #c0c0c0; "
-    "background-color: #f0f0f0; }"
-    "QCheckBox::indicator:checked:disabled { background-color: #9dc5e8; "
-    "border-color: #9dc5e8; }"
+    "border: 1px solid $grau_7a; background-color: $weiss; }"
+    "QCheckBox::indicator:hover { border-color: $akzent; }"
+    "QCheckBox::indicator:checked { background-color: $akzent; "
+    "border-color: $akzent_rand;{bild} }"
+    "QCheckBox::indicator:disabled { border-color: $grau_c0; "
+    "background-color: $grau_f0; }"
+    "QCheckBox::indicator:checked:disabled { background-color: $akzent_blass; "
+    "border-color: $akzent_blass; }"
+)
+
+# Nur im dunklen Farbschema (Issue #238): Fusion zeichnet nicht gewaehlte
+# Auswahlknoepfe dort fast unsichtbar (dunkler Kreis auf dunklem Grund).
+_RADIO_DUNKEL = (
+    "QRadioButton::indicator { width: 14px; height: 14px; border-radius: 8px; "
+    "border: 1px solid $grau_7a; background-color: $weiss; }"
+    "QRadioButton::indicator:hover { border-color: $akzent; }"
+    "QRadioButton::indicator:checked { border-color: $akzent_rand; "
+    "background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, "
+    "stop:0 white, stop:0.36 white, stop:0.42 $akzent, stop:1 $akzent); }"
+    "QRadioButton::indicator:disabled { border-color: $grau_c0; background-color: $grau_f0; }"
+    "QRadioButton::indicator:checked:disabled { border-color: $akzent_blass; "
+    "background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, "
+    "stop:0 $grau_9e, stop:0.36 $grau_9e, stop:0.42 $akzent_blass, stop:1 $akzent_blass); }"
 )
 
 
@@ -55,4 +72,4 @@ def checkbox_stylesheet(check_icon: Optional[Path]) -> str:
     """Stylesheet fuer alle Checkboxen; ohne Bild bleibt es beim blauen Kaestchen."""
     # Qt-Stylesheets wollen "/" als Trenner, auch unter Windows
     bild = f' image: url("{Path(check_icon).as_posix()}");' if check_icon else ""
-    return _BASE.replace("{bild}", bild)
+    return css(_BASE + (_RADIO_DUNKEL if ist_dunkel() else "")).replace("{bild}", bild)

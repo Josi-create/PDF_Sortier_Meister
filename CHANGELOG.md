@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-13
+
 ### Neu
 - **Textdateien (.txt) sortieren und in PDF umwandeln** (#227): .txt-Dateien im Scan-Ordner
   erscheinen jetzt als Kachel (Etikett „TXT“) mit Vorschau, fließen in die Ordner-Vorschläge ein,
@@ -22,6 +24,26 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist danach aber auffindbar und bleibt es auch, wenn du sie später änderst. Wer alle
   Textdateien durchsuchen will, trägt `.txt` in den Einstellungen der Suche bei den Dateiendungen
   ein.
+- **Neue Scans erscheinen von selbst** (#232): Solange das Programm offen ist, beobachtet es den
+  links geöffneten Ordner. Ein neuer Scan erscheint nach wenigen Sekunden als Kachel, ohne F5;
+  Texterkennung und KI-Vorschlag laufen sofort an. Eine Datei erscheint erst, wenn der Scanner
+  (oder OneDrive) sie fertig geschrieben hat. Wird eine Datei außerhalb des Programms gelöscht,
+  verschoben oder umbenannt, verschwindet ihre Kachel bzw. erscheint unter dem neuen Namen. Die
+  übrigen Kacheln, die Auswahl und die Scrollposition bleiben dabei, wie sie sind. Das gilt auch
+  für Word-, Excel-, Text- und Bilddateien. Neue Unterordner zeigt weiterhin F5. Abschalten lässt
+  sich das unter Einstellungen → Allgemein → „Scan-Ordner beobachten“.
+- **Hinweis bei doppelten Dateien** (#245): Liegt dieselbe Datei zweimal im geöffneten Ordner,
+  zum Beispiel ein Foto, das aus dem Messenger zweimal gespeichert wurde, tragen beide Kacheln
+  den Streifen „Doppelt: wie …“, und die Statusleiste meldet es. Das gilt auch für eine Datei,
+  die gerade erst erscheint. Beim Ablegen prüft das Programm, ob im Zielordner oder unter den
+  Dokumenten der Dokumentensuche schon eine Datei mit genau demselben Inhalt liegt, und fragt
+  dann nach: „Trotzdem ablegen“, „In den Papierkorb“ (die vorhandene Datei bleibt, die neue geht
+  in den Papierkorb und lässt sich mit Rückgängig zurückholen) oder „Abbrechen“. Bei mehreren
+  Dateien auf einmal gehen nur die schon vorhandenen in den Papierkorb, die übrigen werden
+  abgelegt. Verglichen wird der Inhalt Byte für Byte, der Dateiname spielt keine Rolle.
+  Als doppelt gilt nur eine wirklich gleiche Datei: Ein Foto und das daraus erzeugte PDF, ein
+  zweiter Scan desselben Blatts oder eine PDF, in die das Programm inzwischen Metadaten oder
+  eine Textebene geschrieben hat, werden nicht gemeldet. Gelöscht wird nie ohne Rückfrage.
 - **Schlagwörter mit Ebenen, zusätzlich zum Ordner** (#231): Im Detail-Panel gibt es das Feld
   „Schlagwörter“. Mehrere Einträge trennt ein Komma, Ebenen ein Schrägstrich, zum Beispiel
   „Steuer/Werbungskosten, Haus“. Beim Tippen erscheinen die schon benutzten Schlagwörter zur
@@ -32,6 +54,71 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Schlagwörter vor, die schon benutzt werden, und erfindet keine neuen. Schlagwörter gibt es für
   PDFs; Word-, Excel- und Bilddateien bekommen keine. Das Jahr gehört nicht ins Schlagwort, dafür
   gibt es das Steuerjahr.
+- **Passwortgeschützte PDFs entsperren** (#244): Kontoauszüge oder Lohnabrechnungen, die sich nur
+  mit Passwort öffnen lassen, zeigen auf der Kachel jetzt ein Schloss statt „Fehler beim Laden“.
+  Rechtsklick → „Passwortschutz entfernen…“ fragt das Passwort ab (verdeckt) und speichert eine
+  Kopie ohne Schutz neben dem Original, zum Beispiel „Auszug (entsperrt).pdf“. Mit der Kopie geht
+  alles wie mit jeder anderen PDF: Vorschau, Vorschläge, Suche. Sind mehrere geschützte PDFs
+  markiert, gilt das Passwort für alle; passt es bei einigen nicht, fragt das Programm für diese
+  noch einmal. Das Passwort wird nicht gespeichert, nicht protokolliert und nicht an die KI
+  gegeben. Das Original bleibt unverändert, bis die Kopie fertig und geprüft ist; erst dann fragt
+  das Programm, ob das geschützte Original in den Papierkorb soll (Strg+Z holt es zurück, die
+  Antwort lässt sich unter Einstellungen → Allgemein merken). Digital signierte Originale bleiben
+  immer liegen, weil die Signatur nur für das Original gilt. Passwörter werden nicht erraten oder
+  geknackt; PDFs, die nur das Drucken oder Kopieren einschränken, sind nicht betroffen.
+- **Bedeutungssuche für den Chat** (#230, Standard aus): Bisher fand der Chat ein Dokument nur,
+  wenn die Wörter der Frage darin stehen. Mit dem neuen Schalter unter Einstellungen › Suche findet
+  er auch Dokumente, die dasselbe meinen: Die Frage „Was zahle ich für meine Autoversicherung?“
+  führt zur Rechnung, in der nur „Kraftfahrtversicherung“ steht. Dafür berechnet der Indexlauf
+  einmalig für jede Seite Bedeutungswerte, mit einem kleinen Modell (rund 620 MB, per Klick
+  geladen), das über Ollama auf dem eigenen Rechner läuft. Kein Text verlässt dabei den Rechner.
+  In einem Probelauf mit 50 Alltagsfragen an gut 3.000 erfundene Dokumente nannte der Chat das
+  richtige Dokument mit Bedeutungssuche bei 41 Fragen, ohne bei 22. Der erste Lauf über ein
+  großes Archiv dauert mit Grafikkarte etwa eine Stunde je 100.000 Seiten, ohne deutlich länger;
+  er läuft in Etappen und setzt beim nächsten Mal fort. Die Wortsuche und der Reiter „Suche“
+  bleiben unverändert, und wer Ollama nicht nutzt, merkt von alldem nichts.
+- **Bilder im Scan-Ordner drehen** (#252): Ein hochkant oder auf dem Kopf fotografiertes Bild lässt
+  sich jetzt wie eine PDF drehen: Rechtsklick auf die Kachel → „Drehen“ → 90° nach links, 90° nach
+  rechts oder 180°. Sind mehrere Bilder markiert, werden alle gedreht; Strg+Z dreht zurück. Die
+  Bildqualität bleibt dabei unverändert: Bei JPG-Fotos wird nur die Ausrichtung in den
+  Bildinformationen (EXIF) eingetragen, das Bild selbst wird nicht neu gespeichert. PNG- und
+  BMP-Bilder werden gedreht und verlustfrei gespeichert. Kachel, Vorschau und die spätere
+  Umwandlung in PDF zeigen das Bild gedreht. Für TIFF, GIF, WEBP und HEIC gibt es den Eintrag
+  nicht, weil das Drehen dort die Qualität oder weitere Seiten kosten könnte. Eine Bildverwaltung
+  ist das nicht: Es gibt nur das Drehen.
+- **Zuletzt verschoben nach …** (#253): Nach dem Verschieben steht der Zielordner unten in der
+  Statusleiste. Ein Klick darauf öffnet ihn links und markiert die gerade verschobenen Dateien;
+  frühere Ziele zeigt der Rechtsklick oder „Ansicht → Zuletzt verschoben nach“.
+- **Dunkles Farbschema** (#238): Das Programm gibt es jetzt auch in Dunkel. Unter Einstellungen →
+  Allgemein → Darstellung → „Farbschema“ wählst du „Wie das System“ (Standard), „Hell“ oder
+  „Dunkel“. „Wie das System“ folgt dem hellen oder dunklen Modus von Windows oder macOS, auch wenn
+  du ihn bei laufendem Programm umstellst. Die Wahl gilt sofort, ohne Neustart. Die Seiten deiner
+  Dokumente (Vorschau, Miniaturen) bleiben in beiden Farbschemata, wie sie sind. Wer sein System
+  dunkel eingestellt hat, sieht das Programm nach dem Update also dunkel; mit „Hell“ sieht es aus
+  wie bisher.
+
+### Geändert
+- **Ein zweiter Klick wählt die markierte Kachel nicht mehr ab** (#251): Klickst du eine Kachel an,
+  die schon als einzige markiert ist, bleibt sie markiert; Detailansicht, Vorschau und Vorschläge
+  bleiben stehen. Abgewählt wird mit einem Klick in den leeren Bereich der Kachelansicht (oder über
+  das Menü). Strg-Klick schaltet einzelne Kacheln weiterhin um, Umschalt-Klick, Ziehen und
+  Doppelklick verhalten sich wie bisher.
+- **Einstellungsfenster größer, mit „Anwenden“** (#255): Das Fenster öffnet so groß, dass kein
+  Reiter mehr waagerecht rollt, und merkt sich die Größe, auf die du es ziehst. Der neue Knopf
+  „Anwenden“ übernimmt die Einstellungen und lässt das Fenster offen.
+
+### Behoben
+- **Aktualisieren scheitert nicht mehr an der laufenden Dokumentensuche** (Windows-Setup): Ist ein
+  KI-Assistent wie Claude mit der Dokumentensuche verbunden, laufen im Hintergrund Dienstprogramme
+  (`pdfsm-dienst.exe`) ohne Fenster und ohne Symbol im Infobereich. Das Setup meldete sie bisher
+  als „kann nicht automatisch geschlossen werden“ und brach beim Ersetzen der Dateien ab. Jetzt
+  beendet das Setup diese Programme selbst, ebenso die Browser-Oberfläche der Suche und einen
+  laufenden Indexlauf (er setzt beim nächsten Mal fort). Dasselbe gilt für die Deinstallation.
+  Auf der letzten Seite steht dann der Hinweis, den KI-Assistenten einmal neu zu starten, damit er
+  die Dokumentensuche wieder findet.
+- **Steuerbescheid für ein früheres Jahr** (#254): Ein Bescheid „für 2020“, der 2022 ausgestellt
+  wurde, bekommt jetzt das Steuerjahr 2020 und den Ordner für 2020 als ersten Vorschlag – bisher
+  zählte das Jahr des Briefdatums. Das Feld „Datum“ bleibt das Briefdatum.
 
 ### Behoben
 - **Fenster hängt bei großem Scan-Ordner nicht mehr**: Bei einem Ordner mit einigen hundert PDFs

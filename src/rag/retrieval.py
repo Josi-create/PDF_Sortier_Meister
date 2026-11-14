@@ -90,6 +90,12 @@ TYP_HINWEISE: tuple[tuple[str, frozenset[str]], ...] = (
 # Hoechstens so viele Kandidaten holen, bevor Kopien entfernt und neu sortiert wird
 KANDIDATEN_FAKTOR = 3
 
+# Bedeutungssuche (Issue #230): so viele ihrer Treffer stehen vor den Worttreffern.
+# Gemessen (docs/BEDEUTUNGSSUCHE_MESSUNG.md): die Bedeutungssuche hat das richtige
+# Dokument fast immer auf Platz 1 bis 4; die uebrigen Plaetze behaelt die Wortsuche,
+# die bei Nummern, Namen und Betraegen besser ist.
+BEDEUTUNG_VORAB = 4
+
 
 # Regex fuer die heuristische Filter-Extraktion.
 _YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -178,7 +184,8 @@ class RetrievalService:
     # Public API                                                         #
     # ------------------------------------------------------------------ #
 
-    def retrieve(self, question: str, k: int = None, zusatz: str = "") -> list[RetrievedDoc]:
+    def retrieve(self, question: str, k: int = None, zusatz: str = "",
+                 bedeutung: bool = True) -> list[RetrievedDoc]:
         """
         Durchsucht den Index nach passenden Dokumenten zur Frage.
 
@@ -193,6 +200,10 @@ class RetrievalService:
             zusatz: Weitere Suchbegriffe (z.B. Korrespondent, Kategorie und
                 Steuerjahr eines Bezugsdokuments, Issue #148). Sie erweitern
                 die ODER-Abfrage, werden aber NICHT zu Filtern.
+            bedeutung: Treffer der Bedeutungssuche voranstellen, wenn sie
+                eingeschaltet und vorbereitet ist (Issue #230). ``False`` bei
+                Fragen zu einem Bezugsdokument ("Wohin gehört dieses PDF?"):
+                dort sagt der Wortlaut der Frage nichts ueber den Inhalt.
         """
         if k is None:
             k = self.chat_config.max_context_docs
@@ -217,16 +228,17 @@ class RetrievalService:
         if not fts_query:
             return []
 
+        sinn = self._bedeutung(question, min(BEDEUTUNG_VORAB, k)) if bedeutung else []
         kandidaten = self._suche(fts_query, limit=max(k * KANDIDATEN_FAKTOR, 12), **filters)
         if typ:
             typ_treffer = self._suche(fts_query, limit=k, typ=typ, **filters)
             for r in typ_treffer:
                 r["_vorrang"] = 0
             kandidaten = typ_treffer + kandidaten
-        if not kandidaten:
+        if not kandidaten and not sinn:
             return []
 
-        liste = self._sortiere(self._ohne_kopien(kandidaten))
+        liste = self._ohne_kopien(sinn + self._sortiere(self._ohne_kopien(kandidaten)))
         return [self._to_retrieved_doc(r, idx + 1) for idx, r in enumerate(liste[:k])]
 
     def retrieve_kennungen(
@@ -315,6 +327,18 @@ class RetrievalService:
             except Exception:
                 return []
         except Exception:
+            return []
+
+    def _bedeutung(self, question: str, limit: int) -> list[dict]:
+        """Treffer der Bedeutungssuche (Issue #230); leer, wenn es sie nicht gibt oder sie aus ist."""
+        suchindex = getattr(self.db, "suchindex", None)
+        if suchindex is None or limit <= 0 or not (question or "").strip():
+            return []
+        try:
+            from src.search.pdfsm_daten import bedeutung_suchen
+
+            return list(bedeutung_suchen(suchindex, question, limit) or [])
+        except Exception:  # noqa: BLE001 - Zusatz zur Wortsuche, darf nie stoeren
             return []
 
     @staticmethod

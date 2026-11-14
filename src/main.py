@@ -24,7 +24,7 @@ if str(src_path) not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QSplashScreen
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QPalette, QColor, QIcon
+from PyQt6.QtGui import QPixmap, QIcon
 
 from src.gui.main_window import MainWindow
 from src.gui.setup_wizard import SetupWizard
@@ -37,7 +37,7 @@ from src.utils.single_instance import (
 from src.utils.explorer_integration import update_launcher_script
 
 # Versionsnummer zentral definiert
-__version__ = "0.27.0"
+__version__ = "0.28.0"
 
 
 def _schedule_startup_hints(window, delay_ms: int = 300) -> None:
@@ -173,32 +173,15 @@ def main():
     app.setApplicationVersion(__version__)
     app.setOrganizationName("PDF Sortier Meister")
 
-    # Helle Palette erzwingen, damit dunkle System-Themes die Lesbarkeit
-    # nicht zerschiessen (siehe Issue #1). Fusion-Style sorgt fuer
-    # plattformuebergreifend konsistentes Verhalten.
-    app.setStyle("Fusion")
-    light_palette = QPalette()
-    light_palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
-    light_palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-    light_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
-    light_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220))
-    light_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
-    light_palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Link, QColor(0, 102, 204))
-    light_palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
-    light_palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    light_palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 120, 120))
-    app.setPalette(light_palette)
-
-    # Eigene, kontrastreiche Checkboxen mit Haekchen (siehe checkbox_style);
-    # Widgets mit eigenem Indikator-Stylesheet behalten ihres.
+    # Farbschema (Issue #238): Fusion-Stil mit eigener heller oder dunkler
+    # Palette nach Einstellung (Hell / Dunkel / wie das System). Dazu eigene,
+    # kontrastreiche Checkboxen mit Haekchen (siehe checkbox_style); Widgets
+    # mit eigenem Indikator-Stylesheet behalten ihres.
+    from src.gui import farben
     from src.gui.checkbox_style import checkbox_stylesheet, write_check_icon
     from src.utils.platform_paths import get_app_data_dir
-    app.setStyleSheet(checkbox_stylesheet(write_check_icon(get_app_data_dir())))
+    haekchen = write_check_icon(get_app_data_dir())
+    farben.einrichten(app, get_config(), lambda: checkbox_stylesheet(haekchen))
 
     # SplashScreen: im gefrorenen Build zeigt PyInstaller den Splash bereits
     # vom Bootloader aus an (siehe .spec). Der Qt-Splash dient nur als

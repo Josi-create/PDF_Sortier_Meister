@@ -98,6 +98,10 @@ class SearchConfig:
         auto_gerade: schief gescannte Seiten gerade ausrichten (Issue #165;
             ``GERADE_STUFEN`` wie ``textebene``). Gemessen wird nur, wo die
             Stufe gilt, beim Einlesen der Datei (``gerade_vormerken``).
+        bedeutung_aktiv: Bedeutungssuche fuer den Chat (Issue #230, Standard aus):
+            der Indexlauf berechnet je Seite einen Bedeutungsvektor mit dem
+            Ollama-Modell ``bedeutung_modell`` unter ``bedeutung_url`` (leer =
+            ``http://localhost:11434``); Umsetzung in ``bedeutung.py``.
     """
 
     aktiv: bool = False
@@ -132,6 +136,9 @@ class SearchConfig:
     textebene_sicherung_ordner: str = ""
     auto_drehen: str = "neue_scans"        # Issue #151: wie die Textebene nur neue Scans (Opt-out)
     auto_gerade: str = "neue_scans"        # Issue #165: schiefe neue Scans gerade ausrichten (Opt-out)
+    bedeutung_aktiv: bool = False          # Issue #230: Bedeutungssuche fuer den Chat (lokal ueber Ollama)
+    bedeutung_modell: str = "embeddinggemma"
+    bedeutung_url: str = ""                # leer = http://localhost:11434
 
     def __post_init__(self) -> None:
         if self.textebene not in TEXTEBENE_STUFEN:

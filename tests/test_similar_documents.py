@@ -147,7 +147,7 @@ def test_prompt_abschnitt_mit_jahresregel(roots):
     assert '"2024-01-30_Stadtwerke_Stromabrechnung.pdf" (Dokument von 2024) liegt in "Ablage/Steuer 2024/Energie"' in info
     assert 'für ein Dokument von 2026 entspricht das "Ablage/Steuer 2026/Energie"' in info
     assert "Ordner mit Jahreszahl gelten nur für Dokumente dieses Jahres" in info
-    assert "stammt laut Texterkennung aus 2026" in info
+    assert "gehört laut Texterkennung zum Jahr 2026" in info
     assert '"zielordner"' in info
     assert sd.describe_similar_for_prompt([], 2026, roots) == ""
 
