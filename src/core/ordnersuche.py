@@ -119,6 +119,60 @@ def _unterordner(ordner: Path, abgebrochen: Optional[Callable[[], bool]] = None)
     return sorted(kinder, key=lambda p: p.name.casefold())
 
 
+def anzeigename(pfad: Path) -> str:
+    """Ordnername fuer die Anzeige; ein Laufwerk hat keinen Namen und heisst wie sein Pfad ("I:\\")."""
+    pfad = Path(pfad)
+    return pfad.name or str(pfad)
+
+
+@dataclass(frozen=True)
+class PfadEingabe:
+    """Ergebnis einer getippten Pfadangabe (Issue #258).
+
+    ``ordner`` ist der Ordner, den die Eingabe genau bezeichnet (None, solange
+    der letzte Teil erst angefangen ist), ``kinder`` sind seine Unterordner
+    bzw. die zum angefangenen Teil passenden Ordner.
+    """
+
+    ordner: Optional[Path]
+    kinder: list[Path]
+
+
+_NUR_LAUFWERK = re.compile(r"[A-Za-z]:")
+
+
+def pfad_eingabe(text: str, max_treffer: int = MAX_TREFFER) -> Optional[PfadEingabe]:
+    """Deutet den Suchtext als Pfad (Laufwerk oder vollstaendiger Pfad).
+
+    None: kein Pfad, es gilt die Namenssuche. Gelesen wird nur ein Ordner,
+    direkt und ohne Index - der Pfad muss kein Zielordner sein. Netzwerkpfade
+    (zwei Schraegstriche am Anfang) bleiben aussen vor: sie koennen beim
+    Tippen sekundenlang blockieren.
+    """
+    text = text.strip().strip('"').strip()
+    if not text:
+        return None
+    if os.name == "nt" and _NUR_LAUFWERK.fullmatch(text):
+        text += os.sep
+    if text.startswith("~"):
+        text = os.path.expanduser(text)
+    if not os.path.isabs(text) or text.startswith(("\\\\", "//")):
+        return None
+    pfad = Path(text)
+    if len(pfad.drive) == 2 and pfad.drive[0].islower():  # "i:" -> "I:"
+        pfad = Path(pfad.drive.upper() + str(pfad)[2:])
+    try:
+        if pfad.is_dir():
+            return PfadEingabe(pfad, (_unterordner(pfad) or [])[:max_treffer])
+        if text.endswith(("/", os.sep)) or not pfad.parent.is_dir():
+            return PfadEingabe(None, [])
+    except OSError:
+        return PfadEingabe(None, [])
+    anfang = _nfc(pfad.name).casefold()
+    kinder = [k for k in _unterordner(pfad.parent) or [] if _nfc(k.name).casefold().startswith(anfang)]
+    return PfadEingabe(None, kinder[:max_treffer])
+
+
 def suche_ordner(
     wurzeln: Iterable[Path],
     text: str,
