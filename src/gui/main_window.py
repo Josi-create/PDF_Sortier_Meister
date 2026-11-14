@@ -44,7 +44,7 @@ from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
-from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
+from src.gui.vorschlag_liste import VorschlagListe, VorschlagTeiler, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.core import einheiten
@@ -1007,7 +1007,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Inhalt:
             * Kopfzeile (Titel + Buttons)
             * Vorschlagsbereich
-            * Trennlinie
+            * Trennlinie zum Ziehen (VorschlagTeiler, Issue #268)
             * Zielordner-Baum (FolderTreeWidget); die Korrespondenten sind seit
               Issue #160 ein Reiter der linken Spalte
         """
@@ -1054,21 +1054,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         suggestions_kopf.addWidget(self.ordner_ki_btn)
         layout.addLayout(suggestions_kopf)
 
-        # Kompakte Zeilen in 1-3 Spalten, scrollt erst bei vielen Vorschlaegen
+        # Kompakte Zeilen in 1-3 Spalten; die Hoehe bestimmt der Teiler weiter unten (#268)
         self.suggestions_container = VorschlagListe()
         self.suggestions_layout = self.suggestions_container.spalten
-        layout.addWidget(self.suggestions_container)
 
         # Platzhalter wenn keine Vorschläge
         self.no_suggestions_label = QLabel(tr("Wählen Sie eine PDF aus für Vorschläge"))
         stil(self.no_suggestions_label, "color: $grau_99; font-style: italic; padding: 10px;")
         self.suggestions_layout.addWidget(self.no_suggestions_label)
-
-        # Trennlinie
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
 
         # Zielordner-Baum
         folder_tree_container = QWidget()
@@ -1104,7 +1097,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.folder_container.hide()  # Grid-Ansicht versteckt
         ft_layout.addWidget(self.folder_container)
 
-        layout.addWidget(folder_tree_container, stretch=1)
+        # Issue #268: alle Vorschlaege ohne Scrollen, Trennlinie zum Ordnerbaum ziehbar
+        self.vorschlag_teiler = VorschlagTeiler(self.suggestions_container, folder_tree_container)
+        self.vorschlag_teiler.merken(
+            self.config.get("vorschlaege_hoehe", 0), self.config.get("vorschlaege_hoehe_fenster") or [])
+        layout.addWidget(self.vorschlag_teiler, stretch=1)
 
         return panel
 
@@ -1577,7 +1574,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
         merged = self._with_einheit_folder(pdf_path, merged, detected_date)
-        return self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+        geordnet = self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+        # Issue #268: KI-, Einheiten- und Neuer-Ordner-Vorschlag kamen bisher zusaetzlich zu
+        # "Max. Vorschlaege" dazu; jetzt fallen dafuer die schwaechsten am Ende weg
+        return geordnet[:max(int(self.config.get("max_suggestions", 5) or 5), 1)]
 
     def _einheiten_fuer_prompt(self) -> list[dict]:
         """Gelernte Einheiten mit Ablageort relativ zum Zielordner (fuer den KI-Prompt, Issue #257)."""
@@ -2430,6 +2430,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         sizes = self.detail_panel.splitter.sizes()
         if len(sizes) == 2 and all(v > 0 for v in sizes):
             self.config.set("detail_splitter_sizes", list(sizes), auto_save=False)
+        # Gezogene Hoehe der Vorschlaege samt Fenstergroesse (Issue #268)
+        hoehe, fenster = self.vorschlag_teiler.gemerkt()
+        self.config.set("vorschlaege_hoehe", hoehe, auto_save=False)
+        self.config.set("vorschlaege_hoehe_fenster", fenster, auto_save=False)
         self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):

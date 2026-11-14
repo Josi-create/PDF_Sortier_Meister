@@ -7,6 +7,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Vorgeschlagene Ziele ohne Scrollen** (#268): Der Bereich „Vorgeschlagene Ziele“ ist jetzt so
+  hoch, dass alle Vorschläge zu sehen sind, auch bei 8 oder 10. Die Trennlinie zum Ordnerbaum
+  darunter lässt sich mit der Maus ziehen (der Mauszeiger wird dort zum Doppelpfeil); ein
+  Doppelklick auf die Linie stellt wieder die Höhe ein, bei der alle Vorschläge genau Platz haben.
+  Die gezogene Höhe merkt sich das Programm bis zum nächsten Start, solange das Fenster dann
+  wieder gleich groß ist. Eine Bildlaufleiste gibt es nur noch, wenn das Fenster zu klein ist
+  oder die Linie von Hand weiter nach oben gezogen wurde.
+
+### Behoben
+- **Mehr Vorschläge als eingestellt** (#268): Der Ordner aus dem KI-Vorschlag, der Ordner der
+  Einheit und ein Vorschlag für einen neuen Ordner kamen bisher zusätzlich zu „Max. Vorschläge“
+  dazu, bei 6 standen dann 7 oder mehr da. Jetzt bleibt es bei der eingestellten Zahl; dafür
+  fallen die schwächsten Vorschläge am Ende weg.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
