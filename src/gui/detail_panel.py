@@ -426,6 +426,7 @@ class DetailPanel(QWidget):
             ("waehrung", tr("Währung")),
             ("mwst_satz", tr("MwSt-Satz")),
             ("iban", "IBAN"),
+            ("einheit", tr("Einheit")),  # Issue #257
             ("schlagwoerter", tr("Schlagwörter")),  # Issue #231
             ("description", tr("Zusammenfassung")),
         ]
@@ -445,6 +446,11 @@ class DetailPanel(QWidget):
             "waehrung": tr("Währung des Betrags (z.B. EUR)."),
             "mwst_satz": tr("Mehrwertsteuersatz in Prozent (z.B. 19)."),
             "iban": tr("IBAN, falls im Dokument vorhanden."),
+            "einheit": (
+                tr("Wohnung bzw. Verbrauchsstelle, zu der das Dokument gehört (z. B. bei Strom, Gas,\n"
+                "Nebenkosten) - kann von der Rechnungsanschrift abweichen.\n"
+                "Beim Ablegen merkt sich das Programm den Ordner dieser Einheit.")
+            ),
             "steuerjahr": tr("Steuerjahr, dem dieses Dokument zugeordnet wird."),
             "schlagwoerter": (
                 tr("Zusätzliche Themen neben dem Ordner, mehrere durch Komma getrennt.\n"
@@ -456,7 +462,7 @@ class DetailPanel(QWidget):
 
         # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
         # Datum|Steuerjahr, Kategorie|Korrespondent, Netto|Brutto, Waehrung|MwSt,
-        # IBAN (allein, volle Breite); Schlagwoerter und Zusammenfassung laufen ueber die volle Breite.
+        # IBAN|Einheit; Schlagwoerter und Zusammenfassung laufen ueber die volle Breite.
         grid = QGridLayout()
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(3)
@@ -497,7 +503,7 @@ class DetailPanel(QWidget):
                     input_field.textChanged.connect(self._on_date_field_changed)
                     input_field.editingFinished.connect(self._normalize_date_field)
                 row_idx, col = divmod(idx, 2)
-                # Letztes einzelnes Feld ohne Partner (IBAN) ueber die volle Breite
+                # Ein letztes einzelnes Feld ohne Partner liefe ueber die volle Breite
                 span = 3 if (col == 0 and idx == single_count - 1) else 1
                 grid.addWidget(label, row_idx, col * 2)
                 if field_key == "buchungsdatum":
@@ -950,6 +956,7 @@ class DetailPanel(QWidget):
             "betrag_netto": pdf_meta.betrag_netto,
             "betrag_brutto": pdf_meta.betrag_brutto,
             "iban": pdf_meta.iban,
+            "einheit": pdf_meta.einheit,
             "waehrung": pdf_meta.waehrung,
             "mwst_satz": pdf_meta.mwst_satz,
             "steuerjahr": pdf_meta.steuerjahr,

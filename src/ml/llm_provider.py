@@ -115,6 +115,15 @@ METADATA_KEY_ALIASES: dict[str, str] = {
     "schlagwörter": "schlagwoerter",
     "schlagworte": "schlagwoerter",
     "tags": "schlagwoerter",
+    # Einheit/Verbrauchsstelle und deren Zaehlernummer bzw. Vertragskonto (Issue #257)
+    "einheit": "einheit",
+    "verbrauchsstelle": "einheit",
+    "lieferanschrift": "einheit",
+    "lieferadresse": "einheit",
+    "einheit_kennung": "einheit_kennung",
+    "zaehlernummer": "einheit_kennung",
+    "zählernummer": "einheit_kennung",
+    "vertragskonto": "einheit_kennung",
 }
 
 # So viele der meistbenutzten Schlagwoerter nennt der Prompt der KI zur Auswahl (Issue #231)
@@ -240,6 +249,12 @@ def normalize_llm_metadata(metadata) -> dict:
             from src.core import schlagwoerter as schlagwort_regeln
             value = schlagwort_regeln.als_text(
                 schlagwort_regeln.nur_bekannte(value, schlagwort_regeln.benutzte()))
+            if not value:
+                continue
+        if canonical in ("einheit", "einheit_kennung"):
+            # Issue #257: einzeilig; Modelle liefern die Zaehlernummer mitunter als Zahl
+            from src.core import einheiten
+            value = einheiten.saeubern(value)
             if not value:
                 continue
         if canonical in result and result[canonical] not in (None, ""):
@@ -741,6 +756,10 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
                 '\n    "schlagwoerter": ["passende Einträge aus SCHLAGWÖRTER DES NUTZERS; passt keiner: leere Liste"],'
             )
 
+        # Issue #257: bekannte Einheiten (Wohnungen/Verbrauchsstellen) aus frueheren Ablagen
+        from src.core import einheiten
+        einheit_info = einheiten.fuer_prompt()
+
         return f"""Du bist ein Assistent zum Benennen und Analysieren von Dokumenten. Schlage einen aussagekräftigen Dateinamen vor und extrahiere Metadaten.
 {owner_info}
 AKTUELLER DATEINAME: {current_filename}
@@ -748,7 +767,7 @@ AKTUELLER DATEINAME: {current_filename}
 DOKUMENTINHALT:
 {self._truncate_text(text)}
 {keyword_info}{date_info}{file_date_info}{folder_info}{source_info}
-{pattern_info}{examples_info}{similar_info}{schlagwort_info}
+{pattern_info}{examples_info}{similar_info}{schlagwort_info}{einheit_info}
 
 REGELN FÜR DEN DATEINAMEN:
 1. Format (falls nicht durch Muster vorgegeben): YYYY-MM-DD_Kategorie_Beschreibung.pdf
@@ -773,6 +792,15 @@ REGELN FÜR DEN DATEINAMEN:
    steht (z.B. "19 % MwSt", "USt 7 %"), sonst UNBEKANNT. Kein Rechnungs-/Beleg-Dokument
    (Brief, Vertrag, Befund, Noten, Anleitung): betrag_netto, betrag_brutto, mwst und iban
    sind UNBEKANNT. Niemals einen Standardwert raten.
+8. Einheit: Nennt das Dokument eine Verbrauchsstelle, Lieferanschrift, Abnahmestelle oder ein
+   Objekt (z.B. bei Strom, Gas, Wasser, Nebenkosten, Grundsteuer), ist das die "einheit" - sie
+   kann von der Rechnungsanschrift abweichen und zählt dann statt dieser. Kurz: Straße,
+   Hausnummer und, falls genannt, Wohnung oder Lage (z.B. "Musterweg 5 Whg 2"), ohne PLZ und Ort.
+   "einheit_kennung" ist die Zählernummer dieser Einheit, sonst das Vertragskonto bzw. die
+   Vertragsnummer. Nennt das Dokument nichts davon: beide UNBEKANNT, nicht aus der Anschrift raten.
+   Weicht die Einheit von der Rechnungsanschrift ab oder gehört das Dokument zu einer oben
+   genannten bekannten Einheit des Nutzers, nimm die Wohnung bzw. Lage kurz in den Dateinamen
+   auf (z.B. Whg-2), soweit Muster und Beispiele des Nutzers das zulassen.
 {korrespondent_regel}
 Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
 {{
@@ -788,7 +816,9 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt im folgenden Format:
     "mwst": "19 oder 7 oder UNBEKANNT",
     "iban": "IBAN oder UNBEKANNT",
     "datum": "JJJJ-MM-TT (Datum des Dokuments) oder UNBEKANNT",
-    "steuerjahr": "JJJJ oder UNBEKANNT",{zielordner_field}{schlagwort_field}
+    "steuerjahr": "JJJJ oder UNBEKANNT",
+    "einheit": "Verbrauchsstelle/Lieferanschrift kurz (Regel 8) oder UNBEKANNT",
+    "einheit_kennung": "Zählernummer oder Vertragskonto der Einheit oder UNBEKANNT",{zielordner_field}{schlagwort_field}
     "beschreibung": "Zusammenfassung in einem Satz"
   }}
 }}"""
