@@ -8201,6 +8201,10 @@ msgid "KI formuliert die Antwort …"
 msgstr "AI is writing the answer …"
 
 #: src/rag/rag_controller.py
+msgid "Noch nichts Passendes - die KI probiert weitere Suchwege …"
+msgstr "Nothing suitable yet - the AI is trying other ways to search …"
+
+#: src/rag/rag_controller.py
 msgid "Leere Antwort des Modells."
 msgstr "Empty response from the model."
 

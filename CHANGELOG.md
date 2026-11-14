@@ -97,6 +97,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   kommen, deren Postfach PDF Sortier Meister nicht liest: die Mails als Dateien (`.msg` oder
   `.eml`) in einen durchsuchten Ordner legen. Die Postfachdateien von Outlook (PST/OST) und das
   neue Outlook, das Mails nur online hält, werden bewusst nicht gelesen.
+### Geändert
+- **Der Chat gibt nicht mehr so schnell auf** (#264): Bisher sagte der Chat zu oft „Ich finde dazu
+  keine passenden Dokumente“, obwohl das Dokument da war. Zwei Ursachen sind behoben. Erstens:
+  Stand in der Frage ein Wort wie „Vermieter“, „Finanzamt“ oder „GEZ“, suchte der Chat nur unter
+  Dokumenten, bei denen genau dieser Absender gespeichert ist. Dokumente ohne gespeicherten
+  Absender (zum Beispiel alles, was nie über PDF Sortier Meister einsortiert wurde) fielen damit
+  ganz heraus. Jetzt sucht der Chat erst mit Absender und, wenn das wenig oder nichts bringt, noch
+  einmal ohne. Dasselbe gilt, wenn die KI beim eigenen Weitersuchen einen Absender angibt, zu dem
+  nichts gespeichert ist. Zweitens: Will die KI aufgeben, bevor sie dreimal selbst gesucht hat,
+  bekommt sie den Hinweis, es mit anderen Wörtern und ohne Filter zu versuchen. Die Höchstzahl der
+  Schritte bleibt, wie sie eingestellt ist. Eine Antwort kann dadurch einige Sekunden länger
+  dauern, wenn wirklich nichts da ist.
 
 ## [0.28.0] - 2026-11-13
 

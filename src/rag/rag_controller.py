@@ -89,6 +89,24 @@ LETZTER_SCHRITT_HINWEIS = (
     "bisher gefunden hast - ohne weitere Werkzeugaufrufe. Nenne die Quellen als [N] und "
     "sage, was offen geblieben ist."
 )
+# Issue #264: Lokale Modelle suchen ein- bis zweimal und sagen dann "Ich finde
+# dazu keine passenden Dokumente". Vor so einer Antwort muss das Modell
+# mindestens so oft selbst gesucht haben; sonst bekommt es einen Hinweis auf
+# noch nicht probierte Suchwege. Die Obergrenze ``max_werkzeug_schritte`` bleibt.
+MIN_SUCHVERSUCHE = 3
+# Woran die Aufgabe-Antwort erkannt wird (der Prompt gibt den deutschen Satz
+# woertlich vor; englisch, wenn die Frage englisch war)
+AUFGEBEN_MERKMALE = ("keine passenden dokumente", "no matching documents", "no relevant documents")
+WEITERSUCHEN_HINWEIS = (
+    "Gib noch nicht auf - es gibt noch nicht probierte Suchwege. {bisher}\n"
+    "Rufe jetzt das Werkzeug suche auf, und zwar anders als bisher:\n"
+    "- mit einem anderen Wort: Fachbegriff, Oberbegriff oder das Wort, das der Absender in so einem "
+    "Schreiben benutzt (z. B. Kraftfahrt* oder Kfz* statt Autoversicherung, Abfall* statt Müllabfuhr), "
+    "Wortanfang mit *, mehrere Möglichkeiten mit ODER verbunden;\n"
+    "- ohne Filter (kein korrespondent, keine kategorie, kein steuerjahr, kein ordner).\n"
+    "Lies einen Treffer mit dokument_lesen, wenn die Fundstelle nicht reicht. Erst wenn auch das nichts "
+    "Passendes liefert, antworte, dass du nichts findest."
+)
 LETZTER_SCHRITT_NACHDRUCK = (
     "Es stehen keine Werkzeuge mehr zur Verfügung. Antworte jetzt in Prosa auf die Frage "
     "und fasse die bisherigen Ergebnisse zusammen."
@@ -524,6 +542,7 @@ class RAGController:
         ]
         werkzeuge = kasten.definitionen()
         aufruf_nr = 0
+        nachgehakt_bei = -1  # Zahl der Suchversuche beim letzten Weitersuchen-Hinweis
 
         for schritt in range(1, max_schritte + 1):
             if _abgebrochen(abbruch):
@@ -569,6 +588,17 @@ class RAGController:
                     werkzeuge_benutzt=True,
                 )
             if not aufrufe:
+                versuche = kasten.suchversuche()
+                if (schritt + 1 < max_schritte and len(versuche) < MIN_SUCHVERSUCHE
+                        and len(versuche) != nachgehakt_bei and _gibt_auf(text)):
+                    # Issue #264: zu frueh aufgegeben - einmal je Stand nachhaken. Sucht das
+                    # Modell daraufhin nicht weiter, gilt seine naechste Antwort.
+                    nachgehakt_bei = len(versuche)
+                    _melde(fortschritt, tr("Noch nichts Passendes - die KI probiert weitere Suchwege …"))
+                    nachrichten.append({"role": "assistant", "content": text, "aufrufe": [],
+                                        "roh": getattr(antwort, "roh", None)})
+                    nachrichten.append({"role": "user", "content": _weitersuchen_hinweis(versuche)})
+                    continue
                 if getattr(antwort, "abgeschnitten", False):
                     # Am Token-Limit abgebrochen (Denkmodelle verbrauchen einen Teil des
                     # Budgets, bevor sie schreiben): einmal mit mehr Platz wiederholen
@@ -876,6 +906,21 @@ def _als_retrieved_doc(doc) -> RetrievedDoc:
         seite=int(doc.get("seite") or 0),
         extra=dict(extra),
     )
+
+
+def _gibt_auf(text: str) -> bool:
+    """True, wenn die Antwort sagt, es gebe keine passenden Dokumente (Issue #264)."""
+    klein = " ".join((text or "").lower().split())
+    return any(merkmal in klein for merkmal in AUFGEBEN_MERKMALE)
+
+
+def _weitersuchen_hinweis(versuche: list[str]) -> str:
+    """Hinweis an das Modell: was schon gesucht wurde und welche Suchwege offen sind (Issue #264)."""
+    if versuche:
+        bisher = "Bisher hast du gesucht: " + "; ".join(versuche) + "."
+    else:
+        bisher = "Du hast noch gar nicht selbst gesucht, die Dokumente oben sind nur der Startpunkt."
+    return WEITERSUCHEN_HINWEIS.format(bisher=bisher)
 
 
 def _abgebrochen(abbruch) -> bool:

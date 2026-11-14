@@ -90,6 +90,10 @@ TYP_HINWEISE: tuple[tuple[str, frozenset[str]], ...] = (
 # Hoechstens so viele Kandidaten holen, bevor Kopien entfernt und neu sortiert wird
 KANDIDATEN_FAKTOR = 3
 
+# Issue #264: Treffer der Nachsuche ohne den aus der Frage geratenen Absender
+# stehen hinter allen Treffern mit Absender (Aufschlag auf ``_vorrang``).
+OHNE_ABSENDER_NACHRANG = 2
+
 # Bedeutungssuche (Issue #230): so viele ihrer Treffer stehen vor den Worttreffern.
 # Gemessen (docs/BEDEUTUNGSSUCHE_MESSUNG.md): die Bedeutungssuche hat das richtige
 # Dokument fast immer auf Platz 1 bis 4; die uebrigen Plaetze behaelt die Wortsuche,
@@ -229,12 +233,17 @@ class RetrievalService:
             return []
 
         sinn = self._bedeutung(question, min(BEDEUTUNG_VORAB, k)) if bedeutung else []
-        kandidaten = self._suche(fts_query, limit=max(k * KANDIDATEN_FAKTOR, 12), **filters)
-        if typ:
-            typ_treffer = self._suche(fts_query, limit=k, typ=typ, **filters)
-            for r in typ_treffer:
-                r["_vorrang"] = 0
-            kandidaten = typ_treffer + kandidaten
+        kandidaten = self._kandidaten(fts_query, k, typ, filters)
+        if filters.get("korrespondent") and len(self._ohne_kopien(kandidaten)) < k:
+            # Issue #264: Der Absender ist nur aus einem Wort der Frage geraten
+            # ("Vermieter", "Finanzamt"). Dokumente ohne gespeicherten Absender
+            # fielen damit ganz heraus. Bleibt das Ergebnis leer oder duenn,
+            # fuellt dieselbe Suche ohne den Absender auf - hinter den Treffern
+            # mit Absender.
+            ohne = {name: wert for name, wert in filters.items() if name != "korrespondent"}
+            for r in self._kandidaten(fts_query, k, typ, ohne):
+                r["_vorrang"] = r.get("_vorrang", 1) + OHNE_ABSENDER_NACHRANG
+                kandidaten.append(r)
         if not kandidaten and not sinn:
             return []
 
@@ -306,6 +315,16 @@ class RetrievalService:
     # ------------------------------------------------------------------ #
     # Helpers                                                            #
     # ------------------------------------------------------------------ #
+
+    def _kandidaten(self, fts_query: str, k: int, typ: str, filters: dict) -> list[dict]:
+        """Worttreffer zur Abfrage; bei Dateityp-Hinweis stehen die Treffer dieses Typs mit Vorrang vorn."""
+        kandidaten = self._suche(fts_query, limit=max(k * KANDIDATEN_FAKTOR, 12), **filters)
+        if typ:
+            typ_treffer = self._suche(fts_query, limit=k, typ=typ, **filters)
+            for r in typ_treffer:
+                r["_vorrang"] = 0
+            kandidaten = typ_treffer + kandidaten
+        return kandidaten
 
     def _suche(self, query: str, limit: int, **filters) -> list[dict]:
         """``db.search_documents`` defensiv: unbekannte Filter weglassen, Fehler -> leer."""
