@@ -288,6 +288,9 @@ class _FakeLLMWorker:
     def add_task(self, pdf_path, analysis_result, priority=5):
         self.aufgaben.append((pdf_path, priority))
 
+    def analyse_nachreichen(self, pdf_path, analysis_result):
+        return False  # kein laufender Aufruf mit aelterer Analyse
+
     def get_current_pdf(self):
         return self.aktuell
 

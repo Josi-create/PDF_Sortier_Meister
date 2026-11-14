@@ -170,6 +170,7 @@ def test_pdf_cache_zieht_eintraege_um(monkeypatch, tmp_path):
     cache = pc.PDFCache.__new__(pc.PDFCache)
     cache._cache = {}
     cache._lock = __import__("threading").Lock()
+    cache._db_auftraege = __import__("queue").Queue()  # Schreibauftraege aus dem GUI-Thread (hier keine)
     cache._persist_cache = True
     cache._db_path = tmp_path / "cache.db"
     con = sqlite3.connect(str(cache._db_path))
