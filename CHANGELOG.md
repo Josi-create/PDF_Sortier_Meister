@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Zielordner: Pfad eingeben wie im Explorer** (#258): Im Suchfeld über dem Ordnerbaum kannst du
+  jetzt auch ein Laufwerk oder einen ganzen Pfad eintippen (z. B. `D:\Ablage`). Die Liste zeigt
+  den Ordner mit seinen Unterordnern, ein Klick springt hinein, und die erste Zeile nimmt ihn als
+  Zielordner auf. Das neue Plus neben dem Suchfeld tut dasselbe; ohne Pfad öffnet es die
+  Ordnerauswahl. Die Suche nach Ordnernamen bleibt, wie sie war.
+
+### Behoben
+- **Laufwerk als Zielordner ohne Namen** (#258): Ein ganzes Laufwerk steht im Ordnerbaum jetzt
+  als `D:\` statt als leerer Eintrag.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu

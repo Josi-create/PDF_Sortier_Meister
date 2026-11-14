@@ -9437,3 +9437,35 @@ msgstr "End"
 #: src/search/static/index.html
 msgid "Statistik"
 msgstr "Statistics"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Im Ordnerbaum zeigen: {pfad}"
+msgstr "Show in folder tree: {pfad}"
+
+#: src/gui/ordner_suchfeld.py
+msgid "➕ „{name}“ als Zielordner hinzufügen"
+msgstr "➕ Add “{name}” as target folder"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Nimmt diesen Ordner in die Zielordner auf: {pfad}"
+msgstr "Adds this folder to the target folders: {pfad}"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Hineinspringen: {pfad}"
+msgstr "Jump into: {pfad}"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner suchen (z. B. Zeugn*) oder Pfad eingeben"
+msgstr "Search folders (e.g. Cert*) or enter a path"
+
+#: src/gui/folder_tree_widget.py
+msgid "Zielordner hinzufügen: den im Suchfeld eingegebenen Pfad, sonst Ordner auswählen"
+msgstr "Add target folder: the path entered in the search field, otherwise choose a folder"
+
+#: src/gui/main_window.py
+msgid "Ordner nicht gefunden: {name}"
+msgstr "Folder not found: {name}"
+
+#: src/gui/main_window.py
+msgid "Ist schon Zielordner: {name}"
+msgstr "Already a target folder: {name}"
