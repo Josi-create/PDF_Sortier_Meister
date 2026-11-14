@@ -149,6 +149,27 @@ Indexlauf der Dokumentensuche ersetzt.)*
 > (OCR aller Seiten im Hintergrund, Volltext je Seite im Index). Embeddings
 > bleiben ein mögliches Folgevorhaben; FTS5 sucht jetzt seitengenau und über die
 > Metadaten.
+>
+> Stand 11/2026 (Issue #230): **Bedeutungssuche als Zusatz, Standard aus.** Die
+> Messung in [BEDEUTUNGSSUCHE_MESSUNG.md](BEDEUTUNGSSUCHE_MESSUNG.md) hat gezeigt,
+> dass der Chat bei Fragen in Alltagssprache das richtige Dokument oft nicht
+> findet, auch wenn das Modell selbst weitersucht. Mit dem Schalter
+> „Bedeutungssuche für den Chat“ (Einstellungen › Suche) gilt:
+>
+> - Der Indexlauf berechnet als letzte Phase je Seite einen Bedeutungsvektor
+>   (`src/search/bedeutung.py`, Ollama `/api/embed`, Modell `embeddinggemma`) und
+>   legt ihn in `suche.db` ab (Tabelle `seiten_vektor`, 256 Bytes je Seite,
+>   siehe [SUCHE_SCHEMA.md](SUCHE_SCHEMA.md)). Neue und geänderte Seiten kommen
+>   bei jedem Lauf dazu; Läufe nur über die Vorrang-Ordner rechnen höchstens
+>   320 Seiten.
+> - `RetrievalService.retrieve()` stellt bis zu vier Treffer der Bedeutungssuche
+>   vor die Worttreffer (`BEDEUTUNG_VORAB`); die übrigen Plätze behält FTS5.
+>   Verglichen wird im Speicher mit numpy, ohne Vektordatenbank.
+> - Die Wortsuche, der Reiter „Suche“, die Suchwerkzeuge des Modells und der
+>   MCP-Server sind unverändert. Bei Fragen zu einem Bezugsdokument bleibt die
+>   Bedeutungssuche aus.
+> - Fehlt Ollama oder das Modell, arbeitet alles wie bisher; es gibt keinen
+>   Fehler, nur einen Eintrag im Protokoll. Berechnet wird ausschließlich lokal.
 
 **Query-Konstruktion**:
 1. Stopword-Strip (deutsche Stopwords, inline-Liste ~80 Wörter)

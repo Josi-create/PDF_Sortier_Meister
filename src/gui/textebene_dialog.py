@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.gui.farben import stil
 from src.search.suchindex import Suchindex
 from src.search.textebene import MELDUNG_GEAENDERT
 from src.utils.platform_paths import file_manager_name
@@ -120,7 +121,7 @@ class TextebeneProtokollDialog(QDialog):
 
         self.leer_label = QLabel(tr("Noch keine PDF hat eine Textebene bekommen, wurde gedreht oder gerade "
                                  "ausgerichtet."))
-        self.leer_label.setStyleSheet("color: gray;")
+        stil(self.leer_label, "color: $grau_hinweis;")
         lay.addWidget(self.leer_label)
 
         knoepfe = QHBoxLayout()

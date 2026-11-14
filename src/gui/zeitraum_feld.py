@@ -15,11 +15,12 @@ from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from src.core import datum_eingabe as de
+from src.gui.farben import stil
 from src.i18n import tr
 
-HINWEIS_STIL = "color: #888; font-size: 10px;"
-FEHLER_HINWEIS_STIL = "color: #b71c1c; font-size: 10px;"
-FEHLER_RAND_STIL = "QLineEdit { border: 1px solid #d32f2f; border-radius: 3px; padding: 1px 3px; }"
+HINWEIS_STIL = "color: $grau_88; font-size: 10px;"
+FEHLER_HINWEIS_STIL = "color: $rot_text; font-size: 10px;"
+FEHLER_RAND_STIL = "QLineEdit { border: 1px solid $rot; border-radius: 3px; padding: 1px 3px; }"
 
 TOOLTIP = (
     tr("Zeitraum frei eintippen, leer = keine Grenze.\n"
@@ -43,7 +44,7 @@ class ZeitraumFeld(QWidget):
         self.edit.setClearButtonEnabled(True)
         self.edit.setToolTip(TOOLTIP)
         self.hinweis = QLabel("")
-        self.hinweis.setStyleSheet(HINWEIS_STIL)
+        stil(self.hinweis, HINWEIS_STIL)
         self.hinweis.setVisible(False)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -107,8 +108,8 @@ class ZeitraumFeld(QWidget):
         text = de.beschreibe(erg)
         self.hinweis.setText(text)
         self.hinweis.setVisible(bool(text))
-        self.hinweis.setStyleSheet(FEHLER_HINWEIS_STIL if fehler else HINWEIS_STIL)
-        self.edit.setStyleSheet(FEHLER_RAND_STIL if fehler else "")
+        stil(self.hinweis, FEHLER_HINWEIS_STIL if fehler else HINWEIS_STIL)
+        stil(self.edit, FEHLER_RAND_STIL if fehler else "")
 
     def _text_geaendert(self, _text: str) -> None:
         self._aktualisieren()

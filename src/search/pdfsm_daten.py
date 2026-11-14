@@ -158,34 +158,53 @@ def dokumente_suchen(
         print(f"Suchindex-Suche Fehler: {e}")
         return []
 
-    results = []
-    for d in erg.get("treffer") or []:
-        pid = d.get("pdf_id") or ""
-        if not pid and pdf_id_zu_pfad is not None:
-            pid = pdf_id_zu_pfad(d.get("pfad") or "") or ""
-        stellen = d.get("stellen") or []
-        results.append({
-            "pdf_id": pid,
-            "file_path": d.get("pfad") or "",
-            "filename": d.get("name") or "",
-            "text_snippet": ausschnitt(stellen),
-            "keywords": d.get("schlagwoerter") or "",
-            "korrespondent": d.get("korrespondent") or "",
-            "kategorie": d.get("kategorie") or "",
-            "steuerjahr": d.get("steuerjahr") or "",
-            "betrag": betrag_text(d.get("betrag")),
-            "zusammenfassung": d.get("zusammenfassung") or "",
-            "target_folder": d.get("ordner") or "",
-            "dok_id": d.get("id"),
-            "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
-            "typ": d.get("typ") or "",
-            "format": d.get("format") or "",
-            "groesse": d.get("groesse"),
-            "datum": d.get("datum"),
-            "rang": d.get("rang"),
-            "extracted_text": suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
-        })
-    return results
+    return [_treffer(suchindex, d, pdf_id_zu_pfad) for d in erg.get("treffer") or []]
+
+
+def _treffer(suchindex, d: dict, pdf_id_zu_pfad: Callable[[str], str] | None) -> dict:
+    """Ein Treffer des Suchindex mit den Ergebnisschluesseln von ``Database.search_documents``."""
+    pid = d.get("pdf_id") or ""
+    if not pid and pdf_id_zu_pfad is not None:
+        pid = pdf_id_zu_pfad(d.get("pfad") or "") or ""
+    stellen = d.get("stellen") or []
+    return {
+        "pdf_id": pid,
+        "file_path": d.get("pfad") or "",
+        "filename": d.get("name") or "",
+        "text_snippet": ausschnitt(stellen),
+        "keywords": d.get("schlagwoerter") or "",
+        "korrespondent": d.get("korrespondent") or "",
+        "kategorie": d.get("kategorie") or "",
+        "steuerjahr": d.get("steuerjahr") or "",
+        "betrag": betrag_text(d.get("betrag")),
+        "zusammenfassung": d.get("zusammenfassung") or "",
+        "target_folder": d.get("ordner") or "",
+        "dok_id": d.get("id"),
+        "seite": int(stellen[0].get("seite") or 1) if stellen else 1,
+        "typ": d.get("typ") or "",
+        "format": d.get("format") or "",
+        "groesse": d.get("groesse"),
+        "datum": d.get("datum"),
+        "rang": d.get("rang"),
+        "extracted_text": suchindex.volltext(d["id"], MAX_EXTRACTED_TEXT_LENGTH),
+    }
+
+
+def bedeutung_suchen(suchindex, frage: str, limit: int = 4,
+                     pdf_id_zu_pfad: Callable[[str], str] | None = None) -> list[dict]:
+    """Treffer der Bedeutungssuche (Issue #230) in derselben Form wie :func:`dokumente_suchen`.
+
+    Leer, wenn der Index keine Bedeutungssuche hat, sie ausgeschaltet ist oder
+    etwas schiefgeht - die Wortsuche bleibt davon unberuehrt.
+    """
+    suche = getattr(suchindex, "bedeutung_suche", None)
+    if not callable(suche):
+        return []
+    try:
+        return [_treffer(suchindex, d, pdf_id_zu_pfad) for d in suche(frage, limit) or []]
+    except Exception as e:  # noqa: BLE001 - Zusatz zur Wortsuche, darf nie stoeren
+        log.debug("Bedeutungssuche: %s", e)
+        return []
 
 
 def dokumente_kurz(suchindex, limit: int = 20000) -> list[dict]:

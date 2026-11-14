@@ -282,6 +282,10 @@ class StapelAblageMixin:
         """
         dateien = [Path(p) for p in dateien]
         folder_path = Path(folder_path)
+        # Issue #245: Dateien, die es im Ziel oder im Archiv schon gibt, erst nachfragen
+        dateien = self._doppelte_vor_ablage(dateien, folder_path)
+        if not dateien:
+            return
         relative_path = self.folder_tree.get_relative_path(folder_path)
 
         neu_anlegen = not folder_path.exists()  # vorgeschlagener neuer Ordner (Issue #116)

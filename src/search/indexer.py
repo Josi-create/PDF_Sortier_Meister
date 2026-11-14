@@ -36,7 +36,7 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.search import db, extract, mbox, office, plattform, textebene
+from src.search import bedeutung, db, extract, mbox, office, plattform, textebene
 from src.search.konfig import SearchConfig
 from src.i18n import tr
 
@@ -468,12 +468,30 @@ class Indexer:
         self.aenderungen += 1
 
     # ---------------------------------------------------------------- Ergebnisse
+    def _pruefsumme_merken(self, dok_id: int, basis: dict) -> None:
+        """Pruefsumme der eben gelesenen Datei mitschreiben (Issue #245: Hinweis auf doppelte Dateien).
+
+        Sie gilt fuer den Stand, den die Datei beim Bilden hatte; aendert sie sich
+        spaeter (Textebene, Metadaten), verfaellt sie von selbst.
+        """
+        from src.core.duplikate import pruefsumme
+
+        try:
+            vorher = os.stat(basis["pfad"])
+            summe = pruefsumme(basis["pfad"])
+            st = os.stat(basis["pfad"])
+        except OSError:
+            return
+        if (vorher.st_size, vorher.st_mtime_ns) == (st.st_size, st.st_mtime_ns):
+            db.pruefsumme_setzen(self.con, dok_id, summe, st.st_size, st.st_mtime_ns)
+
     def _ergebnis(self, a: Auftrag, res) -> None:
         i = a.info
         if a.art == "datei":
             basis = i["basis"]
             fmt = basis["format"]
             dok_id, dok, zaehler = dokument_speichern(self.con, basis, fmt, res)
+            self._pruefsumme_merken(dok_id, basis)
             if zaehler["ocr_cache"]:
                 self.stat["ocr_cache"] += zaehler["ocr_cache"]
             if zaehler["schief"]:
@@ -1077,6 +1095,43 @@ class Indexer:
         self._einreichen(Auftrag("mbox", extract.mbox_stapel, (stapel,), info, zeitlimit=600))
 
     # ---------------------------------------------------------------- Ablauf
+    def _bedeutung(self, kurz: bool = False) -> None:
+        """Bedeutungsvektoren fuer neue und geaenderte Seiten berechnen (Issue #230).
+
+        Letzte Phase des Laufs und nur, wenn die Bedeutungssuche eingeschaltet
+        ist. Ohne Ollama oder ohne das Modell bleibt die Phase aus (Hinweis im
+        Protokoll) und der Lauf gilt trotzdem als fertig; der naechste holt es
+        nach. Zeitlimit, Anhalten und die Pause bei Nutzeraktivitaet greifen
+        vor jedem Stapel; was bis dahin berechnet ist, bleibt. ``kurz`` (Lauf
+        nur ueber die Vorrang-Ordner oder einen Ordner, meist waehrend der
+        Nutzer arbeitet): nur die neuesten ``KURZLAUF_SEITEN`` Seiten, den
+        grossen Rest erledigt der volle Lauf.
+        """
+        if not self.konfig.bedeutung_aktiv:
+            return
+        url, modell = self.konfig.bedeutung_url, self.konfig.bedeutung_modell
+        da = bedeutung.modell_vorhanden(url, modell)
+        if not da:
+            log.warning("Bedeutungssuche übersprungen: %s",
+                        "Ollama ist nicht erreichbar" if da is None else f"das Modell {modell} fehlt in Ollama")
+            return
+        self._phase(tr("Bedeutungssuche vorbereiten"))
+        self._commit_wenn_noetig(sofort=True)
+
+        def melden(neu: int, offen: int) -> None:
+            self.stat["bedeutung_seiten"] = neu
+            if neu % (bedeutung.STAPEL * 25) == 0:
+                log.info("Bedeutungssuche: %d von %d Seiten", neu, offen)
+
+        try:
+            neu = bedeutung.berechnen(self.con, url, modell, weiter=self._zeit_pruefen, melden=melden,
+                                      hoechstens=bedeutung.KURZLAUF_SEITEN if kurz else None)
+        except bedeutung.BedeutungFehler as e:
+            log.warning("Bedeutungssuche abgebrochen: %s", e)
+            return
+        if neu:
+            log.info("Bedeutungssuche: %d Seiten vorbereitet", neu)
+
     def lauf(self, nur_prioritaet: bool = False, ohne_ocr: bool = False, ohne_mail: bool = False,
              nur_pfad: str | None = None, nur_textebene: bool = False) -> int:
         """Ein Lauf; ``nur_textebene``: nur die Phasen der Textebene (``pdfsm-dienst textebene schreiben``)."""
@@ -1153,6 +1208,8 @@ class Indexer:
                         self._phase(tr("Textebene Altbestand"))
                         self._textebene(altbestand=True)
             self._abarbeiten()
+            if not nur_textebene:
+                self._bedeutung(kurz=bool(nur_prioritaet or nur_pfad))
         except (KeyboardInterrupt, Abbruch) as e:
             status = "abgebrochen"
             log.info("Abgebrochen: %s", e or "Strg+C")

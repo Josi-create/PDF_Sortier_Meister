@@ -21,6 +21,7 @@ from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QSizePolicy, QVBoxLayout, QWidget
 
 from src.core.ordnersuche import Treffer, indizes_vorwaermen, suche_im_index
+from src.gui.farben import stil
 from src.i18n import tr
 
 _ROLLE_PFAD = Qt.ItemDataRole.UserRole
@@ -63,10 +64,10 @@ class OrdnerSuchfeld(QWidget):
         # Fokus bleibt im Eingabefeld: ein Klick in die Liste nimmt ihn nicht weg
         self.liste = QListWidget(None if schwebend else self)
         self.liste.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.liste.setStyleSheet(
-            "QListWidget { font-size: 11px; border: 1px solid #daa520; background: #fffef5; color: black; }"
+        stil(self.liste,
+            "QListWidget { font-size: 11px; border: 1px solid $gelb_rand; background: $gelb_flaeche_blass; color: $schwarz; }"
             " QListWidget::item { padding: 2px 4px; }"
-            " QListWidget::item:selected { background: #fff3cd; color: black; }"
+            " QListWidget::item:selected { background: $gelb_flaeche; color: $schwarz; }"
         )
         self.liste.itemClicked.connect(self._on_item_geklickt)
         self.liste.setVisible(False)

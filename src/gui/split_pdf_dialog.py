@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QGroupBox,
 )
+from src.gui.farben import stil
 from src.i18n import tr
 
 
@@ -71,7 +72,7 @@ class SplitPDFDialog(QDialog):
         group_layout.addLayout(range_layout)
 
         hint = QLabel(tr("Seiten kommagetrennt oder als Bereich (1-3) angeben."))
-        hint.setStyleSheet("color: #666; font-size: 11px;")
+        stil(hint, "color: $grau_66; font-size: 11px;")
         group_layout.addWidget(hint)
 
         layout.addWidget(group)
@@ -82,7 +83,7 @@ class SplitPDFDialog(QDialog):
         # Zielordner-Info
         target_label = QLabel(tr("Zielordner: <i>{parent}</i>").format(parent=self.pdf_path.parent))
         target_label.setWordWrap(True)
-        target_label.setStyleSheet("color: #555; font-size: 11px;")
+        stil(target_label, "color: $grau_55; font-size: 11px;")
         layout.addWidget(target_label)
 
         # Buttons

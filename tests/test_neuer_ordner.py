@@ -257,3 +257,11 @@ def test_anlegen_und_nur_leere_neue_wegraeumen(tmp_path):
     assert neuer_ordner.leere_wegraeumen(angelegt) == 2
     assert not (root / "Steuer 2027").exists()
     assert (root / "Steuer 2025").is_dir() and root.is_dir()
+
+
+def test_dokument_jahr_bezugsjahr_im_text_vor_steuerjahr_und_datum():
+    """Issue #254: "Bescheid fuer 2020" zaehlt vor dem Jahr der KI und dem Briefdatum."""
+    text = "Bescheid für 2020 über Einkommensteuer"
+    assert neuer_ordner.dokument_jahr("2022-03-14", {"steuerjahr": "2022"}, text) == 2020
+    assert neuer_ordner.dokument_jahr("2022-03-14", None, text) == 2020
+    assert neuer_ordner.dokument_jahr("2022-03-14", {"steuerjahr": "2021"}, "Brief ohne Jahr") == 2021

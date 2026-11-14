@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
+from src.gui.farben import css, melder, stil
 from src.gui.folder_widget import FolderWidget
 from src.i18n import tr
 
@@ -119,8 +120,8 @@ class VorschlagZeile(FolderWidget):
     """Kompakte Vorschlagszeile: oben der Anfang des Pfads (path_label), unten das Ende
     mit dem Zielordner fett (name_label, Rich Text)."""
 
-    FARBE_PFAD = "#666"
-    FARBE_NEU = "#1e6fd9"
+    FARBE_PFAD = "$grau_66"
+    FARBE_NEU = "$neu_blau"
 
     def __init__(self, folder_path, parent=None):
         self._name_voll = ""
@@ -129,6 +130,7 @@ class VorschlagZeile(FolderWidget):
         self._zeilen = ("", "", "")  # (oben, unten normal, unten fett) - fuer Tests
         self._geometrie_bekannt = False
         super().__init__(folder_path, 0, parent)
+        melder.geaendert.connect(self._kuerzen)  # die untere Zeile traegt ihre Farben im Text
 
     def setup_ui(self):
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
@@ -160,16 +162,16 @@ class VorschlagZeile(FolderWidget):
 
         self.count_label = QLabel()
         self.count_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.count_label.setStyleSheet("font-size: 11px; color: #666; background: transparent; border: none;")
+        stil(self.count_label, "font-size: 11px; color: $grau_66; background: transparent; border: none;")
         layout.addWidget(self.count_label)
 
         self.set_anzeige(self.folder_path.name, "")
 
     @staticmethod
-    def _label(bold: bool, px: int, farbe: str = "#222") -> QLabel:
+    def _label(bold: bool, px: int, farbe: str = "$grau_22") -> QLabel:
         lab = QLabel()
         lab.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        lab.setStyleSheet(f"color: {farbe}; background: transparent; border: none;")
+        stil(lab, f"color: {farbe}; background: transparent; border: none;")
         font = QFont(lab.font())
         font.setPixelSize(px)
         font.setBold(bold)
@@ -206,9 +208,9 @@ class VorschlagZeile(FolderWidget):
         rest = unten[len(praefix):]
         teile = []
         if praefix:
-            teile.append(f'<span style="color:{self.FARBE_NEU}">{html.escape(praefix)}</span>')
+            teile.append(f'<span style="color:{css(self.FARBE_NEU)}">{html.escape(praefix)}</span>')
         if rest:
-            teile.append(f'<span style="color:{self.FARBE_PFAD}">{html.escape(rest)}</span>')
+            teile.append(f'<span style="color:{css(self.FARBE_PFAD)}">{html.escape(rest)}</span>')
         teile.append(f"<b>{html.escape(fett)}</b>")
         self.name_label.setText('<span style="white-space:pre">{}</span>'.format("".join(teile)))
 

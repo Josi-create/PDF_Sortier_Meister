@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox, QProg
 
 from src.core import ordner_verschieben, ordner_vorschlaege, pfad_umzug
 from src.core.office_convert import ist_sortierbar
+from src.gui.farben import stil
 from src.gui.folder_widget import REGENBOGEN_SCHWELLE
 from src.gui.hierhin_kopieren import AblageNamen
 from src.gui.vorschlag_liste import VorschlagZeile
@@ -262,8 +263,8 @@ class OrdnerVerschiebenMixin:
             tooltip += tr("Anklicken verschiebt den markierten Ordner hierher (Rechtsklick: kopieren).")
             zeile.setToolTip(tooltip)
             zeile.count_label.setText(f"{int(s.confidence * 100)}%")
-            farbe = "#1e6fd9" if is_new else "#28a745"
-            zeile.count_label.setStyleSheet(
+            farbe = "$neu_blau" if is_new else "$vorschlag_gruen"
+            stil(zeile.count_label,
                 f"font-size: 11px; color: {farbe}; font-weight: bold; background: transparent; border: none;"
             )
             zeile.clicked.connect(self.on_ordner_vorschlag_clicked)

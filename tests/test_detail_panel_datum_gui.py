@@ -201,3 +201,49 @@ def test_datum_feld_nur_eindeutige_tage_sind_gueltig(qtbot, monkeypatch, tmp_pat
     assert hinweis in panel._date_hint.text() and panel._date_hint.isVisibleTo(panel)
     datum.editingFinished.emit()
     assert datum.text() == eingabe  # Unlesbares bleibt stehen
+
+
+# --- Bezugsjahr (Issue #254) ---------------------------------------------------
+
+BESCHEID = "Finanzamt Musterstadt\nBescheid für 2020 über Einkommensteuer\nMusterstadt, 14.03.2022"
+
+
+def _show_bescheid(panel, tmp_path, suggestions=None):
+    pdf = tmp_path / "bescheid.pdf"
+    pdf.write_bytes(b"%PDF")
+    panel.set_pdf(pdf_path=pdf, suggestions=suggestions or [], extracted_text=BESCHEID,
+                  keywords=["bescheid"], detected_date="2022-03-14")
+    return pdf
+
+
+def test_bezugsjahr_wird_steuerjahr_datum_bleibt_briefdatum(qtbot, monkeypatch, tmp_path):
+    panel = _panel(qtbot, monkeypatch, tmp_path)
+    _show_bescheid(panel, tmp_path)
+    assert panel._metadata_inputs["buchungsdatum"].text() == "2022-03-14"
+    assert panel._metadata_inputs["steuerjahr"].text() == "2020"
+
+
+def test_bezugsjahr_schlaegt_briefjahr_der_ki(qtbot, monkeypatch, tmp_path):
+    panel = _panel(qtbot, monkeypatch, tmp_path)
+    ki = RenameSuggestion("2022-03-14_Bescheid_Finanzamt.pdf", "KI-Vorschlag", 0.9,
+                          metadata={"buchungsdatum": "2022-03-14", "steuerjahr": "2022"})
+    _show_bescheid(panel, tmp_path, suggestions=[ki])
+    assert panel._metadata_inputs["steuerjahr"].text() == "2020"
+
+
+def test_gespeichertes_steuerjahr_der_pdf_bleibt(qtbot, monkeypatch, tmp_path):
+    from src.core.pdf_metadata import PDFMetadata
+    panel = _panel(qtbot, monkeypatch, tmp_path, pdf_meta=PDFMetadata(steuerjahr="2021"))
+    _show_bescheid(panel, tmp_path)
+    qtbot.waitUntil(lambda: panel._metadata_inputs["steuerjahr"].text() == "2021", timeout=3000)
+
+
+def test_ki_ergebnis_nachtraeglich_ueberschreibt_bezugsjahr_nicht(qtbot, monkeypatch, tmp_path):
+    panel = _panel(qtbot, monkeypatch, tmp_path)
+    pdf = _show_bescheid(panel, tmp_path)
+    from types import SimpleNamespace
+    ki = SimpleNamespace(filename="2022-03-14_Bescheid_Finanzamt.pdf", source="llm", confidence=0.9,
+                         reason="KI", metadata={"buchungsdatum": "2022-03-14", "steuerjahr": "2022"})
+    panel._on_llm_metadata_ready(pdf, [ki], "")
+    assert panel._metadata_inputs["buchungsdatum"].text() == "2022-03-14"
+    assert panel._metadata_inputs["steuerjahr"].text() == "2020"

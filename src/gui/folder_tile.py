@@ -22,6 +22,7 @@ from PyQt6.QtGui import QCursor, QDrag, QDragEnterEvent, QDropEvent, QFontMetric
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy
 
 from src.core.office_convert import ist_sortierbar
+from src.gui.farben import stil
 from src.gui.favoriten_leiste import FAVORIT_ENTFERNEN_TEXT, FAVORIT_MERKEN_TEXT
 from src.gui.hierhin_kopieren import (
     ORDNER_MIME,
@@ -66,19 +67,19 @@ class FolderTileWidget(QFrame):
     MIN_WIDTH = 120  # schmaler wird eine Zeile nie
 
     _STYLE_NORMAL = (
-        "FolderTileWidget { background-color: #fbf8ec; border: 1px solid #e3dcc2; "
+        "FolderTileWidget { background-color: $zeile_flaeche; border: 1px solid $zeile_rand; "
         "border-radius: 3px; }"
     )
     _STYLE_HOVER = (
-        "FolderTileWidget { background-color: #fff3cd; border: 1px solid #daa520; "
+        "FolderTileWidget { background-color: $gelb_flaeche; border: 1px solid $gelb_rand; "
         "border-radius: 3px; }"
     )
     _STYLE_MARKIERT = (
-        "FolderTileWidget { background-color: #d6e9ff; border: 2px solid #1e6fd9; "
+        "FolderTileWidget { background-color: $zeile_markiert_flaeche; border: 2px solid $neu_blau; "
         "border-radius: 3px; }"
     )
     _STYLE_DROP = (
-        "FolderTileWidget { background-color: #d9f2d9; border: 2px solid #4caf50; "
+        "FolderTileWidget { background-color: $zeile_ziel_flaeche; border: 2px solid $zeile_ziel_rand; "
         "border-radius: 3px; }"
     )
 
@@ -106,7 +107,7 @@ class FolderTileWidget(QFrame):
     def _setup_ui(self):
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.setAcceptDrops(True)
-        self.setStyleSheet(self._STYLE_NORMAL)
+        stil(self, self._STYLE_NORMAL)
         self.setFixedHeight(self.ROW_HEIGHT)
         self.setMinimumWidth(self.MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -134,7 +135,7 @@ class FolderTileWidget(QFrame):
         layout.addWidget(self.name_label, 1)
 
         self.count_label = QLabel(self._count_text())
-        self.count_label.setStyleSheet("color: #777; background: transparent; border: none;")
+        stil(self.count_label, "color: $grau_77; background: transparent; border: none;")
         count_font = self.count_label.font()
         count_font.setPixelSize(self.COUNT_PX)
         self.count_label.setFont(count_font)
@@ -203,7 +204,7 @@ class FolderTileWidget(QFrame):
         wert = bool(wert) and not self.is_parent
         if wert != self._markiert:
             self._markiert = wert
-            self.setStyleSheet(self._style_ruhe())
+            stil(self, self._style_ruhe())
 
     def _style_ruhe(self) -> str:
         return self._STYLE_MARKIERT if self._markiert else self._STYLE_NORMAL
@@ -237,7 +238,7 @@ class FolderTileWidget(QFrame):
         drag.exec(
             Qt.DropAction.MoveAction | Qt.DropAction.CopyAction, Qt.DropAction.MoveAction
         )
-        self.setStyleSheet(self._style_ruhe())
+        stil(self, self._style_ruhe())
 
     def mouseReleaseEvent(self, event):
         self._drag_start = None
@@ -323,11 +324,11 @@ class FolderTileWidget(QFrame):
         pfad_kopieren(self.folder_path)
 
     def enterEvent(self, event):
-        self.setStyleSheet(self._STYLE_HOVER)
+        stil(self, self._STYLE_HOVER)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self.setStyleSheet(self._style_ruhe())
+        stil(self, self._style_ruhe())
         super().leaveEvent(event)
 
     # --- Drag & Drop ------------------------------------------------------
@@ -341,7 +342,7 @@ class FolderTileWidget(QFrame):
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if self._pdf_paths(event.mimeData()):
-            self.setStyleSheet(self._STYLE_DROP)
+            stil(self, self._STYLE_DROP)
             drop_aktion_setzen(event)
         else:
             event.ignore()
@@ -354,11 +355,11 @@ class FolderTileWidget(QFrame):
             event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet(self._style_ruhe())
+        stil(self, self._style_ruhe())
         super().dragLeaveEvent(event)
 
     def dropEvent(self, event: QDropEvent):
-        self.setStyleSheet(self._style_ruhe())
+        stil(self, self._style_ruhe())
         pdfs = self._pdf_paths(event.mimeData())
         if not pdfs:
             event.ignore()
