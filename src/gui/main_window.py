@@ -48,6 +48,7 @@ from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.core import einheiten
+from src.core import scan_programm
 from src.core import schlagwoerter as schlagwort_regeln
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -2292,6 +2293,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         open_action.setToolTip(tr("Scan-Ordner auswählen"))
         open_action.triggered.connect(self.open_scan_folder)
         toolbar.addAction(open_action)
+
+        # Hinterlegtes Scanprogramm starten (Issue #270)
+        self.scan_starten_action = QAction(tr("Jetzt scannen"), self)
+        self.scan_starten_action.setToolTip(
+            tr("Scanprogramm starten (hinterlegt unter Einstellungen › Allgemein › Scannen)")
+        )
+        self.scan_starten_action.triggered.connect(self.scan_starten)
+        toolbar.addAction(self.scan_starten_action)
 
         # Zielordner hinzufügen
         add_folder_action = QAction(tr("+ Zielordner"), self)
@@ -5235,6 +5244,36 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if folder:
             self._navigate_to_folder(Path(folder))
             self.statusbar.showMessage(tr("Scan-Ordner gesetzt: {folder}").format(folder=folder))
+
+    def scan_starten(self):
+        """Startet das hinterlegte Scanprogramm (Issue #270).
+
+        Ohne hinterlegtes Programm fuehrt der Knopf in die Einstellungen. Gescannt
+        wird im Scanprogramm; die neue Datei erscheint ueber die Ordner-Beobachtung.
+        """
+        pfad = scan_programm.bereinigt(self.config.get(scan_programm.KONFIG_SCHLUESSEL, ""))
+        if not pfad:
+            QMessageBox.information(
+                self,
+                tr("Jetzt scannen"),
+                tr("Es ist noch kein Scanprogramm hinterlegt.\n\n"
+                "Wählen Sie es im nächsten Fenster unter „Scannen“ aus. "
+                "Danach startet dieser Knopf das Programm."),
+            )
+            self._open_settings_dialog(tab=tr("Allgemein"))
+            return
+        try:
+            scan_programm.starten(pfad)
+        except scan_programm.ScanprogrammFehler as e:
+            fehler = str(e) if Path(pfad).exists() else tr("Die Datei wurde nicht gefunden.")
+            QMessageBox.warning(
+                self,
+                tr("Jetzt scannen"),
+                tr("Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\n"
+                "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
+            )
+            return
+        self.statusbar.showMessage(tr("Scanprogramm gestartet: {name}").format(name=Path(pfad).name), 5000)
 
     def add_target_folder(self):
         """Öffnet einen Dialog zum Hinzufügen eines Zielordners."""

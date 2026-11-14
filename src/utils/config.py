@@ -96,6 +96,7 @@ class Config:
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
         "scan_ordner_beobachten": True,  # Issue #232: neue Dateien im Scan-Ordner erscheinen von selbst
+        "scan_programm": "",  # Issue #270: Pfad zum Scanprogramm fuer den Knopf „Jetzt scannen“
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt

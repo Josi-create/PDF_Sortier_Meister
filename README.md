@@ -86,6 +86,10 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   **„Nur verschieben“**-Schalter, wenn der Dateiname bleiben soll
 - **Drag & Drop**, Mehrfachauswahl (Shift/Ctrl+Klick), **Rückgängig** (`Ctrl+Z`), Kopie in mehrere Ordner
 - **Explorer-Kontextmenü**: Rechtsklick auf einen Ordner oder eine PDF → „PDF Sortier Meister von hier öffnen“
+- **„Jetzt scannen“** in der Werkzeugleiste startet das Scanprogramm, das unter *Einstellungen → Allgemein →
+  Scannen* hinterlegt ist. Gescannt wird dort; der neue Scan erscheint danach von selbst als Kachel.
+  Womit scannen? Unsere Empfehlung ist [VueScan](https://www.hamrick.com/) (kostenpflichtig, Windows und macOS);
+  jedes andere Scanprogramm, das PDFs in einen Ordner speichert, geht genauso.
 
 ### Umbenennen mit Verstand
 - Vorschläge aus erkanntem **Datum** (12.03.2026, „März 2026“, ISO), **Kategorie** (Rechnung, Vertrag,
