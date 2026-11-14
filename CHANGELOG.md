@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Kopfzeile über den Kacheln aufgeräumt** (#269): Der Ordnername steht jetzt ausgeschrieben da
+  und wird nicht mehr abgeschnitten. Die Wörter „Ansicht:“ und „Sortieren:“ entfallen, die beiden
+  Auswahlfelder stehen ganz rechts, darüber ganz klein die Angabe „27 Dateien · 2 Ordner“. Die
+  Zeile ist so hoch wie bisher. Ist die Spalte sehr schmal, steht nur der Ordnername ohne
+  „PDFs in:“ da; von einem sehr langen Namen bleibt der rechte Teil stehen, der ganze Pfad steht
+  im Tooltip.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
