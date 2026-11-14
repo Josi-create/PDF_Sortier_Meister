@@ -7,6 +7,27 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Version im Startbild**: Das Startbild zeigt rechts unten in dezentem Grau die Version, die
+  gerade startet, zum Beispiel „v0.27.0“. Beim Start aus dem Quelltext steht dort zusätzlich
+  „dev“ und der Kurz-Hash des Commits.
+
+### Geändert
+- **Hinweis auf die Windows-Warnung beim Installieren**: README (deutsch und englisch) und jede
+  künftige Release-Beschreibung sagen jetzt gut sichtbar direkt beim Download, dass Windows beim
+  Start der Setup-Datei „Der Computer wurde durch Windows geschützt“ meldet, warum (das Programm
+  ist noch nicht signiert, #163) und wie es weitergeht: „Weitere Informationen“, dann „Trotzdem
+  ausführen“.
+- **Kurzvideo im README**: README.md und README.en.md verlinken oben das Kurzvideo (45 Sekunden,
+  YouTube), das zeigt, was das Programm macht.
+
+### Behoben
+- **Startbild springt auf skalierten Bildschirmen nicht mehr**: Auf Bildschirmen mit
+  Skalierung (etwa 4K mit 150 % oder 175 %) erschien das Startbild der installierten
+  Windows-Fassung erst vergrößert und unscharf, wurde kurz vor dem Hauptfenster kleiner und
+  rutschte nach links oben. Es hat jetzt von Anfang an dieselbe Größe und bleibt in der
+  Bildschirmmitte. Beim Start aus dem Quelltext und unter macOS ist es bei jeder Skalierung scharf.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu
