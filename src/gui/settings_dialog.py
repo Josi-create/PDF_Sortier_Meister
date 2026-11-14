@@ -1455,13 +1455,13 @@ class SettingsDialog(QDialog):
 
         ext_row = QFormLayout()
         self.search_extensions_edit = QLineEdit()
-        self.search_extensions_edit.setToolTip(tr("Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"))
+        self.search_extensions_edit.setToolTip(tr("Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .emlx .msg"))
         ext_row.addRow(tr("Dateiendungen:"), self.search_extensions_edit)
         folders_layout.addLayout(ext_row)
         layout.addWidget(folders_group)
 
         # Mails
-        mail_group = QGroupBox(tr("Mails (Thunderbird-Postfächer)"))
+        mail_group = QGroupBox(tr("Mails (Thunderbird, Apple Mail)"))
         mail_layout = QVBoxLayout(mail_group)
         self.search_mails_check = QCheckBox(tr("Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"))
         mail_layout.addWidget(self.search_mails_check)
@@ -1469,7 +1469,7 @@ class SettingsDialog(QDialog):
         stil(self.search_thunderbird_label, "color: $grau_hinweis;")
         self.search_thunderbird_label.setWordWrap(True)
         mail_layout.addWidget(self.search_thunderbird_label)
-        mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):")))
+        mail_layout.addWidget(QLabel(tr("Postfach-Ordner (leer = von selbst: Thunderbird-Standardprofil, auf dem Mac auch Apple Mail):")))
         self.search_mail_folders_list = QListWidget()
         self.search_mail_folders_list.setMaximumHeight(60)
         mail_layout.addWidget(self.search_mail_folders_list)
@@ -1485,6 +1485,10 @@ class SettingsDialog(QDialog):
         )
         mail_buttons.addWidget(self.search_mail_folders_remove)
         mail_buttons.addStretch()
+        self.search_mail_help_button = QPushButton(tr("Outlook und andere Mailprogramme…"))
+        self.search_mail_help_button.setToolTip(tr("Wie Mails aus Outlook, Apple Mail und anderen Programmen in die Suche kommen"))
+        self.search_mail_help_button.clicked.connect(self._search_mail_help)
+        mail_buttons.addWidget(self.search_mail_help_button)
         mail_layout.addLayout(mail_buttons)
         layout.addWidget(mail_group)
 
@@ -2033,6 +2037,12 @@ class SettingsDialog(QDialog):
         for item in liste.selectedItems():
             liste.takeItem(liste.row(item))
 
+    def _search_mail_help(self) -> None:
+        """Anleitung: Apple Mail (Festplattenvollzugriff), Outlook und andere ueber .eml/.msg (Issue #261)."""
+        from src.search import plattform
+
+        QMessageBox.information(self, tr("Mails aus anderen Programmen"), plattform.mail_hilfe_html())
+
     @staticmethod
     def _search_list_items(liste) -> list[str]:
         return [liste.item(i).text() for i in range(liste.count())]
@@ -2104,14 +2114,7 @@ class SettingsDialog(QDialog):
 
         self.search_mails_check.setChecked(cfg.mails_aktiv)
         self._search_list_set(self.search_mail_folders_list, cfg.mail_ordner)
-        try:
-            profil = plattform.thunderbird_mail_ordner()
-        except Exception:
-            profil = []
-        self.search_thunderbird_label.setText(
-            tr("Thunderbird-Profil erkannt: {0}").format(', '.join(profil)) if profil
-            else tr("Kein Thunderbird-Profil gefunden – Postfach-Ordner unten eintragen.")
-        )
+        self.search_thunderbird_label.setText(plattform.mail_quellen_hinweis()[1])
 
         self.search_ocr_check.setChecked(cfg.ocr_aktiv)
         self.search_ocr_languages_edit.setText(cfg.ocr_sprachen)

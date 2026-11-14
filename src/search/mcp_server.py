@@ -86,7 +86,7 @@ def beschreibung(konfig: SearchConfig, umgebung: Umgebung | None = None) -> str:
     """Anleitung fuer den KI-Assistenten; die durchsuchten Ordner kommen aus der Konfiguration."""
     umgebung = umgebung or Umgebung()
     orte = ", ".join(konfig.prioritaet + [w for w in konfig.wurzeln if w not in konfig.prioritaet]) or "den eingerichteten Ordnern"
-    mails = " und Mails (Thunderbird, .eml, .msg)" if konfig.mails_aktiv else " und Mails (.eml, .msg)"
+    mails = " und Mails (Thunderbird, Apple Mail, .eml, .msg)" if konfig.mails_aktiv else " und Mails (.eml, .msg)"
     text = (
         "Lokaler Volltextindex über alle PDFs (inkl. OCR gescannter Dokumente), Word-/Excel-/OpenDocument-"
         f"Dateien (doc, docx, xls, xlsx, odt), Markdown-Dateien{mails} in: {orte}. "

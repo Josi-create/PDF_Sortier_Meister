@@ -113,7 +113,7 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 ### Dokumentensuche über den ganzen PC
 - **Volltextsuche** über PDFs (auch gescannte: die Texterkennung liest im Hintergrund alle Seiten),
   Word, Excel und OpenDocument (`doc`, `docx`, `xls`, `xlsx`, `odt`), Markdown und Mails (Thunderbird,
-  `.eml`, `.msg`) — in den Ordnern und Laufwerken, die du auswählst. Einschalten im
+  auf dem Mac auch Apple Mail, dazu `.eml`- und `.msg`-Dateien, z. B. aus Outlook gespeichert) — in den Ordnern und Laufwerken, die du auswählst. Einschalten im
   Einrichtungs-Assistenten oder unter *Einstellungen → Suche*; standardmäßig aus
 - Reiter **„Suche“** neben der Vorschau (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
   Seite, Vorschau springt auf die Trefferseite; Filter nach Typ, Ordner, Zeitraum und den PDFSM-Metadaten

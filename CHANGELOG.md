@@ -7,6 +7,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Dokumentensuche findet Mails aus Apple Mail** (#261): Auf dem Mac nimmt die Suche neben
+  Thunderbird jetzt auch die Mails aus Apple Mail auf, wenn unter Einstellungen → Suche „Mails in
+  den Index aufnehmen“ eingeschaltet ist. Der Ordner von Apple Mail wird von selbst gefunden.
+  macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat
+  (Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff); fehlt die Freigabe,
+  steht das in den Einstellungen. Ein Treffer öffnet sich wie bisher als Mail und lässt sich als
+  `.eml` speichern. Einzelne Apple-Mail-Dateien (`.emlx`) in einem durchsuchten Ordner werden
+  auf jedem Rechner gelesen, auch unter Windows.
+- **Anleitung für Outlook und andere Mailprogramme** (#261): Unter Einstellungen → Suche erklärt
+  der neue Knopf „Outlook und andere Mailprogramme…“, wie Mails aus Programmen in die Suche
+  kommen, deren Postfach PDF Sortier Meister nicht liest: die Mails als Dateien (`.msg` oder
+  `.eml`) in einen durchsuchten Ordner legen. Die Postfachdateien von Outlook (PST/OST) und das
+  neue Outlook, das Mails nur online hält, werden bewusst nicht gelesen.
+
 ## [0.28.0] - 2026-11-13
 
 ### Neu

@@ -847,7 +847,7 @@ Werte der Metadatenfelder fuer die Auswahllisten.
 | „Nur in der Cloud“ | `st_file_attributes & (OFFLINE \| RECALL_ON_OPEN \| RECALL_ON_DATA_ACCESS)` | `st_flags & SF_DATALESS` (0x40000000, File-Provider: OneDrive, Dropbox, iCloud) und Platzhalter `.name.icloud` ueberspringen | `os.stat` loest keinen Download aus, `open` schon |
 | Junctions/Symlinks | Reparse-Tag `MOUNT_POINT`/`SYMLINK` ueberspringen | `is_dir(follow_symlinks=False)` ueberspringt Symlinks bereits; zusaetzlich `/Volumes` nur als explizite Wurzel, Netzlaufwerke nicht implizit | Python 3.11 hat `st_reparse_tag`, `os.path.isjunction` erst ab 3.12 |
 | Wurzeln (Vorschlaege im Assistenten) | Laufwerksbuchstaben (`GetLogicalDrives`), Standard: Scan- und Zielordner | Benutzerordner `~` und eingehaengte `/Volumes/*`; Standard: Scan- und Zielordner | Standardausschluesse je Plattform (`Windows`, `AppData`, `$Recycle.Bin` … bzw. `Library`, `.Trash`, `node_modules`, `.git` …) |
-| Thunderbird-Profil | `%APPDATA%\Thunderbird\profiles.ini` | `~/Library/Thunderbird/profiles.ini` | `[ProfileN]`: `Path`, `IsRelative` (0 = absoluter Pfad), `Default=1`; Postfaecher unter `<Profil>/Mail` und `<Profil>/ImapMail`. Apple Mail (`.emlx`) nur vorgemerkt |
+| Thunderbird-Profil | `%APPDATA%\Thunderbird\profiles.ini` | `~/Library/Thunderbird/profiles.ini` | `[ProfileN]`: `Path`, `IsRelative` (0 = absoluter Pfad), `Default=1`; Postfaecher unter `<Profil>/Mail` und `<Profil>/ImapMail`. Apple Mail: `~/Library/Mail` (nur macOS, `plattform.apple_mail_ordner`), jede Mail eine `.emlx`-Datei; braucht Festplattenvollzugriff (Issue #261) |
 | Tesseract | `find_tesseract()` (gebuendelt, Standardorte, PATH), Sprachdaten `tessdata` daneben | gleiche Funktion (Homebrew-Pfade) | wandert nach `src/utils/tesseract.py`; `TESSDATA_PREFIX` je Aufruf setzen; Sprachen `deu+eng`; fehlen die Daten, OCR deaktivieren und im Status zeigen |
 | Unterprozesse | `creationflags=CREATE_NO_WINDOW`, Start des Laufs mit `DETACHED_PROCESS \| CREATE_NEW_PROCESS_GROUP` | keine Flags, Start mit `start_new_session=True` | `plattform.popen_flags()` |
 | Datei im Dateimanager zeigen | `explorer /select,` | `open -R` | Texte ueber `file_manager_name()` |
@@ -888,7 +888,7 @@ untaetig war - fuer den macOS-LaunchAgent, der keine Leerlaufbedingung kennt.
 Fehlen Tesseract oder die Sprachdaten (`deu+eng`), ist
 `ocr_einstellungen()["aktiv"]` False und `grund` nennt die Ursache; der Status
 (`Suchindex.status()["ocr_grund"]`, `pdfsm-dienst status`) zeigt sie an.
-Apple Mail (`.emlx`) bleibt vorgemerkt.
+Apple Mail (`.emlx`, Issue #261): `extract.emlx_text` liest die Datei (Laengenzeile, Mail, Eigenschaftsliste); die Mail-Phase nimmt unter jedem Postfach-Ordner zusaetzlich alle `.emlx` auf (`Indexer._mails_emlx`, Format `emlx`, unabhaengig von den eingestellten Endungen) und raeumt verschwundene wieder ab. Oeffnen und Speichern laufen ueber eine `.eml`-Kopie im Temp-Ordner.
 
 ---
 

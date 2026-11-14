@@ -999,7 +999,8 @@ class SearchPage(QWizardPage):
         folder_row.addStretch()
         layout.addLayout(folder_row)
 
-        self.mails_check = QCheckBox(tr("Mails aus Thunderbird aufnehmen"))
+        self.mails_check = QCheckBox(tr("Mails aus Thunderbird und Apple Mail aufnehmen") if sys.platform == "darwin"
+                                     else tr("Mails aus Thunderbird aufnehmen"))
         layout.addWidget(self.mails_check)
         self.mails_label = QLabel("")
         stil(self.mails_label, "color: $grau_hinweis;")
@@ -1083,14 +1084,10 @@ class SearchPage(QWizardPage):
             self.enable_check.setChecked(cfg.aktiv)
             self.background_check.setChecked(cfg.hintergrund_aktiv if cfg.aktiv else True)
 
-        try:
-            profil = plattform.thunderbird_mail_ordner()
-        except Exception:
-            profil = []
-        self._mails_moeglich = bool(profil)
+        self._mails_moeglich, quellen = plattform.mail_quellen_hinweis()
         self.mails_check.setChecked(cfg.mails_aktiv and self._mails_moeglich)
         self.mails_label.setText(
-            tr("Thunderbird-Profil gefunden: {0}").format(', '.join(profil)) if profil
+            quellen if self._mails_moeglich
             else tr("Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\n"
                  "Einstellungen einrichten (Postfach-Ordner angeben).")
         )

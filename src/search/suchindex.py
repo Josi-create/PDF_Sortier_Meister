@@ -343,9 +343,15 @@ class Suchindex:
         """Mail eines Treffers als Datei zum Oeffnen mit dem Mailprogramm.
 
         Eine Mail aus einer Thunderbird-mbox wird als ``.eml`` in den
-        Temp-Ordner geschrieben (die mbox bleibt unberuehrt); eine ``.eml``-
-        oder ``.msg``-Datei ist schon eine Datei und wird selbst geliefert.
+        Temp-Ordner geschrieben (die mbox bleibt unberuehrt), ebenso eine
+        Apple-Mail-Datei (``.emlx``, die ausserhalb von Apple Mail kein Programm
+        oeffnet); eine ``.eml``- oder ``.msg``-Datei ist schon eine Datei und
+        wird selbst geliefert.
         """
+        if dok.get("format") == "emlx":
+            from src.search import extract
+
+            return self._temp_eml(dok, extract.emlx_roh(Path(dok["datei"]).read_bytes()))
         if dok.get("format") != "mbox":
             return Path(dok["datei"])
         if "mbox_offset" not in dok or "mbox_laenge" not in dok:
@@ -357,7 +363,14 @@ class Suchindex:
         from src.search import mbox
 
         roh = mbox.mail_roh(dok["datei"], dok["mbox_offset"], dok["mbox_laenge"])
-        ziel = Path(tempfile.gettempdir()) / "pdfsm_suche" / f"{dok['id']}_{self.eml_dateiname(dok['name'])}.eml"
+        return self._temp_eml(dok, roh)
+
+    def _temp_eml(self, dok: dict, roh: bytes) -> Path:
+        # Apple-Mail-Dateien heissen nur "<Nummer>.emlx": der Betreff ist der bessere Name
+        name = dok["name"]
+        if dok.get("format") == "emlx":
+            name = dok.get("mail_betreff") or dok.get("titel") or name
+        ziel = Path(tempfile.gettempdir()) / "pdfsm_suche" / f"{dok['id']}_{self.eml_dateiname(name)}.eml"
         ziel.parent.mkdir(exist_ok=True)
         ziel.write_bytes(roh)
         return ziel

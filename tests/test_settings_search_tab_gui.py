@@ -53,6 +53,20 @@ def test_tab_laedt_standardwerte_aus_scan_und_zielordner(qtbot, monkeypatch, tmp
     assert dlg.search_db_path_edit.text() == "" and dlg.search_db_path_edit.placeholderText().endswith("suche.db")
 
 
+def test_mail_hilfe_nennt_apple_mail_und_outlook(qtbot, monkeypatch, tmp_path):
+    """Issue #261: Anleitung fuer Apple Mail (Festplattenvollzugriff) und Outlook (.msg/.eml ablegen)."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    assert dlg.show_tab("Suche")
+    gezeigt = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: gezeigt.append(a[2])))
+    dlg.search_mail_help_button.click()
+    assert len(gezeigt) == 1
+    for wort in ("Apple Mail", "Festplattenvollzugriff", "Outlook", ".msg", ".eml", "PST"):
+        assert wort in gezeigt[0]
+
+
 def test_speichern_schreibt_searchconfig_und_laedt_sie_wieder(qtbot, monkeypatch, tmp_path):
     scan = tmp_path / "Scans"
     dlg, cfg = _dialog(qtbot, monkeypatch, tmp_path, scan_folder=str(scan))

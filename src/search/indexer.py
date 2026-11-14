@@ -43,6 +43,7 @@ from src.i18n import tr
 log = logging.getLogger("pdf_sortier_meister.suche")
 
 TYP = {".pdf": ("pdf", "pdf"), ".md": ("md", "md"), ".eml": ("mail", "eml"), ".msg": ("mail", "msg"),
+       ".emlx": ("mail", "emlx"),
        ".docx": ("office", "docx"), ".docm": ("office", "docm"), ".xlsx": ("office", "xlsx"),
        ".xlsm": ("office", "xlsm"), ".odt": ("office", "odt"),
        ".doc": ("office", "doc"), ".xls": ("office", "xls"), ".txt": ("office", "txt")}
@@ -232,6 +233,10 @@ def dokument_speichern(con, basis: dict, fmt: str, res: dict) -> tuple[int, dict
         dok = {**basis, "seiten": 1, "textstatus": res["status"], "fehler": res["fehler"],
                "mail_von": res["von"], "mail_an": res["an"], "mail_datum": res["datum_iso"],
                "mail_betreff": res["betreff"], "mail_anhaenge": res["anhaenge"], "titel": res["betreff"]}
+        if fmt == "emlx" and res.get("datum_ts"):
+            # Apple Mail schreibt die Datei bei jeder Markierung (gelesen, Fahne) neu: das Datum
+            # der Mail zaehlt, nicht das der Datei (wie bei den Thunderbird-Postfaechern)
+            dok["datum"] = res["datum_ts"]
         seiten = [(1, "text", res["text"])] if res["text"] else []
     vorher = None
     if fmt == "pdf":
@@ -266,6 +271,8 @@ def datei_lesen(pfad: str, konfig: SearchConfig) -> tuple[dict, str, dict] | Non
         res = extract.md_text(pfad)
     elif fmt == "eml":
         res = extract.eml_text(pfad)
+    elif fmt == "emlx":
+        res = extract.emlx_text(pfad)
     else:
         res = extract.msg_text(pfad)
     return basis, fmt, res
@@ -711,7 +718,10 @@ class Indexer:
         pfade.append(basis["pfad"].lower())
         self.aenderungen += 1
 
-    def _durchlaufen(self, wurzel: str, prio: int, auslassen: set[str]) -> bool:
+    def _durchlaufen(self, wurzel: str, prio: int, auslassen: set[str],
+                     nur_endungen: set[str] | None = None) -> bool:
+        """Dateien unter ``wurzel`` aufnehmen; ``nur_endungen`` beschraenkt auf diese Endungen
+        (Mail-Ordner: nur ``.emlx``, unabhaengig von den eingestellten Endungen)."""
         if not os.path.isdir(wurzel):
             log.warning("Nicht erreichbar, übersprungen: %s", wurzel)
             return False
@@ -746,7 +756,10 @@ class Indexer:
                             unterordner.append(e.path)
                         elif e.is_file(follow_symlinks=False):
                             ext = os.path.splitext(e.name)[1].lower()
-                            if ext in TYP and not e.name.startswith("~$") and (
+                            if nur_endungen is not None:
+                                if ext in nur_endungen:
+                                    self._datei(e, ext, prio)
+                            elif ext in TYP and not e.name.startswith("~$") and (
                                     ext in konfig.endungen
                                     or (ext in NUR_AUF_WUNSCH and e.path.lower() in self.bekannt)):
                                 self._datei(e, ext, prio)
@@ -802,6 +815,8 @@ class Indexer:
             a = Auftrag("datei", extract.md_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
         elif fmt == "eml":
             a = Auftrag("datei", extract.eml_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
+        elif fmt == "emlx":
+            a = Auftrag("datei", extract.emlx_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
         else:
             a = Auftrag("datei", extract.msg_text, (pfad,), {"pfad": pfad, "basis": basis}, zeitlimit=120)
         self._einreichen(a)
@@ -885,8 +900,12 @@ class Indexer:
                    for w in (*self.konfig.prioritaet, *self.konfig.wurzeln)]
         if not wurzeln:
             return
+        # Apple-Mail-Dateien in den Postfach-Ordnern gehoeren der Mail-Phase (``_mails_emlx``)
+        mail = [os.path.normpath(w).lower().rstrip(os.sep) + os.sep
+                for w in (self.konfig.mail_ordner_effektiv() if self.konfig.mails_aktiv else [])]
         weg = [(k, v[0]) for k, v in self.bekannt.items()
-               if not any(k.startswith(w) for w in wurzeln) and not self._bleibt(k, v)]
+               if not any(k.startswith(w) for w in wurzeln) and not self._bleibt(k, v)
+               and not (k.endswith(".emlx") and any(k.startswith(w) for w in mail))]
         if weg:
             db.loesche(self.con, [i for _, i in weg])
             for k, _ in weg:
@@ -1036,7 +1055,7 @@ class Indexer:
         stand = {r["datei"].lower(): dict(r) for r in self.con.execute("SELECT * FROM mbox_stand")}
         ordner = self.konfig.mail_ordner_effektiv()
         if not ordner:
-            log.warning("Keine Postfach-Ordner eingestellt und kein Thunderbird-Profil gefunden")
+            log.warning("Keine Postfach-Ordner eingestellt und kein Mailprogramm (Thunderbird, Apple Mail) gefunden")
         for wurzel in ordner:
             if not os.path.isdir(wurzel):
                 log.warning("Mailordner nicht gefunden: %s", wurzel)
@@ -1077,6 +1096,7 @@ class Indexer:
                 self._abarbeiten()
                 self.con.execute("INSERT OR REPLACE INTO mbox_stand VALUES (?, ?, ?)", (pfad, st.st_size, st.st_mtime_ns))
                 self._commit_wenn_noetig(sofort=True)
+            self._mails_emlx(wurzel)
         if erreichbar:
             weg = [k for k in stand if k not in gefunden]
             for k in weg:
@@ -1086,6 +1106,29 @@ class Indexer:
                 self.con.execute("DELETE FROM mbox_stand WHERE datei = ?", (stand[k]["datei"],))
                 self.stat["entfernt"] += len(ids)
             self._commit_wenn_noetig(sofort=True)
+
+    def _mails_emlx(self, wurzel: str) -> None:
+        """Apple Mail: jede Mail ist eine eigene Datei (``.emlx``) irgendwo unter ``wurzel``.
+
+        Aufgenommen werden nur diese Dateien (keine Anhaenge), auch wenn ``.emlx`` nicht
+        bei den eingestellten Endungen steht. Verschwundene Mails werden entfernt. Laesst
+        sich der Ordner nicht lesen (Mac ohne Festplattenvollzugriff), bleibt der Bestand.
+        """
+        if not plattform.ordner_lesbar(wurzel):
+            log.warning("Mailordner nicht lesbar (auf dem Mac: Festplattenvollzugriff erlauben): %s", wurzel)
+            return
+        if not self._durchlaufen(wurzel, 9, set(), nur_endungen={".emlx"}):
+            return
+        self._abarbeiten()
+        w = wurzel.lower().rstrip(os.sep) + os.sep
+        weg = [(k, v[0]) for k, v in self.bekannt.items()
+               if k.startswith(w) and k.endswith(".emlx") and k not in self.gesehen]
+        if weg:
+            db.loesche(self.con, [i for _, i in weg])
+            for k, _ in weg:
+                del self.bekannt[k]
+            self.stat["entfernt"] += len(weg)
+        self._commit_wenn_noetig(sofort=True)
 
     def _mbox_einreichen(self, lauf: dict, stapel: list) -> None:
         """Einen Stapel Mails eines Postfachs an die Arbeitsprozesse geben; Offsets fuer den Zwischenstand merken."""
@@ -1193,7 +1236,7 @@ class Indexer:
                     self._abarbeiten()
                     self._aufraeumen_ausserhalb()
                     if not ohne_mail and self.konfig.mails_aktiv:
-                        self._phase(tr("Thunderbird-Mails"))
+                        self._phase(tr("Mails"))
                         self._mails()
                 if not ohne_ocr:
                     self._phase(tr("Texterkennung (OCR)"))
