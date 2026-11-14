@@ -8,10 +8,12 @@ Cached PDF-Analysen für schnellere Interaktion:
 - Persistente Speicherung (optional) für schnellen Neustart
 """
 
+import itertools
 import json
 import logging
 import queue
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -216,20 +218,41 @@ class LLMSuggestionWorker(QThread):
         # eine dringende Anfrage (Issue #218) ueberholt eine wartende Vorab-Anfrage,
         # ohne dass die KI dieselbe PDF danach ein zweites Mal gefragt wird
         self._queued: dict[Path, int] = {}
+        # Juengste Analyse je wartender PDF: aendert sich der Inhalt, waehrend die PDF noch
+        # wartet (Zusammenfuehren, Drehen), fragt der Worker mit dem neuen Text - nicht mit dem,
+        # der beim ersten Einreihen galt
+        self._analysen: dict[Path, PDFAnalysisResult] = {}
+        self._current_analyse: Optional[PDFAnalysisResult] = None  # womit die KI gerade gefragt wird
+        # Laufende Nummer statt Uhrzeit als zweites Sortiermerkmal: bei gleicher Prioritaet und
+        # gleicher Uhrzeit (Windows-Uhr: ~16 ms) verglich die Warteschlange sonst die Analysen
+        self._reihenfolge = itertools.count(1)
 
     def add_task(self, pdf_path: Path, analysis_result: PDFAnalysisResult, priority: int = 5):
         """Fügt eine LLM-Abruf-Aufgabe zur Queue hinzu (dringendere ueberholt wartende)."""
         with self._lock:
             known = self._queued.get(pdf_path)
+            self._analysen[pdf_path] = analysis_result
             if known is not None and known <= priority:
                 return
             self._queued[pdf_path] = priority
-        self._queue.put((priority, time.time(), pdf_path, analysis_result))
+        self._queue.put((priority, next(self._reihenfolge), pdf_path, analysis_result))
 
     def get_current_pdf(self) -> Optional[Path]:
         """Die PDF, fuer die gerade die KI gefragt wird."""
         with self._lock:
             return self._current_pdf
+
+    def analyse_nachreichen(self, pdf_path: Path, analysis_result: PDFAnalysisResult) -> bool:
+        """Meldet dem Worker die juengste Analyse einer schon eingereihten PDF.
+
+        Wartet die PDF noch, wird sie spaeter mit dieser Analyse gefragt. Returns True, wenn
+        die KI gerade mit einer ANDEREN (aelteren) Analyse an genau dieser PDF arbeitet - die
+        Antwort dieses laufenden Aufrufs gilt dann dem alten Inhalt.
+        """
+        with self._lock:
+            if pdf_path in self._queued:
+                self._analysen[pdf_path] = analysis_result
+            return self._current_pdf == pdf_path and self._current_analyse is not analysis_result
 
     def stop(self):
         """Stoppt den Worker."""
@@ -252,7 +275,9 @@ class LLMSuggestionWorker(QThread):
                     if self._queued.get(pdf_path) != priority:
                         continue  # ueberholt (dringend erneut eingereiht) oder schon erledigt
                     del self._queued[pdf_path]
+                    analysis_result = self._analysen.pop(pdf_path, analysis_result)
                     self._current_pdf = pdf_path
+                    self._current_analyse = analysis_result
 
                 try:
                     if not pdf_path.exists():
@@ -331,6 +356,7 @@ class LLMSuggestionWorker(QThread):
                 finally:
                     with self._lock:
                         self._current_pdf = None
+                        self._current_analyse = None
 
             except Exception:
                 # Worker soll nicht abstürzen, aber Fehler nicht verschlucken
@@ -386,10 +412,16 @@ class PDFCache(QObject):
         # PDFs, deren KI-Vorschlag gleich nach der Analyse dringend gebraucht wird
         # (Stapel-Ablage, Issue #218) - auch wenn die Vorabfrage ausgeschaltet ist
         self._llm_dringend: set[Path] = set()
+        # PDFs, die neu analysiert wurden, waehrend die KI noch mit der alten Analyse an ihnen
+        # arbeitet: die Antwort gilt dem alten Inhalt und wird verworfen, danach wird neu gefragt
+        self._llm_veraltet: set[Path] = set()
         self._pending_callbacks: dict[Path, list[Callable]] = {}
         self._persist_cache = True  # Standardmäßig persistenten Cache nutzen
         self._db_path: Optional[Path] = None
         self._llm_precache_enabled = True  # LLM-Pre-Caching aktivieren (Default)
+        # Schreibauftraege an die Cache-Datenbank aus dem GUI-Thread (siehe _save_spaeter)
+        self._db_auftraege: queue.Queue = queue.Queue()
+        self._db_schreiber: Optional[threading.Thread] = None
         self._initialized = True
 
         # Persistenten Cache initialisieren
@@ -546,49 +578,101 @@ class PDFCache(QObject):
         except Exception as e:
             logger.error(f"Cache-Laden fehlgeschlagen: {e}")
 
+    @staticmethod
+    def _db_zeile(result: PDFAnalysisResult) -> tuple:
+        """Die Spaltenwerte eines Eintrags fuer ``pdf_cache``."""
+        # LLM-Vorschläge als JSON speichern (inkl. Metadaten)
+        llm_json = json.dumps([
+            {"filename": s.filename, "confidence": s.confidence, "source": s.source,
+             "metadata": s.metadata}
+            for s in result.llm_suggestions
+        ]) if result.llm_suggestions else None
+        return (
+            str(result.pdf_path),
+            result.extracted_text,
+            json.dumps(result.keywords),
+            json.dumps([str(d) for d in result.dates]),  # Dates als JSON-Strings
+            result.analyzed_at.isoformat(),
+            result.file_modified,
+            llm_json,
+            1 if result.llm_fetched else 0,
+            result.ocr_lesbarkeit[0] if result.ocr_lesbarkeit else None,
+            result.ocr_lesbarkeit[1] if result.ocr_lesbarkeit else None,
+        )
+
     def _save_to_db(self, result: PDFAnalysisResult):
         """Speichert einen Eintrag in die SQLite-Datenbank."""
-        if not self._persist_cache or not self._db_path:
+        self._save_all_to_db([result])
+
+    def _save_all_to_db(self, results: list):
+        """Speichert mehrere Eintraege in einem Zug (ein einziges Durchschreiben auf die Platte)."""
+        if not self._persist_cache or not self._db_path or not results:
             return
 
         try:
             conn = sqlite3.connect(str(self._db_path))
-            cursor = conn.cursor()
-
-            # Dates als JSON-Strings speichern
-            dates_json = json.dumps([str(d) for d in result.dates])
-            keywords_json = json.dumps(result.keywords)
-
-            # LLM-Vorschläge als JSON speichern (inkl. Metadaten)
-            llm_json = json.dumps([
-                {"filename": s.filename, "confidence": s.confidence, "source": s.source,
-                 "metadata": s.metadata}
-                for s in result.llm_suggestions
-            ]) if result.llm_suggestions else None
-
-            cursor.execute("""
-                INSERT OR REPLACE INTO pdf_cache
-                (pdf_path, extracted_text, keywords, dates, analyzed_at, file_modified, llm_suggestions, llm_fetched,
-                 ocr_alle, ocr_gut)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                str(result.pdf_path),
-                result.extracted_text,
-                keywords_json,
-                dates_json,
-                result.analyzed_at.isoformat(),
-                result.file_modified,
-                llm_json,
-                1 if result.llm_fetched else 0,
-                result.ocr_lesbarkeit[0] if result.ocr_lesbarkeit else None,
-                result.ocr_lesbarkeit[1] if result.ocr_lesbarkeit else None,
-            ))
-
-            conn.commit()
-            conn.close()
+            try:
+                conn.executemany("""
+                    INSERT OR REPLACE INTO pdf_cache
+                    (pdf_path, extracted_text, keywords, dates, analyzed_at, file_modified, llm_suggestions,
+                     llm_fetched, ocr_alle, ocr_gut)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [self._db_zeile(r) for r in results])
+                conn.commit()
+            finally:
+                conn.close()
 
         except Exception as e:
             logger.error(f"Cache-Speichern fehlgeschlagen: {e}")
+
+    def _save_spaeter(self, result: PDFAnalysisResult):
+        """Wie :meth:`_save_to_db`, aber ohne den Aufrufer warten zu lassen.
+
+        Analyse- und KI-Ergebnisse treffen im GUI-Thread ein. Das Speichern (Datenbank
+        oeffnen, schreiben, auf die Platte durchschreiben) kostete dort je PDF 10-40 ms; bei
+        einem Ordner mit Hunderten PDFs kam das Fenster waehrend der Analyse kaum noch zum
+        Zeichnen (Befund 13.11.2026). Ein einzelner Hintergrund-Thread schreibt der Reihe nach
+        und fasst zusammen, was sich inzwischen angesammelt hat.
+        """
+        if not self._persist_cache or not self._db_path:
+            return
+        self._db_auftraege.put(result)
+        if self._db_schreiber is None or not self._db_schreiber.is_alive():
+            self._db_schreiber = threading.Thread(
+                target=self._db_schreiben, args=(self._db_auftraege,), name="pdf-cache-db", daemon=True)
+            self._db_schreiber.start()
+
+    def _db_schreiben(self, auftraege: queue.Queue):
+        while True:
+            results = [auftraege.get()]
+            try:
+                while len(results) < 200:
+                    results.append(auftraege.get_nowait())
+            except queue.Empty:
+                pass
+            try:
+                self._save_all_to_db(results)
+            except Exception:
+                logger.exception("Cache-Speichern im Hintergrund fehlgeschlagen")
+            finally:
+                for _ in results:
+                    auftraege.task_done()
+
+    def db_schreiben_abwarten(self, timeout: float = 5.0) -> bool:
+        """Wartet, bis alle Schreibauftraege aus :meth:`_save_spaeter` in der Datenbank stehen.
+
+        Vor jedem direkten Zugriff auf die Datenbank (Loeschen, Umziehen) und beim Beenden,
+        damit die Reihenfolge stimmt und nichts verloren geht. False bei Zeitueberschreitung.
+        """
+        auftraege = self._db_auftraege
+        ende = time.monotonic() + timeout
+        with auftraege.all_tasks_done:
+            while auftraege.unfinished_tasks:
+                rest = ende - time.monotonic()
+                if rest <= 0:
+                    return False
+                auftraege.all_tasks_done.wait(rest)
+        return True
 
     def set_persist_cache(self, enabled: bool):
         """Aktiviert/deaktiviert die persistente Cache-Speicherung."""
@@ -604,6 +688,7 @@ class PDFCache(QObject):
 
     def clear_persistent_cache(self):
         """Löscht die persistente Cache-Datenbank."""
+        self.db_schreiben_abwarten()
         if self._db_path and self._db_path.exists():
             try:
                 conn = sqlite3.connect(str(self._db_path))
@@ -639,6 +724,7 @@ class PDFCache(QObject):
             if not self._worker.wait(2000):
                 self._keep_until_finished(self._worker)
             self._worker = None
+        self.db_schreiben_abwarten()
 
     def stop_llm_worker(self):
         """Stoppt den LLM-Hintergrund-Worker."""
@@ -647,6 +733,7 @@ class PDFCache(QObject):
             if not self._llm_worker.wait(2000):
                 self._keep_until_finished(self._llm_worker)
             self._llm_worker = None
+        self.db_schreiben_abwarten()
 
     def _keep_until_finished(self, worker: QThread):
         """Haelt einen nach dem Stop noch laufenden Thread referenziert (siehe __init__)."""
@@ -678,6 +765,25 @@ class PDFCache(QObject):
                     return None
 
             return result
+
+    def fortschritt(self, pdf_paths) -> tuple[int, int]:
+        """(analysiert, mit KI-Vorschlag) fuer diese Pfade - fuer die Fortschrittsanzeige.
+
+        Fasst das Dateisystem bewusst NICHT an (anders als :meth:`get`, das je Aufruf prueft,
+        ob die Datei noch unveraendert ist): Die Statusleiste fragt bei jeder fertigen Analyse
+        und jedem KI-Aufruf fuer ALLE Kacheln. Mit ``get`` waren das bei 400 PDFs 800
+        Dateizugriffe je Ereignis im GUI-Thread - das Fenster stand minutenlang (Befund
+        13.11.2026, Scan-Ordner in OneDrive).
+        """
+        analysiert = ki = 0
+        with self._lock:
+            for pdf_path in pdf_paths:
+                result = self._cache.get(pdf_path)
+                if result is not None:
+                    analysiert += 1
+                    if result.llm_fetched:
+                        ki += 1
+        return analysiert, ki
 
     def is_cached(self, pdf_path: Path) -> bool:
         """Prüft ob eine PDF im Cache ist."""
@@ -776,8 +882,8 @@ class PDFCache(QObject):
             # Callbacks aufrufen
             callbacks = self._pending_callbacks.pop(pdf_path, [])
 
-        # In persistenten Cache speichern
-        self._save_to_db(result)
+        # In persistenten Cache speichern (im Hintergrund: wir sind im GUI-Thread)
+        self._save_spaeter(result)
 
         for callback in callbacks:
             try:
@@ -806,9 +912,17 @@ class PDFCache(QObject):
         """
         with self._lock:
             schon = pdf_path in self._llm_queued
-            if schon and not dringend:
-                return False
             self._llm_queued.add(pdf_path)
+        if schon and self._llm_worker is not None:
+            # Die PDF ist schon eingereiht, womoeglich mit einer aelteren Analyse (Inhalt seither
+            # geaendert: Zusammenfuehren, Drehen). Wartet sie noch, gilt ab jetzt diese Analyse;
+            # laeuft der Aufruf schon, wird seine Antwort verworfen und danach neu gefragt.
+            if self._llm_worker.analyse_nachreichen(pdf_path, analysis_result):
+                with self._lock:
+                    self._llm_veraltet.add(pdf_path)
+                return False
+        if schon and not dringend:
+            return False
         if schon and self._llm_worker is not None and self._llm_worker.get_current_pdf() == pdf_path:
             return False  # die KI arbeitet gerade an genau dieser PDF
         logger.debug(f"LLM-Pre-Cache: Starte Abruf für {pdf_path.name}{' (dringend)' if dringend else ''}")
@@ -853,6 +967,8 @@ class PDFCache(QObject):
     def _on_llm_suggestions_complete(self, pdf_path: Path, suggestions: list):
         """Wird aufgerufen wenn LLM-Vorschläge abgerufen wurden."""
         logger.debug(f"LLM-Pre-Cache: {len(suggestions)} Vorschläge für {pdf_path.name}")
+        if self._veraltete_antwort(pdf_path):
+            return
         with self._lock:
             self._llm_queued.discard(pdf_path)
             if not suggestions:
@@ -864,8 +980,8 @@ class PDFCache(QObject):
                 self._cache[pdf_path].llm_suggestions = suggestions
                 self._cache[pdf_path].llm_fetched = True
 
-                # Aktualisiert in persistentem Cache speichern
-                self._save_to_db(self._cache[pdf_path])
+                # Aktualisiert in persistentem Cache speichern (im Hintergrund)
+                self._save_spaeter(self._cache[pdf_path])
             self._llm_failed.discard(pdf_path)
             retry = [p for p in self._llm_failed if p not in self._llm_retried]
             self._llm_failed.clear()
@@ -874,6 +990,23 @@ class PDFCache(QObject):
         # Signal emittieren
         self.llm_suggestions_ready.emit(pdf_path)
         self._retry_failed_llm(retry)
+
+    def _veraltete_antwort(self, pdf_path: Path) -> bool:
+        """True, wenn die eben eingetroffene KI-Antwort einem inzwischen geaenderten Inhalt gilt.
+
+        Die Antwort wird dann nicht gespeichert; liegt die neue Analyse schon vor, wird sofort
+        neu gefragt (sonst reiht :meth:`_on_analysis_complete` die PDF ein, sobald sie fertig ist).
+        """
+        with self._lock:
+            if pdf_path not in self._llm_veraltet:
+                return False
+            self._llm_veraltet.discard(pdf_path)
+            self._llm_queued.discard(pdf_path)
+        logger.info(f"LLM-Pre-Cache: Antwort für {pdf_path.name} verworfen (Inhalt inzwischen geändert)")
+        cached = self.get(pdf_path)
+        if cached is not None and not cached.llm_fetched and self._llm_precache_enabled:
+            self._request_llm_suggestions(pdf_path, cached, dringend=True)
+        return True
 
     def _retry_failed_llm(self, pdf_paths: list[Path]):
         """Reiht zuvor gescheiterte PDFs erneut ein (niedrige Prioritaet = ans Ende)."""
@@ -911,6 +1044,8 @@ class PDFCache(QObject):
     def _on_llm_suggestions_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn LLM-Abruf fehlschlägt."""
         logger.warning(f"LLM-Pre-Cache Fehler für {pdf_path.name}: {error}")
+        if self._veraltete_antwort(pdf_path):
+            return
         with self._lock:
             self._llm_queued.discard(pdf_path)
             self._llm_failed.add(pdf_path)
@@ -920,6 +1055,7 @@ class PDFCache(QObject):
         """LLM war nicht verfügbar - Eintrag kann später erneut eingereiht werden."""
         with self._lock:
             self._llm_queued.discard(pdf_path)
+            self._llm_veraltet.discard(pdf_path)
 
     def _on_analysis_error(self, pdf_path: Path, error: str):
         """Wird aufgerufen wenn eine Analyse fehlschlägt."""
@@ -948,6 +1084,7 @@ class PDFCache(QObject):
         pdf_path = Path(pdf_path)
         with self._lock:
             self._cache.pop(pdf_path, None)
+        self.db_schreiben_abwarten()  # ein noch wartender Eintrag kaeme sonst nach dem Loeschen zurueck
         if self._persist_cache and self._db_path and self._db_path.exists():
             try:
                 conn = sqlite3.connect(str(self._db_path))
@@ -987,6 +1124,7 @@ class PDFCache(QObject):
             logger.debug(f"Cache migriert: {old_path.name} -> {new_path.name}")
 
         # Alten DB-Eintrag löschen und neuen speichern
+        self.db_schreiben_abwarten()
         if self._persist_cache and self._db_path:
             try:
                 conn = sqlite3.connect(str(self._db_path))
@@ -1017,6 +1155,7 @@ class PDFCache(QObject):
                 eintrag.pdf_path = neu
                 self._cache[neu] = eintrag
                 bewegt.append((alt, neu, eintrag))
+        self.db_schreiben_abwarten()
         if bewegt and self._persist_cache and self._db_path:
             try:
                 conn = sqlite3.connect(str(self._db_path))
