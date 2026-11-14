@@ -103,6 +103,9 @@ def erstelle_app(konfig: SearchConfig):
             roh = mbox.mail_roh(d["datei"], d["mbox_offset"], d["mbox_laenge"])
             return send_file(io.BytesIO(roh), mimetype="message/rfc822", as_attachment=True,
                              download_name=_dateiname(d["name"]) + ".eml")
+        if d["format"] == "emlx" and os.path.exists(d["datei"]):
+            return send_file(idx.mail_als_eml(d), mimetype="message/rfc822", as_attachment=True,
+                             download_name=_dateiname(d.get("mail_betreff") or d["name"]) + ".eml")
         if not os.path.exists(d["datei"]):
             abort(404, tr("Datei existiert nicht mehr"))
         if d["format"] == "md":
@@ -115,7 +118,7 @@ def erstelle_app(konfig: SearchConfig):
     def oeffnen(dok_id):
         d = _dok_oder_404(dok_id)
         # Die Oberflaeche laeuft als Hintergrundaufgabe: das geoeffnete Programm nach vorn holen (fenster.py)
-        if d["format"] == "mbox":
+        if d["format"] == "mbox" or (d["format"] == "emlx" and os.path.exists(d["datei"])):
             eml = idx.mail_als_eml(d)
             fenster.starte(eml, [Path(eml).name, d["name"]])
         elif os.path.exists(d["datei"]):

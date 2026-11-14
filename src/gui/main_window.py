@@ -40,12 +40,14 @@ from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
+from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
 from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
+from src.core import einheiten
 from src.core import schlagwoerter as schlagwort_regeln
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -205,6 +207,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.db = get_database()
         # Issue #231: Vorschlagsliste im Detail-Panel und Auswahl fuer die KI kommen aus dem Suchindex
         schlagwort_regeln.quelle_setzen(lambda haeufigste=None: self.db.suchindex.schlagwoerter(haeufigste))
+        # Issue #257: die KI bekommt die schon bekannten Einheiten (Wohnungen/Verbrauchsstellen) genannt
+        einheiten.quelle_setzen(self._einheiten_fuer_prompt)
         self.file_manager = FileManager()
         self.folder_manager = FolderManager()
         self.classifier = get_classifier()
@@ -1089,6 +1093,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.folder_tree.ordner_copy_dropped.connect(self.on_tree_ordner_copy_dropped)
         self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
         self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
+        self.folder_tree.zielordner_hinzufuegen.connect(self._on_zielordner_hinzufuegen)  # Issue #258
         ft_layout.addWidget(self.folder_tree, stretch=1)
 
         # Alte Grid-Ansicht (ausgeblendet, für Kompatibilität)
@@ -1571,7 +1576,41 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Dazu kommt hoechstens ein Vorschlag fuer einen NEUEN Ordner (Issue #116).
         """
         merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
+        merged = self._with_einheit_folder(pdf_path, merged, detected_date)
         return self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+
+    def _einheiten_fuer_prompt(self) -> list[dict]:
+        """Gelernte Einheiten mit Ablageort relativ zum Zielordner (fuer den KI-Prompt, Issue #257)."""
+        from src.core.similar_documents import relative_folder
+        roots = self.config.get_target_folders()
+        return [{**z, "ablageort": relative_folder(z.get("target_folder"), roots)}
+                for z in self.db.get_einheit_zuordnungen()]
+
+    def _with_einheit_folder(self, pdf_path: Path, suggestions: list, detected_date: str = None) -> list:
+        """Ordner, in den Dokumente derselben Einheit/Verbrauchsstelle zuletzt abgelegt wurden (Issue #257).
+
+        Die Einheit kommt aus dem KI-Vorschlag, die Zaehlernummer bzw. das Vertragskonto
+        zusaetzlich aus dem Text - der gelernte Ordner steht dann oben, auch wenn aehnliche
+        Dokumente einer anderen Wohnung haeufiger sind.
+        """
+        try:
+            from src.core.similar_documents import merge_folder_suggestion, vorschlag_jahr
+            zuordnungen = self.db.get_einheit_zuordnungen()
+            if not zuordnungen:
+                return list(suggestions)
+            metas = [m for s in (self.pdf_cache.get_llm_suggestions(pdf_path) or [])
+                     if isinstance(m := getattr(s, "metadata", None), dict)]
+            meta = next((m for m in metas if m.get("einheit") or m.get("einheit_kennung")), {})
+            steuerjahr = next((m["steuerjahr"] for m in metas if m.get("steuerjahr")), None)
+            text = self._vorschlag_text(pdf_path)
+            vorschlag = einheiten.ordner_vorschlag(
+                meta, text, zuordnungen, self.folder_manager.target_folders,
+                vorschlag_jahr(text, detected_date, steuerjahr),
+            )
+            return merge_folder_suggestion(suggestions, vorschlag, bestaetigung=tr("Einheit passt"))
+        except Exception as e:  # noqa: BLE001 - Vorschlag ist optional
+            logging.getLogger(__name__).debug(f"Vorschlag aus der Einheit nicht verfuegbar: {e}")
+            return list(suggestions)
 
     @staticmethod
     def _ordnen(pdf_path: Path, suggestions: list) -> list:
@@ -3377,6 +3416,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     metadata.betrag_brutto = dialog_metadata["betrag_brutto"]
                 if dialog_metadata.get("iban"):
                     metadata.iban = dialog_metadata["iban"]
+                if dialog_metadata.get("einheit"):
+                    metadata.einheit = dialog_metadata["einheit"]
                 if dialog_metadata.get("waehrung"):
                     metadata.waehrung = dialog_metadata["waehrung"]
                 if dialog_metadata.get("mwst_satz"):
@@ -5203,11 +5244,29 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.config.dialog_start_dir(),
         )
         if folder:
-            folder_path = Path(folder)
-            self.config.add_target_folder(folder_path)
-            self.folder_manager.add_folder(folder_path)
-            self.load_folders()
-            self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=folder_path.name), 3000)
+            self._zielordner_aufnehmen(Path(folder))
+
+    def _on_zielordner_hinzufuegen(self, pfad):
+        """Plus am Suchfeld des Ordnerbaums (#258): getippten Pfad aufnehmen, sonst Dialog."""
+        if pfad is None:
+            self.add_target_folder()
+        else:
+            self._zielordner_aufnehmen(Path(pfad))
+
+    def _zielordner_aufnehmen(self, folder_path: Path):
+        """Nimmt den Ordner in die Zielordner auf und zeigt ihn im Baum."""
+        if not folder_path.is_dir():
+            self.statusbar.showMessage(tr("Ordner nicht gefunden: {name}").format(name=folder_path), 5000)
+            return
+        if folder_path in self.folder_manager.target_folders:
+            self.folder_tree.reveal_folder(folder_path)
+            self.statusbar.showMessage(tr("Ist schon Zielordner: {name}").format(name=anzeigename(folder_path)), 3000)
+            return
+        self.config.add_target_folder(folder_path)
+        self.folder_manager.add_folder(folder_path)
+        self.folder_tree.reveal_after_scan(folder_path)
+        self.load_folders()
+        self.statusbar.showMessage(tr("Zielordner hinzugefügt: {name}").format(name=anzeigename(folder_path)), 3000)
 
     # === Volltextsuche mit kombinierbaren Filtern (Phase 17/18) ===
 

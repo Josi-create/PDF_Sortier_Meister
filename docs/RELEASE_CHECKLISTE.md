@@ -43,6 +43,12 @@ Ablauf fuer einen neuen Release von PDF Sortier Meister (`vX.Y.Z`).
 - [ ] Draft-Release pruefen, deutsche Release-Notes schreiben (Abschnitte
       **Neu**, **Behoben**, **Fuer Beta-Tester**), Download-Links im Format
       `releases/latest/download/...` verwenden.
+- [ ] **Hinweis auf die SmartScreen-Warnung steht ganz oben** in der
+      Release-Beschreibung (solange die Programme nicht signiert sind, #163).
+      Der Workflow setzt den Kasten in den Draft; die Release-Notes kommen
+      darunter, der Kasten bleibt stehen (nach einem zweiten Workflow-Lauf
+      haengt er doppelt am Ende: dort loeschen). Wortlaut: `.github/workflows/release.yml`
+      (Schritt „Draft-Release mit Assets erstellen“), gleich wie im README.
 - [ ] **Fehlalarm-Meldung bei Microsoft** (solange die Programme nicht signiert
       sind, #163): `PDF_Sortier_Meister_Setup.exe` und `pdfsm-dienstw.exe` aus dem
       Draft-Release unter <https://www.microsoft.com/en-us/wdsi/filesubmission>

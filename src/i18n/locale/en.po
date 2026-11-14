@@ -245,6 +245,10 @@ msgstr "approx. {0} min"
 msgid "Die KI hat keine eindeutigen Unterscheidungen genannt."
 msgstr "The AI did not name any clear distinctions."
 
+#: src/core/namen_unterscheiden.py
+msgid "Die KI hat kein passendes Merkmal für die Namen gefunden."
+msgstr "The AI did not find a matching detail for the names."
+
 #: src/core/neuer_ordner.py
 msgid "KI: neuer Ordner nach dem Muster der vorhandenen"
 msgstr "AI: new folder following the pattern of the existing ones"
@@ -1028,6 +1032,14 @@ msgid "IBAN, falls im Dokument vorhanden."
 msgstr "IBAN, if present in the document."
 
 #: src/gui/detail_panel.py
+msgid "Einheit"
+msgstr "Unit"
+
+#: src/gui/detail_panel.py
+msgid "Wohnung bzw. Verbrauchsstelle, zu der das Dokument gehört (z. B. bei Strom, Gas,\nNebenkosten) - kann von der Rechnungsanschrift abweichen.\nBeim Ablegen merkt sich das Programm den Ordner dieser Einheit."
+msgstr "Flat or point of consumption the document belongs to (e.g. for electricity, gas,\nservice charges) - may differ from the billing address.\nWhen filing, the program remembers the folder of this unit."
+
+#: src/gui/detail_panel.py
 msgid "Steuerjahr, dem dieses Dokument zugeordnet wird."
 msgstr "Tax year this document is assigned to."
 
@@ -1412,8 +1424,16 @@ msgid "Foto entzerren"
 msgstr "Correct photo perspective"
 
 #: src/gui/entzerren_dialog.py
-msgid "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie das entzerrte Ergebnis."
-msgstr "Drag the four corners onto the corners of the sheet. On the right you see the corrected result."
+msgid "Ziehen Sie die vier Ecken auf die Ecken des Blatts. Rechts sehen Sie nach dem Loslassen das entzerrte Ergebnis. Fehlt eine Ecke auf dem Foto: „Foto verkleinern“ wählen und die Ecke dorthin ziehen, wo sich die beiden Blattkanten treffen würden."
+msgstr "Drag the four corners onto the corners of the sheet. After you release, the corrected result appears on the right. If a corner is missing from the photo: choose “Shrink photo” and drag the corner to where the two edges of the sheet would meet."
+
+#: src/gui/entzerren_dialog.py
+msgid "Foto verkleinern"
+msgstr "Shrink photo"
+
+#: src/gui/entzerren_dialog.py
+msgid "Zeigt einen Rand um das Foto. Dorthin lässt sich eine Ecke ziehen, die auf dem Foto fehlt, weil das Blatt angeschnitten ist. Der fehlende Zipfel wird weiß."
+msgstr "Shows a margin around the photo. You can drag a corner there that is missing from the photo because the sheet is cut off. The missing tip becomes white."
 
 #: src/gui/entzerren_dialog.py
 #: src/gui/settings_dialog.py
@@ -2451,6 +2471,22 @@ msgstr "AI suggestions for {name} entered"
 #: src/gui/main_window.py
 msgid "verknüpfte Dokumente"
 msgstr "linked documents"
+
+#: src/gui/main_window.py
+msgid "Einheit passt"
+msgstr "unit matches"
+
+#: src/core/einheiten.py
+msgid "Einheit „{name}“: gleiche Zählernummer bzw. gleiches Vertragskonto wie zuletzt hier abgelegt"
+msgstr "Unit “{name}”: same meter number or contract account as last filed here"
+
+#: src/core/einheiten.py
+msgid "Gleiche Zählernummer bzw. gleiches Vertragskonto wie zuletzt hier abgelegt"
+msgstr "Same meter number or contract account as last filed here"
+
+#: src/core/einheiten.py
+msgid "Einheit „{name}“: zuletzt hier abgelegt"
+msgstr "Unit “{name}”: last filed here"
 
 #: src/gui/main_window.py
 msgid "{provider} funktioniert gerade nicht.\n  Problem: {problem}\n  Abhilfe: {abhilfe}"
@@ -4359,6 +4395,10 @@ msgid "Als IBAN übernehmen"
 msgstr "Use as IBAN"
 
 #: src/gui/pdf_preview_widget.py
+msgid "Als Einheit übernehmen"
+msgstr "Use as unit"
+
+#: src/gui/pdf_preview_widget.py
 msgid "Als Datum übernehmen"
 msgstr "Use as date"
 
@@ -4899,8 +4939,36 @@ msgid "Textebene in {0} PDFs"
 msgstr "Text layer in {0} PDFs"
 
 #: src/gui/search_view.py
-msgid "Indexlauf aktiv{0}"
-msgstr "Index run active{0}"
+msgid "Indexlauf aktiv"
+msgstr "Index run active"
+
+#: src/gui/search_view.py
+msgid "Laufzeit {0}"
+msgstr "running for {0}"
+
+#: src/gui/search_view.py
+msgid "(letzter kompletter Lauf: {0})"
+msgstr "(last complete run: {0})"
+
+#: src/gui/search_view.py
+msgid "(letzter Lauf: {0})"
+msgstr "(last run: {0})"
+
+#: src/gui/search_view.py
+msgid "{0}, Dauer {1}"
+msgstr "{0}, took {1}"
+
+#: src/gui/search_view.py
+msgid "{0} s"
+msgstr "{0} s"
+
+#: src/gui/search_view.py
+msgid "{0} min"
+msgstr "{0} min"
+
+#: src/gui/search_view.py
+msgid "{0} h {1} min"
+msgstr "{0} h {1} min"
 
 #: src/gui/search_view.py
 msgid "Letzter Lauf: {0} ({1})"
@@ -5894,24 +5962,24 @@ msgid "Auszuschließenden Ordner wählen"
 msgstr "Choose folder to exclude"
 
 #: src/gui/settings_dialog.py
-msgid "Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
-msgstr "Separated by spaces, e.g.: .pdf .md .docx .xlsx .odt .doc .xls .eml .msg"
+msgid "Mit Leerzeichen getrennt, z. B.: .pdf .md .docx .xlsx .odt .doc .xls .eml .emlx .msg"
+msgstr "Separated by spaces, e.g.: .pdf .md .docx .xlsx .odt .doc .xls .eml .emlx .msg"
 
 #: src/gui/settings_dialog.py
 msgid "Dateiendungen:"
 msgstr "File extensions:"
 
 #: src/gui/settings_dialog.py
-msgid "Mails (Thunderbird-Postfächer)"
-msgstr "Mails (Thunderbird mailboxes)"
+msgid "Mails (Thunderbird, Apple Mail)"
+msgstr "Mails (Thunderbird, Apple Mail)"
 
 #: src/gui/settings_dialog.py
 msgid "Mails in den Index aufnehmen (jede Mail einzeln, Anhänge nur mit Namen)"
 msgstr "Include mails in the index (each mail separately, attachments by name only)"
 
 #: src/gui/settings_dialog.py
-msgid "Postfach-Ordner (leer = Postfächer des Thunderbird-Standardprofils):"
-msgstr "Mailbox folders (empty = mailboxes of the default Thunderbird profile):"
+msgid "Postfach-Ordner (leer = von selbst: Thunderbird-Standardprofil, auf dem Mac auch Apple Mail):"
+msgstr "Mailbox folders (empty = automatic: default Thunderbird profile, on the Mac also Apple Mail):"
 
 #: src/gui/settings_dialog.py
 msgid "Postfach-Ordner (Mail/, ImapMail/) wählen"
@@ -7157,8 +7225,8 @@ msgid "Einstellungen und Datenbank des frueheren, eigenstaendigen Programms\nPDF
 msgstr "Import the settings and database of the earlier, stand-alone program\nPDFsuche. The database stays where it is."
 
 #: src/gui/setup_wizard.py
-msgid "Thunderbird-Profil gefunden: {0}"
-msgstr "Thunderbird profile found: {0}"
+msgid "Mails aus Thunderbird und Apple Mail aufnehmen"
+msgstr "Include mails from Thunderbird and Apple Mail"
 
 #: src/gui/setup_wizard.py
 msgid "Kein Thunderbird-Profil gefunden - Mails lassen sich spaeter in den\nEinstellungen einrichten (Postfach-Ordner angeben)."
@@ -7303,6 +7371,14 @@ msgstr "The AI is checking what distinguishes {anzahl} documents with the same n
 #: src/gui/stapel_ablage.py
 msgid "Gleiche Namen nicht unterschieden: {0}"
 msgstr "Identical names not distinguished: {0}"
+
+#: src/gui/stapel_ablage.py
+msgid "Die KI gleicht die Namen von {anzahl} gleichartigen Dokumenten an …"
+msgstr "The AI is aligning the names of {anzahl} similar documents …"
+
+#: src/gui/stapel_ablage.py
+msgid "Namen nicht angeglichen: {0}"
+msgstr "Names not aligned: {0}"
 
 #: src/gui/stapel_ablage.py
 msgid "\n\nEinige Dateien bekämen denselben Namen; beim Umbenennen wird „ (1)“, „ (2)“ … angehängt."
@@ -8125,6 +8201,10 @@ msgid "KI formuliert die Antwort …"
 msgstr "AI is writing the answer …"
 
 #: src/rag/rag_controller.py
+msgid "Noch nichts Passendes - die KI probiert weitere Suchwege …"
+msgstr "Nothing suitable yet - the AI is trying other ways to search …"
+
+#: src/rag/rag_controller.py
 msgid "Leere Antwort des Modells."
 msgstr "Empty response from the model."
 
@@ -8577,9 +8657,9 @@ msgstr "OCR of new scans: {wurzel}"
 msgid "Ordner {wurzel}"
 msgstr "Folder {wurzel}"
 
-#: src/search/indexer.py
-msgid "Thunderbird-Mails"
-msgstr "Thunderbird mails"
+#: src/search/plattform.py
+msgid "Apple Mail erkannt: {0}"
+msgstr "Apple Mail detected: {0}"
 
 #: src/search/indexer.py
 msgid "OCR-Cache ergänzen"
@@ -9437,3 +9517,59 @@ msgstr "End"
 #: src/search/static/index.html
 msgid "Statistik"
 msgstr "Statistics"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Im Ordnerbaum zeigen: {pfad}"
+msgstr "Show in folder tree: {pfad}"
+
+#: src/gui/ordner_suchfeld.py
+msgid "➕ „{name}“ als Zielordner hinzufügen"
+msgstr "➕ Add “{name}” as target folder"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Nimmt diesen Ordner in die Zielordner auf: {pfad}"
+msgstr "Adds this folder to the target folders: {pfad}"
+
+#: src/gui/ordner_suchfeld.py
+msgid "Hineinspringen: {pfad}"
+msgstr "Jump into: {pfad}"
+
+#: src/gui/folder_tree_widget.py
+msgid "Ordner suchen (z. B. Zeugn*) oder Pfad eingeben"
+msgstr "Search folders (e.g. Cert*) or enter a path"
+
+#: src/gui/folder_tree_widget.py
+msgid "Zielordner hinzufügen: den im Suchfeld eingegebenen Pfad, sonst Ordner auswählen"
+msgstr "Add target folder: the path entered in the search field, otherwise choose a folder"
+
+#: src/gui/main_window.py
+msgid "Ordner nicht gefunden: {name}"
+msgstr "Folder not found: {name}"
+
+#: src/gui/main_window.py
+msgid "Ist schon Zielordner: {name}"
+msgstr "Already a target folder: {name}"
+
+#: src/gui/settings_dialog.py
+msgid "Outlook und andere Mailprogramme…"
+msgstr "Outlook and other mail programs…"
+
+#: src/gui/settings_dialog.py
+msgid "Wie Mails aus Outlook, Apple Mail und anderen Programmen in die Suche kommen"
+msgstr "How mails from Outlook, Apple Mail and other programs get into the search"
+
+#: src/gui/settings_dialog.py
+msgid "Mails aus anderen Programmen"
+msgstr "Mails from other programs"
+
+#: src/search/plattform.py
+msgid "Apple Mail erkannt, aber der Zugriff ist gesperrt: {0}\nBitte in den Systemeinstellungen unter Datenschutz & Sicherheit → Festplattenvollzugriff PDF Sortier Meister erlauben und das Programm neu starten."
+msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortier Meister under System Settings → Privacy & Security → Full Disk Access and restart the program."
+
+#: src/search/plattform.py
+msgid "Weder Thunderbird noch Apple Mail gefunden – Postfach-Ordner unten eintragen."
+msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below."
+
+#: src/search/plattform.py
+msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
+msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"

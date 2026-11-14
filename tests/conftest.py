@@ -113,6 +113,16 @@ def kein_echtes_mac_office(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kein_echtes_apple_mail(monkeypatch):
+    """Kein Test findet von sich aus den Apple-Mail-Ordner des Rechners (Issue #261): Auf einem
+    Mac gehoerte ``~/Library/Mail`` sonst zu den Postfach-Ordnern jeder Konfiguration. Tests der
+    Erkennung setzen die echte Funktion wieder ein."""
+    from src.search import plattform
+
+    monkeypatch.setattr(plattform, "apple_mail_ordner", lambda: [])
+
+
+@pytest.fixture(autouse=True)
 def ordner_beobachtung_ohne_takt(monkeypatch):
     """Kein Hauptfenster eines Tests liest von sich aus alle zwei Sekunden den Scan-Ordner
     (Issue #232): Kacheln entstehen und verschwinden in Tests nur durch den Test selbst.
@@ -239,3 +249,48 @@ def schlagwort_quelle_aus():
     schlagwoerter.quelle_setzen(None)
     yield
     schlagwoerter.quelle_setzen(None)
+
+
+@pytest.fixture(autouse=True)
+def einheiten_quelle_aus():
+    """Die gelernten Einheiten (Issue #257) haengen nach keinem Test mehr an der Datenbank eines
+    frueheren Hauptfensters: ohne Quelle nennt der KI-Prompt keine Einheiten."""
+    from src.core import einheiten
+
+    einheiten.quelle_setzen(None)
+    yield
+    einheiten.quelle_setzen(None)
+
+
+@pytest.fixture(autouse=True)
+def hintergrund_worker_beenden(monkeypatch):
+    """Kein Analyse- oder KI-Worker laeuft ueber das Ende seines Tests hinaus.
+
+    Ein Hauptfenster startet ueber den PDFCache echte Worker-Threads. Blieb so ein Thread nach
+    dem Test am Leben und raeumte Python sein Objekt spaeter weg, brach Qt den ganzen Testlauf
+    ab ("QThread: Destroyed while thread is still running", unter Windows Fehlercode
+    0xC0000409 ohne jede Meldung) - zufaellig, meist erst einige Tests spaeter.
+    """
+    from src.core import pdf_cache as pc
+
+    gestartet = []
+
+    def merken(klasse):
+        original = klasse.start
+
+        def start(self, *args, **kwargs):
+            gestartet.append(self)
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(klasse, "start", start)
+
+    merken(pc.PDFAnalysisWorker)
+    merken(pc.LLMSuggestionWorker)
+    yield
+    for worker in gestartet:
+        try:
+            if worker.isRunning():
+                worker.stop()
+                worker.wait(5000)
+        except RuntimeError:
+            pass  # Qt-Objekt schon geloescht

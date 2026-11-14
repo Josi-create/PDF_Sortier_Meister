@@ -7,6 +7,78 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-14
+
+### Neu
+- **Version im Startbild**: Das Startbild zeigt rechts unten in dezentem Grau die Version, die
+  gerade startet, zum Beispiel „v0.27.0“. Beim Start aus dem Quelltext steht dort zusätzlich
+  „dev“ und der Kurz-Hash des Commits.
+- **Foto entzerren: Ecke außerhalb des Fotos setzen**: Ist ein Blatt angeschnitten fotografiert,
+  fehlt eine Ecke auf dem Bild. Im Fenster „Foto entzerren“ zeigt der neue Knopf „Foto
+  verkleinern“ einen Rand um das Foto. Dorthin zieht man die fehlende Ecke, an die Stelle, an der
+  sich die beiden sichtbaren Blattkanten treffen würden. Der fehlende Zipfel wird im Ergebnis
+  weiß. Setzt schon die automatische Erkennung eine Ecke knapp neben das Foto, ist der Rand von
+  selbst eingeschaltet.
+- **Zielordner: Pfad eingeben wie im Explorer** (#258): Im Suchfeld über dem Ordnerbaum kannst du
+  jetzt auch ein Laufwerk oder einen ganzen Pfad eintippen (z. B. `D:\Ablage`). Die Liste zeigt
+  den Ordner mit seinen Unterordnern, ein Klick springt hinein, und die erste Zeile nimmt ihn als
+  Zielordner auf. Das neue Plus neben dem Suchfeld tut dasselbe; ohne Pfad öffnet es die
+  Ordnerauswahl. Die Suche nach Ordnernamen bleibt, wie sie war.
+- **Einheit bzw. Verbrauchsstelle erkennen** (#257): Wer mehrere Wohnungen oder Zähler an einer
+  Adresse hat, bekommt im Detail-Panel das neue Feld „Einheit“. Die KI liest dafür Verbrauchsstelle
+  oder Lieferanschrift (auch wenn die Rechnungsanschrift eine andere ist) sowie Zählernummer bzw.
+  Vertragskonto. Beim Ablegen merkt sich das Programm den Ordner dieser Einheit und schlägt ihn
+  beim nächsten Dokument mit derselben Zählernummer oder Einheit ganz oben vor. Für das
+  Dateinamen-Muster gibt es den Platzhalter `{einheit}`.
+- **Indexlauf zeigt, dass er arbeitet** (#262): Im Reiter „Suche“ läuft während eines Indexlaufs
+  eine Stoppuhr mit („Indexlauf aktiv – Laufzeit 4:12“), dahinter steht in Klammern, wie lange der
+  letzte Lauf gebraucht hat („letzter kompletter Lauf: 38 min“). Verglichen wird mit dem letzten
+  fertigen Lauf gleicher Art, damit ein kurzer Lauf über die Vorrang-Ordner nicht als Maßstab für
+  den kompletten Lauf dient; das greift ab dem ersten Lauf mit dieser Version, bis dahin steht dort
+  die Dauer des letzten fertigen Laufs. Phase und Zähler stehen wie bisher dahinter, neu auch in
+  der Phase „Bedeutungssuche vorbereiten“ („Bedeutungssuche 1200 von 5400 Seiten“). Läuft nichts,
+  nennt die Zeile zum letzten Lauf jetzt auch dessen Dauer.
+- **Dokumentensuche findet Mails aus Apple Mail** (#261): Auf dem Mac nimmt die Suche neben
+  Thunderbird jetzt auch die Mails aus Apple Mail auf, wenn unter Einstellungen → Suche „Mails in
+  den Index aufnehmen“ eingeschaltet ist. Der Ordner von Apple Mail wird von selbst gefunden.
+  macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat
+  (Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff); fehlt die Freigabe,
+  steht das in den Einstellungen. Ein Treffer öffnet sich wie bisher als Mail und lässt sich als
+  `.eml` speichern. Einzelne Apple-Mail-Dateien (`.emlx`) in einem durchsuchten Ordner werden
+  auf jedem Rechner gelesen, auch unter Windows.
+- **Anleitung für Outlook und andere Mailprogramme** (#261): Unter Einstellungen → Suche erklärt
+  der neue Knopf „Outlook und andere Mailprogramme…“, wie Mails aus Programmen in die Suche
+  kommen, deren Postfach PDF Sortier Meister nicht liest: die Mails als Dateien (`.msg` oder
+  `.eml`) in einen durchsuchten Ordner legen. Die Postfachdateien von Outlook (PST/OST) und das
+  neue Outlook, das Mails nur online hält, werden bewusst nicht gelesen.
+
+### Geändert
+- **Hinweis auf die Windows-Warnung beim Installieren**: README (deutsch und englisch) und jede
+  künftige Release-Beschreibung sagen jetzt gut sichtbar direkt beim Download, dass Windows beim
+  Start der Setup-Datei „Der Computer wurde durch Windows geschützt“ meldet, warum (das Programm
+  ist noch nicht signiert, #163) und wie es weitergeht: „Weitere Informationen“, dann „Trotzdem
+  ausführen“.
+- **Kurzvideo im README**: README.md und README.en.md verlinken oben das Kurzvideo (45 Sekunden,
+  YouTube), das zeigt, was das Programm macht.
+- **Foto entzerren: Ziehen der Ecken ruckelt nicht mehr**: Die Vorschau rechts wird erst
+  berechnet, wenn die Maustaste losgelassen wird, nicht mehr schon während des Ziehens. Das
+  gelbe Viereck folgt der Maus weiterhin sofort.
+- **Stapel: gleichartige Dokumente bekommen gleich aufgebaute Namen** (#256): Wurden mehrere
+  Monatsrechnungen desselben Anbieters zusammen verschoben oder umbenannt, stand der Monat mal im
+  Namen und mal nicht. Trägt jetzt nur ein Teil sonst gleicher Namen so einen Zusatz am Ende,
+  fragt die KI ihn für die übrigen nach; die Rückfrage zeigt die angeglichenen Namen.
+- **Der Chat gibt nicht mehr so schnell auf** (#264): Bisher sagte der Chat zu oft „Ich finde dazu
+  keine passenden Dokumente“, obwohl das Dokument da war. Zwei Ursachen sind behoben. Erstens:
+  Stand in der Frage ein Wort wie „Vermieter“, „Finanzamt“ oder „GEZ“, suchte der Chat nur unter
+  Dokumenten, bei denen genau dieser Absender gespeichert ist. Dokumente ohne gespeicherten
+  Absender (zum Beispiel alles, was nie über PDF Sortier Meister einsortiert wurde) fielen damit
+  ganz heraus. Jetzt sucht der Chat erst mit Absender und, wenn das wenig oder nichts bringt, noch
+  einmal ohne. Dasselbe gilt, wenn die KI beim eigenen Weitersuchen einen Absender angibt, zu dem
+  nichts gespeichert ist. Zweitens: Will die KI aufgeben, bevor sie dreimal selbst gesucht hat,
+  bekommt sie den Hinweis, es mit anderen Wörtern und ohne Filter zu versuchen. Die Höchstzahl der
+  Schritte bleibt, wie sie eingestellt ist. Eine Antwort kann dadurch einige Sekunden länger
+  dauern, wenn wirklich nichts da ist.
+
 ### Behoben
 - **Fenster hängt bei großem Scan-Ordner nicht mehr**: Bei einem Ordner mit einigen hundert PDFs
   stand das Fenster nach dem Start minutenlang mit „Keine Rückmeldung“, solange im Hintergrund
@@ -21,6 +93,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   blieb der Vorschlag aus, wenn das Ziel-PDF noch in der Warteschlange der KI stand; später wäre
   die KI dann mit dem Text von vor dem Zusammenführen gefragt worden. Auch nach dem Drehen gilt
   jetzt: Eine Antwort der KI, die noch zum alten Inhalt gehört, wird verworfen und neu angefordert.
+- **Startbild springt auf skalierten Bildschirmen nicht mehr**: Auf Bildschirmen mit
+  Skalierung (etwa 4K mit 150 % oder 175 %) erschien das Startbild der installierten
+  Windows-Fassung erst vergrößert und unscharf, wurde kurz vor dem Hauptfenster kleiner und
+  rutschte nach links oben. Es hat jetzt von Anfang an dieselbe Größe und bleibt in der
+  Bildschirmmitte. Beim Start aus dem Quelltext und unter macOS ist es bei jeder Skalierung scharf.
+- **Laufwerk als Zielordner ohne Namen** (#258): Ein ganzes Laufwerk steht im Ordnerbaum jetzt
+  als `D:\` statt als leerer Eintrag.
 
 ## [0.28.0] - 2026-11-13
 

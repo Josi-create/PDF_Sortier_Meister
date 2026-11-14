@@ -69,6 +69,7 @@ SELECTION_TARGETS: tuple[tuple[str, str], ...] = (
     ("waehrung", tr("Als Währung übernehmen")),
     ("mwst_satz", tr("Als MwSt-Satz übernehmen")),
     ("iban", tr("Als IBAN übernehmen")),
+    ("einheit", tr("Als Einheit übernehmen")),  # Issue #257
     ("buchungsdatum", tr("Als Datum übernehmen")),  # Issue #132
     ("steuerjahr", tr("Als Steuerjahr übernehmen")),
 )

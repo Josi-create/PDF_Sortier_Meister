@@ -12,13 +12,22 @@ gepatcht, es wird nichts wirklich gestartet.
 from __future__ import annotations
 
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QFileDialog
 
-from src.gui.search_view import SearchView, dokument_html, markiert_html, status_zeile
+from src.gui.search_view import (
+    SearchView,
+    dauer_text,
+    dokument_html,
+    lauf_dauer,
+    markiert_html,
+    status_zeile,
+    stoppuhr_text,
+)
 from src.search.indexer import Indexer
 from src.search.suchindex import Suchindex
 from src.utils.config import Config
@@ -86,6 +95,113 @@ def test_darstellungshelfer():
     html = dokument_html({"typ": "pdf", "name": "x.pdf", "datei": "/nirgends/x.pdf", "pfad": "/nirgends/x.pdf"},
                          [{"seite": 1, "quelle": "ocr", "text": "Hallo \x02Welt\x03", "treffer": True}])
     assert 'name="treffer"' in html and "Seite 1 · OCR" in html and "existiert nicht mehr" in html
+
+
+# --------------------------------------------------------------------------- Stoppuhr des Indexlaufs (Issue #262)
+
+def test_stoppuhr_und_dauer_als_text():
+    assert [stoppuhr_text(x) for x in (0, 9, 252, 3599, 3852, -5)] == ["0:00", "0:09", "4:12", "59:59", "1:04:12", "0:00"]
+    assert [dauer_text(x) for x in (0, 42, 60, 2280, 3540, 3590, 7500)] == [
+        "0 s", "42 s", "1 min", "38 min", "59 min", "1 h 00 min", "2 h 05 min"]
+    # Dauer aus der Statistik, sonst aus Beginn und Ende; ohne Ende unbekannt
+    assert lauf_dauer({"beginn": "2026-01-01T03:00:00", "ende": "2026-01-01T03:38:00"}) == 2280
+    assert lauf_dauer({"beginn": "2026-01-01T03:00:00", "ende": "2026-01-01T03:38:00",
+                       "statistik": {"dauer_s": 100}}) == 100
+    assert lauf_dauer({"beginn": "2026-01-01T03:00:00", "ende": None}) is None
+    assert lauf_dauer({"beginn": "kaputt", "ende": "2026-01-01T03:38:00", "statistik": "kein JSON"}) is None
+
+
+def _stand(laeufe, **kw):
+    return {"vorhanden": True, "dokumente": 1, "pro_typ": {"pdf": 1}, "laeuft": True, "laeufe": laeufe, **kw}
+
+
+def test_status_zeile_laufender_lauf_mit_stoppuhr_und_letzter_dauer():
+    jetzt = datetime(2026, 11, 14, 10, 4, 12)
+    voll = {"beginn": "2026-11-13T03:00:00", "ende": "2026-11-13T03:38:00", "status": "fertig",
+            "statistik": {"art": "voll", "dauer_s": 2280}}
+    kurz = {"beginn": "2026-11-14T09:00:00", "ende": "2026-11-14T09:00:42", "status": "fertig",
+            "statistik": {"art": "vorrang", "dauer_s": 42}}
+    alt = {"beginn": "2026-11-01T03:00:00", "ende": "2026-11-01T03:10:00", "status": "fertig", "statistik": {}}
+    abbruch = {"beginn": "2026-11-12T03:00:00", "ende": "2026-11-12T05:00:00", "status": "abgebrochen",
+               "statistik": {"art": "voll", "dauer_s": 7200}}
+
+    def laeuft(art):
+        return {"beginn": "2026-11-14T10:00:00", "ende": None, "status": "laeuft", "statistik": {"art": art}}
+
+    # kompletter Lauf: verglichen wird mit dem letzten fertigen kompletten Lauf, nicht mit dem kurzen davor
+    s = status_zeile(_stand([laeuft("voll"), kurz, abbruch, voll], fortschritt="Ordner X – gelesen 3"), jetzt)
+    assert "Indexlauf aktiv – Laufzeit 4:12 (letzter kompletter Lauf: 38 min): Ordner X – gelesen 3" in s
+    s = status_zeile(_stand([laeuft("vorrang"), kurz, voll]), jetzt)
+    assert s.endswith("Indexlauf aktiv – Laufzeit 4:12 (letzter Lauf: 42 s)")
+    # Laeufe aelterer Versionen kennen ihre Art nicht: sie dienen als Ersatz, solange kein gleicher Lauf fertig ist
+    assert status_zeile(_stand([laeuft("voll"), kurz, alt]), jetzt).endswith("Laufzeit 4:12 (letzter Lauf: 10 min)")
+    # noch nie ein Lauf fertig geworden: nur die Stoppuhr
+    assert status_zeile(_stand([laeuft("voll"), abbruch]), jetzt).endswith("Indexlauf aktiv – Laufzeit 4:12")
+    # der Beginn aus der Datenbank geht dem Klick vor; die Uhr laeuft nie rueckwaerts
+    assert "Laufzeit 4:12" in status_zeile(_stand([laeuft("voll")]), jetzt, jetzt - timedelta(seconds=5))
+    assert "Laufzeit 0:00" in status_zeile(_stand([laeuft("voll")]), datetime(2026, 11, 14, 9, 59, 0))
+
+
+def test_status_zeile_lauf_noch_nicht_in_der_datenbank():
+    jetzt = datetime(2026, 11, 14, 10, 0, 7)
+    fertig = {"beginn": "2026-11-13T03:00:00", "ende": "2026-11-13T03:38:00", "status": "fertig"}
+    # gerade gestartet, die Zeile des neuen Laufs fehlt noch: die Uhr zaehlt ab dem Klick
+    s = status_zeile(_stand([fertig]), jetzt, jetzt - timedelta(seconds=7))
+    assert s.endswith("Indexlauf aktiv – Laufzeit 0:07 (letzter Lauf: 38 min)")
+    # ohne Klick und ohne Zeile (Lauf von aussen, Datenbank noch leer): keine erfundene Zeit
+    assert status_zeile(_stand([]), jetzt).endswith("Indexlauf aktiv")
+    assert status_zeile(_stand([], fortschritt="Laufwerke"), None).endswith("Indexlauf aktiv: Laufwerke")
+
+
+def test_status_zeile_letzter_lauf_nennt_die_dauer():
+    s = status_zeile({"vorhanden": True, "dokumente": 1, "pro_typ": {"pdf": 1}, "laeufe": [
+        {"beginn": "2026-01-01T03:00:00", "ende": "2026-01-01T03:38:00", "status": "fertig"}]})
+    assert s.endswith("Letzter Lauf: 2026-01-01T03:00:00 (fertig, Dauer 38 min)")
+
+
+def test_indexlauf_merkt_sich_art_und_dauer(index_konfig, tmp_path):
+    laeufe = Suchindex(index_konfig).status()["laeufe"]
+    assert laeufe[0]["status"] == "fertig" and laeufe[0]["statistik"]["art"] == "voll"
+    assert lauf_dauer(laeufe[0]) == laeufe[0]["statistik"]["dauer_s"]
+    assert Indexer(index_konfig, synchron=True).lauf(nur_prioritaet=True) == 0
+    assert Indexer(index_konfig, synchron=True).lauf(nur_pfad=str(tmp_path / "Ablage")) == 0
+    assert Indexer(index_konfig, synchron=True).lauf(nur_textebene=True) == 0
+    arten = [lauf["statistik"]["art"] for lauf in Suchindex(index_konfig).status()["laeufe"]]
+    assert arten == ["textebene", "ordner", "vorrang", "voll"]
+
+
+def test_stoppuhr_zaehlt_im_reiter_weiter(qtbot, view, monkeypatch):
+    with qtbot.waitSignal(view.status_aktualisiert, timeout=10000):
+        view.refresh_status()
+    assert not view._uhr_timer.isActive() and "Dauer" in view.status_label.text()
+
+    monkeypatch.setattr(Suchindex, "lauf_starten", lambda self, **kw: object())
+    monkeypatch.setattr(Suchindex, "laeuft_gerade", lambda self: True)
+    view._lauf_starten(False)
+    view._nachlauf_timer.stop()
+    view._lauf_geklickt = datetime.now() - timedelta(seconds=75)
+    with qtbot.waitSignal(view.status_aktualisiert, timeout=10000):
+        view.refresh_status()
+    assert view._uhr_timer.isActive()
+    text = view.status_label.text()
+    assert "Indexlauf aktiv – Laufzeit 1:1" in text and "(letzter Lauf: " in text
+
+    # ein Tick spaeter steht eine andere Zahl da
+    view._lauf_geklickt -= timedelta(seconds=60)
+    view._uhr_tick()
+    assert "Laufzeit 2:1" in view.status_label.text()
+
+    # eine andere Meldung in der Zeile ueberschreibt die Uhr nicht
+    view.status_label.setText("Der Indexlauf hält an …")
+    view._uhr_tick()
+    assert view.status_label.text() == "Der Indexlauf hält an …"
+
+    # Lauf zu Ende: Uhr steht, Klick-Zeit vergessen
+    monkeypatch.setattr(Suchindex, "laeuft_gerade", lambda self: False)
+    with qtbot.waitSignal(view.status_aktualisiert, timeout=10000):
+        view.refresh_status()
+    assert not view._uhr_timer.isActive() and view._lauf_geklickt is None
+    assert "Letzter Lauf" in view.status_label.text() and "Laufzeit" not in view.status_label.text()
 
 
 # --------------------------------------------------------------------------- Einrichtung

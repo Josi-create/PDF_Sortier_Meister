@@ -13,7 +13,8 @@ from typing import Iterator
 MAX_KOPF = 6 * 1024 * 1024          # so viel einer Mail wird zum Zerlegen weitergegeben
 _STATUS = re.compile(rb"^X-Mozilla-Status: ([0-9A-Fa-f]{1,4})", re.M)
 MSG_EXPUNGED = 0x0008
-_KEINE_MBOX = (".msf", ".dat", ".json", ".sqlite", ".html", ".txt", ".js", ".mozlz4")
+_KEINE_MBOX = (".msf", ".dat", ".json", ".sqlite", ".html", ".txt", ".js", ".mozlz4",
+               ".emlx", ".emlxpart", ".plist")   # Apple Mail: jede Mail eine Datei, nie eine mbox
 
 
 def ist_mbox(pfad: str) -> bool:

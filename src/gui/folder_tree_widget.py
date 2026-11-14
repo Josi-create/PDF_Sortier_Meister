@@ -16,7 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread, QFile
 from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent
 
 from src.core.office_convert import ist_sortierbar
-from src.core.ordnersuche import index_ordner_neu, indizes_veraltet
+from src.core.ordnersuche import anzeigename, index_ordner_neu, indizes_veraltet, pfad_eingabe
 from src.core.ordner_verschieben import pruefe as ordner_pruefen
 from src.gui.farben import melder, qfarbe, stil
 from src.gui.hierhin_kopieren import drop_aktion_setzen, kopier_eintrag, ordner_aus_mime
@@ -115,6 +115,9 @@ class FolderTreeWidget(QWidget):
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
     ordner_dropped = pyqtSignal(Path, Path)  # Ordnerzeile gezogen: (Ordner, Zielordner), Issue #196
     ordner_copy_dropped = pyqtSignal(Path, Path)  # dasselbe mit Strg: kopieren, Issue #196
+    # Plus am Suchfeld bzw. Zeile "Als Zielordner hinzufügen" (Issue #258):
+    # Path = diesen Ordner aufnehmen, None = Ordner im Dialog auswaehlen
+    zielordner_hinzufuegen = pyqtSignal(object)
 
     # Kontextmenue (Issue #93)
     EXPAND_LEVELS = 3  # "Alle Unterordner aufklappen": so viele Ebenen tief
@@ -131,6 +134,7 @@ class FolderTreeWidget(QWidget):
         self._unloaded: set[Path] = set()
         self._subtree_threads: set[_TreeScanThread] = set()
         self._scan_generation = 0  # verwirft Ergebnisse veralteter Scans
+        self._reveal_after_scan: Optional[Path] = None  # neuer Zielordner, nach dem Scan markieren (#258)
         self._scan_thread: Optional[_TreeScanThread] = None
         self.async_scan = True  # Tests koennen synchron scannen
         self._selected_folder: Optional[Path] = None
@@ -198,9 +202,27 @@ class FolderTreeWidget(QWidget):
         layout.addWidget(self.view_root_bar)
 
         # Ordnersuche oberhalb des Baums (Issue #159)
-        self.suchfeld = OrdnerSuchfeld(self._effective_roots)
+        # Issue #258: ein getippter Pfad (auch ausserhalb der Zielordner) laesst
+        # sich durchklicken und ueber die Liste oder das Plus aufnehmen
+        self.suchfeld = OrdnerSuchfeld(
+            self._effective_roots,
+            platzhalter=tr("Ordner suchen (z. B. Zeugn*) oder Pfad eingeben"),
+            pfad_eingabe=True,
+        )
         self.suchfeld.treffer_gewaehlt.connect(self.reveal_folder)
-        layout.addWidget(self.suchfeld)
+        self.suchfeld.hinzufuegen_gewuenscht.connect(self._pfad_hinzufuegen)
+        self.add_btn = QPushButton("➕")
+        self.add_btn.setFixedSize(24, 24)
+        self.add_btn.setToolTip(
+            tr("Zielordner hinzufügen: den im Suchfeld eingegebenen Pfad, sonst Ordner auswählen")
+        )
+        self.add_btn.clicked.connect(self._plus_geklickt)
+        such_zeile = QHBoxLayout()
+        such_zeile.setContentsMargins(0, 0, 0, 0)
+        such_zeile.setSpacing(4)
+        such_zeile.addWidget(self.suchfeld, stretch=1)
+        such_zeile.addWidget(self.add_btn, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(such_zeile)
 
         # Tree Widget
         self.tree = QTreeWidget()
@@ -304,6 +326,26 @@ class FolderTreeWidget(QWidget):
         self._suggestion_folders = []
         self._update_item_styles()
 
+    def _plus_geklickt(self):
+        """Plus am Suchfeld: getippten Ordner aufnehmen, sonst den Auswahldialog oeffnen."""
+        eingabe = pfad_eingabe(self.suchfeld.eingabe.text())
+        pfad = eingabe.ordner if eingabe is not None else None
+        if pfad is not None:
+            self.suchfeld.zuruecksetzen()
+        self.zielordner_hinzufuegen.emit(pfad)
+
+    def _pfad_hinzufuegen(self, pfad: Path):
+        """Zeile "als Zielordner hinzufügen" der Pfadeingabe."""
+        if any(pfad.is_relative_to(wurzel) for wurzel in self._root_folders):
+            # nur bei "Als Wurzel anzeigen": der Ordner gehoert schon zu den Zielordnern
+            self.status_message.emit(tr("Ordner nicht im sichtbaren Baum: {name}").format(name=anzeigename(pfad)))
+            return
+        self.zielordner_hinzufuegen.emit(pfad)
+
+    def reveal_after_scan(self, folder: Path):
+        """Markiert den Ordner, sobald der naechste Neuaufbau des Baums fertig ist."""
+        self._reveal_after_scan = Path(folder)
+
     def _aktualisieren_geklickt(self):
         """Knopf 🔄: Baum neu aufbauen und die Ordnersuche neu einlesen lassen."""
         indizes_veraltet()
@@ -326,7 +368,7 @@ class FolderTreeWidget(QWidget):
         self._unloaded.clear()
         for root in roots:
             item = QTreeWidgetItem(self.tree)
-            item.setText(0, f"📁 {root.name}  …")
+            item.setText(0, f"📁 {anzeigename(root)}  …")
             item.setData(0, Qt.ItemDataRole.UserRole, str(root))
             item.setToolTip(0, tr("{root}\nOrdner werden geladen…").format(root=root))
             self._items[root] = item
@@ -354,7 +396,7 @@ class FolderTreeWidget(QWidget):
         """Zeigt nur den Teilbaum ab folder (None = Gesamtansicht)."""
         self._view_root = Path(folder) if folder is not None else None
         if self._view_root is not None:
-            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=self._view_root.name))
+            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=anzeigename(self._view_root)))
             self.view_root_label.setToolTip(str(self._view_root))
         self.view_root_bar.setVisible(self._view_root is not None)
         self.refresh_tree()
@@ -370,6 +412,9 @@ class FolderTreeWidget(QWidget):
 
         # Alle Einträge expandieren (erste Ebene)
         self.tree.expandToDepth(0)
+        vorgemerkt, self._reveal_after_scan = self._reveal_after_scan, None
+        if vorgemerkt is not None and vorgemerkt in self._items:
+            self._mark_folder(vorgemerkt)
         self.scan_finished.emit()
 
     def _insert_entries(self, entries: list):
@@ -433,7 +478,8 @@ class FolderTreeWidget(QWidget):
 
     @staticmethod
     def _item_text(folder_path: Path, pdf_count: int) -> str:
-        return f"📁 {folder_path.name}  [{pdf_count}]" if pdf_count > 0 else f"📁 {folder_path.name}"
+        name = anzeigename(folder_path)  # ein Laufwerk hat keinen Namen (#258)
+        return f"📁 {name}  [{pdf_count}]" if pdf_count > 0 else f"📁 {name}"
 
     def add_folder_incremental(self, folder_path: Path) -> bool:
         """Fuegt einen einzelnen Ordner unter seinem (vorhandenen) Elternteil ein."""
@@ -487,7 +533,7 @@ class FolderTreeWidget(QWidget):
         pdf_count = self._count_pdfs(folder_path)
 
         # Item-Text formatieren
-        display_name = folder_path.name
+        display_name = anzeigename(folder_path)
         if pdf_count > 0:
             display_text = f"📁 {display_name}  [{pdf_count}]"
         else:
@@ -897,7 +943,7 @@ class FolderTreeWidget(QWidget):
             self._selected_folder = conv(self._selected_folder)
         if self._view_root is not None:
             self._view_root = conv(self._view_root)
-            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=self._view_root.name))
+            self.view_root_label.setText(tr("🔎 Ansicht: {name}").format(name=anzeigename(self._view_root)))
             self.view_root_label.setToolTip(str(self._view_root))
         item = self._items.get(new)
         if item is not None:
@@ -1209,11 +1255,12 @@ class FolderTreeWidget(QWidget):
         for root in self._root_folders:
             try:
                 relative = folder_path.relative_to(root.parent)
-                return str(relative)
             except ValueError:
                 continue
+            # Laufwerk als Zielordner: es ist sein eigener Elternordner (#258)
+            return anzeigename(folder_path) if relative == Path(".") else str(relative)
 
-        return folder_path.name
+        return anzeigename(folder_path)
 
     def expand_to_folder(self, folder_path: Path):
         """Expandiert den Baum bis zum angegebenen Ordner."""

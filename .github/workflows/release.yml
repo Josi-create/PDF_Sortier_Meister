@@ -152,3 +152,22 @@ jobs:
         with:
           draft: true
           files: assets/*
+          # Hinweis auf die SmartScreen-Warnung steht in jeder Release-Beschreibung
+          # oben (solange die Programme nicht signiert sind, #163). Die Release-Notes
+          # kommen von Hand darunter, siehe docs/RELEASE_CHECKLISTE.md.
+          # append_body: Laeuft der Workflow fuer einen Tag noch einmal, bleiben schon
+          # geschriebene Release-Notes stehen (der Kasten haengt dann doppelt am Ende).
+          append_body: true
+          body: |
+            > [!IMPORTANT]
+            > **Windows warnt beim Start von `PDF_Sortier_Meister_Setup.exe`. Das ist bei diesem Programm zu erwarten.**
+            > Es erscheint ein blaues Fenster **„Der Computer wurde durch Windows geschützt“** (SmartScreen, „Unbekannter Herausgeber“). So geht es weiter:
+            >
+            > 1. auf **„Weitere Informationen“** klicken,
+            > 2. dann auf **„Trotzdem ausführen“**.
+            >
+            > Der Grund: Das Programm ist noch nicht signiert (siehe #163). Windows kennt deshalb den Herausgeber nicht. Der Quellcode ist öffentlich einsehbar.
+            >
+            > **English:** Windows shows **“Windows protected your PC”** when you start the setup file. Click **“More info”**, then **“Run anyway”**. The program is not code-signed yet (see #163).
+
+            <!-- Release-Notes hier darunter einfuegen (Neu / Behoben / Fuer Beta-Tester) -->

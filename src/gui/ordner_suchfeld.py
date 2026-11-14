@@ -11,26 +11,39 @@ zeigt die Liste die bisherigen Treffer und wird alle 500 ms aufgefrischt.
 Signale: ``treffer_gewaehlt(Path)`` bei Klick oder Enter, ``beendet`` bei Esc,
 Fokusverlust oder nach der Auswahl.
 
+Mit ``pfad_eingabe=True`` (Zielordner-Baum, Issue #258) wird ein getippter
+Pfad (Laufwerk oder vollstaendiger Pfad) wie im Explorer behandelt: Die Liste
+zeigt den Ordner und seine Unterordner, ein Unterordner springt hinein, die
+erste Zeile zeigt den Ordner im Baum oder bietet ihn als neuen Zielordner an
+(``hinzufuegen_gewuenscht(Path)``).
+
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
+import os
 from pathlib import Path
 from typing import Callable
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QSizePolicy, QVBoxLayout, QWidget
 
-from src.core.ordnersuche import Treffer, indizes_vorwaermen, suche_im_index
+from src.core.ordnersuche import (
+    PfadEingabe, Treffer, anzeigename, indizes_vorwaermen, pfad_eingabe, suche_im_index,
+)
 from src.gui.farben import stil
 from src.i18n import tr
 
 _ROLLE_PFAD = Qt.ItemDataRole.UserRole
+_ROLLE_AKTION = Qt.ItemDataRole.UserRole + 1
+# Zeilen der Pfadeingabe (#258); Treffer der Namenssuche haben keine Aktion
+_ZEIGEN, _HINZUFUEGEN, _HINEIN = "zeigen", "hinzufuegen", "hinein"
 
 
 class OrdnerSuchfeld(QWidget):
     """Eingabefeld plus Trefferliste fuer die Ordnersuche."""
 
     treffer_gewaehlt = pyqtSignal(Path)
+    hinzufuegen_gewuenscht = pyqtSignal(Path)  # getippter Pfad liegt unter keiner Wurzel (#258)
     beendet = pyqtSignal()
 
     VERZOEGERUNG_MS = 300
@@ -43,11 +56,14 @@ class OrdnerSuchfeld(QWidget):
         platzhalter: str = tr("Ordner suchen … (z. B. Zeugn*)"),
         schwebend: bool = False,
         parent=None,
+        pfad_eingabe: bool = False,
     ):
         super().__init__(parent)
         self._wurzeln = wurzeln
         self._schwebend = schwebend
+        self._pfad_eingabe = pfad_eingabe
         self._treffer: list[Treffer] = []
+        self._pfad_zeilen: list[tuple[str, Path]] = []  # (Aktion, Ordner) bei Pfadeingabe
         self.vollstaendig = True  # False: Index liest noch ein, Liste kann wachsen
         self._enter_vorgemerkt = False  # Enter vor dem Ergebnis: ersten Treffer nehmen
 
@@ -88,6 +104,7 @@ class OrdnerSuchfeld(QWidget):
     def _on_text_geaendert(self, text: str):
         self._abbrechen()
         self._treffer = []  # gehoeren zum alten Text
+        self._pfad_zeilen = []
         if not text.strip():
             self._timer.stop()
             self.liste.setVisible(False)
@@ -105,6 +122,10 @@ class OrdnerSuchfeld(QWidget):
         """Filtert den Ordner-Index (im Speicher, schnell); liest er noch ein: gleich nochmal."""
         text = self.eingabe.text()
         if not text.strip():
+            return
+        eingabe = pfad_eingabe(text) if self._pfad_eingabe else None
+        if eingabe is not None:
+            self._zeige_pfad(eingabe)
             return
         treffer, self.vollstaendig, gelesen = suche_im_index(self._wurzeln(), text)
         zeile = max(self.liste.currentRow(), 0) if self._treffer else 0
@@ -134,6 +155,63 @@ class OrdnerSuchfeld(QWidget):
         if self._enter_vorgemerkt:
             self._waehlen(treffer[0].pfad)
 
+    def _zeige_pfad(self, eingabe: PfadEingabe):
+        """Pfadeingabe (#258): der Ordner selbst, darunter seine Unterordner zum Hineinspringen."""
+        self._treffer = []
+        self.vollstaendig = True
+        zeilen: list[tuple[str, Path, str, str]] = []  # (Aktion, Ordner, Text, Tooltip)
+        if eingabe.ordner is not None:
+            # nur der Name: der Pfad steht schon im Feld, die Zeile bleibt ohne Rollbalken lesbar
+            name = anzeigename(eingabe.ordner)
+            if self._unter_wurzel(eingabe.ordner):
+                zeilen.append((
+                    _ZEIGEN, eingabe.ordner, f"📁 {name}",
+                    tr("Im Ordnerbaum zeigen: {pfad}").format(pfad=eingabe.ordner),
+                ))
+            else:
+                zeilen.append((
+                    _HINZUFUEGEN, eingabe.ordner,
+                    tr("➕ „{name}“ als Zielordner hinzufügen").format(name=name),
+                    tr("Nimmt diesen Ordner in die Zielordner auf: {pfad}").format(pfad=eingabe.ordner),
+                ))
+        for kind in eingabe.kinder:
+            zeilen.append((_HINEIN, kind, f"    ↳ {kind.name}", tr("Hineinspringen: {pfad}").format(pfad=kind)))
+        if not zeilen:
+            self._zeige_hinweis(tr("Ordner nicht gefunden"))
+            return
+        self.liste.clear()
+        for aktion, pfad, text, tooltip in zeilen:
+            item = QListWidgetItem(text)
+            item.setData(_ROLLE_PFAD, str(pfad))
+            item.setData(_ROLLE_AKTION, aktion)
+            item.setToolTip(tooltip)
+            self.liste.addItem(item)
+        self._pfad_zeilen = [(aktion, pfad) for aktion, pfad, _text, _tooltip in zeilen]
+        self.liste.setCurrentRow(0)
+        self._liste_zeigen()
+
+    def _unter_wurzel(self, pfad: Path) -> bool:
+        """Liegt der Ordner in einer der Wurzeln (dann kann der Baum ihn zeigen)?"""
+        for wurzel in self._wurzeln():
+            try:
+                pfad.relative_to(wurzel)
+                return True
+            except ValueError:
+                continue
+        return False
+
+    def _pfad_zeile_ausfuehren(self, aktion: str, pfad: Path):
+        if aktion == _HINEIN:
+            text = str(pfad)
+            self.eingabe.setText(text if text.endswith(os.sep) else text + os.sep)
+            self.eingabe.setFocus()
+        elif aktion == _HINZUFUEGEN:
+            self.zuruecksetzen()
+            self.hinzufuegen_gewuenscht.emit(pfad)
+            self.beendet.emit()
+        else:
+            self._waehlen(pfad)
+
     def _zeige_hinweis(self, text: str):
         self.liste.clear()
         item = QListWidgetItem(text)
@@ -157,7 +235,10 @@ class OrdnerSuchfeld(QWidget):
     # ------------------------------------------------------------- Auswahl
     def _on_item_geklickt(self, item: QListWidgetItem):
         pfad = item.data(_ROLLE_PFAD)
-        if pfad:
+        aktion = item.data(_ROLLE_AKTION)
+        if pfad and aktion:
+            self._pfad_zeile_ausfuehren(aktion, Path(pfad))
+        elif pfad:
             self._waehlen(Path(pfad))
 
     def _waehlen(self, pfad: Path):
@@ -170,6 +251,7 @@ class OrdnerSuchfeld(QWidget):
         self._abbrechen()
         self._timer.stop()
         self._treffer = []
+        self._pfad_zeilen = []
         self.eingabe.clear()
         self.liste.clear()
         self.liste.setVisible(False)
@@ -194,9 +276,10 @@ class OrdnerSuchfeld(QWidget):
                 if taste in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     self._enter()
                     return True
-                if taste in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self._treffer:
+                anzahl = len(self._treffer) or len(self._pfad_zeilen)
+                if taste in (Qt.Key.Key_Down, Qt.Key.Key_Up) and anzahl:
                     zeile = self.liste.currentRow() + (1 if taste == Qt.Key.Key_Down else -1)
-                    self.liste.setCurrentRow(max(0, min(zeile, len(self._treffer) - 1)))
+                    self.liste.setCurrentRow(max(0, min(zeile, anzahl - 1)))
                     return True
             elif event.type() == QEvent.Type.FocusOut and self._schwebend:
                 if event.reason() not in (
@@ -212,7 +295,10 @@ class OrdnerSuchfeld(QWidget):
         if self._timer.isActive():
             self._timer.stop()
             self._suchen()
-        if self._treffer:
+        if self._pfad_zeilen:
+            zeile = max(self.liste.currentRow(), 0)
+            self._pfad_zeile_ausfuehren(*self._pfad_zeilen[min(zeile, len(self._pfad_zeilen) - 1)])
+        elif self._treffer:
             zeile = max(self.liste.currentRow(), 0)
             self._waehlen(self._treffer[min(zeile, len(self._treffer) - 1)].pfad)
         elif not self.vollstaendig:

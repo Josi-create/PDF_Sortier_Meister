@@ -9,6 +9,8 @@
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-black?logo=apple)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
+▶️ **[Short video: what the program does (45 seconds, in German, YouTube)](https://youtube.com/shorts/ym5YqVzNk0Q)**
+
 ![Main window: PDF preview on the left, suggestions and metadata in the middle, target folders on the right](docs/screenshots/hauptfenster-en.png)
 
 Your scanner saves `scan_0042.pdf` — and then? PDF Sortier Meister shows the scans as previews,
@@ -35,12 +37,23 @@ keywords (`ODER`, `NICHT`, `ab`, `bis`) are the same in both languages.
 ### Windows
 
 1. Download [`PDF_Sortier_Meister_Setup.exe`](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest/download/PDF_Sortier_Meister_Setup.exe) — this link always points to the latest version.
-2. Double-click the setup file → Next → Finish.
+2. Double-click the setup file. Windows then shows a warning, see the box below. After that: Next → Finish.
 3. At the first start, the setup wizard guides you through scan folder, target folder and (optionally) an AI provider.
 
+> [!IMPORTANT]
+> **Windows warns when you start the setup file. This is expected for this program.**
+> A blue window **“Windows protected your PC”** appears (SmartScreen, “Unknown publisher”).
+> To continue:
+>
+> 1. click **“More info”**,
+> 2. then click **“Run anyway”**.
+>
+> The reason: the program is not code-signed yet
+> (see [issue #163](https://github.com/Josi-create/PDF_Sortier_Meister/issues/163)), so Windows does
+> not know the publisher. The source code is public in this repository.
+
 Text recognition (OCR, Tesseract) is **included**. To update, install the new version over the old
-one; settings and learned data are kept. Windows SmartScreen may warn because the program is not
-signed: *“More info” → “Run anyway”*. A portable ZIP is on the
+one; settings and learned data are kept. A portable ZIP is on the
 [release page](https://github.com/Josi-create/PDF_Sortier_Meister/releases/latest).
 
 ### macOS
@@ -79,7 +92,7 @@ signed: *“More info” → “Run anyway”*. A portable ZIP is on the
 
 ### Document search across the whole PC
 - **Full-text search** in PDFs (including scans), Word, Excel, OpenDocument, Markdown and mails
-  (Thunderbird, `.eml`, `.msg`) in the folders and drives you choose; off by default
+  (Thunderbird, on the Mac also Apple Mail, plus `.eml` and `.msg` files, e.g. saved from Outlook) in the folders and drives you choose; off by default
 - Runs **once a day in the background** when the computer is idle
 - Optional invisible **text layer** for new scans, rotation and straightening — always with a backup copy
 - **AI assistants (MCP)**: Claude Code, Claude Desktop and other MCP-capable programs can search the
