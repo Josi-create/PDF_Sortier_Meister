@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter
 )
 from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
@@ -28,6 +28,22 @@ from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
 from src.rag.bezug import SCHNELLFRAGEN, schnellfragen_aus_text
+
+
+def _modellsuche_einrichten(combo: QComboBox) -> None:
+    """Macht eine editierbare Modell-Auswahl durchsuchbar (#293).
+
+    Tippen zeigt nur die Einträge, die den Text irgendwo im Namen enthalten,
+    ohne Rücksicht auf Groß-/Kleinschreibung. Der Completer arbeitet direkt
+    auf dem Modell der Auswahl, bleibt also nach ``clear()``/``addItems()``
+    aktuell.
+    """
+    completer = QCompleter(combo.model(), combo)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+    completer.setMaxVisibleItems(15)
+    combo.setCompleter(completer)
 
 
 class _Hintergrund(QObject):
@@ -294,6 +310,7 @@ class SettingsDialog(QDialog):
         model_row_layout = QHBoxLayout()
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
+        _modellsuche_einrichten(self.model_combo)
         model_row_layout.addWidget(self.model_combo, 1)
 
         self.refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
@@ -419,6 +436,7 @@ class SettingsDialog(QDialog):
         model_row = QHBoxLayout()
         self.chat_model_combo = QComboBox()
         self.chat_model_combo.setEditable(True)
+        _modellsuche_einrichten(self.chat_model_combo)
         model_row.addWidget(self.chat_model_combo, 1)
         self.chat_refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
         self.chat_refresh_models_button.setToolTip(
