@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Vorgeschlagenes Ziel links öffnen** (#273): Das Rechtsklick-Menü einer Kachel unter
+  „Vorgeschlagene Ziele“ hat den neuen Eintrag „Ordner links öffnen“. Er zeigt den Ordner links
+  im Programm, so wie der gleichnamige Eintrag im Ordnerbaum, ohne etwas zu verschieben. Bei
+  einem Vorschlag für einen Ordner, den es noch nicht gibt, fehlt der Eintrag.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
