@@ -1791,6 +1791,10 @@ msgstr "Folder not in the visible tree: {name}"
 msgid "{folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher."
 msgstr "{folder_path}\nClicking moves the selected PDF here."
 
+#: src/gui/vorschlag_liste.py
+msgid "Ziehen ändert die Höhe der Vorschläge.\nDoppelklick: genau so hoch, dass alle Vorschläge Platz haben."
+msgstr "Drag to change the height of the suggestions.\nDouble-click: just high enough for all suggestions to fit."
+
 #: src/gui/folder_widget.py
 msgid "1 PDF"
 msgstr "1 PDF"

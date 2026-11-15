@@ -156,6 +156,10 @@ class Config:
         # [Breite, Hoehe] des Einstellungsfensters; leer = passend zum Inhalt (Issue #255)
         "settings_dialog_size": [],
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
+        # Gezogene Hoehe von "Vorgeschlagene Ziele" (0 = passend zum Inhalt) und die
+        # Fenstergroesse [Breite, Hoehe], bei der sie gezogen wurde (Issue #268)
+        "vorschlaege_hoehe": 0,
+        "vorschlaege_hoehe_fenster": [],
         # Vorschlagsliste unter "Neuer Dateiname" aufgeklappt (Issue #146)
         "suggestions_expanded": False,
         # Original nach dem Umwandeln in PDF / Trennen (Issues #184, #187):
