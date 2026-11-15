@@ -3003,6 +3003,34 @@ msgid "Löschen fehlgeschlagen:\n{e}"
 msgstr "Deleting failed:\n{e}"
 
 #: src/gui/main_window.py
+msgid "Markierte Dateien in den Papierkorb verschieben (Entf)"
+msgstr "Move the selected files to the Recycle Bin (Del)"
+
+#: src/gui/main_window.py
+msgid "Keine Datei markiert"
+msgstr "No file selected"
+
+#: src/gui/main_window.py
+msgid "Dateien löschen"
+msgstr "Delete files"
+
+#: src/gui/main_window.py
+msgid "Möchten Sie {anzahl} Dateien in den Papierkorb verschieben?\n\n{namen}"
+msgstr "Do you want to move {anzahl} files to the Recycle Bin?\n\n{namen}"
+
+#: src/gui/main_window.py
+msgid "Papierkorb nicht verfügbar – {anzahl} Datei(en) endgültig löschen?\n\n{namen}"
+msgstr "Recycle Bin not available – delete {anzahl} file(s) permanently?\n\n{namen}"
+
+#: src/gui/main_window.py
+msgid "Gelöscht: {anzahl} Dateien"
+msgstr "Deleted: {anzahl} files"
+
+#: src/gui/main_window.py
+msgid "Löschen: {anzahl} Dateien"
+msgstr "Delete: {anzahl} files"
+
+#: src/gui/main_window.py
 msgid "Zielordner auswählen"
 msgstr "Choose target folder"
 

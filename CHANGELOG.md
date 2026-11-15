@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Entf legt markierte Dateien in den Papierkorb** (#272): Eine Kachel anklicken und Entf drücken,
+  nach der gewohnten Rückfrage liegt die Datei im Papierkorb, genau wie über „Löschen“ im
+  Rechtsklick-Menü. Sind mehrere Kacheln markiert, gilt Entf für alle: eine Rückfrage nennt die
+  Dateien, und ein einziges Strg+Z holt alle zurück. Entf wirkt nur, wenn zuletzt in die Kacheln
+  geklickt wurde; in Textfeldern löscht die Taste weiter Zeichen. Derselbe Befehl steht im Menü
+  *Bearbeiten → In den Papierkorb*. Am Mac geht auch Cmd+Rückschritt wie im Finder.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
