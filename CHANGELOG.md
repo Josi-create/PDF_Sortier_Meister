@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Sortieren nach dem Datum im Dateinamen** (#296): Die Auswahl „Sortieren“ über den Kacheln hat
+  zwei neue Einträge, „Datum im Namen: neueste zuerst“ und „Datum im Namen: älteste zuerst“. Sie
+  richten sich nach dem Belegdatum am Anfang des Namens (`JJJJ-MM-TT_…`), sodass ein heute
+  umbenanntes Schreiben von 2010 nicht mehr ganz oben steht. Dateien ohne Datum im Namen reihen
+  sich nach ihrem Dateidatum ein. Die bisherige Sortierung „Datum“ (nach dem Dateidatum) bleibt
+  unverändert.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
