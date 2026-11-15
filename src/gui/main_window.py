@@ -96,6 +96,7 @@ from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
+from src.gui import seiten_bearbeiten
 from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
@@ -1271,6 +1272,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         widget.copy_requested.connect(self.on_pdf_copy)
         widget.batch_rename_requested.connect(self.on_batch_rename)
         widget.split_requested.connect(self.on_pdf_split)
+        widget.seiten_requested.connect(self.on_pdf_seiten)  # Issue #280
         widget.ki_split_requested.connect(self.on_pdf_ki_split)
         widget.merge_requested.connect(self.on_pdf_merge)
         widget.stack_requested.connect(self.on_pdf_stacked)
@@ -3935,6 +3937,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         except Exception as e:
             QMessageBox.critical(self, tr("Fehler"), tr("PDF trennen fehlgeschlagen:\n{e}").format(e=e))
 
+    def on_pdf_seiten(self, pdf_path: Path):
+        """Kontextmenue "Seiten bearbeiten…": einzelne Seiten loeschen, umsortieren, drehen (Issue #280)."""
+        seiten_bearbeiten.bearbeiten(self, pdf_path)
+
     def on_pdf_merge(self):
         """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
         pdfs_to_merge = [p for p in self.selected_pdfs if p.suffix.lower() == ".pdf"]
@@ -4373,6 +4379,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._undo_rotate(entry)
         elif entry_type == "gerade":
             self._undo_gerade(entry)
+        elif entry_type == "seiten":  # Issue #280: Seiten geloescht/umsortiert/gedreht
+            seiten_bearbeiten.rueckgaengig(self, entry)
         elif entry_type == "delete":
             self._undo_delete(entry)
         elif entry_type == "wegraeumen":  # Issues #184/#187: Original(e) nach Umwandeln/Trennen

@@ -7,6 +7,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Einzelne Seiten löschen, umsortieren und drehen** (#280): Rechtsklick auf eine PDF › „Seiten
+  bearbeiten…“ öffnet ein Fenster mit den Miniaturen aller Seiten. Dort lassen sich Seiten zum
+  Löschen vormerken (durchkreuzt, „Doch behalten“ nimmt es zurück), einzeln um 90° drehen und
+  per Ziehen oder mit „Nach vorn“ und „Nach hinten“ in eine andere Reihenfolge bringen.
+  „Leere Seiten markieren“ sucht fast weiße Seiten, etwa die leeren Rückseiten vom
+  Duplex-Scan, und merkt sie zum Löschen vor; gelöscht wird nichts, bevor du es gesehen hast.
+  Erst „Speichern“ ändert die Datei. Vorher legt das Programm eine Sicherungskopie an, Strg+Z
+  holt den alten Stand zurück. Scanbild, Textebene und die Angaben zum Dokument bleiben, wie sie
+  sind; der Suchindex liest die PDF danach neu ein. Digital signierte und verschlüsselte PDFs
+  werden nicht verändert.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu

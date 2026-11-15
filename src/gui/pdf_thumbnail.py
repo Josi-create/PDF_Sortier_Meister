@@ -142,6 +142,7 @@ class PDFThumbnailWidget(QFrame):
     copy_requested = pyqtSignal(Path)  # Kopie erstellen angefordert
     batch_rename_requested = pyqtSignal()  # Batch-Umbenennung für ausgewählte PDFs
     split_requested = pyqtSignal(Path)  # PDF trennen angefordert
+    seiten_requested = pyqtSignal(Path)  # "Seiten bearbeiten…" (Issue #280)
     ki_split_requested = pyqtSignal(Path)  # Stapel per KI in Dokumente trennen
     merge_requested = pyqtSignal()  # Ausgewählte PDFs zusammenfügen
     stack_requested = pyqtSignal(list, Path)  # (abgelegte PDFs, diese PDF): Seiten davorlegen
@@ -691,6 +692,10 @@ class PDFThumbnailWidget(QFrame):
 
         menu.addSeparator()
 
+        # Issue #280: einzelne Seiten loeschen, umsortieren, drehen
+        seiten_action = menu.addAction(tr("Seiten bearbeiten…"))
+        seiten_action.setToolTip(tr("Einzelne Seiten löschen, drehen oder umsortieren, leere Rückseiten entfernen"))
+        seiten_action.triggered.connect(lambda: self.seiten_requested.emit(self.pdf_path))
         # PDF trennen
         split_action = menu.addAction(tr("PDF trennen..."))
         split_action.triggered.connect(lambda: self.split_requested.emit(self.pdf_path))
