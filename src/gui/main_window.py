@@ -3,6 +3,7 @@ Hauptfenster der PDF Sortier Meister Anwendung
 """
 
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -2168,6 +2169,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         rename_action.triggered.connect(self._rename_selected_pdf)
         edit_menu.addAction(rename_action)
 
+        # Entf legt die markierten Kacheln in den Papierkorb (Issue #272). Das Kuerzel gilt nur,
+        # solange der Fokus in der Kachelansicht liegt; in Textfeldern loescht Entf weiter Zeichen
+        self.papierkorb_action = QAction(tr("In den Papierkorb"), self)
+        kuerzel = [QKeySequence(Qt.Key.Key_Delete)]
+        if sys.platform == "darwin":
+            kuerzel.insert(0, QKeySequence("Ctrl+Backspace"))  # Cmd+Rueckschritt wie im Finder
+        self.papierkorb_action.setShortcuts(kuerzel)
+        self.papierkorb_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.papierkorb_action.setToolTip(tr("Markierte Dateien in den Papierkorb verschieben (Entf)"))
+        self.papierkorb_action.triggered.connect(self.auswahl_loeschen)
+        self.pdf_scroll_area.addAction(self.papierkorb_action)
+        edit_menu.addAction(self.papierkorb_action)
+
         edit_menu.addSeparator()
 
         deselect_action = QAction(tr("Auswahl aufheben"), self)
@@ -3873,6 +3887,106 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 widget_entfernen(pdf_path)
             except Exception as e:
                 QMessageBox.critical(self, tr("Fehler"), tr("Löschen fehlgeschlagen:\n{e}").format(e=e))
+
+    def auswahl_loeschen(self):
+        """Entf: die markierte(n) Kachel(n) in den Papierkorb, wie "Löschen" im Kontextmenue (Issue #272)."""
+        if self.left_tabs.currentIndex() != 0:
+            return  # nur in der Kachelansicht "PDFs"
+        if len(self.selected_pdfs) > 1:
+            pfade = list(self.selected_pdfs)
+        else:
+            pfade = [self.selected_pdf] if self.selected_pdf else []
+        pfade = [p for p in pfade if self._pdf_widget_for(p) is not None]
+        if not pfade:
+            self.statusbar.showMessage(tr("Keine Datei markiert"), 2000)
+            return
+        if len(pfade) > 1:
+            self._dateien_loeschen(pfade)
+        elif isinstance(self._pdf_widget_for(pfade[0]), OfficeThumbnailWidget):
+            self.on_office_delete(pfade[0])
+        else:
+            self.on_pdf_delete(pfade[0])
+
+    # So viele Namen nennt die Rueckfrage beim Loeschen mehrerer Dateien hoechstens
+    LOESCHEN_NAMEN_MAX = 10
+
+    def _namen_liste(self, pfade: list[Path]) -> str:
+        namen = [p.name for p in pfade[:self.LOESCHEN_NAMEN_MAX]]
+        if len(pfade) > len(namen):
+            namen.append(tr("… und {anzahl} weitere").format(anzahl=len(pfade) - len(namen)))
+        return "\n".join(namen)
+
+    def _dateien_loeschen(self, pfade: list[Path]):
+        """Mehrere markierte Dateien nach einer Rueckfrage in den Papierkorb (Issue #272).
+
+        Alle stehen in einem Eintrag des Rueckgaengig-Stapels: ein Strg+Z holt sie zurueck.
+        Dateien, fuer die der Papierkorb nicht geht, werden nur nach einer zweiten,
+        ausdruecklichen Rueckfrage endgueltig geloescht (wie bei einer einzelnen Datei).
+        """
+        ja = QMessageBox.StandardButton.Yes
+        nein = QMessageBox.StandardButton.No
+        reply = QMessageBox.question(
+            self,
+            tr("Dateien löschen"),
+            tr("Möchten Sie {anzahl} Dateien in den Papierkorb verschieben?\n\n{namen}").format(
+                anzahl=len(pfade), namen=self._namen_liste(pfade)),
+            ja | nein,
+            nein,
+        )
+        if reply != ja:
+            return
+
+        eintraege: list[tuple[Path, Path]] = []
+        entfernt: list[Path] = []
+        ohne_papierkorb: list[Path] = []
+        fehler: list[str] = []
+        for pfad in pfade:
+            try:
+                papierkorb = self.file_manager.delete_file(pfad)
+            except PapierkorbNichtVerfuegbar:
+                ohne_papierkorb.append(pfad)
+                continue
+            except Exception as e:  # noqa: BLE001 - je Datei melden, die uebrigen trotzdem loeschen
+                fehler.append(f"{pfad.name}: {e}")
+                continue
+            if papierkorb is not None:
+                eintraege.append((pfad, papierkorb))
+            entfernt.append(pfad)
+
+        if ohne_papierkorb:
+            antwort = QMessageBox.question(
+                self,
+                tr("Papierkorb nicht verfügbar"),
+                tr("Papierkorb nicht verfügbar – {anzahl} Datei(en) endgültig löschen?\n\n{namen}").format(
+                    anzahl=len(ohne_papierkorb), namen=self._namen_liste(ohne_papierkorb)),
+                ja | nein,
+                nein,
+            )
+            if antwort == ja:
+                for pfad in ohne_papierkorb:
+                    try:
+                        self.file_manager.delete_file(pfad, endgueltig=True)
+                    except Exception as e:  # noqa: BLE001
+                        fehler.append(f"{pfad.name}: {e}")
+                        continue
+                    entfernt.append(pfad)
+
+        for pfad in entfernt:
+            if isinstance(self._pdf_widget_for(pfad), OfficeThumbnailWidget):
+                self._remove_office_widget(pfad)
+            else:
+                self.remove_pdf_widget(pfad)
+        if entfernt:
+            self._clear_selection()  # Details und Vorschlaege der geloeschten Dateien leeren
+            self.statusbar.showMessage(tr("Gelöscht: {anzahl} Dateien").format(anzahl=len(entfernt)), 3000)
+        if eintraege:
+            self._push_undo({
+                "type": "wegraeumen",
+                "eintraege": eintraege,
+                "description": tr("Löschen: {anzahl} Dateien").format(anzahl=len(eintraege)),
+            })
+        if fehler:
+            QMessageBox.critical(self, tr("Fehler"), tr("Löschen fehlgeschlagen:\n{e}").format(e="\n".join(fehler)))
 
     def on_pdf_move(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF verschoben werden soll."""

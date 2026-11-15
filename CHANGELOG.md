@@ -24,6 +24,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   „Vorgeschlagene Ziele“ hat den neuen Eintrag „Ordner links öffnen“. Er zeigt den Ordner links
   im Programm, so wie der gleichnamige Eintrag im Ordnerbaum, ohne etwas zu verschieben. Bei
   einem Vorschlag für einen Ordner, den es noch nicht gibt, fehlt der Eintrag.
+- **Entf legt markierte Dateien in den Papierkorb** (#272): Eine Kachel anklicken und Entf drücken,
+  nach der gewohnten Rückfrage liegt die Datei im Papierkorb, genau wie über „Löschen“ im
+  Rechtsklick-Menü. Sind mehrere Kacheln markiert, gilt Entf für alle: eine Rückfrage nennt die
+  Dateien, und ein einziges Strg+Z holt alle zurück. Entf wirkt nur, wenn zuletzt in die Kacheln
+  geklickt wurde; in Textfeldern löscht die Taste weiter Zeichen. Derselbe Befehl steht im Menü
+  *Bearbeiten → In den Papierkorb*. Am Mac geht auch Cmd+Rückschritt wie im Finder.
 
 ### Geändert
 - **Kopfzeile über den Kacheln aufgeräumt** (#269): Der Ordnername steht jetzt ausgeschrieben da
