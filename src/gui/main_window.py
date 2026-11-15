@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QSize, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -34,7 +34,8 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
-from src.gui.farben import css, stil
+from src.gui.farben import css, melder, stil
+from src.gui.lupe import lupen_symbol
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
@@ -928,7 +929,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.breadcrumb_widget.setToolTip(tr("Klicken zum Suchen nach Ordnern"))
         self.breadcrumb_widget.mousePressEvent = self._breadcrumb_klick
         self.breadcrumb_suche_btn = QToolButton()
-        self.breadcrumb_suche_btn.setText("🔍")
+        # Einfarbige Lupe in der Textfarbe des Schemas statt des bunten Emojis (Issue #295)
+        self.breadcrumb_suche_btn.setIconSize(QSize(14, 14))
+        self._lupe_einfaerben()
+        melder.geaendert.connect(self._lupe_einfaerben)
         self.breadcrumb_suche_btn.setAutoRaise(True)
         self.breadcrumb_suche_btn.setFixedSize(20, 20)
         self.breadcrumb_suche_btn.setToolTip(tr("Ordner suchen"))
@@ -4944,6 +4948,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             wurzeln.append(Path(scan))
         wurzeln.extend(self.config.get_target_folders())
         return wurzeln
+
+    def _lupe_einfaerben(self):
+        """Lupe an der Pfadzeile in der Textfarbe des aktiven Schemas (Issue #295)."""
+        self.breadcrumb_suche_btn.setIcon(lupen_symbol(14))
 
     def _ordnersuche_links_oeffnen(self):
         self.breadcrumb_zeile.setVisible(False)

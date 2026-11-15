@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Lupe an der Pfadzeile einfarbig** (#295): Der Knopf mit der Lupe, der die Ordnersuche öffnet,
+  zeigt statt des bunten Emojis eine schlichte Lupe in der Schriftfarbe: dunkel im hellen, hell im
+  dunklen Farbschema. Beim Umschalten des Schemas färbt sie sich sofort mit um.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
