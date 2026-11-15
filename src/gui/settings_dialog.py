@@ -3346,24 +3346,39 @@ class SettingsDialog(QDialog):
 
             available = provider.list_models()
             chosen = model or OllamaProvider.DEFAULT_MODEL
-            extra = ""
-            if available and chosen not in available:
-                # Nicht zwingend ein Fehler - der Modellname kann ein Tag
-                # enthalten (z.B. 'llama3.1:latest'). Wir geben einen Hinweis.
-                extra = (
+            # Issue #291: Der Server antwortet auch ohne das gewaehlte Modell, dann scheitert
+            # aber jede Anfrage. Erfolg gibt es deshalb nur, wenn das Modell installiert ist
+            # (":latest" ist dabei optional, wie bei der Pruefung der Statusleiste).
+            from src.ml.hybrid_classifier import _ollama_model_installed
+            if not _ollama_model_installed(chosen, available):
+                if available:
+                    vorhanden = tr(
+                        "Installiert sind:\n{liste}\n\n"
+                        "Wählen Sie eines davon aus („Modelle aktualisieren“ füllt die Liste) "
+                        "oder installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+                    ).format(liste="\n".join(f"  - {m}" for m in available[:10]), chosen=chosen)
+                else:
+                    vorhanden = tr(
+                        "Auf dem Server ist noch kein Modell installiert.\n\n"
+                        "Installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+                    ).format(chosen=chosen)
+                QMessageBox.warning(
+                    self, tr("Modell fehlt"),
                     tr(
-                        "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der "
-                        "installierten Modelle. Verfuegbar:\n"
-                        "{0}\n\nInstallieren mit: ollama pull {chosen}"
-                    ).format('\n'.join((f'  - {m}' for m in available[:10])), chosen=chosen)
+                        "Der Ollama-Server antwortet, aber das gewählte Modell ist dort nicht "
+                        "installiert. Die KI kann so nicht arbeiten.\n\n"
+                        "Server: {base_url}\nVersion: {msg}\nGewähltes Modell: {chosen}\n\n"
+                        "{vorhanden}"
+                    ).format(base_url=base_url, msg=msg, chosen=chosen, vorhanden=vorhanden)
                 )
+                return
 
             QMessageBox.information(
                 self, tr("Erfolg"),
                 tr(
                     "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\n"
                     "Version: {msg}\nGewaehltes Modell: {chosen}{extra}"
-                ).format(base_url=base_url, msg=msg, chosen=chosen, extra=extra)
+                ).format(base_url=base_url, msg=msg, chosen=chosen, extra="")
             )
         except Exception as e:
             QMessageBox.critical(

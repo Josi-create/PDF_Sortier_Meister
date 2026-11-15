@@ -9,6 +9,8 @@ from src.ml.llm_hinweis import betrifft_nur_dokument, ki_hinweis
      "unvollständig installiert", "neu installieren"),
     ("Ollama", 'Ollama HTTP 404: model "abc" not found, try pulling it first',
      "gibt es bei Ollama nicht", "vorhandenes Modell"),
+    ("Ollama", "Ollama HTTP 404: model 'abc' not found",  # Issue #291: Name mitten in der Meldung
+     "gibt es bei Ollama nicht", "vorhandenes Modell"),
     ("Ollama", "Modell „abc“ ist in Ollama nicht installiert (3 Modell(e) vorhanden).",
      "gibt es bei Ollama nicht", "vorhandenes Modell"),
     ("Ollama", "Ollama HTTP 500: model requires more system memory (20 GiB) than is available",

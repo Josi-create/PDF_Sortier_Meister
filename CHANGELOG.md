@@ -7,6 +7,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Ollama: „Verbindung testen“ prüft jetzt auch das Modell** (#291): Bisher meldete der Test
+  „Verbindung erfolgreich“, sobald der Ollama-Server antwortete, auch wenn das gewählte Modell
+  dort gar nicht installiert war. Jetzt gibt es Erfolg nur, wenn das Modell vorhanden ist. Fehlt
+  es, sagt eine Warnung, welche Modelle installiert sind und mit welchem Befehl sich das
+  gewählte nachladen lässt (`ollama pull …`). Die Statusleiste zeigt in diesem Fall nicht mehr
+  nur den stehenden Zähler „0/125 abgeschlossen“, sondern nennt den Grund, zum Beispiel
+  „KI kommt nicht weiter (0/125): Das Modell … gibt es bei Ollama nicht.“
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
