@@ -7,6 +7,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+
+- **„PDFs zusammenfügen“ steht jetzt ganz oben im Rechtsklick-Menü**, sobald mindestens zwei PDFs markiert sind, mit der Zahl der PDFs, die zusammengefügt werden (Bilder und Office-Dateien in der Auswahl zählen nicht mit). Bisher stand der Eintrag mitten im Menü und war leicht zu übersehen (#294).
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
