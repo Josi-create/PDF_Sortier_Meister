@@ -40,6 +40,7 @@ from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
+from src.gui.ordner_titel import KOPF_AUSWAHL_HOEHE, KOPF_ZAHL_HOEHE, KOPF_ZAHL_SCHRIFT, OrdnerTitel
 from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
@@ -858,17 +859,28 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         header_layout.addWidget(self.navigate_up_btn)
 
         # Überschrift mit Ordnerpfad
-        self.pdf_header = QLabel(tr("Neue PDFs im Scan-Ordner"))
-        self.pdf_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        header_layout.addWidget(self.pdf_header)
-        header_layout.addStretch()
+        # Der Ordnername bekommt den freien Platz; reicht er nicht, bleibt der
+        # rechte Teil stehen (Issue #269). Schrift und Rand per QFont/Margins statt
+        # Stylesheet, damit die Kuerzung mit derselben Schrift misst, die gemalt wird.
+        self.pdf_header = OrdnerTitel(tr("Neue PDFs im Scan-Ordner"))
+        titel_schrift = self.pdf_header.font()
+        titel_schrift.setPixelSize(14)
+        titel_schrift.setBold(True)
+        self.pdf_header.setFont(titel_schrift)
+        self.pdf_header.setContentsMargins(5, 5, 0, 5)
+        header_layout.addWidget(self.pdf_header, stretch=1)
 
-        # Anzahl der PDFs im Ordner
+        # Rechts: ganz klein die Anzahl, darunter die beiden Auswahlfelder ohne
+        # Beschriftung - zusammen so hoch wie die Zeile vorher (Issue #269)
         self.pdf_folder_count_label = QLabel("")
-        stil(self.pdf_folder_count_label,
-            "color: $grau_88; font-size: 12px; padding: 5px;"
+        zahl_schrift = self.pdf_folder_count_label.font()
+        zahl_schrift.setPixelSize(KOPF_ZAHL_SCHRIFT)
+        self.pdf_folder_count_label.setFont(zahl_schrift)
+        stil(self.pdf_folder_count_label, "color: $grau_88;")
+        self.pdf_folder_count_label.setFixedHeight(KOPF_ZAHL_HOEHE)
+        self.pdf_folder_count_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
-        header_layout.addWidget(self.pdf_folder_count_label)
 
         # Kachelgroesse wie im Explorer umschalten (Issue #117)
         self.tile_view_combo = QComboBox()
@@ -881,10 +893,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "kurz darauf die große Vorschau.")
         )
         self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
-        view_label = QLabel(tr("Ansicht:"))
-        stil(view_label, "color: $grau_88; font-size: 12px;")
-        header_layout.addWidget(view_label)
-        header_layout.addWidget(self.tile_view_combo)
+        self.tile_view_combo.setAccessibleName(tr("Ansicht:"))
+        self.tile_view_combo.setFixedHeight(KOPF_AUSWAHL_HOEHE)
 
         # Sortierung der Kacheln (Issue #33)
         self.sort_combo = QComboBox()
@@ -897,10 +907,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.sort_combo.view().setMinimumWidth(self.sort_combo.sizeHint().width() + 8)
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
-        sort_label = QLabel(tr("Sortieren:"))
-        stil(sort_label, "color: $grau_88; font-size: 12px;")
-        header_layout.addWidget(sort_label)
-        header_layout.addWidget(self.sort_combo)
+        self.sort_combo.setAccessibleName(tr("Sortieren:"))
+        self.sort_combo.setFixedHeight(KOPF_AUSWAHL_HOEHE)
+
+        auswahl_layout = QHBoxLayout()
+        auswahl_layout.setContentsMargins(0, 0, 0, 0)
+        auswahl_layout.setSpacing(4)
+        auswahl_layout.addStretch()
+        auswahl_layout.addWidget(self.tile_view_combo)
+        auswahl_layout.addWidget(self.sort_combo)
+        rechts_layout = QVBoxLayout()
+        rechts_layout.setContentsMargins(0, 0, 0, 0)
+        rechts_layout.setSpacing(0)
+        rechts_layout.addWidget(self.pdf_folder_count_label)
+        rechts_layout.addLayout(auswahl_layout)
+        header_layout.addLayout(rechts_layout)
 
         layout.addLayout(header_layout)
 
@@ -1184,7 +1205,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.pdf_scroll_area.show()
 
         # Header aktualisieren
-        self.pdf_header.setText(tr("PDFs in: {name}").format(name=self.file_manager.scan_folder.name))
+        ordnername = self.file_manager.scan_folder.name
+        self.pdf_header.setze_ordner(tr("PDFs in: {name}").format(name=ordnername), ordnername)
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
         count = len(pdf_files) + len(office_files)
         count_text = (tr("{anzahl} Datei") if count == 1 else tr("{anzahl} Dateien")).format(anzahl=count)
