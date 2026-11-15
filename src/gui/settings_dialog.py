@@ -17,7 +17,9 @@ from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
 import sys
 import threading
+from pathlib import Path
 
+from src.core import scan_programm
 from src.gui import farben
 from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
@@ -1127,6 +1129,23 @@ class SettingsDialog(QDialog):
         display_layout.addRow(self.scan_ordner_beobachten_check)
 
         layout.addWidget(display_group)
+
+        # Issue #270: Scanprogramm fuer den Knopf „Jetzt scannen“
+        scan_group = QGroupBox(tr("Scannen"))
+        scan_layout = QFormLayout(scan_group)
+        scan_row = QHBoxLayout()
+        self.scan_programm_input = QLineEdit()
+        self.scan_programm_input.setPlaceholderText(tr("Pfad zum Scanprogramm"))
+        self.scan_programm_input.setToolTip(
+            tr("Dieses Programm startet der Knopf „Jetzt scannen“ in der Werkzeugleiste.\n"
+            "Gescannt wird dort; der neue Scan erscheint danach von selbst im Scan-Ordner.")
+        )
+        scan_row.addWidget(self.scan_programm_input, 1)
+        self.scan_programm_browse = QPushButton(tr("Durchsuchen…"))
+        self.scan_programm_browse.clicked.connect(self._browse_scan_programm)
+        scan_row.addWidget(self.scan_programm_browse)
+        scan_layout.addRow(tr("Scanprogramm:"), scan_row)
+        layout.addWidget(scan_group)
 
         # Cache-Einstellungen
         cache_group = QGroupBox(tr("PDF-Analyse-Cache"))
@@ -2862,6 +2881,7 @@ class SettingsDialog(QDialog):
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
         self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
+        self.scan_programm_input.setText(self.config.get("scan_programm", "") or "")
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -2978,6 +2998,7 @@ class SettingsDialog(QDialog):
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
         self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
+        self.config.set("scan_programm", scan_programm.bereinigt(self.scan_programm_input.text()))
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
@@ -3092,6 +3113,22 @@ class SettingsDialog(QDialog):
         )
         if path:
             self.pdf_open_command_input.setText(path)
+
+    def _browse_scan_programm(self):
+        """Dateiauswahl fuer das Scanprogramm (Issue #270)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        if sys.platform == "win32":
+            file_filter = tr("Programme (*.exe);;Alle Dateien (*)")
+        elif sys.platform == "darwin":
+            file_filter = tr("Programme (*.app);;Alle Dateien (*)")
+        else:
+            file_filter = tr("Alle Dateien (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, tr("Scanprogramm auswählen"), self.scan_programm_input.text(), file_filter
+        )
+        if path:
+            self.scan_programm_input.setText(str(Path(path)))
 
     def _apply_explorer_integration_change(self):
         """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""

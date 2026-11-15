@@ -9573,3 +9573,47 @@ msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below
 #: src/search/plattform.py
 msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
 msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
+
+#: src/gui/main_window.py
+msgid "Jetzt scannen"
+msgstr "Scan now"
+
+#: src/gui/main_window.py
+msgid "Scanprogramm starten (hinterlegt unter Einstellungen › Allgemein › Scannen)"
+msgstr "Start the scanning program (set under Settings › General › Scanning)"
+
+#: src/gui/main_window.py
+msgid "Es ist noch kein Scanprogramm hinterlegt.\n\nWählen Sie es im nächsten Fenster unter „Scannen“ aus. Danach startet dieser Knopf das Programm."
+msgstr "No scanning program has been set yet.\n\nChoose it in the next window under “Scanning”. After that this button starts the program."
+
+#: src/gui/main_window.py
+msgid "Die Datei wurde nicht gefunden."
+msgstr "The file was not found."
+
+#: src/gui/main_window.py
+msgid "Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\nPrüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen."
+msgstr "The scanning program could not be started:\n{pfad}\n\n{fehler}\n\nCheck the path under Settings › General › Scanning."
+
+#: src/gui/main_window.py
+msgid "Scanprogramm gestartet: {name}"
+msgstr "Scanning program started: {name}"
+
+#: src/gui/settings_dialog.py
+msgid "Scannen"
+msgstr "Scanning"
+
+#: src/gui/settings_dialog.py
+msgid "Pfad zum Scanprogramm"
+msgstr "Path to the scanning program"
+
+#: src/gui/settings_dialog.py
+msgid "Dieses Programm startet der Knopf „Jetzt scannen“ in der Werkzeugleiste.\nGescannt wird dort; der neue Scan erscheint danach von selbst im Scan-Ordner."
+msgstr "The “Scan now” button in the toolbar starts this program.\nScanning happens there; the new scan then appears in the scan folder by itself."
+
+#: src/gui/settings_dialog.py
+msgid "Scanprogramm:"
+msgstr "Scanning program:"
+
+#: src/gui/settings_dialog.py
+msgid "Scanprogramm auswählen"
+msgstr "Choose scanning program"

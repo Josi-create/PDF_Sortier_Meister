@@ -71,6 +71,9 @@ one; settings and learned data are kept. A portable ZIP is on the
 - **One click** on a target folder moves the file, renames it and saves the metadata in one go
 - Drag & drop, multiple selection, **undo** (`Ctrl+Z`), copying into several folders
 - Explorer context menu: right-click a folder or PDF → open it in PDF Sortier Meister
+- **“Scan now”** in the toolbar starts the scanning program set under *Settings → General → Scanning*. You scan
+  there; the new scan then appears as a tile by itself. Which program? We recommend
+  [VueScan](https://www.hamrick.com/) (paid, Windows and macOS); any other program that saves PDFs to a folder works too.
 
 ### Renaming
 - Suggestions from the detected **date**, **category**, **sender** and your own earlier renames

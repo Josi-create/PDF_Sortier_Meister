@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Knopf „Jetzt scannen“** (#270): In der Werkzeugleiste, neben „Scan-Ordner“, startet der neue Knopf dein
+  Scanprogramm. Welches das ist, trägst du einmal unter *Einstellungen → Allgemein → Scannen* ein (mit
+  „Durchsuchen…“). Ist noch nichts hinterlegt, führt der Knopf dorthin. Gescannt wird im Scanprogramm; der
+  neue Scan erscheint danach von selbst als Kachel. Wer fragt, womit man scannen soll: Die README nennt
+  VueScan als Empfehlung.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
