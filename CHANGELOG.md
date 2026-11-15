@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Chat: Hauptquelle gleich in der Vorschau** (#297): Nach einer Antwort im Chat zeigt die
+  Vorschau in der Mitte das Dokument, auf das sich die Antwort am meisten stützt (am häufigsten
+  zitiert, bei Gleichstand das zuerst zitierte), wenn möglich direkt auf der Seite der
+  Fundstelle. Das gilt nur, solange links keine PDF ausgewählt ist; eine ausgewählte PDF bleibt
+  in der Vorschau stehen. Word-, Excel- und Bilddateien werden dabei nicht von selbst gezeigt.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
