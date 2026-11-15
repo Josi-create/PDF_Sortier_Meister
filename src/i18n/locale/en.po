@@ -9649,3 +9649,119 @@ msgstr "Scanning program:"
 #: src/gui/settings_dialog.py
 msgid "Scanprogramm auswählen"
 msgstr "Choose scanning program"
+
+#: src/core/pdf_seiten.py
+msgid "Die PDF ist digital signiert; eine Änderung der Seiten würde die Signatur ungültig machen."
+msgstr "The PDF is digitally signed; changing its pages would invalidate the signature."
+
+#: src/core/pdf_seiten.py
+msgid "Mindestens eine Seite muss bleiben."
+msgstr "At least one page must remain."
+
+#: src/core/pdf_seiten.py
+msgid "Eine Seite steht doppelt im Plan."
+msgstr "A page is listed twice in the plan."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Seiten bearbeiten…"
+msgstr "Edit pages…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Einzelne Seiten löschen, drehen oder umsortieren, leere Rückseiten entfernen"
+msgstr "Delete, rotate or reorder single pages, remove blank back pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seiten bearbeiten"
+msgstr "Edit pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "<b>{name}</b><br>Seiten anklicken (mit Strg oder Umschalt mehrere), dann löschen oder drehen. Die Reihenfolge änderst du durch Ziehen oder mit „Nach vorn“ und „Nach hinten“. Geändert wird die Datei erst mit „Speichern“."
+msgstr "<b>{name}</b><br>Click pages (hold Ctrl or Shift for several), then delete or rotate them. Change the order by dragging or with “Move forward” and “Move back”. The file is only changed when you click “Save”."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten zum Löschen vormerken oder die Vormerkung aufheben (Entf)"
+msgstr "Mark the selected pages for deletion or remove the mark (Del)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Nach vorn"
+msgstr "Move forward"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten um eine Stelle nach vorn schieben (Strg+Pfeil links)"
+msgstr "Move the selected pages one position forward (Ctrl+Left arrow)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Nach hinten"
+msgstr "Move back"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten um eine Stelle nach hinten schieben (Strg+Pfeil rechts)"
+msgstr "Move the selected pages one position back (Ctrl+Right arrow)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Leere Seiten markieren"
+msgstr "Mark blank pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Sucht fast weiße Seiten (leere Rückseiten) und merkt sie zum Löschen vor. Gelöscht wird erst mit „Speichern“."
+msgstr "Looks for almost white pages (blank back pages) and marks them for deletion. They are only deleted when you click “Save”."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr} – wird gelöscht"
+msgstr "Page {nr} – will be deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr}"
+msgstr "Page {nr}"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr} der bisherigen PDF"
+msgstr "Page {nr} of the current PDF"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} Seite(n)"
+msgstr "{anzahl} page(s)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} werden gelöscht"
+msgstr "{anzahl} will be deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "mindestens eine Seite muss bleiben"
+msgstr "at least one page must remain"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "geändert"
+msgstr "changed"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Doch behalten"
+msgstr "Keep after all"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} leere Seite(n) vorgemerkt – bitte ansehen, „Doch behalten“ nimmt eine wieder heraus"
+msgstr "{anzahl} blank page(s) marked – please check them, “Keep after all” takes one out again"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "keine leere Seite gefunden"
+msgstr "no blank page found"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seiten konnten nicht gespeichert werden:\n{e}"
+msgstr "The pages could not be saved:\n{e}"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{name}: {geloescht} Seite(n) gelöscht"
+msgstr "{name}: {geloescht} page(s) deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{name}: Seiten geändert"
+msgstr "{name}: pages changed"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Rückgängig nicht möglich: {name} liegt nicht mehr am alten Ort."
+msgstr "Undo not possible: {name} is no longer in its old place."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Rückgängig fehlgeschlagen:\n{e}"
+msgstr "Undo failed:\n{e}"
