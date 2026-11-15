@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Gespeicherte Suchen** (#281): Im Reiter „Suche“ merkt sich der neue Knopf „Suche speichern…“
+  den Suchtext und alle Filter unter einem Namen, zum Beispiel „Nebenkosten 2026“. Die
+  Ausklappliste „Gespeicherte Suchen“ daneben stellt alles mit einem Klick wieder ein und sucht
+  sofort. Über den Knopf „⋯“ lässt sich die gewählte Suche umbenennen oder löschen. Die
+  gespeicherten Suchen liegen in den Einstellungen des Programms und sind damit Teil des Backups.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
