@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Erste Datei beim Start schon ausgewählt** (#292): Liegen beim Programmstart Dateien im
+  Scan-Ordner, ist die erste Kachel gleich ausgewählt. Vorschau, Metadaten und Zielvorschläge
+  sind sofort gefüllt, statt des leeren Hinweises „PDF auswählen“.
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu

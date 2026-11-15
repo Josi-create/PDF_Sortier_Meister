@@ -300,7 +300,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
         # Initial laden
-        QTimer.singleShot(100, self.initial_load)
+        QTimer.singleShot(100, self._start_laden)
         QTimer.singleShot(300, self._start_warmup)
 
     # Mindestbreiten links / Mitte / rechts im Vorschau-Splitter (Issue #188)
@@ -1132,6 +1132,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # historisch-Import die Liste neu befuellt wird.
         except Exception as e:
             print(f"Auto-Collect Korrespondenten Warnung: {e}")
+
+    def _start_laden(self):
+        """Erstes Laden nach dem Programmstart; die erste Kachel ist gleich ausgewaehlt (Issue #292)."""
+        self.initial_load()
+        self._erste_kachel_auswaehlen()
+
+    def _erste_kachel_auswaehlen(self):
+        """Waehlt die erste Kachel im Scan-Bereich aus, wenn noch nichts ausgewaehlt ist.
+
+        Vorschau, Metadaten und Zielvorschlaege sind dann sofort gefuellt statt
+        des leeren Hinweises (Issue #292). Ohne Dateien bleibt alles leer.
+        """
+        if self.selected_pdf is not None or self.selected_pdfs or not self.pdf_widgets:
+            return
+        self.on_pdf_clicked(self.pdf_widgets[0].pdf_path)
 
     def initial_load(self):
         """Lädt die initialen Daten nach dem Start."""

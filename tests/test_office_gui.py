@@ -69,11 +69,12 @@ def main_window(qtbot, fresh_singletons, monkeypatch):
 
     # initial_load laeuft im Programm 100 ms nach dem Start per Timer und baut die Kacheln
     # neu. In langsamen CI-Laeufen traf das mitten in einen Test (gemerkte Kachel geloescht).
-    # Hier laeuft es sofort; der Timer findet nur noch eine leere Funktion vor.
-    echtes_initial_load = mw_mod.MainWindow.initial_load
-    monkeypatch.setattr(mw_mod.MainWindow, "initial_load", lambda self: None)
+    # Hier laeuft es sofort; der Timer findet nur noch eine leere Funktion vor
+    # (er ruft seit Issue #292 _start_laden auf).
+    echtes_start_laden = mw_mod.MainWindow._start_laden
+    monkeypatch.setattr(mw_mod.MainWindow, "_start_laden", lambda self: None)
     win = mw_mod.MainWindow()
-    monkeypatch.setattr(mw_mod.MainWindow, "initial_load", echtes_initial_load)
+    monkeypatch.setattr(mw_mod.MainWindow, "_start_laden", echtes_start_laden)
     win.initial_load()
     monkeypatch.setattr(win.classifier, "is_model_ready", lambda: True)
     yield win
