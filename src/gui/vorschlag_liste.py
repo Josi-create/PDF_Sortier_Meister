@@ -10,16 +10,20 @@ Kompakte Ordnervorschlaege (rechte Spalte "Vorgeschlagene Ziele").
 * ``SpaltenLayout``: verteilt die Zeilen zeilenweise auf 1 bis 3 Spalten, je
   nach verfuegbarer Breite. Die Mindestbreite bleibt klein (keine Rueckkopplung
   auf den Splitter).
-* ``VorschlagListe``: Scrollbereich darum; scrollt erst ab ``MAX_ZEILEN`` Reihen.
+* ``VorschlagListe``: Scrollbereich darum; scrollt allein stehend erst ab ``MAX_ZEILEN`` Reihen.
+* ``VorschlagTeiler``: senkrechter Teiler aus Liste und Ordnerbaum (Issue #268). Die Liste
+  ist so hoch, dass alle Vorschlaege ohne Scrollen Platz haben; die Trennlinie laesst sich
+  ziehen, ein Doppelklick stellt die passende Hoehe wieder ein.
 """
 
 import html
 from typing import Callable
 
-from PyQt6.QtCore import QEvent, QRect, QSize, Qt
-from PyQt6.QtGui import QCursor, QFont, QFontMetrics
+from PyQt6.QtCore import QEvent, QRect, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor, QFont, QFontMetrics, QPainter
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QSizePolicy, QSplitter, QSplitterHandle,
+    QVBoxLayout, QWidget,
 )
 
 from src.gui.farben import css, melder, stil
@@ -309,10 +313,17 @@ class _Inhalt(QWidget):
 
 
 class VorschlagListe(QScrollArea):
-    """Scrollbereich mit ``spalten`` (SpaltenLayout); Hoehe waechst bis MAX_ZEILEN Reihen."""
+    """Scrollbereich mit ``spalten`` (SpaltenLayout); Hoehe waechst bis MAX_ZEILEN Reihen.
+
+    In einem ``VorschlagTeiler`` (``hoehe_fest = False``) bestimmt der Teiler die Hoehe;
+    die Liste meldet dann nur noch, dass sich ihr Bedarf geaendert haben kann.
+    """
+
+    bedarf_geaendert = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.hoehe_fest = True
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -328,7 +339,14 @@ class VorschlagListe(QScrollArea):
         self.setWidget(self.inhalt)
         self._hoehe_anpassen()
 
+    def bedarf(self) -> int:
+        """Hoehe, bei der alle Zeilen ohne Scrollen Platz haben (ganze Breite, ohne Bildlaufleiste)."""
+        return max(self.spalten.heightForWidth(max(self.width(), 1)), 1)
+
     def _hoehe_anpassen(self):
+        if not self.hoehe_fest:
+            self.bedarf_geaendert.emit()
+            return
         breite = max(self.viewport().width(), 1)
         bedarf = self.spalten.heightForWidth(breite)
         deckel = MAX_ZEILEN * ZEILEN_HOEHE + (MAX_ZEILEN - 1) * ABSTAND
@@ -339,3 +357,121 @@ class VorschlagListe(QScrollArea):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._hoehe_anpassen()
+
+
+class _Griff(QSplitterHandle):
+    """Trennlinie zum Ziehen; Doppelklick stellt die passende Hoehe ein."""
+
+    def mouseDoubleClickEvent(self, event):
+        self.splitter().automatisch()
+        event.accept()
+
+    def paintEvent(self, event):
+        maler = QPainter(self)
+        farbe = self.palette().windowText().color()  # in hellem wie dunklem Design sichtbar
+        farbe.setAlpha(90)
+        maler.setPen(farbe)
+        y = self.height() // 2
+        maler.drawLine(0, y, self.width(), y)
+
+
+class VorschlagTeiler(QSplitter):
+    """Vorschlagsliste oben, Ordnerbaum unten, dazwischen eine ziehbare Trennlinie (Issue #268).
+
+    Ohne Eingriff ist die Liste genau so hoch wie ihr Inhalt (kein Scrollen); nur wenn dem
+    Ordnerbaum sonst weniger als ``UNTEN_MIN`` bliebe, wird sie kleiner und scrollt. Zieht
+    der Nutzer die Trennlinie, gilt seine Hoehe, bis er doppelt auf die Linie klickt.
+    """
+
+    UNTEN_MIN = 120  # so viel bleibt dem Ordnerbaum mindestens
+
+    def __init__(self, liste: VorschlagListe, unten: QWidget, parent=None):
+        super().__init__(Qt.Orientation.Vertical, parent)
+        self.liste = liste
+        self._manuell = None  # vom Nutzer gezogene Hoehe der Liste
+        self._gemerkt = None  # (Hoehe, (Fensterbreite, Fensterhoehe)) aus der letzten Sitzung
+        self._stellt = False
+        liste.hoehe_fest = False
+        liste.setMinimumHeight(ZEILEN_HOEHE)
+        liste.setMaximumHeight(16777215)
+        liste.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        unten.setMinimumHeight(self.UNTEN_MIN)
+        self.setHandleWidth(9)
+        self.addWidget(liste)
+        self.addWidget(unten)
+        self.setChildrenCollapsible(False)
+        self.setStretchFactor(0, 0)
+        self.setStretchFactor(1, 1)
+        self.handle(1).setToolTip(tr(
+            "Ziehen ändert die Höhe der Vorschläge.\nDoppelklick: genau so hoch, dass alle Vorschläge Platz haben."
+        ))
+        # Verzoegert: beim Ziehen kommt die Meldung der Liste vor splitterMoved - sofort
+        # angewandt, wuerde die Hoehe zurueckspringen, bevor _gezogen sie festhaelt
+        liste.bedarf_geaendert.connect(self.anpassen, Qt.ConnectionType.QueuedConnection)
+        self.splitterMoved.connect(self._gezogen)
+
+    def createHandle(self):
+        return _Griff(self.orientation(), self)
+
+    def _gezogen(self, *_):
+        if self._stellt:
+            return
+        self._manuell = self.sizes()[0]
+        self._gemerkt = None
+
+    def automatisch(self):
+        """Zurueck zur passenden Hoehe (Doppelklick auf die Trennlinie)."""
+        self._manuell = None
+        self._gemerkt = None
+        self.anpassen()
+
+    def manuelle_hoehe(self):
+        return self._manuell
+
+    def merken(self, hoehe, fenster) -> None:
+        """Gezogene Hoehe der letzten Sitzung; gilt nur, wenn das Fenster wieder so gross ist."""
+        try:
+            hoehe, fenster = int(hoehe), (int(fenster[0]), int(fenster[1]))
+        except (TypeError, ValueError, IndexError):
+            return
+        if hoehe > 0:
+            self._gemerkt = (hoehe, fenster)
+            self.anpassen()
+
+    def gemerkt(self) -> tuple:
+        """``(Hoehe, [Fensterbreite, Fensterhoehe])`` zum Speichern; ``(0, [])`` = passend zum Inhalt."""
+        if self._manuell is not None:
+            g = self.window().size()
+            return self._manuell, [g.width(), g.height()]
+        if self._gemerkt is not None:  # Fenster war diesmal anders gross: Merker behalten
+            return self._gemerkt[0], list(self._gemerkt[1])
+        return 0, []
+
+    def anpassen(self):
+        if self._stellt:
+            return
+        gesamt = sum(self.sizes())
+        if gesamt <= 0:
+            return
+        if self._gemerkt is not None and self.isVisible():
+            g = self.window().size()
+            if (g.width(), g.height()) == self._gemerkt[1]:
+                self._manuell, self._gemerkt = self._gemerkt[0], None
+        bedarf = self.liste.bedarf()
+        ziel = self._manuell if self._manuell is not None else bedarf
+        ziel = max(min(ziel, gesamt - self.UNTEN_MIN), min(ZEILEN_HOEHE, gesamt))
+        # Passt alles, gibt es keine Bildlaufleiste - sonst naehme sie Breite weg, eine Spalte
+        # fiele weg und die Liste braeuchte doch wieder mehr Hoehe (bliebe haengen)
+        leiste = Qt.ScrollBarPolicy.ScrollBarAlwaysOff if ziel >= bedarf else Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        if self.liste.verticalScrollBarPolicy() != leiste:
+            self.liste.setVerticalScrollBarPolicy(leiste)
+        if self.sizes()[0] != ziel:
+            self._stellt = True
+            try:
+                self.setSizes([ziel, gesamt - ziel])
+            finally:
+                self._stellt = False
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.anpassen()

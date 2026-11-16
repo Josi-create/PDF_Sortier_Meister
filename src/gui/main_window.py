@@ -3,11 +3,12 @@ Hauptfenster der PDF Sortier Meister Anwendung
 """
 
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QSize, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -34,20 +35,23 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
-from src.gui.farben import css, stil
+from src.gui.farben import css, melder, stil
+from src.gui.lupe import lupen_symbol
 from src.utils.config import get_config
 from src.utils.database import get_database
 from src.gui.pdf_thumbnail import PDFThumbnailWidget
 from src.gui.favoriten_leiste import FavoritenLeiste, aktuellen_ordner_menue
 from src.gui.ordner_suchfeld import OrdnerSuchfeld
+from src.gui.ordner_titel import KOPF_AUSWAHL_HOEHE, KOPF_ZAHL_HOEHE, KOPF_ZAHL_SCHRIFT, OrdnerTitel
 from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
-from src.gui.vorschlag_liste import VorschlagListe, VorschlagZeile
+from src.gui.vorschlag_liste import VorschlagListe, VorschlagTeiler, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
 from src.core import einheiten
+from src.core import scan_programm
 from src.core import schlagwoerter as schlagwort_regeln
 from src.gui.tile_view import TILE_VIEWS, tile_view
 from src.gui.rename_dialog import RenameDialog, RenameSuggestion, generate_rename_suggestions
@@ -96,6 +100,7 @@ from src.core.bild_convert import ist_bild_datei, pdf_lesbar
 from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
+from src.gui import seiten_bearbeiten
 from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
@@ -300,7 +305,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
 
         # Initial laden
-        QTimer.singleShot(100, self.initial_load)
+        QTimer.singleShot(100, self._start_laden)
         QTimer.singleShot(300, self._start_warmup)
 
     # Mindestbreiten links / Mitte / rechts im Vorschau-Splitter (Issue #188)
@@ -363,6 +368,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.chat_view.umbenennen_requested.connect(self._on_chat_umbenennen)
         self.chat_view.metadaten_requested.connect(self._on_chat_metadaten)
         self.chat_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
+        # Issue #297: beste Quelle einer Antwort in der Vorschau der Mitte
+        self.chat_view.beste_quelle.connect(self._on_chat_beste_quelle)
+        self._chat_quelle_seite: Optional[tuple[Path, int]] = None
         self.left_tabs = QTabWidget()
         self.left_tabs.addTab(pdf_panel, tr("PDFs"))
         self.left_tabs.setTabToolTip(0, tr("Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken"))
@@ -392,6 +400,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         self.detail_panel.korrespondent_dokumente_requested.connect(self.show_korrespondent)
+        self.detail_panel.preview.document_loaded.connect(self._on_detail_vorschau_geladen)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
         if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
@@ -776,6 +785,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
         self.open_pdf(Path(file_path), seite=seite)
 
+    def _on_chat_beste_quelle(self, file_path: str, seite: int) -> None:
+        """Issue #297: Die Hauptquelle einer Chat-Antwort in der Vorschau der Mitte zeigen.
+
+        Nur wenn dort gerade keine PDF ausgewaehlt ist - eine ausgewaehlte PDF
+        (mit ihren Feldern und der Textuebernahme aus der Vorschau) bleibt stehen.
+        Nur PDFs; Word, Excel und Bilder brauchen eine Umwandlung.
+        """
+        if not file_path or self.selected_pdf is not None or self.detail_panel.get_current_pdf() is not None:
+            return
+        pfad = Path(file_path)
+        if pfad.suffix.lower() != ".pdf" or not pfad.is_file():
+            return
+        self._chat_quelle_seite = (pfad, int(seite)) if seite and int(seite) > 0 else None
+        self.detail_panel.preview.load_pdf(pfad)
+
+    def _on_detail_vorschau_geladen(self, path: Path) -> None:
+        """Vorgemerkte Seite der Chat-Quelle (Issue #297) anspringen, sobald die PDF steht."""
+        vorgemerkt, self._chat_quelle_seite = self._chat_quelle_seite, None
+        if vorgemerkt and Path(path) == vorgemerkt[0]:
+            self.detail_panel.preview.go_to_page(vorgemerkt[1] - 1)
+
     # ------------------------------------------------------------------ #
     # PDF oeffnen / Vorschau (Issues #74, #76)
     # ------------------------------------------------------------------ #
@@ -857,17 +887,28 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         header_layout.addWidget(self.navigate_up_btn)
 
         # Überschrift mit Ordnerpfad
-        self.pdf_header = QLabel(tr("Neue PDFs im Scan-Ordner"))
-        self.pdf_header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        header_layout.addWidget(self.pdf_header)
-        header_layout.addStretch()
+        # Der Ordnername bekommt den freien Platz; reicht er nicht, bleibt der
+        # rechte Teil stehen (Issue #269). Schrift und Rand per QFont/Margins statt
+        # Stylesheet, damit die Kuerzung mit derselben Schrift misst, die gemalt wird.
+        self.pdf_header = OrdnerTitel(tr("Neue PDFs im Scan-Ordner"))
+        titel_schrift = self.pdf_header.font()
+        titel_schrift.setPixelSize(14)
+        titel_schrift.setBold(True)
+        self.pdf_header.setFont(titel_schrift)
+        self.pdf_header.setContentsMargins(5, 5, 0, 5)
+        header_layout.addWidget(self.pdf_header, stretch=1)
 
-        # Anzahl der PDFs im Ordner
+        # Rechts: ganz klein die Anzahl, darunter die beiden Auswahlfelder ohne
+        # Beschriftung - zusammen so hoch wie die Zeile vorher (Issue #269)
         self.pdf_folder_count_label = QLabel("")
-        stil(self.pdf_folder_count_label,
-            "color: $grau_88; font-size: 12px; padding: 5px;"
+        zahl_schrift = self.pdf_folder_count_label.font()
+        zahl_schrift.setPixelSize(KOPF_ZAHL_SCHRIFT)
+        self.pdf_folder_count_label.setFont(zahl_schrift)
+        stil(self.pdf_folder_count_label, "color: $grau_88;")
+        self.pdf_folder_count_label.setFixedHeight(KOPF_ZAHL_HOEHE)
+        self.pdf_folder_count_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
-        header_layout.addWidget(self.pdf_folder_count_label)
 
         # Kachelgroesse wie im Explorer umschalten (Issue #117)
         self.tile_view_combo = QComboBox()
@@ -880,10 +921,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             "kurz darauf die große Vorschau.")
         )
         self.tile_view_combo.currentIndexChanged.connect(self._on_tile_view_combo_changed)
-        view_label = QLabel(tr("Ansicht:"))
-        stil(view_label, "color: $grau_88; font-size: 12px;")
-        header_layout.addWidget(view_label)
-        header_layout.addWidget(self.tile_view_combo)
+        self.tile_view_combo.setAccessibleName(tr("Ansicht:"))
+        self.tile_view_combo.setFixedHeight(KOPF_AUSWAHL_HOEHE)
 
         # Sortierung der Kacheln (Issue #33)
         self.sort_combo = QComboBox()
@@ -896,10 +935,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.sort_combo.view().setMinimumWidth(self.sort_combo.sizeHint().width() + 8)
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
-        sort_label = QLabel(tr("Sortieren:"))
-        stil(sort_label, "color: $grau_88; font-size: 12px;")
-        header_layout.addWidget(sort_label)
-        header_layout.addWidget(self.sort_combo)
+        self.sort_combo.setAccessibleName(tr("Sortieren:"))
+        self.sort_combo.setFixedHeight(KOPF_AUSWAHL_HOEHE)
+
+        auswahl_layout = QHBoxLayout()
+        auswahl_layout.setContentsMargins(0, 0, 0, 0)
+        auswahl_layout.setSpacing(4)
+        auswahl_layout.addStretch()
+        auswahl_layout.addWidget(self.tile_view_combo)
+        auswahl_layout.addWidget(self.sort_combo)
+        rechts_layout = QVBoxLayout()
+        rechts_layout.setContentsMargins(0, 0, 0, 0)
+        rechts_layout.setSpacing(0)
+        rechts_layout.addWidget(self.pdf_folder_count_label)
+        rechts_layout.addLayout(auswahl_layout)
+        header_layout.addLayout(rechts_layout)
 
         layout.addLayout(header_layout)
 
@@ -928,7 +978,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.breadcrumb_widget.setToolTip(tr("Klicken zum Suchen nach Ordnern"))
         self.breadcrumb_widget.mousePressEvent = self._breadcrumb_klick
         self.breadcrumb_suche_btn = QToolButton()
-        self.breadcrumb_suche_btn.setText("🔍")
+        # Einfarbige Lupe in der Textfarbe des Schemas statt des bunten Emojis (Issue #295)
+        self.breadcrumb_suche_btn.setIconSize(QSize(14, 14))
+        self._lupe_einfaerben()
+        melder.geaendert.connect(self._lupe_einfaerben)
         self.breadcrumb_suche_btn.setAutoRaise(True)
         self.breadcrumb_suche_btn.setFixedSize(20, 20)
         self.breadcrumb_suche_btn.setToolTip(tr("Ordner suchen"))
@@ -1007,7 +1060,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Inhalt:
             * Kopfzeile (Titel + Buttons)
             * Vorschlagsbereich
-            * Trennlinie
+            * Trennlinie zum Ziehen (VorschlagTeiler, Issue #268)
             * Zielordner-Baum (FolderTreeWidget); die Korrespondenten sind seit
               Issue #160 ein Reiter der linken Spalte
         """
@@ -1054,21 +1107,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         suggestions_kopf.addWidget(self.ordner_ki_btn)
         layout.addLayout(suggestions_kopf)
 
-        # Kompakte Zeilen in 1-3 Spalten, scrollt erst bei vielen Vorschlaegen
+        # Kompakte Zeilen in 1-3 Spalten; die Hoehe bestimmt der Teiler weiter unten (#268)
         self.suggestions_container = VorschlagListe()
         self.suggestions_layout = self.suggestions_container.spalten
-        layout.addWidget(self.suggestions_container)
 
         # Platzhalter wenn keine Vorschläge
         self.no_suggestions_label = QLabel(tr("Wählen Sie eine PDF aus für Vorschläge"))
         stil(self.no_suggestions_label, "color: $grau_99; font-style: italic; padding: 10px;")
         self.suggestions_layout.addWidget(self.no_suggestions_label)
-
-        # Trennlinie
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
 
         # Zielordner-Baum
         folder_tree_container = QWidget()
@@ -1104,7 +1150,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.folder_container.hide()  # Grid-Ansicht versteckt
         ft_layout.addWidget(self.folder_container)
 
-        layout.addWidget(folder_tree_container, stretch=1)
+        # Issue #268: alle Vorschlaege ohne Scrollen, Trennlinie zum Ordnerbaum ziehbar
+        self.vorschlag_teiler = VorschlagTeiler(self.suggestions_container, folder_tree_container)
+        self.vorschlag_teiler.merken(
+            self.config.get("vorschlaege_hoehe", 0), self.config.get("vorschlaege_hoehe_fenster") or [])
+        layout.addWidget(self.vorschlag_teiler, stretch=1)
 
         return panel
 
@@ -1132,6 +1182,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # historisch-Import die Liste neu befuellt wird.
         except Exception as e:
             print(f"Auto-Collect Korrespondenten Warnung: {e}")
+
+    def _start_laden(self):
+        """Erstes Laden nach dem Programmstart; die erste Kachel ist gleich ausgewaehlt (Issue #292)."""
+        self.initial_load()
+        self._erste_kachel_auswaehlen()
+
+    def _erste_kachel_auswaehlen(self):
+        """Waehlt die erste Kachel im Scan-Bereich aus, wenn noch nichts ausgewaehlt ist.
+
+        Vorschau, Metadaten und Zielvorschlaege sind dann sofort gefuellt statt
+        des leeren Hinweises (Issue #292). Ohne Dateien bleibt alles leer.
+        """
+        if self.selected_pdf is not None or self.selected_pdfs or not self.pdf_widgets:
+            return
+        self.on_pdf_clicked(self.pdf_widgets[0].pdf_path)
 
     def initial_load(self):
         """Lädt die initialen Daten nach dem Start."""
@@ -1183,7 +1248,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.pdf_scroll_area.show()
 
         # Header aktualisieren
-        self.pdf_header.setText(tr("PDFs in: {name}").format(name=self.file_manager.scan_folder.name))
+        ordnername = self.file_manager.scan_folder.name
+        self.pdf_header.setze_ordner(tr("PDFs in: {name}").format(name=ordnername), ordnername)
         self.pdf_header.setToolTip(str(self.file_manager.scan_folder))
         count = len(pdf_files) + len(office_files)
         count_text = (tr("{anzahl} Datei") if count == 1 else tr("{anzahl} Dateien")).format(anzahl=count)
@@ -1271,6 +1337,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         widget.copy_requested.connect(self.on_pdf_copy)
         widget.batch_rename_requested.connect(self.on_batch_rename)
         widget.split_requested.connect(self.on_pdf_split)
+        widget.seiten_requested.connect(self.on_pdf_seiten)  # Issue #280
         widget.ki_split_requested.connect(self.on_pdf_ki_split)
         widget.merge_requested.connect(self.on_pdf_merge)
         widget.stack_requested.connect(self.on_pdf_stacked)
@@ -1485,7 +1552,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self.hybrid_classifier.is_llm_available()
                 and self.config.get("llm_precache_enabled", True)
             )
-            if llm_active and llm_done < total:
+            hinweis = self._llm_health()[1] if getattr(self, "_llm_request_error", None) else None
+            if llm_active and llm_done < total and hinweis is not None:
+                # Issue #291: Der Anbieter scheitert (z.B. Modell fehlt) - sagen, woran es
+                # haengt, statt eines Zaehlers, der stehen bleibt
+                parts.append(tr("KI kommt nicht weiter ({llm_done}/{total}): {problem}").format(
+                    llm_done=llm_done, total=total, problem=hinweis.problem))
+            elif llm_active and llm_done < total:
                 parts.append(tr("KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen").format(llm_done=llm_done, total=total))
         # Laufender KI-Aufruf (Pre-Cache, Metadaten, Chat): Uhr + Schaetzung (Issue #68)
         jobs = activity.jobs()
@@ -1577,7 +1650,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """
         merged = self._with_existing_ki_folder(pdf_path, suggestions, detected_date)
         merged = self._with_einheit_folder(pdf_path, merged, detected_date)
-        return self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+        geordnet = self._ordnen(pdf_path, self._with_new_folder(pdf_path, merged, detected_date))
+        # Issue #268: KI-, Einheiten- und Neuer-Ordner-Vorschlag kamen bisher zusaetzlich zu
+        # "Max. Vorschlaege" dazu; jetzt fallen dafuer die schwaechsten am Ende weg
+        return geordnet[:max(int(self.config.get("max_suggestions", 5) or 5), 1)]
 
     def _einheiten_fuer_prompt(self) -> list[dict]:
         """Gelernte Einheiten mit Ablageort relativ zum Zielordner (fuer den KI-Prompt, Issue #257)."""
@@ -2145,6 +2221,19 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         rename_action.triggered.connect(self._rename_selected_pdf)
         edit_menu.addAction(rename_action)
 
+        # Entf legt die markierten Kacheln in den Papierkorb (Issue #272). Das Kuerzel gilt nur,
+        # solange der Fokus in der Kachelansicht liegt; in Textfeldern loescht Entf weiter Zeichen
+        self.papierkorb_action = QAction(tr("In den Papierkorb"), self)
+        kuerzel = [QKeySequence(Qt.Key.Key_Delete)]
+        if sys.platform == "darwin":
+            kuerzel.insert(0, QKeySequence("Ctrl+Backspace"))  # Cmd+Rueckschritt wie im Finder
+        self.papierkorb_action.setShortcuts(kuerzel)
+        self.papierkorb_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.papierkorb_action.setToolTip(tr("Markierte Dateien in den Papierkorb verschieben (Entf)"))
+        self.papierkorb_action.triggered.connect(self.auswahl_loeschen)
+        self.pdf_scroll_area.addAction(self.papierkorb_action)
+        edit_menu.addAction(self.papierkorb_action)
+
         edit_menu.addSeparator()
 
         deselect_action = QAction(tr("Auswahl aufheben"), self)
@@ -2293,6 +2382,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         open_action.triggered.connect(self.open_scan_folder)
         toolbar.addAction(open_action)
 
+        # Hinterlegtes Scanprogramm starten (Issue #270)
+        self.scan_starten_action = QAction(tr("Jetzt scannen"), self)
+        self.scan_starten_action.setToolTip(
+            tr("Scanprogramm starten (hinterlegt unter Einstellungen › Allgemein › Scannen)")
+        )
+        self.scan_starten_action.triggered.connect(self.scan_starten)
+        toolbar.addAction(self.scan_starten_action)
+
         # Zielordner hinzufügen
         add_folder_action = QAction(tr("+ Zielordner"), self)
         add_folder_action.setToolTip(tr("Neuen Zielordner hinzufügen"))
@@ -2430,6 +2527,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         sizes = self.detail_panel.splitter.sizes()
         if len(sizes) == 2 and all(v > 0 for v in sizes):
             self.config.set("detail_splitter_sizes", list(sizes), auto_save=False)
+        # Gezogene Hoehe der Vorschlaege samt Fenstergroesse (Issue #268)
+        hoehe, fenster = self.vorschlag_teiler.gemerkt()
+        self.config.set("vorschlaege_hoehe", hoehe, auto_save=False)
+        self.config.set("vorschlaege_hoehe_fenster", fenster, auto_save=False)
         self.config.set("window_height", size.height(), auto_save=True)
 
     def closeEvent(self, event):
@@ -3839,6 +3940,106 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             except Exception as e:
                 QMessageBox.critical(self, tr("Fehler"), tr("Löschen fehlgeschlagen:\n{e}").format(e=e))
 
+    def auswahl_loeschen(self):
+        """Entf: die markierte(n) Kachel(n) in den Papierkorb, wie "Löschen" im Kontextmenue (Issue #272)."""
+        if self.left_tabs.currentIndex() != 0:
+            return  # nur in der Kachelansicht "PDFs"
+        if len(self.selected_pdfs) > 1:
+            pfade = list(self.selected_pdfs)
+        else:
+            pfade = [self.selected_pdf] if self.selected_pdf else []
+        pfade = [p for p in pfade if self._pdf_widget_for(p) is not None]
+        if not pfade:
+            self.statusbar.showMessage(tr("Keine Datei markiert"), 2000)
+            return
+        if len(pfade) > 1:
+            self._dateien_loeschen(pfade)
+        elif isinstance(self._pdf_widget_for(pfade[0]), OfficeThumbnailWidget):
+            self.on_office_delete(pfade[0])
+        else:
+            self.on_pdf_delete(pfade[0])
+
+    # So viele Namen nennt die Rueckfrage beim Loeschen mehrerer Dateien hoechstens
+    LOESCHEN_NAMEN_MAX = 10
+
+    def _namen_liste(self, pfade: list[Path]) -> str:
+        namen = [p.name for p in pfade[:self.LOESCHEN_NAMEN_MAX]]
+        if len(pfade) > len(namen):
+            namen.append(tr("… und {anzahl} weitere").format(anzahl=len(pfade) - len(namen)))
+        return "\n".join(namen)
+
+    def _dateien_loeschen(self, pfade: list[Path]):
+        """Mehrere markierte Dateien nach einer Rueckfrage in den Papierkorb (Issue #272).
+
+        Alle stehen in einem Eintrag des Rueckgaengig-Stapels: ein Strg+Z holt sie zurueck.
+        Dateien, fuer die der Papierkorb nicht geht, werden nur nach einer zweiten,
+        ausdruecklichen Rueckfrage endgueltig geloescht (wie bei einer einzelnen Datei).
+        """
+        ja = QMessageBox.StandardButton.Yes
+        nein = QMessageBox.StandardButton.No
+        reply = QMessageBox.question(
+            self,
+            tr("Dateien löschen"),
+            tr("Möchten Sie {anzahl} Dateien in den Papierkorb verschieben?\n\n{namen}").format(
+                anzahl=len(pfade), namen=self._namen_liste(pfade)),
+            ja | nein,
+            nein,
+        )
+        if reply != ja:
+            return
+
+        eintraege: list[tuple[Path, Path]] = []
+        entfernt: list[Path] = []
+        ohne_papierkorb: list[Path] = []
+        fehler: list[str] = []
+        for pfad in pfade:
+            try:
+                papierkorb = self.file_manager.delete_file(pfad)
+            except PapierkorbNichtVerfuegbar:
+                ohne_papierkorb.append(pfad)
+                continue
+            except Exception as e:  # noqa: BLE001 - je Datei melden, die uebrigen trotzdem loeschen
+                fehler.append(f"{pfad.name}: {e}")
+                continue
+            if papierkorb is not None:
+                eintraege.append((pfad, papierkorb))
+            entfernt.append(pfad)
+
+        if ohne_papierkorb:
+            antwort = QMessageBox.question(
+                self,
+                tr("Papierkorb nicht verfügbar"),
+                tr("Papierkorb nicht verfügbar – {anzahl} Datei(en) endgültig löschen?\n\n{namen}").format(
+                    anzahl=len(ohne_papierkorb), namen=self._namen_liste(ohne_papierkorb)),
+                ja | nein,
+                nein,
+            )
+            if antwort == ja:
+                for pfad in ohne_papierkorb:
+                    try:
+                        self.file_manager.delete_file(pfad, endgueltig=True)
+                    except Exception as e:  # noqa: BLE001
+                        fehler.append(f"{pfad.name}: {e}")
+                        continue
+                    entfernt.append(pfad)
+
+        for pfad in entfernt:
+            if isinstance(self._pdf_widget_for(pfad), OfficeThumbnailWidget):
+                self._remove_office_widget(pfad)
+            else:
+                self.remove_pdf_widget(pfad)
+        if entfernt:
+            self._clear_selection()  # Details und Vorschlaege der geloeschten Dateien leeren
+            self.statusbar.showMessage(tr("Gelöscht: {anzahl} Dateien").format(anzahl=len(entfernt)), 3000)
+        if eintraege:
+            self._push_undo({
+                "type": "wegraeumen",
+                "eintraege": eintraege,
+                "description": tr("Löschen: {anzahl} Dateien").format(anzahl=len(eintraege)),
+            })
+        if fehler:
+            QMessageBox.critical(self, tr("Fehler"), tr("Löschen fehlgeschlagen:\n{e}").format(e="\n".join(fehler)))
+
     def on_pdf_move(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF verschoben werden soll."""
         folder = QFileDialog.getExistingDirectory(
@@ -3934,6 +4135,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.load_pdfs()
         except Exception as e:
             QMessageBox.critical(self, tr("Fehler"), tr("PDF trennen fehlgeschlagen:\n{e}").format(e=e))
+
+    def on_pdf_seiten(self, pdf_path: Path):
+        """Kontextmenue "Seiten bearbeiten…": einzelne Seiten loeschen, umsortieren, drehen (Issue #280)."""
+        seiten_bearbeiten.bearbeiten(self, pdf_path)
 
     def on_pdf_merge(self):
         """Wird aufgerufen wenn ausgewählte PDFs zusammengefügt werden sollen."""
@@ -4373,6 +4578,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._undo_rotate(entry)
         elif entry_type == "gerade":
             self._undo_gerade(entry)
+        elif entry_type == "seiten":  # Issue #280: Seiten geloescht/umsortiert/gedreht
+            seiten_bearbeiten.rueckgaengig(self, entry)
         elif entry_type == "delete":
             self._undo_delete(entry)
         elif entry_type == "wegraeumen":  # Issues #184/#187: Original(e) nach Umwandeln/Trennen
@@ -4945,6 +5152,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         wurzeln.extend(self.config.get_target_folders())
         return wurzeln
 
+    def _lupe_einfaerben(self):
+        """Lupe an der Pfadzeile in der Textfarbe des aktiven Schemas (Issue #295)."""
+        self.breadcrumb_suche_btn.setIcon(lupen_symbol(14))
+
     def _ordnersuche_links_oeffnen(self):
         self.breadcrumb_zeile.setVisible(False)
         self.ordner_suche_links.setVisible(True)
@@ -5235,6 +5446,36 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if folder:
             self._navigate_to_folder(Path(folder))
             self.statusbar.showMessage(tr("Scan-Ordner gesetzt: {folder}").format(folder=folder))
+
+    def scan_starten(self):
+        """Startet das hinterlegte Scanprogramm (Issue #270).
+
+        Ohne hinterlegtes Programm fuehrt der Knopf in die Einstellungen. Gescannt
+        wird im Scanprogramm; die neue Datei erscheint ueber die Ordner-Beobachtung.
+        """
+        pfad = scan_programm.bereinigt(self.config.get(scan_programm.KONFIG_SCHLUESSEL, ""))
+        if not pfad:
+            QMessageBox.information(
+                self,
+                tr("Jetzt scannen"),
+                tr("Es ist noch kein Scanprogramm hinterlegt.\n\n"
+                "Wählen Sie es im nächsten Fenster unter „Scannen“ aus. "
+                "Danach startet dieser Knopf das Programm."),
+            )
+            self._open_settings_dialog(tab=tr("Allgemein"))
+            return
+        try:
+            scan_programm.starten(pfad)
+        except scan_programm.ScanprogrammFehler as e:
+            fehler = str(e) if Path(pfad).exists() else tr("Die Datei wurde nicht gefunden.")
+            QMessageBox.warning(
+                self,
+                tr("Jetzt scannen"),
+                tr("Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\n"
+                "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
+            )
+            return
+        self.statusbar.showMessage(tr("Scanprogramm gestartet: {name}").format(name=Path(pfad).name), 5000)
 
     def add_target_folder(self):
         """Öffnet einen Dialog zum Hinzufügen eines Zielordners."""

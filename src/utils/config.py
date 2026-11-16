@@ -96,6 +96,7 @@ class Config:
         # Issue #116: auch noch nicht vorhandene Ordner vorschlagen (Jahresregel, KI)
         "suggest_new_folders": True,
         "scan_ordner_beobachten": True,  # Issue #232: neue Dateien im Scan-Ordner erscheinen von selbst
+        "scan_programm": "",  # Issue #270: Pfad zum Scanprogramm fuer den Knopf „Jetzt scannen“
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
@@ -155,6 +156,10 @@ class Config:
         # [Breite, Hoehe] des Einstellungsfensters; leer = passend zum Inhalt (Issue #255)
         "settings_dialog_size": [],
         "detail_splitter_sizes": [],  # [Details, Vorschau] im mittleren Panel
+        # Gezogene Hoehe von "Vorgeschlagene Ziele" (0 = passend zum Inhalt) und die
+        # Fenstergroesse [Breite, Hoehe], bei der sie gezogen wurde (Issue #268)
+        "vorschlaege_hoehe": 0,
+        "vorschlaege_hoehe_fenster": [],
         # Vorschlagsliste unter "Neuer Dateiname" aufgeklappt (Issue #146)
         "suggestions_expanded": False,
         # Original nach dem Umwandeln in PDF / Trennen (Issues #184, #187):
@@ -163,6 +168,9 @@ class Config:
         # Dokumentensuche (src/search): Felder siehe src.search.konfig.SearchConfig.
         # Leer = nicht eingerichtet; Standard-Wurzeln sind Scan- und Zielordner.
         "suche": {},
+        # Gespeicherte Suchen im Reiter "Suche" (Issue #281):
+        # [{"name": ..., "suche": {"text", "typ", "sortierung", "ordner", "von", "bis", ...}}]
+        "gespeicherte_suchen": [],
     }
 
     def __init__(self, config_path: str = None):

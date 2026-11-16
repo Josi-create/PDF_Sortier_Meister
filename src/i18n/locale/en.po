@@ -532,6 +532,14 @@ msgid "Datum: älteste zuerst"
 msgstr "Date: oldest first"
 
 #: src/core/sortierung.py
+msgid "Datum im Namen: neueste zuerst"
+msgstr "Date in name: newest first"
+
+#: src/core/sortierung.py
+msgid "Datum im Namen: älteste zuerst"
+msgstr "Date in name: oldest first"
+
+#: src/core/sortierung.py
 msgid "Name: A–Z"
 msgstr "Name: A–Z"
 
@@ -1791,6 +1799,10 @@ msgstr "Folder not in the visible tree: {name}"
 msgid "{folder_path}\nAnklicken verschiebt die ausgewählte PDF hierher."
 msgstr "{folder_path}\nClicking moves the selected PDF here."
 
+#: src/gui/vorschlag_liste.py
+msgid "Ziehen ändert die Höhe der Vorschläge.\nDoppelklick: genau so hoch, dass alle Vorschläge Platz haben."
+msgstr "Drag to change the height of the suggestions.\nDouble-click: just high enough for all suggestions to fit."
+
 #: src/gui/folder_widget.py
 msgid "1 PDF"
 msgstr "1 PDF"
@@ -2449,6 +2461,10 @@ msgid "KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen"
 msgstr "AI is tagging your PDFs… {llm_done}/{total} done"
 
 #: src/gui/main_window.py
+msgid "KI kommt nicht weiter ({llm_done}/{total}): {problem}"
+msgstr "AI is stuck ({llm_done}/{total}): {problem}"
+
+#: src/gui/main_window.py
 msgid "KI arbeitet{label} {0}"
 msgstr "AI working{label} {0}"
 
@@ -3001,6 +3017,34 @@ msgstr "Deleted: {name}"
 #: src/gui/main_window.py
 msgid "Löschen fehlgeschlagen:\n{e}"
 msgstr "Deleting failed:\n{e}"
+
+#: src/gui/main_window.py
+msgid "Markierte Dateien in den Papierkorb verschieben (Entf)"
+msgstr "Move the selected files to the Recycle Bin (Del)"
+
+#: src/gui/main_window.py
+msgid "Keine Datei markiert"
+msgstr "No file selected"
+
+#: src/gui/main_window.py
+msgid "Dateien löschen"
+msgstr "Delete files"
+
+#: src/gui/main_window.py
+msgid "Möchten Sie {anzahl} Dateien in den Papierkorb verschieben?\n\n{namen}"
+msgstr "Do you want to move {anzahl} files to the Recycle Bin?\n\n{namen}"
+
+#: src/gui/main_window.py
+msgid "Papierkorb nicht verfügbar – {anzahl} Datei(en) endgültig löschen?\n\n{namen}"
+msgstr "Recycle Bin not available – delete {anzahl} file(s) permanently?\n\n{namen}"
+
+#: src/gui/main_window.py
+msgid "Gelöscht: {anzahl} Dateien"
+msgstr "Deleted: {anzahl} files"
+
+#: src/gui/main_window.py
+msgid "Löschen: {anzahl} Dateien"
+msgstr "Delete: {anzahl} files"
 
 #: src/gui/main_window.py
 msgid "Zielordner auswählen"
@@ -6829,8 +6873,20 @@ msgid "Ollama-Server nicht erreichbar:\n{msg}\n\nPruefen Sie ob Ollama laeuft (z
 msgstr "Ollama server not reachable:\n{msg}\n\nCheck whether Ollama is running (e.g. 'ollama serve')\nand the URL is correct: {base_url}"
 
 #: src/gui/settings_dialog.py
-msgid "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der installierten Modelle. Verfuegbar:\n{0}\n\nInstallieren mit: ollama pull {chosen}"
-msgstr "\n\nNote: model '{chosen}' is not in the list of installed models. Available:\n{0}\n\nInstall with: ollama pull {chosen}"
+msgid "Installiert sind:\n{liste}\n\nWählen Sie eines davon aus („Modelle aktualisieren“ füllt die Liste) oder installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+msgstr "Installed models:\n{liste}\n\nChoose one of them (“Refresh models” fills the list) or install the selected model with:\nollama pull {chosen}"
+
+#: src/gui/settings_dialog.py
+msgid "Auf dem Server ist noch kein Modell installiert.\n\nInstallieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+msgstr "No model is installed on the server yet.\n\nInstall the selected model with:\nollama pull {chosen}"
+
+#: src/gui/settings_dialog.py
+msgid "Modell fehlt"
+msgstr "Model missing"
+
+#: src/gui/settings_dialog.py
+msgid "Der Ollama-Server antwortet, aber das gewählte Modell ist dort nicht installiert. Die KI kann so nicht arbeiten.\n\nServer: {base_url}\nVersion: {msg}\nGewähltes Modell: {chosen}\n\n{vorhanden}"
+msgstr "The Ollama server responds, but the selected model is not installed there. The AI cannot work like this.\n\nServer: {base_url}\nVersion: {msg}\nSelected model: {chosen}\n\n{vorhanden}"
 
 #: src/gui/settings_dialog.py
 msgid "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\nVersion: {msg}\nGewaehltes Modell: {chosen}{extra}"
@@ -9573,3 +9629,225 @@ msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below
 #: src/search/plattform.py
 msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
 msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
+
+#: src/gui/main_window.py
+msgid "Jetzt scannen"
+msgstr "Scan now"
+
+#: src/gui/main_window.py
+msgid "Scanprogramm starten (hinterlegt unter Einstellungen › Allgemein › Scannen)"
+msgstr "Start the scanning program (set under Settings › General › Scanning)"
+
+#: src/gui/main_window.py
+msgid "Es ist noch kein Scanprogramm hinterlegt.\n\nWählen Sie es im nächsten Fenster unter „Scannen“ aus. Danach startet dieser Knopf das Programm."
+msgstr "No scanning program has been set yet.\n\nChoose it in the next window under “Scanning”. After that this button starts the program."
+
+#: src/gui/main_window.py
+msgid "Die Datei wurde nicht gefunden."
+msgstr "The file was not found."
+
+#: src/gui/main_window.py
+msgid "Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\nPrüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen."
+msgstr "The scanning program could not be started:\n{pfad}\n\n{fehler}\n\nCheck the path under Settings › General › Scanning."
+
+#: src/gui/main_window.py
+msgid "Scanprogramm gestartet: {name}"
+msgstr "Scanning program started: {name}"
+
+#: src/gui/settings_dialog.py
+msgid "Scannen"
+msgstr "Scanning"
+
+#: src/gui/settings_dialog.py
+msgid "Pfad zum Scanprogramm"
+msgstr "Path to the scanning program"
+
+#: src/gui/settings_dialog.py
+msgid "Dieses Programm startet der Knopf „Jetzt scannen“ in der Werkzeugleiste.\nGescannt wird dort; der neue Scan erscheint danach von selbst im Scan-Ordner."
+msgstr "The “Scan now” button in the toolbar starts this program.\nScanning happens there; the new scan then appears in the scan folder by itself."
+
+#: src/gui/settings_dialog.py
+msgid "Scanprogramm:"
+msgstr "Scanning program:"
+
+#: src/gui/settings_dialog.py
+msgid "Scanprogramm auswählen"
+msgstr "Choose scanning program"
+
+#: src/core/pdf_seiten.py
+msgid "Die PDF ist digital signiert; eine Änderung der Seiten würde die Signatur ungültig machen."
+msgstr "The PDF is digitally signed; changing its pages would invalidate the signature."
+
+#: src/core/pdf_seiten.py
+msgid "Mindestens eine Seite muss bleiben."
+msgstr "At least one page must remain."
+
+#: src/core/pdf_seiten.py
+msgid "Eine Seite steht doppelt im Plan."
+msgstr "A page is listed twice in the plan."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Seiten bearbeiten…"
+msgstr "Edit pages…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Einzelne Seiten löschen, drehen oder umsortieren, leere Rückseiten entfernen"
+msgstr "Delete, rotate or reorder single pages, remove blank back pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seiten bearbeiten"
+msgstr "Edit pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "<b>{name}</b><br>Seiten anklicken (mit Strg oder Umschalt mehrere), dann löschen oder drehen. Die Reihenfolge änderst du durch Ziehen oder mit „Nach vorn“ und „Nach hinten“. Geändert wird die Datei erst mit „Speichern“."
+msgstr "<b>{name}</b><br>Click pages (hold Ctrl or Shift for several), then delete or rotate them. Change the order by dragging or with “Move forward” and “Move back”. The file is only changed when you click “Save”."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten zum Löschen vormerken oder die Vormerkung aufheben (Entf)"
+msgstr "Mark the selected pages for deletion or remove the mark (Del)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Nach vorn"
+msgstr "Move forward"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten um eine Stelle nach vorn schieben (Strg+Pfeil links)"
+msgstr "Move the selected pages one position forward (Ctrl+Left arrow)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Nach hinten"
+msgstr "Move back"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Ausgewählte Seiten um eine Stelle nach hinten schieben (Strg+Pfeil rechts)"
+msgstr "Move the selected pages one position back (Ctrl+Right arrow)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Leere Seiten markieren"
+msgstr "Mark blank pages"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Sucht fast weiße Seiten (leere Rückseiten) und merkt sie zum Löschen vor. Gelöscht wird erst mit „Speichern“."
+msgstr "Looks for almost white pages (blank back pages) and marks them for deletion. They are only deleted when you click “Save”."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr} – wird gelöscht"
+msgstr "Page {nr} – will be deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr}"
+msgstr "Page {nr}"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seite {nr} der bisherigen PDF"
+msgstr "Page {nr} of the current PDF"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} Seite(n)"
+msgstr "{anzahl} page(s)"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} werden gelöscht"
+msgstr "{anzahl} will be deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "mindestens eine Seite muss bleiben"
+msgstr "at least one page must remain"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "geändert"
+msgstr "changed"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Doch behalten"
+msgstr "Keep after all"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{anzahl} leere Seite(n) vorgemerkt – bitte ansehen, „Doch behalten“ nimmt eine wieder heraus"
+msgstr "{anzahl} blank page(s) marked – please check them, “Keep after all” takes one out again"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "keine leere Seite gefunden"
+msgstr "no blank page found"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Seiten konnten nicht gespeichert werden:\n{e}"
+msgstr "The pages could not be saved:\n{e}"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{name}: {geloescht} Seite(n) gelöscht"
+msgstr "{name}: {geloescht} page(s) deleted"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "{name}: Seiten geändert"
+msgstr "{name}: pages changed"
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Rückgängig nicht möglich: {name} liegt nicht mehr am alten Ort."
+msgstr "Undo not possible: {name} is no longer in its old place."
+
+#: src/gui/seiten_bearbeiten.py
+msgid "Rückgängig fehlgeschlagen:\n{e}"
+msgstr "Undo failed:\n{e}"
+#: src/gui/search_view.py
+msgid "Eine gespeicherte Suche wählen: setzt Suchtext und alle Filter und sucht sofort"
+msgstr "Choose a saved search: sets the search text and all filters and searches right away"
+
+#: src/gui/search_view.py
+msgid "Suche speichern…"
+msgstr "Save search…"
+
+#: src/gui/search_view.py
+msgid "Suchtext und alle Filter unter einem Namen merken"
+msgstr "Remember the search text and all filters under a name"
+
+#: src/gui/search_view.py
+msgid "Gewählte gespeicherte Suche umbenennen oder löschen"
+msgstr "Rename or delete the selected saved search"
+
+#: src/gui/search_view.py
+msgid "Umbenennen…"
+msgstr "Rename…"
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suchen …"
+msgstr "Saved searches …"
+
+#: src/gui/search_view.py
+msgid "Suche speichern"
+msgstr "Save search"
+
+#: src/gui/search_view.py
+msgid "Es ist weder ein Suchtext noch ein Filter gesetzt."
+msgstr "Neither a search text nor a filter is set."
+
+#: src/gui/search_view.py
+msgid "Name der gespeicherten Suche:"
+msgstr "Name of the saved search:"
+
+#: src/gui/search_view.py
+msgid "Es gibt schon eine gespeicherte Suche „{name}“. Überschreiben?"
+msgstr "There is already a saved search “{name}”. Overwrite it?"
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suche umbenennen"
+msgstr "Rename saved search"
+
+#: src/gui/search_view.py
+msgid "Es gibt schon eine gespeicherte Suche „{name}“."
+msgstr "There is already a saved search “{name}”."
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suche löschen"
+msgstr "Delete saved search"
+
+#: src/gui/search_view.py
+msgid "Die gespeicherte Suche „{name}“ löschen? Dokumente werden dabei nicht gelöscht."
+msgstr "Delete the saved search “{name}”? No documents are deleted."
+#: src/gui/pdf_thumbnail.py
+msgid "PDFs zusammenfügen ({anzahl})…"
+msgstr "Merge PDFs ({anzahl})…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Die markierten PDFs zu einer Datei zusammenfügen, der Name wird vorher abgefragt"
+msgstr "Merge the selected PDFs into one file; you are asked for the name first"

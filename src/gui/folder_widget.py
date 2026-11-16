@@ -268,6 +268,12 @@ class FolderWidget(QFrame):
         kopier_eintrag(menu, self.auswahl_pruefer, lambda: self.copy_here_requested.emit(self.folder_path))
         menu.addSeparator()
 
+        # Issue #273: Vorschlag links im Programm oeffnen, Wortlaut wie im Ordnerbaum.
+        # Gleicher Weg wie der Doppelklick (nicht bei einem Ordner, den es noch nicht gibt).
+        if self._is_suggestion and not self._neu:
+            goto_action = menu.addAction(tr("📁 Ordner links öffnen"))
+            goto_action.triggered.connect(lambda: self.double_clicked.emit(self.folder_path))
+
         # Im Dateimanager öffnen (nicht bei einem Ordner, den es noch nicht gibt)
         if not self._neu:
             from src.utils.platform_paths import file_manager_name

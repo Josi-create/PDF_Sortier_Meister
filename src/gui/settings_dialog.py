@@ -11,13 +11,15 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter
 )
 from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
 import sys
 import threading
+from pathlib import Path
 
+from src.core import scan_programm
 from src.gui import farben
 from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
@@ -28,6 +30,22 @@ from src.utils.config import get_config
 from src.utils.pdf_open import OPEN_MODE_CUSTOM, OPEN_MODES, normalize_open_mode
 from src.ml.llm_provider import is_cloud_provider
 from src.rag.bezug import SCHNELLFRAGEN, schnellfragen_aus_text
+
+
+def _modellsuche_einrichten(combo: QComboBox) -> None:
+    """Macht eine editierbare Modell-Auswahl durchsuchbar (#293).
+
+    Tippen zeigt nur die Einträge, die den Text irgendwo im Namen enthalten,
+    ohne Rücksicht auf Groß-/Kleinschreibung. Der Completer arbeitet direkt
+    auf dem Modell der Auswahl, bleibt also nach ``clear()``/``addItems()``
+    aktuell.
+    """
+    completer = QCompleter(combo.model(), combo)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+    completer.setMaxVisibleItems(15)
+    combo.setCompleter(completer)
 
 
 class _Hintergrund(QObject):
@@ -294,6 +312,7 @@ class SettingsDialog(QDialog):
         model_row_layout = QHBoxLayout()
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
+        _modellsuche_einrichten(self.model_combo)
         model_row_layout.addWidget(self.model_combo, 1)
 
         self.refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
@@ -419,6 +438,7 @@ class SettingsDialog(QDialog):
         model_row = QHBoxLayout()
         self.chat_model_combo = QComboBox()
         self.chat_model_combo.setEditable(True)
+        _modellsuche_einrichten(self.chat_model_combo)
         model_row.addWidget(self.chat_model_combo, 1)
         self.chat_refresh_models_button = QPushButton(tr("Modelle aktualisieren"))
         self.chat_refresh_models_button.setToolTip(
@@ -1127,6 +1147,23 @@ class SettingsDialog(QDialog):
         display_layout.addRow(self.scan_ordner_beobachten_check)
 
         layout.addWidget(display_group)
+
+        # Issue #270: Scanprogramm fuer den Knopf „Jetzt scannen“
+        scan_group = QGroupBox(tr("Scannen"))
+        scan_layout = QFormLayout(scan_group)
+        scan_row = QHBoxLayout()
+        self.scan_programm_input = QLineEdit()
+        self.scan_programm_input.setPlaceholderText(tr("Pfad zum Scanprogramm"))
+        self.scan_programm_input.setToolTip(
+            tr("Dieses Programm startet der Knopf „Jetzt scannen“ in der Werkzeugleiste.\n"
+            "Gescannt wird dort; der neue Scan erscheint danach von selbst im Scan-Ordner.")
+        )
+        scan_row.addWidget(self.scan_programm_input, 1)
+        self.scan_programm_browse = QPushButton(tr("Durchsuchen…"))
+        self.scan_programm_browse.clicked.connect(self._browse_scan_programm)
+        scan_row.addWidget(self.scan_programm_browse)
+        scan_layout.addRow(tr("Scanprogramm:"), scan_row)
+        layout.addWidget(scan_group)
 
         # Cache-Einstellungen
         cache_group = QGroupBox(tr("PDF-Analyse-Cache"))
@@ -2862,6 +2899,7 @@ class SettingsDialog(QDialog):
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
         self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
+        self.scan_programm_input.setText(self.config.get("scan_programm", "") or "")
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -2978,6 +3016,7 @@ class SettingsDialog(QDialog):
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
         self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
+        self.config.set("scan_programm", scan_programm.bereinigt(self.scan_programm_input.text()))
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
@@ -3092,6 +3131,22 @@ class SettingsDialog(QDialog):
         )
         if path:
             self.pdf_open_command_input.setText(path)
+
+    def _browse_scan_programm(self):
+        """Dateiauswahl fuer das Scanprogramm (Issue #270)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        if sys.platform == "win32":
+            file_filter = tr("Programme (*.exe);;Alle Dateien (*)")
+        elif sys.platform == "darwin":
+            file_filter = tr("Programme (*.app);;Alle Dateien (*)")
+        else:
+            file_filter = tr("Alle Dateien (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, tr("Scanprogramm auswählen"), self.scan_programm_input.text(), file_filter
+        )
+        if path:
+            self.scan_programm_input.setText(str(Path(path)))
 
     def _apply_explorer_integration_change(self):
         """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""
@@ -3346,24 +3401,39 @@ class SettingsDialog(QDialog):
 
             available = provider.list_models()
             chosen = model or OllamaProvider.DEFAULT_MODEL
-            extra = ""
-            if available and chosen not in available:
-                # Nicht zwingend ein Fehler - der Modellname kann ein Tag
-                # enthalten (z.B. 'llama3.1:latest'). Wir geben einen Hinweis.
-                extra = (
+            # Issue #291: Der Server antwortet auch ohne das gewaehlte Modell, dann scheitert
+            # aber jede Anfrage. Erfolg gibt es deshalb nur, wenn das Modell installiert ist
+            # (":latest" ist dabei optional, wie bei der Pruefung der Statusleiste).
+            from src.ml.hybrid_classifier import _ollama_model_installed
+            if not _ollama_model_installed(chosen, available):
+                if available:
+                    vorhanden = tr(
+                        "Installiert sind:\n{liste}\n\n"
+                        "Wählen Sie eines davon aus („Modelle aktualisieren“ füllt die Liste) "
+                        "oder installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+                    ).format(liste="\n".join(f"  - {m}" for m in available[:10]), chosen=chosen)
+                else:
+                    vorhanden = tr(
+                        "Auf dem Server ist noch kein Modell installiert.\n\n"
+                        "Installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+                    ).format(chosen=chosen)
+                QMessageBox.warning(
+                    self, tr("Modell fehlt"),
                     tr(
-                        "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der "
-                        "installierten Modelle. Verfuegbar:\n"
-                        "{0}\n\nInstallieren mit: ollama pull {chosen}"
-                    ).format('\n'.join((f'  - {m}' for m in available[:10])), chosen=chosen)
+                        "Der Ollama-Server antwortet, aber das gewählte Modell ist dort nicht "
+                        "installiert. Die KI kann so nicht arbeiten.\n\n"
+                        "Server: {base_url}\nVersion: {msg}\nGewähltes Modell: {chosen}\n\n"
+                        "{vorhanden}"
+                    ).format(base_url=base_url, msg=msg, chosen=chosen, vorhanden=vorhanden)
                 )
+                return
 
             QMessageBox.information(
                 self, tr("Erfolg"),
                 tr(
                     "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\n"
                     "Version: {msg}\nGewaehltes Modell: {chosen}{extra}"
-                ).format(base_url=base_url, msg=msg, chosen=chosen, extra=extra)
+                ).format(base_url=base_url, msg=msg, chosen=chosen, extra="")
             )
         except Exception as e:
             QMessageBox.critical(

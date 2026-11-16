@@ -53,6 +53,7 @@ from PyQt6.QtWidgets import (
 from src.gui.chat_worker import ChatWorker
 from src.gui.farben import farbe, stil
 from src.rag.bezug import Bezug, schnellfragen_liste
+from src.rag.citation import CitationParser
 from src.rag.rag_controller import ABGEBROCHEN_TEXT, RAGController
 from src.i18n import tr
 
@@ -158,6 +159,9 @@ class ChatView(QWidget):
     metadaten_requested = pyqtSignal(str, dict)   # Quelle, Felder (korrespondent, kategorie, ...)
     # „Im Ordner anzeigen“ fuer eine Quelle - wie im Reiter Suche
     im_ordner_anzeigen_requested = pyqtSignal(Path)
+    # Issue #297: die Quelle, auf die sich die Antwort hauptsaechlich stuetzt
+    # (Pfad, Seite 1-basiert oder 0) - das MainWindow zeigt sie in der Vorschau
+    beste_quelle = pyqtSignal(str, int)
 
     def __init__(self, db, hybrid_classifier, chat_config, parent=None, kompakt: bool = False):
         """
@@ -602,6 +606,7 @@ class ChatView(QWidget):
                 citations=response.citations,
             )
             self._zeige_vorschlaege(response)
+            self._beste_quelle_melden(response)
             if getattr(response, "has_hallucinated_citations", False):
                 self._add_bubble(
                     tr("⚠ Einige Quellenangaben konnten nicht verifiziert "
@@ -1149,6 +1154,21 @@ class ChatView(QWidget):
     # Quellen-Panel                                                      #
     # ------------------------------------------------------------------ #
 
+    def _beste_quelle_melden(self, response) -> None:
+        """Meldet die am haeufigsten zitierte Quelle der Antwort (Issue #297).
+
+        Ohne gueltiges Zitat oder ohne auffindbaren Pfad wird nichts gemeldet.
+        """
+        zitat = beste_zitierte_quelle(
+            getattr(response, "answer_text", "") or "",
+            getattr(response, "citations", None) or [],
+        )
+        if zitat is None:
+            return
+        pfad = self._resolve_file_path(zitat.file_path or "", zitat.pdf_id or "")
+        if pfad:
+            self.beste_quelle.emit(pfad, int(zitat.seite or 0))
+
     def _populate_sources(self, docs) -> None:
         """Fuellt das rechte Quellen-Panel mit allen retrieved docs.
 
@@ -1508,6 +1528,30 @@ def _markdown_zu_html(text: str, citations) -> str:
         html,
     )
     return html
+
+
+def beste_zitierte_quelle(antwort: str, citations):
+    """Die Quelle, auf die sich ``antwort`` hauptsaechlich stuetzt (Issue #297).
+
+    Am haeufigsten zitiert gewinnt; bei Gleichstand die zuerst zitierte.
+    Nur gueltige Zitate (``valid``) zaehlen. Liefert die :class:`Citation`
+    oder ``None``.
+    """
+    gueltig = {int(c.index): c for c in citations or [] if getattr(c, "valid", False)}
+    if not gueltig:
+        return None
+    anzahl: dict[int, int] = {}
+    erste: dict[int, int] = {}
+    for m in CitationParser.INLINE_PATTERN.finditer(antwort or ""):
+        idx = int(m.group(1))
+        if idx in gueltig:
+            anzahl[idx] = anzahl.get(idx, 0) + 1
+            erste.setdefault(idx, m.start())
+    if not anzahl:
+        # Kein Marker im Text (nur Quellenliste): die erste gueltige Quelle
+        return gueltig[min(gueltig)]
+    beste = min(anzahl, key=lambda idx: (-anzahl[idx], erste[idx]))
+    return gueltig[beste]
 
 
 def _doc_status(doc) -> str:

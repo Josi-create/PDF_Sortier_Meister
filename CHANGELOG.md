@@ -7,6 +7,91 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-16
+
+### Neu
+- **Knopf „Jetzt scannen“** (#270): In der Werkzeugleiste, neben „Scan-Ordner“, startet der neue Knopf dein
+  Scanprogramm. Welches das ist, trägst du einmal unter *Einstellungen → Allgemein → Scannen* ein (mit
+  „Durchsuchen…“). Ist noch nichts hinterlegt, führt der Knopf dorthin. Gescannt wird im Scanprogramm; der
+  neue Scan erscheint danach von selbst als Kachel. Wer fragt, womit man scannen soll: Die README nennt
+  VueScan als Empfehlung.
+- **Vorgeschlagene Ziele ohne Scrollen** (#268): Der Bereich „Vorgeschlagene Ziele“ ist jetzt so
+  hoch, dass alle Vorschläge zu sehen sind, auch bei 8 oder 10. Die Trennlinie zum Ordnerbaum
+  darunter lässt sich mit der Maus ziehen (der Mauszeiger wird dort zum Doppelpfeil); ein
+  Doppelklick auf die Linie stellt wieder die Höhe ein, bei der alle Vorschläge genau Platz haben.
+  Die gezogene Höhe merkt sich das Programm bis zum nächsten Start, solange das Fenster dann
+  wieder gleich groß ist. Eine Bildlaufleiste gibt es nur noch, wenn das Fenster zu klein ist
+  oder die Linie von Hand weiter nach oben gezogen wurde.
+- **Vorgeschlagenes Ziel links öffnen** (#273): Das Rechtsklick-Menü einer Kachel unter
+  „Vorgeschlagene Ziele“ hat den neuen Eintrag „Ordner links öffnen“. Er zeigt den Ordner links
+  im Programm, so wie der gleichnamige Eintrag im Ordnerbaum, ohne etwas zu verschieben. Bei
+  einem Vorschlag für einen Ordner, den es noch nicht gibt, fehlt der Eintrag.
+- **Entf legt markierte Dateien in den Papierkorb** (#272): Eine Kachel anklicken und Entf drücken,
+  nach der gewohnten Rückfrage liegt die Datei im Papierkorb, genau wie über „Löschen“ im
+  Rechtsklick-Menü. Sind mehrere Kacheln markiert, gilt Entf für alle: eine Rückfrage nennt die
+  Dateien, und ein einziges Strg+Z holt alle zurück. Entf wirkt nur, wenn zuletzt in die Kacheln
+  geklickt wurde; in Textfeldern löscht die Taste weiter Zeichen. Derselbe Befehl steht im Menü
+  *Bearbeiten → In den Papierkorb*. Am Mac geht auch Cmd+Rückschritt wie im Finder.
+- **Einzelne Seiten löschen, umsortieren und drehen** (#280): Rechtsklick auf eine PDF › „Seiten
+  bearbeiten…“ öffnet ein Fenster mit den Miniaturen aller Seiten. Dort lassen sich Seiten zum
+  Löschen vormerken (durchkreuzt, „Doch behalten“ nimmt es zurück), einzeln um 90° drehen und
+  per Ziehen oder mit „Nach vorn“ und „Nach hinten“ in eine andere Reihenfolge bringen.
+  „Leere Seiten markieren“ sucht fast weiße Seiten, etwa die leeren Rückseiten vom
+  Duplex-Scan, und merkt sie zum Löschen vor; gelöscht wird nichts, bevor du es gesehen hast.
+  Erst „Speichern“ ändert die Datei. Vorher legt das Programm eine Sicherungskopie an, Strg+Z
+  holt den alten Stand zurück. Scanbild, Textebene und die Angaben zum Dokument bleiben, wie sie
+  sind; der Suchindex liest die PDF danach neu ein. Digital signierte und verschlüsselte PDFs
+  werden nicht verändert.
+- **Gespeicherte Suchen** (#281): Im Reiter „Suche“ merkt sich der neue Knopf „Suche speichern…“
+  den Suchtext und alle Filter unter einem Namen, zum Beispiel „Nebenkosten 2026“. Die
+  Ausklappliste „Gespeicherte Suchen“ daneben stellt alles mit einem Klick wieder ein und sucht
+  sofort. Über den Knopf „⋯“ lässt sich die gewählte Suche umbenennen oder löschen. Die
+  gespeicherten Suchen liegen in den Einstellungen des Programms und sind damit Teil des Backups.
+- **Sortieren nach dem Datum im Dateinamen** (#296): Die Auswahl „Sortieren“ über den Kacheln hat
+  zwei neue Einträge, „Datum im Namen: neueste zuerst“ und „Datum im Namen: älteste zuerst“. Sie
+  richten sich nach dem Belegdatum am Anfang des Namens (`JJJJ-MM-TT_…`), sodass ein heute
+  umbenanntes Schreiben von 2010 nicht mehr ganz oben steht. Dateien ohne Datum im Namen reihen
+  sich nach ihrem Dateidatum ein. Die bisherige Sortierung „Datum“ (nach dem Dateidatum) bleibt
+  unverändert.
+
+### Geändert
+- **Kopfzeile über den Kacheln aufgeräumt** (#269): Der Ordnername steht jetzt ausgeschrieben da
+  und wird nicht mehr abgeschnitten. Die Wörter „Ansicht:“ und „Sortieren:“ entfallen, die beiden
+  Auswahlfelder stehen ganz rechts, darüber ganz klein die Angabe „27 Dateien · 2 Ordner“. Die
+  Zeile ist so hoch wie bisher. Ist die Spalte sehr schmal, steht nur der Ordnername ohne
+  „PDFs in:“ da; von einem sehr langen Namen bleibt der rechte Teil stehen, der ganze Pfad steht
+  im Tooltip.
+- **Modell-Auswahl durchsuchbar** (#293): In den Einstellungen (Reiter „KI-Assistent (LLM)“) lässt sich die Liste
+  „Modell“ durch Tippen durchsuchen, auch beim eigenen Modell für den Chat. Wer zum Beispiel
+  „haiku“ eingibt, sieht nur noch die passenden Modelle, auch wenn das Wort mitten im Namen
+  steht. Groß- und Kleinschreibung spielen keine Rolle. Das hilft vor allem bei OpenRouter mit
+  seinen sehr vielen Modellen.
+- **Lupe an der Pfadzeile einfarbig** (#295): Der Knopf mit der Lupe, der die Ordnersuche öffnet,
+  zeigt statt des bunten Emojis eine schlichte Lupe in der Schriftfarbe: dunkel im hellen, hell im
+  dunklen Farbschema. Beim Umschalten des Schemas färbt sie sich sofort mit um.
+- **Erste Datei beim Start schon ausgewählt** (#292): Liegen beim Programmstart Dateien im
+  Scan-Ordner, ist die erste Kachel gleich ausgewählt. Vorschau, Metadaten und Zielvorschläge
+  sind sofort gefüllt, statt des leeren Hinweises „PDF auswählen“.
+- **„PDFs zusammenfügen“ steht jetzt ganz oben im Rechtsklick-Menü**, sobald mindestens zwei PDFs markiert sind, mit der Zahl der PDFs, die zusammengefügt werden (Bilder und Office-Dateien in der Auswahl zählen nicht mit). Bisher stand der Eintrag mitten im Menü und war leicht zu übersehen (#294).
+- **Chat: Hauptquelle gleich in der Vorschau** (#297): Nach einer Antwort im Chat zeigt die
+  Vorschau in der Mitte das Dokument, auf das sich die Antwort am meisten stützt (am häufigsten
+  zitiert, bei Gleichstand das zuerst zitierte), wenn möglich direkt auf der Seite der
+  Fundstelle. Das gilt nur, solange links keine PDF ausgewählt ist; eine ausgewählte PDF bleibt
+  in der Vorschau stehen. Word-, Excel- und Bilddateien werden dabei nicht von selbst gezeigt.
+
+### Behoben
+- **Mehr Vorschläge als eingestellt** (#268): Der Ordner aus dem KI-Vorschlag, der Ordner der
+  Einheit und ein Vorschlag für einen neuen Ordner kamen bisher zusätzlich zu „Max. Vorschläge“
+  dazu, bei 6 standen dann 7 oder mehr da. Jetzt bleibt es bei der eingestellten Zahl; dafür
+  fallen die schwächsten Vorschläge am Ende weg.
+- **Ollama: „Verbindung testen“ prüft jetzt auch das Modell** (#291): Bisher meldete der Test
+  „Verbindung erfolgreich“, sobald der Ollama-Server antwortete, auch wenn das gewählte Modell
+  dort gar nicht installiert war. Jetzt gibt es Erfolg nur, wenn das Modell vorhanden ist. Fehlt
+  es, sagt eine Warnung, welche Modelle installiert sind und mit welchem Befehl sich das
+  gewählte nachladen lässt (`ollama pull …`). Die Statusleiste zeigt in diesem Fall nicht mehr
+  nur den stehenden Zähler „0/125 abgeschlossen“, sondern nennt den Grund, zum Beispiel
+  „KI kommt nicht weiter (0/125): Das Modell … gibt es bei Ollama nicht.“
+
 ## [0.29.0] - 2026-11-14
 
 ### Neu
