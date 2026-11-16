@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Intern
+- **Tests laufen auch auf einem echten Windows-Desktop grün** (#303): Drei Oberflächen-Tests
+  schlugen nur außerhalb der CI fehl. Der Test für Codeblöcke im Chat erwartet jetzt die
+  festbreite Schrift des jeweiligen Systems (unter Windows „Courier New“) statt fest „monospace“.
+  Die Tooltip-Tests setzen die helle Farbpalette des Programms (sonst ist der Tooltip bei
+  dunklem Windows-Schema dunkelgrau) und zeigen den Tooltip erneut, wenn Windows ihn beim
+  Aktivieren des Testfensters gleich wieder schließt. Am Programm selbst ändert sich nichts.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
