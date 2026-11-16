@@ -2453,6 +2453,10 @@ msgid "KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen"
 msgstr "AI is tagging your PDFs… {llm_done}/{total} done"
 
 #: src/gui/main_window.py
+msgid "KI kommt nicht weiter ({llm_done}/{total}): {problem}"
+msgstr "AI is stuck ({llm_done}/{total}): {problem}"
+
+#: src/gui/main_window.py
 msgid "KI arbeitet{label} {0}"
 msgstr "AI working{label} {0}"
 
@@ -6861,8 +6865,20 @@ msgid "Ollama-Server nicht erreichbar:\n{msg}\n\nPruefen Sie ob Ollama laeuft (z
 msgstr "Ollama server not reachable:\n{msg}\n\nCheck whether Ollama is running (e.g. 'ollama serve')\nand the URL is correct: {base_url}"
 
 #: src/gui/settings_dialog.py
-msgid "\n\nHinweis: Modell '{chosen}' steht nicht in der Liste der installierten Modelle. Verfuegbar:\n{0}\n\nInstallieren mit: ollama pull {chosen}"
-msgstr "\n\nNote: model '{chosen}' is not in the list of installed models. Available:\n{0}\n\nInstall with: ollama pull {chosen}"
+msgid "Installiert sind:\n{liste}\n\nWählen Sie eines davon aus („Modelle aktualisieren“ füllt die Liste) oder installieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+msgstr "Installed models:\n{liste}\n\nChoose one of them (“Refresh models” fills the list) or install the selected model with:\nollama pull {chosen}"
+
+#: src/gui/settings_dialog.py
+msgid "Auf dem Server ist noch kein Modell installiert.\n\nInstallieren Sie das gewählte Modell mit:\nollama pull {chosen}"
+msgstr "No model is installed on the server yet.\n\nInstall the selected model with:\nollama pull {chosen}"
+
+#: src/gui/settings_dialog.py
+msgid "Modell fehlt"
+msgstr "Model missing"
+
+#: src/gui/settings_dialog.py
+msgid "Der Ollama-Server antwortet, aber das gewählte Modell ist dort nicht installiert. Die KI kann so nicht arbeiten.\n\nServer: {base_url}\nVersion: {msg}\nGewähltes Modell: {chosen}\n\n{vorhanden}"
+msgstr "The Ollama server responds, but the selected model is not installed there. The AI cannot work like this.\n\nServer: {base_url}\nVersion: {msg}\nSelected model: {chosen}\n\n{vorhanden}"
 
 #: src/gui/settings_dialog.py
 msgid "Verbindung zu Ollama erfolgreich!\nServer: {base_url}\nVersion: {msg}\nGewaehltes Modell: {chosen}{extra}"

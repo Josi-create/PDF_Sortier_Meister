@@ -57,8 +57,10 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
                 "starten."
             ).format(provider=provider),
         )
-    if _enthaelt(text, "nicht installiert", "is not installed", "not found, try pulling", "model not found",
-                 "does not exist", "no such model"):
+    # Ollama nennt den Namen mitten in der Meldung: model 'abc' not found (Issue #291)
+    modell_fehlt = _enthaelt(text, "model '", 'model "') and "not found" in text
+    if modell_fehlt or _enthaelt(text, "nicht installiert", "is not installed", "not found, try pulling",
+                                 "model not found", "does not exist", "no such model"):
         return KIHinweis(
             tr("Das Modell {modell_name} gibt es bei {provider} nicht.").format(modell_name=modell_name, provider=provider),
             tr("In den Einstellungen ein vorhandenes Modell auswählen."),

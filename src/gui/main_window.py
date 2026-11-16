@@ -1508,7 +1508,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self.hybrid_classifier.is_llm_available()
                 and self.config.get("llm_precache_enabled", True)
             )
-            if llm_active and llm_done < total:
+            hinweis = self._llm_health()[1] if getattr(self, "_llm_request_error", None) else None
+            if llm_active and llm_done < total and hinweis is not None:
+                # Issue #291: Der Anbieter scheitert (z.B. Modell fehlt) - sagen, woran es
+                # haengt, statt eines Zaehlers, der stehen bleibt
+                parts.append(tr("KI kommt nicht weiter ({llm_done}/{total}): {problem}").format(
+                    llm_done=llm_done, total=total, problem=hinweis.problem))
+            elif llm_active and llm_done < total:
                 parts.append(tr("KI verschlagwortet Ihre PDFs… {llm_done}/{total} abgeschlossen").format(llm_done=llm_done, total=total))
         # Laufender KI-Aufruf (Pre-Cache, Metadaten, Chat): Uhr + Schaetzung (Issue #68)
         jobs = activity.jobs()
