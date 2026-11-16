@@ -644,6 +644,9 @@ class Werkzeugkasten:
             wert = raw.get(feld)
             if wert not in (None, ""):
                 meta.append(f"{titel}: {wert}")
+        notiz = " ".join(str(raw.get("notiz") or "").split())  # Issue #298: eigene Notiz des Nutzers
+        if notiz:
+            meta.append(f"Notiz: {notiz[:FUNDSTELLEN_MAX_ZEICHEN]}")
         fund = " ".join(str(raw.get("text_snippet") or "").split())
         if len(fund) > FUNDSTELLEN_MAX_ZEICHEN:
             fund = fund[:FUNDSTELLEN_MAX_ZEICHEN].rstrip() + " …"

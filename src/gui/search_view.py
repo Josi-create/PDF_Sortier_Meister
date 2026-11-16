@@ -394,6 +394,13 @@ class TrefferKarte(QFrame):
         if metadaten_zeile(d):
             self.metadaten_label = self._label(escape(metadaten_zeile(d)), "color: $gruen_text_suche; font-size: 11px;")
             lay.addWidget(self.metadaten_label)
+        # Issue #298: eigene Notiz zum Dokument (eine Zeile, Umbrueche als Leerzeichen)
+        self.notiz_label = None
+        notiz = " ".join(str(d.get("notiz") or "").split())
+        if notiz:
+            self.notiz_label = self._label(escape(tr("Notiz: {notiz}").format(notiz=notiz)),
+                                           "color: $grau_66; font-size: 11px; font-style: italic;")
+            lay.addWidget(self.notiz_label)
 
         pfad = d.get("ordner") if d.get("typ") == "mail" and d.get("format") == "mbox" else d.get("pfad")
         self.pfad_label = self._label(escape(pfad or ""), "color: $grau_88; font-size: 11px;")

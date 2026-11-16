@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Notiz zu einem Dokument** (#298): Im Detail-Panel gibt es unter „Zusammenfassung“ das neue Feld
+  „Notiz“ für einen eigenen Satz, der nicht im Dokument steht, etwa „Kopie ans Finanzamt geschickt“ oder
+  „Original beim Steuerberater“. Mit „Metadaten speichern“ kommt die Notiz in die PDF; leeren und
+  speichern entfernt sie wieder. Die Suche findet Dokumente auch über ihre Notiz, die Trefferkarte im
+  Reiter „Suche“ zeigt sie an, und der Chat sieht sie bei den Suchtreffern. Eine Notiz je Dokument, nur
+  für PDFs.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
