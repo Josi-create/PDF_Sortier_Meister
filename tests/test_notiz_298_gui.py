@@ -207,6 +207,9 @@ def test_metadaten_speichern_schreibt_und_entfernt_die_notiz(qtbot, hauptfenster
     # ein anderer Schreibweg ohne das Feld laesst die Notiz stehen
     win._write_pdf_metadata(pdf, pdf.name, ["vertrag"], {"korrespondent": "Wartungsdienst Muster"})
     assert read_metadata(pdf).notiz == NOTIZ.strip()
+    # Die Warteschlange liest die geaenderte Datei im Hintergrund neu ein; unter Windows haelt das die
+    # Datei offen, und ein gleichzeitiges Schreiben schluege fehl
+    assert meldungen.warten(10.0)
 
     # Feld leeren und speichern: Notiz weg, in der PDF und im Index
     feld.setPlainText("")
