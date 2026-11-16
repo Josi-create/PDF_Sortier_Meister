@@ -73,6 +73,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   umbenanntes Schreiben von 2010 nicht mehr ganz oben steht. Dateien ohne Datum im Namen reihen
   sich nach ihrem Dateidatum ein. Die bisherige Sortierung „Datum“ (nach dem Dateidatum) bleibt
   unverändert.
+### Verbessert
+- **Modell-Auswahl durchsuchbar** (#293): In den Einstellungen (Reiter „KI-Assistent (LLM)“) lässt sich die Liste
+  „Modell“ durch Tippen durchsuchen, auch beim eigenen Modell für den Chat. Wer zum Beispiel
+  „haiku“ eingibt, sieht nur noch die passenden Modelle, auch wenn das Wort mitten im Namen
+  steht. Groß- und Kleinschreibung spielen keine Rolle. Das hilft vor allem bei OpenRouter mit
+  seinen sehr vielen Modellen.
 
 ## [0.29.0] - 2026-11-14
 
