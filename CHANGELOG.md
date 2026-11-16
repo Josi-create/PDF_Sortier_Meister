@@ -79,6 +79,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   „haiku“ eingibt, sieht nur noch die passenden Modelle, auch wenn das Wort mitten im Namen
   steht. Groß- und Kleinschreibung spielen keine Rolle. Das hilft vor allem bei OpenRouter mit
   seinen sehr vielen Modellen.
+### Geändert
+- **Lupe an der Pfadzeile einfarbig** (#295): Der Knopf mit der Lupe, der die Ordnersuche öffnet,
+  zeigt statt des bunten Emojis eine schlichte Lupe in der Schriftfarbe: dunkel im hellen, hell im
+  dunklen Farbschema. Beim Umschalten des Schemas färbt sie sich sofort mit um.
 
 ## [0.29.0] - 2026-11-14
 
