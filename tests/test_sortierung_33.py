@@ -119,3 +119,61 @@ def test_neu_laden_behaelt_sortierung(main_window, fresh_singletons):
     main_window.load_pdfs()
     assert _kachelnamen(main_window) == ["Anna.pdf", "scan 2.pdf", "Scan 10.pdf"]
     assert _grid_namen(main_window) == _kachelnamen(main_window)
+
+
+# --- Issue #296: Datum im Dateinamen ---------------------------------------------------
+
+def test_datum_aus_namen():
+    from src.core.sortierung import datum_aus_namen
+    assert datum_aus_namen("2010-03-01_Rechnung.pdf") < datum_aus_namen("2024-11-14 Brief.pdf")
+    assert datum_aus_namen("1965-07-01_Urkunde.pdf") is not None  # vor 1970 (Windows)
+    assert datum_aus_namen("Rechnung_2010-03-01.pdf") is None  # nur am Anfang
+    assert datum_aus_namen("2024-13-45_kaputt.pdf") is None
+    assert datum_aus_namen("2024-01-0123.pdf") is None
+    assert datum_aus_namen("Scan 10.pdf") is None
+
+
+def test_namensdatum_statt_dateidatum(tmp_path):
+    # heute umbenannt, aber inhaltlich alt: das Dateidatum ist das juengste
+    pfade = _dateien(tmp_path, {
+        "2010-03-01_Max Mustermann Rechnung.pdf": (1, 3_000_000_000),
+        "2024-11-14_Brief.pdf": (1, 1_000_000_000),
+        "2020-05-05_Bescheid.pdf": (1, 2_000_000_000),
+    })
+    assert _namen(sortiere_pfade(pfade, "namensdatum_ab")) == [
+        "2024-11-14_Brief.pdf", "2020-05-05_Bescheid.pdf", "2010-03-01_Max Mustermann Rechnung.pdf"]
+    assert _namen(sortiere_pfade(pfade, "namensdatum_auf")) == [
+        "2010-03-01_Max Mustermann Rechnung.pdf", "2020-05-05_Bescheid.pdf", "2024-11-14_Brief.pdf"]
+    # die bisherige Datums-Sortierung bleibt beim Dateidatum
+    assert _namen(sortiere_pfade(pfade, "datum_ab"))[0] == "2010-03-01_Max Mustermann Rechnung.pdf"
+
+
+def test_ohne_datum_im_namen_zaehlt_dateidatum(tmp_path):
+    from datetime import datetime, timezone
+    def ts(j, m, t):
+        return datetime(j, m, t, 12, tzinfo=timezone.utc).timestamp()
+    pfade = _dateien(tmp_path, {
+        "2015-01-01_Alt.pdf": (1, ts(2026, 1, 1)),
+        "Scan Übersicht.pdf": (1, ts(2018, 6, 1)),  # ohne Datum im Namen, Umlaut
+        "2022-01-01_Neu.pdf": (1, ts(2026, 1, 1)),
+    })
+    assert _namen(sortiere_pfade(pfade, "namensdatum_ab")) == [
+        "2022-01-01_Neu.pdf", "Scan Übersicht.pdf", "2015-01-01_Alt.pdf"]
+    # bekannte Staende aus der Ordner-Beobachtung werden fuer Dateien ohne Datum genutzt
+    staende = {"Scan Übersicht.pdf": (ts(2010, 1, 1), 1)}
+    assert _namen(sortiere_pfade(pfade, "namensdatum_ab", staende))[-1] == "Scan Übersicht.pdf"
+
+
+def test_gleiches_namensdatum_nach_name(tmp_path):
+    pfade = _dateien(tmp_path, {"2020-01-01_b.pdf": (1, 100), "2020-01-01_a.pdf": (1, 200)})
+    assert _namen(sortiere_pfade(pfade, "namensdatum_ab")) == ["2020-01-01_a.pdf", "2020-01-01_b.pdf"]
+
+
+def test_auswahl_bietet_datum_im_namen(main_window, fresh_singletons):
+    scan = _scan(fresh_singletons["tmp_path"], {
+        "2010-03-01_Alt.pdf": (1, 300), "2024-11-14_Neu.pdf": (1, 100)})
+    main_window._navigate_to_folder(scan)
+    assert _kachelnamen(main_window) == ["2010-03-01_Alt.pdf", "2024-11-14_Neu.pdf"]
+    main_window.sort_combo.setCurrentIndex(main_window.sort_combo.findData("namensdatum_ab"))
+    assert _kachelnamen(main_window) == ["2024-11-14_Neu.pdf", "2010-03-01_Alt.pdf"]
+    assert _grid_namen(main_window) == _kachelnamen(main_window)

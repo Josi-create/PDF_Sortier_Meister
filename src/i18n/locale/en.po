@@ -532,6 +532,14 @@ msgid "Datum: älteste zuerst"
 msgstr "Date: oldest first"
 
 #: src/core/sortierung.py
+msgid "Datum im Namen: neueste zuerst"
+msgstr "Date in name: newest first"
+
+#: src/core/sortierung.py
+msgid "Datum im Namen: älteste zuerst"
+msgstr "Date in name: oldest first"
+
+#: src/core/sortierung.py
 msgid "Name: A–Z"
 msgstr "Name: A–Z"
 
