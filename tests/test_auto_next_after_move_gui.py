@@ -256,3 +256,52 @@ def test_move_multiple_without_prior_selection_clears_as_before(main_window, fre
     assert main_window.pdf_widgets == []
     assert main_window.selected_pdf is None
     assert main_window.selected_pdfs == []
+
+
+# --------------------------------------------------------------------- #
+# Programmstart: erste Kachel gleich ausgewaehlt (Issue #292)
+# --------------------------------------------------------------------- #
+
+
+def test_start_waehlt_erste_kachel_aus(main_window, fresh_singletons, monkeypatch):
+    """Nach dem Start-Laden ist die erste Kachel ausgewaehlt und das Detail-Panel gefuellt."""
+    scan = _make_scan_folder(fresh_singletons["tmp_path"], ["a.pdf", "b.pdf", "c.pdf"])
+    fresh_singletons["config"].set_scan_folder(str(scan))
+    original = main_window.load_pdfs
+
+    def laden():
+        original()
+        _prime_cache(main_window, [w.pdf_path for w in main_window.pdf_widgets])
+
+    monkeypatch.setattr(main_window, "load_pdfs", laden)
+
+    main_window._start_laden()
+
+    erste = main_window.pdf_widgets[0].pdf_path
+    assert main_window.selected_pdf == erste
+    assert [w.pdf_path for w in main_window.pdf_widgets if w.selected] == [erste]
+    assert main_window.detail_panel.get_current_pdf() == erste
+
+
+def test_start_ohne_dateien_waehlt_nichts(main_window, fresh_singletons):
+    """Leerer Scan-Ordner: keine Auswahl, kein Absturz."""
+    scan = _make_scan_folder(fresh_singletons["tmp_path"], [])
+    fresh_singletons["config"].set_scan_folder(str(scan))
+
+    main_window._start_laden()
+
+    assert main_window.pdf_widgets == []
+    assert main_window.selected_pdf is None
+
+
+def test_erste_kachel_ueberschreibt_vorhandene_auswahl_nicht(main_window, fresh_singletons):
+    """Ist schon etwas ausgewaehlt (z. B. per Explorer uebergebene PDF), bleibt es dabei."""
+    scan = _make_scan_folder(fresh_singletons["tmp_path"], ["a.pdf", "b.pdf"])
+    main_window._navigate_to_folder(scan)
+    _prime_cache(main_window, [w.pdf_path for w in main_window.pdf_widgets])
+    zweite = main_window.pdf_widgets[1].pdf_path
+    main_window.on_pdf_clicked(zweite)
+
+    main_window._erste_kachel_auswaehlen()
+
+    assert main_window.selected_pdf == zweite

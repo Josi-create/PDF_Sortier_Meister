@@ -83,6 +83,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Lupe an der Pfadzeile einfarbig** (#295): Der Knopf mit der Lupe, der die Ordnersuche öffnet,
   zeigt statt des bunten Emojis eine schlichte Lupe in der Schriftfarbe: dunkel im hellen, hell im
   dunklen Farbschema. Beim Umschalten des Schemas färbt sie sich sofort mit um.
+- **Erste Datei beim Start schon ausgewählt** (#292): Liegen beim Programmstart Dateien im
+  Scan-Ordner, ist die erste Kachel gleich ausgewählt. Vorschau, Metadaten und Zielvorschläge
+  sind sofort gefüllt, statt des leeren Hinweises „PDF auswählen“.
 
 ## [0.29.0] - 2026-11-14
 
