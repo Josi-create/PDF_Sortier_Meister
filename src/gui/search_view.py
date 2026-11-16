@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
@@ -70,6 +71,7 @@ TABELLEN_FORMATE = ("xlsx", "xlsm", "xls")
 
 SEITENGROESSE = 50            # Treffer je Ladevorgang („Weitere Treffer laden“)
 TIPP_VERZOEGERUNG_MS = 500    # Suche beim Tippen erst nach dieser Pause
+GESPEICHERTE_SUCHEN = "gespeicherte_suchen"  # Schluessel in der Konfiguration (Issue #281)
 MIN_ZEICHEN_TIPPEN = 3        # kuerzere Eingaben nur mit Enter suchen
 STATUS_INTERVALL_MS = 15_000  # Indexstand waehrend eines Laufs auffrischen
 UHR_INTERVALL_MS = 1000       # Stoppuhr eines laufenden Indexlaufs (Issue #262)
@@ -613,6 +615,32 @@ class SearchView(QWidget):
         zeile.addWidget(self.help_button)
         lay.addLayout(zeile)
 
+        # Gespeicherte Suchen (Issue #281): Suchtext und Filter unter einem Namen merken
+        gespeichert = QHBoxLayout()
+        self.gespeichert_combo = QComboBox()
+        self.gespeichert_combo.setToolTip(tr("Eine gespeicherte Suche wählen: setzt Suchtext und alle Filter "
+                                             "und sucht sofort"))
+        self.gespeichert_combo.activated.connect(self._gespeicherte_gewaehlt)
+        gespeichert.addWidget(self.gespeichert_combo, 1)
+        self.speichern_button = QPushButton(tr("Suche speichern…"))
+        self.speichern_button.setToolTip(tr("Suchtext und alle Filter unter einem Namen merken"))
+        self.speichern_button.clicked.connect(self._suche_speichern)
+        gespeichert.addWidget(self.speichern_button)
+        self.gespeichert_menue_button = QToolButton()
+        self.gespeichert_menue_button.setText("⋯")
+        self.gespeichert_menue_button.setToolTip(tr("Gewählte gespeicherte Suche umbenennen oder löschen"))
+        self.gespeichert_menue_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menue = QMenu(self.gespeichert_menue_button)
+        self.umbenennen_aktion = menue.addAction(tr("Umbenennen…"))
+        self.umbenennen_aktion.triggered.connect(self._gespeicherte_umbenennen)
+        self.loeschen_aktion = menue.addAction(tr("Löschen"))
+        self.loeschen_aktion.triggered.connect(self._gespeicherte_loeschen)
+        self.gespeichert_menue_button.setMenu(menue)
+        gespeichert.addWidget(self.gespeichert_menue_button)
+        self.gespeichert_combo.currentIndexChanged.connect(lambda _i: self._gespeichert_knoepfe())
+        lay.addLayout(gespeichert)
+        self._gespeicherte_fuellen()
+
         filter1 = QHBoxLayout()
         self._typ_gruppe = QButtonGroup(self)
         self._typ_gruppe.setExclusive(True)
@@ -907,6 +935,7 @@ class SearchView(QWidget):
                   self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values()):
             w.blockSignals(True)
         try:
+            self.gespeichert_combo.setCurrentIndex(0)
             self.search_edit.setText(text or "")
             if typ is not None and typ in self.typ_buttons:
                 self.typ_buttons[typ].setChecked(True)
@@ -942,6 +971,7 @@ class SearchView(QWidget):
         for w in felder:
             w.blockSignals(True)
         try:
+            self.gespeichert_combo.setCurrentIndex(0)
             self.search_edit.clear()
             self.ordner_edit.clear()
             for combo in self.meta_combos.values():
@@ -956,6 +986,140 @@ class SearchView(QWidget):
         self._liste_leeren(hilfe=True)
         self.count_label.setText("")
         self.angezeigte_abfrage = ""
+
+    # ------------------------------------------------------------------ Gespeicherte Suchen (Issue #281)
+
+    def suchzustand(self) -> dict:
+        """Suchtext und alle Filter, so wie sie gespeichert werden (nur gesetzte Felder)."""
+        zustand = self._filter_argumente()
+        text = self.search_edit.text().strip()
+        if text:
+            zustand["text"] = text
+        return zustand
+
+    def suchzustand_setzen(self, zustand: dict) -> None:
+        """Suchtext und alle Filter aus einem gespeicherten Zustand setzen (ohne zu suchen).
+
+        Fehlende Felder gelten als „kein Filter“; unlesbare Werte (von Hand geaenderte
+        Konfiguration) werden uebergangen.
+        """
+        felder = (self.search_edit, self.sort_combo, self.ordner_edit, self.zeitraum_edit,
+                  self.betrag_von_spin, self.betrag_bis_spin, *self.meta_combos.values())
+        for w in felder:
+            w.blockSignals(True)
+        try:
+            self.search_edit.setText(str(zustand.get("text") or ""))
+            typ = str(zustand.get("typ") or "")
+            self.typ_buttons[typ if typ in self.typ_buttons else ""].setChecked(True)
+            self.sort_combo.setCurrentIndex(max(0, self.sort_combo.findData(zustand.get("sortierung") or "relevanz")))
+            self.ordner_edit.setText(str(zustand.get("ordner") or ""))
+            try:
+                self.zeitraum_edit.setGrenzen(str(zustand.get("von") or ""), str(zustand.get("bis") or ""))
+            except ValueError:
+                self.zeitraum_edit.zuruecksetzen()
+            for feld, combo in self.meta_combos.items():
+                self._combo_waehlen(combo, str(zustand.get(feld) or ""))
+            for spin, feld in ((self.betrag_von_spin, "betrag_von"), (self.betrag_bis_spin, "betrag_bis")):
+                try:
+                    spin.setValue(float(zustand.get(feld) or 0))
+                except (TypeError, ValueError):
+                    spin.setValue(0.0)
+        finally:
+            for w in felder:
+                w.blockSignals(False)
+
+    def gespeicherte_suchen(self) -> list[dict]:
+        """Die gespeicherten Suchen aus den Einstellungen, nach Namen sortiert."""
+        roh = self.config.get(GESPEICHERTE_SUCHEN, [])
+        liste = [dict(e) for e in (roh if isinstance(roh, list) else [])
+                 if isinstance(e, dict) and str(e.get("name") or "").strip() and isinstance(e.get("suche"), dict)]
+        return sorted(liste, key=lambda e: str(e["name"]).casefold())
+
+    def _gespeicherte_fuellen(self, auswahl: str = "") -> None:
+        """Ausklappliste neu aufbauen; ``auswahl`` ist der Name, der danach gewaehlt ist."""
+        combo = self.gespeichert_combo
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            combo.addItem(tr("Gespeicherte Suchen …"), None)
+            for eintrag in self.gespeicherte_suchen():
+                combo.addItem(str(eintrag["name"]), eintrag["suche"])
+            combo.setCurrentIndex(max(0, combo.findText(auswahl)) if auswahl else 0)
+        finally:
+            combo.blockSignals(False)
+        self._gespeichert_knoepfe()
+
+    def _gespeichert_knoepfe(self) -> None:
+        self.gespeichert_menue_button.setEnabled(self.gespeichert_combo.currentIndex() > 0)
+
+    def _gespeicherte_schreiben(self, liste: list[dict], auswahl: str = "") -> None:
+        self.config.set(GESPEICHERTE_SUCHEN, liste)
+        self._gespeicherte_fuellen(auswahl)
+
+    @staticmethod
+    def _gleicher_name(a: str, b: str) -> bool:
+        return str(a).strip().casefold() == str(b).strip().casefold()
+
+    def _gespeicherte_gewaehlt(self, index: int) -> None:
+        """Eintrag der Ausklappliste angeklickt: Filter setzen und sofort suchen."""
+        zustand = self.gespeichert_combo.itemData(index)
+        if index <= 0 or not isinstance(zustand, dict):
+            return
+        self.suchzustand_setzen(zustand)
+        self._suche_starten()
+
+    def _suche_speichern(self) -> None:
+        """Knopf „Suche speichern…“: Namen abfragen, Suchtext und Filter in den Einstellungen ablegen."""
+        if not self.search_edit.text().strip() and not self._hat_filter():
+            QMessageBox.information(self, tr("Suche speichern"),
+                                    tr("Es ist weder ein Suchtext noch ein Filter gesetzt."))
+            return
+        vorgabe = self.gespeichert_combo.currentText() if self.gespeichert_combo.currentIndex() > 0 else ""
+        name, ok = QInputDialog.getText(self, tr("Suche speichern"), tr("Name der gespeicherten Suche:"),
+                                        text=vorgabe)
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        liste = self.gespeicherte_suchen()
+        vorhanden = next((e for e in liste if self._gleicher_name(e["name"], name)), None)
+        if vorhanden is not None:
+            antwort = QMessageBox.question(
+                self, tr("Suche speichern"),
+                tr("Es gibt schon eine gespeicherte Suche „{name}“. Überschreiben?").format(name=vorhanden["name"]))
+            if antwort != QMessageBox.StandardButton.Yes:
+                return
+            liste.remove(vorhanden)
+        liste.append({"name": name, "suche": self.suchzustand()})
+        self._gespeicherte_schreiben(liste, auswahl=name)
+
+    def _gespeicherte_umbenennen(self) -> None:
+        if self.gespeichert_combo.currentIndex() <= 0:
+            return
+        alt = self.gespeichert_combo.currentText()
+        name, ok = QInputDialog.getText(self, tr("Gespeicherte Suche umbenennen"), tr("Neuer Name:"), text=alt)
+        name = (name or "").strip()
+        if not ok or not name or name == alt:
+            return
+        liste = self.gespeicherte_suchen()
+        if any(self._gleicher_name(e["name"], name) and e["name"] != alt for e in liste):
+            QMessageBox.warning(self, tr("Gespeicherte Suche umbenennen"),
+                                tr("Es gibt schon eine gespeicherte Suche „{name}“.").format(name=name))
+            return
+        for e in liste:
+            if e["name"] == alt:
+                e["name"] = name
+        self._gespeicherte_schreiben(liste, auswahl=name)
+
+    def _gespeicherte_loeschen(self) -> None:
+        if self.gespeichert_combo.currentIndex() <= 0:
+            return
+        name = self.gespeichert_combo.currentText()
+        antwort = QMessageBox.question(
+            self, tr("Gespeicherte Suche löschen"),
+            tr("Die gespeicherte Suche „{name}“ löschen? Dokumente werden dabei nicht gelöscht.").format(name=name))
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        self._gespeicherte_schreiben([e for e in self.gespeicherte_suchen() if e["name"] != name])
 
     def _werte_fuellen(self, werte: dict | None) -> None:
         """Auswahllisten der Metadatenfilter aus dem Index fuellen; die Auswahl bleibt erhalten."""

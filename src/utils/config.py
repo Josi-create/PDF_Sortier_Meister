@@ -168,6 +168,9 @@ class Config:
         # Dokumentensuche (src/search): Felder siehe src.search.konfig.SearchConfig.
         # Leer = nicht eingerichtet; Standard-Wurzeln sind Scan- und Zielordner.
         "suche": {},
+        # Gespeicherte Suchen im Reiter "Suche" (Issue #281):
+        # [{"name": ..., "suche": {"text", "typ", "sortierung", "ordner", "von", "bis", ...}}]
+        "gespeicherte_suchen": [],
     }
 
     def __init__(self, config_path: str = None):

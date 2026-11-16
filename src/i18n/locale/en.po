@@ -9765,3 +9765,58 @@ msgstr "Undo not possible: {name} is no longer in its old place."
 #: src/gui/seiten_bearbeiten.py
 msgid "Rückgängig fehlgeschlagen:\n{e}"
 msgstr "Undo failed:\n{e}"
+#: src/gui/search_view.py
+msgid "Eine gespeicherte Suche wählen: setzt Suchtext und alle Filter und sucht sofort"
+msgstr "Choose a saved search: sets the search text and all filters and searches right away"
+
+#: src/gui/search_view.py
+msgid "Suche speichern…"
+msgstr "Save search…"
+
+#: src/gui/search_view.py
+msgid "Suchtext und alle Filter unter einem Namen merken"
+msgstr "Remember the search text and all filters under a name"
+
+#: src/gui/search_view.py
+msgid "Gewählte gespeicherte Suche umbenennen oder löschen"
+msgstr "Rename or delete the selected saved search"
+
+#: src/gui/search_view.py
+msgid "Umbenennen…"
+msgstr "Rename…"
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suchen …"
+msgstr "Saved searches …"
+
+#: src/gui/search_view.py
+msgid "Suche speichern"
+msgstr "Save search"
+
+#: src/gui/search_view.py
+msgid "Es ist weder ein Suchtext noch ein Filter gesetzt."
+msgstr "Neither a search text nor a filter is set."
+
+#: src/gui/search_view.py
+msgid "Name der gespeicherten Suche:"
+msgstr "Name of the saved search:"
+
+#: src/gui/search_view.py
+msgid "Es gibt schon eine gespeicherte Suche „{name}“. Überschreiben?"
+msgstr "There is already a saved search “{name}”. Overwrite it?"
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suche umbenennen"
+msgstr "Rename saved search"
+
+#: src/gui/search_view.py
+msgid "Es gibt schon eine gespeicherte Suche „{name}“."
+msgstr "There is already a saved search “{name}”."
+
+#: src/gui/search_view.py
+msgid "Gespeicherte Suche löschen"
+msgstr "Delete saved search"
+
+#: src/gui/search_view.py
+msgid "Die gespeicherte Suche „{name}“ löschen? Dokumente werden dabei nicht gelöscht."
+msgstr "Delete the saved search “{name}”? No documents are deleted."
