@@ -368,6 +368,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.chat_view.umbenennen_requested.connect(self._on_chat_umbenennen)
         self.chat_view.metadaten_requested.connect(self._on_chat_metadaten)
         self.chat_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
+        # Issue #297: beste Quelle einer Antwort in der Vorschau der Mitte
+        self.chat_view.beste_quelle.connect(self._on_chat_beste_quelle)
+        self._chat_quelle_seite: Optional[tuple[Path, int]] = None
         self.left_tabs = QTabWidget()
         self.left_tabs.addTab(pdf_panel, tr("PDFs"))
         self.left_tabs.setTabToolTip(0, tr("Scan-Ordner: PDF auswählen, Details prüfen, Zielordner anklicken"))
@@ -397,6 +400,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         self.detail_panel.korrespondent_dokumente_requested.connect(self.show_korrespondent)
+        self.detail_panel.preview.document_loaded.connect(self._on_detail_vorschau_geladen)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
         if (len(saved_sizes) == 2 and all(isinstance(v, int) and v > 0 for v in saved_sizes)):
@@ -780,6 +784,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if not file_path:
             return
         self.open_pdf(Path(file_path), seite=seite)
+
+    def _on_chat_beste_quelle(self, file_path: str, seite: int) -> None:
+        """Issue #297: Die Hauptquelle einer Chat-Antwort in der Vorschau der Mitte zeigen.
+
+        Nur wenn dort gerade keine PDF ausgewaehlt ist - eine ausgewaehlte PDF
+        (mit ihren Feldern und der Textuebernahme aus der Vorschau) bleibt stehen.
+        Nur PDFs; Word, Excel und Bilder brauchen eine Umwandlung.
+        """
+        if not file_path or self.selected_pdf is not None or self.detail_panel.get_current_pdf() is not None:
+            return
+        pfad = Path(file_path)
+        if pfad.suffix.lower() != ".pdf" or not pfad.is_file():
+            return
+        self._chat_quelle_seite = (pfad, int(seite)) if seite and int(seite) > 0 else None
+        self.detail_panel.preview.load_pdf(pfad)
+
+    def _on_detail_vorschau_geladen(self, path: Path) -> None:
+        """Vorgemerkte Seite der Chat-Quelle (Issue #297) anspringen, sobald die PDF steht."""
+        vorgemerkt, self._chat_quelle_seite = self._chat_quelle_seite, None
+        if vorgemerkt and Path(path) == vorgemerkt[0]:
+            self.detail_panel.preview.go_to_page(vorgemerkt[1] - 1)
 
     # ------------------------------------------------------------------ #
     # PDF oeffnen / Vorschau (Issues #74, #76)

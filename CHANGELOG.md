@@ -89,6 +89,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Geändert
 
 - **„PDFs zusammenfügen“ steht jetzt ganz oben im Rechtsklick-Menü**, sobald mindestens zwei PDFs markiert sind, mit der Zahl der PDFs, die zusammengefügt werden (Bilder und Office-Dateien in der Auswahl zählen nicht mit). Bisher stand der Eintrag mitten im Menü und war leicht zu übersehen (#294).
+- **Chat: Hauptquelle gleich in der Vorschau** (#297): Nach einer Antwort im Chat zeigt die
+  Vorschau in der Mitte das Dokument, auf das sich die Antwort am meisten stützt (am häufigsten
+  zitiert, bei Gleichstand das zuerst zitierte), wenn möglich direkt auf der Seite der
+  Fundstelle. Das gilt nur, solange links keine PDF ausgewählt ist; eine ausgewählte PDF bleibt
+  in der Vorschau stehen. Word-, Excel- und Bilddateien werden dabei nicht von selbst gezeigt.
 
 ## [0.29.0] - 2026-11-14
 
