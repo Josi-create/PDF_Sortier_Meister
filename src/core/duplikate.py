@@ -27,7 +27,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-from src.search.plattform import nur_cloud
+from src.search.plattform import nur_cloud, verknuepfung
 
 _BLOCK = 1 << 20  # 1 MB je Lesevorgang
 
@@ -116,10 +116,14 @@ def selbe_datei(a: Path | str, b: Path | str) -> bool:
 
 
 def gleiche_im_ordner(pfade: Iterable[Path | str],
-                      speicher: Optional[Pruefsummen] = None) -> list[list[Path]]:
+                      speicher: Optional[Pruefsummen] = None,
+                      abbrechen: Optional[Callable[[], bool]] = None,
+                      fortschritt: Optional[Callable[[int, int], None]] = None) -> list[list[Path]]:
     """Gruppen inhaltsgleicher Dateien unter ``pfade`` (je Gruppe mindestens zwei, Reihenfolge wie uebergeben).
 
     Gelesen werden nur Dateien, die ihre Groesse mit einer anderen teilen.
+    ``abbrechen()`` wird vor jeder zu lesenden Datei gefragt (True: sofort mit dem
+    bisherigen Ergebnis zurueck), ``fortschritt(gelesen, zu_lesen)`` danach gemeldet.
     """
     speicher = speicher or _summen
     nach_groesse: dict[int, list[tuple[Path, os.stat_result]]] = {}
@@ -130,16 +134,79 @@ def gleiche_im_ordner(pfade: Iterable[Path | str],
             continue
         if _vergleichbar(st):
             nach_groesse.setdefault(st.st_size, []).append((Path(p), st))
+    zu_lesen = sum(len(g) for g in nach_groesse.values() if len(g) > 1)
+    gelesen = 0
     gruppen: list[list[Path]] = []
     for gleich_gross in nach_groesse.values():
         if len(gleich_gross) < 2:
             continue
         nach_summe: dict[str, list[Path]] = {}
         for p, st in gleich_gross:
+            if abbrechen is not None and abbrechen():
+                return gruppen
             wert = speicher.summe(p, st)
+            gelesen += 1
+            if fortschritt is not None:
+                fortschritt(gelesen, zu_lesen)
             if wert:
                 nach_summe.setdefault(wert, []).append(p)
         gruppen.extend(g for g in nach_summe.values() if len(g) > 1)
+    return gruppen
+
+
+def dateien_unter(ordner: Path | str, abbrechen: Optional[Callable[[], bool]] = None) -> list[Path]:
+    """Alle Dateien in ``ordner`` und seinen Unterordnern (Issue #299).
+
+    Nicht betreten werden versteckte Ordner (Name beginnt mit „.“ oder „$“, etwa
+    ``$RECYCLE.BIN``) sowie Junctions und Symlinks - sonst kaeme eine Datei ueber
+    zwei Wege doppelt vor, oder die Suche liefe im Kreis. Nicht lesbare Ordner
+    werden uebersprungen. Bei ``abbrechen()`` endet die Suche mit dem bisher Gefundenen.
+    """
+    dateien: list[Path] = []
+    offen = [str(ordner)]
+    while offen:
+        if abbrechen is not None and abbrechen():
+            break
+        aktuell = offen.pop()
+        try:
+            with os.scandir(aktuell) as eintraege:
+                for e in eintraege:
+                    try:
+                        st = e.stat(follow_symlinks=False)
+                        if verknuepfung(st) or stat_modul.S_ISLNK(st.st_mode):
+                            continue
+                        if stat_modul.S_ISDIR(st.st_mode):
+                            if not e.name.startswith((".", "$")):
+                                offen.append(e.path)
+                        elif stat_modul.S_ISREG(st.st_mode):
+                            dateien.append(Path(e.path))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return dateien
+
+
+def doppelte_unter(ordner: Path | str, speicher: Optional[Pruefsummen] = None,
+                   abbrechen: Optional[Callable[[], bool]] = None,
+                   fortschritt: Optional[Callable[[int, int], None]] = None) -> list[list[Path]]:
+    """Gruppen inhaltsgleicher Dateien in ``ordner`` samt Unterordnern (Issue #299).
+
+    Je Gruppe die aelteste Datei (Aenderungszeit) zuerst; die Gruppen nach dem
+    Pfad ihrer ersten Datei. Dateien nur in der Cloud (OneDrive „nur online“)
+    werden nicht gelesen und fehlen deshalb.
+    """
+    pfade = dateien_unter(ordner, abbrechen)
+    gruppen = gleiche_im_ordner(pfade, speicher, abbrechen, fortschritt)
+
+    def alter(p: Path):
+        try:
+            return (os.stat(p).st_mtime_ns, str(p).lower())
+        except OSError:
+            return (0, str(p).lower())
+
+    gruppen = [sorted(g, key=alter) for g in gruppen]
+    gruppen.sort(key=lambda g: str(g[0]).lower())
     return gruppen
 
 
