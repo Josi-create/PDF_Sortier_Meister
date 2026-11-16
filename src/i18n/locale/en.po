@@ -9844,3 +9844,10 @@ msgstr "Delete saved search"
 #: src/gui/search_view.py
 msgid "Die gespeicherte Suche „{name}“ löschen? Dokumente werden dabei nicht gelöscht."
 msgstr "Delete the saved search “{name}”? No documents are deleted."
+#: src/gui/pdf_thumbnail.py
+msgid "PDFs zusammenfügen ({anzahl})…"
+msgstr "Merge PDFs ({anzahl})…"
+
+#: src/gui/pdf_thumbnail.py
+msgid "Die markierten PDFs zu einer Datei zusammenfügen, der Name wird vorher abgefragt"
+msgstr "Merge the selected PDFs into one file; you are asked for the name first"

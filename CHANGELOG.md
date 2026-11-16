@@ -86,6 +86,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Erste Datei beim Start schon ausgewählt** (#292): Liegen beim Programmstart Dateien im
   Scan-Ordner, ist die erste Kachel gleich ausgewählt. Vorschau, Metadaten und Zielvorschläge
   sind sofort gefüllt, statt des leeren Hinweises „PDF auswählen“.
+### Geändert
+
+- **„PDFs zusammenfügen“ steht jetzt ganz oben im Rechtsklick-Menü**, sobald mindestens zwei PDFs markiert sind, mit der Zahl der PDFs, die zusammengefügt werden (Bilder und Office-Dateien in der Auswahl zählen nicht mit). Bisher stand der Eintrag mitten im Menü und war leicht zu übersehen (#294).
 
 ## [0.29.0] - 2026-11-14
 

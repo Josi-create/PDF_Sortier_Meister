@@ -661,6 +661,15 @@ class PDFThumbnailWidget(QFrame):
             entsperren_action.triggered.connect(lambda: self.entsperren_requested.emit(self.pdf_path))
             menu.addSeparator()
 
+        # Issue #294: Zusammenfuegen zuoberst, sobald mindestens zwei PDFs markiert sind
+        # (stand vorher mitten im Menue und wurde im Live-Test uebersehen)
+        anzahl_pdfs = self._get_pdf_selection_count()
+        if anzahl_pdfs > 1:
+            merge_action = menu.addAction(tr("PDFs zusammenfügen ({anzahl})…").format(anzahl=anzahl_pdfs))
+            merge_action.setToolTip(tr("Die markierten PDFs zu einer Datei zusammenfügen, der Name wird vorher abgefragt"))
+            merge_action.triggered.connect(lambda: self.merge_requested.emit())
+            menu.addSeparator()
+
         # Öffnen
         open_action = menu.addAction(tr("PDF öffnen"))
         open_action.triggered.connect(lambda: self._open_pdf())
@@ -702,11 +711,6 @@ class PDFThumbnailWidget(QFrame):
         ki_split_action = menu.addAction(tr("KI-unterstütztes Trennen..."))
         ki_split_action.setToolTip(tr("Scan-Stapel von der KI in einzelne Dokumente zerlegen lassen"))
         ki_split_action.triggered.connect(lambda: self.ki_split_requested.emit(self.pdf_path))
-
-        # PDFs zusammenfügen wenn mehrere ausgewählt
-        if selection_count > 1:
-            merge_action = menu.addAction(tr("Ausgewählte ({selection_count}) PDFs zusammenfügen...").format(selection_count=selection_count))
-            merge_action.triggered.connect(lambda: self.merge_requested.emit())
 
         menu.addSeparator()
 
@@ -806,6 +810,12 @@ class PDFThumbnailWidget(QFrame):
         if main_window and hasattr(main_window, 'selected_pdfs'):
             return len(main_window.selected_pdfs)
         return 0
+
+    def _get_pdf_selection_count(self) -> int:
+        """Anzahl der markierten PDFs (ohne Bilder und Office-Dateien) - so viele fuegt
+        "PDFs zusammenfügen" zusammen (Issue #294)."""
+        auswahl = getattr(self.window(), "selected_pdfs", None) or []
+        return sum(1 for p in auswahl if Path(p).suffix.lower() == ".pdf")
 
     def _open_pdf(self):
         """Meldet den Öffnen-Wunsch; das Hauptfenster entscheidet nach
