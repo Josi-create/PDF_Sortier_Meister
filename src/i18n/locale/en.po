@@ -9851,3 +9851,99 @@ msgstr "Merge PDFs ({anzahl})…"
 #: src/gui/pdf_thumbnail.py
 msgid "Die markierten PDFs zu einer Datei zusammenfügen, der Name wird vorher abgefragt"
 msgstr "Merge the selected PDFs into one file; you are asked for the name first"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Dateien mit genau demselben Inhalt in „{ordner}“ und seinen Unterordnern."
+msgstr "Files with exactly the same content in “{ordner}” and its subfolders."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Geändert"
+msgstr "Modified"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Haken setzen bei den Dateien, die in den Papierkorb sollen. Von jeder Gruppe bleibt mindestens eine Datei. Doppelklick zeigt die Datei im Dateimanager."
+msgstr "Tick the files that should go to the Recycle Bin. At least one file of each group stays. Double-click shows the file in the file manager."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Je Gruppe alle außer der ältesten markieren"
+msgstr "Tick all but the oldest in each group"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Keine markieren"
+msgstr "Untick all"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "In den Papierkorb …"
+msgstr "Move to Recycle Bin …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Suche doppelte Dateien …"
+msgstr "Searching for duplicate files …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Vergleiche Dateien gleicher Größe: {gelesen} von {gesamt} …"
+msgstr "Comparing files of the same size: {gelesen} of {gesamt} …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} gleiche Dateien ({groesse})"
+msgstr "{anzahl} identical files ({groesse})"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Keine doppelten Dateien gefunden."
+msgstr "No duplicate files found."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{gruppen} Gruppen mit zusammen {dateien} gleichen Dateien gefunden."
+msgstr "Found {gruppen} groups with {dateien} identical files in total."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} in den Papierkorb …"
+msgstr "Move {anzahl} to Recycle Bin …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} Dateien in den Papierkorb legen? Von jeder Gruppe bleibt mindestens eine Datei.\n\n{namen}\n\nMit Strg+Z im Hauptfenster holen Sie sie zurück."
+msgstr "Move {anzahl} files to the Recycle Bin? At least one file of each group stays.\n\n{namen}\n\nCtrl+Z in the main window brings them back."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Von jeder Gruppe muss mindestens eine Datei bleiben. Bitte bei diesen Gruppen einen Haken entfernen:\n\n{liste}"
+msgstr "At least one file of each group must stay. Please untick one file in these groups:\n\n{liste}"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Doppelte Dateien in den Papierkorb: {anzahl}"
+msgstr "Duplicate files moved to Recycle Bin: {anzahl}"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} doppelte Dateien in den Papierkorb gelegt (Strg+Z holt sie zurück)"
+msgstr "{anzahl} duplicate files moved to the Recycle Bin (Ctrl+Z brings them back)"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Nicht in den Papierkorb gelegt (die Dateien bleiben, wo sie sind):\n{0}"
+msgstr "Not moved to the Recycle Bin (the files stay where they are):\n{0}"
+
+#: src/gui/folder_tree_widget.py
+msgid "🧹 Doppelte Dateien suchen …"
+msgstr "🧹 Find duplicate files …"
+
+#: src/gui/main_window.py
+msgid "Doppelte Dateien suchen …"
+msgstr "Find duplicate files …"
+
+#: src/gui/main_window.py
+msgid "Dateien mit gleichem Inhalt im geöffneten Ordner und seinen Unterordnern finden und aufräumen"
+msgstr "Find and clean up files with the same content in the open folder and its subfolders"
+
+#: src/gui/main_window.py
+msgid "Kein Ordner geöffnet"
+msgstr "No folder open"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Eine Gruppe mit {dateien} gleichen Dateien gefunden."
+msgstr "Found one group with {dateien} identical files."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Diese Datei in den Papierkorb legen? Von ihrer Gruppe bleibt mindestens eine Datei.\n\n{namen}\n\nMit Strg+Z im Hauptfenster holen Sie sie zurück."
+msgstr "Move this file to the Recycle Bin? At least one file of its group stays.\n\n{namen}\n\nCtrl+Z in the main window brings it back."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Doppelte Datei in den Papierkorb gelegt: {name} (Strg+Z holt sie zurück)"
+msgstr "Duplicate file moved to the Recycle Bin: {name} (Ctrl+Z brings it back)"

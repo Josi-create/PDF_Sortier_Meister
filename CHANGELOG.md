@@ -19,6 +19,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   mitgezählt wurde. Der Schlagwort-Test speicherte erneut, während der Suchindex die Datei noch
   las („Access is denied“ unter Windows); er wartet jetzt auf den Suchindex. Am Programm selbst
   ändert sich nichts.
+### Neu
+- **Doppelte Dateien aufräumen** (#299): *Extras → Doppelte Dateien suchen …* durchsucht den gerade
+  geöffneten Ordner samt Unterordnern nach Dateien mit genau demselben Inhalt; im Ordnerbaum rechts
+  gibt es denselben Eintrag im Rechtsklick-Menü eines Ordners. Die Übersicht zeigt die gleichen
+  Dateien in Gruppen, je Datei mit Ordner und Änderungsdatum. Du setzt Haken bei den Dateien, die
+  weg sollen (oder lässt mit einem Knopf je Gruppe nur die älteste übrig), und legst sie nach einer
+  Rückfrage in den Papierkorb. Von jeder Gruppe bleibt immer mindestens eine Datei, und ein Strg+Z
+  im Hauptfenster holt alle zurück. Gelöscht wird nichts von selbst; Dateien, die bei OneDrive nur
+  online liegen, werden nicht heruntergeladen und deshalb nicht verglichen.
 
 ## [0.30.0] - 2026-11-16
 

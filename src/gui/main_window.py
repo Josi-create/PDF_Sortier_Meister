@@ -1137,6 +1137,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         self.folder_tree.ordner_dropped.connect(self.on_tree_ordner_dropped)  # Issue #196
         self.folder_tree.ordner_copy_dropped.connect(self.on_tree_ordner_copy_dropped)
+        self.folder_tree.doppelte_suchen_requested.connect(self.doppelte_aufraeumen)  # Issue #299
         self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
         self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
         self.folder_tree.zielordner_hinzufuegen.connect(self._on_zielordner_hinzufuegen)  # Issue #258
@@ -2301,6 +2302,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         steuer_action.setToolTip(tr("Jahressummen nach Kategorie anzeigen und als CSV exportieren"))
         steuer_action.triggered.connect(self._open_steuerauswertung)
         extras_menu.addAction(steuer_action)
+
+        # Issue #299: gleiche Dateien im geoeffneten Ordner (mit Unterordnern) aufraeumen
+        self.doppelte_action = QAction(tr("Doppelte Dateien suchen …"), self)
+        self.doppelte_action.setToolTip(
+            tr("Dateien mit gleichem Inhalt im geöffneten Ordner und seinen Unterordnern finden und aufräumen"))
+        self.doppelte_action.triggered.connect(lambda: self.doppelte_aufraeumen())
+        extras_menu.addAction(self.doppelte_action)
 
         extras_menu.addSeparator()
 
@@ -5752,6 +5760,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self._populate_detail_panel(self.selected_pdf, cached, detected_date)
         else:
             self.detail_panel.clear()
+
+    def doppelte_aufraeumen(self, ordner: Optional[Path] = None):
+        """Uebersicht der doppelten Dateien in ``ordner`` (Standard: geoeffneter Scan-Ordner), Issue #299."""
+        from src.gui.doppelte_aufraeumen import DoppelteAufraeumenDialog
+        ordner = Path(ordner) if ordner else self.file_manager.scan_folder
+        if not ordner or not Path(ordner).is_dir():
+            self.statusbar.showMessage(tr("Kein Ordner geöffnet"), 3000)
+            return
+        DoppelteAufraeumenDialog(self, Path(ordner)).exec()
 
     def _open_steuerauswertung(self):
         """Oeffnet den Steuerauswertungs-Dialog."""
