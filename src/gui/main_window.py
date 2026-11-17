@@ -1265,22 +1265,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             (f, False) for f in subfolders
         ]
         for folder, is_parent in tile_folders:
-            tile = FolderTileWidget(
+            self.folder_tiles.append(self._erzeuge_ordnerzeile(
                 folder,
                 pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
                 is_parent=is_parent,
-            )
-            tile.double_clicked.connect(self.on_folder_tile_double_clicked)
-            if is_parent:
-                # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
-                tile.clicked.connect(self.on_parent_tile_clicked)
-            tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
-            self.verbinde_hierhin_kopieren(tile)  # Issue #179
-            self.verbinde_ordnerzeile(tile)  # Issue #183
-            self.verbinde_ordner_markierung(tile)  # Issue #196
-            tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
-            tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
-            self.folder_tiles.append(tile)
+            ))
         self._place_folder_rows()
         self._ordner_markierung_anwenden()  # Issue #196: markierter Ordner bleibt markiert
 
@@ -1322,6 +1311,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._schedule_pre_caching(pdf_files)
         # Inhaltsgleiche Dateien kennzeichnen (Issue #245); gerechnet wird im Hintergrund
         self._doppelte_im_ordner.neu_geladen()
+
+    def _erzeuge_ordnerzeile(self, folder: Path, pdf_count, is_parent: bool = False) -> FolderTileWidget:
+        """Ordnerzeile mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #319)."""
+        tile = FolderTileWidget(folder, pdf_count=pdf_count, is_parent=is_parent)
+        tile.double_clicked.connect(self.on_folder_tile_double_clicked)
+        if is_parent:
+            # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
+            tile.clicked.connect(self.on_parent_tile_clicked)
+        tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+        self.verbinde_hierhin_kopieren(tile)  # Issue #179
+        self.verbinde_ordnerzeile(tile)  # Issue #183
+        self.verbinde_ordner_markierung(tile)  # Issue #196
+        tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
+        tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
+        return tile
 
     def _erzeuge_pdf_kachel(self, pdf_path: Path) -> PDFThumbnailWidget:
         """Kachel einer PDF mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #232)."""

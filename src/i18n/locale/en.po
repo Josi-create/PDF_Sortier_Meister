@@ -4175,6 +4175,14 @@ msgstr "New in the scan folder: {name}"
 msgid "{anzahl} neue Dateien im Scan-Ordner"
 msgstr "{anzahl} new files in the scan folder"
 
+#: src/gui/ordner_beobachtung.py
+msgid "Neuer Ordner im Scan-Ordner: {name}"
+msgstr "New folder in the scan folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} neue Ordner im Scan-Ordner"
+msgstr "{anzahl} new folders in the scan folder"
+
 #: src/gui/ordner_suchfeld.py
 msgid "Ordner suchen … (z. B. Zeugn*)"
 msgstr "Search folders … (e.g. Cert*)"
