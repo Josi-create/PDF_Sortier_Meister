@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Neue Unterordner erscheinen von selbst** (#319): Legst du im geöffneten Scan-Ordner einen
+  Unterordner an (im Explorer oder auf einem anderen Gerät über OneDrive), erscheint er nach ein bis
+  zwei Sekunden als Ordnerzeile, ohne F5. Gelöschte oder umbenannte Unterordner werden ebenso
+  nachgeführt. Ausgewählte Dateien, ein markierter Ordner und die übrigen Zeilen bleiben, wie sie
+  sind. Abschaltbar wie bisher unter *Einstellungen → Allgemein → Scan-Ordner beobachten*.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
