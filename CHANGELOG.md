@@ -63,6 +63,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   (auch beim Drehen) einen Fingerabdruck des Originals in der PDF und vergleicht auch damit. Das
   gilt für PDFs, die ab dieser Version abgelegt werden, und greift, sobald der Suchindex die
   abgelegte Datei einmal gelesen hat. Es bleibt bei „genau gleicher Inhalt“.
+### Geändert
+- **Englischer Programmname „PDF Sortmeister“** (#324): In der englischen Oberfläche heißt das
+  Programm jetzt überall „PDF Sortmeister“ (Fenstertitel, Über-Fenster, Willkommen, Meldungen).
+  Die deutsche Oberfläche bleibt bei „PDF Sortier Meister“.
 
 ## [0.30.0] - 2026-11-16
 
