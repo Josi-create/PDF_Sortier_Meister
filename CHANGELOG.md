@@ -14,6 +14,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Die Tooltip-Tests setzen die helle Farbpalette des Programms (sonst ist der Tooltip bei
   dunklem Windows-Schema dunkelgrau) und zeigen den Tooltip erneut, wenn Windows ihn beim
   Aktivieren des Testfensters gleich wieder schließt. Am Programm selbst ändert sich nichts.
+- **Zwei wackelige Tests stabil** (#311): Der Test zur Ordner-Beobachtung mit echtem Takt schlug
+  auf langsamen Maschinen fehl, weil die verzögerte Vorab-Analyse nach dem Laden des Ordners
+  mitgezählt wurde. Der Schlagwort-Test speicherte erneut, während der Suchindex die Datei noch
+  las („Access is denied“ unter Windows); er wartet jetzt auf den Suchindex. Am Programm selbst
+  ändert sich nichts.
 
 ## [0.30.0] - 2026-11-16
 
