@@ -32,6 +32,10 @@ def fenster(main_window, monkeypatch):  # noqa: F811
     b = main_window._ordner_beobachtung
     b.RUHEZEIT = 0.0   # eine Datei gilt beim zweiten Lesen als zur Ruhe gekommen
     main_window.vorab = []
+    # load_pdfs stoesst 500 ms spaeter die Vorab-Analyse aller Kacheln an. Laeuft die Ereignisschleife
+    # so lange (qtbot.waitUntil auf einer langsamen Maschine), landeten die alten Dateien in ``vorab``
+    # und die Pruefungen hier, welche Dateien die Beobachtung analysieren laesst, schluegen fehl (#311).
+    monkeypatch.setattr(main_window, "_schedule_pre_caching", lambda *a, **k: None)
     monkeypatch.setattr(main_window.pdf_cache, "pre_cache", lambda pfade: (main_window.vorab.extend(pfade), (0, 0))[1])
     _prime_cache_on_load(main_window, monkeypatch)   # Klicks starten keine Hintergrund-Analyse
     yield main_window

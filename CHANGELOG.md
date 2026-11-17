@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Intern
+- **Zwei wackelige Tests stabil** (#311): Der Test zur Ordner-Beobachtung mit echtem Takt schlug
+  auf langsamen Maschinen fehl, weil die verzögerte Vorab-Analyse nach dem Laden des Ordners
+  mitgezählt wurde. Der Schlagwort-Test speicherte erneut, während der Suchindex die Datei noch
+  las („Access is denied“ unter Windows); er wartet jetzt auf den Suchindex. Am Programm selbst
+  ändert sich nichts.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
