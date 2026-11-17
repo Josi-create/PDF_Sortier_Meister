@@ -51,6 +51,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
   Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
   wie bisher.
+### Geändert
+- **Rückfrage bei doppelter Datei klarer** (#309): Die Rückfrage „Datei schon vorhanden“ ist kürzer, und
+  der Knopf sagt selbst, was passiert: „Neue Datei in den Papierkorb“ (bei mehreren „Neue Dateien in den
+  Papierkorb“). Darunter steht nur noch: „Die vorhandene Datei bleibt, wo sie ist.“
 
 ## [0.30.0] - 2026-11-16
 
