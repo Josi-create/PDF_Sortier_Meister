@@ -28,6 +28,47 @@ from src.i18n import tr
 # Statuswerte, bei denen der Text im Index fuer den PDF-Analyzer reicht
 TEXT_AUS_INDEX = ("text", "ocr", "leer", "ocr_teilweise")
 
+_VERBOTEN = '<>:"/\\|?*'
+_RESERVIERT = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+
+
+def anhang_dateiname(name: str) -> str:
+    """Dateiname eines Mail-Anhangs fuer den Scan-Ordner: ohne Pfadteile und verbotene Zeichen, immer ``.pdf``."""
+    stamm = name[:-4] if name.lower().endswith(".pdf") else name
+    stamm = "".join("_" if c in _VERBOTEN or ord(c) < 32 else c for c in stamm).strip(" .")[:120].strip(" .")
+    if not stamm or stamm.upper() in _RESERVIERT:
+        stamm = f"Anhang {stamm}".strip()
+    return stamm + ".pdf"
+
+
+def anhaenge_ablegen(anhaenge: list[tuple[str, bytes]], ordner: Path) -> list[Path]:
+    """Anhaenge unveraendert in ``ordner`` schreiben; bei gleichem Namen " (2)", " (3)" ... statt Ueberschreiben.
+
+    Jede Datei entsteht erst unter ``.part`` und wird dann umbenannt, damit die
+    Ordner-Beobachtung keine halb geschriebene PDF sieht (Issue #327).
+    """
+    from src.core.ordner_verschieben import freier_name
+
+    abgelegt = []
+    for name, daten in anhaenge:
+        ziel = Path(ordner) / anhang_dateiname(name)
+        teil = ziel.with_name(ziel.name + ".part")
+        teil.write_bytes(daten)
+        try:
+            while True:
+                if ziel.exists():              # inzwischen von anderer Seite belegt
+                    ziel = freier_name(ziel)
+                try:
+                    os.rename(teil, ziel)      # unter Windows nie ueberschreibend
+                    break
+                except FileExistsError:
+                    continue
+        except OSError:
+            teil.unlink(missing_ok=True)
+            raise
+        abgelegt.append(ziel)
+    return abgelegt
+
 
 class Suchindex:
     def __init__(self, konfig: SearchConfig) -> None:
@@ -354,16 +395,44 @@ class Suchindex:
             return self._temp_eml(dok, extract.emlx_roh(Path(dok["datei"]).read_bytes()))
         if dok.get("format") != "mbox":
             return Path(dok["datei"])
+        dok = self._mit_mbox_lage(dok)
+        from src.search import mbox
+
+        roh = mbox.mail_roh(dok["datei"], dok["mbox_offset"], dok["mbox_laenge"])
+        return self._temp_eml(dok, roh)
+
+    def _mit_mbox_lage(self, dok: dict) -> dict:
         if "mbox_offset" not in dok or "mbox_laenge" not in dok:
             # Treffer aus ``suche()`` tragen nur die Kurzfassung; Lage in der mbox nachladen
             voll = self.dokument(int(dok["id"]))
             if not voll:
                 raise OSError(tr("Mail {id} ist nicht mehr im Index").format(id=dok['id']))
             dok = voll
-        from src.search import mbox
+        return dok
 
-        roh = mbox.mail_roh(dok["datei"], dok["mbox_offset"], dok["mbox_laenge"])
-        return self._temp_eml(dok, roh)
+    @staticmethod
+    def hat_pdf_anhaenge(dok: dict) -> bool:
+        """Nennt der Index fuer diese Mail einen Anhang mit der Endung .pdf? (Issue #327)"""
+        namen = str(dok.get("mail_anhaenge") or "").split(" | ")
+        return dok.get("typ") == "mail" and any(n.strip().lower().endswith(".pdf") for n in namen)
+
+    def mail_pdf_anhaenge(self, dok: dict) -> list[tuple[str, bytes]]:
+        """PDF-Anhaenge einer Mail als (Dateiname, Inhalt); die Mail selbst bleibt unberuehrt (Issue #327)."""
+        from src.search import extract
+
+        fmt = dok.get("format")
+        if fmt == "msg":
+            return extract.msg_pdf_anhaenge(dok["datei"])
+        if fmt == "mbox":
+            from src.search import mbox
+
+            dok = self._mit_mbox_lage(dok)
+            roh = mbox.mail_roh(dok["datei"], dok["mbox_offset"], dok["mbox_laenge"])
+        elif fmt == "emlx":
+            roh = extract.emlx_roh(Path(dok["datei"]).read_bytes())
+        else:
+            roh = Path(dok["datei"]).read_bytes()
+        return extract.pdf_anhaenge_aus_bytes(roh)
 
     def _temp_eml(self, dok: dict, roh: bytes) -> Path:
         # Apple-Mail-Dateien heissen nur "<Nummer>.emlx": der Betreff ist der bessere Name

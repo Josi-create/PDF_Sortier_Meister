@@ -9986,3 +9986,26 @@ msgstr "Your own note, e.g. “Original is with the tax advisor”"
 #: src/gui/search_view.py
 msgid "Notiz: {notiz}"
 msgstr "Note: {notiz}"
+#: src/gui/search_view.py
+msgid "PDF-Anhänge in den Scan-Ordner legen"
+msgstr "Put PDF attachments into the scan folder"
+
+#: src/gui/search_view.py
+msgid "Kein Scan-Ordner eingestellt oder der Ordner fehlt."
+msgstr "No scan folder is set, or the folder is missing."
+
+#: src/gui/search_view.py
+msgid "Die Anhänge konnten nicht abgelegt werden: {e}"
+msgstr "The attachments could not be saved: {e}"
+
+#: src/gui/search_view.py
+msgid "Die Mail enthält keine PDF-Anhänge."
+msgstr "The mail has no PDF attachments."
+
+#: src/gui/search_view.py
+msgid "1 Anhang in den Scan-Ordner gelegt: {name}"
+msgstr "1 attachment put into the scan folder: {name}"
+
+#: src/gui/search_view.py
+msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
+msgstr "{anzahl} attachments put into the scan folder"
