@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **PDF-Anhänge einer Mail in den Scan-Ordner legen** (#327): Im Reiter „Suche“ hat das
+  Rechtsklick-Menü einer Mail mit PDF-Anhang den neuen Eintrag „PDF-Anhänge in den Scan-Ordner
+  legen“. Die PDFs werden unverändert in den eingestellten Scan-Ordner kopiert und erscheinen dort
+  wie ein neuer Scan als Kachel. Gibt es dort schon eine Datei mit gleichem Namen, bekommt die neue
+  ein „ (2)“ angehängt; überschrieben wird nichts. Die Mail selbst bleibt, wie sie ist. Geht für
+  Thunderbird, Apple Mail, `.eml` und `.msg`; Bilder und Office-Anhänge bleiben (noch) weg.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu

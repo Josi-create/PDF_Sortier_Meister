@@ -797,6 +797,49 @@ def mail_format(kopf: bytes) -> str:
     return "unbekannt"
 
 
+def _ist_pdf_anhang(name: str, mime: str = "") -> bool:
+    return name.lower().endswith(".pdf") or mime.lower() == "application/pdf"
+
+
+def pdf_anhaenge_aus_bytes(roh: bytes) -> list[tuple[str, bytes]]:
+    """PDF-Anhaenge einer RFC-822-Mail als (Dateiname, Inhalt), unveraendert (Issue #327)."""
+    msg = email.message_from_bytes(roh, policy=policy.default)
+    anhaenge = []
+    for teil in msg.walk():
+        if teil.is_multipart():
+            continue
+        name = str(teil.get_filename() or "")
+        if not _ist_pdf_anhang(name, teil.get_content_type()):
+            continue
+        daten = teil.get_payload(decode=True)
+        if daten:
+            anhaenge.append((name, daten))
+    return anhaenge
+
+
+def msg_pdf_anhaenge(pfad: str) -> list[tuple[str, bytes]]:
+    """PDF-Anhaenge einer ``.msg``-Datei (Outlook-Container oder als Text gespeicherte Mail)."""
+    with open(pfad, "rb") as f:
+        kopf = f.read(8192)
+    art = mail_format(kopf)
+    if art == "rfc822":
+        return pdf_anhaenge_aus_bytes(Path(pfad).read_bytes())
+    if art != "ole":
+        return []
+    import extract_msg
+    m = extract_msg.openMsg(pfad)
+    try:
+        anhaenge = []
+        for a in m.attachments:
+            name = str((a.getFilename() if hasattr(a, "getFilename") else "") or "")
+            daten = getattr(a, "data", None)
+            if isinstance(daten, bytes) and daten and _ist_pdf_anhang(name, str(getattr(a, "mimetype", "") or "")):
+                anhaenge.append((name, daten))
+        return anhaenge
+    finally:
+        m.close()
+
+
 def mbox_stapel(stapel: list[tuple[int, int, bytes]]) -> list[tuple[int, int, dict]]:
     """Viele Mails aus einer mbox auf einmal zerlegen (weniger Prozess-Overhead)."""
     return [(off, laenge, mail_aus_bytes(roh)) for off, laenge, roh in stapel]
