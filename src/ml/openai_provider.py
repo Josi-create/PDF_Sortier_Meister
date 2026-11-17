@@ -390,7 +390,7 @@ class OpenAIProvider(OpenAIWerkzeugMixin, LLMProvider):
         except urllib.error.URLError as e:
             return None, tr("Keine Verbindung zur {API_NAME} API: {reason}").format(API_NAME=self.API_NAME, reason=e.reason)
         except Exception as e:
-            return None, f"{self.API_NAME}-Fehler: {e}"
+            return None, tr("{api_name}-Fehler: {fehler}").format(api_name=self.API_NAME, fehler=e)
 
     def describe_images(self, images: list[bytes], prompt: str, max_tokens: int = 3000) -> str:
         """Bilder (JPEG) mit Anweisung per ``chat/completions`` schicken (``image_url`` als data-URI; Issue #47).

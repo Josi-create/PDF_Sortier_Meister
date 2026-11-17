@@ -35,6 +35,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   speichern entfernt sie wieder. Die Suche findet Dokumente auch über ihre Notiz, die Trefferkarte im
   Reiter „Suche“ zeigt sie an, und der Chat sieht sie bei den Suchtreffern. Eine Notiz je Dokument, nur
   für PDFs.
+### Behoben
+- **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
+  Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
+  Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
 
 ## [0.30.0] - 2026-11-16
 
