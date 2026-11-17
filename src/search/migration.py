@@ -270,16 +270,19 @@ def metadaten_mitnehmen(alt_db: str | Path, konfig: SearchConfig) -> int:
 
     alt = db.verbinde(alt_db, nur_lesen=True)
     try:
-        if "metadaten_quelle" not in db._spalten(alt, "dokumente"):
+        spalten = db._spalten(alt, "dokumente")
+        if "metadaten_quelle" not in spalten:
             return 0
-        felder = ", ".join(db.METADATEN_FELDER)
+        # Ein aelterer Index kennt spaetere Felder (z. B. "notiz", Issue #298) noch nicht
+        vorhanden = [f for f in db.METADATEN_FELDER if f in spalten]
+        felder = ", ".join(vorhanden)
         zeilen = alt.execute(f"SELECT id, pfad, name, pdf_id, {felder} FROM dokumente "
                              "WHERE metadaten_quelle = 'pdfsm' ORDER BY id").fetchall()
         eintraege = []
         for z in zeilen:
             text = "\n\n".join(t for (t,) in alt.execute(
                 "SELECT text FROM seiten WHERE dok_id = ? ORDER BY seite", (z["id"],)) if t)
-            eintraege.append((z["pfad"], {f: z[f] for f in db.METADATEN_FELDER}, z["pdf_id"], text or None,
+            eintraege.append((z["pfad"], {f: z[f] for f in vorhanden}, z["pdf_id"], text or None,
                               z["name"]))
     finally:
         alt.close()

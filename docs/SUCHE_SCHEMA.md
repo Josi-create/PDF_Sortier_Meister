@@ -83,6 +83,7 @@ weiter: Version 2 entfernt und benennt nichts.
 | `betrag` | Bruttobetrag (REAL) |
 | `buchungsdatum` | Dokumentdatum (ISO) |
 | `zusammenfassung`, `schlagwoerter` | Text der KI bzw. des Nutzers |
+| `notiz` | Eigene Notiz des Nutzers zum Dokument (Issue #298, in der PDF unter `/Notiz` im Info-Dict) |
 | `metadaten_quelle` | `pdf` = beim Indizieren aus der Datei gelesen (XMP/Info), `pdfsm` = von PDFSM gesetzt |
 | `textebene_am` | Zeitpunkt, zu dem die OCR als unsichtbare Textebene in die PDF geschrieben wurde; `NULL` = nicht |
 | `textebene_grund` | Warum (noch) keine Textebene geschrieben wurde, z. B. `signiert`, `gesperrt` |
@@ -186,8 +187,10 @@ je 1.000 Seiten.
 * `seiten_fts` – Index ueber `seiten.text` (rowid = `seiten.id`)
 * `dokumente_fts` – Index ueber `dokumente.name` und `dokumente.ordner`
 * `metadaten_fts` (neu in Version 2) – Index ueber `korrespondent`, `kategorie`,
-  `zusammenfassung`, `schlagwoerter` (rowid = `dokumente.id`); so trifft
-  „Telekom“ auch dann, wenn die OCR der Seite schlecht ist
+  `zusammenfassung`, `schlagwoerter`, `notiz` (rowid = `dokumente.id`); so trifft
+  „Telekom“ auch dann, wenn die OCR der Seite schlecht ist. Fehlt einem
+  bestehenden Index die Spalte `notiz`, legt `ergaenze_schema` Tabelle und
+  Trigger neu an und baut sie aus `dokumente` auf (nur Metadaten, schnell)
 
 Tokenizer `unicode61 remove_diacritics 2`, also ü = u, é = e. Trigger halten
 alle drei FTS-Tabellen automatisch aktuell.

@@ -3540,6 +3540,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     # sonst bleiben die der Datei (write_metadata)
                     metadata.schlagwoerter = schlagwort_regeln.als_text(
                         schlagwort_regeln.aus_eingabe(dialog_metadata["schlagwoerter"]))
+                if "notiz" in dialog_metadata:
+                    # Issue #298: wie die Schlagwoerter - "" entfernt die Notiz, ohne Schluessel bleibt sie
+                    metadata.notiz = str(dialog_metadata["notiz"] or "").strip()
 
             # Eine Kategorie, keine abgeschriebene KI-Auswahlliste - auch fuer den Suchindex
             metadata.subject = clean_category(metadata.subject) or None
@@ -3572,11 +3575,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 "buchungsdatum": metadata.buchungsdatum,
                 "zusammenfassung": metadata.description,
                 "schlagwoerter": metadata.keywords,
+                "notiz": metadata.notiz,
             }
-            # Geleerte Schlagwoerter (Issue #231) muessen auch im Index verschwinden
-            geleert = metadata.schlagwoerter is not None and not metadata.keywords
+            # Geleerte Schlagwoerter (Issue #231) und eine entfernte Notiz (Issue #298) muessen
+            # auch im Index verschwinden
+            geleert = set()
+            if metadata.schlagwoerter is not None and not metadata.keywords:
+                geleert.add("schlagwoerter")
+            if metadata.notiz is not None and not metadata.notiz:
+                geleert.add("notiz")
             self.db.set_document_metadata(
-                str(pdf_path), {k: v for k, v in felder.items() if v or (geleert and k == "schlagwoerter")},
+                str(pdf_path), {k: v for k, v in felder.items() if v or k in geleert},
                 sofort=False)
         except Exception as e:  # noqa: BLE001 - der Index ist Zusatz, nie Blocker
             print(f"Suchindex: Metadaten nicht gemeldet: {e}")
@@ -3584,8 +3593,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     @staticmethod
     def _mit_schlagwort_feld(metadata: dict) -> dict:
         """Metadaten des Detail-Panels fuer "in der PDF speichern": Das Panel zeigt die Schlagwoerter
-        dieser Datei, ein leeres Feld heisst deshalb "alle entfernen" (Issue #231)."""
-        return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", "")}
+        und die Notiz dieser Datei, ein leeres Feld heisst deshalb "entfernen" (Issues #231, #298)."""
+        return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", ""),
+                "notiz": (metadata or {}).get("notiz", "")}
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
@@ -3598,7 +3608,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
 
         metadata = self.detail_panel.get_metadata()
-        if not metadata and not self.detail_panel.hat_gespeicherte_schlagwoerter():
+        if not metadata and not (self.detail_panel.hat_gespeicherte_schlagwoerter()
+                                 or self.detail_panel.hat_gespeicherte_notiz()):
             self.statusbar.showMessage(tr("Keine Metadaten eingegeben"), 2000)
             return
 
@@ -3669,7 +3680,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 new_path = pdf_path
 
-            if metadata or self.detail_panel.hat_gespeicherte_schlagwoerter():
+            if (metadata or self.detail_panel.hat_gespeicherte_schlagwoerter()
+                    or self.detail_panel.hat_gespeicherte_notiz()):
                 self._write_pdf_metadata(new_path, new_path.name, self.selected_pdf_keywords,
                                          self._mit_schlagwort_feld(metadata))
                 if metadata.get("korrespondent"):

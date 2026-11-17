@@ -141,6 +141,7 @@ V2_SPALTEN = {
     "textebene_grund": "TEXT",   # Phase 5b: warum (noch) nicht, z. B. 'signiert', 'gesperrt' (textebene.py)
     "ocr_lesbar_alle": "INTEGER",  # Issue #47: Zeichen aller von OCR erkannten Woerter (extract.lesbarkeit); NULL = nicht gemessen
     "ocr_lesbar_gut": "INTEGER",   # Issue #47: davon die sicher erkannten (Konfidenz ab LAGE_KONFIDENZ)
+    "notiz": "TEXT",             # Issue #298: eigene Notiz des Nutzers zum Dokument
 }
 # Spalten des OCR-Caches, die nach dem ersten Stand von Version 2 dazukamen (Phase 5b)
 OCR_CACHE_SPALTEN = {
@@ -161,8 +162,8 @@ PRUEFSUMME_SPALTEN = {
     "pruefsumme_stand": "TEXT",  # "<Groesse>:<Aenderungszeit ns>" der Datei, zu der sie gehoert; sonst gilt sie nicht
 }
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
-                    "schlagwoerter")
-_META_FTS = "korrespondent, kategorie, zusammenfassung, schlagwoerter"
+                    "schlagwoerter", "notiz")
+_META_FTS = "korrespondent, kategorie, zusammenfassung, schlagwoerter, notiz"
 _META_FTS_NEU = ", ".join(f"coalesce(new.{f}, '')" for f in _META_FTS.split(", "))
 _META_FTS_ALT = ", ".join(f"coalesce(old.{f}, '')" for f in _META_FTS.split(", "))
 
@@ -276,7 +277,8 @@ def schema_stand(con) -> int:
     if not spalten:
         return 0
     if (set(V2_SPALTEN) <= spalten and "bild_hash" in _spalten(con, "seiten")
-            and set(OCR_CACHE_SPALTEN) <= _spalten(con, "ocr_cache") and _tabelle_vorhanden(con, "metadaten_fts")
+            and set(OCR_CACHE_SPALTEN) <= _spalten(con, "ocr_cache")
+            and set(_META_FTS.split(", ")) <= _spalten(con, "metadaten_fts")
             and set(PROTOKOLL_SPALTEN) <= _spalten(con, "textebene_protokoll")
             and _tabelle_vorhanden(con, "schraeglage")):
         return 2
@@ -311,6 +313,12 @@ def ergaenze_schema(con) -> bool:
                 con.execute(f"ALTER TABLE ocr_cache ADD COLUMN {name} {typ}")
                 geaendert = True
     fts_neu = not _tabelle_vorhanden(con, "metadaten_fts")
+    if not fts_neu and not set(_META_FTS.split(", ")) <= _spalten(con, "metadaten_fts"):
+        # Issue #298: Spalte "notiz" im Metadaten-Index - Tabelle und Trigger neu anlegen; der Inhalt
+        # steht in "dokumente" (content=) und wird unten neu aufgebaut, nur Metadaten, schnell
+        con.executescript("DROP TRIGGER IF EXISTS meta_ai; DROP TRIGGER IF EXISTS meta_ad; "
+                          "DROP TRIGGER IF EXISTS meta_au; DROP TABLE metadaten_fts;")
+        fts_neu = True
     if not _tabelle_vorhanden(con, "textebene_protokoll"):
         geaendert = True
     con.executescript(SCHEMA_V2)
@@ -994,7 +1002,7 @@ def _kurz(r: dict) -> dict:
         "id", "pfad", "datei", "name", "ordner", "typ", "format", "groesse", "datum", "seiten",
         "textstatus", "ocr_seiten", "mail_von", "mail_an", "mail_datum", "mail_betreff", "mail_anhaenge", "fehler",
         "pdf_id", "korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
-        "schlagwoerter", "metadaten_quelle",
+        "schlagwoerter", "notiz", "metadaten_quelle",
     )}
 
 

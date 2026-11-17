@@ -9947,3 +9947,18 @@ msgstr "Move this file to the Recycle Bin? At least one file of its group stays.
 #: src/gui/doppelte_aufraeumen.py
 msgid "Doppelte Datei in den Papierkorb gelegt: {name} (Strg+Z holt sie zurück)"
 msgstr "Duplicate file moved to the Recycle Bin: {name} (Ctrl+Z brings it back)"
+#: src/gui/detail_panel.py
+msgid "Notiz"
+msgstr "Note"
+
+#: src/gui/detail_panel.py
+msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nWird in der PDF gespeichert und von der Suche und vom Chat gefunden."
+msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved in the PDF and found by the search and the chat."
+
+#: src/gui/detail_panel.py
+msgid "Eigene Notiz, z. B. „Original beim Steuerberater“"
+msgstr "Your own note, e.g. “Original is with the tax advisor”"
+
+#: src/gui/search_view.py
+msgid "Notiz: {notiz}"
+msgstr "Note: {notiz}"

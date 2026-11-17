@@ -254,7 +254,8 @@ def pdf_bild_hashes(pfad: str, seiten: list[int]) -> dict:
 
 
 _INFO_FELDER = {"Korrespondent": "korrespondent", "Steuerjahr": "steuerjahr", "Buchungsdatum": "buchungsdatum",
-                "Subject": "zusammenfassung", "Keywords": "schlagwoerter"}
+                "Subject": "zusammenfassung", "Keywords": "schlagwoerter", "Notiz": "notiz"}
+_INFO_LAENGE = {"notiz": 2000}  # Issue #298: eine Notiz darf laenger sein als die uebrigen Felder
 _XMP_SUBJECT = re.compile(r"<dc:subject[^>]*>(.*?)</dc:subject>", re.S)
 _TAG = re.compile(r"<[^>]+>")
 _DATEINAME = re.compile(r"[^\s/\\]+\.pdf", re.I)
@@ -287,7 +288,7 @@ def pdf_metadaten(doc) -> dict:
             schluessel = set()
         for k, feld in _INFO_FELDER.items():
             if k in schluessel:
-                wert = _info_wert(doc, xref, k)
+                wert = _info_wert(doc, xref, k, _INFO_LAENGE.get(feld, 500))
                 if wert:
                     erg[feld] = wert
         for k in ("BetragBrutto", "Betrag"):
@@ -311,7 +312,7 @@ def pdf_metadaten(doc) -> dict:
     return erg
 
 
-def _info_wert(doc, xref: int, schluessel: str) -> str | None:
+def _info_wert(doc, xref: int, schluessel: str, laenge: int = 500) -> str | None:
     try:
         art, wert = doc.xref_get_key(xref, schluessel)
     except Exception:
@@ -319,7 +320,7 @@ def _info_wert(doc, xref: int, schluessel: str) -> str | None:
     if art != "string" or wert is None:
         return None
     s = str(wert).strip()
-    return s[:500] or None
+    return s[:laenge] or None
 
 
 def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:

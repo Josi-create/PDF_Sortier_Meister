@@ -515,13 +515,13 @@ class Database:
     def set_document_metadata(self, file_path: str, felder: dict, pdf_id: Optional[str] = None,
                               sofort: bool = True) -> bool:
         """PDFSM-Metadaten (Korrespondent, Kategorie, Steuerjahr, Betrag, Buchungsdatum, Zusammenfassung,
-        Schlagwoerter) fuer eine Datei in den Suchindex schreiben; die Datei wird bei Bedarf aufgenommen.
+        Schlagwoerter, Notiz) fuer eine Datei in den Suchindex schreiben; die Datei wird bei Bedarf aufgenommen.
 
         ``sofort=False`` reiht die Meldung in die Warteschlange ein (nie im GUI-Thread).
         """
         felder = {k: v for k, v in (felder or {}).items()
                   if k in ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
-                           "schlagwoerter")}
+                           "schlagwoerter", "notiz")}
         if not felder:
             return False
         try:
