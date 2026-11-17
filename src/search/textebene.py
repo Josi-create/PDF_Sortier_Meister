@@ -326,6 +326,8 @@ def _schreiben_tmp(pfad: str, tmp: str, ebenen: dict[int, tuple[bytes, int]],
             h = extract._bild_hash(doc, doc[nr - 1])
             if h:
                 hashes[nr] = h
+        from src.core.duplikate import original_eintragen_pymupdf
+        original_eintragen_pymupdf(doc, pfad)  # Issue #307: Original merken (pfad ist noch unveraendert)
         if doc.can_save_incrementally():
             doc.saveIncr()
             return hashes

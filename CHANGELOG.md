@@ -55,6 +55,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Rückfrage bei doppelter Datei klarer** (#309): Die Rückfrage „Datei schon vorhanden“ ist kürzer, und
   der Knopf sagt selbst, was passiert: „Neue Datei in den Papierkorb“ (bei mehreren „Neue Dateien in den
   Papierkorb“). Darunter steht nur noch: „Die vorhandene Datei bleibt, wo sie ist.“
+### Verbessert
+- **Doppelte PDFs auch nach dem Ablegen erkennen** (#307): Beim Ablegen schreibt das Programm
+  Metadaten in die PDF, später oft auch eine Textebene; danach war die abgelegte Datei nicht mehr
+  genau gleich mit ihrem Original, und ein zweites Exemplar (zweiter Download, derselbe Mailanhang)
+  wurde nicht als doppelt gemeldet. Jetzt merkt sich das Programm vor dem ersten Hineinschreiben
+  (auch beim Drehen) einen Fingerabdruck des Originals in der PDF und vergleicht auch damit. Das
+  gilt für PDFs, die ab dieser Version abgelegt werden, und greift, sobald der Suchindex die
+  abgelegte Datei einmal gelesen hat. Es bleibt bei „genau gleicher Inhalt“.
 
 ## [0.30.0] - 2026-11-16
 

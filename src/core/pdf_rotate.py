@@ -110,6 +110,8 @@ def rotate_pdf(path: Path | str, grad: int, seiten: Optional[Iterable[int]] = No
                 if not 1 <= nr <= anzahl:
                     raise ValueError(tr("Seite {nr} gibt es nicht (1 bis {anzahl})").format(nr=nr, anzahl=anzahl))
                 pdf.pages[nr - 1].rotate(grad, relative=True)
+            from src.core.duplikate import original_eintragen_pikepdf
+            original_eintragen_pikepdf(pdf, path)  # Issue #307: Original merken
             # Streams unveraendert uebernehmen (keine Neukompression der Scans)
             pdf.save(str(tmp), compress_streams=False, recompress_flate=False)
         _ersetzen_mit_wiederholung(path, tmp)
