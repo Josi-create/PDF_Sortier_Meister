@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
+  Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
+  Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu

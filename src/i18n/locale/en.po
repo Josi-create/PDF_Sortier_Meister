@@ -8168,6 +8168,10 @@ msgstr "{api_name}: the model does not support tools (already rejected)."
 msgid "{api_name}: leere Antwort vom Server."
 msgstr "{api_name}: empty response from the server."
 
+#: src/ml/openai_werkzeuge.py src/ml/openai_provider.py
+msgid "{api_name}-Fehler: {fehler}"
+msgstr "{api_name} error: {fehler}"
+
 #: src/ml/openai_werkzeuge.py
 msgid "Modell '{model}' unterstützt keine Werkzeuge - {error}"
 msgstr "Model '{model}' does not support tools - {error}"
