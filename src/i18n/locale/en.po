@@ -5793,6 +5793,14 @@ msgid "Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\
 msgstr "While the program is open, a new file in the open folder appears\nas a tile after a few seconds, as soon as it has been written completely.\nFiles that are gone are removed from the view.\nWhen switched off, only F5 shows the new state."
 
 #: src/gui/settings_dialog.py
+msgid "Hinweis bei doppelten Dateien"
+msgstr "Notice about duplicate files"
+
+#: src/gui/settings_dialog.py
+msgid "Liegt dieselbe Datei (gleicher Inhalt) zweimal im geöffneten Ordner,\ntragen die Kacheln den Streifen „Doppelt: wie …“ und die Statusleiste meldet es.\nGibt es den Inhalt im Zielordner oder im Archiv schon, fragt das Programm\nvor dem Ablegen nach. Ausgeschaltet entfällt beides."
+msgstr "If the same file (same content) is in the open folder twice,\nits tiles show the strip “Duplicate of …” and the status bar reports it.\nIf the content already exists in the target folder or the archive, the program\nasks before filing. When switched off, neither happens."
+
+#: src/gui/settings_dialog.py
 msgid "PDF-Analyse-Cache"
 msgstr "PDF analysis cache"
 

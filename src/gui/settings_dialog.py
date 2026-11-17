@@ -1146,6 +1146,17 @@ class SettingsDialog(QDialog):
         )
         display_layout.addRow(self.scan_ordner_beobachten_check)
 
+        # Issue #306: Hinweis auf doppelte Dateien (Issue #245) abschaltbar
+        self.doppelte_hinweis_check = QCheckBox(tr("Hinweis bei doppelten Dateien"))
+        self.doppelte_hinweis_check.setChecked(True)
+        self.doppelte_hinweis_check.setToolTip(
+            tr("Liegt dieselbe Datei (gleicher Inhalt) zweimal im geöffneten Ordner,\n"
+            "tragen die Kacheln den Streifen „Doppelt: wie …“ und die Statusleiste meldet es.\n"
+            "Gibt es den Inhalt im Zielordner oder im Archiv schon, fragt das Programm\n"
+            "vor dem Ablegen nach. Ausgeschaltet entfällt beides.")
+        )
+        display_layout.addRow(self.doppelte_hinweis_check)
+
         layout.addWidget(display_group)
 
         # Issue #270: Scanprogramm fuer den Knopf „Jetzt scannen“
@@ -2899,6 +2910,7 @@ class SettingsDialog(QDialog):
         self.language_combo.setCurrentIndex(max(sprache_index, 0))
         self.suggest_new_folders_check.setChecked(bool(self.config.get("suggest_new_folders", True)))
         self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
+        self.doppelte_hinweis_check.setChecked(bool(self.config.get("doppelte_hinweis", True)))
         self.scan_programm_input.setText(self.config.get("scan_programm", "") or "")
 
         # Persönliche Daten
@@ -3016,6 +3028,7 @@ class SettingsDialog(QDialog):
         self.config.set("language", self.language_combo.currentData() or AUTO)
         self.config.set("suggest_new_folders", self.suggest_new_folders_check.isChecked())
         self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
+        self.config.set("doppelte_hinweis", self.doppelte_hinweis_check.isChecked())
         self.config.set("scan_programm", scan_programm.bereinigt(self.scan_programm_input.text()))
 
         # Cache-Einstellungen

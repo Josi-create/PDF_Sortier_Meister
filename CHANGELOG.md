@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Hinweis bei doppelten Dateien abschaltbar** (#306): Unter *Einstellungen → Allgemein → Darstellung*
+  gibt es den Schalter „Hinweis bei doppelten Dateien“ (Standard an). Ist er aus, entfallen der Streifen
+  „Doppelt: wie …“ an den Kacheln, die Meldung in der Statusleiste und die Rückfrage „Datei schon
+  vorhanden“ beim Ablegen. Ausschalten nimmt vorhandene Streifen sofort weg.
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
