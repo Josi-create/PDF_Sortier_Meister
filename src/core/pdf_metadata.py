@@ -124,6 +124,9 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
             # Custom-Felder als XMP Custom Properties schreiben
             # pikepdf unterstützt custom namespaces über die XML-Ebene
             _write_custom_fields(pdf, metadata)
+            # Issue #307: Pruefsumme des Originals merken (nur beim ersten Schreiben)
+            from src.core.duplikate import original_eintragen_pikepdf
+            original_eintragen_pikepdf(pdf, pdf_path)
 
             pdf.save()
 

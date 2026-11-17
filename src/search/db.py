@@ -159,6 +159,10 @@ PROTOKOLL_SPALTEN = {
 PRUEFSUMME_SPALTEN = {
     "pruefsumme": "TEXT",        # BLAKE2b (16 Byte, hex) ueber die Datei (src.core.duplikate.pruefsumme)
     "pruefsumme_stand": "TEXT",  # "<Groesse>:<Aenderungszeit ns>" der Datei, zu der sie gehoert; sonst gilt sie nicht
+    # Issue #307: Groesse und Pruefsumme des Originals einer PDF, wie sie in der Datei vermerkt sind
+    # (src.core.duplikate.ORIGINAL_SCHLUESSEL); gelten, solange die Datei sie traegt
+    "original_groesse": "INTEGER",
+    "original_pruefsumme": "TEXT",
 }
 METADATEN_FELDER = ("korrespondent", "kategorie", "steuerjahr", "betrag", "buchungsdatum", "zusammenfassung",
                     "schlagwoerter")
@@ -301,6 +305,7 @@ def ergaenze_schema(con) -> bool:
             geaendert = True
     # Issue #245: Dokumente gleicher Groesse schnell finden (nur sie koennen inhaltsgleich sein)
     con.execute("CREATE INDEX IF NOT EXISTS ix_dok_groesse ON dokumente(groesse)")
+    con.execute("CREATE INDEX IF NOT EXISTS ix_dok_original_groesse ON dokumente(original_groesse)")
     if "bild_hash" not in _spalten(con, "seiten"):
         con.execute("ALTER TABLE seiten ADD COLUMN bild_hash TEXT")
         geaendert = True
@@ -395,9 +400,18 @@ def pruefsumme_setzen(con, dok_id: int, summe: str, groesse: int, mtime_ns: int)
                 (summe, f"{groesse}:{mtime_ns}", dok_id))
 
 
+def original_setzen(con, dok_id: int, original: tuple[int, str] | None) -> None:
+    """Groesse und Pruefsumme des Originals einer PDF eintragen oder (None) leeren (Issue #307)."""
+    groesse, summe = original if original else (None, None)
+    con.execute("UPDATE dokumente SET original_groesse = ?, original_pruefsumme = ? WHERE id = ?",
+                (groesse, summe, dok_id))
+
+
 def gleiche_groesse(con, groesse: int) -> list[dict]:
     """Dokumente mit dieser Dateigroesse als ``{"pfad", "pruefsumme", "pruefsumme_stand"}`` (Issue #245).
 
+    Dazu kommen PDFs, deren Original so gross war (Issue #307), als
+    ``{"pfad", "pruefsumme": <des Originals>, "original": True}``.
     Mails aus mbox-Dateien sind keine eigenen Dateien und fehlen. In einer
     Datenbank, die die Spalten noch nicht hat, bleiben die Pruefsummen leer.
     """
@@ -409,7 +423,15 @@ def gleiche_groesse(con, groesse: int) -> list[dict]:
         zeilen = con.execute(
             "SELECT pfad, NULL AS pruefsumme, NULL AS pruefsumme_stand FROM dokumente "
             "WHERE groesse = ? AND format != 'mbox'", (int(groesse),)).fetchall()
-    return [dict(r) for r in zeilen]
+    erg = [dict(r) for r in zeilen]
+    try:
+        originale = con.execute(
+            "SELECT pfad, original_pruefsumme FROM dokumente WHERE original_groesse = ? "
+            "AND original_pruefsumme IS NOT NULL", (int(groesse),)).fetchall()
+    except sqlite3.OperationalError:
+        originale = []
+    erg.extend({"pfad": r[0], "pruefsumme": r[1], "original": True} for r in originale)
+    return erg
 
 
 def loesche(con: sqlite3.Connection, dok_ids) -> None:

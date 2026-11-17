@@ -492,6 +492,11 @@ class Indexer:
             return
         if (vorher.st_size, vorher.st_mtime_ns) == (st.st_size, st.st_mtime_ns):
             db.pruefsumme_setzen(self.con, dok_id, summe, st.st_size, st.st_mtime_ns)
+        if str(basis["pfad"]).lower().endswith(".pdf"):
+            # Issue #307: Original, wie in der PDF vermerkt (vor dem ersten Schreiben des Programms)
+            from src.core.duplikate import original_aus_pdf
+
+            db.original_setzen(self.con, dok_id, original_aus_pdf(basis["pfad"]))
 
     def _ergebnis(self, a: Auftrag, res) -> None:
         i = a.info

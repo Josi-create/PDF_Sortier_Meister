@@ -80,6 +80,8 @@ def test_bilddaten_und_metadaten_bleiben(scan):
     xmp2, info2 = _xmp_und_info(scan)
     assert info2["/Korrespondent"] == "Stadtwerke Musterstadt" and info2["/Steuerjahr"] == "2024"
     assert "Rechnung Strom" in xmp2
+    # Neu ist nur der Vermerk des Originals (Issue #307)
+    assert info2.pop("/PSMOriginal", None) is not None
     assert info2 == info
 
 
