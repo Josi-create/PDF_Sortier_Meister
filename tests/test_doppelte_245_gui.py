@@ -374,7 +374,7 @@ def test_papierkorb_nicht_verfuegbar_laesst_die_datei_im_ordner(fenster, monkeyp
 
 
 @pytest.mark.parametrize("knopf, erwartet", [
-    ("Trotzdem ablegen", "ablegen"), ("In den Papierkorb", "papierkorb"), ("Abbrechen", "abbrechen")])
+    ("Trotzdem ablegen", "ablegen"), ("Neue Datei in den Papierkorb", "papierkorb"), ("Abbrechen", "abbrechen")])
 def test_rueckfrage_nennt_den_ort_und_hat_drei_knoepfe(fenster, knopf, erwartet):
     quelle = fenster.tmp / "Scan" / "Beleg.pdf"
     ort = fenster.tmp / "Ablage" / "2025" / "Beleg alt.pdf"
@@ -384,6 +384,7 @@ def test_rueckfrage_nennt_den_ort_und_hat_drei_knoepfe(fenster, knopf, erwartet)
         box = QApplication.activeModalWidget()
         assert isinstance(box, QMessageBox)
         gesehen["text"] = box.text()
+        gesehen["erklaerung"] = box.informativeText()
         gesehen["knoepfe"] = [b.text() for b in box.findChildren(QPushButton)]
         gesehen["standard"] = box.defaultButton().text()
         next(b for b in box.findChildren(QPushButton) if b.text() == knopf).click()
@@ -391,8 +392,31 @@ def test_rueckfrage_nennt_den_ort_und_hat_drei_knoepfe(fenster, knopf, erwartet)
     QTimer.singleShot(50, klicken)
     assert fenster._doppelte_rueckfrage([quelle], {quelle: [ort]}) == erwartet
     assert "Beleg.pdf" in gesehen["text"] and str(ort) in gesehen["text"]
-    assert sorted(gesehen["knoepfe"]) == ["Abbrechen", "In den Papierkorb", "Trotzdem ablegen"]
+    assert sorted(gesehen["knoepfe"]) == ["Abbrechen", "Neue Datei in den Papierkorb", "Trotzdem ablegen"]
     assert gesehen["standard"] == "Abbrechen"
+    # Issue #309: kurz, und der Knopf sagt selbst, welche Datei in den Papierkorb geht
+    assert gesehen["erklaerung"] == "Die vorhandene Datei bleibt, wo sie ist."
+
+
+@pytest.mark.parametrize("alle_doppelt", [False, True])
+def test_rueckfrage_mehrere_dateien_kurz_und_eindeutig(fenster, alle_doppelt):
+    """Issue #309: Knopf „Neue Dateien in den Papierkorb“; „die übrigen“ nur, wenn es welche gibt."""
+    scan = fenster.tmp / "Scan"
+    dateien = [scan / "a.pdf", scan / "b.pdf"] + ([] if alle_doppelt else [scan / "c.pdf"])
+    ort = fenster.tmp / "Ablage" / "alt.pdf"
+    gesehen = {}
+
+    def klicken():
+        box = QApplication.activeModalWidget()
+        gesehen["erklaerung"] = box.informativeText()
+        gesehen["knoepfe"] = sorted(b.text() for b in box.findChildren(QPushButton))
+        next(b for b in box.findChildren(QPushButton) if b.text() == "Abbrechen").click()
+
+    QTimer.singleShot(50, klicken)
+    fenster._doppelte_rueckfrage(dateien, {dateien[0]: [ort], dateien[1]: [ort]})
+    assert gesehen["knoepfe"] == ["Abbrechen", "Neue Dateien in den Papierkorb", "Trotzdem ablegen"]
+    assert gesehen["erklaerung"].startswith("Die vorhandenen Dateien bleiben, wo sie sind.")
+    assert ("übrigen" in gesehen["erklaerung"]) is not alle_doppelt
 
 
 def test_langsamer_vergleich_blockiert_nicht_und_laesst_sich_ueberspringen(fenster, monkeypatch, qtbot):

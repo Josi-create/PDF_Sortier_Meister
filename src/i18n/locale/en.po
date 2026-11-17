@@ -1353,16 +1353,20 @@ msgid "Datei schon vorhanden"
 msgstr "File already exists"
 
 #: src/gui/doppelte.py
-msgid "„{name}“ gibt es schon: Eine Datei mit genau demselben Inhalt liegt unter\n\n{ort}"
-msgstr "“{name}” already exists: a file with exactly the same content is stored at\n\n{ort}"
+msgid "„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}"
+msgstr "“{name}” already exists (same content):\n\n{ort}"
 
 #: src/gui/doppelte.py
 msgid "\n… und an {anzahl} weiteren Orten"
 msgstr "\n… and in {anzahl} more places"
 
 #: src/gui/doppelte.py
-msgid "„In den Papierkorb“ legt die Datei, die Sie gerade ablegen wollten, in den Papierkorb. Die schon vorhandene Datei bleibt, wo sie ist."
-msgstr "“Move to Recycle Bin” puts the file you were about to file into the Recycle Bin. The existing file stays where it is."
+msgid "Die vorhandene Datei bleibt, wo sie ist."
+msgstr "The existing file stays where it is."
+
+#: src/gui/doppelte.py
+msgid "Neue Datei in den Papierkorb"
+msgstr "Move new file to Recycle Bin"
 
 #: src/gui/doppelte.py
 msgid "„{name}“ liegt schon unter {ort}"
@@ -1377,8 +1381,16 @@ msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{
 msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
 
 #: src/gui/doppelte.py
-msgid "„In den Papierkorb“ legt diese Dateien in den Papierkorb, statt sie ein zweites Mal abzulegen; nur die übrigen werden abgelegt. Die schon vorhandenen Dateien bleiben, wo sie sind."
-msgstr "“Move to Recycle Bin” puts these files into the Recycle Bin instead of filing them a second time; only the remaining files are filed. The existing files stay where they are."
+msgid "Die vorhandenen Dateien bleiben, wo sie sind."
+msgstr "The existing files stay where they are."
+
+#: src/gui/doppelte.py
+msgid "Die übrigen werden normal abgelegt."
+msgstr "The other files are filed as usual."
+
+#: src/gui/doppelte.py
+msgid "Neue Dateien in den Papierkorb"
+msgstr "Move new files to Recycle Bin"
 
 #: src/gui/doppelte.py
 msgid "Trotzdem ablegen"

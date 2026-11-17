@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Rückfrage bei doppelter Datei klarer** (#309): Die Rückfrage „Datei schon vorhanden“ ist kürzer, und
+  der Knopf sagt selbst, was passiert: „Neue Datei in den Papierkorb“ (bei mehreren „Neue Dateien in den
+  Papierkorb“). Darunter steht nur noch: „Die vorhandene Datei bleibt, wo sie ist.“
+
 ## [0.30.0] - 2026-11-16
 
 ### Neu
