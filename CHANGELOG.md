@@ -39,6 +39,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
   Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
   Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
+### Geändert
+- **Hinweis bei doppelten Dateien abschaltbar** (#306): Unter *Einstellungen → Allgemein → Darstellung*
+  gibt es den Schalter „Hinweis bei doppelten Dateien“ (Standard an). Ist er aus, entfallen der Streifen
+  „Doppelt: wie …“ an den Kacheln, die Meldung in der Statusleiste und die Rückfrage „Datei schon
+  vorhanden“ beim Ablegen. Ausschalten nimmt vorhandene Streifen sofort weg.
 
 ## [0.30.0] - 2026-11-16
 

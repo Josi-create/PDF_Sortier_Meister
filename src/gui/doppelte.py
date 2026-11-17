@@ -13,6 +13,9 @@ Zwei Anlaesse:
   das Programm vor dem Verschieben nach: trotzdem ablegen, in den Papierkorb
   oder abbrechen.
 
+Beides laesst sich in den Einstellungen abschalten (Issue #306, Konfigurationswert
+``doppelte_hinweis``, Standard an).
+
 Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``). Gelesen und
 gerechnet wird nie im Thread der Oberflaeche: Die Arbeit laeuft in einem
 Hintergrund-Thread, die Oberflaeche holt nur das Ergebnis ab.
@@ -38,6 +41,8 @@ logger = logging.getLogger(__name__)
 # demselben Inhalt an; sie sollen weder Hinweise noch Rueckfragen ausloesen. Die Tests
 # dieses Hinweises stellen den Schalter wieder an.
 AUTOMATISCH = True
+
+KONFIG_SCHLUESSEL = "doppelte_hinweis"  # Issue #306: Schalter in den Einstellungen
 
 HOECHSTENS_ZEILEN = 8  # so viele Dateien nennt die Rueckfrage, der Rest als Zahl
 
@@ -72,10 +77,24 @@ class DoppelteImOrdner(QObject):
         self._abholen.stop()
         self._lauf = None
 
+    def eingeschaltet(self) -> bool:
+        """Schalter „Hinweis bei doppelten Dateien“ in den Einstellungen (Issue #306)."""
+        return bool(self.fenster.config.get(KONFIG_SCHLUESSEL, True))
+
     def anstossen(self):
         """Demnaechst pruefen (ohne Dateizugriff; darf beliebig oft gerufen werden)."""
-        if AUTOMATISCH and not self._gestoppt:
+        if AUTOMATISCH and not self._gestoppt and self.eingeschaltet():
             self._start.start(self.VERZOEGERUNG_MS)
+
+    def einstellung_geaendert(self):
+        """Nach dem Speichern der Einstellungen: ausgeschaltet verschwinden die Streifen sofort,
+        eingeschaltet wird der geoeffnete Ordner neu geprueft."""
+        if self.eingeschaltet():
+            self.anstossen()
+            return
+        self._start.stop()
+        self._nochmal = False  # eine laufende Pruefung zeigt ihr Ergebnis nicht mehr an
+        self.anzeigen([])
 
     def neu_geladen(self):
         """Der Scan-Bereich wurde neu aufgebaut: Die Kacheln sind neu und tragen noch keinen Hinweis."""
@@ -123,7 +142,8 @@ class DoppelteImOrdner(QObject):
             return  # rechnet noch
         self._abholen.stop()
         self._lauf = None
-        if not self._gestoppt and lauf["ordner"] == self.fenster.file_manager.scan_folder:
+        if (not self._gestoppt and self.eingeschaltet()
+                and lauf["ordner"] == self.fenster.file_manager.scan_folder):
             self.anzeigen(lauf["ergebnis"])
         if self._nochmal:
             self._nochmal = False
@@ -237,7 +257,7 @@ class DoppelteMixin:
         ging in den Papierkorb).
         """
         dateien = [Path(p) for p in dateien]
-        if not AUTOMATISCH or not dateien:
+        if not AUTOMATISCH or not dateien or not self.config.get(KONFIG_SCHLUESSEL, True):
             return dateien
         doppelt = self._doppelte_suchen(dateien, Path(folder_path))
         if not doppelt:

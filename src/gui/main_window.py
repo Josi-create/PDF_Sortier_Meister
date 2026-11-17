@@ -6401,6 +6401,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.refresh_settings()
         # Reiter „Suche“: Suche ein-/ausgeschaltet, anderer Speicherort
         self.search_view.refresh_settings()
+        # Issue #306: Hinweis bei doppelten Dateien ein-/ausgeschaltet
+        self._doppelte_im_ordner.einstellung_geaendert()
         self.statusbar.showMessage(tr("Einstellungen gespeichert"), 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.
