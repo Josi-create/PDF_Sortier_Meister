@@ -12,7 +12,7 @@ msgstr ""
 #: src/gui/main_window.py
 #: src/gui/ordner_verschieben_gui.py
 msgid "PDF Sortier Meister"
-msgstr "PDF Sortier Meister"
+msgstr "PDF Sortmeister"
 
 #: src/core/bild_convert.py
 msgid "Für {0}-Bilder wird das Paket \"Pillow\" benötigt."
@@ -259,7 +259,7 @@ msgstr "New folder: document from {year}, pattern of \"{rel}\""
 
 #: src/core/office_convert.py
 msgid "PDF Sortier Meister darf {programm} nicht steuern. Bitte unter Systemeinstellungen › Datenschutz & Sicherheit › Automation „{programm}“ für PDF Sortier Meister erlauben."
-msgstr "PDF Sortier Meister is not allowed to control {programm}. Please allow “{programm}” for PDF Sortier Meister under System Settings › Privacy & Security › Automation."
+msgstr "PDF Sortmeister is not allowed to control {programm}. Please allow “{programm}” for PDF Sortmeister under System Settings › Privacy & Security › Automation."
 
 #: src/core/office_convert.py
 msgid "{programm} konnte nicht umwandeln: {0}"
@@ -303,7 +303,7 @@ msgstr "File not found: {quelle}"
 
 #: src/core/office_convert.py
 msgid "{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister läuft, fehlt das Paket \"pywin32\".\nBitte im Programmordner ausführen: python -m pip install -r requirements.txt"
-msgstr "{programm} is installed, but the Python that runs PDF Sortier Meister lacks the \"pywin32\" package.\nPlease run in the program folder: python -m pip install -r requirements.txt"
+msgstr "{programm} is installed, but the Python that runs PDF Sortmeister lacks the \"pywin32\" package.\nPlease run in the program folder: python -m pip install -r requirements.txt"
 
 #: src/core/office_convert.py
 msgid "Zum Umwandeln wird {programm}, LibreOffice oder {apple} benötigt. Nichts davon wurde gefunden."
@@ -2769,7 +2769,7 @@ msgstr "Voluntary support - does not unlock any features"
 
 #: src/gui/main_window.py
 msgid "Über PDF Sortier Meister"
-msgstr "About PDF Sortier Meister"
+msgstr "About PDF Sortmeister"
 
 #: src/gui/main_window.py
 msgid "Hauptwerkzeugleiste"
@@ -3650,7 +3650,7 @@ msgstr "Restore backup?"
 
 #: src/gui/main_window.py
 msgid "Sicherung vom {created_display} (Version {version}, {anzahl} Dateien).\n\nBeim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien bleiben im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\nPDF Sortier Meister wird dazu jetzt beendet. Fortfahren?"
-msgstr "Backup from {created_display} (version {version}, {anzahl} files).\n\nAt the next start this data replaces the current database, AI cache, model and settings. The previous files are kept in the data folder under “{PREVIOUS_DIR}”.\n\nPDF Sortier Meister will now close for this. Continue?"
+msgstr "Backup from {created_display} (version {version}, {anzahl} files).\n\nAt the next start this data replaces the current database, AI cache, model and settings. The previous files are kept in the data folder under “{PREVIOUS_DIR}”.\n\nPDF Sortmeister will now close for this. Continue?"
 
 #: src/gui/main_window.py
 msgid "Wiederherstellung fehlgeschlagen"
@@ -3662,7 +3662,7 @@ msgstr "Restore prepared"
 
 #: src/gui/main_window.py
 msgid "Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird beim Start eingespielt."
-msgstr "Please restart PDF Sortier Meister now – the backup is loaded at startup."
+msgstr "Please restart PDF Sortmeister now – the backup is loaded at startup."
 
 #: src/gui/main_window.py
 msgid "So sortieren Sie eine PDF in drei Schritten:"
@@ -3691,7 +3691,7 @@ msgstr "Backup recommended"
 
 #: src/gui/main_window.py
 msgid "PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten direkt in Ihre PDF-Dateien."
-msgstr "PDF Sortier Meister moves, renames and writes metadata directly into your PDF files."
+msgstr "PDF Sortmeister moves, renames and writes metadata directly into your PDF files."
 
 #: src/gui/main_window.py
 msgid "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie Macrium Reflect.\n\nRueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
@@ -3731,7 +3731,7 @@ msgstr "Update available"
 
 #: src/gui/main_window.py
 msgid "<b>Version {version}</b> von PDF Sortier Meister ist verfügbar.<br>Installiert ist Version {version2}."
-msgstr "<b>Version {version}</b> of PDF Sortier Meister is available.<br>Version {version2} is installed."
+msgstr "<b>Version {version}</b> of PDF Sortmeister is available.<br>Version {version2} is installed."
 
 #: src/gui/main_window.py
 msgid "Auf der Download-Seite finden Sie den Installer und die Liste der Änderungen. Installieren Sie die neue Version einfach über die bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
@@ -3851,7 +3851,7 @@ msgstr "Not configured"
 
 #: src/gui/main_window.py
 msgid "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
-msgstr "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
+msgstr "<h2>PDF Sortmeister</h2><p style='color: $grau_66;'>Version {version}</p>"
 
 #: src/gui/main_window.py
 msgid "Ein intelligentes Programm zum Sortieren und<br>Umbenennen von gescannten PDF-Dokumenten."
@@ -4801,7 +4801,7 @@ msgstr "Import existing PDFsuche"
 
 #: src/gui/search_migration_dialog.py
 msgid "Wenn Sie bisher das eigenständige Programm <b>PDFsuche</b> benutzt haben, übernimmt PDF Sortier Meister dessen Einstellungen (config.toml) und die Suchdatenbank. Die Datenbank bleibt an ihrem bisherigen Ort, es wird nichts gelöscht; den bisherigen Projektordner räumen Sie später selbst auf. Die Aufgaben der Aufgabenplanung werden hier nicht verändert."
-msgstr "If you have been using the stand-alone program <b>PDFsuche</b>, PDF Sortier Meister imports its settings (config.toml) and the search database. The database stays in its current location and nothing is deleted; you clean up the old project folder yourself later. The Task Scheduler tasks are not changed here."
+msgstr "If you have been using the stand-alone program <b>PDFsuche</b>, PDF Sortmeister imports its settings (config.toml) and the search database. The database stays in its current location and nothing is deleted; you clean up the old project folder yourself later. The Task Scheduler tasks are not changed here."
 
 #: src/gui/search_migration_dialog.py
 msgid "PDFsuche-Ordner:"
@@ -4822,7 +4822,7 @@ msgstr "Not checked yet. Choose the folder and click “Check”."
 
 #: src/gui/search_migration_dialog.py
 msgid "Datenbank in das Datenverzeichnis von PDF Sortier Meister kopieren (sonst bleibt sie am bisherigen Ort; die Kopie wird geprüft)"
-msgstr "Copy the database into the data folder of PDF Sortier Meister (otherwise it stays in its current location; the copy is verified)"
+msgstr "Copy the database into the data folder of PDF Sortmeister (otherwise it stays in its current location; the copy is verified)"
 
 #: src/gui/search_migration_dialog.py
 msgid "Keine PDFsuche gefunden – bitte den Projektordner (mit config.toml) wählen."
@@ -5826,7 +5826,7 @@ msgstr "Windows Explorer integration"
 
 #: src/gui/settings_dialog.py
 msgid "Im Rechtsklick-Menue des Explorers anzeigen (\"PDF Sortier Meister von hier oeffnen\")"
-msgstr "Show in the Explorer right-click menu (\"Open PDF Sortier Meister here\")"
+msgstr "Show in the Explorer right-click menu (\"Open PDF Sortmeister here\")"
 
 #: src/gui/settings_dialog.py
 msgid "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n  - Ordner (Rechtsklick auf Ordner-Icon)\n  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\nLaeuft das Programm bereits, wird der Pfad an die offene\nInstanz uebergeben statt eine zweite zu starten."
@@ -6998,7 +6998,7 @@ msgstr "Found at poe.com/api_key"
 
 #: src/gui/setup_wizard.py
 msgid "Willkommen bei PDF Sortier Meister!"
-msgstr "Welcome to PDF Sortier Meister!"
+msgstr "Welcome to PDF Sortmeister!"
 
 #: src/gui/setup_wizard.py
 msgid "Dieses kurze Setup dauert etwa 2 Minuten.\nSie koennen jeden Schritt ueberspringen und spaeter aendern."
@@ -7006,7 +7006,7 @@ msgstr "This short setup takes about 2 minutes.\nYou can skip any step and chang
 
 #: src/gui/setup_wizard.py
 msgid "<b>Was macht PDF Sortier Meister?</b><br><br>Das Programm schaut Ihre gescannten PDFs an und schlaegt Ihnen vor,\nin welchen Ordner jedes Dokument gehoert — zum Beispiel:\n<ul><li>Rechnung &rarr; Ordner <i>Rechnungen/2024</i></li><li>Kontoauszug &rarr; Ordner <i>Bank/Sparkasse</i></li><li>Arztbrief &rarr; Ordner <i>Gesundheit</i></li></ul>Sie bestimmen immer selbst, was wirklich passiert.\nDas Programm verschiebt nichts ohne Ihre Zustimmung.<br><br><b>KI-Assistent (empfohlen):</b> Erst mit einer KI entfaltet das\nProgramm sein volles Potential — die Vorschlaege werden deutlich\nbesser. Am einfachsten geht das mit <b>Ollama</b>, das kostenlos\nlokal auf Ihrem PC laeuft (kein API-Key noetig, Ihre Dokumente\nbleiben auf diesem Rechner). Wer lieber einen Cloud-Anbieter nutzt\n(z. B. weil er ein Abo hat oder dem Anbieter vertraut), kann\nstattdessen einen API-Key hinterlegen. Im naechsten Schritt waehlen\nSie aus — ganz ohne KI geht es zur Not auch, dann sortiert nur\neine einfache Stichwort-Zuordnung."
-msgstr "<b>What does PDF Sortier Meister do?</b><br><br>The program looks at your scanned PDFs and suggests\nwhich folder each document belongs in — for example:\n<ul><li>Invoice &rarr; folder <i>Invoices/2024</i></li><li>Bank statement &rarr; folder <i>Bank/Savings bank</i></li><li>Doctor's letter &rarr; folder <i>Health</i></li></ul>You always decide yourself what actually happens.\nThe program moves nothing without your approval.<br><br><b>AI assistant (recommended):</b> Only with an AI does the\nprogram reach its full potential — the suggestions become much\nbetter. The easiest way is <b>Ollama</b>, which runs locally on your\nPC free of charge (no API key needed, your documents\nstay on this computer). If you prefer a cloud provider\n(e.g. because you have a subscription or trust the provider), you can\nenter an API key instead. You choose in the next\nstep — it also works without AI if need be; then only\na simple keyword matching does the sorting."
+msgstr "<b>What does PDF Sortmeister do?</b><br><br>The program looks at your scanned PDFs and suggests\nwhich folder each document belongs in — for example:\n<ul><li>Invoice &rarr; folder <i>Invoices/2024</i></li><li>Bank statement &rarr; folder <i>Bank/Savings bank</i></li><li>Doctor's letter &rarr; folder <i>Health</i></li></ul>You always decide yourself what actually happens.\nThe program moves nothing without your approval.<br><br><b>AI assistant (recommended):</b> Only with an AI does the\nprogram reach its full potential — the suggestions become much\nbetter. The easiest way is <b>Ollama</b>, which runs locally on your\nPC free of charge (no API key needed, your documents\nstay on this computer). If you prefer a cloud provider\n(e.g. because you have a subscription or trust the provider), you can\nenter an API key instead. You choose in the next\nstep — it also works without AI if need be; then only\na simple keyword matching does the sorting."
 
 #: src/gui/setup_wizard.py
 msgid "Schritt 1: Scan-Ordner auswaehlen"
@@ -7318,15 +7318,15 @@ msgstr "<b>What now?</b><br><br>Put a few PDFs into your scan folder and start\n
 
 #: src/gui/setup_wizard.py
 msgid "PDF Sortier Meister im Rechtsklick-Menue des Explorers anzeigen"
-msgstr "Show PDF Sortier Meister in the Explorer right-click menu"
+msgstr "Show PDF Sortmeister in the Explorer right-click menu"
 
 #: src/gui/setup_wizard.py
 msgid "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\nhinzu, wenn Sie einen Ordner oder dessen Hintergrund\nrechtsklicken. Aenderbar unter Extras -> Einstellungen."
-msgstr "Adds an entry \"Open PDF Sortier Meister here\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
+msgstr "Adds an entry \"Open PDF Sortmeister here\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
 
 #: src/gui/setup_wizard.py
 msgid "PDF Sortier Meister einrichten"
-msgstr "Set up PDF Sortier Meister"
+msgstr "Set up PDF Sortmeister"
 
 #: src/gui/setup_wizard.py
 msgid "Fertig"
@@ -7610,11 +7610,11 @@ msgstr "Error while saving:\n{e}"
 
 #: src/gui/support_dialog.py
 msgid "PDF Sortier Meister unterstützen"
-msgstr "Support PDF Sortier Meister"
+msgstr "Support PDF Sortmeister"
 
 #: src/gui/support_dialog.py
 msgid "<h3>Gefällt Ihnen PDF Sortier Meister?</h3>"
-msgstr "<h3>Do you like PDF Sortier Meister?</h3>"
+msgstr "<h3>Do you like PDF Sortmeister?</h3>"
 
 #: src/gui/support_dialog.py
 msgid "Das Programm ist freie Software und bleibt es. Wenn es Ihnen Zeit spart, freue ich mich über einen kleinen Beitrag zur Weiterentwicklung.<br><br><b>Ein freiwilliger Beitrag, keine Gegenleistung, keine Freischaltung von Funktionen.</b> Das Programm funktioniert mit und ohne Beitrag gleich."
@@ -8475,7 +8475,7 @@ msgstr "Unknown date: {datum!r} (expected YYYY-MM-DD or DD.MM.YYYY)"
 
 #: src/search/dienst.py
 msgid "PDF Sortier Meister – Dokumentensuche (Indexierung, MCP, Web, Kommandozeile)"
-msgstr "PDF Sortier Meister – document search (indexing, MCP, web, command line)"
+msgstr "PDF Sortmeister – document search (indexing, MCP, web, command line)"
 
 #: src/search/dienst.py
 msgid "andere config.json oder eine config.toml von PDFsuche"
@@ -9104,11 +9104,11 @@ msgstr "Document search is running at {url}  (quit: Ctrl+C)"
 
 #: src/search/zeitplan.py
 msgid "PDF Sortier Meister: liest täglich bei Leerlauf neue und geänderte Dokumente in den Suchindex ein (zuerst die Vorrang-Ordner) und erkennt Scans per OCR. Bricht ab, sobald am Rechner gearbeitet wird."
-msgstr "PDF Sortier Meister: reads new and changed documents into the search index once a day when idle (priority folders first) and recognizes scans by OCR. Stops as soon as the computer is used."
+msgstr "PDF Sortmeister: reads new and changed documents into the search index once a day when idle (priority folders first) and recognizes scans by OCR. Stops as soon as the computer is used."
 
 #: src/search/zeitplan.py
 msgid "PDF Sortier Meister: Browser-Oberfläche der Dokumentensuche (nur auf diesem Rechner erreichbar)."
-msgstr "PDF Sortier Meister: browser interface of the document search (reachable only on this computer)."
+msgstr "PDF Sortmeister: browser interface of the document search (reachable only on this computer)."
 
 #: src/search/zeitplan.py
 msgid "Aufgabenplanung"
@@ -9164,7 +9164,7 @@ msgstr "{name} is not a ZIP archive."
 
 #: src/utils/backup.py
 msgid "{name} enthaelt keine Daten von PDF Sortier Meister (erwartet z.B. {0} oder {1})."
-msgstr "{name} does not contain data of PDF Sortier Meister (expected e.g. {0} or {1})."
+msgstr "{name} does not contain data of PDF Sortmeister (expected e.g. {0} or {1})."
 
 #: src/utils/database.py
 msgid "Korrespondent-Name darf nicht leer sein"
@@ -9176,7 +9176,7 @@ msgstr "Primary correspondent '{primary_name}' does not exist"
 
 #: src/utils/explorer_integration.py
 msgid "PDF Sortier Meister von hier oeffnen"
-msgstr "Open PDF Sortier Meister here"
+msgstr "Open PDF Sortmeister here"
 
 #: src/utils/explorer_integration.py
 msgid "Explorer-Integration ist nur unter Windows verfuegbar."
@@ -9620,7 +9620,7 @@ msgstr "Mails from other programs"
 
 #: src/search/plattform.py
 msgid "Apple Mail erkannt, aber der Zugriff ist gesperrt: {0}\nBitte in den Systemeinstellungen unter Datenschutz & Sicherheit → Festplattenvollzugriff PDF Sortier Meister erlauben und das Programm neu starten."
-msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortier Meister under System Settings → Privacy & Security → Full Disk Access and restart the program."
+msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortmeister under System Settings → Privacy & Security → Full Disk Access and restart the program."
 
 #: src/search/plattform.py
 msgid "Weder Thunderbird noch Apple Mail gefunden – Postfach-Ordner unten eintragen."
@@ -9628,7 +9628,7 @@ msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below
 
 #: src/search/plattform.py
 msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
-msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
+msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortmeister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortmeister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortmeister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
 
 #: src/gui/main_window.py
 msgid "Jetzt scannen"
