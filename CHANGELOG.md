@@ -44,6 +44,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   gibt es den Schalter „Hinweis bei doppelten Dateien“ (Standard an). Ist er aus, entfallen der Streifen
   „Doppelt: wie …“ an den Kacheln, die Meldung in der Statusleiste und die Rückfrage „Datei schon
   vorhanden“ beim Ablegen. Ausschalten nimmt vorhandene Streifen sofort weg.
+### Behoben
+- **Kein „Steuer 2010“ mehr für einen Bescheid von 2020** (#308): Unter „Vorgeschlagene Ziele“
+  erscheint ein gelernter Ordner mit einer Jahreszahl im Namen nicht mehr, wenn das Jahr gar nicht
+  zum Dokument passt. Passend heißt: höchstens ein Jahr neben dem Jahr, für das der Bescheid gilt,
+  oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
+  Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
+  wie bisher.
 
 ## [0.30.0] - 2026-11-16
 

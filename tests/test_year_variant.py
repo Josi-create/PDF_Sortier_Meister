@@ -111,6 +111,72 @@ def test_bezugsjahr_im_text_schlaegt_briefdatum(tmp_path):
     assert f"{root.name}/Steuer 2022" in [s.relative_path for s in out]  # Gelerntes bleibt
 
 
+def test_ordner_mit_fernem_jahr_faellt_weg(tmp_path):
+    """Issue #308: Bescheid fuer 2020 -> "Steuer 2010" (aehnlicher alter Bescheid) nicht anbieten."""
+    root = _tree(tmp_path, "Steuer 2010", "Steuer 2020")
+    c = _bare_classifier([Suggestion(root / "Steuer 2010", "Steuer 2010", 0.56, "Ähnlicher Inhalt")])
+    text = "Finanzamt Musterstadt\nBescheid für 2020 über Einkommensteuer\nMusterstadt, 14.03.2022"
+
+    out = c.suggest_with_subfolders(text, None, detected_date="2022-03-14", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Steuer 2020"]
+
+
+def test_ordner_mit_fernem_jahr_faellt_auch_ohne_variante_weg(tmp_path):
+    root = _tree(tmp_path, "Steuer 2010")
+    c = _bare_classifier([
+        Suggestion(root / "Steuer 2010", "Steuer 2010", 0.56, "Ähnlicher Inhalt"),
+        Suggestion(root / "Banken", "Banken", 0.3, "gelernt"),
+    ])
+    text = "Bescheid für 2020 über Einkommensteuer"
+
+    out = c.suggest_with_subfolders(text, None, detected_date="2022-03-14", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Banken"]
+
+
+def test_nachbarjahr_des_bezugsjahrs_bleibt(tmp_path):
+    """Die erste Jahresnennung kann eine Vorauszahlung sein: +/- 1 Jahr bleibt Vorschlag."""
+    root = _tree(tmp_path, "Steuer 2019", "Steuer 2020")
+    c = _bare_classifier([Suggestion(root / "Steuer 2019", "Steuer 2019", 0.6, "gelernt")])
+
+    out = c.suggest_with_subfolders(
+        "Bescheid für 2020", None, detected_date="2020-12-01", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Steuer 2020", "Steuer 2019"]
+
+
+def test_lohnsteuerbescheinigung_im_januar_bleibt(tmp_path):
+    """Nur Briefdatum 2026: "Steuer 2025" bleibt (Issue #30), "Steuer 2015" faellt weg."""
+    root = _tree(tmp_path, "Steuer 2015", "Steuer 2025", "Steuer 2026")
+    c = _bare_classifier([
+        Suggestion(root / "Steuer 2025", "Steuer 2025", 0.7, "gelernt"),
+        Suggestion(root / "Steuer 2015", "Steuer 2015", 0.6, "gelernt"),
+    ])
+
+    out = c.suggest_with_subfolders("Bescheinigung", None, detected_date="2026-01-10", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Steuer 2026", "Steuer 2025"]
+
+
+def test_jahr_im_zielordner_selbst_zaehlt_nicht(tmp_path):
+    root = _tree(tmp_path / "Archiv 2015", "Banken")
+    c = _bare_classifier([Suggestion(root / "Banken", "Banken", 0.6, "gelernt")])
+
+    out = c.suggest_with_subfolders("Kontoauszug", None, detected_date="2026-03-01", root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Banken"]
+
+
+def test_ohne_erkanntes_jahr_bleibt_alter_ordner(tmp_path):
+    root = _tree(tmp_path, "Steuer 2010")
+    c = _bare_classifier([Suggestion(root / "Steuer 2010", "Steuer 2010", 0.56, "gelernt")])
+
+    out = c.suggest_with_subfolders("ohne Jahr", None, detected_date=None, root_folders=[root])
+
+    assert [s.folder_name for s in out] == ["Steuer 2010"]
+
+
 def test_ohne_bezugsjahr_bleibt_das_briefdatum(tmp_path):
     root = _tree(tmp_path, "Steuer 2020", "Steuer 2022")
     c = _bare_classifier([Suggestion(root / "Steuer 2022", "Steuer 2022", 0.8, "gelernt")])
