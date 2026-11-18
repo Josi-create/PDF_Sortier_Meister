@@ -366,6 +366,11 @@ class SettingsDialog(QDialog):
         self.temperature_spin.setRange(0.0, 1.0)
         self.temperature_spin.setSingleStep(0.1)
         self.temperature_spin.setValue(0.3)
+        self.temperature_spin.setToolTip(
+            tr("Zufallsanteil der Antworten (niedrig = gleichbleibender). Neuere "
+            "Claude-Modelle (ab Claude 4.6) nehmen den Wert nicht mehr an; "
+            "dort wird er weggelassen.")
+        )
         advanced_layout.addRow(tr("Temperatur:"), self.temperature_spin)
 
         self.text_limit_spin = QSpinBox()
@@ -3245,17 +3250,21 @@ class SettingsDialog(QDialog):
             from src.ml.claude_provider import ClaudeProvider
             model_id = ClaudeProvider.MODELS.get(model, model)
 
+            # Issue #380: Neuere Modelle denken zuerst und verbrauchen dafuer
+            # einen Teil von max_tokens - mit 10 Tokens kaeme kein Text mehr.
             message = client.messages.create(
                 model=model_id,
-                max_tokens=10,
+                max_tokens=200,
                 messages=[
                     {"role": "user", "content": "Sage 'OK'"}
                 ]
             )
+            # Nur Textbloecke lesen; ein vorangestellter Denk-Block hat kein .text
+            text = ClaudeProvider.antworttext(message).strip() or "-"
 
             QMessageBox.information(
                 self, tr("Erfolg"),
-                tr("Verbindung zu Claude erfolgreich!\nModell: {model_id}\nAntwort: {text}").format(model_id=model_id, text=message.content[0].text)
+                tr("Verbindung zu Claude erfolgreich!\nModell: {model_id}\nAntwort: {text}").format(model_id=model_id, text=text)
             )
         except ImportError:
             QMessageBox.critical(

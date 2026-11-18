@@ -1423,6 +1423,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def on_office_delete(self, pfad: Path):
         """Kontextmenue "Loeschen" einer .docx/.xlsx (gleicher Weg und gleiche Rueckfrage wie bei PDFs)."""
+        if self._auswahl_loeschen_statt(pfad):
+            return
         self._datei_loeschen(pfad, tr("Datei löschen"), tr("diese Datei"), self._remove_office_widget)
 
     def _remove_office_widget(self, pfad: Path):
@@ -3946,7 +3948,20 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def on_pdf_delete(self, pdf_path: Path):
         """Wird aufgerufen wenn eine PDF gelöscht werden soll."""
+        if self._auswahl_loeschen_statt(pdf_path):
+            return
         self._datei_loeschen(pdf_path, tr("PDF löschen"), tr("diese PDF"), self.remove_pdf_widget)
+
+    def _auswahl_loeschen_statt(self, pfad: Path) -> bool:
+        """Gehoert die Kachel zur Mehrfachauswahl, loescht "Löschen" im Kontextmenue alle
+        markierten wie Entf (Issue #353; vorher nur die angeklickte). True, wenn erledigt."""
+        if len(self.selected_pdfs) < 2 or pfad not in self.selected_pdfs:
+            return False
+        pfade = [p for p in self.selected_pdfs if self._pdf_widget_for(p) is not None]
+        if len(pfade) < 2:
+            return False
+        self._dateien_loeschen(pfade)
+        return True
 
     def _datei_loeschen(self, pdf_path: Path, titel: str, objekt: str, widget_entfernen):
         """Rueckfrage, Loeschen und Kachel entfernen - gemeinsam fuer PDFs und Office-Dateien.
