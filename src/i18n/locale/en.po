@@ -136,6 +136,14 @@ msgid "Ziel-PDF nicht gefunden: {target}"
 msgstr "Target PDF not found: {target}"
 
 #: src/core/file_manager.py
+msgid "Die Ziel-PDF „{name}“ liegt nicht mehr an ihrem Platz. Der fertige Stapel wurde deshalb nicht gelöscht, sondern liegt hier:\n{pfad}"
+msgstr "The target PDF “{name}” is no longer in its place. The finished stack was therefore not deleted; it is here:\n{pfad}"
+
+#: src/core/file_manager.py
+msgid "Die Ziel-PDF „{name}“ ist gerade geöffnet, zum Beispiel von der Analyse oder einem anderen Programm. Es wurde nichts verändert. Bitte in ein paar Sekunden noch einmal versuchen."
+msgstr "The target PDF “{name}” is currently open, for example by the analysis or another program. Nothing was changed. Please try again in a few seconds."
+
+#: src/core/file_manager.py
 msgid "Eine PDF kann nicht auf sich selbst gestapelt werden."
 msgstr "A PDF cannot be stacked onto itself."
 

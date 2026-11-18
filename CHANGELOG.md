@@ -7,6 +7,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Stapeln hinterlässt keine Datei „….stapel-tmp.pdf“ mehr** (#346): Die Zwischendatei beim
+  Stapeln erscheint nie mehr als Kachel und wird nicht mehr als neuer Scan gemeldet. Ist die
+  Ziel-PDF gerade geöffnet (etwa weil die Analyse sie noch liest), wartet das Stapeln kurz und
+  versucht es erneut; klappt es dann immer noch nicht, sagt die Meldung, dass die Datei gerade
+  geöffnet ist und nichts verändert wurde. Nach einem Fehlschlag wird die Zwischendatei gelöscht,
+  aber nur, wenn die Ziel-PDF noch an ihrem Platz liegt. Ist sie inzwischen weg (zum Beispiel im
+  Papierkorb), bleibt der fertige Stapel erhalten, und die Meldung nennt, wo er liegt.
+
 ## [0.31.0] - 2026-11-18
 
 ### Neu

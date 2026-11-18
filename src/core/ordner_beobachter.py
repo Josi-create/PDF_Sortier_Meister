@@ -76,6 +76,15 @@ class Aenderung:
         return bool(self.neu or self.weg or self.geaendert or self.unterordner is not None)
 
 
+def ist_zwischendatei(name: str) -> bool:
+    """Zwischendatei des Stapelns bzw. Rueckgaengigmachens (Issue #346)?
+
+    Solche Dateien bekommen keine Kachel und werden nie als neuer Scan gemeldet.
+    """
+    name = name.lower()
+    return name.endswith(".stapel-tmp.pdf") or ".rueckgaengig-tmp." in name
+
+
 def _eintrag(st: os.stat_result) -> Eintrag:
     attribute = getattr(st, "st_file_attributes", 0)
     return Eintrag(st.st_size, st.st_mtime_ns, bool(attribute & _NUR_ONLINE))
@@ -105,6 +114,8 @@ def ordner_lesen(ordner: Path | str, endungen: Iterable[str]) -> dict[str, Eintr
                 continue
             if endung != ".pdf" and name.startswith("~$"):
                 continue  # Sperrdatei von Word
+            if ist_zwischendatei(name):
+                continue  # Issue #346
             try:
                 if not e.is_file():
                     continue
