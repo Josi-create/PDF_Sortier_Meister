@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-19
+
 ### Behoben
 - **Vorschau friert nicht mehr ein** (#411): Passte eine Seite fast genau in die Höhe des
   Vorschaubereichs, blieb die Vorschau weiß und das ganze Fenster reagierte nicht mehr („Keine
