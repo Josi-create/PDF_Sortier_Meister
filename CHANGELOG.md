@@ -13,6 +13,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   „Löschen (2 Dateien)“ und legt alle markierten nach einer Rückfrage in den Papierkorb, wie die
   Taste Entf. Bisher fragte er nur nach der angeklickten Datei. Ein Rechtsklick auf eine nicht
   markierte Kachel löscht weiter nur diese.
+- **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
+  sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
+  Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
+  Drehen einer PDF und nach Strg+Z.
 
 ## [0.31.0] - 2026-11-18
 

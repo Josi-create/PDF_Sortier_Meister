@@ -243,6 +243,29 @@ def test_speichern_schreibt_die_pdf_und_strg_z_holt_sie_zurueck(main_window, sca
     assert main_window._undo_stack == []
 
 
+def test_nach_dem_speichern_zeigen_vorschau_und_kachel_sofort_den_neuen_stand(main_window, scan, monkeypatch):  # noqa: F811
+    """Issue #345: nicht erst warten, bis die neue Analyse (OCR) fertig ist."""
+    from src.gui import main_window as mw_mod
+
+    pfad = _pdf(scan / "a.pdf", 4, leer=(4,))
+    main_window._navigate_to_folder(scan)
+    main_window.selected_pdf, main_window.selected_pdfs = pfad, []
+    monkeypatch.setattr(mw_mod, "index_melden", lambda *a: None)
+    monkeypatch.setattr(main_window.detail_panel, "has_user_edits", lambda: False)
+    vorschau, analyse, kachel = [], [], []
+    monkeypatch.setattr(main_window.detail_panel.preview, "load_pdf", vorschau.append)
+    monkeypatch.setattr(main_window, "update_suggestions_for_pdf", analyse.append)  # liefert spaeter
+    widget = main_window._pdf_widget_for(pfad)
+    monkeypatch.setattr(widget, "load_thumbnail", lambda: kachel.append(pfad))
+    monkeypatch.setattr(sb, "_dialog", lambda main, p: [(1, 0), (2, 0), (3, 0)])
+
+    main_window.on_pdf_seiten(pfad)
+
+    assert len(_blaetter(pfad)) == 3
+    assert vorschau == [pfad]  # sofort, nicht erst mit dem Analyse-Ergebnis
+    assert analyse == [pfad] and kachel == [pfad]
+
+
 def test_abbruch_und_unveraenderter_plan_lassen_alles_wie_es_ist(main_window, scan, monkeypatch):  # noqa: F811
     pfad = _pdf(scan / "a.pdf", 3)
     main_window._navigate_to_folder(scan)
