@@ -7,6 +7,67 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-18
+
+### Neu
+- **Doppelte Dateien aufräumen** (#299): *Extras → Doppelte Dateien suchen …* durchsucht den gerade
+  geöffneten Ordner samt Unterordnern nach Dateien mit genau demselben Inhalt; im Ordnerbaum rechts
+  gibt es denselben Eintrag im Rechtsklick-Menü eines Ordners. Die Übersicht zeigt die gleichen
+  Dateien in Gruppen, je Datei mit Ordner und Änderungsdatum. Du setzt Haken bei den Dateien, die
+  weg sollen (oder lässt mit einem Knopf je Gruppe nur die älteste übrig), und legst sie nach einer
+  Rückfrage in den Papierkorb. Von jeder Gruppe bleibt immer mindestens eine Datei, und ein Strg+Z
+  im Hauptfenster holt alle zurück. Gelöscht wird nichts von selbst; Dateien, die bei OneDrive nur
+  online liegen, werden nicht heruntergeladen und deshalb nicht verglichen.
+- **Notiz zu einem Dokument** (#298): Im Detail-Panel gibt es unter „Zusammenfassung“ das neue Feld
+  „Notiz“ für einen eigenen Satz, der nicht im Dokument steht, etwa „Kopie ans Finanzamt geschickt“ oder
+  „Original beim Steuerberater“. Mit „Metadaten speichern“ kommt die Notiz in die PDF; leeren und
+  speichern entfernt sie wieder. Die Suche findet Dokumente auch über ihre Notiz, die Trefferkarte im
+  Reiter „Suche“ zeigt sie an, und der Chat sieht sie bei den Suchtreffern. Eine Notiz je Dokument, nur
+  für PDFs.
+- **PDF-Anhänge einer Mail in den Scan-Ordner legen** (#327): Im Reiter „Suche“ hat das
+  Rechtsklick-Menü einer Mail mit PDF-Anhang den neuen Eintrag „PDF-Anhänge in den Scan-Ordner
+  legen“. Die PDFs werden unverändert in den eingestellten Scan-Ordner kopiert und erscheinen dort
+  wie ein neuer Scan als Kachel. Gibt es dort schon eine Datei mit gleichem Namen, bekommt die neue
+  ein „ (2)“ angehängt; überschrieben wird nichts. Die Mail selbst bleibt, wie sie ist. Geht für
+  Thunderbird, Apple Mail, `.eml` und `.msg`; Bilder und Office-Anhänge bleiben (noch) weg.
+- **Neue Unterordner erscheinen von selbst** (#319): Legst du im geöffneten Scan-Ordner einen
+  Unterordner an (im Explorer oder auf einem anderen Gerät über OneDrive), erscheint er nach ein bis
+  zwei Sekunden als Ordnerzeile, ohne F5. Gelöschte oder umbenannte Unterordner werden ebenso
+  nachgeführt. Ausgewählte Dateien, ein markierter Ordner und die übrigen Zeilen bleiben, wie sie
+  sind. Abschaltbar wie bisher unter *Einstellungen → Allgemein → Scan-Ordner beobachten*.
+
+### Verbessert
+- **Doppelte PDFs auch nach dem Ablegen erkennen** (#307): Beim Ablegen schreibt das Programm
+  Metadaten in die PDF, später oft auch eine Textebene; danach war die abgelegte Datei nicht mehr
+  genau gleich mit ihrem Original, und ein zweites Exemplar (zweiter Download, derselbe Mailanhang)
+  wurde nicht als doppelt gemeldet. Jetzt merkt sich das Programm vor dem ersten Hineinschreiben
+  (auch beim Drehen) einen Fingerabdruck des Originals in der PDF und vergleicht auch damit. Das
+  gilt für PDFs, die ab dieser Version abgelegt werden, und greift, sobald der Suchindex die
+  abgelegte Datei einmal gelesen hat. Es bleibt bei „genau gleicher Inhalt“.
+
+### Geändert
+- **Hinweis bei doppelten Dateien abschaltbar** (#306): Unter *Einstellungen → Allgemein → Darstellung*
+  gibt es den Schalter „Hinweis bei doppelten Dateien“ (Standard an). Ist er aus, entfallen der Streifen
+  „Doppelt: wie …“ an den Kacheln, die Meldung in der Statusleiste und die Rückfrage „Datei schon
+  vorhanden“ beim Ablegen. Ausschalten nimmt vorhandene Streifen sofort weg.
+- **Rückfrage bei doppelter Datei klarer** (#309): Die Rückfrage „Datei schon vorhanden“ ist kürzer, und
+  der Knopf sagt selbst, was passiert: „Neue Datei in den Papierkorb“ (bei mehreren „Neue Dateien in den
+  Papierkorb“). Darunter steht nur noch: „Die vorhandene Datei bleibt, wo sie ist.“
+- **Englischer Programmname „PDF Sortmeister“** (#324): In der englischen Oberfläche heißt das
+  Programm jetzt überall „PDF Sortmeister“ (Fenstertitel, Über-Fenster, Willkommen, Meldungen).
+  Die deutsche Oberfläche bleibt bei „PDF Sortier Meister“.
+
+### Behoben
+- **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
+  Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
+  Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
+- **Kein „Steuer 2010“ mehr für einen Bescheid von 2020** (#308): Unter „Vorgeschlagene Ziele“
+  erscheint ein gelernter Ordner mit einer Jahreszahl im Namen nicht mehr, wenn das Jahr gar nicht
+  zum Dokument passt. Passend heißt: höchstens ein Jahr neben dem Jahr, für das der Bescheid gilt,
+  oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
+  Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
+  wie bisher.
+
 ### Intern
 - **Tests laufen auch auf einem echten Windows-Desktop grün** (#303): Drei Oberflächen-Tests
   schlugen nur außerhalb der CI fehl. Der Test für Codeblöcke im Chat erwartet jetzt die
@@ -19,67 +80,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   mitgezählt wurde. Der Schlagwort-Test speicherte erneut, während der Suchindex die Datei noch
   las („Access is denied“ unter Windows); er wartet jetzt auf den Suchindex. Am Programm selbst
   ändert sich nichts.
-### Neu
-- **Doppelte Dateien aufräumen** (#299): *Extras → Doppelte Dateien suchen …* durchsucht den gerade
-  geöffneten Ordner samt Unterordnern nach Dateien mit genau demselben Inhalt; im Ordnerbaum rechts
-  gibt es denselben Eintrag im Rechtsklick-Menü eines Ordners. Die Übersicht zeigt die gleichen
-  Dateien in Gruppen, je Datei mit Ordner und Änderungsdatum. Du setzt Haken bei den Dateien, die
-  weg sollen (oder lässt mit einem Knopf je Gruppe nur die älteste übrig), und legst sie nach einer
-  Rückfrage in den Papierkorb. Von jeder Gruppe bleibt immer mindestens eine Datei, und ein Strg+Z
-  im Hauptfenster holt alle zurück. Gelöscht wird nichts von selbst; Dateien, die bei OneDrive nur
-  online liegen, werden nicht heruntergeladen und deshalb nicht verglichen.
-### Neu
-- **Notiz zu einem Dokument** (#298): Im Detail-Panel gibt es unter „Zusammenfassung“ das neue Feld
-  „Notiz“ für einen eigenen Satz, der nicht im Dokument steht, etwa „Kopie ans Finanzamt geschickt“ oder
-  „Original beim Steuerberater“. Mit „Metadaten speichern“ kommt die Notiz in die PDF; leeren und
-  speichern entfernt sie wieder. Die Suche findet Dokumente auch über ihre Notiz, die Trefferkarte im
-  Reiter „Suche“ zeigt sie an, und der Chat sieht sie bei den Suchtreffern. Eine Notiz je Dokument, nur
-  für PDFs.
-### Behoben
-- **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
-  Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
-  Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
-### Geändert
-- **Hinweis bei doppelten Dateien abschaltbar** (#306): Unter *Einstellungen → Allgemein → Darstellung*
-  gibt es den Schalter „Hinweis bei doppelten Dateien“ (Standard an). Ist er aus, entfallen der Streifen
-  „Doppelt: wie …“ an den Kacheln, die Meldung in der Statusleiste und die Rückfrage „Datei schon
-  vorhanden“ beim Ablegen. Ausschalten nimmt vorhandene Streifen sofort weg.
-### Behoben
-- **Kein „Steuer 2010“ mehr für einen Bescheid von 2020** (#308): Unter „Vorgeschlagene Ziele“
-  erscheint ein gelernter Ordner mit einer Jahreszahl im Namen nicht mehr, wenn das Jahr gar nicht
-  zum Dokument passt. Passend heißt: höchstens ein Jahr neben dem Jahr, für das der Bescheid gilt,
-  oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
-  Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
-  wie bisher.
-### Geändert
-- **Rückfrage bei doppelter Datei klarer** (#309): Die Rückfrage „Datei schon vorhanden“ ist kürzer, und
-  der Knopf sagt selbst, was passiert: „Neue Datei in den Papierkorb“ (bei mehreren „Neue Dateien in den
-  Papierkorb“). Darunter steht nur noch: „Die vorhandene Datei bleibt, wo sie ist.“
-### Verbessert
-- **Doppelte PDFs auch nach dem Ablegen erkennen** (#307): Beim Ablegen schreibt das Programm
-  Metadaten in die PDF, später oft auch eine Textebene; danach war die abgelegte Datei nicht mehr
-  genau gleich mit ihrem Original, und ein zweites Exemplar (zweiter Download, derselbe Mailanhang)
-  wurde nicht als doppelt gemeldet. Jetzt merkt sich das Programm vor dem ersten Hineinschreiben
-  (auch beim Drehen) einen Fingerabdruck des Originals in der PDF und vergleicht auch damit. Das
-  gilt für PDFs, die ab dieser Version abgelegt werden, und greift, sobald der Suchindex die
-  abgelegte Datei einmal gelesen hat. Es bleibt bei „genau gleicher Inhalt“.
-### Geändert
-- **Englischer Programmname „PDF Sortmeister“** (#324): In der englischen Oberfläche heißt das
-  Programm jetzt überall „PDF Sortmeister“ (Fenstertitel, Über-Fenster, Willkommen, Meldungen).
-  Die deutsche Oberfläche bleibt bei „PDF Sortier Meister“.
-### Neu
-- **PDF-Anhänge einer Mail in den Scan-Ordner legen** (#327): Im Reiter „Suche“ hat das
-  Rechtsklick-Menü einer Mail mit PDF-Anhang den neuen Eintrag „PDF-Anhänge in den Scan-Ordner
-  legen“. Die PDFs werden unverändert in den eingestellten Scan-Ordner kopiert und erscheinen dort
-  wie ein neuer Scan als Kachel. Gibt es dort schon eine Datei mit gleichem Namen, bekommt die neue
-  ein „ (2)“ angehängt; überschrieben wird nichts. Die Mail selbst bleibt, wie sie ist. Geht für
-  Thunderbird, Apple Mail, `.eml` und `.msg`; Bilder und Office-Anhänge bleiben (noch) weg.
-### Neu
-- **Neue Unterordner erscheinen von selbst** (#319): Legst du im geöffneten Scan-Ordner einen
-  Unterordner an (im Explorer oder auf einem anderen Gerät über OneDrive), erscheint er nach ein bis
-  zwei Sekunden als Ordnerzeile, ohne F5. Gelöschte oder umbenannte Unterordner werden ebenso
-  nachgeführt. Ausgewählte Dateien, ein markierter Ordner und die übrigen Zeilen bleiben, wie sie
-  sind. Abschaltbar wie bisher unter *Einstellungen → Allgemein → Scan-Ordner beobachten*.
 
 ## [0.30.0] - 2026-11-16
 
