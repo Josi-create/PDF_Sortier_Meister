@@ -403,6 +403,50 @@ def test_trennen_fehler_loescht_nicht(main_window, scan, split_dialog, monkeypat
     assert a.exists()
 
 
+def test_trennen_alle_seiten_nennt_die_zahl_der_dateien(main_window, scan, split_dialog, monkeypatch):  # noqa: F811
+    """Issue #347: kein "Datei(en)", die Frage nennt die Zahl der Teile."""
+    a = _pdf(scan / "ä Brief.pdf", 2)
+    main_window._navigate_to_folder(scan)
+    gestellt = _fragen(monkeypatch, (False, False))
+    meldungen = _statusmeldungen(main_window)
+    main_window.on_pdf_split(a)
+    assert gestellt and gestellt[0].startswith("'ä Brief.pdf' wurde in 2 Dateien getrennt.")
+    assert "Datei(en)" not in gestellt[0]
+    assert "PDF getrennt: 2 Dateien erstellt" in meldungen
+
+
+def test_trennen_eine_seite_herausgeholt_nennt_zwei_dateien(main_window, scan, monkeypatch):  # noqa: F811
+    """Issue #347: eine Seite aus zwei herausgeholt - das Original bleibt, es sind zwei Dateien."""
+    from src.gui import split_pdf_dialog
+
+    class _NurSeite1(_FesterSplitDialog):
+        seiten = [1]
+
+    monkeypatch.setattr(split_pdf_dialog, "SplitPDFDialog", _NurSeite1)
+    a = _pdf(scan / "a.pdf", 2)
+    main_window._navigate_to_folder(scan)
+    gestellt = _fragen(monkeypatch, (False, False))
+    meldungen = _statusmeldungen(main_window)
+    main_window.on_pdf_split(a)
+    assert a.exists() and (scan / "a_Seite_1.pdf").exists()
+    text = gestellt[0]
+    assert "in eine neue Datei kopiert" in text and "getrennt" not in text
+    assert "Das Original enthält weiterhin alle Seiten" in text
+    assert "Die übrigen Seiten liegen dann nur noch im Papierkorb" in text
+    assert "PDF getrennt: 1 Datei erstellt" in meldungen
+
+
+def test_trennen_meldung_mehrere_herausgeholt(tmp_path):
+    from src.gui.bild_aktionen import trennen_meldung
+
+    a = _pdf(tmp_path / "a.pdf", 5)
+    teile = [_pdf(tmp_path / "t1.pdf", 1), _pdf(tmp_path / "t2.pdf", 2)]
+    text = trennen_meldung(a, teile)
+    assert "in 2 neue Dateien kopiert" in text and "enthält weiterhin alle Seiten" in text
+    voll = trennen_meldung(a, teile + [_pdf(tmp_path / "t3.pdf", 2)])
+    assert voll.startswith("'a.pdf' wurde in 3 Dateien getrennt.")
+
+
 # --- Dialog und Einstellungen -------------------------------------------------------------
 
 def test_dialog_standard_ja_haekchen_und_hinweis(qtbot):

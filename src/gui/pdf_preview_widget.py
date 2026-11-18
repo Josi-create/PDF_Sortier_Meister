@@ -250,6 +250,10 @@ class PdfPreviewWidget(QWidget):
         self._view.setPageMode(QPdfView.PageMode.MultiPage)
         self._view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
         self._view.setPageSpacing(6)
+        # Issue #411: Rollbalken immer zeigen. Bei "nur bei Bedarf" und Anpassen an die Breite
+        # schaukelt sich QPdfView auf, sobald die Seite fast genau in die Hoehe passt (Balken
+        # ein -> Seite kleiner -> Balken aus -> Seite groesser -> ...), endlos im Hauptthread.
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self._view.pageNavigator().currentPageChanged.connect(self._on_current_page_changed)
         self._view.viewport().installEventFilter(self)
         self._view.setToolTip(

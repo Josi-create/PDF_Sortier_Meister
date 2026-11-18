@@ -492,8 +492,9 @@ def metadaten_setzen(con, dok_id: int, felder: dict, pdf_id: str | None = None, 
         if r is None or r[0] == "pdfsm" or not gefuellt:
             return False
     elif not gefuellt:
-        # Nur leere Werte: nichts ueberschreiben und keinen Vorrang beanspruchen (z. B. reiner pdf_id-Nachtrag)
-        werte = {}
+        # Nur leere Werte: nichts ueberschreiben und keinen Vorrang beanspruchen (z. B. reiner pdf_id-Nachtrag).
+        # Ausnahme: eine ausdruecklich geleerte Notiz ("") verschwindet auch allein (Issue #382)
+        werte = {"notiz": None} if (felder or {}).get("notiz") == "" else {}
     if pdf_id:
         werte["pdf_id"] = str(pdf_id)
     if not werte:

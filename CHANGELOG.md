@@ -7,6 +7,36 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-19
+
+### Behoben
+- **Vorschau friert nicht mehr ein** (#411): Passte eine Seite fast genau in die Höhe des
+  Vorschaubereichs, blieb die Vorschau weiß und das ganze Fenster reagierte nicht mehr („Keine
+  Rückmeldung“), bis man das Programm beendete. Der Rollbalken der Vorschau wurde dabei endlos ein-
+  und ausgeblendet. Er ist jetzt immer sichtbar, auch bei einseitigen Dokumenten; damit kann das
+  nicht mehr passieren. Betroffen waren die Vorschau rechts und die große Vorschau im eigenen
+  Fenster.
+- **Meldung nach dem Trennen** (#347): Die Frage nach dem Trennen nennt jetzt die richtige Zahl der
+  Dateien. Wurden nur einzelne Seiten herausgeholt („Bestimmte Seiten extrahieren“), steht dort
+  nicht mehr „wurde in 1 Datei(en) getrennt“, sondern dass Seiten in eine neue Datei kopiert wurden
+  und das Original weiterhin alle Seiten enthält. Die Frage weist auch darauf hin, dass die übrigen
+  Seiten mit dem Original in den Papierkorb gehen. Die Knöpfe der Frage heißen in der deutschen
+  Oberfläche „Ja“ und „Nein“ statt „Yes“ und „No“. Die Statusleiste schreibt „1 Datei“ bzw.
+  „2 Dateien“ statt „Datei(en)“.
+- **Streifen „Doppelt“ auch bei abgelegten Fassungen** (#383): Liegen zwei abgelegte Fassungen
+  derselben Datei im selben Ordner, tragen beide jetzt den Streifen „Doppelt: wie …“, und
+  „Doppelte Dateien suchen …“ findet sie. Bisher fiel das nicht auf, weil beim Ablegen Name und
+  Metadaten in die PDF geschrieben werden und die Dateien danach nicht mehr Byte für Byte gleich
+  sind. Erkannt wird das über den Vermerk des Originals (seit 0.31) und, bei früher abgelegten
+  Scans ohne Vermerk, über die gescannten Seitenbilder. Zwei verschiedene Rechnungen mit gleichem
+  Briefkopf gelten weiterhin nicht als doppelt; der erkannte Text wird nicht verglichen.
+- **Notiz geht nicht mehr verloren** (#382): Eine getippte Notiz speichert sich jetzt von selbst in
+  der PDF und im Suchindex, sobald du das Feld „Notiz“ verlässt, ein anderes Dokument anklickst oder
+  das Programm schließt. Bisher verschwand sie still, wenn man vorher nicht „Metadaten speichern“
+  gedrückt hatte. Ein geleertes Feld entfernt die Notiz ebenso, auch beim Ablegen per Klick auf einen
+  Zielordner. Die übrigen Felder (Datum, Betrag, Schlagwörter …) speichern weiter erst mit
+  „Metadaten speichern“ oder beim Verschieben.
+
 ## [0.31.0] - 2026-11-18
 
 ### Neu

@@ -723,8 +723,20 @@ msgid "Original weggeräumt: {0}"
 msgstr "Original cleared away: {0}"
 
 #: src/gui/bild_aktionen.py
-msgid "'{name}' wurde in {anzahl} Datei(en) getrennt.\n\nOriginal in den Papierkorb verschieben?"
-msgstr "'{name}' was split into {anzahl} file(s).\n\nMove the original to the Recycle Bin?"
+msgid "'{name}' wurde in {anzahl} Dateien getrennt.\n\nOriginal in den Papierkorb verschieben?"
+msgstr "'{name}' was split into {anzahl} files.\n\nMove the original to the Recycle Bin?"
+
+#: src/gui/bild_aktionen.py
+msgid "Aus '{name}' wurden Seiten in eine neue Datei kopiert. Das Original enthält weiterhin alle Seiten."
+msgstr "Pages from '{name}' were copied into a new file. The original still contains all pages."
+
+#: src/gui/bild_aktionen.py
+msgid "Aus '{name}' wurden Seiten in {anzahl} neue Dateien kopiert. Das Original enthält weiterhin alle Seiten."
+msgstr "Pages from '{name}' were copied into {anzahl} new files. The original still contains all pages."
+
+#: src/gui/bild_aktionen.py
+msgid "Original in den Papierkorb verschieben? Die übrigen Seiten liegen dann nur noch im Papierkorb."
+msgstr "Move the original to the Recycle Bin? The remaining pages will then only be in the Recycle Bin."
 
 #: src/gui/bild_aktionen.py
 msgid "Original nach dem Trennen weggeräumt: {name}"
@@ -1361,8 +1373,8 @@ msgid "Datei schon vorhanden"
 msgstr "File already exists"
 
 #: src/gui/doppelte.py
-msgid "„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}"
-msgstr "“{name}” already exists (same content):\n\n{ort}"
+msgid "„{name}“ gibt es schon in einem anderen Ordner (gleicher Inhalt):\n\n{ort}"
+msgstr "“{name}” already exists in another folder (same content):\n\n{ort}"
 
 #: src/gui/doppelte.py
 msgid "\n… und an {anzahl} weiteren Orten"
@@ -1385,8 +1397,8 @@ msgid "… und {anzahl} weitere"
 msgstr "… and {anzahl} more"
 
 #: src/gui/doppelte.py
-msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}"
-msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
+msgid "{anzahl} von {gesamt} Dateien gibt es schon in anderen Ordnern (genau derselbe Inhalt):\n\n{liste}"
+msgstr "{anzahl} of {gesamt} files already exist in other folders (exactly the same content):\n\n{liste}"
 
 #: src/gui/doppelte.py
 msgid "Die vorhandenen Dateien bleiben, wo sie sind."
@@ -2080,12 +2092,17 @@ msgid "Die KI hat keine Aufteilung geliefert."
 msgstr "The AI did not return a split."
 
 #: src/gui/ki_trennen_dialog.py
-msgid "PDF getrennt: {n} Dokument(e) erstellt"
-msgstr "PDF split: {n} document(s) created"
+msgid "PDF getrennt: 1 Dokument erstellt"
+msgstr "PDF split: 1 document created"
 
 #: src/gui/ki_trennen_dialog.py
-msgid "PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
-msgstr "PDF split: {n} document(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+msgid "PDF getrennt: {n} Dokumente erstellt"
+msgstr "PDF split: {n} documents created"
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/main_window.py
+msgid ", Original im Papierkorb (Strg+Z holt es zurück)"
+msgstr ", original in the Recycle Bin (Ctrl+Z brings it back)"
 
 #: src/gui/ki_trennen_dialog.py
 #: src/gui/main_window.py
@@ -3092,12 +3109,12 @@ msgid "PDF trennen"
 msgstr "Split PDF"
 
 #: src/gui/main_window.py
-msgid "PDF getrennt: {n} Datei(en) erstellt"
-msgstr "PDF split: {n} file(s) created"
+msgid "PDF getrennt: 1 Datei erstellt"
+msgstr "PDF split: 1 file created"
 
 #: src/gui/main_window.py
-msgid "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
-msgstr "PDF split: {n} file(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+msgid "PDF getrennt: {n} Dateien erstellt"
+msgstr "PDF split: {n} files created"
 
 #: src/gui/main_window.py
 msgid "PDFs zusammenfügen"
@@ -4421,6 +4438,14 @@ msgstr "After removing password protection"
 #: src/gui/original_wegraeumen.py
 msgid "Mit Strg+Z holst du es zurück."
 msgstr "Ctrl+Z brings it back."
+
+#: src/gui/original_wegraeumen.py
+msgid "Ja"
+msgstr "Yes"
+
+#: src/gui/original_wegraeumen.py
+msgid "Nein"
+msgstr "No"
 
 #: src/gui/original_wegraeumen.py
 msgid "Original wegräumen"
@@ -10000,8 +10025,16 @@ msgid "Notiz"
 msgstr "Note"
 
 #: src/gui/detail_panel.py
-msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nWird in der PDF gespeichert und von der Suche und vom Chat gefunden."
-msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved in the PDF and found by the search and the chat."
+msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nSpeichert sich von selbst in der PDF, sobald Sie das Feld oder das Dokument verlassen,\nund wird von der Suche und vom Chat gefunden."
+msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved to the PDF automatically as soon as you leave the field or the document,\nand found by the search and the chat."
+
+#: src/gui/main_window.py
+msgid "Notiz gespeichert"
+msgstr "Note saved"
+
+#: src/gui/main_window.py
+msgid "Notiz konnte nicht gespeichert werden"
+msgstr "The note could not be saved"
 
 #: src/gui/detail_panel.py
 msgid "Eigene Notiz, z. B. „Original beim Steuerberater“"

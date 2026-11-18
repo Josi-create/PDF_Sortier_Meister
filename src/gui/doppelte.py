@@ -16,7 +16,8 @@ Zwei Anlaesse:
 Beides laesst sich in den Einstellungen abschalten (Issue #306, Konfigurationswert
 ``doppelte_hinweis``, Standard an).
 
-Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``). Gelesen und
+Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``); im Scan-Bereich
+zaehlen auch abgelegte Fassungen desselben Originals (Issue #383). Gelesen und
 gerechnet wird nie im Thread der Oberflaeche: Die Arbeit laeuft in einem
 Hintergrund-Thread, die Oberflaeche holt nur das Ergebnis ab.
 """
@@ -279,7 +280,7 @@ class DoppelteMixin:
         if len(dateien) == 1:
             pfad = dateien[0]
             orte = doppelt[pfad]
-            text = tr("„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}").format(
+            text = tr("„{name}“ gibt es schon in einem anderen Ordner (gleicher Inhalt):\n\n{ort}").format(
                 name=pfad.name, ort="\n".join(str(o) for o in orte[:HOECHSTENS_ZEILEN]))
             if len(orte) > HOECHSTENS_ZEILEN:
                 text += tr("\n… und an {anzahl} weiteren Orten").format(anzahl=len(orte) - HOECHSTENS_ZEILEN)
@@ -291,7 +292,7 @@ class DoppelteMixin:
                       for p, orte in list(doppelt.items())[:HOECHSTENS_ZEILEN]]
             if len(doppelt) > HOECHSTENS_ZEILEN:
                 zeilen.append(tr("… und {anzahl} weitere").format(anzahl=len(doppelt) - HOECHSTENS_ZEILEN))
-            text = tr("{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}").format(
+            text = tr("{anzahl} von {gesamt} Dateien gibt es schon in anderen Ordnern (genau derselbe Inhalt):\n\n{liste}").format(
                 anzahl=len(doppelt), gesamt=len(dateien), liste="\n".join(zeilen))
             erklaerung = tr("Die vorhandenen Dateien bleiben, wo sie sind.")
             if len(doppelt) < len(dateien):

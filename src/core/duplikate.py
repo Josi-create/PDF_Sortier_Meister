@@ -5,7 +5,10 @@ Zwei Dateien gelten als doppelt, wenn ihr Inhalt Byte fuer Byte gleich ist
 Scan desselben Blatts sind verschiedene Dateien und werden nicht gemeldet.
 Hat das Programm in eine abgelegte PDF schon Metadaten oder eine Textebene
 geschrieben, zaehlt fuer sie auch die Pruefsumme ihres Originals (Issue #307,
-:data:`ORIGINAL_SCHLUESSEL`) - sofern der Suchindex sie kennt.
+:data:`ORIGINAL_SCHLUESSEL`) - sofern der Suchindex sie kennt. Innerhalb eines
+Ordners (:func:`gleiche_im_ordner`) gelten ausserdem zwei abgelegte Fassungen
+desselben Originals als doppelt, auch solche ohne Vermerk, wenn ihre Seiten
+dieselben Bilder zeigen (Issue #383, :class:`PdfMerkmale`).
 
 Gerechnet wird sparsam: Nur Dateien gleicher Groesse koennen gleich sein, also
 wird eine Pruefsumme erst gebildet, wenn es eine zweite Datei derselben Groesse
@@ -199,6 +202,115 @@ def summen() -> Pruefsummen:
     return _summen
 
 
+# Issue #383: Zwei abgelegte Fassungen desselben Originals sind nicht mehr Byte fuer Byte gleich
+# (jede traegt ihre eigenen Metadaten). Im Ordner zaehlen deshalb auch
+# - der Vermerk des Originals (ORIGINAL_SCHLUESSEL): Vermerk gegen Vermerk und Vermerk gegen den
+#   heutigen Inhalt einer anderen Datei, und
+# - fuer PDFs ohne Vermerk (etwa vor v0.31 abgelegt): die Bilder auf den Seiten. Metadaten,
+#   Textebene und Drehung lassen sie unveraendert. In drei Stufen, jede nur fuer die Dateien, die
+#   die vorige mit einer anderen gemeinsam haben: Seitenzahl und Bildgroessen (beim ohnehin
+#   noetigen Oeffnen), dann die Bildstroeme roh (ohne sie zu dekodieren), zuletzt ein kleines Bild
+#   jeder Seite ohne Drehung. Die letzte Stufe trennt Dateien mit gleichem Bild, aber
+#   verschiedenem sichtbarem Text (Briefbogen oder Logo auf zwei Monatsrechnungen); eine
+#   unsichtbare Textebene zeichnet sie nicht. Ein Vergleich ueber den erkannten Text gehoert
+#   ausdruecklich nicht dazu.
+
+ANSICHT_DPI = 24  # Aufloesung des kleinen Seitenbilds der letzten Stufe
+
+
+def _vorpruefung(doc) -> Optional[tuple]:
+    """Seitenzahl und Bildgroessen je Seite; None, wenn eine Seite gar kein Bild hat."""
+    seiten = []
+    for nr in range(doc.page_count):
+        bilder = doc.get_page_images(nr)
+        if not bilder:
+            return None
+        seiten.append(tuple(sorted((b[2], b[3]) for b in bilder)))
+    return (doc.page_count, tuple(seiten)) if seiten else None
+
+
+def _bildabdruck(doc) -> str:
+    """Pruefsumme ueber die rohen Bildstroeme aller Seiten (nichts wird dekodiert)."""
+    gesamt = hashlib.blake2b(digest_size=16)
+    for nr in range(doc.page_count):
+        summen = sorted(hashlib.blake2b(doc.xref_stream_raw(b[0]) or b"", digest_size=16).hexdigest()
+                        for b in doc.get_page_images(nr))
+        gesamt.update(("|".join(summen) + ";").encode("ascii"))
+    return gesamt.hexdigest()
+
+
+def _ansicht(doc) -> str:
+    """Pruefsumme ueber ein kleines Graustufenbild jeder Seite, ohne ihre Drehung."""
+    import pymupdf
+
+    gesamt = hashlib.blake2b(digest_size=16)
+    for seite in doc:
+        if seite.rotation:
+            seite.set_rotation(0)  # nur im Speicher; die Datei wird nicht gespeichert
+        pix = seite.get_pixmap(dpi=ANSICHT_DPI, colorspace=pymupdf.csGRAY, alpha=False, annots=False)
+        gesamt.update(f"{pix.width}x{pix.height};".encode("ascii"))
+        gesamt.update(pix.samples)
+    return gesamt.hexdigest()
+
+
+class PdfMerkmale:
+    """Zwischenspeicher fuer Vermerk und Bildvergleich einer PDF (Issue #383).
+
+    Gueltig fuer genau eine Groesse und Aenderungszeit, aus mehreren Threads benutzbar.
+    """
+
+    GRENZE = 50_000
+
+    def __init__(self) -> None:
+        self._sperre = threading.Lock()
+        self._werte: dict[str, tuple[int, int, dict]] = {}
+        self.geoeffnet = 0  # so oft wurde eine PDF wirklich geoeffnet (Tests, Messung)
+
+    def _wert(self, pfad: Path, st: os.stat_result, name: str, rechnen: Callable):
+        key = os.path.normcase(str(pfad))
+        with self._sperre:
+            alt = self._werte.get(key)
+        werte = alt[2] if alt is not None and alt[:2] == (st.st_size, st.st_mtime_ns) else {}
+        if name in werte:
+            return werte[name]
+        try:
+            import pymupdf
+
+            with pymupdf.open(str(pfad)) as doc:
+                with self._sperre:
+                    self.geoeffnet += 1
+                wert = rechnen(doc)
+        except Exception:  # noqa: BLE001 - keine oder kaputte PDF: ohne dieses Merkmal
+            wert = None
+        with self._sperre:
+            if len(self._werte) >= self.GRENZE:
+                self._werte.clear()
+            self._werte[key] = (st.st_size, st.st_mtime_ns, dict(werte, **{name: wert}))
+        return wert
+
+    def grunddaten(self, pfad: Path, st: os.stat_result) -> dict:
+        """``{"original": (groesse, summe) | None, "vor": tuple | None}`` (Vermerk und Vorpruefung)."""
+        def rechnen(doc):
+            original = None
+            info = doc.xref_get_key(-1, "Info")
+            if info and info[0] == "xref":
+                art, wert = doc.xref_get_key(int(str(info[1]).split()[0]), ORIGINAL_SCHLUESSEL)
+                if art == "string":
+                    original = original_lesen(wert)
+            return {"original": original, "vor": _vorpruefung(doc)}
+
+        return self._wert(pfad, st, "grund", rechnen) or {"original": None, "vor": None}
+
+    def bildabdruck(self, pfad: Path, st: os.stat_result) -> Optional[str]:
+        return self._wert(pfad, st, "bild", _bildabdruck)
+
+    def ansicht(self, pfad: Path, st: os.stat_result) -> Optional[str]:
+        return self._wert(pfad, st, "ansicht", _ansicht)
+
+
+_merkmale = PdfMerkmale()
+
+
 def selbe_datei(a: Path | str, b: Path | str) -> bool:
     """Dieselbe Datei bzw. derselbe Ordner - auch ueber zwei Schreibweisen des Pfads (Junction, #220)."""
     try:
@@ -210,40 +322,126 @@ def selbe_datei(a: Path | str, b: Path | str) -> bool:
 def gleiche_im_ordner(pfade: Iterable[Path | str],
                       speicher: Optional[Pruefsummen] = None,
                       abbrechen: Optional[Callable[[], bool]] = None,
-                      fortschritt: Optional[Callable[[int, int], None]] = None) -> list[list[Path]]:
-    """Gruppen inhaltsgleicher Dateien unter ``pfade`` (je Gruppe mindestens zwei, Reihenfolge wie uebergeben).
+                      fortschritt: Optional[Callable[[int, int], None]] = None,
+                      merkmale: Optional[PdfMerkmale] = None) -> list[list[Path]]:
+    """Gruppen gleicher Dateien unter ``pfade`` (je Gruppe mindestens zwei, Reihenfolge wie uebergeben).
 
-    Gelesen werden nur Dateien, die ihre Groesse mit einer anderen teilen.
-    ``abbrechen()`` wird vor jeder zu lesenden Datei gefragt (True: sofort mit dem
-    bisherigen Ergebnis zurueck), ``fortschritt(gelesen, zu_lesen)`` danach gemeldet.
+    Gleich sind Dateien mit demselben Inhalt und - Issue #383 - PDFs, die auf dasselbe
+    Original zurueckgehen (Vermerk :data:`ORIGINAL_SCHLUESSEL`) oder dieselben Scanbilder
+    tragen (siehe :class:`PdfMerkmale`). Gelesen werden nur Dateien, die ihre Groesse mit
+    einer anderen oder mit einem vermerkten Original teilen; geoeffnet wird jede PDF einmal
+    (danach aus dem Zwischenspeicher). ``abbrechen()`` wird vor jeder zu lesenden Datei
+    gefragt (True: sofort mit dem bisherigen Ergebnis zurueck), ``fortschritt(gelesen,
+    zu_lesen)`` danach gemeldet.
     """
     speicher = speicher or _summen
-    nach_groesse: dict[int, list[tuple[Path, os.stat_result]]] = {}
+    merkmale = merkmale or _merkmale
+    dateien: list[tuple[Path, os.stat_result]] = []
     for p in pfade:
         try:
             st = os.stat(p)
         except OSError:
             continue
         if _vergleichbar(st):
-            nach_groesse.setdefault(st.st_size, []).append((Path(p), st))
-    zu_lesen = sum(len(g) for g in nach_groesse.values() if len(g) > 1)
+            dateien.append((Path(p), st))
+
+    eltern = list(range(len(dateien)))
+
+    def wurzel(i: int) -> int:
+        while eltern[i] != i:
+            eltern[i] = eltern[eltern[i]]
+            i = eltern[i]
+        return i
+
+    def verbinden(i: int, j: int) -> None:
+        a, b = wurzel(i), wurzel(j)
+        if a != b:
+            eltern[max(a, b)] = min(a, b)
+
+    def ergebnis() -> list[list[Path]]:
+        gruppen: dict[int, list[Path]] = {}
+        for i, (p, _st) in enumerate(dateien):
+            gruppen.setdefault(wurzel(i), []).append(p)
+        return [g for _w, g in sorted(gruppen.items()) if len(g) > 1]
+
+    pdfs = [i for i, (p, _st) in enumerate(dateien) if p.suffix.lower() == ".pdf"]
+    nach_groesse: dict[int, list[int]] = {}
+    for i, (_p, st) in enumerate(dateien):
+        nach_groesse.setdefault(st.st_size, []).append(i)
+
+    zu_lesen = sum(len(g) for g in nach_groesse.values() if len(g) > 1) + len(pdfs)
     gelesen = 0
-    gruppen: list[list[Path]] = []
-    for gleich_gross in nach_groesse.values():
-        if len(gleich_gross) < 2:
-            continue
-        nach_summe: dict[str, list[Path]] = {}
-        for p, st in gleich_gross:
-            if abbrechen is not None and abbrechen():
-                return gruppen
-            wert = speicher.summe(p, st)
-            gelesen += 1
-            if fortschritt is not None:
-                fortschritt(gelesen, zu_lesen)
-            if wert:
-                nach_summe.setdefault(wert, []).append(p)
-        gruppen.extend(g for g in nach_summe.values() if len(g) > 1)
-    return gruppen
+
+    def weiter() -> bool:
+        return not (abbrechen is not None and abbrechen())
+
+    def gemeldet() -> None:
+        nonlocal gelesen
+        gelesen += 1
+        if fortschritt is not None:
+            fortschritt(gelesen, zu_lesen)
+
+    # 1. Vermerke und Vorpruefung der PDFs (je PDF einmal oeffnen)
+    grund: dict[int, dict] = {}
+    for i in pdfs:
+        if not weiter():
+            return ergebnis()
+        grund[i] = merkmale.grunddaten(*dateien[i])
+        gemeldet()
+    vermerkt = {i: w["original"] for i, w in grund.items() if w.get("original")}
+    original_groessen = {o[0] for o in vermerkt.values()}
+
+    # 2. Pruefsummen: gleiche Groesse untereinander, oder so gross wie ein vermerktes Original
+    zu_summieren = [i for g in nach_groesse.values() if len(g) > 1 for i in g]
+    zu_summieren += [i for g, liste in nach_groesse.items() if len(liste) == 1 and g in original_groessen
+                     for i in liste]
+    zu_lesen = len(pdfs) + len(zu_summieren)
+    nach_schluessel: dict[tuple[int, str], int] = {}
+    for i in zu_summieren:
+        if not weiter():
+            return ergebnis()
+        p, st = dateien[i]
+        wert = speicher.summe(p, st)
+        gemeldet()
+        if wert:
+            schluessel = (st.st_size, wert)
+            if schluessel in nach_schluessel:
+                verbinden(i, nach_schluessel[schluessel])
+            else:
+                nach_schluessel[schluessel] = i
+    for i, original in vermerkt.items():
+        if original in nach_schluessel:
+            verbinden(i, nach_schluessel[original])
+        else:
+            nach_schluessel[original] = i
+
+    # 3. Bilder, nur wo Seitenzahl und Bildgroessen schon passen; zuletzt die Ansicht der Seiten
+    def teilen(gruppen: Iterable[list[int]], merkmal: Callable) -> Optional[list[list[int]]]:
+        """Teilt jede Gruppe nach ``merkmal``; None nach ``abbrechen()``."""
+        neu: list[list[int]] = []
+        for kandidaten in gruppen:
+            if len(kandidaten) < 2 or len({wurzel(i) for i in kandidaten}) < 2:
+                continue  # allein, oder ohnehin schon als gleich erkannt
+            nach_wert: dict = {}
+            for i in kandidaten:
+                if not weiter():
+                    return None
+                wert = merkmal(*dateien[i])
+                if wert:
+                    nach_wert.setdefault(wert, []).append(i)
+            neu.extend(nach_wert.values())
+        return neu
+
+    nach_vor: dict[tuple, list[int]] = {}
+    for i, w in grund.items():
+        if w.get("vor"):
+            nach_vor.setdefault(w["vor"], []).append(i)
+    gleiche_bilder = teilen(nach_vor.values(), merkmale.bildabdruck)
+    gleich_anzusehen = teilen(gleiche_bilder or [], merkmale.ansicht)
+    for gruppe in gleich_anzusehen or []:
+        for i in gruppe[1:]:
+            verbinden(gruppe[0], i)
+    return ergebnis()
 
 
 def dateien_unter(ordner: Path | str, abbrechen: Optional[Callable[[], bool]] = None) -> list[Path]:

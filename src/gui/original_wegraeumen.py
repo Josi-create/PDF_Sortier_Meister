@@ -62,6 +62,9 @@ class OriginalFragenDialog(QMessageBox):
         self.setInformativeText(HINWEIS)
         self.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         self.setDefaultButton(QMessageBox.StandardButton.Yes)
+        # Qt beschriftet die Standardknoepfe sonst englisch ("Yes"/"No")
+        self.button(QMessageBox.StandardButton.Yes).setText(tr("Ja"))
+        self.button(QMessageBox.StandardButton.No).setText(tr("Nein"))
         self.nicht_mehr_fragen = QCheckBox(tr("Nicht mehr fragen"))
         self.setCheckBox(self.nicht_mehr_fragen)
 

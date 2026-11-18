@@ -44,6 +44,36 @@ def _namen(pfade: list[Path], maximal: int = 3) -> str:
     return ", ".join(namen)
 
 
+def trennen_meldung(original: Path, teile: list[Path]) -> str:
+    """Frage nach dem Trennen, mit der richtigen Zahl der Dateien (Issue #347).
+
+    Stehen alle Seiten des Originals in den neuen Dateien, wurde es aufgeteilt.
+    Sonst wurden nur einzelne Seiten herausgeholt (kopiert): Das Original bleibt
+    daneben stehen und enthält weiterhin alle Seiten; das sagt die Frage.
+    """
+    anzahl = len(teile)
+    seitenzahl = _seiten_summe([original])
+    if anzahl >= 2 and _seiten_summe(teile) >= seitenzahl:
+        return tr(
+            "'{name}' wurde in {anzahl} Dateien getrennt.\n\n"
+            "Original in den Papierkorb verschieben?"
+        ).format(name=original.name, anzahl=anzahl)
+    if anzahl == 1:
+        text = tr(
+            "Aus '{name}' wurden Seiten in eine neue Datei kopiert. Das Original "
+            "enthält weiterhin alle Seiten."
+        ).format(name=original.name)
+    else:
+        text = tr(
+            "Aus '{name}' wurden Seiten in {anzahl} neue Dateien kopiert. Das Original "
+            "enthält weiterhin alle Seiten."
+        ).format(name=original.name, anzahl=anzahl)
+    return text + "\n\n" + tr(
+        "Original in den Papierkorb verschieben? Die übrigen Seiten liegen dann nur "
+        "noch im Papierkorb."
+    )
+
+
 class BildAktionenMixin:
     """Mixin fuer ``MainWindow``; braucht ``statusbar``, ``config``, ``file_manager``, ``pdf_widgets`` usw."""
 
@@ -227,10 +257,7 @@ class BildAktionenMixin:
         """Wie ``original_nach_umwandeln``, nach dem Trennen eines PDFs."""
         if not teile or not all(pdf_lesbar(t) for t in teile):
             return []  # nur nach erfolgreichem Trennen
-        text = (tr(
-            "'{name}' wurde in {anzahl} Datei(en) getrennt.\n\n"
-            "Original in den Papierkorb verschieben?"
-        ).format(name=original.name, anzahl=len(teile)))
+        text = trennen_meldung(original, teile)
         return ow.original_wegraeumen(self, [original], "trennen", text,
                                       tr("Original nach dem Trennen weggeräumt: {name}").format(name=original.name))
 
