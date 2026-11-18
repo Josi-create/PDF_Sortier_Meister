@@ -4488,6 +4488,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 else:
                     self.detail_panel.preview.load_pdf(path)
             else:
+                if not ist_drehbares_bild(path):
+                    # Vorschau sofort neu (Issue #345): Die neue Analyse (OCR) dauert bei
+                    # Scans Sekunden, bis dahin zeigte die Vorschau noch den alten Stand
+                    self.detail_panel.preview.load_pdf(path)
                 self.update_suggestions_for_pdf(path)
 
     def on_pdf_reocr(self, pdf_path: Path):
