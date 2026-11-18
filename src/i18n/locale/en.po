@@ -1361,8 +1361,8 @@ msgid "Datei schon vorhanden"
 msgstr "File already exists"
 
 #: src/gui/doppelte.py
-msgid "„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}"
-msgstr "“{name}” already exists (same content):\n\n{ort}"
+msgid "„{name}“ gibt es schon in einem anderen Ordner (gleicher Inhalt):\n\n{ort}"
+msgstr "“{name}” already exists in another folder (same content):\n\n{ort}"
 
 #: src/gui/doppelte.py
 msgid "\n… und an {anzahl} weiteren Orten"
@@ -1385,8 +1385,8 @@ msgid "… und {anzahl} weitere"
 msgstr "… and {anzahl} more"
 
 #: src/gui/doppelte.py
-msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}"
-msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
+msgid "{anzahl} von {gesamt} Dateien gibt es schon in anderen Ordnern (genau derselbe Inhalt):\n\n{liste}"
+msgstr "{anzahl} of {gesamt} files already exist in other folders (exactly the same content):\n\n{liste}"
 
 #: src/gui/doppelte.py
 msgid "Die vorhandenen Dateien bleiben, wo sie sind."

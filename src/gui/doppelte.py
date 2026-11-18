@@ -280,7 +280,7 @@ class DoppelteMixin:
         if len(dateien) == 1:
             pfad = dateien[0]
             orte = doppelt[pfad]
-            text = tr("„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}").format(
+            text = tr("„{name}“ gibt es schon in einem anderen Ordner (gleicher Inhalt):\n\n{ort}").format(
                 name=pfad.name, ort="\n".join(str(o) for o in orte[:HOECHSTENS_ZEILEN]))
             if len(orte) > HOECHSTENS_ZEILEN:
                 text += tr("\n… und an {anzahl} weiteren Orten").format(anzahl=len(orte) - HOECHSTENS_ZEILEN)
@@ -292,7 +292,7 @@ class DoppelteMixin:
                       for p, orte in list(doppelt.items())[:HOECHSTENS_ZEILEN]]
             if len(doppelt) > HOECHSTENS_ZEILEN:
                 zeilen.append(tr("… und {anzahl} weitere").format(anzahl=len(doppelt) - HOECHSTENS_ZEILEN))
-            text = tr("{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}").format(
+            text = tr("{anzahl} von {gesamt} Dateien gibt es schon in anderen Ordnern (genau derselbe Inhalt):\n\n{liste}").format(
                 anzahl=len(doppelt), gesamt=len(dateien), liste="\n".join(zeilen))
             erklaerung = tr("Die vorhandenen Dateien bleiben, wo sie sind.")
             if len(doppelt) < len(dateien):
