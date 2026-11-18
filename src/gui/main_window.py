@@ -394,6 +394,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel = DetailPanel()
         self.detail_panel.save_metadata_requested.connect(self._on_save_metadata_in_place)
         self.detail_panel.rename_and_save_metadata_requested.connect(self._on_rename_and_save_metadata)
+        self.detail_panel.notiz_speichern_requested.connect(self._on_notiz_speichern)  # Issue #382
         self.detail_panel.open_pdf_requested.connect(self.open_pdf)
         self.detail_panel.open_pdf_external_requested.connect(self.open_pdf_external)
         self.detail_panel.office_preview_requested.connect(self._on_office_preview_requested)
@@ -2551,6 +2552,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             app.removeEventFilter(self)
         """Wird beim Schließen des Fensters aufgerufen."""
         self.save_settings()
+        # Issue #382: eine eben getippte Notiz nicht verlieren
+        try:
+            self.detail_panel.notiz_sichern()
+        except Exception as e:  # noqa: BLE001 - Schliessen darf daran nie scheitern
+            print(f"Notiz beim Schliessen nicht gespeichert: {e}")
 
         # Fenstergebundene Timer anhalten: Nach dem Schliessen darf kein
         # verzoegerter Callback (Pre-Caching, Modell-Warten, Raster-Relayout)
@@ -3600,6 +3606,26 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         und die Notiz dieser Datei, ein leeres Feld heisst deshalb "entfernen" (Issues #231, #298)."""
         return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", ""),
                 "notiz": (metadata or {}).get("notiz", "")}
+
+    def _on_notiz_speichern(self, pdf_path: Path, notiz: str):
+        """Issue #382: Nur die Notiz in PDF und Suchindex schreiben ("" entfernt sie).
+
+        Die uebrigen Felder des Panels bleiben ungespeichert, bis der Nutzer "Metadaten speichern"
+        klickt oder die Datei verschiebt. Kein Neueinlesen der Datei anstossen: das hielte sie unter
+        Windows offen, und ein gleich folgendes Speichern oder Verschieben schluege fehl.
+        """
+        from src.core.pdf_metadata import PDFMetadata, ist_pdf, write_metadata
+
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists() or not ist_pdf(pdf_path):
+            return  # schon verschoben/geloescht (dann schreibt das Verschieben sie) oder keine PDF
+        self._wait_for_metadata_writes([pdf_path])
+        if not write_metadata(pdf_path, PDFMetadata(notiz=notiz)):
+            self.statusbar.showMessage(tr("Notiz konnte nicht gespeichert werden"), 4000)
+            return
+        self.db.set_document_metadata(str(pdf_path), {"notiz": notiz}, sofort=False)
+        self.detail_panel.notiz_gespeichert(pdf_path, notiz)
+        self.statusbar.showMessage(tr("Notiz gespeichert"), 2000)
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""

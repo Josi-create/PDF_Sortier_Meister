@@ -8,6 +8,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
+- **Notiz geht nicht mehr verloren** (#382): Eine getippte Notiz speichert sich jetzt von selbst in
+  der PDF und im Suchindex, sobald du das Feld „Notiz“ verlässt, ein anderes Dokument anklickst oder
+  das Programm schließt. Bisher verschwand sie still, wenn man vorher nicht „Metadaten speichern“
+  gedrückt hatte. Ein geleertes Feld entfernt die Notiz ebenso, auch beim Ablegen per Klick auf einen
+  Zielordner. Die übrigen Felder (Datum, Betrag, Schlagwörter …) speichern weiter erst mit
+  „Metadaten speichern“ oder beim Verschieben.
 - **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
   sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
   Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
