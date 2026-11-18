@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
+  sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
+  Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
+  Drehen einer PDF und nach Strg+Z.
+
 ## [0.31.0] - 2026-11-18
 
 ### Neu
