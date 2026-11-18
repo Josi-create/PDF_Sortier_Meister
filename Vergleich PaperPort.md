@@ -169,7 +169,7 @@ PaperPort-Ordner sind **normale Windows-Ordner** (H: Änderungen im Explorer wer
 
 1. **PaperPort lebt, aber kaum weiter.** Es gibt eine Testversion (15 Tage, nur Professional, Formular ohne Konto) und einen Einmalpreis von 99 bzw. 199 $. Seit 2013 kamen nur Unterversionen; 14.8.0 (Oktober 2024) brachte vor allem den neuen Namen. Für die Werbung von PDFSM heißt das: nicht „PaperPort gibt es nicht mehr“, sondern „PaperPort gibt es noch, ohne Vorschläge, ohne KI, nur für Windows, kostenpflichtig“.
 2. **PaperPort ist stärker bei Scannen, Bildbearbeitung, Anmerkungen und Formularen**, PDFSM bei Sortieren, Benennen, Suchen und KI. Das sind verschiedene Schwerpunkte; PDFSM sollte die Bild- und Formularwerkzeuge nicht nachbauen.
-3. **Sinnvolle kleine Pakete für Umsteiger:** (a) Umstiegs-Abschnitt und MAX-Hinweis (S), (b) „Per E-Mail senden“ (M), (c) „Mit Passwort schützen“ (S), (d) Anmerkungen erst nach #335 neu bewerten.
+3. **Mögliche kleine Pakete für Umsteiger** wären (a) Umstiegs-Abschnitt und MAX-Hinweis (S), (b) „Per E-Mail senden“ (M), (c) „Mit Passwort schützen“ (S). **Entschieden am 18.11.2026: Diese drei werden nicht gebaut.** Anmerkungen werden erst nach #335 neu bewertet; Bild- und Formularwerkzeuge werden nicht nachgebaut.
 4. Vor einer Aussage „besser als PaperPort“ in der Werbung den eigenen Augenschein einholen (Testversion, braucht die Zustimmung des CEO, #401).
 
 ---
