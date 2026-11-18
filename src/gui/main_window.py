@@ -4149,13 +4149,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         try:
             output_files = self.file_manager.split_pdf(pdf_path, target_folder, pages)
             n = len(output_files)
-            self.statusbar.showMessage(tr("PDF getrennt: {n} Datei(en) erstellt").format(n=n), 4000)
+            if n == 1:  # Issue #347: kein "1 Datei(en)"
+                erstellt = tr("PDF getrennt: 1 Datei erstellt")
+            else:
+                erstellt = tr("PDF getrennt: {n} Dateien erstellt").format(n=n)
+            self.statusbar.showMessage(erstellt, 4000)
             if self.original_nach_trennen(pdf_path, output_files):  # Issue #187
                 self.statusbar.showMessage(
-                    tr(
-                        "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb "
-                        "(Strg+Z holt es zurück)"
-                    ).format(n=n), 6000)
+                    erstellt + tr(", Original im Papierkorb (Strg+Z holt es zurück)"), 6000)
             self.load_pdfs()
         except Exception as e:
             QMessageBox.critical(self, tr("Fehler"), tr("PDF trennen fehlgeschlagen:\n{e}").format(e=e))

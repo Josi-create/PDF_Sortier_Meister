@@ -715,8 +715,20 @@ msgid "Original weggeräumt: {0}"
 msgstr "Original cleared away: {0}"
 
 #: src/gui/bild_aktionen.py
-msgid "'{name}' wurde in {anzahl} Datei(en) getrennt.\n\nOriginal in den Papierkorb verschieben?"
-msgstr "'{name}' was split into {anzahl} file(s).\n\nMove the original to the Recycle Bin?"
+msgid "'{name}' wurde in {anzahl} Dateien getrennt.\n\nOriginal in den Papierkorb verschieben?"
+msgstr "'{name}' was split into {anzahl} files.\n\nMove the original to the Recycle Bin?"
+
+#: src/gui/bild_aktionen.py
+msgid "Aus '{name}' wurde eine neue Datei erstellt. Das Original bleibt unverändert, es sind jetzt zwei Dateien."
+msgstr "A new file was created from '{name}'. The original stays unchanged, so there are now two files."
+
+#: src/gui/bild_aktionen.py
+msgid "Aus '{name}' wurden {anzahl} neue Dateien erstellt. Das Original bleibt unverändert, es sind jetzt {gesamt} Dateien."
+msgstr "{anzahl} new files were created from '{name}'. The original stays unchanged, so there are now {gesamt} files."
+
+#: src/gui/bild_aktionen.py
+msgid "Original in den Papierkorb verschieben? Seiten, die in keiner neuen Datei stehen, liegen dann nur noch im Papierkorb."
+msgstr "Move the original to the Recycle Bin? Pages that are not in any new file will then only be in the Recycle Bin."
 
 #: src/gui/bild_aktionen.py
 msgid "Original nach dem Trennen weggeräumt: {name}"
@@ -2072,12 +2084,17 @@ msgid "Die KI hat keine Aufteilung geliefert."
 msgstr "The AI did not return a split."
 
 #: src/gui/ki_trennen_dialog.py
-msgid "PDF getrennt: {n} Dokument(e) erstellt"
-msgstr "PDF split: {n} document(s) created"
+msgid "PDF getrennt: 1 Dokument erstellt"
+msgstr "PDF split: 1 document created"
 
 #: src/gui/ki_trennen_dialog.py
-msgid "PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
-msgstr "PDF split: {n} document(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+msgid "PDF getrennt: {n} Dokumente erstellt"
+msgstr "PDF split: {n} documents created"
+
+#: src/gui/ki_trennen_dialog.py
+#: src/gui/main_window.py
+msgid ", Original im Papierkorb (Strg+Z holt es zurück)"
+msgstr ", original in the Recycle Bin (Ctrl+Z brings it back)"
 
 #: src/gui/ki_trennen_dialog.py
 #: src/gui/main_window.py
@@ -3080,12 +3097,12 @@ msgid "PDF trennen"
 msgstr "Split PDF"
 
 #: src/gui/main_window.py
-msgid "PDF getrennt: {n} Datei(en) erstellt"
-msgstr "PDF split: {n} file(s) created"
+msgid "PDF getrennt: 1 Datei erstellt"
+msgstr "PDF split: 1 file created"
 
 #: src/gui/main_window.py
-msgid "PDF getrennt: {n} Datei(en) erstellt, Original im Papierkorb (Strg+Z holt es zurück)"
-msgstr "PDF split: {n} file(s) created, original in the Recycle Bin (Ctrl+Z brings it back)"
+msgid "PDF getrennt: {n} Dateien erstellt"
+msgstr "PDF split: {n} files created"
 
 #: src/gui/main_window.py
 msgid "PDFs zusammenfügen"

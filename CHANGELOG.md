@@ -12,6 +12,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
   Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
   Drehen einer PDF und nach Strg+Z.
+- **Meldung nach dem Trennen** (#347): Die Frage nach dem Trennen nennt jetzt die richtige Zahl der
+  Dateien. Wurden nur einzelne Seiten herausgeholt („Bestimmte Seiten extrahieren“), steht dort
+  nicht mehr „wurde in 1 Datei(en) getrennt“, sondern dass eine neue Datei erstellt wurde, das
+  Original unverändert bleibt und es jetzt zwei Dateien sind. Die Frage weist auch darauf hin, dass
+  Seiten, die in keiner neuen Datei stehen, mit dem Original in den Papierkorb gehen. Die
+  Statusleiste schreibt „1 Datei“ bzw. „2 Dateien“ statt „Datei(en)“.
 
 ## [0.31.0] - 2026-11-18
 
