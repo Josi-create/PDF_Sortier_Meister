@@ -71,7 +71,7 @@ def test_doppelte_unter_meldet_fortschritt_und_bricht_ab(tmp_path):
     stand = []
     gruppen = doppelte_unter(tmp_path, Pruefsummen(), fortschritt=lambda g, n: stand.append((g, n)))
     assert len(gruppen) == 1 and len(gruppen[0]) == 4
-    assert stand[-1] == (4, 4)
+    assert stand[-1] == (8, 8)  # je PDF einmal geoeffnet (Vermerk, Issue #383) und einmal gelesen
 
     speicher = Pruefsummen()
     assert doppelte_unter(tmp_path, speicher, abbrechen=lambda: True) == []

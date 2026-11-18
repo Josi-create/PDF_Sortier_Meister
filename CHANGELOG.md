@@ -21,6 +21,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Seiten mit dem Original in den Papierkorb gehen. Die Knöpfe der Frage heißen in der deutschen
   Oberfläche „Ja“ und „Nein“ statt „Yes“ und „No“. Die Statusleiste schreibt „1 Datei“ bzw.
   „2 Dateien“ statt „Datei(en)“.
+- **Streifen „Doppelt“ auch bei abgelegten Fassungen** (#383): Liegen zwei abgelegte Fassungen
+  derselben Datei im selben Ordner, tragen beide jetzt den Streifen „Doppelt: wie …“, und
+  „Doppelte Dateien suchen …“ findet sie. Bisher fiel das nicht auf, weil beim Ablegen Name und
+  Metadaten in die PDF geschrieben werden und die Dateien danach nicht mehr Byte für Byte gleich
+  sind. Erkannt wird das über den Vermerk des Originals (seit 0.31) und, bei früher abgelegten
+  Scans ohne Vermerk, über die gescannten Seitenbilder. Zwei verschiedene Rechnungen mit gleichem
+  Briefkopf gelten weiterhin nicht als doppelt; der erkannte Text wird nicht verglichen.
 
 ## [0.31.0] - 2026-11-18
 
