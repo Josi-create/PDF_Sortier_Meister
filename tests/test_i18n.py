@@ -163,6 +163,20 @@ def test_umschalten_auf_englisch_und_zurueck(sprache):
     assert i18n.tr("Sprache:") == "Sprache:"
 
 
+def test_englischer_programmname_ist_pdf_sortmeister(sprache):
+    """#324: Englisch heißt das Programm „PDF Sortmeister“, Deutsch bleibt es."""
+    sprache("en")
+    assert i18n.app_name() == "PDF Sortmeister"
+    assert i18n.tr("PDF Sortier Meister") == "PDF Sortmeister"
+    assert i18n.tr("Über PDF Sortier Meister") == "About PDF Sortmeister"
+    # Keine englische Übersetzung trägt noch den deutschen Namen
+    eintraege, _ = i18n.read_po(i18n.LOCALE_DIR / "en.po")
+    assert [t for t in eintraege.values() if "PDF Sortier Meister" in t] == []
+    sprache("de")
+    assert i18n.app_name() == "PDF Sortier Meister"
+    assert i18n.tr("Über PDF Sortier Meister") == "Über PDF Sortier Meister"
+
+
 def test_weitere_sprache_braucht_nur_eine_datei(monkeypatch, tmp_path, sprache):
     (tmp_path / "fr.po").write_text(
         'msgid ""\nmsgstr ""\n"Language: fr\\n"\n"X-Language-Name: Français\\n"\n\n'

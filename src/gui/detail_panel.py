@@ -429,8 +429,10 @@ class DetailPanel(QWidget):
             ("einheit", tr("Einheit")),  # Issue #257
             ("schlagwoerter", tr("Schlagwörter")),  # Issue #231
             ("description", tr("Zusammenfassung")),
+            ("notiz", tr("Notiz")),  # Issue #298
         ]
-        single_count = len(metadata_fields) - 2  # alle ausser Schlagwoertern und Zusammenfassung
+        # alle ausser Schlagwoertern, Zusammenfassung und Notiz (die laufen ueber die volle Breite)
+        single_count = len(metadata_fields) - 3
         # Kurze Erklärung je Feld (Issue #51) - hilft neuen Nutzern, die
         # Bedeutung der Metadaten-Felder ohne Nachfragen zu verstehen.
         field_tooltips = {
@@ -458,6 +460,10 @@ class DetailPanel(QWidget):
                 "Beim Tippen erscheinen die schon benutzten Schlagwörter.")
             ),
             "description": tr("Kurze Zusammenfassung des Dokumentinhalts."),
+            "notiz": (
+                tr("Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\n"
+                "Wird in der PDF gespeichert und von der Suche und vom Chat gefunden.")
+            ),
         }
 
         # Zweispaltig, damit unten mehr Platz fuer die PDF-Vorschau bleibt:
@@ -474,13 +480,19 @@ class DetailPanel(QWidget):
             label = QLabel(f"{field_label}:")
             stil(label, "color: $grau_55; font-size: 10px;")
 
-            if field_key == "description":
+            if field_key in ("description", "notiz"):
                 input_field = QPlainTextEdit()
-                input_field.setPlaceholderText(f"{field_label}...")
                 input_field.setStyleSheet("font-size: 11px; padding: 2px;")
-                input_field.setFixedHeight(58)  # drei Zeilen
+                if field_key == "notiz":
+                    input_field.setPlaceholderText(tr("Eigene Notiz, z. B. „Original beim Steuerberater“"))
+                    input_field.setFixedHeight(42)  # zwei Zeilen
+                    input_field.setTabChangesFocus(True)
+                else:
+                    input_field.setPlaceholderText(f"{field_label}...")
+                    input_field.setFixedHeight(58)  # drei Zeilen
                 label.setAlignment(Qt.AlignmentFlag.AlignTop)
-                row_idx = (single_count + 1) // 2 + 1  # unter den Paaren und den Schlagwoertern
+                # unter den Paaren und den Schlagwoertern; die Notiz unter der Zusammenfassung
+                row_idx = (single_count + 1) // 2 + (2 if field_key == "notiz" else 1)
                 grid.addWidget(label, row_idx, 0)
                 grid.addWidget(input_field, row_idx, 1, 1, 3)
             elif field_key == "schlagwoerter":
@@ -899,6 +911,10 @@ class DetailPanel(QWidget):
         """Stehen in der angezeigten PDF Schlagwoerter? Dann heisst ein leeres Feld "entfernen"."""
         return bool(self._saved_metadata_snapshot.get("schlagwoerter"))
 
+    def hat_gespeicherte_notiz(self) -> bool:
+        """Steht in der angezeigten PDF eine Notiz? Dann heisst ein leeres Feld "entfernen" (Issue #298)."""
+        return bool(self._saved_metadata_snapshot.get("notiz"))
+
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
@@ -962,6 +978,7 @@ class DetailPanel(QWidget):
             "steuerjahr": pdf_meta.steuerjahr,
             "description": pdf_meta.description,
             "schlagwoerter": pdf_meta.schlagwoerter,
+            "notiz": pdf_meta.notiz,  # Issue #298
         }
         pdf_keys = set()
         for key, value in field_map.items():

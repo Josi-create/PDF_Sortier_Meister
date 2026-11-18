@@ -46,6 +46,9 @@ class PDFMetadata:
     mwst_satz: Optional[str] = None        # 7 / 19
     steuerlich_absetzbar: Optional[str] = None  # ja / nein / teilweise
     einheit: Optional[str] = None          # Verbrauchsstelle/Wohnung (Issue #257)
+    # Eigene Notiz zum Dokument (Issue #298), Freitext, auch mehrzeilig. Beim Schreiben:
+    # None = die der Datei bleibt, "" = entfernen. Beim Lesen: None = keine.
+    notiz: Optional[str] = None
 
     def has_any_data(self) -> bool:
         """Prüft ob mindestens ein Feld gesetzt ist."""
@@ -55,7 +58,7 @@ class PDFMetadata:
             self.betrag, self.betrag_netto, self.betrag_brutto,
             self.iban, self.waehrung, self.mwst_satz,
             self.steuerlich_absetzbar, self.einheit,
-        ]) or self.schlagwoerter is not None
+        ]) or self.schlagwoerter is not None or self.notiz is not None
 
     def to_dict(self) -> dict:
         """Gibt alle gesetzten Felder als Dictionary zurück."""
@@ -64,7 +67,7 @@ class PDFMetadata:
             "title", "subject", "description", "keywords", "schlagwoerter",
             "korrespondent", "buchungsdatum", "steuerjahr",
             "betrag", "betrag_netto", "betrag_brutto", "iban",
-            "waehrung", "mwst_satz", "steuerlich_absetzbar", "einheit",
+            "waehrung", "mwst_satz", "steuerlich_absetzbar", "einheit", "notiz",
         ]:
             value = getattr(self, field_name)
             if value:
@@ -124,6 +127,9 @@ def write_metadata(pdf_path: Path, metadata: PDFMetadata) -> bool:
             # Custom-Felder als XMP Custom Properties schreiben
             # pikepdf unterstützt custom namespaces über die XML-Ebene
             _write_custom_fields(pdf, metadata)
+            # Issue #307: Pruefsumme des Originals merken (nur beim ersten Schreiben)
+            from src.core.duplikate import original_eintragen_pikepdf
+            original_eintragen_pikepdf(pdf, pdf_path)
 
             pdf.save()
 
@@ -243,6 +249,14 @@ def _write_custom_fields(pdf, metadata: PDFMetadata):
         if value:
             info[key] = value
 
+    # Notiz (Issue #298): gesetzt, entfernt ("") oder - bei None - wie in der Datei
+    if metadata.notiz is not None:
+        notiz = str(metadata.notiz).strip()
+        if notiz:
+            info["/Notiz"] = notiz
+        elif "/Notiz" in info:
+            del info["/Notiz"]
+
     pdf.docinfo = info
 
 
@@ -264,6 +278,7 @@ def _read_custom_fields(pdf, metadata: PDFMetadata):
         "/MwStSatz": "mwst_satz",
         "/SteuerlichAbsetzbar": "steuerlich_absetzbar",
         "/Einheit": "einheit",
+        "/Notiz": "notiz",  # Issue #298
     }
 
     for pdf_key, attr_name in field_mapping.items():

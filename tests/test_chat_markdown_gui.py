@@ -4,6 +4,7 @@ import re
 from types import SimpleNamespace
 
 import pytest
+from PyQt6.QtGui import QFontDatabase
 
 from src.gui.chat_view import ChatView, _markdown_zu_html
 from src.utils.config import ChatConfig
@@ -52,7 +53,10 @@ def test_formatierung_fett_liste_ueberschrift_code_tabelle(chat_view):
     assert "<li" in html and "<ul" in html and "<ol" in html
     assert "<h3" in html
     assert "<table" in html
-    assert "<pre" in html and "monospace" in html
+    # Codeblock in der festbreiten Systemschrift: offscreen (CI) heisst sie "monospace",
+    # unter Windows "Courier New" (Issue #303)
+    feste_schrift = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont).family()
+    assert "<pre" in html and f"font-family:'{feste_schrift}'" in html.split("<pre", 1)[1]
     sichtbar = _sichtbar(html)
     assert "**" not in sichtbar and "###" not in sichtbar and "```" not in sichtbar
     assert "code zeile" in sichtbar and "inline" in sichtbar

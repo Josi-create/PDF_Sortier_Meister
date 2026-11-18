@@ -178,6 +178,7 @@ def _treffer(suchindex, d: dict, pdf_id_zu_pfad: Callable[[str], str] | None) ->
         "steuerjahr": d.get("steuerjahr") or "",
         "betrag": betrag_text(d.get("betrag")),
         "zusammenfassung": d.get("zusammenfassung") or "",
+        "notiz": d.get("notiz") or "",  # Issue #298
         "target_folder": d.get("ordner") or "",
         "dok_id": d.get("id"),
         "seite": int(stellen[0].get("seite") or 1) if stellen else 1,

@@ -13,6 +13,9 @@ Zwei Anlaesse:
   das Programm vor dem Verschieben nach: trotzdem ablegen, in den Papierkorb
   oder abbrechen.
 
+Beides laesst sich in den Einstellungen abschalten (Issue #306, Konfigurationswert
+``doppelte_hinweis``, Standard an).
+
 Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``). Gelesen und
 gerechnet wird nie im Thread der Oberflaeche: Die Arbeit laeuft in einem
 Hintergrund-Thread, die Oberflaeche holt nur das Ergebnis ab.
@@ -38,6 +41,8 @@ logger = logging.getLogger(__name__)
 # demselben Inhalt an; sie sollen weder Hinweise noch Rueckfragen ausloesen. Die Tests
 # dieses Hinweises stellen den Schalter wieder an.
 AUTOMATISCH = True
+
+KONFIG_SCHLUESSEL = "doppelte_hinweis"  # Issue #306: Schalter in den Einstellungen
 
 HOECHSTENS_ZEILEN = 8  # so viele Dateien nennt die Rueckfrage, der Rest als Zahl
 
@@ -72,10 +77,24 @@ class DoppelteImOrdner(QObject):
         self._abholen.stop()
         self._lauf = None
 
+    def eingeschaltet(self) -> bool:
+        """Schalter „Hinweis bei doppelten Dateien“ in den Einstellungen (Issue #306)."""
+        return bool(self.fenster.config.get(KONFIG_SCHLUESSEL, True))
+
     def anstossen(self):
         """Demnaechst pruefen (ohne Dateizugriff; darf beliebig oft gerufen werden)."""
-        if AUTOMATISCH and not self._gestoppt:
+        if AUTOMATISCH and not self._gestoppt and self.eingeschaltet():
             self._start.start(self.VERZOEGERUNG_MS)
+
+    def einstellung_geaendert(self):
+        """Nach dem Speichern der Einstellungen: ausgeschaltet verschwinden die Streifen sofort,
+        eingeschaltet wird der geoeffnete Ordner neu geprueft."""
+        if self.eingeschaltet():
+            self.anstossen()
+            return
+        self._start.stop()
+        self._nochmal = False  # eine laufende Pruefung zeigt ihr Ergebnis nicht mehr an
+        self.anzeigen([])
 
     def neu_geladen(self):
         """Der Scan-Bereich wurde neu aufgebaut: Die Kacheln sind neu und tragen noch keinen Hinweis."""
@@ -123,7 +142,8 @@ class DoppelteImOrdner(QObject):
             return  # rechnet noch
         self._abholen.stop()
         self._lauf = None
-        if not self._gestoppt and lauf["ordner"] == self.fenster.file_manager.scan_folder:
+        if (not self._gestoppt and self.eingeschaltet()
+                and lauf["ordner"] == self.fenster.file_manager.scan_folder):
             self.anzeigen(lauf["ergebnis"])
         if self._nochmal:
             self._nochmal = False
@@ -237,7 +257,7 @@ class DoppelteMixin:
         ging in den Papierkorb).
         """
         dateien = [Path(p) for p in dateien]
-        if not AUTOMATISCH or not dateien:
+        if not AUTOMATISCH or not dateien or not self.config.get(KONFIG_SCHLUESSEL, True):
             return dateien
         doppelt = self._doppelte_suchen(dateien, Path(folder_path))
         if not doppelt:
@@ -259,12 +279,13 @@ class DoppelteMixin:
         if len(dateien) == 1:
             pfad = dateien[0]
             orte = doppelt[pfad]
-            text = tr("„{name}“ gibt es schon: Eine Datei mit genau demselben Inhalt liegt unter\n\n{ort}").format(
+            text = tr("„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}").format(
                 name=pfad.name, ort="\n".join(str(o) for o in orte[:HOECHSTENS_ZEILEN]))
             if len(orte) > HOECHSTENS_ZEILEN:
                 text += tr("\n… und an {anzahl} weiteren Orten").format(anzahl=len(orte) - HOECHSTENS_ZEILEN)
-            erklaerung = tr("„In den Papierkorb“ legt die Datei, die Sie gerade ablegen wollten, in den "
-                            "Papierkorb. Die schon vorhandene Datei bleibt, wo sie ist.")
+            # Issue #309: Der Knopf sagt selbst, welche Datei in den Papierkorb geht
+            erklaerung = tr("Die vorhandene Datei bleibt, wo sie ist.")
+            papierkorb_text = tr("Neue Datei in den Papierkorb")
         else:
             zeilen = [tr("„{name}“ liegt schon unter {ort}").format(name=p.name, ort=orte[0])
                       for p, orte in list(doppelt.items())[:HOECHSTENS_ZEILEN]]
@@ -272,13 +293,14 @@ class DoppelteMixin:
                 zeilen.append(tr("… und {anzahl} weitere").format(anzahl=len(doppelt) - HOECHSTENS_ZEILEN))
             text = tr("{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{liste}").format(
                 anzahl=len(doppelt), gesamt=len(dateien), liste="\n".join(zeilen))
-            erklaerung = tr("„In den Papierkorb“ legt diese Dateien in den Papierkorb, statt sie ein zweites Mal "
-                            "abzulegen; nur die übrigen werden abgelegt. Die schon vorhandenen Dateien "
-                            "bleiben, wo sie sind.")
+            erklaerung = tr("Die vorhandenen Dateien bleiben, wo sie sind.")
+            if len(doppelt) < len(dateien):
+                erklaerung += " " + tr("Die übrigen werden normal abgelegt.")
+            papierkorb_text = tr("Neue Dateien in den Papierkorb")
         box.setText(text)
         box.setInformativeText(erklaerung)
         ablegen = box.addButton(tr("Trotzdem ablegen"), QMessageBox.ButtonRole.AcceptRole)
-        papierkorb = box.addButton(tr("In den Papierkorb"), QMessageBox.ButtonRole.DestructiveRole)
+        papierkorb = box.addButton(papierkorb_text, QMessageBox.ButtonRole.DestructiveRole)
         abbrechen = box.addButton(tr("Abbrechen"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(abbrechen)
         box.setEscapeButton(abbrechen)

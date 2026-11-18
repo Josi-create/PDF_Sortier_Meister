@@ -12,7 +12,7 @@ msgstr ""
 #: src/gui/main_window.py
 #: src/gui/ordner_verschieben_gui.py
 msgid "PDF Sortier Meister"
-msgstr "PDF Sortier Meister"
+msgstr "PDF Sortmeister"
 
 #: src/core/bild_convert.py
 msgid "Für {0}-Bilder wird das Paket \"Pillow\" benötigt."
@@ -259,7 +259,7 @@ msgstr "New folder: document from {year}, pattern of \"{rel}\""
 
 #: src/core/office_convert.py
 msgid "PDF Sortier Meister darf {programm} nicht steuern. Bitte unter Systemeinstellungen › Datenschutz & Sicherheit › Automation „{programm}“ für PDF Sortier Meister erlauben."
-msgstr "PDF Sortier Meister is not allowed to control {programm}. Please allow “{programm}” for PDF Sortier Meister under System Settings › Privacy & Security › Automation."
+msgstr "PDF Sortmeister is not allowed to control {programm}. Please allow “{programm}” for PDF Sortmeister under System Settings › Privacy & Security › Automation."
 
 #: src/core/office_convert.py
 msgid "{programm} konnte nicht umwandeln: {0}"
@@ -303,7 +303,7 @@ msgstr "File not found: {quelle}"
 
 #: src/core/office_convert.py
 msgid "{programm} ist installiert, aber dem Python, mit dem PDF Sortier Meister läuft, fehlt das Paket \"pywin32\".\nBitte im Programmordner ausführen: python -m pip install -r requirements.txt"
-msgstr "{programm} is installed, but the Python that runs PDF Sortier Meister lacks the \"pywin32\" package.\nPlease run in the program folder: python -m pip install -r requirements.txt"
+msgstr "{programm} is installed, but the Python that runs PDF Sortmeister lacks the \"pywin32\" package.\nPlease run in the program folder: python -m pip install -r requirements.txt"
 
 #: src/core/office_convert.py
 msgid "Zum Umwandeln wird {programm}, LibreOffice oder {apple} benötigt. Nichts davon wurde gefunden."
@@ -1353,16 +1353,20 @@ msgid "Datei schon vorhanden"
 msgstr "File already exists"
 
 #: src/gui/doppelte.py
-msgid "„{name}“ gibt es schon: Eine Datei mit genau demselben Inhalt liegt unter\n\n{ort}"
-msgstr "“{name}” already exists: a file with exactly the same content is stored at\n\n{ort}"
+msgid "„{name}“ gibt es schon (gleicher Inhalt):\n\n{ort}"
+msgstr "“{name}” already exists (same content):\n\n{ort}"
 
 #: src/gui/doppelte.py
 msgid "\n… und an {anzahl} weiteren Orten"
 msgstr "\n… and in {anzahl} more places"
 
 #: src/gui/doppelte.py
-msgid "„In den Papierkorb“ legt die Datei, die Sie gerade ablegen wollten, in den Papierkorb. Die schon vorhandene Datei bleibt, wo sie ist."
-msgstr "“Move to Recycle Bin” puts the file you were about to file into the Recycle Bin. The existing file stays where it is."
+msgid "Die vorhandene Datei bleibt, wo sie ist."
+msgstr "The existing file stays where it is."
+
+#: src/gui/doppelte.py
+msgid "Neue Datei in den Papierkorb"
+msgstr "Move new file to Recycle Bin"
 
 #: src/gui/doppelte.py
 msgid "„{name}“ liegt schon unter {ort}"
@@ -1377,8 +1381,16 @@ msgid "{anzahl} von {gesamt} Dateien gibt es schon (genau derselbe Inhalt):\n\n{
 msgstr "{anzahl} of {gesamt} files already exist (exactly the same content):\n\n{liste}"
 
 #: src/gui/doppelte.py
-msgid "„In den Papierkorb“ legt diese Dateien in den Papierkorb, statt sie ein zweites Mal abzulegen; nur die übrigen werden abgelegt. Die schon vorhandenen Dateien bleiben, wo sie sind."
-msgstr "“Move to Recycle Bin” puts these files into the Recycle Bin instead of filing them a second time; only the remaining files are filed. The existing files stay where they are."
+msgid "Die vorhandenen Dateien bleiben, wo sie sind."
+msgstr "The existing files stay where they are."
+
+#: src/gui/doppelte.py
+msgid "Die übrigen werden normal abgelegt."
+msgstr "The other files are filed as usual."
+
+#: src/gui/doppelte.py
+msgid "Neue Dateien in den Papierkorb"
+msgstr "Move new files to Recycle Bin"
 
 #: src/gui/doppelte.py
 msgid "Trotzdem ablegen"
@@ -2769,7 +2781,7 @@ msgstr "Voluntary support - does not unlock any features"
 
 #: src/gui/main_window.py
 msgid "Über PDF Sortier Meister"
-msgstr "About PDF Sortier Meister"
+msgstr "About PDF Sortmeister"
 
 #: src/gui/main_window.py
 msgid "Hauptwerkzeugleiste"
@@ -3650,7 +3662,7 @@ msgstr "Restore backup?"
 
 #: src/gui/main_window.py
 msgid "Sicherung vom {created_display} (Version {version}, {anzahl} Dateien).\n\nBeim nächsten Start ersetzen diese Daten die aktuelle Datenbank, den KI-Cache, das Modell und die Einstellungen. Die bisherigen Dateien bleiben im Datenordner unter „{PREVIOUS_DIR}“ erhalten.\n\nPDF Sortier Meister wird dazu jetzt beendet. Fortfahren?"
-msgstr "Backup from {created_display} (version {version}, {anzahl} files).\n\nAt the next start this data replaces the current database, AI cache, model and settings. The previous files are kept in the data folder under “{PREVIOUS_DIR}”.\n\nPDF Sortier Meister will now close for this. Continue?"
+msgstr "Backup from {created_display} (version {version}, {anzahl} files).\n\nAt the next start this data replaces the current database, AI cache, model and settings. The previous files are kept in the data folder under “{PREVIOUS_DIR}”.\n\nPDF Sortmeister will now close for this. Continue?"
 
 #: src/gui/main_window.py
 msgid "Wiederherstellung fehlgeschlagen"
@@ -3662,7 +3674,7 @@ msgstr "Restore prepared"
 
 #: src/gui/main_window.py
 msgid "Bitte PDF Sortier Meister jetzt neu starten – die Sicherung wird beim Start eingespielt."
-msgstr "Please restart PDF Sortier Meister now – the backup is loaded at startup."
+msgstr "Please restart PDF Sortmeister now – the backup is loaded at startup."
 
 #: src/gui/main_window.py
 msgid "So sortieren Sie eine PDF in drei Schritten:"
@@ -3691,7 +3703,7 @@ msgstr "Backup recommended"
 
 #: src/gui/main_window.py
 msgid "PDF Sortier Meister verschiebt, benennt um und schreibt Metadaten direkt in Ihre PDF-Dateien."
-msgstr "PDF Sortier Meister moves, renames and writes metadata directly into your PDF files."
+msgstr "PDF Sortmeister moves, renames and writes metadata directly into your PDF files."
 
 #: src/gui/main_window.py
 msgid "Legen Sie regelmaessig ein Backup Ihres Arbeitsordners an - z.B. per Cloud-Sync (OneDrive, Dropbox) oder einem Backup-Programm wie Macrium Reflect.\n\nRueckgaengig (Strg+Z) hilft bei Ausrutschern, ersetzt aber kein Backup."
@@ -3731,7 +3743,7 @@ msgstr "Update available"
 
 #: src/gui/main_window.py
 msgid "<b>Version {version}</b> von PDF Sortier Meister ist verfügbar.<br>Installiert ist Version {version2}."
-msgstr "<b>Version {version}</b> of PDF Sortier Meister is available.<br>Version {version2} is installed."
+msgstr "<b>Version {version}</b> of PDF Sortmeister is available.<br>Version {version2} is installed."
 
 #: src/gui/main_window.py
 msgid "Auf der Download-Seite finden Sie den Installer und die Liste der Änderungen. Installieren Sie die neue Version einfach über die bestehende - Ihre Einstellungen und Lerndaten bleiben erhalten."
@@ -3851,7 +3863,7 @@ msgstr "Not configured"
 
 #: src/gui/main_window.py
 msgid "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
-msgstr "<h2>PDF Sortier Meister</h2><p style='color: $grau_66;'>Version {version}</p>"
+msgstr "<h2>PDF Sortmeister</h2><p style='color: $grau_66;'>Version {version}</p>"
 
 #: src/gui/main_window.py
 msgid "Ein intelligentes Programm zum Sortieren und<br>Umbenennen von gescannten PDF-Dokumenten."
@@ -4162,6 +4174,14 @@ msgstr "New in the scan folder: {name}"
 #: src/gui/ordner_beobachtung.py
 msgid "{anzahl} neue Dateien im Scan-Ordner"
 msgstr "{anzahl} new files in the scan folder"
+
+#: src/gui/ordner_beobachtung.py
+msgid "Neuer Ordner im Scan-Ordner: {name}"
+msgstr "New folder in the scan folder: {name}"
+
+#: src/gui/ordner_beobachtung.py
+msgid "{anzahl} neue Ordner im Scan-Ordner"
+msgstr "{anzahl} new folders in the scan folder"
 
 #: src/gui/ordner_suchfeld.py
 msgid "Ordner suchen … (z. B. Zeugn*)"
@@ -4801,7 +4821,7 @@ msgstr "Import existing PDFsuche"
 
 #: src/gui/search_migration_dialog.py
 msgid "Wenn Sie bisher das eigenständige Programm <b>PDFsuche</b> benutzt haben, übernimmt PDF Sortier Meister dessen Einstellungen (config.toml) und die Suchdatenbank. Die Datenbank bleibt an ihrem bisherigen Ort, es wird nichts gelöscht; den bisherigen Projektordner räumen Sie später selbst auf. Die Aufgaben der Aufgabenplanung werden hier nicht verändert."
-msgstr "If you have been using the stand-alone program <b>PDFsuche</b>, PDF Sortier Meister imports its settings (config.toml) and the search database. The database stays in its current location and nothing is deleted; you clean up the old project folder yourself later. The Task Scheduler tasks are not changed here."
+msgstr "If you have been using the stand-alone program <b>PDFsuche</b>, PDF Sortmeister imports its settings (config.toml) and the search database. The database stays in its current location and nothing is deleted; you clean up the old project folder yourself later. The Task Scheduler tasks are not changed here."
 
 #: src/gui/search_migration_dialog.py
 msgid "PDFsuche-Ordner:"
@@ -4822,7 +4842,7 @@ msgstr "Not checked yet. Choose the folder and click “Check”."
 
 #: src/gui/search_migration_dialog.py
 msgid "Datenbank in das Datenverzeichnis von PDF Sortier Meister kopieren (sonst bleibt sie am bisherigen Ort; die Kopie wird geprüft)"
-msgstr "Copy the database into the data folder of PDF Sortier Meister (otherwise it stays in its current location; the copy is verified)"
+msgstr "Copy the database into the data folder of PDF Sortmeister (otherwise it stays in its current location; the copy is verified)"
 
 #: src/gui/search_migration_dialog.py
 msgid "Keine PDFsuche gefunden – bitte den Projektordner (mit config.toml) wählen."
@@ -5793,6 +5813,14 @@ msgid "Solange das Programm offen ist, erscheint eine neue Datei im geöffneten\
 msgstr "While the program is open, a new file in the open folder appears\nas a tile after a few seconds, as soon as it has been written completely.\nFiles that are gone are removed from the view.\nWhen switched off, only F5 shows the new state."
 
 #: src/gui/settings_dialog.py
+msgid "Hinweis bei doppelten Dateien"
+msgstr "Notice about duplicate files"
+
+#: src/gui/settings_dialog.py
+msgid "Liegt dieselbe Datei (gleicher Inhalt) zweimal im geöffneten Ordner,\ntragen die Kacheln den Streifen „Doppelt: wie …“ und die Statusleiste meldet es.\nGibt es den Inhalt im Zielordner oder im Archiv schon, fragt das Programm\nvor dem Ablegen nach. Ausgeschaltet entfällt beides."
+msgstr "If the same file (same content) is in the open folder twice,\nits tiles show the strip “Duplicate of …” and the status bar reports it.\nIf the content already exists in the target folder or the archive, the program\nasks before filing. When switched off, neither happens."
+
+#: src/gui/settings_dialog.py
 msgid "PDF-Analyse-Cache"
 msgstr "PDF analysis cache"
 
@@ -5826,7 +5854,7 @@ msgstr "Windows Explorer integration"
 
 #: src/gui/settings_dialog.py
 msgid "Im Rechtsklick-Menue des Explorers anzeigen (\"PDF Sortier Meister von hier oeffnen\")"
-msgstr "Show in the Explorer right-click menu (\"Open PDF Sortier Meister here\")"
+msgstr "Show in the Explorer right-click menu (\"Open PDF Sortmeister here\")"
 
 #: src/gui/settings_dialog.py
 msgid "Fuegt einen Eintrag zum Kontextmenue hinzu fuer:\n  - Ordner (Rechtsklick auf Ordner-Icon)\n  - Ordner-Hintergrund (Rechtsklick in den leeren Bereich)\n  - PDF-Dateien (Ordner wird gewechselt, PDF selektiert,\n    Umbenennungs-Dialog mit KI-Vorschlag oeffnet sich)\nLaeuft das Programm bereits, wird der Pfad an die offene\nInstanz uebergeben statt eine zweite zu starten."
@@ -6998,7 +7026,7 @@ msgstr "Found at poe.com/api_key"
 
 #: src/gui/setup_wizard.py
 msgid "Willkommen bei PDF Sortier Meister!"
-msgstr "Welcome to PDF Sortier Meister!"
+msgstr "Welcome to PDF Sortmeister!"
 
 #: src/gui/setup_wizard.py
 msgid "Dieses kurze Setup dauert etwa 2 Minuten.\nSie koennen jeden Schritt ueberspringen und spaeter aendern."
@@ -7006,7 +7034,7 @@ msgstr "This short setup takes about 2 minutes.\nYou can skip any step and chang
 
 #: src/gui/setup_wizard.py
 msgid "<b>Was macht PDF Sortier Meister?</b><br><br>Das Programm schaut Ihre gescannten PDFs an und schlaegt Ihnen vor,\nin welchen Ordner jedes Dokument gehoert — zum Beispiel:\n<ul><li>Rechnung &rarr; Ordner <i>Rechnungen/2024</i></li><li>Kontoauszug &rarr; Ordner <i>Bank/Sparkasse</i></li><li>Arztbrief &rarr; Ordner <i>Gesundheit</i></li></ul>Sie bestimmen immer selbst, was wirklich passiert.\nDas Programm verschiebt nichts ohne Ihre Zustimmung.<br><br><b>KI-Assistent (empfohlen):</b> Erst mit einer KI entfaltet das\nProgramm sein volles Potential — die Vorschlaege werden deutlich\nbesser. Am einfachsten geht das mit <b>Ollama</b>, das kostenlos\nlokal auf Ihrem PC laeuft (kein API-Key noetig, Ihre Dokumente\nbleiben auf diesem Rechner). Wer lieber einen Cloud-Anbieter nutzt\n(z. B. weil er ein Abo hat oder dem Anbieter vertraut), kann\nstattdessen einen API-Key hinterlegen. Im naechsten Schritt waehlen\nSie aus — ganz ohne KI geht es zur Not auch, dann sortiert nur\neine einfache Stichwort-Zuordnung."
-msgstr "<b>What does PDF Sortier Meister do?</b><br><br>The program looks at your scanned PDFs and suggests\nwhich folder each document belongs in — for example:\n<ul><li>Invoice &rarr; folder <i>Invoices/2024</i></li><li>Bank statement &rarr; folder <i>Bank/Savings bank</i></li><li>Doctor's letter &rarr; folder <i>Health</i></li></ul>You always decide yourself what actually happens.\nThe program moves nothing without your approval.<br><br><b>AI assistant (recommended):</b> Only with an AI does the\nprogram reach its full potential — the suggestions become much\nbetter. The easiest way is <b>Ollama</b>, which runs locally on your\nPC free of charge (no API key needed, your documents\nstay on this computer). If you prefer a cloud provider\n(e.g. because you have a subscription or trust the provider), you can\nenter an API key instead. You choose in the next\nstep — it also works without AI if need be; then only\na simple keyword matching does the sorting."
+msgstr "<b>What does PDF Sortmeister do?</b><br><br>The program looks at your scanned PDFs and suggests\nwhich folder each document belongs in — for example:\n<ul><li>Invoice &rarr; folder <i>Invoices/2024</i></li><li>Bank statement &rarr; folder <i>Bank/Savings bank</i></li><li>Doctor's letter &rarr; folder <i>Health</i></li></ul>You always decide yourself what actually happens.\nThe program moves nothing without your approval.<br><br><b>AI assistant (recommended):</b> Only with an AI does the\nprogram reach its full potential — the suggestions become much\nbetter. The easiest way is <b>Ollama</b>, which runs locally on your\nPC free of charge (no API key needed, your documents\nstay on this computer). If you prefer a cloud provider\n(e.g. because you have a subscription or trust the provider), you can\nenter an API key instead. You choose in the next\nstep — it also works without AI if need be; then only\na simple keyword matching does the sorting."
 
 #: src/gui/setup_wizard.py
 msgid "Schritt 1: Scan-Ordner auswaehlen"
@@ -7318,15 +7346,15 @@ msgstr "<b>What now?</b><br><br>Put a few PDFs into your scan folder and start\n
 
 #: src/gui/setup_wizard.py
 msgid "PDF Sortier Meister im Rechtsklick-Menue des Explorers anzeigen"
-msgstr "Show PDF Sortier Meister in the Explorer right-click menu"
+msgstr "Show PDF Sortmeister in the Explorer right-click menu"
 
 #: src/gui/setup_wizard.py
 msgid "Fuegt einen Eintrag \"PDF Sortier Meister von hier oeffnen\"\nhinzu, wenn Sie einen Ordner oder dessen Hintergrund\nrechtsklicken. Aenderbar unter Extras -> Einstellungen."
-msgstr "Adds an entry \"Open PDF Sortier Meister here\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
+msgstr "Adds an entry \"Open PDF Sortmeister here\"\nwhen you right-click a folder or its\nbackground. Can be changed under Tools -> Settings."
 
 #: src/gui/setup_wizard.py
 msgid "PDF Sortier Meister einrichten"
-msgstr "Set up PDF Sortier Meister"
+msgstr "Set up PDF Sortmeister"
 
 #: src/gui/setup_wizard.py
 msgid "Fertig"
@@ -7610,11 +7638,11 @@ msgstr "Error while saving:\n{e}"
 
 #: src/gui/support_dialog.py
 msgid "PDF Sortier Meister unterstützen"
-msgstr "Support PDF Sortier Meister"
+msgstr "Support PDF Sortmeister"
 
 #: src/gui/support_dialog.py
 msgid "<h3>Gefällt Ihnen PDF Sortier Meister?</h3>"
-msgstr "<h3>Do you like PDF Sortier Meister?</h3>"
+msgstr "<h3>Do you like PDF Sortmeister?</h3>"
 
 #: src/gui/support_dialog.py
 msgid "Das Programm ist freie Software und bleibt es. Wenn es Ihnen Zeit spart, freue ich mich über einen kleinen Beitrag zur Weiterentwicklung.<br><br><b>Ein freiwilliger Beitrag, keine Gegenleistung, keine Freischaltung von Funktionen.</b> Das Programm funktioniert mit und ohne Beitrag gleich."
@@ -8168,6 +8196,10 @@ msgstr "{api_name}: the model does not support tools (already rejected)."
 msgid "{api_name}: leere Antwort vom Server."
 msgstr "{api_name}: empty response from the server."
 
+#: src/ml/openai_werkzeuge.py src/ml/openai_provider.py
+msgid "{api_name}-Fehler: {fehler}"
+msgstr "{api_name} error: {fehler}"
+
 #: src/ml/openai_werkzeuge.py
 msgid "Modell '{model}' unterstützt keine Werkzeuge - {error}"
 msgstr "Model '{model}' does not support tools - {error}"
@@ -8475,7 +8507,7 @@ msgstr "Unknown date: {datum!r} (expected YYYY-MM-DD or DD.MM.YYYY)"
 
 #: src/search/dienst.py
 msgid "PDF Sortier Meister – Dokumentensuche (Indexierung, MCP, Web, Kommandozeile)"
-msgstr "PDF Sortier Meister – document search (indexing, MCP, web, command line)"
+msgstr "PDF Sortmeister – document search (indexing, MCP, web, command line)"
 
 #: src/search/dienst.py
 msgid "andere config.json oder eine config.toml von PDFsuche"
@@ -9104,11 +9136,11 @@ msgstr "Document search is running at {url}  (quit: Ctrl+C)"
 
 #: src/search/zeitplan.py
 msgid "PDF Sortier Meister: liest täglich bei Leerlauf neue und geänderte Dokumente in den Suchindex ein (zuerst die Vorrang-Ordner) und erkennt Scans per OCR. Bricht ab, sobald am Rechner gearbeitet wird."
-msgstr "PDF Sortier Meister: reads new and changed documents into the search index once a day when idle (priority folders first) and recognizes scans by OCR. Stops as soon as the computer is used."
+msgstr "PDF Sortmeister: reads new and changed documents into the search index once a day when idle (priority folders first) and recognizes scans by OCR. Stops as soon as the computer is used."
 
 #: src/search/zeitplan.py
 msgid "PDF Sortier Meister: Browser-Oberfläche der Dokumentensuche (nur auf diesem Rechner erreichbar)."
-msgstr "PDF Sortier Meister: browser interface of the document search (reachable only on this computer)."
+msgstr "PDF Sortmeister: browser interface of the document search (reachable only on this computer)."
 
 #: src/search/zeitplan.py
 msgid "Aufgabenplanung"
@@ -9164,7 +9196,7 @@ msgstr "{name} is not a ZIP archive."
 
 #: src/utils/backup.py
 msgid "{name} enthaelt keine Daten von PDF Sortier Meister (erwartet z.B. {0} oder {1})."
-msgstr "{name} does not contain data of PDF Sortier Meister (expected e.g. {0} or {1})."
+msgstr "{name} does not contain data of PDF Sortmeister (expected e.g. {0} or {1})."
 
 #: src/utils/database.py
 msgid "Korrespondent-Name darf nicht leer sein"
@@ -9176,7 +9208,7 @@ msgstr "Primary correspondent '{primary_name}' does not exist"
 
 #: src/utils/explorer_integration.py
 msgid "PDF Sortier Meister von hier oeffnen"
-msgstr "Open PDF Sortier Meister here"
+msgstr "Open PDF Sortmeister here"
 
 #: src/utils/explorer_integration.py
 msgid "Explorer-Integration ist nur unter Windows verfuegbar."
@@ -9620,7 +9652,7 @@ msgstr "Mails from other programs"
 
 #: src/search/plattform.py
 msgid "Apple Mail erkannt, aber der Zugriff ist gesperrt: {0}\nBitte in den Systemeinstellungen unter Datenschutz & Sicherheit → Festplattenvollzugriff PDF Sortier Meister erlauben und das Programm neu starten."
-msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortier Meister under System Settings → Privacy & Security → Full Disk Access and restart the program."
+msgstr "Apple Mail detected, but access is blocked: {0}\nPlease allow PDF Sortmeister under System Settings → Privacy & Security → Full Disk Access and restart the program."
 
 #: src/search/plattform.py
 msgid "Weder Thunderbird noch Apple Mail gefunden – Postfach-Ordner unten eintragen."
@@ -9628,7 +9660,7 @@ msgstr "Neither Thunderbird nor Apple Mail found – enter mailbox folders below
 
 #: src/search/plattform.py
 msgid "<b>Welche Mails findet die Dokumentensuche?</b><p><b>Thunderbird</b>: Die Postfächer des Standardprofils werden von selbst gefunden.</p><p><b>Apple Mail (Mac)</b>: Der Ordner von Apple Mail wird von selbst gefunden. macOS gibt ihn erst frei, wenn PDF Sortier Meister Festplattenvollzugriff hat: Systemeinstellungen → Datenschutz &amp; Sicherheit → Festplattenvollzugriff → PDF Sortier Meister einschalten, danach das Programm neu starten.</p><p><b>Outlook und andere Programme</b>: Die Postfachdateien von Outlook (PST/OST) liest PDF Sortier Meister nicht, und beim neuen Outlook liegen die Mails nur online. So geht es trotzdem: Die Mails als Dateien in einen Ordner legen, den die Dokumentensuche durchsucht. Im klassischen Outlook die Mails markieren und mit der Maus in den Ordner ziehen (ergibt <code>.msg</code>-Dateien); in anderen Programmen „Speichern unter“ wählen (meist <code>.eml</code>). Beim nächsten Lauf sind diese Mails auffindbar, mit Betreff, Absender und Text. Anhänge erscheinen nur mit ihrem Namen.</p>"
-msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortier Meister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortier Meister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortier Meister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
+msgstr "<b>Which mails does the document search find?</b><p><b>Thunderbird</b>: The mailboxes of the default profile are found automatically.</p><p><b>Apple Mail (Mac)</b>: The Apple Mail folder is found automatically. macOS only releases it once PDF Sortmeister has Full Disk Access: System Settings → Privacy &amp; Security → Full Disk Access → switch on PDF Sortmeister, then restart the program.</p><p><b>Outlook and other programs</b>: PDF Sortmeister does not read Outlook mailbox files (PST/OST), and the new Outlook keeps mails online only. This works anyway: put the mails as files into a folder that the document search covers. In classic Outlook, select the mails and drag them into the folder (creates <code>.msg</code> files); in other programs choose “Save as” (usually <code>.eml</code>). After the next run these mails can be found, with subject, sender and text. Attachments appear by name only.</p>"
 
 #: src/gui/main_window.py
 msgid "Jetzt scannen"
@@ -9851,3 +9883,137 @@ msgstr "Merge PDFs ({anzahl})…"
 #: src/gui/pdf_thumbnail.py
 msgid "Die markierten PDFs zu einer Datei zusammenfügen, der Name wird vorher abgefragt"
 msgstr "Merge the selected PDFs into one file; you are asked for the name first"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Dateien mit genau demselben Inhalt in „{ordner}“ und seinen Unterordnern."
+msgstr "Files with exactly the same content in “{ordner}” and its subfolders."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Geändert"
+msgstr "Modified"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Haken setzen bei den Dateien, die in den Papierkorb sollen. Von jeder Gruppe bleibt mindestens eine Datei. Doppelklick zeigt die Datei im Dateimanager."
+msgstr "Tick the files that should go to the Recycle Bin. At least one file of each group stays. Double-click shows the file in the file manager."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Je Gruppe alle außer der ältesten markieren"
+msgstr "Tick all but the oldest in each group"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Keine markieren"
+msgstr "Untick all"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "In den Papierkorb …"
+msgstr "Move to Recycle Bin …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Suche doppelte Dateien …"
+msgstr "Searching for duplicate files …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Vergleiche Dateien gleicher Größe: {gelesen} von {gesamt} …"
+msgstr "Comparing files of the same size: {gelesen} of {gesamt} …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} gleiche Dateien ({groesse})"
+msgstr "{anzahl} identical files ({groesse})"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Keine doppelten Dateien gefunden."
+msgstr "No duplicate files found."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{gruppen} Gruppen mit zusammen {dateien} gleichen Dateien gefunden."
+msgstr "Found {gruppen} groups with {dateien} identical files in total."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} in den Papierkorb …"
+msgstr "Move {anzahl} to Recycle Bin …"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} Dateien in den Papierkorb legen? Von jeder Gruppe bleibt mindestens eine Datei.\n\n{namen}\n\nMit Strg+Z im Hauptfenster holen Sie sie zurück."
+msgstr "Move {anzahl} files to the Recycle Bin? At least one file of each group stays.\n\n{namen}\n\nCtrl+Z in the main window brings them back."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Von jeder Gruppe muss mindestens eine Datei bleiben. Bitte bei diesen Gruppen einen Haken entfernen:\n\n{liste}"
+msgstr "At least one file of each group must stay. Please untick one file in these groups:\n\n{liste}"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Doppelte Dateien in den Papierkorb: {anzahl}"
+msgstr "Duplicate files moved to Recycle Bin: {anzahl}"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "{anzahl} doppelte Dateien in den Papierkorb gelegt (Strg+Z holt sie zurück)"
+msgstr "{anzahl} duplicate files moved to the Recycle Bin (Ctrl+Z brings them back)"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Nicht in den Papierkorb gelegt (die Dateien bleiben, wo sie sind):\n{0}"
+msgstr "Not moved to the Recycle Bin (the files stay where they are):\n{0}"
+
+#: src/gui/folder_tree_widget.py
+msgid "🧹 Doppelte Dateien suchen …"
+msgstr "🧹 Find duplicate files …"
+
+#: src/gui/main_window.py
+msgid "Doppelte Dateien suchen …"
+msgstr "Find duplicate files …"
+
+#: src/gui/main_window.py
+msgid "Dateien mit gleichem Inhalt im geöffneten Ordner und seinen Unterordnern finden und aufräumen"
+msgstr "Find and clean up files with the same content in the open folder and its subfolders"
+
+#: src/gui/main_window.py
+msgid "Kein Ordner geöffnet"
+msgstr "No folder open"
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Eine Gruppe mit {dateien} gleichen Dateien gefunden."
+msgstr "Found one group with {dateien} identical files."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Diese Datei in den Papierkorb legen? Von ihrer Gruppe bleibt mindestens eine Datei.\n\n{namen}\n\nMit Strg+Z im Hauptfenster holen Sie sie zurück."
+msgstr "Move this file to the Recycle Bin? At least one file of its group stays.\n\n{namen}\n\nCtrl+Z in the main window brings it back."
+
+#: src/gui/doppelte_aufraeumen.py
+msgid "Doppelte Datei in den Papierkorb gelegt: {name} (Strg+Z holt sie zurück)"
+msgstr "Duplicate file moved to the Recycle Bin: {name} (Ctrl+Z brings it back)"
+#: src/gui/detail_panel.py
+msgid "Notiz"
+msgstr "Note"
+
+#: src/gui/detail_panel.py
+msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nWird in der PDF gespeichert und von der Suche und vom Chat gefunden."
+msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved in the PDF and found by the search and the chat."
+
+#: src/gui/detail_panel.py
+msgid "Eigene Notiz, z. B. „Original beim Steuerberater“"
+msgstr "Your own note, e.g. “Original is with the tax advisor”"
+
+#: src/gui/search_view.py
+msgid "Notiz: {notiz}"
+msgstr "Note: {notiz}"
+#: src/gui/search_view.py
+msgid "PDF-Anhänge in den Scan-Ordner legen"
+msgstr "Put PDF attachments into the scan folder"
+
+#: src/gui/search_view.py
+msgid "Kein Scan-Ordner eingestellt oder der Ordner fehlt."
+msgstr "No scan folder is set, or the folder is missing."
+
+#: src/gui/search_view.py
+msgid "Die Anhänge konnten nicht abgelegt werden: {e}"
+msgstr "The attachments could not be saved: {e}"
+
+#: src/gui/search_view.py
+msgid "Die Mail enthält keine PDF-Anhänge."
+msgstr "The mail has no PDF attachments."
+
+#: src/gui/search_view.py
+msgid "1 Anhang in den Scan-Ordner gelegt: {name}"
+msgstr "1 attachment put into the scan folder: {name}"
+
+#: src/gui/search_view.py
+msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
+msgstr "{anzahl} attachments put into the scan folder"

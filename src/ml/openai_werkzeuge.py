@@ -273,8 +273,8 @@ def fehler_aus_antwort(fehler: Any, api_name: str) -> str:
         code = fehler.get("code") or fehler.get("status")
         if isinstance(code, int) or (isinstance(code, str) and code.isdigit()):
             return tr("{api_name} HTTP {code}: {meldung}").format(api_name=api_name, code=code, meldung=meldung)
-        return f"{api_name}-Fehler: {meldung}"
-    return f"{api_name}-Fehler: {fehler}"
+        return tr("{api_name}-Fehler: {fehler}").format(api_name=api_name, fehler=meldung)
+    return tr("{api_name}-Fehler: {fehler}").format(api_name=api_name, fehler=fehler)
 
 
 class OpenAIWerkzeugMixin:
@@ -359,7 +359,7 @@ class OpenAIWerkzeugMixin:
         try:
             model = self._get_model_id()
         except Exception as e:  # noqa: BLE001 - Provider werfen nicht nach aussen
-            return WerkzeugAntwort(fehler=f"{api_name}-Fehler: {e}")
+            return WerkzeugAntwort(fehler=tr("{api_name}-Fehler: {fehler}").format(api_name=api_name, fehler=e))
 
         messages = nachrichten_zu_openai(nachrichten)
         body: dict = {
@@ -388,7 +388,7 @@ class OpenAIWerkzeugMixin:
         try:
             data, error = self._http_post_json(self._werkzeug_chat_url(), body, headers)
         except Exception as e:  # noqa: BLE001 - Provider werfen nicht nach aussen
-            return WerkzeugAntwort(fehler=f"{api_name}-Fehler: {e}")
+            return WerkzeugAntwort(fehler=tr("{api_name}-Fehler: {fehler}").format(api_name=api_name, fehler=e))
 
         # HTTP 200 mit Fehlerobjekt statt choices (OpenRouter, manche Proxys)
         if not error and isinstance(data, dict) and not data.get("choices") and data.get("error"):

@@ -242,6 +242,10 @@ def test_metadaten_speichern_schreibt_und_entfernt_schlagwoerter(qtbot, hauptfen
     # ein anderer Schreibweg ohne das Feld (z. B. Umbenennen-Dialog) laesst die Schlagwoerter stehen
     win._write_pdf_metadata(pdf, pdf.name, ["rechnung"], {"korrespondent": "Möbelhaus Muster"})
     assert read_metadata(pdf).schlagwoerter == "Steuer/Werbungskosten, Büro"
+    # Auch dieser Schreibweg meldet die Datei dem Suchindex; dessen Thread liest sie. Haelt er sie
+    # noch offen, wenn gleich wieder gespeichert wird, scheitert unter Windows das Ersetzen der
+    # Datei mit „Access is denied“ (#311).
+    assert meldungen.warten(10.0)
 
     # Feld leeren und speichern: Schlagwoerter weg, die Stichwoerter der Analyse bleiben
     feld.setText("")

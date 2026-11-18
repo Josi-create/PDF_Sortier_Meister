@@ -11,6 +11,10 @@ Im Thread der Oberflaeche wird der Ordner nie gelesen (ein Netzlaufwerk, das
 gerade nicht antwortet, haelt sonst das Fenster an). Viele neue Dateien auf
 einmal werden in kleinen Portionen angelegt.
 
+Neue, verschwundene und umbenannte Unterordner (Issue #319) werden ebenso
+nachgefuehrt: nur die Ordnerzeilen aendern sich, vorhandene Zeilen und die
+Markierung eines Ordners bleiben.
+
 Abschaltbar: Einstellungen › Allgemein › „Scan-Ordner beobachten“
 (Konfigurationswert ``scan_ordner_beobachten``, Standard an).
 """
@@ -27,7 +31,14 @@ from PyQt6.QtCore import QObject, Qt, QTimer
 from PyQt6.QtWidgets import QApplication
 
 from src.core.office_convert import ist_office_datei
-from src.core.ordner_beobachter import Abgleich, Aenderung, anzeige_endungen, ordner_lesen
+from src.core.ordner_beobachter import (
+    Abgleich,
+    Aenderung,
+    anzeige_endungen,
+    ordner_lesen,
+    pdf_anzahl,
+    unterordner_lesen,
+)
 from src.core.pdf_analyzer import thumbnail_vergessen
 from src.i18n import tr
 
@@ -43,10 +54,12 @@ AUTOMATISCH = True
 class _Lauf:
     """Beobachtung eines Ordners; mit dem Wechsel des Ordners beginnt ein neuer Lauf."""
 
-    def __init__(self, ordner: Path, abgleich: Abgleich, endungen: tuple[str, ...]):
+    def __init__(self, ordner: Path, abgleich: Abgleich, endungen: tuple[str, ...],
+                 unterordner: Optional[list[str]] = None):
         self.ordner = ordner
         self.abgleich = abgleich
         self.endungen = endungen
+        self.unterordner = list(unterordner or [])  # zuletzt gelesene Unterordner (Issue #319)
         self.liest = False       # ein Lesevorgang ist unterwegs
         self.naechstes = 0.0     # fruehester Zeitpunkt des naechsten Lesens (time.monotonic)
         # Vom Lese-Thread abgelegt, vom Takt abgeholt: (Aenderung oder None bei Lesefehler, Dauer in s).
@@ -83,6 +96,8 @@ class OrdnerBeobachtung(QObject):
         self._auswahl_mehrfach = False    # eine Datei der Mehrfachauswahl ist verschwunden
         self._ladend: list = []           # Kacheln, deren Bild die Beobachtung gerade laden laesst
         self._liste: dict = {}            # zuletzt gelesene Dateiliste (Name -> Eintrag)
+        self._unterordner: Optional[list[str]] = None  # Issue #319: neuer Stand der Unterordner
+        self._unterordner_pdfs: dict[str, int] = {}     # ... PDF-Zahl der neuen Unterordner
 
         self._portion_timer = QTimer(self)
         self._portion_timer.setSingleShot(True)
@@ -114,6 +129,8 @@ class OrdnerBeobachtung(QObject):
         self._entfernt = []
         self._auswahl_einzeln = self._auswahl_mehrfach = False
         self._liste = {}
+        self._unterordner = None
+        self._unterordner_pdfs = {}
 
     def lauf_sichern(self) -> Optional[_Lauf]:
         """Der Lauf zum aktuellen Scan-Ordner; None, wenn nicht beobachtet wird."""
@@ -130,7 +147,8 @@ class OrdnerBeobachtung(QObject):
             abgleich = Abgleich(
                 ordner, bekannte, ruhezeit=self.RUHEZEIT, hoechstwartezeit=self.HOECHSTWARTEZEIT
             )
-            self._lauf = _Lauf(Path(ordner), abgleich, anzeige_endungen())
+            unterordner = [k.folder_path.name for k in self.fenster.folder_tiles if not k.is_parent]
+            self._lauf = _Lauf(Path(ordner), abgleich, anzeige_endungen(), unterordner)
         return self._lauf
 
     def takten(self):
@@ -161,7 +179,17 @@ class OrdnerBeobachtung(QObject):
         """Ein Lesevorgang (ohne Oberflaeche); None, wenn der Ordner nicht lesbar ist."""
         try:
             liste = ordner_lesen(lauf.ordner, lauf.endungen)
-            return lauf.abgleich.schritt(liste, time.monotonic())
+            # Vor dem Abgleich lesen: scheitert es, darf der Abgleich nichts als gemeldet verbuchen
+            namen = unterordner_lesen(lauf.ordner)  # Issue #319
+            aenderung = lauf.abgleich.schritt(liste, time.monotonic())
+            if namen != lauf.unterordner:
+                bekannt = set(lauf.unterordner)
+                aenderung.unterordner = namen
+                aenderung.unterordner_pdfs = {
+                    n: pdf_anzahl(lauf.ordner / n) for n in namen if n not in bekannt
+                }
+                lauf.unterordner = namen
+            return aenderung
         except OSError:
             return None  # Ordner weg oder Laufwerk getrennt: Kacheln bleiben stehen
         except Exception:  # noqa: BLE001 - der Takt soll weiterlaufen
@@ -183,6 +211,9 @@ class OrdnerBeobachtung(QObject):
 
     def vormerken(self, aenderung: Aenderung):
         """Merkt eine Aenderung vor; angewendet wird sie, sobald kein Dialog offen ist."""
+        if aenderung.unterordner is not None:
+            self._unterordner = list(aenderung.unterordner)  # gilt nur der neueste Stand
+            self._unterordner_pdfs.update(aenderung.unterordner_pdfs)
         for name in aenderung.weg:
             self._neu.pop(name, None)
             self._geaendert.pop(name, None)
@@ -207,7 +238,8 @@ class OrdnerBeobachtung(QObject):
         Durchlauf der Ereignisschleife, damit das Fenster auch bei mehreren hundert
         Dateien auf einmal bedienbar bleibt.
         """
-        if not (self._neu or self._weg or self._geaendert or self._angelegt or self._entfernt):
+        if not (self._neu or self._weg or self._geaendert or self._angelegt or self._entfernt
+                or self._unterordner is not None):
             return
         fenster = self.fenster
         lauf = self._lauf
@@ -218,6 +250,18 @@ class OrdnerBeobachtung(QObject):
             return
         if self._nutzer_beschaeftigt():
             return  # der Takt versucht es wieder
+
+        # 0) Unterordner (Issue #319)
+        if self._unterordner is not None:
+            if fenster.pdf_scroll_area.isHidden():
+                # Der Ordner war leer („Keine PDFs …“): einmal ganz aufbauen
+                neue = [lauf.ordner / n for n in self._unterordner_pdfs]
+                self._unterordner, self._unterordner_pdfs = None, {}
+                fenster.load_pdfs()
+                if neue:
+                    self._ordner_melden(neue)
+                return
+            self._unterordner_anwenden(lauf)
 
         ende = time.monotonic() + self.PORTION_MS / 1000.0
         kacheln = {w.pdf_path: w for w in fenster.pdf_widgets}
@@ -329,6 +373,47 @@ class OrdnerBeobachtung(QObject):
             fenster.pdf_widgets.append(widget)
         self._ladend.append(widget)
         return widget
+
+    def _unterordner_anwenden(self, lauf: _Lauf):
+        """Ordnerzeilen an den gelesenen Stand angleichen; vorhandene Zeilen bleiben, wie sie sind."""
+        fenster = self.fenster
+        namen, self._unterordner = self._unterordner or [], None
+        pdfs, self._unterordner_pdfs = self._unterordner_pdfs, {}
+        vorher = list(fenster.folder_tiles)
+        # Nach Namen, nicht nach Path: unter Windows ist Path("a") == Path("A"), eine
+        # Umbenennung nur der Gross-/Kleinschreibung soll aber die Zeile erneuern
+        alt = {k.folder_path.name: k for k in vorher if not k.is_parent}
+        zeilen = [k for k in vorher if k.is_parent]  # ".." bleibt oben
+        neue = []
+        for name in namen:
+            pfad = lauf.ordner / name
+            kachel = alt.pop(name, None)
+            if kachel is None:
+                # PDF-Zahl im Hintergrund gelesen; fehlt sie (F5 war schneller), ohne Zahl
+                kachel = fenster._erzeuge_ordnerzeile(pfad, pdfs.get(name))
+                neue.append(pfad)
+            zeilen.append(kachel)
+        if zeilen == vorher:
+            return
+        for kachel in alt.values():  # verschwunden oder umbenannt
+            fenster.folder_rows_layout.removeWidget(kachel)
+            if hasattr(kachel, "cleanup"):
+                kachel.cleanup()  # wie in load_pdfs
+            kachel.hide()
+            kachel.deleteLater()
+        fenster.folder_tiles = zeilen
+        fenster._place_folder_rows()
+        fenster._ordner_markierung_anwenden()  # Issue #196: markierter Ordner weg -> Markierung weg
+        self._zahlen_anzeigen()
+        if neue:
+            self._ordner_melden(neue)
+
+    def _ordner_melden(self, neue: list[Path]):
+        if len(neue) == 1:
+            text = tr("Neuer Ordner im Scan-Ordner: {name}").format(name=neue[0].name)
+        else:
+            text = tr("{anzahl} neue Ordner im Scan-Ordner").format(anzahl=len(neue))
+        self.fenster.statusbar.showMessage(text, 5000)
 
     def _entfernen_abschliessen(self):
         fenster = self.fenster

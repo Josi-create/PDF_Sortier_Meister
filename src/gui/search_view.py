@@ -54,7 +54,7 @@ from src.gui.search_worker import DokumentLaden, StatusAbfrage, SuchAbfrage
 from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.ausgabe import datum as datum_text
 from src.search.plattform import im_dateimanager_zeigen
-from src.search.suchindex import Suchindex
+from src.search.suchindex import Suchindex, anhaenge_ablegen
 from src.utils.platform_paths import file_manager_name, open_with_default_app
 from src.i18n import tr
 
@@ -394,6 +394,13 @@ class TrefferKarte(QFrame):
         if metadaten_zeile(d):
             self.metadaten_label = self._label(escape(metadaten_zeile(d)), "color: $gruen_text_suche; font-size: 11px;")
             lay.addWidget(self.metadaten_label)
+        # Issue #298: eigene Notiz zum Dokument (eine Zeile, Umbrueche als Leerzeichen)
+        self.notiz_label = None
+        notiz = " ".join(str(d.get("notiz") or "").split())
+        if notiz:
+            self.notiz_label = self._label(escape(tr("Notiz: {notiz}").format(notiz=notiz)),
+                                           "color: $grau_66; font-size: 11px; font-style: italic;")
+            lay.addWidget(self.notiz_label)
 
         pfad = d.get("ordner") if d.get("typ") == "mail" and d.get("format") == "mbox" else d.get("pfad")
         self.pfad_label = self._label(escape(pfad or ""), "color: $grau_88; font-size: 11px;")
@@ -1366,6 +1373,8 @@ class SearchView(QWidget):
         menue.addAction(tr("Pfad kopieren"), lambda: self._pfad_kopieren(d))
         if d.get("typ") == "mail":
             menue.addAction(tr("Als .eml speichern…"), lambda: self._eml_speichern(d))
+        if Suchindex.hat_pdf_anhaenge(d):
+            menue.addAction(tr("PDF-Anhänge in den Scan-Ordner legen"), lambda: self._anhaenge_in_scan_ordner(d))
         return menue
 
     def _kontextmenue_zeigen(self, karte: TrefferKarte, pos: QPoint) -> None:
@@ -1423,6 +1432,24 @@ class SearchView(QWidget):
             self._meldung(tr("Speichern fehlgeschlagen: {e}").format(e=e))
             return
         self._meldung(tr("Gespeichert: {ziel}").format(ziel=ziel))
+
+    def _anhaenge_in_scan_ordner(self, d: dict) -> None:
+        """PDF-Anhaenge der Mail in den Scan-Ordner kopieren; die Ordner-Beobachtung macht Kacheln daraus (Issue #327)."""
+        ordner = self.config.get_scan_folder() if self.config is not None else None
+        if ordner is None or not ordner.is_dir():
+            self._meldung(tr("Kein Scan-Ordner eingestellt oder der Ordner fehlt."))
+            return
+        try:
+            abgelegt = anhaenge_ablegen(self.index.mail_pdf_anhaenge(d), ordner)
+        except Exception as e:  # Mail unlesbar, Ordner schreibgeschuetzt, defekte .msg ...
+            self._meldung(tr("Die Anhänge konnten nicht abgelegt werden: {e}").format(e=e))
+            return
+        if not abgelegt:
+            self._meldung(tr("Die Mail enthält keine PDF-Anhänge."))
+        elif len(abgelegt) == 1:
+            self._meldung(tr("1 Anhang in den Scan-Ordner gelegt: {name}").format(name=abgelegt[0].name))
+        else:
+            self._meldung(tr("{anzahl} Anhänge in den Scan-Ordner gelegt").format(anzahl=len(abgelegt)))
 
     def _hilfe_zeigen(self) -> None:
         QMessageBox.information(self, tr("So wird gesucht"), HILFE_HTML)

@@ -254,7 +254,8 @@ def pdf_bild_hashes(pfad: str, seiten: list[int]) -> dict:
 
 
 _INFO_FELDER = {"Korrespondent": "korrespondent", "Steuerjahr": "steuerjahr", "Buchungsdatum": "buchungsdatum",
-                "Subject": "zusammenfassung", "Keywords": "schlagwoerter"}
+                "Subject": "zusammenfassung", "Keywords": "schlagwoerter", "Notiz": "notiz"}
+_INFO_LAENGE = {"notiz": 2000}  # Issue #298: eine Notiz darf laenger sein als die uebrigen Felder
 _XMP_SUBJECT = re.compile(r"<dc:subject[^>]*>(.*?)</dc:subject>", re.S)
 _TAG = re.compile(r"<[^>]+>")
 _DATEINAME = re.compile(r"[^\s/\\]+\.pdf", re.I)
@@ -287,7 +288,7 @@ def pdf_metadaten(doc) -> dict:
             schluessel = set()
         for k, feld in _INFO_FELDER.items():
             if k in schluessel:
-                wert = _info_wert(doc, xref, k)
+                wert = _info_wert(doc, xref, k, _INFO_LAENGE.get(feld, 500))
                 if wert:
                     erg[feld] = wert
         for k in ("BetragBrutto", "Betrag"):
@@ -311,7 +312,7 @@ def pdf_metadaten(doc) -> dict:
     return erg
 
 
-def _info_wert(doc, xref: int, schluessel: str) -> str | None:
+def _info_wert(doc, xref: int, schluessel: str, laenge: int = 500) -> str | None:
     try:
         art, wert = doc.xref_get_key(xref, schluessel)
     except Exception:
@@ -319,7 +320,7 @@ def _info_wert(doc, xref: int, schluessel: str) -> str | None:
     if art != "string" or wert is None:
         return None
     s = str(wert).strip()
-    return s[:500] or None
+    return s[:laenge] or None
 
 
 def pdf_ocr(pfad: str, seiten: list[int], cfg: dict) -> dict:
@@ -795,6 +796,49 @@ def mail_format(kopf: bytes) -> str:
     if _KOPFZEILE.match(erste) and _MAIL_KOEPFE.search(kopf[:8192]):
         return "rfc822"
     return "unbekannt"
+
+
+def _ist_pdf_anhang(name: str, mime: str = "") -> bool:
+    return name.lower().endswith(".pdf") or mime.lower() == "application/pdf"
+
+
+def pdf_anhaenge_aus_bytes(roh: bytes) -> list[tuple[str, bytes]]:
+    """PDF-Anhaenge einer RFC-822-Mail als (Dateiname, Inhalt), unveraendert (Issue #327)."""
+    msg = email.message_from_bytes(roh, policy=policy.default)
+    anhaenge = []
+    for teil in msg.walk():
+        if teil.is_multipart():
+            continue
+        name = str(teil.get_filename() or "")
+        if not _ist_pdf_anhang(name, teil.get_content_type()):
+            continue
+        daten = teil.get_payload(decode=True)
+        if daten:
+            anhaenge.append((name, daten))
+    return anhaenge
+
+
+def msg_pdf_anhaenge(pfad: str) -> list[tuple[str, bytes]]:
+    """PDF-Anhaenge einer ``.msg``-Datei (Outlook-Container oder als Text gespeicherte Mail)."""
+    with open(pfad, "rb") as f:
+        kopf = f.read(8192)
+    art = mail_format(kopf)
+    if art == "rfc822":
+        return pdf_anhaenge_aus_bytes(Path(pfad).read_bytes())
+    if art != "ole":
+        return []
+    import extract_msg
+    m = extract_msg.openMsg(pfad)
+    try:
+        anhaenge = []
+        for a in m.attachments:
+            name = str((a.getFilename() if hasattr(a, "getFilename") else "") or "")
+            daten = getattr(a, "data", None)
+            if isinstance(daten, bytes) and daten and _ist_pdf_anhang(name, str(getattr(a, "mimetype", "") or "")):
+                anhaenge.append((name, daten))
+        return anhaenge
+    finally:
+        m.close()
 
 
 def mbox_stapel(stapel: list[tuple[int, int, bytes]]) -> list[tuple[int, int, dict]]:

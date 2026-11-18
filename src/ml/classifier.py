@@ -587,7 +587,9 @@ class PDFClassifier:
         # Issue #254: Ein Bescheid "fuer 2020" gehoert in den Ordner fuer 2020,
         # auch wenn der Brief von 2022 ist
         from src.core.document_date import bezugsjahr
-        detected_year = bezugsjahr(text) or self._extract_year_from_date(detected_date)
+        bezug = bezugsjahr(text)
+        datum_jahr = self._extract_year_from_date(detected_date)
+        detected_year = bezug or datum_jahr
 
         target_year = detected_year or current_year
 
@@ -608,15 +610,21 @@ class PDFClassifier:
             )
 
             # Jahres-Variante (Issue #30): "Steuer 2025/Medikamente" -> "Steuer 2026/Medikamente",
-            # nur wenn der Ordner existiert. Der gelernte Vorschlag bleibt immer erhalten;
+            # nur wenn der Ordner existiert. Der gelernte Vorschlag bleibt erhalten, wenn sein Jahr passt;
             # die Variante steht vorn, wenn das im Dokument erkannte Jahr zu ihr passt.
+            # Issue #308: "Steuer 2010" bei einem Bescheid fuer 2020 nicht mehr anbieten -
+            # der Ordner kam nur ueber aehnlichen Text eines alten Bescheids dazu
+            original_passt = self._ordnerjahr_passt(relative_path, bezug, datum_jahr)
             variant = self._year_variant(s.folder_path, relative_path, target_year)
             if variant is None:
-                _add(original)
+                if original_passt:
+                    _add(original)
                 continue
 
             variant_path, variant_relative = variant
             year_matches = detected_year is not None
+            if not original_passt:
+                original = None
             if year_matches:
                 reason = tr("Jahr {target_year} im Dokument erkannt - Variante von \"{relative_path}\"").format(target_year=target_year, relative_path=relative_path)
                 confidence = min(1.0, s.confidence + 0.05)
@@ -632,12 +640,44 @@ class PDFClassifier:
             )
             if year_matches:
                 _add(variant_suggestion)
-                _add(original)
+                if original is not None:
+                    _add(original)
             else:
                 _add(original)
                 _add(variant_suggestion)
 
         return suggestions[:max_suggestions]
+
+    @staticmethod
+    def _ordnerjahr_passt(
+        relative_path: str, bezug: Optional[int], datum_jahr: Optional[int]
+    ) -> bool:
+        """
+        Passt die Jahreszahl im Ordnerpfad zum Dokument? (Issue #308)
+
+        Ein gelernter Ordner mit Jahr im Namen bleibt Vorschlag, wenn sein Jahr
+        zum Bezugsjahr im Text passt (+/- 1, die erste Jahresnennung kann eine
+        Vorauszahlung sein) oder zum Briefdatum (bis 3 Jahre aelter, Bescheide
+        kommen spaet; 1 Jahr juenger). Ohne erkanntes Jahr oder ohne Jahr im
+        Ordnernamen passt er immer. Gezaehlt werden nur die Jahre unterhalb des
+        Zielordners ("Ablage/Steuer 2010" -> 2010), damit ein Zielordner wie
+        "Archiv 2015" nicht alle seine Unterordner ausschliesst.
+        """
+        if bezug is None and datum_jahr is None:
+            return True
+        year_re = re.compile(r"(?<!\d)20\d{2}(?!\d)")
+        teile = (relative_path or "").split("/")
+        if len(teile) > 1:
+            teile = teile[1:]  # erster Teil ist der Name des Zielordners
+        jahre = [int(j) for teil in teile for j in year_re.findall(teil)]
+        if not jahre:
+            return True
+        for jahr in jahre:
+            if bezug is not None and abs(jahr - bezug) <= 1:
+                return True
+            if datum_jahr is not None and datum_jahr - 3 <= jahr <= datum_jahr + 1:
+                return True
+        return False
 
     def _get_relative_path(
         self,

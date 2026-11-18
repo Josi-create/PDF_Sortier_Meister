@@ -115,6 +115,7 @@ class FolderTreeWidget(QWidget):
     favorit_umschalten = pyqtSignal(Path)  # Favorit merken bzw. entfernen (Issue #114)
     ordner_dropped = pyqtSignal(Path, Path)  # Ordnerzeile gezogen: (Ordner, Zielordner), Issue #196
     ordner_copy_dropped = pyqtSignal(Path, Path)  # dasselbe mit Strg: kopieren, Issue #196
+    doppelte_suchen_requested = pyqtSignal(Path)  # Kontextmenue "Doppelte Dateien suchen" (Issue #299)
     # Plus am Suchfeld bzw. Zeile "Als Zielordner hinzufügen" (Issue #258):
     # Path = diesen Ordner aufnehmen, None = Ordner im Dialog auswaehlen
     zielordner_hinzufuegen = pyqtSignal(object)
@@ -743,6 +744,10 @@ class FolderTreeWidget(QWidget):
         # --- Info / Dateimanager ---
         info_action = menu.addAction(tr("ℹ️ Inhalt anzeigen"))
         info_action.triggered.connect(lambda: self._show_folder_info(folder_path))
+
+        # Issue #299: gleiche Dateien in diesem Ordner und den Unterordnern aufraeumen
+        doppelte_action = menu.addAction(tr("🧹 Doppelte Dateien suchen …"))
+        doppelte_action.triggered.connect(lambda: self.doppelte_suchen_requested.emit(folder_path))
 
         # Im Dateimanager öffnen
         open_action = menu.addAction(tr("📂 Im {0} öffnen").format(file_manager_name()))

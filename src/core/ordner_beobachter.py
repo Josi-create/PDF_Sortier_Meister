@@ -23,6 +23,11 @@ Pruefung zu bestehen (beschaedigtes PDF, gesperrte Datei), wird sie trotzdem
 gemeldet - F5 wuerde sie auch zeigen. Dateien, die nur als Platzhalter in der
 Cloud liegen (OneDrive „nur online“), werden nicht geoeffnet; das Lesen wuerde
 sie herunterladen.
+
+Unterordner (Issue #319): Bei jedem Lesen werden auch die Namen der Unterordner
+gelesen (``unterordner_lesen``, gleiche Auswahl wie ``FolderManager.get_subfolders``).
+Neue, verschwundene und umbenannte Ordner meldet die Beobachtung sofort, ohne
+Ruhezeit - ein Ordner wird nicht „geschrieben“.
 """
 
 from __future__ import annotations
@@ -63,9 +68,12 @@ class Aenderung:
     geaendert: list[str] = field(default_factory=list)  # Inhalt geaendert und wieder zur Ruhe gekommen
     wartend: int = 0                                    # noch nicht fertig geschrieben
     liste: dict[str, Eintrag] = field(default_factory=dict)  # alle Dateien des Ordners, wie gelesen
+    # Issue #319: alle Unterordner (sortiert), wenn sie sich seit dem letzten Lesen geaendert haben
+    unterordner: Optional[list[str]] = None
+    unterordner_pdfs: dict[str, int] = field(default_factory=dict)  # PDF-Zahl der neuen Unterordner
 
     def __bool__(self) -> bool:
-        return bool(self.neu or self.weg or self.geaendert)
+        return bool(self.neu or self.weg or self.geaendert or self.unterordner is not None)
 
 
 def _eintrag(st: os.stat_result) -> Eintrag:
@@ -104,6 +112,34 @@ def ordner_lesen(ordner: Path | str, endungen: Iterable[str]) -> dict[str, Eintr
             except OSError:
                 continue  # zwischen Auflisten und Lesen verschwunden
     return dateien
+
+
+def unterordner_lesen(ordner: Path | str) -> list[str]:
+    """Namen der Unterordner, sortiert wie in der Ansicht (``FolderManager.get_subfolders``).
+
+    Raises:
+        OSError: Ordner nicht lesbar (wie ``ordner_lesen``).
+    """
+    namen = []
+    with os.scandir(ordner) as eintraege:
+        for e in eintraege:
+            if e.name.startswith((".", "$", "~")):
+                continue
+            try:
+                if e.is_dir():  # folgt Verknuepfungen (OneDrive-Junction) wie Path.is_dir
+                    namen.append(e.name)
+            except OSError:
+                continue
+    namen.sort(key=lambda n: n.lower())
+    return namen
+
+
+def pdf_anzahl(ordner: Path | str) -> Optional[int]:
+    """Anzahl der PDFs direkt im Ordner (wie ``FolderManager.count_pdfs``); None, wenn nicht lesbar."""
+    try:
+        return len(ordner_lesen(ordner, (".pdf",)))
+    except OSError:
+        return None
 
 
 def datei_stand(pfad: Path | str) -> Optional[Eintrag]:

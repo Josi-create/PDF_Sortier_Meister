@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import QApplication, QToolTip
 
 from src.gui.vorschlag_liste import (
@@ -148,21 +148,63 @@ def test_neuer_ordner_zeigt_ebenfalls_den_vollen_elternpfad(qtbot, tmp_path):
 
 # --- Tooltips ----------------------------------------------------------------
 
-def _tooltip_hell(qtbot, widget) -> bool:
-    QToolTip.showText(widget.mapToGlobal(QPoint(4, 4)), widget.toolTip() or "Tipp", widget)
+@pytest.fixture
+def helles_schema(qapp):
+    """Helle Palette des Programms, wie sie farben.einrichten() beim Start setzt.
+
+    Ohne sie gilt die Palette des Systems: Bei dunklem Windows-Farbschema sind
+    Tooltips dort deckend dunkelgrau, und "hell" waere nicht pruefbar (Issue #303).
+    """
+    from src.gui import farben
+
+    palette, stylesheet = qapp.palette(), qapp.styleSheet()
+    zustand = farben._dunkel, farben._wahl, farben._app_stil
+    farben._app_stil = None
+    farben.anwenden(farben.HELL, qapp)
+    yield
+    farben._dunkel, farben._wahl, farben._app_stil = zustand
     try:
-        tips = []
-        qtbot.waitUntil(lambda: tips.extend(
-            w for w in QApplication.topLevelWidgets()
-            if w.metaObject().className() == "QTipLabel" and w.isVisible()) or bool(tips), timeout=2000)
+        qapp.styleHints().unsetColorScheme()
+    except AttributeError:  # Qt < 6.8
+        pass
+    qapp.setPalette(palette)
+    qapp.setStyleSheet(stylesheet)
+
+
+def _tooltip_hell(qtbot, widget) -> bool:
+    """Zeigt den Tooltip von *widget* und prueft, ob er deckend und hell ist.
+
+    Auf einem echten Windows-Desktop (nicht offscreen wie in der CI, Issue #303)
+    aktiviert Windows das Testfenster erst kurz nach dem Anzeigen, und Qt schliesst
+    einen Tooltip bei jedem WindowActivate sofort. Ausserdem rollt er dort
+    animiert auf und ist dabei noch nicht sichtbar. Deshalb: Animation aus und den
+    Tooltip erneut zeigen, solange keiner sichtbar ist.
+    """
+    app = QApplication.instance()
+    effekte = {e: app.isEffectEnabled(e) for e in (Qt.UIEffect.UI_AnimateTooltip, Qt.UIEffect.UI_FadeTooltip)}
+    for e in effekte:
+        QApplication.setEffectEnabled(e, False)
+    tips = []
+
+    def sichtbar() -> bool:
+        tips[:] = [w for w in QApplication.topLevelWidgets()
+                   if w.metaObject().className() == "QTipLabel" and w.isVisible()]
+        if not tips:
+            QToolTip.showText(widget.mapToGlobal(QPoint(4, 4)), widget.toolTip() or "Tipp", widget)
+        return bool(tips)
+
+    try:
+        qtbot.waitUntil(sichtbar, timeout=3000)
         bild = tips[0].grab().toImage()
         farbe = bild.pixelColor(bild.width() - 3, bild.height() // 2)  # rechter Rand: kein Text
         return farbe.alpha() == 255 and farbe.lightness() > 150
     finally:
         QToolTip.hideText()
+        for e, an in effekte.items():
+            QApplication.setEffectEnabled(e, an)
 
 
-def test_tooltip_der_vorschlagszeile_ist_nicht_transparent(qtbot, tmp_path):
+def test_tooltip_der_vorschlagszeile_ist_nicht_transparent(qtbot, tmp_path, helles_schema):
     liste = VorschlagListe()
     qtbot.addWidget(liste)
     zeile = VorschlagZeile(tmp_path / "Ziel")
@@ -174,7 +216,7 @@ def test_tooltip_der_vorschlagszeile_ist_nicht_transparent(qtbot, tmp_path):
     assert _tooltip_hell(qtbot, zeile)
 
 
-def test_tooltip_des_typ_etiketts_ist_hell(qtbot, tmp_path, monkeypatch):
+def test_tooltip_des_typ_etiketts_ist_hell(qtbot, tmp_path, monkeypatch, helles_schema):
     from src.gui.office_thumbnail import OfficeThumbnailWidget
 
     monkeypatch.setattr(OfficeThumbnailWidget, "load_thumbnail", lambda self: None)

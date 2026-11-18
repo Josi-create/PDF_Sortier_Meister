@@ -1137,6 +1137,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         )
         self.folder_tree.ordner_dropped.connect(self.on_tree_ordner_dropped)  # Issue #196
         self.folder_tree.ordner_copy_dropped.connect(self.on_tree_ordner_copy_dropped)
+        self.folder_tree.doppelte_suchen_requested.connect(self.doppelte_aufraeumen)  # Issue #299
         self.folder_tree.favorit_pruefer = self.favoriten_leiste.ist_favorit
         self.folder_tree.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
         self.folder_tree.zielordner_hinzufuegen.connect(self._on_zielordner_hinzufuegen)  # Issue #258
@@ -1264,22 +1265,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             (f, False) for f in subfolders
         ]
         for folder, is_parent in tile_folders:
-            tile = FolderTileWidget(
+            self.folder_tiles.append(self._erzeuge_ordnerzeile(
                 folder,
                 pdf_count=None if is_parent else self.folder_manager.count_pdfs(folder),
                 is_parent=is_parent,
-            )
-            tile.double_clicked.connect(self.on_folder_tile_double_clicked)
-            if is_parent:
-                # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
-                tile.clicked.connect(self.on_parent_tile_clicked)
-            tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
-            self.verbinde_hierhin_kopieren(tile)  # Issue #179
-            self.verbinde_ordnerzeile(tile)  # Issue #183
-            self.verbinde_ordner_markierung(tile)  # Issue #196
-            tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
-            tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
-            self.folder_tiles.append(tile)
+            ))
         self._place_folder_rows()
         self._ordner_markierung_anwenden()  # Issue #196: markierter Ordner bleibt markiert
 
@@ -1321,6 +1311,21 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._schedule_pre_caching(pdf_files)
         # Inhaltsgleiche Dateien kennzeichnen (Issue #245); gerechnet wird im Hintergrund
         self._doppelte_im_ordner.neu_geladen()
+
+    def _erzeuge_ordnerzeile(self, folder: Path, pdf_count, is_parent: bool = False) -> FolderTileWidget:
+        """Ordnerzeile mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #319)."""
+        tile = FolderTileWidget(folder, pdf_count=pdf_count, is_parent=is_parent)
+        tile.double_clicked.connect(self.on_folder_tile_double_clicked)
+        if is_parent:
+            # Die ".."-Zeile wirkt wie eine Schaltflaeche -> Einfachklick (Issue #50)
+            tile.clicked.connect(self.on_parent_tile_clicked)
+        tile.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
+        self.verbinde_hierhin_kopieren(tile)  # Issue #179
+        self.verbinde_ordnerzeile(tile)  # Issue #183
+        self.verbinde_ordner_markierung(tile)  # Issue #196
+        tile.favorit_pruefer = self.favoriten_leiste.ist_favorit
+        tile.favorit_umschalten.connect(self.favoriten_leiste.umschalten)
+        return tile
 
     def _erzeuge_pdf_kachel(self, pdf_path: Path) -> PDFThumbnailWidget:
         """Kachel einer PDF mit allen Signalen (``load_pdfs`` und Ordner-Beobachtung, Issue #232)."""
@@ -2301,6 +2306,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         steuer_action.setToolTip(tr("Jahressummen nach Kategorie anzeigen und als CSV exportieren"))
         steuer_action.triggered.connect(self._open_steuerauswertung)
         extras_menu.addAction(steuer_action)
+
+        # Issue #299: gleiche Dateien im geoeffneten Ordner (mit Unterordnern) aufraeumen
+        self.doppelte_action = QAction(tr("Doppelte Dateien suchen …"), self)
+        self.doppelte_action.setToolTip(
+            tr("Dateien mit gleichem Inhalt im geöffneten Ordner und seinen Unterordnern finden und aufräumen"))
+        self.doppelte_action.triggered.connect(lambda: self.doppelte_aufraeumen())
+        extras_menu.addAction(self.doppelte_action)
 
         extras_menu.addSeparator()
 
@@ -3532,6 +3544,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     # sonst bleiben die der Datei (write_metadata)
                     metadata.schlagwoerter = schlagwort_regeln.als_text(
                         schlagwort_regeln.aus_eingabe(dialog_metadata["schlagwoerter"]))
+                if "notiz" in dialog_metadata:
+                    # Issue #298: wie die Schlagwoerter - "" entfernt die Notiz, ohne Schluessel bleibt sie
+                    metadata.notiz = str(dialog_metadata["notiz"] or "").strip()
 
             # Eine Kategorie, keine abgeschriebene KI-Auswahlliste - auch fuer den Suchindex
             metadata.subject = clean_category(metadata.subject) or None
@@ -3564,11 +3579,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 "buchungsdatum": metadata.buchungsdatum,
                 "zusammenfassung": metadata.description,
                 "schlagwoerter": metadata.keywords,
+                "notiz": metadata.notiz,
             }
-            # Geleerte Schlagwoerter (Issue #231) muessen auch im Index verschwinden
-            geleert = metadata.schlagwoerter is not None and not metadata.keywords
+            # Geleerte Schlagwoerter (Issue #231) und eine entfernte Notiz (Issue #298) muessen
+            # auch im Index verschwinden
+            geleert = set()
+            if metadata.schlagwoerter is not None and not metadata.keywords:
+                geleert.add("schlagwoerter")
+            if metadata.notiz is not None and not metadata.notiz:
+                geleert.add("notiz")
             self.db.set_document_metadata(
-                str(pdf_path), {k: v for k, v in felder.items() if v or (geleert and k == "schlagwoerter")},
+                str(pdf_path), {k: v for k, v in felder.items() if v or k in geleert},
                 sofort=False)
         except Exception as e:  # noqa: BLE001 - der Index ist Zusatz, nie Blocker
             print(f"Suchindex: Metadaten nicht gemeldet: {e}")
@@ -3576,8 +3597,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     @staticmethod
     def _mit_schlagwort_feld(metadata: dict) -> dict:
         """Metadaten des Detail-Panels fuer "in der PDF speichern": Das Panel zeigt die Schlagwoerter
-        dieser Datei, ein leeres Feld heisst deshalb "alle entfernen" (Issue #231)."""
-        return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", "")}
+        und die Notiz dieser Datei, ein leeres Feld heisst deshalb "entfernen" (Issues #231, #298)."""
+        return {**(metadata or {}), "schlagwoerter": (metadata or {}).get("schlagwoerter", ""),
+                "notiz": (metadata or {}).get("notiz", "")}
 
     def _on_save_metadata_in_place(self):
         """Speichert Metadaten aus dem Detail-Panel in die PDF, ohne sie zu verschieben."""
@@ -3590,7 +3612,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
 
         metadata = self.detail_panel.get_metadata()
-        if not metadata and not self.detail_panel.hat_gespeicherte_schlagwoerter():
+        if not metadata and not (self.detail_panel.hat_gespeicherte_schlagwoerter()
+                                 or self.detail_panel.hat_gespeicherte_notiz()):
             self.statusbar.showMessage(tr("Keine Metadaten eingegeben"), 2000)
             return
 
@@ -3661,7 +3684,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             else:
                 new_path = pdf_path
 
-            if metadata or self.detail_panel.hat_gespeicherte_schlagwoerter():
+            if (metadata or self.detail_panel.hat_gespeicherte_schlagwoerter()
+                    or self.detail_panel.hat_gespeicherte_notiz()):
                 self._write_pdf_metadata(new_path, new_path.name, self.selected_pdf_keywords,
                                          self._mit_schlagwort_feld(metadata))
                 if metadata.get("korrespondent"):
@@ -5753,6 +5777,15 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         else:
             self.detail_panel.clear()
 
+    def doppelte_aufraeumen(self, ordner: Optional[Path] = None):
+        """Uebersicht der doppelten Dateien in ``ordner`` (Standard: geoeffneter Scan-Ordner), Issue #299."""
+        from src.gui.doppelte_aufraeumen import DoppelteAufraeumenDialog
+        ordner = Path(ordner) if ordner else self.file_manager.scan_folder
+        if not ordner or not Path(ordner).is_dir():
+            self.statusbar.showMessage(tr("Kein Ordner geöffnet"), 3000)
+            return
+        DoppelteAufraeumenDialog(self, Path(ordner)).exec()
+
     def _open_steuerauswertung(self):
         """Oeffnet den Steuerauswertungs-Dialog."""
         from src.gui.steuerauswertung_dialog import SteuerauswertungDialog
@@ -6372,6 +6405,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.refresh_settings()
         # Reiter „Suche“: Suche ein-/ausgeschaltet, anderer Speicherort
         self.search_view.refresh_settings()
+        # Issue #306: Hinweis bei doppelten Dateien ein-/ausgeschaltet
+        self._doppelte_im_ordner.einstellung_geaendert()
         self.statusbar.showMessage(tr("Einstellungen gespeichert"), 3000)
         # KI-Vorabfrage neu anstossen: PDFs, die ohne verfuegbares LLM
         # uebersprungen wurden, werden jetzt eingereiht.
