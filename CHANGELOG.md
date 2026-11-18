@@ -67,6 +67,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
   Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
   wie bisher.
+- **KI-Assistent „Claude“ (direkt) funktioniert wieder** (#380): Mit der aktuellen
+  anthropic-Bibliothek (auch in v0.30.0 und älteren Installationspaketen enthalten) brach jeder
+  Ordner- und Namensvorschlag mit „unexpected keyword argument 'temperature'“ ab. Bei neueren
+  Claude-Modellen kam danach „'ThinkingBlock' object has no attribute 'text'“, auch bei „Verbindung
+  testen“. Die Einstellung „Temperatur“ wird jetzt nur noch an Modelle geschickt, die sie annehmen
+  (bis Claude 4.5), und die Antwort wird auch gelesen, wenn das Modell vorher „nachdenkt“.
 
 ### Intern
 - **Tests laufen auch auf einem echten Windows-Desktop grün** (#303): Drei Oberflächen-Tests

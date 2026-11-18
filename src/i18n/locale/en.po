@@ -5457,6 +5457,10 @@ msgid "Temperatur:"
 msgstr "Temperature:"
 
 #: src/gui/settings_dialog.py
+msgid "Zufallsanteil der Antworten (niedrig = gleichbleibender). Neuere Claude-Modelle (ab Claude 4.6) nehmen den Wert nicht mehr an; dort wird er weggelassen."
+msgstr "Randomness of the responses (low = more consistent). Newer Claude models (from Claude 4.6 on) no longer accept the value; it is left out there."
+
+#: src/gui/settings_dialog.py
 msgid " Zeichen"
 msgstr " characters"
 
