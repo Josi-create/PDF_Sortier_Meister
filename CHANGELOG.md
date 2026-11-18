@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Vorschau friert nicht mehr ein** (#411): Passte eine Seite fast genau in die Höhe des
+  Vorschaubereichs, blieb die Vorschau weiß und das ganze Fenster reagierte nicht mehr („Keine
+  Rückmeldung“), bis man das Programm beendete. Der Rollbalken der Vorschau wurde dabei endlos ein-
+  und ausgeblendet. Er ist jetzt immer sichtbar, auch bei einseitigen Dokumenten; damit kann das
+  nicht mehr passieren. Betroffen waren die Vorschau rechts und die große Vorschau im eigenen
+  Fenster.
+
 ## [0.31.0] - 2026-11-18
 
 ### Neu
