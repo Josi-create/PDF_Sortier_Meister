@@ -10025,8 +10025,16 @@ msgid "Notiz"
 msgstr "Note"
 
 #: src/gui/detail_panel.py
-msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nWird in der PDF gespeichert und von der Suche und vom Chat gefunden."
-msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved in the PDF and found by the search and the chat."
+msgid "Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\nSpeichert sich von selbst in der PDF, sobald Sie das Feld oder das Dokument verlassen,\nund wird von der Suche und vom Chat gefunden."
+msgstr "Your own note on this document, e.g. “Copy sent to the tax office”.\nSaved to the PDF automatically as soon as you leave the field or the document,\nand found by the search and the chat."
+
+#: src/gui/main_window.py
+msgid "Notiz gespeichert"
+msgstr "Note saved"
+
+#: src/gui/main_window.py
+msgid "Notiz konnte nicht gespeichert werden"
+msgstr "The note could not be saved"
 
 #: src/gui/detail_panel.py
 msgid "Eigene Notiz, z. B. „Original beim Steuerberater“"

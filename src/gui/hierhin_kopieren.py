@@ -158,6 +158,8 @@ class HierhinKopierenMixin:
         if self.detail_panel.get_current_pdf() == pdf_path:
             new_name = self.detail_panel.get_new_name()
             metadata = self.detail_panel.get_metadata()
+            if "notiz" not in metadata and self.detail_panel.hat_gespeicherte_notiz():
+                metadata["notiz"] = ""  # Issue #382: geleertes Feld entfernt die Notiz auch beim Ablegen
             dates = self.selected_pdf_dates
         elif vorbelegung is not None:
             new_name, metadata = vorbelegung[0], dict(vorbelegung[1] or {})

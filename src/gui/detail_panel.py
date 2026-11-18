@@ -196,6 +196,8 @@ class DetailPanel(QWidget):
     edit_pattern_requested = pyqtSignal()
     # Rechtsklick auf das Feld Korrespondent: alle Dokumente zeigen (Issue #160)
     korrespondent_dokumente_requested = pyqtSignal(str)
+    # Issue #382: geaenderte Notiz von selbst speichern (PDF, Notiztext; "" = entfernen)
+    notiz_speichern_requested = pyqtSignal(Path, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -462,7 +464,8 @@ class DetailPanel(QWidget):
             "description": tr("Kurze Zusammenfassung des Dokumentinhalts."),
             "notiz": (
                 tr("Eigene Notiz zu diesem Dokument, z. B. „Kopie ans Finanzamt geschickt“.\n"
-                "Wird in der PDF gespeichert und von der Suche und vom Chat gefunden.")
+                "Speichert sich von selbst in der PDF, sobald Sie das Feld oder das Dokument verlassen,\n"
+                "und wird von der Suche und vom Chat gefunden.")
             ),
         }
 
@@ -541,6 +544,8 @@ class DetailPanel(QWidget):
             if field_key == "korrespondent":
                 input_field.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                 input_field.customContextMenuRequested.connect(self._korrespondent_menue_zeigen)
+            elif field_key == "notiz":
+                input_field.installEventFilter(self)  # Feld verlassen: Notiz speichern (Issue #382)
 
         metadata_layout.addLayout(grid)
 
@@ -655,6 +660,7 @@ class DetailPanel(QWidget):
         detected_date: str = None,
     ):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
+        self.notiz_sichern()  # Issue #382: die Notiz des bisherigen Dokuments geht nicht verloren
         self._current_pdf = pdf_path
         self._suggestions = suggestions or []
         self._detected_date = detected_date
@@ -839,6 +845,7 @@ class DetailPanel(QWidget):
 
     def clear(self):
         """Leert das Panel (kein PDF ausgewählt)."""
+        self.notiz_sichern()  # Issue #382
         self._current_pdf = None
         self._suggestions = []
         self._metadata = {}
@@ -914,6 +921,38 @@ class DetailPanel(QWidget):
     def hat_gespeicherte_notiz(self) -> bool:
         """Steht in der angezeigten PDF eine Notiz? Dann heisst ein leeres Feld "entfernen" (Issue #298)."""
         return bool(self._saved_metadata_snapshot.get("notiz"))
+
+    # --- Notiz speichert sich von selbst (Issue #382; Feld verlassen: eventFilter) --- #
+
+    def notiz_sichern(self) -> None:
+        """Weicht die Notiz von der gespeicherten ab, wird sie gespeichert (Signal ans Hauptfenster).
+
+        Nur die Notiz: die uebrigen Felder bleiben, bis "Metadaten speichern" oder das Verschieben
+        sie schreibt. Ein leeres Feld entfernt eine gespeicherte Notiz.
+        """
+        pdf = self._current_pdf
+        feld = self._metadata_inputs.get("notiz")
+        if pdf is None or feld is None or self._loading_metadata:
+            return
+        text = feld.toPlainText().strip()
+        if text == (self._saved_metadata_snapshot.get("notiz") or ""):
+            return
+        self.notiz_speichern_requested.emit(pdf, text)
+
+    def notiz_gespeichert(self, pdf_path: Path, text: str) -> None:
+        """Nach dem Schreiben: die Notiz gilt als gespeichert, die uebrigen Felder bleiben, wie sie sind."""
+        if pdf_path != self._current_pdf:
+            return
+        text = (text or "").strip()
+        if text:
+            self._saved_metadata_snapshot["notiz"] = text
+            self._pdf_field_keys.add("notiz")
+        else:
+            self._saved_metadata_snapshot.pop("notiz", None)
+            self._pdf_field_keys.discard("notiz")
+        if self._saved_metadata_snapshot and self.get_metadata() == self._saved_metadata_snapshot:
+            self._metadata_source = "pdf"
+        self._refresh_save_btn()
 
     def get_current_pdf(self) -> Optional[Path]:
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
@@ -1702,6 +1741,11 @@ class DetailPanel(QWidget):
         # Breite der Liste aendert sich (Fenster/Splitter): Scrollbalken-Bedarf neu pruefen
         if obj is self.suggestions_list and event.type() == QEvent.Type.Resize:
             QTimer.singleShot(0, self._fit_suggestions_height)
+        # Feld "Notiz" verlassen: Notiz speichern, nicht beim Kontextmenue des Feldes selbst (Issue #382)
+        elif (event.type() == QEvent.Type.FocusOut
+                and obj is getattr(self, "_metadata_inputs", {}).get("notiz")
+                and event.reason() != Qt.FocusReason.PopupFocusReason):
+            self.notiz_sichern()
         return super().eventFilter(obj, event)
 
     def _on_suggestion_clicked(self, item: QListWidgetItem):
