@@ -227,10 +227,12 @@ def test_verbindung_testen_mit_denkblock(monkeypatch, qtbot, fresh_config):
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic)
 
     meldungen = []
-    monkeypatch.setattr(modul.QMessageBox, "information",
-                        lambda *a, **k: meldungen.append(("info", a)))
-    monkeypatch.setattr(modul.QMessageBox, "critical",
-                        lambda *a, **k: meldungen.append(("fehler", a)))
+    # Ganze Klasse ersetzen: so kann nie ein echtes modales Fenster aufgehen
+    monkeypatch.setattr(modul, "QMessageBox", SimpleNamespace(
+        information=lambda *a, **k: meldungen.append(("info", a)),
+        critical=lambda *a, **k: meldungen.append(("fehler", a)),
+        warning=lambda *a, **k: meldungen.append(("fehler", a)),
+    ))
 
     modul.SettingsDialog._test_claude(None, "sk-test", "claude-opus-5-5")
 
