@@ -8,10 +8,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Behoben
-- **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
-  sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
-  Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
-  Drehen einer PDF und nach Strg+Z.
 - **Meldung nach dem Trennen** (#347): Die Frage nach dem Trennen nennt jetzt die richtige Zahl der
   Dateien. Wurden nur einzelne Seiten herausgeholt („Bestimmte Seiten extrahieren“), steht dort
   nicht mehr „wurde in 1 Datei(en) getrennt“, sondern dass eine neue Datei erstellt wurde, das
@@ -70,6 +66,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Die deutsche Oberfläche bleibt bei „PDF Sortier Meister“.
 
 ### Behoben
+- **Stapeln hinterlässt keine Datei „….stapel-tmp.pdf“ mehr** (#346): Die Zwischendatei beim
+  Stapeln erscheint nie mehr als Kachel und wird nicht mehr als neuer Scan gemeldet. Ist die
+  Ziel-PDF gerade geöffnet (etwa weil die Analyse sie noch liest), wartet das Stapeln kurz und
+  versucht es erneut; klappt es dann immer noch nicht, sagt die Meldung, dass die Datei gerade
+  geöffnet ist und nichts verändert wurde. Nach einem Fehlschlag wird die Zwischendatei gelöscht,
+  aber nur, wenn die Ziel-PDF noch an ihrem Platz liegt. Ist sie inzwischen weg (zum Beispiel im
+  Papierkorb), bleibt der fertige Stapel erhalten, und die Meldung nennt, wo er liegt.
+- **„Löschen“ im Rechtsklick-Menü bei mehreren markierten Kacheln** (#353): Sind mehrere Kacheln
+  markiert und klicken Sie mit der rechten Maustaste auf eine davon, heißt der Eintrag jetzt
+  „Löschen (2 Dateien)“ und legt alle markierten nach einer Rückfrage in den Papierkorb, wie die
+  Taste Entf. Bisher fragte er nur nach der angeklickten Datei. Ein Rechtsklick auf eine nicht
+  markierte Kachel löscht weiter nur diese.
+- **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
+  sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
+  Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
+  Drehen einer PDF und nach Strg+Z.
 - **Englische Oberfläche: letzte deutsche KI-Fehlermeldungen** (#304): Bei OpenAI, OpenRouter, Poe und
   Strata erschienen einige Fehlermeldungen (etwa im Chat mit Werkzeugen oder bei unerwarteten
   Verbindungsfehlern) auf Englisch noch als „…-Fehler: …“. Sie lauten jetzt „… error: …“.
@@ -79,6 +91,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   oder bis zu drei Jahre vor bzw. ein Jahr nach dem Briefdatum. Statt des alten Ordners wird der
   Ordner mit dem richtigen Jahr vorgeschlagen, wenn es ihn gibt. Ohne erkanntes Jahr bleibt alles
   wie bisher.
+- **KI-Assistent „Claude“ (direkt) funktioniert wieder** (#380): Mit der aktuellen
+  anthropic-Bibliothek (auch in v0.30.0 und älteren Installationspaketen enthalten) brach jeder
+  Ordner- und Namensvorschlag mit „unexpected keyword argument 'temperature'“ ab. Bei neueren
+  Claude-Modellen kam danach „'ThinkingBlock' object has no attribute 'text'“, auch bei „Verbindung
+  testen“. Die Einstellung „Temperatur“ wird jetzt nur noch an Modelle geschickt, die sie annehmen
+  (bis Claude 4.5), und die Antwort wird auch gelesen, wenn das Modell vorher „nachdenkt“.
 
 ### Intern
 - **Tests laufen auch auf einem echten Windows-Desktop grün** (#303): Drei Oberflächen-Tests

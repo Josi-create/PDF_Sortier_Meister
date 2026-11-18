@@ -47,7 +47,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = [
-    "anthropic>=0.18.0",
+    "anthropic>=0.18.0,<3",  # Issue #380: 1.x/2.x ohne temperature-Parameter abgedeckt
     "openai>=1.12.0",
 ]
 # Browser-Oberflaeche der Dokumentensuche (Einstellungen -> Suche, standardmaessig aus)

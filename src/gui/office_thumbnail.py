@@ -312,7 +312,7 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                 rotate_menu.addAction(tr("90° nach rechts")).triggered.connect(self._rotate_right)
                 rotate_menu.addAction("180°").triggered.connect(self._rotate_180)
             menu.addSeparator()
-            menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
+            menu.addAction(self._loeschen_text()).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
             return menu
         dateien = self._markierte_office()
         # Textdateien (.txt, Issue #227) wandelt PDFSM selbst um - ohne PDF/A
@@ -335,5 +335,5 @@ class OfficeThumbnailWidget(PDFThumbnailWidget):
                 convert_a.setToolTip(tr("Wie oben, als archivfähiges PDF/A"))
                 convert_a.triggered.connect(lambda: self.convert_requested.emit(self.pdf_path, True))
         menu.addSeparator()
-        menu.addAction(tr("Löschen")).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
+        menu.addAction(self._loeschen_text()).triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
         return menu

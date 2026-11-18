@@ -136,6 +136,14 @@ msgid "Ziel-PDF nicht gefunden: {target}"
 msgstr "Target PDF not found: {target}"
 
 #: src/core/file_manager.py
+msgid "Die Ziel-PDF „{name}“ liegt nicht mehr an ihrem Platz. Der fertige Stapel wurde deshalb nicht gelöscht, sondern liegt hier:\n{pfad}"
+msgstr "The target PDF “{name}” is no longer in its place. The finished stack was therefore not deleted; it is here:\n{pfad}"
+
+#: src/core/file_manager.py
+msgid "Die Ziel-PDF „{name}“ ist gerade geöffnet, zum Beispiel von der Analyse oder einem anderen Programm. Es wurde nichts verändert. Bitte in ein paar Sekunden noch einmal versuchen."
+msgstr "The target PDF “{name}” is currently open, for example by the analysis or another program. Nothing was changed. Please try again in a few seconds."
+
+#: src/core/file_manager.py
 msgid "Eine PDF kann nicht auf sich selbst gestapelt werden."
 msgstr "A PDF cannot be stacked onto itself."
 
@@ -3075,6 +3083,10 @@ msgstr "Deleted: {anzahl} files"
 msgid "Löschen: {anzahl} Dateien"
 msgstr "Delete: {anzahl} files"
 
+#: src/gui/pdf_thumbnail.py
+msgid "Löschen ({anzahl} Dateien)"
+msgstr "Delete ({anzahl} files)"
+
 #: src/gui/main_window.py
 msgid "Zielordner auswählen"
 msgstr "Choose target folder"
@@ -5472,6 +5484,10 @@ msgstr "Max. tokens:"
 #: src/gui/settings_dialog.py
 msgid "Temperatur:"
 msgstr "Temperature:"
+
+#: src/gui/settings_dialog.py
+msgid "Zufallsanteil der Antworten (niedrig = gleichbleibender). Neuere Claude-Modelle (ab Claude 4.6) nehmen den Wert nicht mehr an; dort wird er weggelassen."
+msgstr "Randomness of the responses (low = more consistent). Newer Claude models (from Claude 4.6 on) no longer accept the value; it is left out there."
 
 #: src/gui/settings_dialog.py
 msgid " Zeichen"
