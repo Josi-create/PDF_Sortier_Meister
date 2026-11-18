@@ -6,7 +6,9 @@ Implementiert die LLM-Schnittstelle für Anthropic's Claude API.
 GPL-3.0-or-later - Copyright (c) 2026
 """
 
+import inspect
 import json
+import re
 import urllib.error
 import urllib.request
 from typing import Optional
@@ -76,6 +78,56 @@ class ClaudeProvider(LLMProvider):
         """Prüft, ob Claude verfügbar ist."""
         return self._client is not None and self.config.api_key
 
+    # Modellfamilien, die ``temperature`` noch annehmen (Claude 3.x, 4, 4.1, 4.5;
+    # mit oder ohne Datumsanhang). Neuere Modelle (ab 4.6, Claude 5, Fable ...)
+    # lehnen den Parameter mit HTTP 400 ab - unbekannte Modelle bekommen ihn
+    # deshalb nicht (Issue #380).
+    _TEMPERATUR_MODELLE = re.compile(
+        r"^claude-(?:3[-.]|(?:opus|sonnet|haiku)-4(?:-[015])?(?:-\d{8})?$)"
+    )
+
+    def _temperatur_erlaubt(self) -> bool:
+        """True, wenn das eingestellte Modell ``temperature`` noch annimmt."""
+        return bool(self._TEMPERATUR_MODELLE.match(self._get_model_id()))
+
+    def _http_temperatur(self) -> dict:
+        """``temperature`` fuer die HTTP-Wege, nur bei Modellen, die sie annehmen."""
+        if self._temperatur_erlaubt():
+            return {"temperature": self.config.temperature}
+        return {}
+
+    def _sdk_temperatur(self) -> dict:
+        """``temperature`` fuer ``messages.create()`` der anthropic-Bibliothek.
+
+        Ab anthropic 1.0 kennt ``Messages.create()`` den Parameter nicht mehr und
+        bricht sonst mit ``unexpected keyword argument 'temperature'`` ab, bevor
+        etwas gesendet wird (Issue #380). Darum nur mitgeben, wenn die Signatur
+        ihn kennt und das Modell ihn annimmt.
+        """
+        if not self._temperatur_erlaubt():
+            return {}
+        try:
+            parameter = inspect.signature(self._client.messages.create).parameters
+        except (TypeError, ValueError):
+            return {}
+        if "temperature" in parameter:
+            return {"temperature": self.config.temperature}
+        return {}
+
+    @staticmethod
+    def antworttext(message) -> str:
+        """Text einer SDK-Antwort: alle ``text``-Bloecke, andere Bloecke uebergehen.
+
+        Neuere Modelle stellen der Antwort einen Denk-Block (``ThinkingBlock``)
+        voran; ``content[0].text`` bricht dann mit ``'ThinkingBlock' object has
+        no attribute 'text'`` ab (Issue #380). Ohne Textblock: leerer Text.
+        """
+        teile = []
+        for block in getattr(message, "content", None) or []:
+            if getattr(block, "type", None) == "text":
+                teile.append(getattr(block, "text", "") or "")
+        return "".join(teile)
+
     def _get_model_id(self) -> str:
         """Gibt die vollständige Modell-ID zurück."""
         model = self.config.model.lower()
@@ -125,13 +177,13 @@ class ClaudeProvider(LLMProvider):
             message = self._client.messages.create(
                 model=self._get_model_id(),
                 max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
+                **self._sdk_temperatur(),
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
 
-            response_text = message.content[0].text if message.content else ""
+            response_text = self.antworttext(message)
             problem = self._check_response_text(
                 response_text, getattr(message, "stop_reason", None)
             )
@@ -224,13 +276,13 @@ class ClaudeProvider(LLMProvider):
             message = self._client.messages.create(
                 model=self._get_model_id(),
                 max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
+                **self._sdk_temperatur(),
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
 
-            response_text = message.content[0].text if message.content else ""
+            response_text = self.antworttext(message)
             problem = self._check_response_text(
                 response_text, getattr(message, "stop_reason", None)
             )
@@ -356,7 +408,7 @@ class ClaudeProvider(LLMProvider):
         body = {
             "model": self._get_model_id(),
             "max_tokens": max_tokens,
-            "temperature": self.config.temperature,
+            **self._http_temperatur(),
             "messages": [{"role": "user", "content": content}],
         }
         headers = {
@@ -399,7 +451,7 @@ class ClaudeProvider(LLMProvider):
         body = {
             "model": self._get_model_id(),
             "max_tokens": max_tokens,
-            "temperature": self.config.temperature,
+            **self._http_temperatur(),
             "system": system_prompt,
             "messages": [
                 {"role": "user", "content": user_prompt},
@@ -589,7 +641,7 @@ class ClaudeProvider(LLMProvider):
             body = {
                 "model": self._get_model_id(),
                 "max_tokens": max_tokens,
-                "temperature": self.config.temperature,
+                **self._http_temperatur(),
                 "messages": messages,
             }
             if system:
