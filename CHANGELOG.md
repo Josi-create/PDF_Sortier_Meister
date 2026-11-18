@@ -10,10 +10,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Behoben
 - **Meldung nach dem Trennen** (#347): Die Frage nach dem Trennen nennt jetzt die richtige Zahl der
   Dateien. Wurden nur einzelne Seiten herausgeholt („Bestimmte Seiten extrahieren“), steht dort
-  nicht mehr „wurde in 1 Datei(en) getrennt“, sondern dass eine neue Datei erstellt wurde, das
-  Original unverändert bleibt und es jetzt zwei Dateien sind. Die Frage weist auch darauf hin, dass
-  Seiten, die in keiner neuen Datei stehen, mit dem Original in den Papierkorb gehen. Die
-  Statusleiste schreibt „1 Datei“ bzw. „2 Dateien“ statt „Datei(en)“.
+  nicht mehr „wurde in 1 Datei(en) getrennt“, sondern dass Seiten in eine neue Datei kopiert wurden
+  und das Original weiterhin alle Seiten enthält. Die Frage weist auch darauf hin, dass die übrigen
+  Seiten mit dem Original in den Papierkorb gehen. Die Knöpfe der Frage heißen in der deutschen
+  Oberfläche „Ja“ und „Nein“ statt „Yes“ und „No“. Die Statusleiste schreibt „1 Datei“ bzw.
+  „2 Dateien“ statt „Datei(en)“.
 
 ## [0.31.0] - 2026-11-18
 

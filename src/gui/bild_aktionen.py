@@ -48,8 +48,8 @@ def trennen_meldung(original: Path, teile: list[Path]) -> str:
     """Frage nach dem Trennen, mit der richtigen Zahl der Dateien (Issue #347).
 
     Stehen alle Seiten des Originals in den neuen Dateien, wurde es aufgeteilt.
-    Sonst wurden nur einzelne Seiten herausgeholt: Das Original bleibt daneben
-    stehen, und die Frage nennt, wie viele Dateien es jetzt sind.
+    Sonst wurden nur einzelne Seiten herausgeholt (kopiert): Das Original bleibt
+    daneben stehen und enthält weiterhin alle Seiten; das sagt die Frage.
     """
     anzahl = len(teile)
     seitenzahl = _seiten_summe([original])
@@ -60,17 +60,17 @@ def trennen_meldung(original: Path, teile: list[Path]) -> str:
         ).format(name=original.name, anzahl=anzahl)
     if anzahl == 1:
         text = tr(
-            "Aus '{name}' wurde eine neue Datei erstellt. Das Original bleibt "
-            "unverändert, es sind jetzt zwei Dateien."
+            "Aus '{name}' wurden Seiten in eine neue Datei kopiert. Das Original "
+            "enthält weiterhin alle Seiten."
         ).format(name=original.name)
     else:
         text = tr(
-            "Aus '{name}' wurden {anzahl} neue Dateien erstellt. Das Original bleibt "
-            "unverändert, es sind jetzt {gesamt} Dateien."
-        ).format(name=original.name, anzahl=anzahl, gesamt=anzahl + 1)
+            "Aus '{name}' wurden Seiten in {anzahl} neue Dateien kopiert. Das Original "
+            "enthält weiterhin alle Seiten."
+        ).format(name=original.name, anzahl=anzahl)
     return text + "\n\n" + tr(
-        "Original in den Papierkorb verschieben? Seiten, die in keiner neuen Datei "
-        "stehen, liegen dann nur noch im Papierkorb."
+        "Original in den Papierkorb verschieben? Die übrigen Seiten liegen dann nur "
+        "noch im Papierkorb."
     )
 
 

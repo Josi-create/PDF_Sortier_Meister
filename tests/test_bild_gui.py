@@ -430,8 +430,9 @@ def test_trennen_eine_seite_herausgeholt_nennt_zwei_dateien(main_window, scan, m
     main_window.on_pdf_split(a)
     assert a.exists() and (scan / "a_Seite_1.pdf").exists()
     text = gestellt[0]
-    assert "es sind jetzt zwei Dateien" in text and "getrennt" not in text
-    assert "Seiten, die in keiner neuen Datei stehen" in text
+    assert "in eine neue Datei kopiert" in text and "getrennt" not in text
+    assert "Das Original enthält weiterhin alle Seiten" in text
+    assert "Die übrigen Seiten liegen dann nur noch im Papierkorb" in text
     assert "PDF getrennt: 1 Datei erstellt" in meldungen
 
 
@@ -441,7 +442,7 @@ def test_trennen_meldung_mehrere_herausgeholt(tmp_path):
     a = _pdf(tmp_path / "a.pdf", 5)
     teile = [_pdf(tmp_path / "t1.pdf", 1), _pdf(tmp_path / "t2.pdf", 2)]
     text = trennen_meldung(a, teile)
-    assert "wurden 2 neue Dateien erstellt" in text and "es sind jetzt 3 Dateien" in text
+    assert "in 2 neue Dateien kopiert" in text and "enthält weiterhin alle Seiten" in text
     voll = trennen_meldung(a, teile + [_pdf(tmp_path / "t3.pdf", 2)])
     assert voll.startswith("'a.pdf' wurde in 3 Dateien getrennt.")
 
