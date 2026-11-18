@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **„Löschen“ im Rechtsklick-Menü bei mehreren markierten Kacheln** (#353): Sind mehrere Kacheln
+  markiert und klicken Sie mit der rechten Maustaste auf eine davon, heißt der Eintrag jetzt
+  „Löschen (2 Dateien)“ und legt alle markierten nach einer Rückfrage in den Papierkorb, wie die
+  Taste Entf. Bisher fragte er nur nach der angeklickten Datei. Ein Rechtsklick auf eine nicht
+  markierte Kachel löscht weiter nur diese.
+
 ## [0.31.0] - 2026-11-18
 
 ### Neu

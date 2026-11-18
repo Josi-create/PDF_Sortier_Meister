@@ -746,10 +746,17 @@ class PDFThumbnailWidget(QFrame):
         menu.addSeparator()
 
         # Löschen
-        delete_action = menu.addAction(tr("Löschen"))
+        delete_action = menu.addAction(self._loeschen_text())
         delete_action.triggered.connect(lambda: self.delete_requested.emit(self.pdf_path))
 
         return menu
+
+    def _loeschen_text(self) -> str:
+        """Gehoert die Kachel zur Mehrfachauswahl, loescht "Löschen" alle markierten (Issue #353)."""
+        auswahl = getattr(self.window(), "selected_pdfs", None) or []
+        if len(auswahl) > 1 and self.pdf_path in auswahl:
+            return tr("Löschen ({anzahl} Dateien)").format(anzahl=len(auswahl))
+        return tr("Löschen")
 
     def _rotate_left(self):
         self.rotate_requested.emit(self.pdf_path, -90)

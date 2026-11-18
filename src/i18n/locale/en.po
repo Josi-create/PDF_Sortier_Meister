@@ -3058,6 +3058,10 @@ msgstr "Deleted: {anzahl} files"
 msgid "Löschen: {anzahl} Dateien"
 msgstr "Delete: {anzahl} files"
 
+#: src/gui/pdf_thumbnail.py
+msgid "Löschen ({anzahl} Dateien)"
+msgstr "Delete ({anzahl} files)"
+
 #: src/gui/main_window.py
 msgid "Zielordner auswählen"
 msgstr "Choose target folder"
