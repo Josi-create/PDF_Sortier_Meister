@@ -15,6 +15,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   geöffnet ist und nichts verändert wurde. Nach einem Fehlschlag wird die Zwischendatei gelöscht,
   aber nur, wenn die Ziel-PDF noch an ihrem Platz liegt. Ist sie inzwischen weg (zum Beispiel im
   Papierkorb), bleibt der fertige Stapel erhalten, und die Meldung nennt, wo er liegt.
+- **„Löschen“ im Rechtsklick-Menü bei mehreren markierten Kacheln** (#353): Sind mehrere Kacheln
+  markiert und klicken Sie mit der rechten Maustaste auf eine davon, heißt der Eintrag jetzt
+  „Löschen (2 Dateien)“ und legt alle markierten nach einer Rückfrage in den Papierkorb, wie die
+  Taste Entf. Bisher fragte er nur nach der angeklickten Datei. Ein Rechtsklick auf eine nicht
+  markierte Kachel löscht weiter nur diese.
+- **Vorschau nach „Seiten bearbeiten“** (#345): Nach „Speichern“ zeigt die Vorschau im Detail-Panel
+  sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
+  Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
+  Drehen einer PDF und nach Strg+Z.
 
 ## [0.31.0] - 2026-11-18
 
