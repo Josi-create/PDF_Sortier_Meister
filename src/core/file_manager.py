@@ -14,6 +14,7 @@ laufen in einem eigenen Thread und sind ohne eingerichtete Suche wirkungslos.
 """
 
 import errno
+import logging
 import os
 import shutil
 import time
@@ -25,11 +26,22 @@ import fitz  # PyMuPDF
 from PyQt6.QtCore import QFile
 
 from src.search.meldungen import melden as index_melden
+from src.core.ordner_beobachter import ist_zwischendatei
 from src.i18n import tr
 
 
 class PapierkorbNichtVerfuegbar(OSError):
     """Die Datei konnte nicht in den System-Papierkorb verschoben werden."""
+
+
+class StapelFehler(OSError):
+    """Stapeln fehlgeschlagen; die Meldung ist fuer Anwender verstaendlich (Issue #346)."""
+
+
+# Ist die Ziel-PDF beim Einsetzen des Stapels noch belegt (z. B. von der Analyse),
+# wird so oft und so lange gewartet, bevor das Stapeln aufgibt
+STAPEL_VERSUCHE = 6
+STAPEL_WARTEZEIT = 0.25  # Sekunden zwischen zwei Versuchen
 
 
 class FileManager:
@@ -81,7 +93,7 @@ class FileManager:
         # Alle Dateien mit .pdf Endung (case-insensitive)
         pdf_files = [
             f for f in self._scan_folder.iterdir()
-            if f.is_file() and f.suffix.lower() == ".pdf"
+            if f.is_file() and f.suffix.lower() == ".pdf" and not ist_zwischendatei(f.name)
         ]
 
         # Nach Änderungsdatum sortieren (neueste zuerst)
@@ -379,7 +391,16 @@ class FileManager:
             if not source.exists():
                 raise FileNotFoundError(tr("Quelldatei nicht gefunden: {source}").format(source=source))
 
+        # Zwischendatei neben dem Ziel (gleiches Laufwerk: os.replace bleibt atomar). Ihr Name
+        # wird von Kacheln und Ordner-Beobachtung uebersprungen (ist_zwischendatei, Issue #346).
+        # Liegt von einem frueheren Fehlschlag noch eine da, bleibt sie unangetastet.
         temp_path = target.with_name(f"{target.stem}.stapel-tmp.pdf")
+        nummer = 2
+        while temp_path.exists():
+            temp_path = target.with_name(f"{target.stem}.{nummer}.stapel-tmp.pdf")
+            nummer += 1
+        backup_dir = Path(backup_dir)
+        target_backup = backup_dir / f"0_{target.name}"
         try:
             with fitz.open(str(target)) as doc:
                 position = 0
@@ -388,15 +409,10 @@ class FileManager:
                         doc.insert_pdf(src_doc, start_at=position)
                         position += len(src_doc)
                 doc.save(str(temp_path), garbage=3, deflate=True)
-        except Exception:
-            temp_path.unlink(missing_ok=True)
-            raise
-
-        backup_dir = Path(backup_dir)
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        target_backup = backup_dir / f"0_{target.name}"
-        shutil.copy2(str(target), str(target_backup))
-        os.replace(str(temp_path), str(target))
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            self._stapel_einsetzen(temp_path, target, target_backup)
+        except Exception as e:
+            self._nach_stapel_fehler(e, temp_path, target)
         backups = [(target, target_backup)]
 
         for i, source in enumerate(source_paths, start=1):
@@ -410,6 +426,59 @@ class FileManager:
         index_melden("datei_geaendert", str(target))
 
         return backups
+
+    @staticmethod
+    def _stapel_einsetzen(temp_path: Path, target: Path, target_backup: Path) -> None:
+        """Sichert die Ziel-PDF und setzt den fertigen Stapel an ihre Stelle.
+
+        Haelt gerade ein anderer Vorgang die Ziel-PDF offen (unter Windows z. B. die
+        Analyse, Issue #346), wird kurz gewartet und erneut versucht.
+        """
+        for versuch in range(STAPEL_VERSUCHE):
+            try:
+                shutil.copy2(str(target), str(target_backup))
+                os.replace(str(temp_path), str(target))
+                return
+            except PermissionError:
+                if versuch == STAPEL_VERSUCHE - 1:
+                    raise
+                time.sleep(STAPEL_WARTEZEIT)
+
+    @staticmethod
+    def _nach_stapel_fehler(fehler: Exception, temp_path: Path, target: Path) -> None:
+        """Raeumt nach einem Fehlschlag des Stapelns auf und meldet ihn (Issue #346).
+
+        Die Zwischendatei wird nur geloescht, wenn die Ziel-PDF noch an ihrem Platz
+        liegt. Ist sie weg (verschoben, im Papierkorb), ist die Zwischendatei die
+        einzige Fassung mit diesen Seiten: Sie bleibt, und die Meldung nennt sie.
+
+        Raises:
+            immer: ``StapelFehler`` mit verstaendlichem Text oder den urspruenglichen Fehler
+        """
+        if not target.is_file():
+            if temp_path.is_file():
+                raise StapelFehler(
+                    tr(
+                        "Die Ziel-PDF „{name}“ liegt nicht mehr an ihrem Platz. Der fertige "
+                        "Stapel wurde deshalb nicht gelöscht, sondern liegt hier:\n{pfad}"
+                    ).format(name=target.name, pfad=temp_path)
+                ) from fehler
+            raise fehler
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError as e:
+            logging.getLogger(__name__).warning(
+                "Zwischendatei des Stapelns nicht entfernt: %s (%s)", temp_path, e
+            )
+        if isinstance(fehler, PermissionError):
+            raise StapelFehler(
+                tr(
+                    "Die Ziel-PDF „{name}“ ist gerade geöffnet, zum Beispiel von der Analyse "
+                    "oder einem anderen Programm. Es wurde nichts verändert. Bitte in ein "
+                    "paar Sekunden noch einmal versuchen."
+                ).format(name=target.name)
+            ) from fehler
+        raise fehler
 
     @staticmethod
     def _ersetzen_ueber_laufwerke(quelle: Path, ziel: Path) -> None:

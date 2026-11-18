@@ -204,3 +204,117 @@ def test_restore_stack_failure_keeps_backup(tmp_path: Path, monkeypatch) -> None
     assert target.read_bytes() == gestapelt  # Ziel unveraendert
     assert backups[0][1].exists()  # Sicherung nicht verloren
     assert not list(docs.glob("*.rueckgaengig-tmp*"))
+
+
+# --- Issue #346: Zwischendatei nach einem Fehlschlag --------------------------------
+
+
+def _ziel_belegt(monkeypatch, target: Path, wie_oft: int | None = None) -> list:
+    """os.replace auf die Ziel-PDF scheitert wie unter Windows, solange die Analyse sie offen haelt."""
+    import src.core.file_manager as fm
+
+    monkeypatch.setattr(fm, "STAPEL_WARTEZEIT", 0)
+    echtes_replace = os.replace
+    versuche = []
+
+    def replace(src, dst, *args, **kwargs):
+        if Path(dst) == target and (wie_oft is None or len(versuche) < wie_oft):
+            versuche.append(src)
+            raise PermissionError(13, "Der Prozess kann nicht auf die Datei zugreifen", str(dst))
+        return echtes_replace(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, "replace", replace)
+    return versuche
+
+
+def test_belegte_ziel_pdf_meldet_verstaendlich_und_raeumt_auf(tmp_path: Path, monkeypatch) -> None:
+    from src.core.file_manager import STAPEL_VERSUCHE, StapelFehler
+
+    target = tmp_path / "Rechnung.pdf"
+    source = tmp_path / "Anlage.pdf"
+    _create_pdf(target, 1, "Rechnung")
+    _create_pdf(source, 1, "Anlage")
+    vorher = target.read_bytes()
+    versuche = _ziel_belegt(monkeypatch, target)
+
+    with pytest.raises(StapelFehler, match="gerade geöffnet"):
+        FileManager().stack_pdfs(target, [source], tmp_path / "undo")
+
+    assert len(versuche) == STAPEL_VERSUCHE  # erst gewartet, dann aufgegeben
+    assert target.read_bytes() == vorher
+    assert source.exists()
+    assert not list(tmp_path.glob("*.stapel-tmp.pdf"))
+
+
+def test_kurz_belegte_ziel_pdf_wird_nach_kurzem_warten_gestapelt(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "Rechnung.pdf"
+    source = tmp_path / "Anlage.pdf"
+    _create_pdf(target, 1, "Rechnung")
+    _create_pdf(source, 1, "Anlage")
+    _ziel_belegt(monkeypatch, target, wie_oft=2)
+
+    FileManager().stack_pdfs(target, [source], tmp_path / "undo")
+
+    assert _page_texts(target) == ["Anlage Seite 1", "Rechnung Seite 1"]
+    assert not source.exists()
+    assert not list(tmp_path.glob("*.stapel-tmp.pdf"))
+
+
+def test_zwischendatei_bleibt_wenn_ziel_pdf_nicht_mehr_da_ist(tmp_path: Path, monkeypatch) -> None:
+    """Vorgabe des CEO: Ist das Original weg (z. B. im Papierkorb), ist die Zwischendatei die
+    einzige Fassung - sie bleibt, und die Meldung sagt, wo sie liegt."""
+    import shutil
+
+    from src.core.file_manager import StapelFehler
+
+    target = tmp_path / "Rechnung.pdf"
+    source = tmp_path / "Anlage.pdf"
+    papierkorb = tmp_path / "Papierkorb"
+    papierkorb.mkdir()
+    _create_pdf(target, 1, "Rechnung")
+    _create_pdf(source, 1, "Anlage")
+    echtes_copy2 = shutil.copy2
+
+    def copy2_nach_papierkorb(src, dst, *args, **kwargs):
+        if Path(src) == target:  # waehrend des Stapelns in den Papierkorb gewandert
+            shutil.move(str(target), str(papierkorb / target.name))
+        return echtes_copy2(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr("src.core.file_manager.shutil.copy2", copy2_nach_papierkorb)
+
+    with pytest.raises(StapelFehler) as fehler:
+        FileManager().stack_pdfs(target, [source], tmp_path / "undo")
+
+    zwischen = list(tmp_path.glob("*.stapel-tmp.pdf"))
+    assert len(zwischen) == 1
+    assert _page_texts(zwischen[0]) == ["Anlage Seite 1", "Rechnung Seite 1"]
+    assert str(zwischen[0]) in str(fehler.value)
+    assert "nicht gelöscht" in str(fehler.value)
+    assert not target.exists()
+    assert source.exists()  # nichts ist in einem halben Stapel aufgegangen
+
+
+def test_alte_zwischendatei_wird_nicht_ueberschrieben(tmp_path: Path) -> None:
+    target = tmp_path / "Rechnung.pdf"
+    source = tmp_path / "Anlage.pdf"
+    alt = tmp_path / "Rechnung.stapel-tmp.pdf"
+    _create_pdf(target, 1, "Rechnung")
+    _create_pdf(source, 1, "Anlage")
+    _create_pdf(alt, 1, "Alt")
+
+    FileManager().stack_pdfs(target, [source], tmp_path / "undo")
+
+    assert _page_texts(alt) == ["Alt Seite 1"]
+    assert list(tmp_path.glob("*.stapel-tmp.pdf")) == [alt]
+
+
+def test_zwischendateien_bekommen_keine_kachel_und_keine_meldung(tmp_path: Path) -> None:
+    from src.core.ordner_beobachter import ist_zwischendatei, ordner_lesen
+
+    for name in ("Rechnung.pdf", "Rechnung.stapel-tmp.pdf", "Rechnung.2.STAPEL-TMP.PDF",
+                 "Rechnung.rueckgaengig-tmp.pdf", "Größe ä.stapel-tmp.pdf"):
+        _create_pdf(tmp_path / name, 1, "X")
+
+    assert not ist_zwischendatei("Stapel-Tmp Rechnung.pdf")
+    assert set(ordner_lesen(tmp_path, (".pdf",))) == {"Rechnung.pdf"}
+    assert [p.name for p in FileManager(tmp_path).get_pdf_files()] == ["Rechnung.pdf"]
