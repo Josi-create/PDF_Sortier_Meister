@@ -478,14 +478,14 @@ class KiTrennenMixin:
             output_files = self.file_manager.split_pdf_teile(
                 pdf_path, pdf_path.parent, [(t.seiten, t.name) for t in teile])
             n = len(output_files)
-            self.statusbar.showMessage(tr("PDF getrennt: {n} Dokument(e) erstellt").format(n=n), 4000)
+            if n == 1:  # Issue #347: kein "1 Dokument(e)"
+                erstellt = tr("PDF getrennt: 1 Dokument erstellt")
+            else:
+                erstellt = tr("PDF getrennt: {n} Dokumente erstellt").format(n=n)
+            self.statusbar.showMessage(erstellt, 4000)
             if self.original_nach_trennen(pdf_path, output_files):
                 self.statusbar.showMessage(
-                    tr(
-                        "PDF getrennt: {n} Dokument(e) erstellt, Original im Papierkorb "
-                        "(Strg+Z holt es zurück)"
-                    ).format(n=n),
-                    6000)
+                    erstellt + tr(", Original im Papierkorb (Strg+Z holt es zurück)"), 6000)
             self.load_pdfs()
         except Exception as e:  # noqa: BLE001
             logger.exception("KI-Trennen fehlgeschlagen")
