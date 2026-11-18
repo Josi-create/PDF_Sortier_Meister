@@ -12,6 +12,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   sofort die geänderte PDF (Seitenzahl, Reihenfolge, Drehung). Bisher blieb bei Scans noch einige
   Sekunden der alte Stand stehen, bis die neue Texterkennung fertig war. Das gilt ebenso nach dem
   Drehen einer PDF und nach Strg+Z.
+- **Streifen „Doppelt“ auch bei abgelegten Fassungen** (#383): Liegen zwei abgelegte Fassungen
+  derselben Datei im selben Ordner, tragen beide jetzt den Streifen „Doppelt: wie …“, und
+  „Doppelte Dateien suchen …“ findet sie. Bisher fiel das nicht auf, weil beim Ablegen Name und
+  Metadaten in die PDF geschrieben werden und die Dateien danach nicht mehr Byte für Byte gleich
+  sind. Erkannt wird das über den Vermerk des Originals (seit 0.31) und, bei früher abgelegten
+  Scans ohne Vermerk, über die gescannten Seitenbilder. Zwei verschiedene Rechnungen mit gleichem
+  Briefkopf gelten weiterhin nicht als doppelt; der erkannte Text wird nicht verglichen.
 
 ## [0.31.0] - 2026-11-18
 

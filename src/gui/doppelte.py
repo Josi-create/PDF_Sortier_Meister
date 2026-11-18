@@ -16,7 +16,8 @@ Zwei Anlaesse:
 Beides laesst sich in den Einstellungen abschalten (Issue #306, Konfigurationswert
 ``doppelte_hinweis``, Standard an).
 
-Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``). Gelesen und
+Verglichen wird der Inhalt Byte fuer Byte (``src.core.duplikate``); im Scan-Bereich
+zaehlen auch abgelegte Fassungen desselben Originals (Issue #383). Gelesen und
 gerechnet wird nie im Thread der Oberflaeche: Die Arbeit laeuft in einem
 Hintergrund-Thread, die Oberflaeche holt nur das Ergebnis ab.
 """
