@@ -131,6 +131,38 @@ def test_activity_describe_includes_estimate_and_filters_kind():
     assert activity.describe(la.KIND_CHAT).startswith("seit ")
 
 
+def test_erster_aufruf_lokal_zeigt_lade_hinweis_statt_schaetzung():
+    """Issue #343: Beim ersten Aufruf eines lokalen Modells nach dem Start passt
+    „ca. 7 s“ nicht - Ollama laedt das Modell erst ein bis zwei Minuten."""
+    key = "ollama|gemma3:4b|suggest"
+    store = la.LLMTimingStore(None)
+    store.record(key, 6)
+    store.record(key, 8)
+    activity = la.LLMActivity(store)
+    assert activity.modell_laedt(la.KIND_SUGGEST, key)
+    token = activity.begin(la.KIND_SUGGEST, "a.pdf", key=key)
+    text = activity.describe()
+    assert "Modell wird geladen" in text and "ein bis zwei Minuten" in text
+    assert "ca. 7 s" not in text
+    assert activity.schaetzung_text(la.KIND_SUGGEST, key, kurz=True) == "Modell wird geladen, 1–2 Min."
+    activity.end(token)
+    # Danach ist das Modell geladen - auch fuer den Chat mit demselben Modell
+    assert not activity.modell_laedt(la.KIND_SUGGEST, key)
+    assert not activity.modell_laedt(la.KIND_CHAT, "ollama|gemma3:4b|chat")
+    assert activity.schaetzung_text(la.KIND_SUGGEST, key).startswith("ca. ")
+    # Ein anderes Modell muss erst noch geladen werden
+    assert activity.modell_laedt(la.KIND_SUGGEST, "ollama|gpt-oss:20b|suggest")
+
+
+def test_fehlgeschlagener_aufruf_laedt_nichts_und_cloud_nie():
+    activity = la.LLMActivity(la.LLMTimingStore(None))
+    token = activity.begin(la.KIND_SUGGEST, key="lmstudio|m|suggest")
+    activity.end(token, success=False)
+    assert activity.modell_laedt(la.KIND_SUGGEST, "lmstudio|m|suggest")
+    for key in ("openrouter|m|suggest", "ollama_cloud|m|suggest", "claude|m|chat", "none|-|chat"):
+        assert not activity.modell_laedt(la.KIND_SUGGEST, key)
+
+
 def test_singleton_reset_for_tests(tmp_path):
     a = la.reset_llm_activity(la.LLMTimingStore(tmp_path / "x.json"))
     assert la.get_llm_activity() is a

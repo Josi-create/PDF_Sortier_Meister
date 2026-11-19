@@ -144,6 +144,14 @@ class RAGResponse:
     # metadaten). Nichts davon ist ausgefuehrt; die Oberflaeche zeigt Knoepfe.
     # Der erste Verschiebe-Vorschlag fuer den Bezug fuellt auch ordner_*.
     vorschlaege: list = field(default_factory=list)
+    # Issue #356: Die KI ist unterwegs gescheitert (z.B. lokales Modell abgestuerzt).
+    # ki_hinweis ist der verstaendliche Text (Problem + Abhilfe) fuer eine eigene
+    # Zeile im Verlauf, ki_fehler_roh die technische Meldung (Tooltip).
+    # ohne_suche: Die Antwort entstand ohne Werkzeuge, also ohne eigene Suche
+    # der KI in den Dokumenten.
+    ki_hinweis: str = ""
+    ki_fehler_roh: str = ""
+    ohne_suche: bool = False
 
 
 class RAGController:
@@ -341,7 +349,8 @@ class RAGController:
 
         # 6) LRU-Cache schreiben - nicht bei Abbruch oder Werkzeugfehler
         # (Issue #166/#167): die naechste gleiche Frage soll es neu versuchen
-        if response.used_llm or not response.werkzeuge_benutzt:
+        # Issue #356: auch nicht nach einem KI-Fehler (Rueckfall ohne Suche)
+        if (response.used_llm or not response.werkzeuge_benutzt) and not response.ki_hinweis:
             self._cache_put(cache_key, response)
         return response
 
@@ -454,6 +463,8 @@ class RAGController:
                 citations=[],
                 retrieved_docs=retrieved,
                 used_llm=False,
+                ki_hinweis=self._ki_hinweis_text(str(e)),
+                ki_fehler_roh=str(e),
             )
 
         cleaned, valid, dropped = self.citation_parser.parse(raw_answer, retrieved)
@@ -468,6 +479,14 @@ class RAGController:
     # ------------------------------------------------------------------ #
     # Werkzeug-Schleife (Issue #166/#167, Phase 2)                       #
     # ------------------------------------------------------------------ #
+
+    def _ki_hinweis_text(self, fehler: str) -> str:
+        """Verstaendlicher Text zu einem KI-Fehler im Chat (Issue #356): Problem und Abhilfe."""
+        from src.ml.llm_hinweis import anbieter_name, ki_hinweis, modell_von
+
+        provider = self.llm_provider
+        hinweis = ki_hinweis(anbieter_name(provider), fehler, modell_von(provider))
+        return f"{hinweis.problem} {hinweis.abhilfe}"
 
     def _werkzeuge_moeglich(self) -> bool:
         """True, wenn der Chat mit Werkzeugen laufen soll: Einstellung an und Provider kann es.
@@ -576,9 +595,15 @@ class RAGController:
                 fehler = tr("Leere Antwort des Modells.")
             if fehler:
                 if schritt == 1:
-                    grund = " ".join(fehler.split())[:90]
-                    _melde(fortschritt, tr("Werkzeuge nicht verfügbar ({grund}) - Antwort ohne Werkzeuge …").format(grund=grund))
-                    return self._ask_llm(question, kontext_docs)
+                    # Issue #356: Der Grund kommt als eigene Zeile in den Verlauf;
+                    # die Statuszeile sagt nur noch, was jetzt passiert
+                    _melde(fortschritt, tr("KI kann nicht selbst suchen – Antwort ohne Suche …"))
+                    response = self._ask_llm(question, kontext_docs)
+                    if not response.ki_hinweis:
+                        response.ki_hinweis = self._ki_hinweis_text(fehler)
+                        response.ki_fehler_roh = fehler
+                    response.ohne_suche = True
+                    return response
                 return RAGResponse(
                     answer_text=tr("Werkzeugaufruf fehlgeschlagen: {fehler}").format(fehler=fehler),
                     citations=[],

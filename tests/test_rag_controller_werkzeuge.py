@@ -249,7 +249,45 @@ def test_fehler_im_ersten_schritt_faellt_auf_den_alten_weg_zurueck(sammlung):
     assert len(llm.aufrufe) == 1 and llm.answer_calls == 1
     assert response.used_llm and response.answer_text == "Alter Weg [1]."
     assert response.werkzeuge_benutzt is False and response.schritte == []
-    assert any("ohne Werkzeuge" in m for m in meldungen)
+    assert any("ohne Suche" in m for m in meldungen)
+    # Issue #356: der Grund steht verstaendlich in der Antwort, nicht nur in der Statuszeile
+    assert response.ohne_suche is True
+    assert "nicht selbst in den Dokumenten suchen" in response.ki_hinweis
+    assert "does not support tools" in response.ki_fehler_roh
+
+
+def test_absturz_im_ersten_schritt_meldet_grund_und_antwort_ohne_suche(sammlung):
+    """Issue #356: Ollama-Modell stuerzt ab (HTTP 500 ... has terminated) - Antwort kommt
+    auf dem alten Weg, dazu ein verstaendlicher Hinweis; nichts davon landet im Cache."""
+    db, bezug = sammlung
+    roh = ("Ollama HTTP 500: llama-server process has terminated: exit status 2. "
+           "The system does not have enough memory")
+    llm = _WerkzeugLLM([WerkzeugAntwort(fehler=roh)])
+    meldungen: list[str] = []
+    ctrl = RAGController(db, llm, ChatConfig())
+    response = ctrl.ask(FRAGE, bezug=bezug, fortschritt=meldungen.append)
+    assert response.used_llm and response.answer_text == "Alter Weg [1]."
+    assert response.ohne_suche is True
+    assert "abgestürzt" in response.ki_hinweis and "kleineres Modell" in response.ki_hinweis
+    assert response.ki_fehler_roh == roh
+    assert not any("HTTP 500" in m for m in meldungen)  # keine abgeschnittene Rohmeldung mehr
+    # Die gleiche Frage versucht es erneut (kein Cache nach einem KI-Fehler)
+    llm.antworten = [WerkzeugAntwort(text="Jetzt mit Suche.")]
+    nochmal = ctrl.ask(FRAGE, bezug=bezug)
+    assert nochmal.answer_text == "Jetzt mit Suche." and not nochmal.ki_hinweis
+
+
+def test_absturz_auch_auf_dem_alten_weg_wird_verstaendlich(sammlung):
+    db, bezug = sammlung
+
+    class _Abstuerzend(_WerkzeugLLM):
+        def answer_with_context(self, *args, **kwargs):
+            raise RuntimeError("Ollama HTTP 500: llama runner process has terminated: exit status 0xc0000409")
+
+    response = RAGController(db, _Abstuerzend([WerkzeugAntwort(fehler="HTTP 500")]), ChatConfig()).ask(
+        FRAGE, bezug=bezug)
+    assert not response.used_llm
+    assert "abgestürzt" in response.ki_hinweis
 
 
 def test_leere_antwort_im_ersten_schritt_faellt_zurueck(sammlung):

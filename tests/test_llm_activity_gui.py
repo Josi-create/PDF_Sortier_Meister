@@ -164,7 +164,15 @@ def test_second_click_while_running_is_ignored(qtbot, panel_with_fake_llm):
     assert classifier.calls == 1
 
 
-def test_button_shows_estimate_when_history_exists(qtbot, panel_with_fake_llm, activity):
+@pytest.fixture
+def cloud_anbieter(monkeypatch):
+    """Die Schaetzung haengt am eingestellten Anbieter: Bei einem lokalen (Ollama) steht beim
+    ersten Aufruf „Modell wird geladen“ statt der Schaetzung (Issue #343). Ohne diese Vorgabe
+    lesen die Tests den Anbieter aus den Einstellungen des Rechners, auf dem sie laufen."""
+    monkeypatch.setattr(la, "current_timing_key", lambda kind: la.timing_key("claude", "test", kind))
+
+
+def test_button_shows_estimate_when_history_exists(qtbot, panel_with_fake_llm, activity, cloud_anbieter):
     panel, classifier, cache, pdf = panel_with_fake_llm
     key = la.current_timing_key(la.KIND_SUGGEST)
     activity.store.record(key, 20)
@@ -224,7 +232,7 @@ def test_statusbar_includes_estimate(qtbot, main_window, activity):
 # --------------------------------------------------------------------- #
 
 
-def test_chat_status_line_ticks_with_elapsed_and_estimate(qtbot, tmp_path, activity):
+def test_chat_status_line_ticks_with_elapsed_and_estimate(qtbot, tmp_path, activity, cloud_anbieter):
     from src.gui.chat_view import ChatView
     from src.utils.config import ChatConfig
     from src.utils.database import Database

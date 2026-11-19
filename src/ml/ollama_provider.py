@@ -22,6 +22,8 @@ GPL-3.0-or-later - Copyright (c) 2026
 """
 
 import json
+import logging
+import time
 import urllib.error
 import urllib.request
 from typing import Optional, Any
@@ -35,7 +37,10 @@ from src.ml.llm_provider import (
     WerkzeugAntwort,
 )
 from src.ml.ollama_launcher import http_error_text
+from src.ml.llm_hinweis import ist_modellabsturz
 from src.i18n import tr
+
+logger = logging.getLogger("pdf_sortier_meister.ollama_provider")
 
 
 class OllamaProvider(LLMProvider):
@@ -52,6 +57,10 @@ class OllamaProvider(LLMProvider):
 
     # Timeout fuer einen einzelnen Request in Sekunden.
     REQUEST_TIMEOUT = 120
+
+    # Pause vor dem zweiten Versuch nach einem Absturz des Modells (Sekunden):
+    # Ollama braucht einen Moment, bis der Grafikspeicher wieder frei ist.
+    ABSTURZ_PAUSE = 2.0
 
     def __init__(self, config: LLMConfig):
         """
@@ -237,7 +246,25 @@ class OllamaProvider(LLMProvider):
             return False
 
     def _post_chat(self, url: str, payload: dict) -> tuple[Optional[dict], Optional[str]]:
-        """POST an /api/chat; liefert (JSON-Antwort, Fehlertext)."""
+        """POST an /api/chat; liefert (JSON-Antwort, Fehlertext).
+
+        Stuerzt das Modell bei Ollama waehrend der Anfrage ab (HTTP 500 "error
+        reading llama-server response" oder "... has terminated"), wird einmal
+        wiederholt: Ollama startet den Modellprozess bei der naechsten Anfrage
+        neu, und der zweite Anlauf gelingt oft (Live-Test 19.11.2026: Absturz
+        beim ersten Laden direkt nach dem Start von Ollama).
+        """
+        data, error = self._post_chat_einmal(url, payload)
+        if error and ist_modellabsturz(error):
+            logger.warning("Ollama-Modell abgestuerzt, zweiter Versuch: %s", error)
+            time.sleep(self.ABSTURZ_PAUSE)
+            data, error = self._post_chat_einmal(url, payload)
+            if error:
+                logger.warning("Zweiter Versuch nach Absturz gescheitert: %s", error)
+        return data, error
+
+    def _post_chat_einmal(self, url: str, payload: dict) -> tuple[Optional[dict], Optional[str]]:
+        """Ein einzelner POST an /api/chat; liefert (JSON-Antwort, Fehlertext)."""
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url,
