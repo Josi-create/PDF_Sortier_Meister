@@ -3,8 +3,9 @@
 * ``beste_zitierte_quelle``: am haeufigsten zitiert gewinnt, bei Gleichstand die
   zuerst zitierte; ungueltige Zitate zaehlen nicht
 * ChatView meldet die Quelle (Pfad, Seite) per ``beste_quelle`` nach einer Antwort
-* MainWindow laedt sie in die Vorschau, wenn keine PDF ausgewaehlt ist, und
-  springt auf die Seite der Fundstelle; eine ausgewaehlte PDF bleibt stehen
+* MainWindow laedt sie in die Vorschau und springt auf die Seite der Fundstelle;
+  seit #355 auch dann, wenn links eine PDF ausgewaehlt ist (die Auswahl bleibt,
+  ein Knopf fuehrt zurueck, siehe test_chat_hauptquelle_355_gui.py)
 """
 from __future__ import annotations
 
@@ -101,13 +102,27 @@ def test_vorschau_zeigt_quelle_ohne_auswahl_und_springt_auf_seite(fenster, tmp_p
     assert seiten == [3]
 
 
-def test_ausgewaehlte_pdf_bleibt_in_der_vorschau(fenster, tmp_path, monkeypatch):
+def test_quelle_erscheint_auch_bei_ausgewaehlter_pdf(fenster, tmp_path, monkeypatch):
+    """Issue #355: Die Hauptquelle kommt immer in die Vorschau; Auswahl und Bezug bleiben."""
     win = fenster()
     geladen = []
     monkeypatch.setattr(win.detail_panel.preview, "load_pdf", lambda p: geladen.append(Path(p)))
-    win.selected_pdf = _pdf(tmp_path, "Auswahl.pdf")
-    win.chat_view.beste_quelle.emit(str(_pdf(tmp_path)), 0)
-    assert geladen == []
+    auswahl = _pdf(tmp_path, "Auswahl.pdf")
+    win.selected_pdf = auswahl
+    win.detail_panel._current_pdf = auswahl
+    quelle = _pdf(tmp_path)
+
+    win.chat_view.beste_quelle.emit(str(quelle), 2)
+    assert geladen == [quelle]
+    assert win.detail_panel.zeigt_chat_quelle()
+    assert win.selected_pdf == auswahl and win.detail_panel.get_current_pdf() == auswahl
+    assert win._chat_quelle_seite == (quelle, 2)
+
+    # Klick auf die schon ausgewaehlte Kachel fuehrt zurueck zur Auswahl
+    win.on_pdf_clicked(auswahl)
+    assert geladen == [quelle, auswahl]
+    assert not win.detail_panel.zeigt_chat_quelle()
+    assert win.selected_pdf == auswahl
 
 
 def test_keine_pdf_oder_fehlende_datei_wird_nicht_geladen(fenster, tmp_path, monkeypatch):

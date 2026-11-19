@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QFrame,
     QGridLayout,
     QSizePolicy,
     QSplitter,
@@ -201,6 +202,8 @@ class DetailPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_pdf: Optional[Path] = None
+        # Issue #355: Hauptquelle einer Chat-Antwort, die die Vorschau statt der Auswahl zeigt
+        self._chat_quelle: Optional[Path] = None
         self._suggestions: list[RenameSuggestion] = []
         # Tatsaechlich angezeigte Liste (#99/#106): _suggestions + ein
         # Muster-Vorschlag je Vorlage, sortiert nach der gemerkten Rangfolge;
@@ -636,9 +639,37 @@ class DetailPanel(QWidget):
         # Markierten Text aus der Vorschau in ein Metadaten-Feld (Issue #109)
         self.preview.apply_text_requested.connect(self._on_preview_text_applied)
 
+        # Issue #355: Zeigt die Vorschau die Hauptquelle einer Chat-Antwort statt der
+        # ausgewaehlten PDF, steht darueber eine Leiste mit Knopf zurueck zur Auswahl
+        self.chat_quelle_leiste = QFrame()
+        self.chat_quelle_leiste.setObjectName("chatQuelleLeiste")
+        stil(self.chat_quelle_leiste,
+            "#chatQuelleLeiste { background-color: $blau_flaeche; border-radius: 3px; }"
+        )
+        leiste = QHBoxLayout(self.chat_quelle_leiste)
+        leiste.setContentsMargins(6, 3, 6, 3)
+        self.chat_quelle_label = QLabel()
+        # Lange Dateinamen werden abgeschnitten statt das Panel zu verbreitern (Tooltip: ganzer Pfad)
+        self.chat_quelle_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        leiste.addWidget(self.chat_quelle_label, 1)
+        self.zurueck_zur_auswahl_btn = QPushButton(tr("Zurück zur ausgewählten PDF"))
+        self.zurueck_zur_auswahl_btn.setToolTip(
+            tr("Die Vorschau zeigt wieder die links ausgewählte PDF.")
+        )
+        self.zurueck_zur_auswahl_btn.clicked.connect(self.zurueck_zur_auswahl)
+        leiste.addWidget(self.zurueck_zur_auswahl_btn)
+        self.chat_quelle_leiste.hide()
+
+        self.vorschau_bereich = QWidget()
+        vorschau_layout = QVBoxLayout(self.vorschau_bereich)
+        vorschau_layout.setContentsMargins(0, 0, 0, 0)
+        vorschau_layout.setSpacing(2)
+        vorschau_layout.addWidget(self.chat_quelle_leiste)
+        vorschau_layout.addWidget(self.preview, 1)
+
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.splitter.addWidget(scroll)
-        self.splitter.addWidget(self.preview)
+        self.splitter.addWidget(self.vorschau_bereich)
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setCollapsible(0, False)
@@ -660,6 +691,8 @@ class DetailPanel(QWidget):
     ):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
         self.notiz_sichern()  # Issue #382: die Notiz des bisherigen Dokuments geht nicht verloren
+        # Issue #355: Frische KI-Vorschlaege fuer dieselbe PDF verdraengen eine gezeigte Chat-Quelle nicht
+        vorschau_behalten = self._chat_quelle is not None and pdf_path == self._current_pdf
         self._current_pdf = pdf_path
         self._suggestions = suggestions or []
         self._detected_date = detected_date
@@ -670,7 +703,8 @@ class DetailPanel(QWidget):
         # Header
         self.header_label.setText(tr("Original: {name}").format(name=pdf_path.name))
 
-        self._vorschau_laden(pdf_path)
+        if not vorschau_behalten:
+            self._vorschau_laden(pdf_path)
 
         # Metadaten vorbefüllen
         self._metadata = {}
@@ -855,6 +889,7 @@ class DetailPanel(QWidget):
         self._auto_name = ""
         self._date_prev_iso = None
         self._date_invalid = False
+        self._chat_quelle_beenden()
         self.preview.clear()
 
         self.name_input.clear()
@@ -957,8 +992,46 @@ class DetailPanel(QWidget):
         """Gibt den Pfad der aktuell angezeigten PDF zurück."""
         return self._current_pdf
 
+    # --- Hauptquelle einer Chat-Antwort in der Vorschau (Issue #355) --- #
+
+    def chat_quelle_zeigen(self, pfad: Path) -> None:
+        """Zeigt die Hauptquelle einer Chat-Antwort in der Vorschau; Auswahl und Felder bleiben.
+
+        Ist eine PDF ausgewaehlt, erscheint ueber der Vorschau eine Leiste mit dem Namen der
+        Quelle und dem Knopf "Zurück zur ausgewählten PDF". Ist die Quelle die Auswahl selbst,
+        zeigt die Vorschau einfach wieder die Auswahl.
+        """
+        pfad = Path(pfad)
+        if self._current_pdf is None:
+            self._chat_quelle_beenden()
+            self.preview.load_pdf(pfad)
+            return
+        if pfad == self._current_pdf:
+            self.zurueck_zur_auswahl()
+            return
+        self._chat_quelle = pfad
+        self.chat_quelle_label.setText(tr("Quelle der Chat-Antwort: {name}").format(name=pfad.name))
+        self.chat_quelle_label.setToolTip(str(pfad))
+        self.chat_quelle_leiste.show()
+        self.preview.load_pdf(pfad)
+
+    def zeigt_chat_quelle(self) -> bool:
+        """Zeigt die Vorschau gerade eine Chat-Quelle statt der ausgewaehlten PDF?"""
+        return self._chat_quelle is not None
+
+    def zurueck_zur_auswahl(self) -> None:
+        """Knopf "Zurück zur ausgewählten PDF": die Vorschau zeigt wieder die Auswahl."""
+        self._chat_quelle_beenden()
+        if self._current_pdf is not None:
+            self._vorschau_laden(self._current_pdf)
+
+    def _chat_quelle_beenden(self) -> None:
+        self._chat_quelle = None
+        self.chat_quelle_leiste.hide()
+
     def _vorschau_laden(self, pdf_path: Path):
         """Vorschau unten nachladen (Issue #74) - liest im Hintergrund."""
+        self._chat_quelle_beenden()  # Issue #355: eine neue Auswahl verdraengt die Chat-Quelle
         if ist_office_datei(pdf_path):
             self.preview.show_message(tr("Vorschau wird erstellt …"))
             self.office_preview_requested.emit(pdf_path)

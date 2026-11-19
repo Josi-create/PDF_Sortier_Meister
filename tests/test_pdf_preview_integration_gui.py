@@ -89,7 +89,10 @@ def test_detail_panel_has_preview_below_details(qtbot, tmp_path, monkeypatch):
     panel.resize(500, 900)
     panel.show()
     assert panel.splitter.count() == 2
-    assert panel.splitter.widget(1) is panel.preview
+    # Issue #355: Vorschau unten, darueber nur die (meist versteckte) Leiste fuer die Chat-Quelle
+    assert panel.splitter.widget(1) is panel.vorschau_bereich
+    assert panel.vorschau_bereich.isAncestorOf(panel.preview)
+    assert not panel.chat_quelle_leiste.isVisible()
     assert not panel.preview.is_showing_document()
 
     pdf = _make_pdf(tmp_path / "beleg.pdf", pages=2)
