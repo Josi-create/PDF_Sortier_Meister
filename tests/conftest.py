@@ -133,6 +133,27 @@ def ordner_beobachtung_ohne_takt(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def keine_auswahl_nach_ordnerwechsel(monkeypatch):
+    """Ein Ordnerwechsel waehlt in Tests keine Kachel von selbst aus (Issue #340): Viele
+    Tests setzen nach ``_navigate_to_folder`` eine leere Auswahl voraus, und die Analyse
+    der ersten Kachel liefe sonst im Hintergrund mit. Die Tests zu #340 stellen
+    ``AUSWAHL_NACH_ORDNERWECHSEL`` wieder an."""
+    from src.gui import main_window
+
+    monkeypatch.setattr(main_window, "AUSWAHL_NACH_ORDNERWECHSEL", False)
+
+
+@pytest.fixture(autouse=True)
+def keine_fragen_nach_dem_scan_ordner(monkeypatch):
+    """„Jetzt scannen“ oeffnet in Tests keinen Ordner-Dialog und keine Rueckfrage (Issue #339):
+    Abbruch bzw. „Nein“. Die Tests zu #339 ersetzen beide Fragen selbst."""
+    from src.gui import scan_eingang
+
+    monkeypatch.setattr(scan_eingang, "ordner_erfragen", lambda fenster, start: "")
+    monkeypatch.setattr(scan_eingang, "wechsel_erfragen", lambda fenster, ordner: (False, False))
+
+
+@pytest.fixture(autouse=True)
 def doppelte_hinweis_aus(monkeypatch):
     """Kein Test bekommt von sich aus Hinweise oder Rueckfragen zu doppelten Dateien
     (Issue #245): Viele Tests legen mehrere Dateien mit demselben Inhalt an. Die Tests

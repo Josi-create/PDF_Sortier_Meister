@@ -98,6 +98,11 @@ class Config:
         "scan_ordner_beobachten": True,  # Issue #232: neue Dateien im Scan-Ordner erscheinen von selbst
         "doppelte_hinweis": True,  # Issue #306: Hinweis bei doppelten Dateien (Kacheln, Statusleiste, Rueckfrage)
         "scan_programm": "",  # Issue #270: Pfad zum Scanprogramm fuer den Knopf „Jetzt scannen“
+        # Issue #339: Ordner, in dem das Scanprogramm neue Scans ablegt ("" = beim ersten
+        # „Jetzt scannen“ einmal fragen); danach ohne Rueckfrage dorthin wechseln?
+        "scan_eingang_ordner": "",
+        "scan_eingang_automatisch": False,
+        "scan_eingang_gefragt": False,
         # Persönliche Daten (damit das System den Benutzer kennt)
         "owner_name": "",           # z.B. "Max Mustermann"
         "owner_name_variants": "",  # Weitere Namensvarianten, kommagetrennt
