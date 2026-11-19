@@ -305,6 +305,7 @@ class OrdnerBeobachtung(QObject):
             self._neu.clear()
             fenster.load_pdfs()
             self._melden(neue)
+            self._scan_auswaehlen(lauf, neue)
             return
         anzahl = 0
         while (self._neu and anzahl < self.KACHELN_JE_PORTION and time.monotonic() < ende
@@ -332,8 +333,16 @@ class OrdnerBeobachtung(QObject):
             self._zahlen_anzeigen()
             fenster.pdf_cache.pre_cache(angelegt)  # Analyse und KI-Vorschlag wie nach F5
             self._melden(angelegt)
+            self._scan_auswaehlen(lauf, angelegt)
             # Issue #245: Liegt eine der neuen Dateien schon einmal im Ordner?
             fenster._doppelte_im_ordner.anstossen()
+
+    def _scan_auswaehlen(self, lauf: _Lauf, neue: list[Path]):
+        """Nach „Jetzt scannen“ den neuen Scan auswaehlen (Issue #339)."""
+        scan_eingang = getattr(self.fenster, "_scan_eingang", None)
+        if scan_eingang is not None:
+            staende = {n: (e.mtime_ns / 1e9, e.groesse) for n, e in self._liste.items()}
+            scan_eingang.neue_dateien(lauf.ordner, neue, staende)
 
     @staticmethod
     def _nutzer_beschaeftigt() -> bool:

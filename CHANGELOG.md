@@ -18,6 +18,45 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   werden (z. B. weil sie geschützt ist), steht das jetzt mit Grund in der Statusleiste; bisher
   geschah das still.
 
+### Neu
+- **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
+  Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
+  „Einrichten“. Der Knopf trägt den Dienst „pdfsuche“ über Hermes selbst (`hermes mcp add`) in
+  dessen Konfiguration ein; andere Einträge bleiben erhalten, vorher entsteht eine
+  Sicherungskopie der `config.yaml`. Desktop-App und Kommandozeile von Hermes nutzen dieselbe
+  Konfiguration. Danach in Hermes eine neue Sitzung beginnen oder `/reload-mcp` eingeben. Ist
+  Hermes nicht installiert, bleibt der Knopf ausgegraut.
+
+### Geändert
+- **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen
+  Ordner wechselt (Baum, Favorit, Pfadzeile, Ordnerkachel, „Zurück“, „Nach oben“), sieht sofort die
+  erste Datei des Ordners mit Vorschau, Angaben und Zielvorschlägen. In der Mitte steht nicht mehr
+  die Datei aus dem vorigen Ordner. War in diesem Ordner vorher genau eine Datei ausgewählt, wird
+  bei der Rückkehr wieder diese ausgewählt und die Liste dorthin gerollt; gibt es sie nicht mehr,
+  ist es die erste. Das gilt bis zum Beenden des Programms. Ein leerer Ordner leert die Mitte.
+
+### Verbessert
+- **Scanprogramm leichter hinterlegen** (#338): Unter *Einstellungen → Allgemein → Scannen* gibt
+  es neben „Durchsuchen…“ den Knopf „Vorschläge“. Er zeigt die Scanprogramme, die auf dem Rechner
+  gefunden wurden (z. B. VueScan, NAPS2, PaperPort, Epson Scan, Windows-Fax und -Scan); ein gerade
+  laufendes steht ganz oben. „Durchsuchen…“ beginnt unter Windows im Startmenü und nimmt auch
+  Verknüpfungen an; eingetragen wird dann das Programm, auf das die Verknüpfung zeigt.
+- **Nach „Jetzt scannen“ gleich beim neuen Scan** (#339): Unter *Einstellungen → Allgemein →
+  Scannen* gibt es das Feld „Neue Scans landen in:“ für den Ordner, in dem das Scanprogramm
+  speichert. Ist es leer, fragt „Jetzt scannen“ einmal danach. Steht man gerade in einem anderen
+  Ordner, fragt der Knopf, ob er in den Scan-Ordner wechseln soll; mit dem Kästchen „Künftig immer
+  automatisch wechseln“ entfällt die Frage. Zurücknehmen lässt sich das in den Einstellungen
+  („Nach ‚Jetzt scannen‘ immer automatisch in diesen Ordner wechseln“). Erscheint danach der neue
+  Scan, wird er ausgewählt und angezeigt, mit Vorschau und Vorschlägen. Das gilt einmal je Klick
+  auf „Jetzt scannen“, auch wenn das Scanprogramm schon lief. Wer inzwischen in einen anderen
+  Ordner gewechselt oder mehrere Dateien markiert hat, wird nicht aus seiner Arbeit gerissen.
+
+### Behoben
+- **„Jetzt scannen“ startet das Scanprogramm nicht mehr doppelt** (#337): Läuft das hinterlegte
+  Scanprogramm schon, holt der Knopf dessen Fenster nach vorn (auch wenn es minimiert war), statt
+  es ein zweites Mal zu starten. Die Statusleiste meldet dann „Scanprogramm läuft bereits“. Nur
+  wenn es nicht läuft, wird es gestartet.
+
 ## [0.31.1] - 2026-11-19
 
 ### Behoben
