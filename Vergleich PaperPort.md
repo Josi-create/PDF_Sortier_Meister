@@ -1,6 +1,6 @@
 # PDF Sortier Meister vs. PaperPort (Tungsten Automation)
 
-**Stand: 18. November 2026 (PDFSM v0.31.0, gemergt, noch nicht veröffentlicht; PaperPort 14.8.0)** — verglichen werden PDF Sortier Meister **v0.31.0** (am 18.11.2026 auf `main` gemergt, noch kein Release; für Anwender ist v0.30.0 vom 16.11.2026 die neueste Fassung) und **Tungsten PaperPort 14.8.0** (Standard und Professional; Technische Daten datiert 11.10.2024, Build 14.8.24565.2000). Eine neuere PaperPort-Version war am 18.11.2026 nicht zu finden. PaperPort wurde **nicht installiert und nicht ausprobiert**: Alles zu PaperPort stammt aus Unterlagen des Herstellers oder von Händlern. Die Spalte „Herkunft“ sagt, woher:
+**Stand: 19. November 2026 (PDFSM v0.31.1; PaperPort 14.8.0)** — verglichen werden PDF Sortier Meister **v0.31.1** (veröffentlicht am 19.11.2026; v0.31.0 erschien am 18.11.2026, v0.31.1 bringt nur Behebungen und ändert keine Zeile dieses Vergleichs) und **Tungsten PaperPort 14.8.0** (Standard und Professional; Technische Daten datiert 11.10.2024, Build 14.8.24565.2000). Eine neuere PaperPort-Version war am 18.11.2026 nicht zu finden. PaperPort wurde **nicht installiert und nicht ausprobiert**: Alles zu PaperPort stammt aus Unterlagen des Herstellers oder von Händlern. Die Spalte „Herkunft“ sagt, woher:
 
 - **H** = Hersteller-Dokumentation (Getting Started Guide, Release Notes, Technische Daten zu 14.8.0). Beschreibt Funktionen sachlich, ist aber nicht nachgeprüft.
 - **W** = nur aus der Werbung des Herstellers (Produktseite, Datenblatt „Product Summary“). Mit Vorsicht lesen.
@@ -32,7 +32,7 @@ Anlass: Ein Nutzer im Forum Dr. Windows wies darauf hin, dass es PaperPort bei T
 
 **Aktuelle Version:** 14.8.0 (H: Technische Daten „Version 14.8.0, Date 2024-10-11“; Release Notes © 2024, Build 14.8.24565.2000). Neu darin laut Release Notes nur: Umbenennung von Oberfläche und Handbuch auf „Tungsten PaperPort“ und ein Evernote-Link in der „Senden an“-Leiste. Eine Liste behobener Fehler enthalten die Release Notes nicht. Entfallen sind Windows 8.1, Internet Explorer, Office 2013 und SharePoint 2013. Das Getting Started Guide (ebenfalls vom 11.10.2024) nennt noch Windows 10, 8.1 und 7 als Systeme, die Technischen Daten Windows 11 und 10; die Unterlagen sind hier nicht einheitlich.
 
-**Weiterentwicklung und Support-Ende:** Auf der Produktseite steht kein Support-Ende. Die Tabelle „Product Release and Sunset Schedules“ von Tungsten war am 18.11.2026 nicht abrufbar (HTTP 404), ob PaperPort 14.8 dort ein Datum hat, ist **nicht geprüft**. Seit Oktober 2024 ist keine neue Version erschienen (Stand der Recherche).
+**Weiterentwicklung und Support-Ende:** Auf der Produktseite steht kein Support-Ende. Die Tabelle „Product Release and Sunset Schedules“ von Tungsten war am 18.11.2026 nicht abrufbar (HTTP 404), ob PaperPort 14.8 dort ein Datum hat, ist **nicht geprüft**. Auch am 19.11.2026 fand sich weder im Wissensportal von Tungsten noch per Websuche ein offizielles Support-Ende. Seit Oktober 2024 ist keine neue Version erschienen (Stand der Recherche).
 
 **Preis** (Stand 18.11.2026):
 
@@ -40,7 +40,7 @@ Anlass: Ein Nutzer im Forum Dr. Windows wies darauf hin, dass es PaperPort bei T
 |---|---|---|---|
 | Standard | 99 $ | US-Produktseite tungstenautomation.com | W |
 | Professional | 199 $ | US-Produktseite | W |
-| Professional | „129 €“ zuzüglich lokaler Steuern | deutsche Seite tungstenautomation.de (beim Abruf so angezeigt; wirkt wie ein Sonderpreis oder Fehler der Seite, **im Browser nachprüfen**) | W |
+| Professional | „129 €“ zuzüglich lokaler Steuern | deutsche Seite tungstenautomation.de (am 18.11. und erneut am 19.11.2026 abgerufen, beide Male „129 €“, ohne durchgestrichenen Preis oder Hinweis auf ein Angebot; nur per Abruf, nicht im Browser angesehen) | W |
 | Enterprise | nur auf Anfrage („Contact Sales“) | Produktseite | W |
 | Professional, Einzelplatz, Download | rund 206 € inkl. MwSt.; ein deutscher Händler meldet „nicht mehr verfügbar“ | Händler | D |
 
@@ -185,4 +185,4 @@ PaperPort-Ordner sind **normale Windows-Ordner** (H: Änderungen im Explorer wer
 - Wikipedia „PaperPort“ (D): <https://en.wikipedia.org/wiki/PaperPort>
 - Preise bei Dritten (D): TrustRadius <https://www.trustradius.com/products/tungsten-paperport/pricing>, Händlerliste <https://responsive5.e-nitiative.eu/store/pbrandlist/kofax/store-2846-1308>, Preisliste <https://www.software-express.de/preislisten/kofax/kofax-18968/>
 - Nicht abrufbar (HTTP 404): Tungsten „Product Release and Sunset Schedules“ <https://supportassets.tungstenautomation.com/support/Support$/sunset/Product_Release_and_Sunset_Schedules_November.04.2025.pdf>
-- PDFSM: `CHANGELOG.md` (Stand `origin/main`, v0.31.0 und „Unreleased“), Code unter `src/` wie in der Spalte „Beleg“ genannt; `Vergleich paperless-ngx.md` für die PDFSM-Seite
+- PDFSM: `CHANGELOG.md` (Stand `origin/main`, v0.31.1 vom 19.11.2026), Code unter `src/` wie in der Spalte „Beleg“ genannt; `Vergleich paperless-ngx.md` für die PDFSM-Seite
