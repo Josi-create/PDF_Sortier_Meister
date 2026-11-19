@@ -9727,6 +9727,10 @@ msgstr "The scanning program could not be started:\n{pfad}\n\n{fehler}\n\nCheck 
 msgid "Scanprogramm gestartet: {name}"
 msgstr "Scanning program started: {name}"
 
+#: src/gui/main_window.py
+msgid "Scanprogramm läuft bereits: {name}"
+msgstr "Scanning program is already running: {name}"
+
 #: src/gui/settings_dialog.py
 msgid "Scannen"
 msgstr "Scanning"

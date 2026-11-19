@@ -5595,7 +5595,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self._open_settings_dialog(tab=tr("Allgemein"))
             return
         try:
-            scan_programm.starten(pfad)
+            schon_offen = scan_programm.starten(pfad)
         except scan_programm.ScanprogrammFehler as e:
             fehler = str(e) if Path(pfad).exists() else tr("Die Datei wurde nicht gefunden.")
             QMessageBox.warning(
@@ -5604,6 +5604,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 tr("Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\n"
                 "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
             )
+            return
+        if schon_offen:  # Issue #337: laeuft schon, nur nach vorn geholt
+            self.statusbar.showMessage(tr("Scanprogramm läuft bereits: {name}").format(name=Path(pfad).name), 5000)
             return
         self.statusbar.showMessage(tr("Scanprogramm gestartet: {name}").format(name=Path(pfad).name), 5000)
 
