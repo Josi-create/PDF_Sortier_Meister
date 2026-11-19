@@ -10087,6 +10087,70 @@ msgstr "1 attachment put into the scan folder: {name}"
 msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
 msgstr "{anzahl} attachments put into the scan folder"
 
+#: src/gui/settings_dialog.py
+msgid "Hermes Agent:"
+msgstr "Hermes Agent:"
+
+#: src/gui/settings_dialog.py
+msgid "Hermes Agent ist auf diesem Rechner nicht installiert."
+msgstr "Hermes Agent is not installed on this computer."
+
+#: src/gui/settings_dialog.py
+msgid "Hermes Agent trägt den Server „pdfsuche“ in seine Konfiguration (config.yaml) ein:\n\n{befehl}\n\nAndere Einträge bleiben erhalten; vorher entsteht eine Sicherungskopie.\n\n"
+msgstr "Hermes Agent adds the server “pdfsuche” to its configuration (config.yaml):\n\n{befehl}\n\nOther entries are kept; a backup copy is made first.\n\n"
+
+#: src/gui/settings_dialog.py
+msgid "Hermes Agent einrichten"
+msgstr "Set up Hermes Agent"
+
+#: src/gui/settings_dialog.py
+msgid "Hermes Agent"
+msgstr "Hermes Agent"
+
+#: src/search/mcp_einrichtung.py
+msgid "nicht gefunden (Befehl „hermes“ fehlt)"
+msgstr "not found (command “hermes” is missing)"
+
+#: src/search/mcp_einrichtung.py
+msgid "keine Antwort von „hermes config get“ nach {s:.0f} s"
+msgstr "no answer from “hermes config get” after {s:.0f} s"
+
+#: src/search/mcp_einrichtung.py
+msgid "„hermes“ ließ sich nicht starten: {exc}"
+msgstr "“hermes” could not be started: {exc}"
+
+#: src/search/mcp_einrichtung.py
+msgid "eingetragen, aber in Hermes ausgeschaltet"
+msgstr "added, but switched off in Hermes"
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Hermes Agent nicht gefunden (Befehl „hermes“ fehlt)."
+msgstr "Error: Hermes Agent not found (command “hermes” is missing)."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Hermes nennt keine Konfigurationsdatei („hermes config path“). Nichts geändert."
+msgstr "Error: Hermes did not name a configuration file (“hermes config path”). Nothing changed."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Sicherungskopie von {pfad} nicht möglich: {exc} Nichts geändert."
+msgstr "Error: could not back up {pfad}: {exc} Nothing changed."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: „hermes mcp add“ hat nach {s:.0f} s nicht geantwortet."
+msgstr "Error: “hermes mcp add” did not answer within {s:.0f} s."
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: „hermes“ ließ sich nicht starten: {exc}"
+msgstr "Error: “hermes” could not be started: {exc}"
+
+#: src/search/mcp_einrichtung.py
+msgid "Fehler: Hermes hat „{SERVER_NAME}“ nicht eingetragen.\n{grund}"
+msgstr "Error: Hermes did not add “{SERVER_NAME}”.\n{grund}"
+
+#: src/search/mcp_einrichtung.py
+msgid "{text} In Hermes eine neue Sitzung beginnen oder /reload-mcp eingeben, damit die Werkzeuge erscheinen."
+msgstr "{text} Start a new session in Hermes or enter /reload-mcp so the tools appear."
+
 #: src/gui/scan_eingang.py
 msgid "Wo speichert Ihr Scanprogramm neue Scans?"
 msgstr "Where does your scanning program save new scans?"

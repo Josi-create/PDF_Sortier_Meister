@@ -7,6 +7,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
+  Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
+  „Einrichten“. Der Knopf trägt den Dienst „pdfsuche“ über Hermes selbst (`hermes mcp add`) in
+  dessen Konfiguration ein; andere Einträge bleiben erhalten, vorher entsteht eine
+  Sicherungskopie der `config.yaml`. Desktop-App und Kommandozeile von Hermes nutzen dieselbe
+  Konfiguration. Danach in Hermes eine neue Sitzung beginnen oder `/reload-mcp` eingeben. Ist
+  Hermes nicht installiert, bleibt der Knopf ausgegraut.
+
 ### Geändert
 - **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen
   Ordner wechselt (Baum, Favorit, Pfadzeile, Ordnerkachel, „Zurück“, „Nach oben“), sieht sofort die

@@ -7,10 +7,15 @@ und richten ihn auf Wunsch ein.
 * Claude Code: ``claude mcp get pdfsuche`` (Status) und ``claude mcp add`` (Einrichten).
 * Claude Desktop: Eintrag ``mcpServers.pdfsuche`` in ``claude_desktop_config.json``;
   uebrige Eintraege bleiben unveraendert, vorher entsteht eine Sicherungskopie.
+* Hermes Agent (#417): ``hermes config get mcp_servers.pdfsuche --json`` (Status) und
+  ``hermes mcp add`` (Einrichten). Hermes schreibt ``mcp_servers`` in seine ``config.yaml``
+  selbst (mit Kommentaren, fuer das aktive Profil); vorher sichern wir die Datei, deren Ort
+  ``hermes config path`` nennt. Desktop-App und Kommandozeile teilen diese Konfiguration.
 
 Alle Funktionen liefern Fehlertexte statt Ausnahmen. Tests ersetzen
-``claude_programm`` und ``claude_desktop_konfig`` (``tests/conftest.py``), damit nie das
-echte Claude Code laeuft oder die echte Konfiguration gelesen wird.
+``claude_programm``, ``claude_desktop_konfig`` und ``hermes_programm``
+(``tests/conftest.py``), damit nie das echte Claude Code oder Hermes laeuft oder die echte
+Konfiguration gelesen wird.
 """
 
 from __future__ import annotations
@@ -130,9 +135,12 @@ def claude_programm() -> str | None:
     return shutil.which("claude")
 
 
-def _ausfuehren(args: list[str], zeitlimit_s: float = CLAUDE_ZEITLIMIT_S) -> subprocess.CompletedProcess:
+def _ausfuehren(args: list[str], zeitlimit_s: float = CLAUDE_ZEITLIMIT_S,
+                eingabe: str | None = None) -> subprocess.CompletedProcess:
+    """Ohne ``eingabe`` liest das Programm nichts (``stdin`` leer), sonst bekommt es den Text."""
+    zufuhr = {"stdin": subprocess.DEVNULL} if eingabe is None else {"input": eingabe}
     return subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          timeout=zeitlimit_s, stdin=subprocess.DEVNULL, **plattform.popen_flags())
+                          timeout=zeitlimit_s, **zufuhr, **plattform.popen_flags())
 
 
 def _letzte_zeilen(*texte: str, anzahl: int = 4) -> str:
@@ -359,3 +367,146 @@ def claude_desktop_eintragen(pfad: Path, aufruf: DienstAufruf | None = None,
     if sicherung:
         text += tr(" Sicherungskopie: {name}.").format(name=sicherung.name)
     return tr("{text} Claude Desktop neu starten, damit der Server erscheint.").format(text=text)
+
+
+# --------------------------------------------------------------------------- Hermes Agent
+
+# Hermes startet langsam (einige Sekunden) und startet bei ``mcp add`` den Server zur Probe
+HERMES_ZEITLIMIT_S = 120.0
+# Antworten auf die Rueckfragen von ``hermes mcp add`` (je eine Zeile, leer = Vorgabe):
+# „Server 'pdfsuche' already exists. Overwrite? [y/N]“ nur beim Ersetzen, dann
+# „Enable all N tools? [Y/n/select]“ (Vorgabe: alle). Scheitert die Probe, fragt Hermes
+# „Save config anyway? [y/N]“ – die leere Zeile laesst dann die Konfiguration unveraendert.
+HERMES_EINGABE_NEU = "\n\n\n"
+HERMES_EINGABE_ERSETZEN = "y\n\n\n"
+
+
+def hermes_kandidaten(system: str | None = None, umgebung: dict[str, str] | None = None,
+                      home: Path | None = None) -> list[Path]:
+    """Uebliche Orte des Befehls ``hermes``, falls er nicht im Suchpfad steht (Programm aus dem
+    Startmenue bzw. Finder). Windows: ``%LOCALAPPDATA%\\hermes\\bin``; macOS/Linux:
+    ``~/.local/bin`` (Hermes-Doku, getting-started/installation.md, „Install layout“)."""
+    system = system or sys.platform
+    umgebung = os.environ if umgebung is None else umgebung
+    home = home or Path.home()
+    if system == "win32":
+        lokal = umgebung.get("LOCALAPPDATA") or str(home / "AppData" / "Local")
+        return [Path(lokal) / "hermes" / "bin" / "hermes.exe"]
+    return [home / ".local" / "bin" / "hermes"]
+
+
+def hermes_programm() -> str | None:
+    """Pfad des Befehls ``hermes`` (Hermes Agent) oder None."""
+    gefunden = shutil.which("hermes")
+    if gefunden:
+        return gefunden
+    try:
+        for datei in hermes_kandidaten():
+            if datei.is_file():
+                return str(datei)
+    except OSError:
+        pass
+    return None
+
+
+def hermes_befehl(aufruf: DienstAufruf | None = None, programm: str = "hermes") -> list[str]:
+    """``hermes mcp add pdfsuche --command <dienst> [--env K=V] --args mcp`` (``--args`` zuletzt)."""
+    aufruf = aufruf or dienst_aufruf()
+    befehl = [programm, "mcp", "add", SERVER_NAME, "--command", aufruf.programm]
+    if aufruf.umgebung:
+        befehl += ["--env", *(f"{k}={v}" for k, v in aufruf.umgebung.items())]
+    if aufruf.argumente:
+        befehl += ["--args", *aufruf.argumente]
+    return befehl
+
+
+def _json_objekt(text: str) -> dict | None:
+    """Das JSON-Objekt aus der Ausgabe (Hermes schreibt mitunter Hinweiszeilen davor)."""
+    anfang, ende = text.find("{"), text.rfind("}")
+    if anfang < 0 or ende < anfang:
+        return None
+    try:
+        daten = json.loads(text[anfang:ende + 1])
+    except json.JSONDecodeError:
+        return None
+    return daten if isinstance(daten, dict) else None
+
+
+def hermes_status(aufruf: DienstAufruf | None = None) -> Status:
+    """``nicht_gefunden``, ``installiert``, ``eingerichtet``, ``anderer_pfad`` oder ``fehler``."""
+    programm = hermes_programm()
+    if not programm:
+        return Status(NICHT_GEFUNDEN, tr("nicht gefunden (Befehl „hermes“ fehlt)"))
+    try:
+        r = _ausfuehren([programm, "config", "get", f"mcp_servers.{SERVER_NAME}", "--json"], HERMES_ZEITLIMIT_S)
+    except subprocess.TimeoutExpired:
+        return Status(FEHLER, tr("keine Antwort von „hermes config get“ nach {s:.0f} s").format(s=HERMES_ZEITLIMIT_S))
+    except OSError as exc:
+        return Status(FEHLER, tr("„hermes“ ließ sich nicht starten: {exc}").format(exc=exc))
+    if r.returncode != 0:
+        if "not set" in f"{r.stdout}\n{r.stderr}".lower():
+            return Status(INSTALLIERT, tr("installiert, „{SERVER_NAME}“ noch nicht eingerichtet").format(SERVER_NAME=SERVER_NAME))
+        grund = _letzte_zeilen(r.stderr, r.stdout, anzahl=2) or tr("Rückgabewert {returncode}").format(returncode=r.returncode)
+        return Status(FEHLER, tr("Prüfung gescheitert: {status}").format(status=grund))
+    eintrag = _json_objekt(r.stdout)
+    if eintrag is None:
+        return Status(FEHLER, tr("Prüfung gescheitert: {status}").format(status=_letzte_zeilen(r.stdout, anzahl=2)))
+    befehl = str(eintrag.get("command", ""))
+    argumente = eintrag.get("args") or []
+    if not isinstance(argumente, list):
+        argumente = []
+    if eintrag.get("enabled") is False:
+        return Status(ANDERER_PFAD, tr("eingetragen, aber in Hermes ausgeschaltet"))
+    if _gleicher_aufruf(befehl, [str(a) for a in argumente], aufruf or dienst_aufruf()):
+        return Status(EINGERICHTET, "eingerichtet")
+    return Status(ANDERER_PFAD, tr("eingetragen, startet aber {0}").format(befehl or tr("(kein Programm)")))
+
+
+def hermes_konfig_pfad(programm: str) -> Path | None:
+    """Die ``config.yaml`` des aktiven Hermes-Profils laut ``hermes config path``."""
+    try:
+        r = _ausfuehren([programm, "config", "path"], HERMES_ZEITLIMIT_S)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    zeilen = [z.strip() for z in (r.stdout or "").splitlines() if z.strip()]
+    if r.returncode != 0 or not zeilen:
+        return None
+    return Path(zeilen[-1])
+
+
+def hermes_einrichten(ersetzen: bool = False, aufruf: DienstAufruf | None = None,
+                      jetzt: datetime | None = None) -> str:
+    """Sicherungskopie der ``config.yaml``, dann ``hermes mcp add …``; Erfolg wird nachgeprueft.
+
+    ``ersetzen``: ein Eintrag ``pdfsuche`` ist schon da; Hermes fragt dann, ob er ihn
+    ueberschreiben soll. Ein zweiter Klick legt nichts doppelt an (``mcp_servers`` ist eine
+    Zuordnung Name → Eintrag). Rueckgabe: Meldung, bei Misserfolg beginnend mit „Fehler“.
+    """
+    programm = hermes_programm()
+    if not programm:
+        return tr("Fehler: Hermes Agent nicht gefunden (Befehl „hermes“ fehlt).")
+    pfad = hermes_konfig_pfad(programm)
+    if pfad is None:
+        return tr("Fehler: Hermes nennt keine Konfigurationsdatei („hermes config path“). Nichts geändert.")
+    try:
+        sicherung = _sicherung(pfad, jetzt or datetime.now()) if pfad.is_file() else None
+    except OSError as exc:
+        return tr("Fehler: Sicherungskopie von {pfad} nicht möglich: {exc} Nichts geändert.").format(pfad=pfad, exc=exc)
+    try:
+        r = _ausfuehren(hermes_befehl(aufruf, programm), HERMES_ZEITLIMIT_S,
+                        HERMES_EINGABE_ERSETZEN if ersetzen else HERMES_EINGABE_NEU)
+    except subprocess.TimeoutExpired:
+        return tr("Fehler: „hermes mcp add“ hat nach {s:.0f} s nicht geantwortet.").format(s=HERMES_ZEITLIMIT_S)
+    except OSError as exc:
+        return tr("Fehler: „hermes“ ließ sich nicht starten: {exc}").format(exc=exc)
+    # Beim Ersetzen kann der alte Eintrag schon passen; ob Hermes neu gespeichert hat
+    # (Probe gelungen), zeigt dann nur seine Meldung „Saved 'pdfsuche' to …“.
+    gespeichert = not ersetzen or f"saved '{SERVER_NAME}'" in (r.stdout or "").lower()
+    if not gespeichert or hermes_status(aufruf).zustand != EINGERICHTET:
+        grund = _letzte_zeilen(r.stdout, r.stderr) or tr("Rückgabewert {returncode}").format(returncode=r.returncode)
+        return tr("Fehler: Hermes hat „{SERVER_NAME}“ nicht eingetragen.\n{grund}").format(SERVER_NAME=SERVER_NAME, grund=grund)
+    text = tr("„{SERVER_NAME}“ in {pfad} eingetragen.").format(SERVER_NAME=SERVER_NAME, pfad=pfad)
+    if sicherung:
+        text += tr(" Sicherungskopie: {name}.").format(name=sicherung.name)
+    return tr("{text} In Hermes eine neue Sitzung beginnen oder /reload-mcp eingeben, damit die "
+              "Werkzeuge erscheinen.").format(text=text)
