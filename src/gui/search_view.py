@@ -59,7 +59,9 @@ from src.utils.platform_paths import file_manager_name, open_with_default_app
 from src.i18n import tr
 
 TYPEN = (("", tr("Alle")), ("pdf", "PDF"), ("office", tr("Office")), ("md", tr("Markdown")), ("mail", tr("Mail")))
-SORTIERUNGEN = (("relevanz", tr("Relevanz")), ("neu", tr("Neueste zuerst")), ("alt", tr("Älteste zuerst")))
+SORTIERUNGEN = (("relevanz", tr("Relevanz")), ("neu", tr("Neueste zuerst")), ("alt", tr("Älteste zuerst")),
+                ("namensdatum_neu", tr("Datum im Namen: neueste zuerst")),  # Issue #352
+                ("namensdatum_alt", tr("Datum im Namen: älteste zuerst")))
 STATUS_MARKEN = {
     "ocr_ausstehend": tr("OCR ausstehend"), "ocr_teilweise": tr("OCR teilweise"), "fehler": tr("Fehler"),
     "cloud": tr("nur in der Cloud"), "zu_gross": tr("zu groß"), "verschluesselt": tr("verschlüsselt"), "leer": tr("ohne Text"),
