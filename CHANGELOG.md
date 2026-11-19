@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **„Jetzt scannen“ startet das Scanprogramm nicht mehr doppelt** (#337): Läuft das hinterlegte
+  Scanprogramm schon, holt der Knopf dessen Fenster nach vorn (auch wenn es minimiert war), statt
+  es ein zweites Mal zu starten. Die Statusleiste meldet dann „Scanprogramm läuft bereits“. Nur
+  wenn es nicht läuft, wird es gestartet.
+
 ## [0.31.1] - 2026-11-19
 
 ### Behoben
