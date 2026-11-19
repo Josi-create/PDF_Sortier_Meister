@@ -238,6 +238,7 @@ def keine_echten_ki_assistenten(monkeypatch):
 
     monkeypatch.setattr(mcp_einrichtung, "claude_programm", lambda: None)
     monkeypatch.setattr(mcp_einrichtung, "claude_desktop_konfig", lambda *args, **kwargs: None)
+    monkeypatch.setattr(mcp_einrichtung, "hermes_programm", lambda: None)   # Hermes Agent (#417)
 
 
 @pytest.fixture(autouse=True)

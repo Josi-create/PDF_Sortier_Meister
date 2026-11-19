@@ -1870,7 +1870,8 @@ class SettingsDialog(QDialog):
     }
 
     def _create_mcp_group(self) -> QGroupBox:
-        """Gruppe „KI-Assistenten (MCP)“: Dienst, Werkzeuge, SQL-Schalter, Claude Code, Claude Desktop.
+        """Gruppe „KI-Assistenten (MCP)“: Dienst, Werkzeuge, SQL-Schalter, Claude Code, Claude Desktop,
+        Hermes Agent (#417).
 
         Die Logik liegt Qt-frei in ``src/search/mcp_einrichtung.py``. Der Status wird erst
         geprueft, wenn der Reiter sichtbar wird (``_on_tab_changed_mcp``); Claude Code im
@@ -1882,6 +1883,7 @@ class SettingsDialog(QDialog):
         self._mcp_geprueft = False
         self._mcp_code_status: mcp_einrichtung.Status | None = None
         self._mcp_desktop_status: mcp_einrichtung.Status | None = None
+        self._mcp_hermes_status: mcp_einrichtung.Status | None = None
         self._mcp_hintergrund = _Hintergrund(self)
 
         group = QGroupBox(tr("KI-Assistenten (MCP)"))
@@ -1959,6 +1961,19 @@ class SettingsDialog(QDialog):
         desktop_row.addWidget(self.mcp_desktop_write_button)
         form.addRow(tr("Claude Desktop:"), desktop_row)
 
+        hermes_row = QHBoxLayout()
+        self.mcp_hermes_status_label = QLabel("–")
+        self.mcp_hermes_status_label.setWordWrap(True)
+        hermes_row.addWidget(self.mcp_hermes_status_label, 1)
+        self.mcp_hermes_button = QPushButton(tr("Einrichten"))
+        self.mcp_hermes_button.setEnabled(False)
+        self.mcp_hermes_button.setToolTip(
+            mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl(aufruf))
+        )
+        self.mcp_hermes_button.clicked.connect(self._mcp_hermes_einrichten)
+        hermes_row.addWidget(self.mcp_hermes_button)
+        form.addRow(tr("Hermes Agent:"), hermes_row)
+
         self.mcp_meldung_label = QLabel(
             tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
@@ -1984,6 +1999,56 @@ class SettingsDialog(QDialog):
         self.mcp_code_button.setEnabled(False)
         self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
                                       self._mcp_code_status_setzen)
+        self._mcp_hermes_pruefen()
+
+    def _mcp_hermes_pruefen(self) -> None:
+        """Hermes im Hintergrund (``hermes config get`` braucht einige Sekunden)."""
+        self.mcp_hermes_status_label.setText(tr("wird geprüft …"))
+        self.mcp_hermes_button.setEnabled(False)
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.hermes_status(),
+                                      self._mcp_hermes_status_setzen)
+
+    def _mcp_hermes_status_setzen(self, status) -> None:
+        if isinstance(status, Exception):
+            status = mcp_einrichtung.Status(mcp_einrichtung.FEHLER, tr("Prüfung gescheitert: {status}").format(status=status))
+        self._mcp_hermes_status = status
+        self.mcp_hermes_status_label.setText(self._mcp_status_text(status))
+        vorhanden = status.zustand in (mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        self.mcp_hermes_button.setText(tr("Neu einrichten") if vorhanden else tr("Einrichten"))
+        gefunden = status.zustand != mcp_einrichtung.NICHT_GEFUNDEN
+        self.mcp_hermes_button.setEnabled(gefunden)
+        self.mcp_hermes_button.setToolTip(
+            mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl()) if gefunden
+            else tr("Hermes Agent ist auf diesem Rechner nicht installiert.")
+        )
+
+    def _mcp_hermes_einrichten(self) -> None:
+        status = self._mcp_hermes_status
+        ersetzen = status is not None and status.zustand in (
+            mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        befehl = mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl())
+        frage = tr("Hermes Agent trägt den Server „pdfsuche“ in seine Konfiguration (config.yaml) ein:\n\n"
+                   "{befehl}\n\nAndere Einträge bleiben erhalten; vorher entsteht eine "
+                   "Sicherungskopie.\n\n").format(befehl=befehl)
+        if ersetzen:
+            frage += tr("Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n")
+        frage += tr("Fortfahren?")
+        antwort = QMessageBox.question(self, tr("Hermes Agent einrichten"), frage)
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        self.mcp_hermes_button.setEnabled(False)
+        self.mcp_hermes_status_label.setText(tr("wird eingerichtet …"))
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.hermes_einrichten(ersetzen),
+                                      self._mcp_hermes_eingerichtet)
+
+    def _mcp_hermes_eingerichtet(self, text) -> None:
+        if isinstance(text, Exception):
+            text = tr("Fehler: {text}").format(text=text)
+        if str(text).startswith(tr("Fehler")):
+            QMessageBox.warning(self, tr("Hermes Agent"), str(text))
+        else:
+            QMessageBox.information(self, tr("Hermes Agent"), str(text))
+        self._mcp_hermes_pruefen()
 
     def _mcp_status_text(self, status) -> str:
         return f"{self._MCP_SYMBOL.get(status.zustand, '')} {status.text}".strip()

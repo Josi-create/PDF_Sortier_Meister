@@ -166,6 +166,49 @@ def test_claude_code_neu_einrichten_ersetzt_und_zeigt_fehler(qtbot, monkeypatch,
     assert umgebung["meldungen"][0][0] == "warnung"
 
 
+def _hermes_status(monkeypatch, zustand, text=""):
+    monkeypatch.setattr(me, "hermes_status", lambda aufruf=None: me.Status(zustand, text or zustand))
+
+
+def test_hermes_nicht_installiert_knopf_ausgegraut(qtbot, monkeypatch, tmp_path):
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)          # conftest: kein Hermes
+    dlg.show_tab("Suche")
+    qtbot.waitUntil(lambda: "nicht gefunden" in dlg.mcp_hermes_status_label.text(), timeout=3000)
+    assert not dlg.mcp_hermes_button.isEnabled()
+    assert "nicht installiert" in dlg.mcp_hermes_button.toolTip()
+
+
+def test_hermes_einrichten_und_neu_einrichten(qtbot, monkeypatch, tmp_path, umgebung):
+    _hermes_status(monkeypatch, me.INSTALLIERT, "installiert, „pdfsuche“ noch nicht eingerichtet")
+    aufrufe = []
+
+    def einrichten(ersetzen=False, aufruf=None, jetzt=None):
+        aufrufe.append(ersetzen)
+        _hermes_status(monkeypatch, me.EINGERICHTET, "eingerichtet")
+        return "„pdfsuche“ in config.yaml eingetragen. In Hermes eine neue Sitzung beginnen."
+
+    monkeypatch.setattr(me, "hermes_einrichten", einrichten)
+    dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
+    dlg.show_tab("Suche")
+    qtbot.waitUntil(lambda: dlg.mcp_hermes_button.isEnabled(), timeout=3000)
+    assert dlg.mcp_hermes_button.text() == "Einrichten"
+
+    umgebung["antwort"] = QMessageBox.StandardButton.No
+    dlg.mcp_hermes_button.click()
+    assert aufrufe == [] and GEBAUT.programm in umgebung["fragen"][-1] and "Sicherungskopie" in umgebung["fragen"][-1]
+
+    umgebung["antwort"] = QMessageBox.StandardButton.Yes
+    dlg.mcp_hermes_button.click()
+    qtbot.waitUntil(lambda: bool(umgebung["meldungen"]), timeout=3000)
+    assert aufrufe == [False] and umgebung["meldungen"][-1][0] == "info"
+    qtbot.waitUntil(lambda: dlg.mcp_hermes_button.text() == "Neu einrichten", timeout=3000)
+    assert dlg.mcp_hermes_status_label.text().endswith("eingerichtet")
+
+    dlg.mcp_hermes_button.click()                                     # zweiter Klick: ersetzt
+    qtbot.waitUntil(lambda: len(aufrufe) == 2, timeout=3000)
+    assert aufrufe == [False, True] and "ersetzt" in umgebung["fragen"][-1]
+
+
 def test_desktop_eintrag_kopieren_ist_gueltiges_json(qtbot, monkeypatch, tmp_path):
     dlg, _ = _dialog(qtbot, monkeypatch, tmp_path)
     dlg.mcp_desktop_copy_button.click()
