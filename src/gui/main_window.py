@@ -3,6 +3,7 @@ Hauptfenster der PDF Sortier Meister Anwendung
 """
 
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -94,6 +95,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.gui.ordner_beobachtung import OrdnerBeobachtung
+from src.gui.scan_eingang import ScanEingang
 from src.gui.doppelte import DoppelteImOrdner, DoppelteMixin
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
@@ -115,6 +117,10 @@ from src.gui.search_view import SearchView
 from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.meldungen import melden as index_melden
 
+
+# Nach einem Ordnerwechsel eine Kachel auswaehlen (Issue #340). Die Tests stellen das
+# ab (tests/conftest.py), weil viele davon "nichts ausgewaehlt" voraussetzen.
+AUSWAHL_NACH_ORDNERWECHSEL = True
 
 # Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
 # HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
@@ -254,6 +260,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Ordner-Navigations-Historie für Zurück-Button
         self._folder_history: list[Path] = []
+        # Zuletzt allein ausgewaehlte Datei je Ordner, nur fuer diese Sitzung (Issue #340)
+        self._letzte_auswahl_je_ordner: dict[str, str] = {}
 
         # Debounce-Timer: Raster-Spaltenzahl an Panelbreite anpassen (Issue #50)
         self._grid_relayout_timer = QTimer(self)
@@ -299,6 +307,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
         self._ordner_beobachtung = OrdnerBeobachtung(self)
+        # Nach „Jetzt scannen“ den neuen Scan auswaehlen (Issue #339)
+        self._scan_eingang = ScanEingang(self)
         # Hinweis auf inhaltsgleiche Dateien im Scan-Bereich (Issue #245)
         self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
@@ -5062,7 +5072,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # (vermeidet unnoetiges Neuladen aller PDFs).
             current = self.config.get_scan_folder()
             if not current or Path(current).resolve() != parent:
-                self._navigate_to_folder(parent)
+                self._navigate_to_folder(parent, auswaehlen=False)  # die PDF wird gleich ausgewaehlt
 
             # Auto-Selektion + Rename-Dialog leicht verzoegert, damit
             # load_pdfs() die Widgets erstellt hat und das UI rendern
@@ -5082,14 +5092,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.statusbar.showMessage(tr("Datei nicht gefunden: {pfad}").format(pfad=pfad), 5000)
             return
         aktuell = self.config.get_scan_folder()
-        if not aktuell or not gleicher_pfad(aktuell, pfad.parent):
-            self._navigate_to_folder(pfad.parent)  # load_pdfs baut die Kacheln synchron
+        gewechselt = not aktuell or not gleicher_pfad(aktuell, pfad.parent)
+        if gewechselt:
+            # load_pdfs baut die Kacheln synchron; ausgewaehlt wird unten die Datei selbst
+            self._navigate_to_folder(pfad.parent, auswaehlen=False)
         self.left_tabs.setCurrentIndex(0)
         self.center_tabs.setCurrentIndex(0)
         widget = next(
             (w for w in self.pdf_widgets if gleicher_pfad(getattr(w, "pdf_path", ""), pfad)), None
         )
         if widget is None:
+            if gewechselt:
+                self._auswahl_nach_ordnerwechsel(pfad.parent)  # Issue #340
             self.statusbar.showMessage(
                 tr("„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)").format(name=pfad.name), 6000
             )
@@ -5162,8 +5176,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # damit das Selektions-Highlight schon sichtbar ist.
         QTimer.singleShot(0, lambda: self.on_pdf_rename(pdf_path))
 
-    def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True):
-        """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking."""
+    def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True, auswaehlen: bool = True):
+        """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking.
+
+        ``auswaehlen``: danach eine Kachel des neuen Ordners auswaehlen (Issue #340).
+        Aufrufer, die selbst eine bestimmte Datei auswaehlen, geben False.
+        """
+        self._auswahl_im_ordner_merken()
+        self._scan_eingang.ordner_gewechselt(folder_path)  # Issue #339
         current = self.config.get_scan_folder()
         if current and add_to_history:
             current_path = Path(current)
@@ -5177,6 +5197,50 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.file_manager.set_scan_folder(str(folder_path))
         self.load_pdfs()
         self._update_navigation_buttons()
+        if auswaehlen:
+            self._auswahl_nach_ordnerwechsel(Path(folder_path))
+
+    @staticmethod
+    def _ordner_schluessel(ordner) -> str:
+        """Vergleichbarer Schluessel eines Ordners (Gross-/Kleinschreibung unter Windows)."""
+        return os.path.normcase(os.path.normpath(str(ordner)))
+
+    def _auswahl_im_ordner_merken(self):
+        """Merkt sich beim Verlassen eines Ordners die allein ausgewaehlte Datei (Issue #340).
+
+        Bei Mehrfachauswahl oder ohne Auswahl wird nichts gemerkt (ein alter
+        Eintrag fuer den Ordner entfaellt dann).
+        """
+        ordner = self.file_manager.scan_folder
+        if not ordner:
+            return
+        schluessel = self._ordner_schluessel(ordner)
+        pdf = self.selected_pdf
+        if (pdf is not None and not self.selected_pdfs
+                and self._ordner_schluessel(Path(pdf).parent) == schluessel):
+            self._letzte_auswahl_je_ordner[schluessel] = Path(pdf).name
+        else:
+            self._letzte_auswahl_je_ordner.pop(schluessel, None)
+
+    def _auswahl_nach_ordnerwechsel(self, ordner: Path):
+        """Nach einem Ordnerwechsel eine Kachel auswaehlen (Issue #340).
+
+        War in dieser Sitzung genau eine Datei des Ordners ausgewaehlt und gibt es
+        sie noch, wird sie wieder ausgewaehlt und die Liste dorthin gerollt; sonst
+        die erste Kachel. Ohne Dateien wird die Mitte geleert.
+        """
+        if not AUSWAHL_NACH_ORDNERWECHSEL:
+            return
+        if not self.pdf_widgets:
+            if self.selected_pdf is not None or self.selected_pdfs:
+                self._clear_selection()
+            return
+        name = self._letzte_auswahl_je_ordner.get(self._ordner_schluessel(ordner))
+        gemerkt = next((w.pdf_path for w in self.pdf_widgets if name and w.pdf_path.name == name), None)
+        ziel = gemerkt if gemerkt is not None else self.pdf_widgets[0].pdf_path
+        self.on_pdf_clicked(ziel)
+        if gemerkt is not None:
+            self.zur_kachel_scrollen(ziel)
 
     def _favoriten_vorbelegen(self):
         """Beim ersten Start den Scan-Ordner als ersten Favoriten eintragen (#114).
@@ -5534,8 +5598,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             )
             self._open_settings_dialog(tab=tr("Allgemein"))
             return
+        # Issue #339: vor dem Start in den Scan-Ordner wechseln (mit Rueckfrage), damit die
+        # Frage nicht hinter dem Fenster des Scanprogramms liegt
+        scan_ordner = self._scan_eingang.vor_dem_scannen() if Path(pfad).exists() else None
         try:
-            scan_programm.starten(pfad)
+            schon_offen = scan_programm.starten(pfad)
         except scan_programm.ScanprogrammFehler as e:
             fehler = str(e) if Path(pfad).exists() else tr("Die Datei wurde nicht gefunden.")
             QMessageBox.warning(
@@ -5544,6 +5611,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 tr("Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\n"
                 "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
             )
+            return
+        if scan_ordner is not None:  # auch wenn es nur nach vorn geholt wurde (#337)
+            self._scan_eingang.erwarten(scan_ordner)
+        if schon_offen:  # Issue #337: laeuft schon, nur nach vorn geholt
+            self.statusbar.showMessage(tr("Scanprogramm läuft bereits: {name}").format(name=Path(pfad).name), 5000)
             return
         self.statusbar.showMessage(tr("Scanprogramm gestartet: {name}").format(name=Path(pfad).name), 5000)
 

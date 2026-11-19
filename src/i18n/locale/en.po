@@ -9727,6 +9727,10 @@ msgstr "The scanning program could not be started:\n{pfad}\n\n{fehler}\n\nCheck 
 msgid "Scanprogramm gestartet: {name}"
 msgstr "Scanning program started: {name}"
 
+#: src/gui/main_window.py
+msgid "Scanprogramm läuft bereits: {name}"
+msgstr "Scanning program is already running: {name}"
+
 #: src/gui/settings_dialog.py
 msgid "Scannen"
 msgstr "Scanning"
@@ -9746,6 +9750,22 @@ msgstr "Scanning program:"
 #: src/gui/settings_dialog.py
 msgid "Scanprogramm auswählen"
 msgstr "Choose scanning program"
+
+#: src/gui/settings_dialog.py
+msgid "Zeigt die Scanprogramme, die auf diesem Rechner gefunden wurden.\nEin laufendes Scanprogramm steht ganz oben."
+msgstr "Shows the scanning programs found on this computer.\nA scanning program that is running is listed first."
+
+#: src/gui/settings_dialog.py
+msgid "Programme und Verknüpfungen (*.exe *.lnk);;Alle Dateien (*)"
+msgstr "Programs and shortcuts (*.exe *.lnk);;All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "Kein Scanprogramm gefunden – bitte „Durchsuchen…“ verwenden"
+msgstr "No scanning program found – please use “Browse…”"
+
+#: src/gui/settings_dialog.py
+msgid "{name} (läuft gerade)"
+msgstr "{name} (running)"
 
 #: src/core/pdf_seiten.py
 msgid "Die PDF ist digital signiert; eine Änderung der Seiten würde die Signatur ungültig machen."
@@ -10130,3 +10150,35 @@ msgstr "Error: Hermes did not add “{SERVER_NAME}”.\n{grund}"
 #: src/search/mcp_einrichtung.py
 msgid "{text} In Hermes eine neue Sitzung beginnen oder /reload-mcp eingeben, damit die Werkzeuge erscheinen."
 msgstr "{text} Start a new session in Hermes or enter /reload-mcp so the tools appear."
+
+#: src/gui/scan_eingang.py
+msgid "Wo speichert Ihr Scanprogramm neue Scans?"
+msgstr "Where does your scanning program save new scans?"
+
+#: src/gui/scan_eingang.py
+msgid "In den Ordner „{name}“ wechseln?\n\nDort erscheint der neue Scan und wird gleich ausgewählt."
+msgstr "Switch to the folder “{name}”?\n\nThe new scan will appear there and be selected right away."
+
+#: src/gui/scan_eingang.py
+msgid "Künftig immer automatisch wechseln"
+msgstr "Always switch automatically from now on"
+
+#: src/gui/settings_dialog.py
+msgid "Ordner, in dem das Scanprogramm speichert"
+msgstr "Folder where the scanning program saves"
+
+#: src/gui/settings_dialog.py
+msgid "Nach „Jetzt scannen“ wechselt die Ansicht in diesen Ordner,\nund der neue Scan wird gleich ausgewählt."
+msgstr "After “Scan now” the view switches to this folder,\nand the new scan is selected right away."
+
+#: src/gui/settings_dialog.py
+msgid "Neue Scans landen in:"
+msgstr "New scans are saved in:"
+
+#: src/gui/settings_dialog.py
+msgid "Nach „Jetzt scannen“ immer automatisch in diesen Ordner wechseln"
+msgstr "After “Scan now”, always switch to this folder automatically"
+
+#: src/gui/settings_dialog.py
+msgid "Ausgeschaltet fragt das Programm vor dem Wechsel nach."
+msgstr "When off, the program asks before switching."

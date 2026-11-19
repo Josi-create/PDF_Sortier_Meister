@@ -140,15 +140,19 @@ class ZuletztVerschobenMixin:
             return
 
         aktuell = self.config.get_scan_folder()
-        if aktuell and gleicher_pfad(aktuell, ordner):
+        gewechselt = not (aktuell and gleicher_pfad(aktuell, ordner))
+        if not gewechselt:
             self.load_pdfs()  # die Kacheln koennen aelter sein als das Verschieben
         else:
-            self._navigate_to_folder(ordner)  # load_pdfs baut die Kacheln synchron
+            # load_pdfs baut die Kacheln synchron; ausgewaehlt werden unten die Treffer
+            self._navigate_to_folder(ordner, auswaehlen=False)
         self.left_tabs.setCurrentIndex(0)
 
         treffer = [w.pdf_path for w in self.pdf_widgets
                    if any(gleicher_pfad(w.pdf_path, d) for d in dateien)]
         if not treffer:
+            if gewechselt:
+                self._auswahl_nach_ordnerwechsel(ordner)  # Issue #340: erste Kachel
             # z. B. inzwischen umbenannt, weiterverschoben oder vom Filter ausgeblendet
             self.statusbar.showMessage(tr("Ordner geöffnet: {name}").format(name=ordner.name), 4000)
             return
