@@ -1057,6 +1057,60 @@ class Indexer:
         self._abarbeiten()
 
     # ---------------------------------------------------------------- Mails
+    def _maildaten_berichtigen(self) -> None:
+        """Mails mit einem Datum in der Zukunft neu datieren (Issue #389).
+
+        Postfaecher werden nur ab dem bisherigen Ende weitergelesen; schon indexierte
+        Mails mit falschem Jahr in ``Date`` (z. B. 2094) behielten sonst ihr Datum und
+        stuenden bei "Neueste zuerst" oben. Gelesen wird nur die einzelne Mail
+        (Offset im Postfach bzw. die Mail-Datei); fehlt sie, bleibt der Eintrag.
+        Laeuft nach der Mail-Phase, damit die Offsets zum aktuellen Postfach passen.
+        """
+        grenze = time.time() + extract.ZUKUNFT_TOLERANZ_S
+        grenze_tag = time.strftime("%Y-%m-%d", time.localtime(grenze))
+        zeilen = self.con.execute(
+            "SELECT id, format, datei, mbox_offset, mbox_laenge, datum, mail_datum FROM dokumente "
+            "WHERE typ = 'mail' AND (datum > ? OR substr(mail_datum, 1, 10) > ?)",
+            (grenze, grenze_tag)).fetchall()
+        berichtigt = 0
+        for dok_id, fmt, datei, off, laenge, datum, alt_iso in zeilen:
+            try:
+                if fmt == "mbox":
+                    stand = self.con.execute("SELECT groesse FROM mbox_stand WHERE datei = ?", (datei,)).fetchone()
+                    if not stand or os.path.getsize(datei) != stand[0]:
+                        continue   # Postfach seither geaendert: Offsets unsicher, die Mail-Phase liest neu
+                    with open(datei, "rb") as f:
+                        f.seek(off)
+                        res = extract.mail_aus_bytes(f.read(laenge))
+                elif fmt == "eml":
+                    res = extract.eml_text(datei)
+                elif fmt == "emlx":
+                    res = extract.emlx_text(datei)
+                else:
+                    res = extract.msg_text(datei)
+            except (OSError, TypeError, ValueError):
+                continue
+            if res.get("status") != "text":
+                continue
+            neu_datum = datum
+            if fmt == "mbox" or (fmt == "emlx" and res.get("datum_ts")):
+                neu_datum = res.get("datum_ts")
+            elif fmt == "emlx":
+                try:
+                    neu_datum = os.stat(datei).st_mtime   # wie beim ersten Lesen: dann zaehlt die Datei
+                except OSError:
+                    pass
+            if (neu_datum, res.get("datum_iso")) == (datum, alt_iso):
+                continue   # z. B. Mail-Datei mit Dateidatum in der Zukunft: nichts zu berichtigen
+            self.con.execute("UPDATE dokumente SET datum = ?, mail_datum = ? WHERE id = ?",
+                             (neu_datum, res.get("datum_iso"), dok_id))
+            berichtigt += 1
+        if berichtigt:
+            self.stat["maildatum_berichtigt"] += berichtigt
+            self.aenderungen += berichtigt
+            log.info("Mails mit Datum in der Zukunft neu datiert: %s", berichtigt)
+            self._commit_wenn_noetig(sofort=True)
+
     def _mails(self) -> None:
         gefunden: set[str] = set()
         erreichbar = False
@@ -1253,6 +1307,7 @@ class Indexer:
                     if not ohne_mail and self.konfig.mails_aktiv:
                         self._phase(tr("Mails"))
                         self._mails()
+                    self._maildaten_berichtigen()
                 if not ohne_ocr:
                     self._phase(tr("Texterkennung (OCR)"))
                     self._ocr()

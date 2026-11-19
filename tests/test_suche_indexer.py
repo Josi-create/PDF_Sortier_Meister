@@ -524,3 +524,45 @@ def test_nur_leerlauf_pausiert_bis_nutzer_untaetig(tmp_path, ablage, monkeypatch
     monkeypatch.setattr(plattform, "leerlauf_sekunden", lambda: 1.0)
     ix = Indexer(konfig, synchron=True, nur_leerlauf=True, max_minuten=0.0005)
     assert ix.lauf() == 1
+
+
+def test_maildatum_aus_der_zukunft_wird_beim_naechsten_lauf_berichtigt(tmp_path):
+    """Issue #389: schon indexierte Mails mit Jahr 2094 bekommen beim naechsten Lauf ihr echtes Datum."""
+    konto = tmp_path / "Mail" / "pop.example.invalid"
+    konto.mkdir(parents=True)
+    falsch = b"Received: from mx.example.invalid; Thu, 27 Jun 2002 04:09:04 +0200\r\n" + h.mail_roh(
+        "Alte Mail", datum="Sun, 27 Jun 2094 01:14:58 +0200", text="Inhalt alt", mozilla_status="0000")
+    h.mbox(konto / "Inbox", [falsch, h.mail_roh("Neue Mail", text="Inhalt neu", mozilla_status="0000")])
+    eml = tmp_path / "Ablage" / "alt.eml"
+    eml.parent.mkdir()
+    eml.write_bytes(h.mail_roh("Alte Datei-Mail", datum="Thu, 24 Jun 2094 21:24:42 +0200"))
+    konfig = h.konfig_fuer(tmp_path, wurzeln=[str(eml.parent)], mails_aktiv=True, mail_ordner=[str(tmp_path / "Mail")])
+    _lauf(konfig)
+    con = _con(konfig)
+    try:
+        zeilen = dict(con.execute("SELECT name, mail_datum FROM dokumente WHERE typ = 'mail'").fetchall())
+        assert zeilen["Alte Mail"].startswith("2002-06-27") and zeilen["alt.eml"] is None
+    finally:
+        con.close()
+    # Stand eines Index aus einer frueheren Fassung: Datum aus der Zukunft
+    con = db.verbinde(konfig.db_datei)
+    ts_2094 = 3928509298.0
+    con.execute("UPDATE dokumente SET datum = ?, mail_datum = '2094-06-27T01:14:58+02:00' WHERE name = 'Alte Mail'",
+                (ts_2094,))
+    con.execute("UPDATE dokumente SET mail_datum = '2094-06-24T21:24:42+02:00' WHERE name = 'alt.eml'")
+    con.commit()
+    con.close()
+    stat = _lauf(konfig)
+    assert stat["mails"] == 0              # das Postfach selbst wird nicht neu gelesen
+    assert stat["maildatum_berichtigt"] == 2
+    con = _con(konfig)
+    try:
+        alt = con.execute("SELECT datum, mail_datum FROM dokumente WHERE name = 'Alte Mail'").fetchone()
+        assert alt[1].startswith("2002-06-27") and alt[0] < time.time()
+        assert con.execute("SELECT mail_datum FROM dokumente WHERE name = 'alt.eml'").fetchone()[0] is None
+        neueste = con.execute("SELECT name FROM dokumente WHERE typ = 'mail' AND format = 'mbox' "
+                              "ORDER BY datum DESC").fetchone()[0]
+        assert neueste == "Neue Mail"
+    finally:
+        con.close()
+    assert _lauf(konfig)["maildatum_berichtigt"] == 0
