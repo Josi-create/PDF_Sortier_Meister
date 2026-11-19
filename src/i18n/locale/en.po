@@ -9747,6 +9747,22 @@ msgstr "Scanning program:"
 msgid "Scanprogramm auswählen"
 msgstr "Choose scanning program"
 
+#: src/gui/settings_dialog.py
+msgid "Zeigt die Scanprogramme, die auf diesem Rechner gefunden wurden.\nEin laufendes Scanprogramm steht ganz oben."
+msgstr "Shows the scanning programs found on this computer.\nA scanning program that is running is listed first."
+
+#: src/gui/settings_dialog.py
+msgid "Programme und Verknüpfungen (*.exe *.lnk);;Alle Dateien (*)"
+msgstr "Programs and shortcuts (*.exe *.lnk);;All files (*)"
+
+#: src/gui/settings_dialog.py
+msgid "Kein Scanprogramm gefunden – bitte „Durchsuchen…“ verwenden"
+msgstr "No scanning program found – please use “Browse…”"
+
+#: src/gui/settings_dialog.py
+msgid "{name} (läuft gerade)"
+msgstr "{name} (running)"
+
 #: src/core/pdf_seiten.py
 msgid "Die PDF ist digital signiert; eine Änderung der Seiten würde die Signatur ungültig machen."
 msgstr "The PDF is digitally signed; changing its pages would invalidate the signature."
