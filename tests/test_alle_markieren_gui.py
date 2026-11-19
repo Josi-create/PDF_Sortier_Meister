@@ -31,7 +31,7 @@ def _sichtbar(qtbot, mw, monkeypatch, scan):
     mw.activateWindow()
     _prime_cache_on_load(mw, monkeypatch)
     monkeypatch.setattr(mw, "update_suggestions_for_pdf", lambda p: None)
-    mw._navigate_to_folder(scan, auswaehlen=False)
+    mw._navigate_to_folder(scan)
     qtbot.waitUntil(lambda: len(mw.pdf_widgets) == 5, timeout=3000)
 
 
@@ -78,7 +78,7 @@ def test_menue_eintrag_und_einzelne_kachel(qtbot, main_window, fresh_singletons,
     (scan / "nur.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
     _prime_cache_on_load(main_window, monkeypatch)
     monkeypatch.setattr(main_window, "update_suggestions_for_pdf", lambda p: None)
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     aktion = main_window.select_all_action
     assert aktion.text() == "Alle markieren" and aktion.shortcut().toString() == "Ctrl+A"
 

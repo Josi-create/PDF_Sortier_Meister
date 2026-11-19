@@ -76,7 +76,7 @@ def window_with_pending_analysis(main_window, fresh_singletons, monkeypatch):  #
     scan = fresh_singletons["tmp_path"] / "Scan"
     a = _fake_pdf(scan, "a.pdf")
     b = _fake_pdf(scan, "b.pdf")
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     assert {w.pdf_path for w in main_window.pdf_widgets} == {a, b}
 
     pending = {}

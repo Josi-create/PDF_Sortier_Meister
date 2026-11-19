@@ -247,7 +247,7 @@ def test_move_multiple_without_prior_selection_clears_as_before(main_window, fre
     scan = _make_scan_folder(fresh_singletons["tmp_path"], ["a.pdf", "b.pdf"])
     ziel = fresh_singletons["tmp_path"] / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     paths = [w.pdf_path for w in main_window.pdf_widgets]
 
     assert main_window.selected_pdf is None
@@ -314,6 +314,9 @@ def test_erste_kachel_ueberschreibt_vorhandene_auswahl_nicht(main_window, fresh_
 
 def _zwei_ordner(main_window, tmp_path: Path, monkeypatch):
     """Zwei Ordner mit PDFs; jedes Laden fuellt den Analyse-Cache vor."""
+    from src.gui import main_window as mw_mod
+
+    monkeypatch.setattr(mw_mod, "AUSWAHL_NACH_ORDNERWECHSEL", True)  # in conftest abgestellt
     a = tmp_path / "Ordner Ä"
     b = tmp_path / "Ordner B"
     for ordner, namen in ((a, ["a1.pdf", "a2.pdf", "a3.pdf"]), (b, ["b1.pdf", "b2.pdf"])):
@@ -406,3 +409,14 @@ def test_wechsel_in_leeren_ordner_leert_die_mitte(main_window, fresh_singletons,
     assert main_window.selected_pdf is None
     assert main_window.selected_pdfs == []
     assert main_window.detail_panel.get_current_pdf() is None
+
+
+def test_im_ordner_anzeigen_waehlt_die_gesuchte_datei(main_window, fresh_singletons, monkeypatch):
+    """Wege, die eine bestimmte Datei zeigen, waehlen diese und nicht die erste Kachel."""
+    a, b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    main_window._navigate_to_folder(a)
+
+    main_window.zeige_datei_im_ordner(b / "b2.pdf")
+
+    assert main_window.selected_pdf == b / "b2.pdf"
+    assert _ausgewaehlt(main_window) == [b / "b2.pdf"]

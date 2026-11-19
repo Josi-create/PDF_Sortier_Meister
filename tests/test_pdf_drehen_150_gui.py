@@ -101,7 +101,7 @@ def _widget(win, name):
 
 
 def test_drehen_frischt_kachel_cache_und_index_auf(main_window, scan_ordner, beobachtet):  # noqa: F811
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     beobachtet["geladen"].clear()
     a = scan_ordner / "a.pdf"
     w = _widget(main_window, "a.pdf")
@@ -118,7 +118,7 @@ def test_drehen_frischt_kachel_cache_und_index_auf(main_window, scan_ordner, beo
 
 
 def test_rueckgaengig_dreht_zurueck(main_window, scan_ordner, beobachtet):  # noqa: F811
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a = scan_ordner / "a.pdf"
     main_window.on_pdf_rotate(a, -90)
     assert drehung(a) == [270]
@@ -130,7 +130,7 @@ def test_rueckgaengig_dreht_zurueck(main_window, scan_ordner, beobachtet):  # no
 
 
 def test_mehrfachauswahl_dreht_alle_markierten(main_window, scan_ordner, beobachtet):  # noqa: F811
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a, b, c = (scan_ordner / f"{n}.pdf" for n in "abc")
     main_window.selected_pdfs = [a, b]
 
@@ -147,7 +147,7 @@ def test_mehrfachauswahl_dreht_alle_markierten(main_window, scan_ordner, beobach
 
 
 def test_ausgewaehlte_pdf_wird_neu_analysiert(main_window, scan_ordner, beobachtet):  # noqa: F811
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a = scan_ordner / "a.pdf"
     main_window.selected_pdf = a
     main_window.on_pdf_rotate(a, 90)
@@ -157,7 +157,7 @@ def test_ausgewaehlte_pdf_wird_neu_analysiert(main_window, scan_ordner, beobacht
 def test_signierte_pdf_meldet_und_bleibt(main_window, scan_ordner, beobachtet):  # noqa: F811
     import pikepdf
 
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a = scan_ordner / "a.pdf"
     with pikepdf.open(str(a), allow_overwriting_input=True) as pdf:
         pdf.Root.AcroForm = pdf.make_indirect(pikepdf.Dictionary(Fields=pikepdf.Array(), SigFlags=3))
@@ -172,7 +172,7 @@ def test_signierte_pdf_meldet_und_bleibt(main_window, scan_ordner, beobachtet): 
 def test_ocr_neu_im_hintergrund(main_window, scan_ordner, beobachtet, qtbot, monkeypatch):  # noqa: F811
     from src.gui import ocr_neu_worker
 
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a, b = scan_ordner / "a.pdf", scan_ordner / "b.pdf"
     erkannt = []
     monkeypatch.setattr(ocr_neu_worker, "ocr_neu_durchfuehren",
@@ -197,7 +197,7 @@ def test_ocr_neu_laedt_ausgewaehlte_pdf_neu_und_meldet_fehler(main_window, scan_
                                                                qtbot, monkeypatch):
     from src.gui import ocr_neu_worker
 
-    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
+    main_window._navigate_to_folder(scan_ordner)
     a = scan_ordner / "a.pdf"
     monkeypatch.setattr(ocr_neu_worker, "ocr_neu_durchfuehren",
                         lambda p, abbrechen=None: {"index": True, "seiten": 0, "fehler": "Tesseract fehlt"})

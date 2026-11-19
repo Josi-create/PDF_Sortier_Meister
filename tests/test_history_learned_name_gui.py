@@ -27,7 +27,7 @@ def test_history_keeps_user_name_without_folder_prefix(main_window, fresh_single
     main_window.config.set("folder_naming_enabled", True, auto_save=False)
     main_window.config.set("owner_initials", "JK", auto_save=False)
 
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     _prime_cache(main_window, [w.pdf_path for w in main_window.pdf_widgets])
     pdf = main_window.pdf_widgets[0].pdf_path
     main_window.on_pdf_clicked(pdf)
@@ -47,7 +47,7 @@ def test_history_without_folder_naming_stores_final_name(main_window, fresh_sing
     scan = _make_scan_folder(tmp, ["scan_002.pdf"])
     ziel = tmp / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     _prime_cache(main_window, [w.pdf_path for w in main_window.pdf_widgets])
     pdf = main_window.pdf_widgets[0].pdf_path
     main_window.on_pdf_clicked(pdf)

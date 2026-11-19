@@ -46,8 +46,7 @@ def _verschieben(main_window, dateien, ziel: Path, namen=None):
 def test_hinweis_erscheint_erst_nach_dem_verschieben(main_window, fresh_singletons, monkeypatch):
     scan, ziel = _welt(fresh_singletons["tmp_path"])
     _prime_cache_on_load(main_window, monkeypatch)
-    # ohne Auswahl (#340): eine ausgewaehlte a.pdf nimmt beim Ablegen den Namen aus dem Detail-Panel
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
     label = main_window.zuletzt_verschoben_label
     assert label.isHidden()
 
@@ -158,5 +157,4 @@ def test_umbenannte_datei_oeffnet_nur_den_ordner(main_window, fresh_singletons, 
     main_window.zuletzt_verschoben_oeffnen()
 
     assert Path(main_window.config.get_scan_folder()) == ziel
-    # Seit #340: wie bei jedem Ordnerwechsel ist die erste Kachel ausgewaehlt
-    assert [w.pdf_path for w in main_window.pdf_widgets if w.selected] == [main_window.pdf_widgets[0].pdf_path]
+    assert not any(w.selected for w in main_window.pdf_widgets)

@@ -71,7 +71,7 @@ def test_auch_beim_umbenennen_am_platz_und_fuer_eine_datei_die_schon_so_heisst(s
     b.rename(neu_b)
     win.pdf_cache._cache[neu_b] = win.pdf_cache._cache.pop(b)
     win.pdf_cache._cache[neu_b].pdf_path = neu_b
-    win._navigate_to_folder(scan, auswaehlen=False)
+    win._navigate_to_folder(scan)
     _ki(monkeypatch, win, _Provider(['{"merkmale": ["Juni 2026"]}']))
     _markieren(win, a, neu_b)
 

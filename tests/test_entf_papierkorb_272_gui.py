@@ -41,7 +41,7 @@ def fragen(main_window, monkeypatch):  # noqa: F811
 def _geladen(main_window, monkeypatch, scan):  # noqa: F811
     _prime_cache_on_load(main_window, monkeypatch)
     monkeypatch.setattr(main_window, "update_suggestions_for_pdf", lambda p: None)
-    main_window._navigate_to_folder(scan, auswaehlen=False)
+    main_window._navigate_to_folder(scan)
 
 
 def _namen(main_window):  # noqa: F811

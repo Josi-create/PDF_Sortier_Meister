@@ -117,6 +117,10 @@ from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.meldungen import melden as index_melden
 
 
+# Nach einem Ordnerwechsel eine Kachel auswaehlen (Issue #340). Die Tests stellen das
+# ab (tests/conftest.py), weil viele davon "nichts ausgewaehlt" voraussetzen.
+AUSWAHL_NACH_ORDNERWECHSEL = True
+
 # Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
 # HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
 _PROVIDER_ANZEIGENAMEN = {
@@ -5221,6 +5225,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         sie noch, wird sie wieder ausgewaehlt und die Liste dorthin gerollt; sonst
         die erste Kachel. Ohne Dateien wird die Mitte geleert.
         """
+        if not AUSWAHL_NACH_ORDNERWECHSEL:
+            return
         if not self.pdf_widgets:
             if self.selected_pdf is not None or self.selected_pdfs:
                 self._clear_selection()
