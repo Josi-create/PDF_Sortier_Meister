@@ -32,7 +32,7 @@ def test_odt_erscheint_als_kachel_mit_etikett_und_word_farbe(main_window, fresh_
     from src.gui.office_thumbnail import WORD_FARBE, _typfarbe
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     assert sorted(w.pdf_path.name for w in main_window.office_widgets) == ["Brief.odt", "Notiz.docx"]
     k = _kachel(main_window, scan / "Brief.odt")
     assert k.typ_label.text() == "ODT" and k.typ_label.toolTip() == "OpenDocument-Text"
@@ -41,7 +41,7 @@ def test_odt_erscheint_als_kachel_mit_etikett_und_word_farbe(main_window, fresh_
 
 def test_odt_menue_hat_umwandeln_auch_fuer_mehrere(main_window, fresh_singletons):  # noqa: F811
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     k = _kachel(main_window, scan / "Brief.odt")
     texte = [a.text() for a in k._build_context_menu().actions() if not a.isSeparator()]
     assert "In PDF umwandeln" in texte and any("PDF/A" in t for t in texte)
@@ -55,7 +55,7 @@ def test_verschieben_behaelt_odt_endung(main_window, fresh_singletons, monkeypat
     scan = _scan(tmp)
     ziel = tmp / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     odt = scan / "Brief.odt"
     _prime_text(main_window, odt)
     main_window.on_pdf_clicked(odt)
@@ -71,7 +71,7 @@ def test_umwandeln_odt_legt_pdf_daneben_an(qtbot, main_window, fresh_singletons,
     from src.gui import office_convert_worker as worker_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     aufrufe = []
 
     def falsch(pfad, pdfa=False):

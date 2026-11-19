@@ -695,7 +695,7 @@ def fenster(main_window, scan_ordner, monkeypatch):  # noqa: F811
     monkeypatch.setattr(main_window, "_open_settings_dialog", lambda tab=None: log["einstellungen"].append(tab))
     orig = main_window.pdf_cache.clear_for_pdf
     monkeypatch.setattr(main_window.pdf_cache, "clear_for_pdf", lambda p: log["cleared"].append(p) or orig(p))
-    main_window._navigate_to_folder(scan_ordner)
+    main_window._navigate_to_folder(scan_ordner, auswaehlen=False)
     main_window._log = log
     main_window._pdf = scan_ordner / "a.pdf"
     main_window._widget = next(w for w in main_window.pdf_widgets if w.pdf_path.name == "a.pdf")

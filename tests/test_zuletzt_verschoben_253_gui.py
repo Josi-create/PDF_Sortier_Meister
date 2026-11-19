@@ -157,4 +157,5 @@ def test_umbenannte_datei_oeffnet_nur_den_ordner(main_window, fresh_singletons, 
     main_window.zuletzt_verschoben_oeffnen()
 
     assert Path(main_window.config.get_scan_folder()) == ziel
-    assert not any(w.selected for w in main_window.pdf_widgets)
+    # Seit #340: wie bei jedem Ordnerwechsel ist die erste Kachel ausgewaehlt
+    assert [w.pdf_path for w in main_window.pdf_widgets if w.selected] == [main_window.pdf_widgets[0].pdf_path]

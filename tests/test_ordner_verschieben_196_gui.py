@@ -79,7 +79,7 @@ def szene(main_window, fresh_singletons, monkeypatch, dialoge):
     main_window.folder_tree.async_scan = False
     main_window.load_folders()
     _prime_cache_on_load(main_window, monkeypatch)
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     main_window.folder_tree.tree.expandAll()
     return SimpleNamespace(win=main_window, tmp=tmp, scan=scan, vers=vers, ablage=ablage, cfg=cfg,
                            ziel=ablage / "Steuer 2025", dialoge=dialoge)

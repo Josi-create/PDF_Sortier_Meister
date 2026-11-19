@@ -411,5 +411,7 @@ def test_ordner_links_oeffnen_verwirft_die_auswahl(korr):
     _markieren(view, "d1.pdf")
     view.dokument_menue(view.angezeigte_dokumente()[0]).actions()[1].trigger()
     assert win.left_tabs.currentIndex() == 0
-    assert not win._korr_aktiv and win.selected_pdf is None and win.selected_pdfs == []
+    # Die gemerkte Auswahl (s1) ist verworfen; seit #340 ist die erste Kachel des Ordners ausgewaehlt
+    assert not win._korr_aktiv and win.selected_pdfs == []
+    assert win.selected_pdf == win.pdf_widgets[0].pdf_path != s1
     assert Path(win.config.get_scan_folder()) == korr["docs"][0].parent

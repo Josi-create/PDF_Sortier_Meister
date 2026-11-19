@@ -37,7 +37,7 @@ def _aufbauen(qtbot, mw, fresh_singletons, monkeypatch, anzahl=4):
     _prime_cache_on_load(mw, monkeypatch)
     abrufe: list = []
     monkeypatch.setattr(mw, "update_suggestions_for_pdf", abrufe.append)
-    mw._navigate_to_folder(scan)
+    mw._navigate_to_folder(scan, auswaehlen=False)
     qtbot.waitUntil(lambda: len(mw.pdf_widgets) == anzahl, timeout=3000)
     qtbot.waitUntil(lambda: all(w.isVisible() and w.width() > 20 for w in mw.pdf_widgets), timeout=3000)
     return pfade, abrufe, doppelklicks

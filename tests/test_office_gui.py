@@ -116,7 +116,7 @@ def test_file_manager_listet_nur_docx_und_xlsx(tmp_path):
 
 
 def test_office_dateien_erscheinen_als_kacheln(main_window, fresh_singletons):
-    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
+    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]), auswaehlen=False)
     assert len(main_window.pdf_widgets) == 3  # PDF + 2 Office in derselben Liste
     assert [w.pdf_path.name for w in main_window.pdf_widgets if w not in main_window.office_widgets] == ["a.pdf"]
     # Reihenfolge haengt von der Sortierung (#33, Aenderungsdatum) ab
@@ -127,7 +127,7 @@ def test_office_dateien_erscheinen_als_kacheln(main_window, fresh_singletons):
 
 
 def test_office_kachel_kontextmenue(main_window, fresh_singletons):
-    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
+    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]), auswaehlen=False)
     menu = main_window.office_widgets[0]._build_context_menu()
     texte = [a.text() for a in menu.actions() if not a.isSeparator()]
     assert "In PDF umwandeln" in texte
@@ -139,7 +139,7 @@ def test_nur_office_dateien_im_ordner_zeigen_kacheln(main_window, fresh_singleto
     scan = fresh_singletons["tmp_path"] / "Nur"
     scan.mkdir()
     (scan / "x.docx").write_bytes(b"PK")
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     assert len(main_window.pdf_widgets) == 1
     assert len(main_window.office_widgets) == 1
 
@@ -149,7 +149,7 @@ def test_umwandeln_legt_pdf_daneben_an_und_laedt_neu(qtbot, main_window, fresh_s
     from src.gui import office_convert_worker as worker_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     aufrufe = []
 
     def falsch(pfad, pdfa=False):
@@ -177,7 +177,7 @@ def test_umwandeln_fehler_wird_gemeldet_ohne_neu_laden(qtbot, main_window, fresh
     from src.gui import office_convert_worker as worker_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     meldungen = []
     monkeypatch.setattr(mw_mod.QMessageBox, "warning", lambda *a, **k: meldungen.append(a[2]))
 
@@ -205,7 +205,7 @@ def test_klick_auf_office_kachel_waehlt_aus_und_zeigt_vorschau(qtbot, main_windo
     from src.gui import office_convert_worker as worker_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     vorschau = fresh_singletons["tmp_path"] / "v.pdf"
     vorschau.write_bytes(b"%PDF-1.4\n%%EOF\n")
     monkeypatch.setattr(worker_mod, "vorschau_pdf", lambda pfad: vorschau)
@@ -254,7 +254,7 @@ def test_analysiere_nutzt_lastprinted_bei_datumsfeldern(tmp_path):
 
 
 def _office_ausgewaehlt(main_window, scan, name="Brief.docx"):
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     docx = scan / name
     _prime_text(main_window, docx)
     main_window.on_pdf_clicked(docx)
@@ -326,7 +326,7 @@ def test_verschieben_per_drop_und_undo(main_window, fresh_singletons, monkeypatc
     scan = _scan(tmp)
     ziel = tmp / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     docx = scan / "Brief.docx"
 
     main_window.on_pdf_dropped_on_folder(docx, ziel)
@@ -342,7 +342,7 @@ def test_mehrfachauswahl_pdf_und_office_wird_verschoben(main_window, fresh_singl
     scan = _scan(tmp)
     ziel = tmp / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     _ja(monkeypatch)
     from src.gui import stapel_rueckfrage
 
@@ -367,14 +367,14 @@ def test_ordner_kacheln_nehmen_office_drops_an(qtbot):
 
 
 def test_pdf_wird_nicht_auf_office_kachel_gestapelt(main_window, fresh_singletons):
-    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
+    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]), auswaehlen=False)
     assert all(not w.acceptDrops() for w in main_window.office_widgets)
 
 
 def test_vorschau_fehler_wird_im_panel_gezeigt(qtbot, main_window, fresh_singletons, monkeypatch):
     from src.gui import office_convert_worker as worker_mod
 
-    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]))
+    main_window._navigate_to_folder(_scan(fresh_singletons["tmp_path"]), auswaehlen=False)
 
     def kaputt(pfad):
         raise RuntimeError("kein Word")
@@ -394,7 +394,7 @@ def test_loeschen_fragt_entfernt_kachel_und_cache(main_window, fresh_singletons,
     from src.gui import main_window as mw_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     fragen = []
     monkeypatch.setattr(
         mw_mod.QMessageBox, "question",
@@ -418,7 +418,7 @@ def test_loeschen_abgelehnt_laesst_alles(main_window, fresh_singletons, monkeypa
     from src.gui import main_window as mw_mod
 
     scan = _scan(fresh_singletons["tmp_path"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     monkeypatch.setattr(mw_mod.QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
     main_window.on_office_delete(scan / "Brief.docx")
     assert (scan / "Brief.docx").exists() and len(main_window.office_widgets) == 2

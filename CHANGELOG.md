@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen
+  Ordner wechselt (Baum, Favorit, Pfadzeile, Ordnerkachel, „Zurück“, „Nach oben“), sieht sofort die
+  erste Datei des Ordners mit Vorschau, Angaben und Zielvorschlägen. In der Mitte steht nicht mehr
+  die Datei aus dem vorigen Ordner. War in diesem Ordner vorher genau eine Datei ausgewählt, wird
+  bei der Rückkehr wieder diese ausgewählt und die Liste dorthin gerollt; gibt es sie nicht mehr,
+  ist es die erste. Das gilt bis zum Beenden des Programms. Ein leerer Ordner leert die Mitte.
+
 ## [0.31.1] - 2026-11-19
 
 ### Behoben

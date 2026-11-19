@@ -67,7 +67,7 @@ def test_dokument_aus_reiter_in_der_mitte_und_zurueck(main_window, fresh_singlet
     tmp = fresh_singletons["tmp_path"]
     archiv = _index_dok(main_window, tmp / "Ablage" / "Miete" / "vertrag.pdf", "Max Mieter")
     scan = _make_scan_folder(tmp, ["scan.pdf"])
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     _prime_cache(main_window, [scan / "scan.pdf", archiv])
     main_window.on_pdf_clicked(scan / "scan.pdf")
     assert main_window.detail_panel.get_current_pdf() == scan / "scan.pdf"

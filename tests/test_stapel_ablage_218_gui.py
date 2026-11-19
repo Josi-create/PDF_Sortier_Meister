@@ -64,7 +64,7 @@ def stapel(main_window, fresh_singletons, monkeypatch):
     a, b, c = (scan / n for n in ("a.pdf", "b.pdf", "c.pdf"))
     for p in (a, b, c):
         main_window.pdf_cache._cache[p] = _analyse(p)
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     geschrieben: list[tuple[Path, dict]] = []
     monkeypatch.setattr(main_window, "_write_pdf_metadata_async",
                         lambda p, n, k, m: geschrieben.append((p, dict(m))))

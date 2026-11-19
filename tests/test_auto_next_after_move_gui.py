@@ -247,7 +247,7 @@ def test_move_multiple_without_prior_selection_clears_as_before(main_window, fre
     scan = _make_scan_folder(fresh_singletons["tmp_path"], ["a.pdf", "b.pdf"])
     ziel = fresh_singletons["tmp_path"] / "Ziel"
     ziel.mkdir()
-    main_window._navigate_to_folder(scan)
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     paths = [w.pdf_path for w in main_window.pdf_widgets]
 
     assert main_window.selected_pdf is None
@@ -305,3 +305,104 @@ def test_erste_kachel_ueberschreibt_vorhandene_auswahl_nicht(main_window, fresh_
     main_window._erste_kachel_auswaehlen()
 
     assert main_window.selected_pdf == zweite
+
+
+# --------------------------------------------------------------------- #
+# Ordnerwechsel: erste bzw. zuletzt gewaehlte Kachel (Issue #340)
+# --------------------------------------------------------------------- #
+
+
+def _zwei_ordner(main_window, tmp_path: Path, monkeypatch):
+    """Zwei Ordner mit PDFs; jedes Laden fuellt den Analyse-Cache vor."""
+    a = tmp_path / "Ordner Ä"
+    b = tmp_path / "Ordner B"
+    for ordner, namen in ((a, ["a1.pdf", "a2.pdf", "a3.pdf"]), (b, ["b1.pdf", "b2.pdf"])):
+        ordner.mkdir()
+        for name in namen:
+            (ordner / name).write_bytes(b"%PDF-1.4\n%%EOF\n")
+    original = main_window.load_pdfs
+
+    def laden():
+        original()
+        _prime_cache(main_window, [w.pdf_path for w in main_window.pdf_widgets])
+
+    monkeypatch.setattr(main_window, "load_pdfs", laden)
+    return a, b
+
+
+def _ausgewaehlt(main_window):
+    return [w.pdf_path for w in main_window.pdf_widgets if w.selected]
+
+
+def test_ordnerwechsel_waehlt_erste_kachel(main_window, fresh_singletons, monkeypatch):
+    """Nach dem Wechsel ist die erste Datei des neuen Ordners ausgewaehlt, nicht die alte."""
+    a, b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    main_window._navigate_to_folder(a)
+    main_window.on_pdf_clicked(main_window.pdf_widgets[1].pdf_path)
+
+    main_window._navigate_to_folder(b)
+
+    erste = main_window.pdf_widgets[0].pdf_path
+    assert erste.parent == b
+    assert main_window.selected_pdf == erste
+    assert _ausgewaehlt(main_window) == [erste]
+    assert main_window.detail_panel.get_current_pdf() == erste
+
+
+def test_rueckkehr_waehlt_zuletzt_gewaehlte_kachel(main_window, fresh_singletons, monkeypatch):
+    """Zurueck in einen Ordner, in dem genau eine Kachel ausgewaehlt war: wieder diese."""
+    a, b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    main_window._navigate_to_folder(a)
+    dritte = main_window.pdf_widgets[2].pdf_path
+    main_window.on_pdf_clicked(dritte)
+    main_window._navigate_to_folder(b)
+
+    main_window.on_navigate_back()
+
+    assert main_window.selected_pdf == dritte
+    assert _ausgewaehlt(main_window) == [dritte]
+
+
+def test_rueckkehr_datei_weg_waehlt_erste(main_window, fresh_singletons, monkeypatch):
+    """Ist die gemerkte Datei inzwischen weg, wird die erste Kachel ausgewaehlt."""
+    a, b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    main_window._navigate_to_folder(a)
+    dritte = main_window.pdf_widgets[2].pdf_path
+    main_window.on_pdf_clicked(dritte)
+    main_window._navigate_to_folder(b)
+    dritte.rename(b / "verschoben.pdf")
+
+    main_window._navigate_to_folder(a)
+
+    assert main_window.selected_pdf == main_window.pdf_widgets[0].pdf_path
+    assert main_window.selected_pdf.parent == a
+
+
+def test_rueckkehr_nach_mehrfachauswahl_waehlt_erste(main_window, fresh_singletons, monkeypatch):
+    """Waren mehrere Kacheln ausgewaehlt, wird nichts gemerkt: erste Kachel."""
+    a, b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    main_window._navigate_to_folder(a)
+    pfade = [w.pdf_path for w in main_window.pdf_widgets]
+    main_window.on_pdf_clicked(pfade[1])
+    main_window.on_pdf_ctrl_clicked(pfade[2])
+    main_window._navigate_to_folder(b)
+
+    main_window._navigate_to_folder(a)
+
+    assert main_window.selected_pdf == main_window.pdf_widgets[0].pdf_path
+    assert main_window.selected_pdfs == []
+
+
+def test_wechsel_in_leeren_ordner_leert_die_mitte(main_window, fresh_singletons, monkeypatch):
+    """Leerer Ordner: keine Auswahl, Detail-Panel leer."""
+    a, _b = _zwei_ordner(main_window, fresh_singletons["tmp_path"], monkeypatch)
+    leer = fresh_singletons["tmp_path"] / "Leer"
+    leer.mkdir()
+    main_window._navigate_to_folder(a)
+    assert main_window.selected_pdf is not None
+
+    main_window._navigate_to_folder(leer)
+
+    assert main_window.selected_pdf is None
+    assert main_window.selected_pdfs == []
+    assert main_window.detail_panel.get_current_pdf() is None
