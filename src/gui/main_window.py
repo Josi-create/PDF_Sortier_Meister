@@ -3,6 +3,7 @@ Hauptfenster der PDF Sortier Meister Anwendung
 """
 
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -94,6 +95,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.gui.ordner_beobachtung import OrdnerBeobachtung
+from src.gui.scan_eingang import ScanEingang
 from src.gui.doppelte import DoppelteImOrdner, DoppelteMixin
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
@@ -101,6 +103,7 @@ from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui import seiten_bearbeiten
+from src.gui.nicht_lesbar import melden_falls_nicht_lesbar
 from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
@@ -115,6 +118,10 @@ from src.gui.search_view import SearchView
 from src.gui.zeitraum_feld import ZeitraumFeld
 from src.search.meldungen import melden as index_melden
 
+
+# Nach einem Ordnerwechsel eine Kachel auswaehlen (Issue #340). Die Tests stellen das
+# ab (tests/conftest.py), weil viele davon "nichts ausgewaehlt" voraussetzen.
+AUSWAHL_NACH_ORDNERWECHSEL = True
 
 # Anzeigenamen der Provider-Kennungen des "llm"-/"chat"-Blocks (wie
 # HybridClassifier.get_llm_provider_name, dort aber ueber die Instanz)
@@ -204,6 +211,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     thumbnails_loaded = pyqtSignal()
     # (Generation, (erreichbar, Detail) | None) aus dem Pruef-Thread
     _llm_connection_checked = pyqtSignal(int, object)
+    _metadaten_nicht_geschrieben = pyqtSignal(str, str)  # (Dateiname, Grund), Issue #414
+    METADATEN_HINWEIS_MS = 60_000  # so lange bleibt der Hinweis rechts in der Statusleiste stehen
     LLM_CHECK_INTERVAL_MS = 60_000
 
     def __init__(self):
@@ -219,6 +228,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.classifier = get_classifier()
         self.hybrid_classifier = get_hybrid_classifier()
         self.pdf_cache = get_pdf_cache()
+        # Issue #414: Metadaten liessen sich nicht in die PDF schreiben (auch aus dem Schreib-Thread).
+        # Immer verzoegert anzeigen: sonst ueberschriebe die Meldung des Aufrufers ("Verschoben nach ...") sie
+        self._metadaten_nicht_geschrieben.connect(
+            self._on_metadaten_nicht_geschrieben, Qt.ConnectionType.QueuedConnection)
 
         # Eigenes Chat-Modell (Issue #166/#167): Provider-Instanz zum
         # "chat"-Block, gecacht ueber das Konfigurations-Dict (Schluessel);
@@ -254,6 +267,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # Ordner-Navigations-Historie für Zurück-Button
         self._folder_history: list[Path] = []
+        # Zuletzt allein ausgewaehlte Datei je Ordner, nur fuer diese Sitzung (Issue #340)
+        self._letzte_auswahl_je_ordner: dict[str, str] = {}
 
         # Debounce-Timer: Raster-Spaltenzahl an Panelbreite anpassen (Issue #50)
         self._grid_relayout_timer = QTimer(self)
@@ -299,6 +314,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
         self._ordner_beobachtung = OrdnerBeobachtung(self)
+        # Nach „Jetzt scannen“ den neuen Scan auswaehlen (Issue #339)
+        self._scan_eingang = ScanEingang(self)
         # Hinweis auf inhaltsgleiche Dateien im Scan-Bereich (Issue #245)
         self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
@@ -2612,6 +2629,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
         self.statusbar.addPermanentWidget(self.backup_status_label)
 
+        # Issue #414: Metadaten nicht in die PDF geschrieben. Bleibt eine Weile stehen, auch wenn
+        # danach eine andere Meldung (z. B. "Ausgewählt: ...") die Statuszeile belegt
+        self.metadaten_hinweis_label = _ClickableLabel("")
+        stil(self.metadaten_hinweis_label, "color: $orange_text_hell; font-weight: bold;")
+        self.metadaten_hinweis_label.clicked.connect(self.metadaten_hinweis_label.hide)
+        self.metadaten_hinweis_label.setVisible(False)
+        self._metadaten_hinweis_timer = QTimer(self)
+        self._metadaten_hinweis_timer.setSingleShot(True)
+        self._metadaten_hinweis_timer.setInterval(self.METADATEN_HINWEIS_MS)
+        self._metadaten_hinweis_timer.timeout.connect(self.metadaten_hinweis_label.hide)
+        self.statusbar.addPermanentWidget(self.metadaten_hinweis_label)
+
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
         self.update_status_label = _ClickableLabel("")
         stil(self.update_status_label, "color: $orange_text_hell; font-weight: bold;")
@@ -3615,6 +3644,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         dialog_metadata: dict = None,
     ):
         """Schreibt Metadaten in die PDF-Datei (XMP + Info Dictionary)."""
+        geschrieben = gemeldet = False
         try:
             from src.core.metadata_choices import clean_category
             from src.core.pdf_metadata import PDFMetadata, ist_pdf, write_metadata
@@ -3672,18 +3702,46 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             if metadata.has_any_data():
                 success = write_metadata(pdf_path, metadata)
+                geschrieben = bool(success)
                 if success:
                     # Erst der Index, dann die Ausgabe: ein Konsolenfehler beim Drucken
                     # (Zeichensatz) darf die Index-Meldung nicht verhindern
                     self._metadaten_an_index(pdf_path, metadata)
                     print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
                 else:
+                    self._metadaten_fehler_melden(pdf_path)
+                    gemeldet = True
                     print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
 
         except ImportError:
             pass  # pikepdf nicht installiert - kein Fehler
         except Exception as e:
+            if not geschrieben and not gemeldet:  # ein Fehler erst bei der Konsolenausgabe zaehlt nicht
+                self._metadaten_fehler_melden(pdf_path)
             print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
+    def _metadaten_fehler_melden(self, pdf_path: Path) -> None:
+        """Issue #414: Die Datei ist abgelegt, aber ohne Titel, Datum usw. in der PDF - das sagen,
+        mit Grund. Laeuft auch im Schreib-Thread; die Anzeige uebernimmt der GUI-Thread."""
+        from src.core.pdf_lesbarkeit import pruefen
+
+        fehler = pruefen(pdf_path)
+        grund = fehler.grund() if fehler else tr("die Datei ist geöffnet oder schreibgeschützt")
+        try:
+            self._metadaten_nicht_geschrieben.emit(pdf_path.name, grund)
+        except RuntimeError:
+            pass  # Fenster bereits geschlossen
+
+    def _on_metadaten_nicht_geschrieben(self, name: str, grund: str) -> None:
+        text = tr("„{name}“: Titel, Datum und übrige Angaben konnten nicht in die PDF geschrieben "
+                  "werden – {grund}.").format(name=name, grund=grund)
+        self.statusbar.showMessage(text, 10000)
+        label = self.metadaten_hinweis_label
+        kurz = name if len(name) <= 40 else name[:39] + "…"
+        label.setText(tr("Metadaten fehlen in „{name}“").format(name=kurz))
+        label.setToolTip(text + "\n\n" + tr("Anklicken blendet den Hinweis aus."))
+        label.show()
+        self._metadaten_hinweis_timer.start()
 
     def _metadaten_an_index(self, pdf_path: Path, metadata) -> None:
         """Nach dem Schreiben in die PDF: Inhalt neu lesen lassen und die PDFSM-Metadaten (Vorrang)
@@ -4275,6 +4333,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Wird aufgerufen wenn eine PDF getrennt werden soll."""
         from src.gui.split_pdf_dialog import SplitPDFDialog
 
+        if melden_falls_nicht_lesbar(self, tr("PDF trennen"), [pdf_path]):  # Issue #414
+            return
+
         # Seitenanzahl ermitteln
         try:
             import fitz
@@ -4325,6 +4386,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self, tr("PDFs zusammenfügen"),
                 tr("Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen.")
             )
+            return
+        if melden_falls_nicht_lesbar(self, tr("PDFs zusammenfügen"), pdfs_to_merge):  # Issue #414
             return
 
         # Standard-Ausgabename vorschlagen
@@ -4394,6 +4457,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from datetime import datetime
         sources = [Path(s) for s in sources if Path(s) != target]
         if not sources:
+            return
+        if melden_falls_nicht_lesbar(self, tr("Stapeln"), [*sources, target]):  # Issue #414
             return
         self._wait_for_metadata_writes([target, *sources])
 
@@ -5173,7 +5238,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             # (vermeidet unnoetiges Neuladen aller PDFs).
             current = self.config.get_scan_folder()
             if not current or Path(current).resolve() != parent:
-                self._navigate_to_folder(parent)
+                self._navigate_to_folder(parent, auswaehlen=False)  # die PDF wird gleich ausgewaehlt
 
             # Auto-Selektion + Rename-Dialog leicht verzoegert, damit
             # load_pdfs() die Widgets erstellt hat und das UI rendern
@@ -5193,14 +5258,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.statusbar.showMessage(tr("Datei nicht gefunden: {pfad}").format(pfad=pfad), 5000)
             return
         aktuell = self.config.get_scan_folder()
-        if not aktuell or not gleicher_pfad(aktuell, pfad.parent):
-            self._navigate_to_folder(pfad.parent)  # load_pdfs baut die Kacheln synchron
+        gewechselt = not aktuell or not gleicher_pfad(aktuell, pfad.parent)
+        if gewechselt:
+            # load_pdfs baut die Kacheln synchron; ausgewaehlt wird unten die Datei selbst
+            self._navigate_to_folder(pfad.parent, auswaehlen=False)
         self.left_tabs.setCurrentIndex(0)
         self.center_tabs.setCurrentIndex(0)
         widget = next(
             (w for w in self.pdf_widgets if gleicher_pfad(getattr(w, "pdf_path", ""), pfad)), None
         )
         if widget is None:
+            if gewechselt:
+                self._auswahl_nach_ordnerwechsel(pfad.parent)  # Issue #340
             self.statusbar.showMessage(
                 tr("„{name}“ ist in der Liste nicht zu sehen (Filter aktiv?)").format(name=pfad.name), 6000
             )
@@ -5273,8 +5342,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # damit das Selektions-Highlight schon sichtbar ist.
         QTimer.singleShot(0, lambda: self.on_pdf_rename(pdf_path))
 
-    def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True):
-        """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking."""
+    def _navigate_to_folder(self, folder_path: Path, add_to_history: bool = True, auswaehlen: bool = True):
+        """Zentrale Methode zum Wechseln des Scan-Ordners mit History-Tracking.
+
+        ``auswaehlen``: danach eine Kachel des neuen Ordners auswaehlen (Issue #340).
+        Aufrufer, die selbst eine bestimmte Datei auswaehlen, geben False.
+        """
+        self._auswahl_im_ordner_merken()
+        self._scan_eingang.ordner_gewechselt(folder_path)  # Issue #339
         current = self.config.get_scan_folder()
         if current and add_to_history:
             current_path = Path(current)
@@ -5288,6 +5363,50 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.file_manager.set_scan_folder(str(folder_path))
         self.load_pdfs()
         self._update_navigation_buttons()
+        if auswaehlen:
+            self._auswahl_nach_ordnerwechsel(Path(folder_path))
+
+    @staticmethod
+    def _ordner_schluessel(ordner) -> str:
+        """Vergleichbarer Schluessel eines Ordners (Gross-/Kleinschreibung unter Windows)."""
+        return os.path.normcase(os.path.normpath(str(ordner)))
+
+    def _auswahl_im_ordner_merken(self):
+        """Merkt sich beim Verlassen eines Ordners die allein ausgewaehlte Datei (Issue #340).
+
+        Bei Mehrfachauswahl oder ohne Auswahl wird nichts gemerkt (ein alter
+        Eintrag fuer den Ordner entfaellt dann).
+        """
+        ordner = self.file_manager.scan_folder
+        if not ordner:
+            return
+        schluessel = self._ordner_schluessel(ordner)
+        pdf = self.selected_pdf
+        if (pdf is not None and not self.selected_pdfs
+                and self._ordner_schluessel(Path(pdf).parent) == schluessel):
+            self._letzte_auswahl_je_ordner[schluessel] = Path(pdf).name
+        else:
+            self._letzte_auswahl_je_ordner.pop(schluessel, None)
+
+    def _auswahl_nach_ordnerwechsel(self, ordner: Path):
+        """Nach einem Ordnerwechsel eine Kachel auswaehlen (Issue #340).
+
+        War in dieser Sitzung genau eine Datei des Ordners ausgewaehlt und gibt es
+        sie noch, wird sie wieder ausgewaehlt und die Liste dorthin gerollt; sonst
+        die erste Kachel. Ohne Dateien wird die Mitte geleert.
+        """
+        if not AUSWAHL_NACH_ORDNERWECHSEL:
+            return
+        if not self.pdf_widgets:
+            if self.selected_pdf is not None or self.selected_pdfs:
+                self._clear_selection()
+            return
+        name = self._letzte_auswahl_je_ordner.get(self._ordner_schluessel(ordner))
+        gemerkt = next((w.pdf_path for w in self.pdf_widgets if name and w.pdf_path.name == name), None)
+        ziel = gemerkt if gemerkt is not None else self.pdf_widgets[0].pdf_path
+        self.on_pdf_clicked(ziel)
+        if gemerkt is not None:
+            self.zur_kachel_scrollen(ziel)
 
     def _favoriten_vorbelegen(self):
         """Beim ersten Start den Scan-Ordner als ersten Favoriten eintragen (#114).
@@ -5645,8 +5764,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             )
             self._open_settings_dialog(tab=tr("Allgemein"))
             return
+        # Issue #339: vor dem Start in den Scan-Ordner wechseln (mit Rueckfrage), damit die
+        # Frage nicht hinter dem Fenster des Scanprogramms liegt
+        scan_ordner = self._scan_eingang.vor_dem_scannen() if Path(pfad).exists() else None
         try:
-            scan_programm.starten(pfad)
+            schon_offen = scan_programm.starten(pfad)
         except scan_programm.ScanprogrammFehler as e:
             fehler = str(e) if Path(pfad).exists() else tr("Die Datei wurde nicht gefunden.")
             QMessageBox.warning(
@@ -5655,6 +5777,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 tr("Das Scanprogramm konnte nicht gestartet werden:\n{pfad}\n\n{fehler}\n\n"
                 "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
             )
+            return
+        if scan_ordner is not None:  # auch wenn es nur nach vorn geholt wurde (#337)
+            self._scan_eingang.erwarten(scan_ordner)
+        if schon_offen:  # Issue #337: laeuft schon, nur nach vorn geholt
+            self.statusbar.showMessage(tr("Scanprogramm läuft bereits: {name}").format(name=Path(pfad).name), 5000)
             return
         self.statusbar.showMessage(tr("Scanprogramm gestartet: {name}").format(name=Path(pfad).name), 5000)
 

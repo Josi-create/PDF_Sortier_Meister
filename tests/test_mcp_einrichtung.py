@@ -333,3 +333,183 @@ def test_laedt_ohne_qt():
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "ok"
+
+
+# --------------------------------------------------------------------------- Hermes Agent (#417)
+
+ECHTES_HERMES_PROGRAMM = me.hermes_programm
+
+
+@pytest.fixture
+def hermes(monkeypatch, tmp_path):
+    """Ein nachgebautes ``hermes``: ``config path``, ``config get`` und ``mcp add`` wie Hermes Agent
+    v0.22 (hermes_cli/mcp_config.py): Rueckfrage zum Ueberschreiben (Vorgabe nein), Probe, Frage
+    „Enable all tools?“ (Vorgabe ja), danach „Saved 'name' to …“. Die Datei ``config.yaml`` gehoert
+    Hermes; der Nachbau aendert sie nur ueber ``server`` und haengt eine Zeile an."""
+    programm = str(tmp_path / "bin" / "hermes.exe")
+    konfig = tmp_path / "hermes" / "config.yaml"
+    konfig.parent.mkdir()
+    konfig.write_text("# Kommentar des Nutzers\nmcp_servers:\n  andere:\n    command: x\n", encoding="utf-8")
+    monkeypatch.setattr(me, "hermes_programm", ECHTES_HERMES_PROGRAMM)
+    monkeypatch.setattr(me.shutil, "which", lambda name: programm if name == "hermes" else None)
+    zustand = {"aufrufe": [], "eingaben": [], "server": {"andere": {"command": "x"}}, "probe_ok": True,
+               "konfig": konfig, "programm": programm, "antworten": {}}
+
+    def run(args, **kwargs):
+        args = list(args)
+        zustand["aufrufe"].append(args)
+        zustand["eingaben"].append(kwargs.get("input"))
+        if tuple(args[1:3]) in zustand["antworten"]:
+            antwort = zustand["antworten"][tuple(args[1:3])]
+            if isinstance(antwort, BaseException):
+                raise antwort
+            return subprocess.CompletedProcess(args, *antwort)
+        if args[1:3] == ["config", "path"]:
+            return subprocess.CompletedProcess(args, 0, f"{konfig}\n", "")
+        if args[1:3] == ["config", "get"]:
+            name = args[3].split(".", 1)[1]
+            if name not in zustand["server"]:
+                return subprocess.CompletedProcess(args, 1, f"Config key not set: {args[3]}\n", "")
+            return subprocess.CompletedProcess(args, 0, json.dumps(zustand["server"][name]) + "\n", "")
+        assert args[1:3] == ["mcp", "add"]
+        antworten = iter((kwargs.get("input") or "").splitlines())
+        name = args[3]
+        eintrag = {"command": args[args.index("--command") + 1]}
+        if "--args" in args:
+            eintrag["args"] = args[args.index("--args") + 1:]
+        if "--env" in args:
+            eintrag["env"] = dict(a.split("=", 1) for a in args[args.index("--env") + 1:args.index("--args")])
+        if name in zustand["server"] and next(antworten, "").strip().lower() not in ("y", "yes"):
+            return subprocess.CompletedProcess(args, 0, "  Cancelled.\n", "")
+        if not zustand["probe_ok"]:
+            if next(antworten, "").strip().lower() in ("y", "yes"):
+                zustand["server"][name] = {**eintrag, "enabled": False}
+            return subprocess.CompletedProcess(args, 0, "  Failed to connect: boom\n", "")
+        if next(antworten, "").strip().lower() in ("n", "no"):
+            return subprocess.CompletedProcess(args, 0, "  Cancelled - server not saved.\n", "")
+        zustand["server"][name] = {**eintrag, "enabled": True}
+        with konfig.open("a", encoding="utf-8") as f:
+            f.write(f"  {name}:\n    command: {eintrag['command']}\n")
+        return subprocess.CompletedProcess(args, 0, f"  Saved '{name}' to {konfig.parent}/config.yaml\n", "")
+
+    monkeypatch.setattr(me.subprocess, "run", run)
+    return zustand
+
+
+def test_hermes_befehl_als_argumentliste():
+    assert me.hermes_befehl(GEBAUT) == ["hermes", "mcp", "add", "pdfsuche", "--command", GEBAUT.programm,
+                                        "--args", "mcp"]
+    entwicklung = me.DienstAufruf("python", ("pdfsm_dienst.py", "mcp"), {"PYTHONPATH": "/src"}, False)
+    assert me.hermes_befehl(entwicklung, "/bin/hermes") == [
+        "/bin/hermes", "mcp", "add", "pdfsuche", "--command", "python", "--env", "PYTHONPATH=/src",
+        "--args", "pdfsm_dienst.py", "mcp"]
+
+
+def test_hermes_orte_ausserhalb_des_suchpfads(tmp_path):
+    assert me.hermes_kandidaten("win32", {"LOCALAPPDATA": str(tmp_path / "Lokal")}, tmp_path) == [
+        tmp_path / "Lokal" / "hermes" / "bin" / "hermes.exe"]
+    assert me.hermes_kandidaten("darwin", {}, tmp_path) == [tmp_path / ".local" / "bin" / "hermes"]
+
+
+def test_hermes_nicht_gefunden_sperrt(monkeypatch, tmp_path):
+    monkeypatch.setattr(me, "hermes_programm", ECHTES_HERMES_PROGRAMM)
+    monkeypatch.setattr(me.shutil, "which", lambda name: None)
+    monkeypatch.setattr(me, "hermes_kandidaten", lambda: [tmp_path / "fehlt" / "hermes.exe"])
+    assert me.hermes_status(GEBAUT).zustand == me.NICHT_GEFUNDEN
+    assert me.hermes_einrichten(aufruf=GEBAUT).startswith("Fehler")
+
+
+def test_hermes_ausserhalb_des_suchpfads_gefunden(monkeypatch, tmp_path):
+    exe = tmp_path / "hermes" / "bin" / "hermes.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_text("")
+    monkeypatch.setattr(me, "hermes_programm", ECHTES_HERMES_PROGRAMM)
+    monkeypatch.setattr(me.shutil, "which", lambda name: None)
+    monkeypatch.setattr(me, "hermes_kandidaten", lambda: [exe])
+    assert me.hermes_programm() == str(exe)
+
+
+def test_hermes_status(hermes):
+    status = me.hermes_status(GEBAUT)
+    assert status.zustand == me.INSTALLIERT
+    assert hermes["aufrufe"] == [[hermes["programm"], "config", "get", "mcp_servers.pdfsuche", "--json"]]
+    assert hermes["eingaben"] == [None]          # liest nichts von stdin
+    hermes["server"]["pdfsuche"] = {"command": GEBAUT.programm, "args": ["mcp"], "enabled": True}
+    assert me.hermes_status(GEBAUT).zustand == me.EINGERICHTET
+    hermes["server"]["pdfsuche"] = {"command": r"D:\Alt\pdfsm-dienst.exe", "args": ["mcp"]}
+    status = me.hermes_status(GEBAUT)
+    assert status.zustand == me.ANDERER_PFAD and r"D:\Alt" in status.text
+    hermes["server"]["pdfsuche"] = {"command": GEBAUT.programm, "args": ["mcp"], "enabled": False}
+    status = me.hermes_status(GEBAUT)
+    assert status.zustand == me.ANDERER_PFAD and "ausgeschaltet" in status.text
+
+
+def test_hermes_status_mit_hinweiszeile_vor_dem_json(hermes):
+    eintrag = {"command": GEBAUT.programm, "args": ["mcp"], "enabled": True}
+    hermes["antworten"][("config", "get")] = (0, "Hinweis: irgendwas\n" + json.dumps(eintrag), "")
+    assert me.hermes_status(GEBAUT).zustand == me.EINGERICHTET
+
+
+def test_hermes_status_fehler(hermes):
+    hermes["antworten"][("config", "get")] = (1, "", "config.yaml is not valid YAML")
+    status = me.hermes_status(GEBAUT)
+    assert status.zustand == me.FEHLER and "not valid YAML" in status.text
+    hermes["antworten"][("config", "get")] = subprocess.TimeoutExpired("hermes", 120)
+    assert me.hermes_status(GEBAUT).zustand == me.FEHLER
+
+
+def test_hermes_einrichten_sichert_und_traegt_ein(hermes):
+    vorher = hermes["konfig"].read_text(encoding="utf-8")
+    text = me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)
+    assert not text.startswith("Fehler") and "/reload-mcp" in text
+    assert hermes["server"]["pdfsuche"] == {"command": GEBAUT.programm, "args": ["mcp"], "enabled": True}
+    assert hermes["server"]["andere"] == {"command": "x"}                     # anderer Server unveraendert
+    sicherung = hermes["konfig"].with_name("config.yaml.bak-20261109-143005")
+    assert sicherung.read_text(encoding="utf-8") == vorher and sicherung.name in text
+    add = [a for a in hermes["aufrufe"] if a[1:3] == ["mcp", "add"]]
+    assert add == [me.hermes_befehl(GEBAUT, hermes["programm"])]
+    eingabe = hermes["eingaben"][hermes["aufrufe"].index(add[0])]
+    assert eingabe == me.HERMES_EINGABE_NEU                                    # nur Vorgaben (Enter)
+
+
+def test_hermes_zweiter_klick_traegt_nichts_doppelt_ein(hermes):
+    me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)
+    text = me.hermes_einrichten(ersetzen=True, aufruf=GEBAUT, jetzt=JETZT)
+    assert not text.startswith("Fehler")
+    assert list(hermes["server"]) == ["andere", "pdfsuche"]
+    assert me.HERMES_EINGABE_ERSETZEN in hermes["eingaben"]                   # „Overwrite?“ mit ja
+
+
+def test_hermes_einrichten_ohne_ersetzen_bei_vorhandenem_eintrag_ist_fehler(hermes):
+    hermes["server"]["pdfsuche"] = {"command": r"D:\Alt\pdfsm-dienst.exe", "args": ["mcp"]}
+    text = me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)                   # Hermes fragt, Vorgabe nein
+    assert text.startswith("Fehler") and "Cancelled" in text
+    assert hermes["server"]["pdfsuche"]["command"] == r"D:\Alt\pdfsm-dienst.exe"
+
+
+def test_hermes_probe_scheitert_speichert_nichts(hermes):
+    hermes["probe_ok"] = False
+    text = me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)
+    assert text.startswith("Fehler") and "Failed to connect" in text
+    assert "pdfsuche" not in hermes["server"]
+    # beim Ersetzen bleibt der alte (passende) Eintrag, gemeldet wird trotzdem der Fehler
+    hermes["server"]["pdfsuche"] = {"command": GEBAUT.programm, "args": ["mcp"], "enabled": True}
+    assert me.hermes_einrichten(ersetzen=True, aufruf=GEBAUT, jetzt=JETZT).startswith("Fehler")
+
+
+def test_hermes_ohne_konfigurationsdatei_kein_eintrag(hermes):
+    hermes["antworten"][("config", "path")] = (1, "", "kaputt")
+    text = me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)
+    assert text.startswith("Fehler") and "Nichts geändert" in text
+    assert not any(a[1:3] == ["mcp", "add"] for a in hermes["aufrufe"])
+
+
+def test_hermes_neue_konfiguration_ohne_sicherung(hermes):
+    hermes["konfig"].unlink()
+    text = me.hermes_einrichten(aufruf=GEBAUT, jetzt=JETZT)
+    assert not text.startswith("Fehler") and "Sicherungskopie" not in text
+
+
+def test_conftest_sperrt_echtes_hermes():
+    assert me.hermes_programm() is None
+    assert me.hermes_status().zustand == me.NICHT_GEFUNDEN

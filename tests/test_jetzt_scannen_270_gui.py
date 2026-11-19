@@ -146,6 +146,94 @@ def test_durchsuchen_traegt_die_gewaehlte_datei_ein(qtbot, fresh_singletons, mon
     assert dialog.scan_programm_input.text() == str(datei)
 
 
+# --- Issue #337: laufendes Programm nach vorn holen statt zweimal starten ---
+
+def test_laufendes_programm_wird_nicht_noch_einmal_gestartet(tmp_path, gestartet, monkeypatch):
+    datei = _programm(tmp_path)
+    geholt = []
+    monkeypatch.setattr(scan_programm, "nach_vorn_holen", lambda d: geholt.append(d) or True)
+    assert scan_programm.starten(str(datei)) is True
+    assert geholt == [datei]
+    assert gestartet == []
+
+
+def test_nicht_laufendes_programm_wird_gestartet(tmp_path, gestartet, monkeypatch):
+    datei = _programm(tmp_path)
+    monkeypatch.setattr(scan_programm, "nach_vorn_holen", lambda d: False)
+    assert scan_programm.starten(str(datei)) is False
+    assert gestartet == [str(datei)]
+
+
+def test_fehler_beim_suchen_fuehrt_zum_normalen_start(tmp_path, gestartet, monkeypatch):
+    datei = _programm(tmp_path)
+    monkeypatch.setattr(scan_programm.sys, "platform", "win32")
+
+    def kaputt(exe):
+        raise OSError("kein Zugriff")
+
+    monkeypatch.setattr(scan_programm, "_fenster_des_programms_windows", kaputt)
+    assert scan_programm.nach_vorn_holen(datei) is False
+
+
+def test_am_mac_wird_nicht_gesucht(tmp_path, monkeypatch):
+    monkeypatch.setattr(scan_programm.sys, "platform", "darwin")
+    monkeypatch.setattr(scan_programm, "_fenster_des_programms_windows",
+                        lambda exe: pytest.fail("darf am Mac nicht suchen"))
+    assert scan_programm.nach_vorn_holen(tmp_path / "Scanprogramm.app") is False
+
+
+def test_knopf_meldet_laufendes_programm(main_window, fresh_singletons, gestartet, monkeypatch):  # noqa: F811
+    datei = _programm(fresh_singletons["tmp_path"])
+    fresh_singletons["config"].set("scan_programm", str(datei))
+    monkeypatch.setattr(scan_programm, "nach_vorn_holen", lambda d: True)
+
+    main_window.scan_starten_action.trigger()
+
+    assert gestartet == []
+    meldung = main_window.statusbar.currentMessage()
+    assert "läuft bereits" in meldung and datei.name in meldung
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Fenstersuche gibt es nur unter Windows")
+def test_fenster_eines_laufenden_programms_wird_gefunden(tmp_path):
+    """Echter Prozess mit sichtbarem Fenster: die Suche findet es ueber den exe-Pfad."""
+    import subprocess
+    import time
+
+    skript = tmp_path / "fenster.py"
+    skript.write_text(
+        "import sys\n"
+        "from PyQt6.QtWidgets import QApplication, QWidget\n"
+        "app = QApplication(sys.argv)\n"
+        "w = QWidget(); w.setWindowTitle('Testfenster 337'); w.showMinimized()\n"
+        "app.exec()\n",
+        encoding="utf-8",
+    )
+    import os
+
+    # Die CI setzt QT_QPA_PLATFORM=offscreen; das Kind soll ein echtes Fenster bekommen
+    umgebung = dict(os.environ, QT_QPA_PLATFORM="windows")
+    kind = subprocess.Popen([sys.executable, str(skript)], env=umgebung)
+    try:
+        # Ein venv-python.exe startet unter Windows den Basis-Interpreter als Kindprozess
+        kandidaten = {sys.executable, getattr(sys, "_base_executable", sys.executable)}
+        gefunden = None
+        frist = time.monotonic() + 60
+        while gefunden is None and time.monotonic() < frist and kind.poll() is None:
+            for exe in kandidaten:
+                gefunden = gefunden or scan_programm._fenster_des_programms_windows(exe)
+            if gefunden is None:
+                time.sleep(0.2)
+        if gefunden is None and os.environ.get("CI"):
+            # Die gehosteten Windows-Runner zeigen nicht immer echte Fenster an
+            pytest.skip(f"kein sichtbares Fenster in der CI (Kind beendet: {kind.poll()})")
+        assert gefunden, "Fenster des laufenden Programms nicht gefunden"
+        assert scan_programm._fenster_des_programms_windows(str(tmp_path / "anderes.exe")) is None
+    finally:
+        kind.kill()
+        kind.wait(10)
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="os.startfile gibt es nur unter Windows")
 def test_windows_startet_im_programmordner(tmp_path, monkeypatch):
     datei = _programm(tmp_path)

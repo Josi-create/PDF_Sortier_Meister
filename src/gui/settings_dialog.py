@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter, QMenu
 )
 from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
@@ -20,6 +20,7 @@ import threading
 from pathlib import Path
 
 from src.core import scan_programm
+from src.gui import scan_eingang
 from src.gui import farben
 from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
@@ -1185,7 +1186,37 @@ class SettingsDialog(QDialog):
         self.scan_programm_browse = QPushButton(tr("Durchsuchen…"))
         self.scan_programm_browse.clicked.connect(self._browse_scan_programm)
         scan_row.addWidget(self.scan_programm_browse)
+        # Issue #338: gefundene Scanprogramme zur Auswahl (erst beim Aufklappen gesucht)
+        self.scan_programm_vorschlag = QPushButton(tr("Vorschläge"))
+        self.scan_programm_vorschlag.setToolTip(
+            tr("Zeigt die Scanprogramme, die auf diesem Rechner gefunden wurden.\n"
+            "Ein laufendes Scanprogramm steht ganz oben.")
+        )
+        self.scan_programm_vorschlag_menu = QMenu(self.scan_programm_vorschlag)
+        self.scan_programm_vorschlag_menu.aboutToShow.connect(self._fuelle_scan_vorschlaege)
+        self.scan_programm_vorschlag.setMenu(self.scan_programm_vorschlag_menu)
+        scan_row.addWidget(self.scan_programm_vorschlag)
         scan_layout.addRow(tr("Scanprogramm:"), scan_row)
+        # Issue #339: Ordner, in dem das Scanprogramm neue Scans ablegt
+        eingang_row = QHBoxLayout()
+        self.scan_eingang_input = QLineEdit()
+        self.scan_eingang_input.setPlaceholderText(tr("Ordner, in dem das Scanprogramm speichert"))
+        self.scan_eingang_input.setToolTip(
+            tr("Nach „Jetzt scannen“ wechselt die Ansicht in diesen Ordner,\n"
+            "und der neue Scan wird gleich ausgewählt.")
+        )
+        eingang_row.addWidget(self.scan_eingang_input, 1)
+        self.scan_eingang_browse = QPushButton(tr("Durchsuchen…"))
+        self.scan_eingang_browse.clicked.connect(self._browse_scan_eingang)
+        eingang_row.addWidget(self.scan_eingang_browse)
+        scan_layout.addRow(tr("Neue Scans landen in:"), eingang_row)
+        self.scan_eingang_auto_check = QCheckBox(
+            tr("Nach „Jetzt scannen“ immer automatisch in diesen Ordner wechseln")
+        )
+        self.scan_eingang_auto_check.setToolTip(
+            tr("Ausgeschaltet fragt das Programm vor dem Wechsel nach.")
+        )
+        scan_layout.addRow(self.scan_eingang_auto_check)
         layout.addWidget(scan_group)
 
         # Cache-Einstellungen
@@ -1877,7 +1908,8 @@ class SettingsDialog(QDialog):
     }
 
     def _create_mcp_group(self) -> QGroupBox:
-        """Gruppe „KI-Assistenten (MCP)“: Dienst, Werkzeuge, SQL-Schalter, Claude Code, Claude Desktop.
+        """Gruppe „KI-Assistenten (MCP)“: Dienst, Werkzeuge, SQL-Schalter, Claude Code, Claude Desktop,
+        Hermes Agent (#417).
 
         Die Logik liegt Qt-frei in ``src/search/mcp_einrichtung.py``. Der Status wird erst
         geprueft, wenn der Reiter sichtbar wird (``_on_tab_changed_mcp``); Claude Code im
@@ -1889,6 +1921,7 @@ class SettingsDialog(QDialog):
         self._mcp_geprueft = False
         self._mcp_code_status: mcp_einrichtung.Status | None = None
         self._mcp_desktop_status: mcp_einrichtung.Status | None = None
+        self._mcp_hermes_status: mcp_einrichtung.Status | None = None
         self._mcp_hintergrund = _Hintergrund(self)
 
         group = QGroupBox(tr("KI-Assistenten (MCP)"))
@@ -1966,6 +1999,19 @@ class SettingsDialog(QDialog):
         desktop_row.addWidget(self.mcp_desktop_write_button)
         form.addRow(tr("Claude Desktop:"), desktop_row)
 
+        hermes_row = QHBoxLayout()
+        self.mcp_hermes_status_label = QLabel("–")
+        self.mcp_hermes_status_label.setWordWrap(True)
+        hermes_row.addWidget(self.mcp_hermes_status_label, 1)
+        self.mcp_hermes_button = QPushButton(tr("Einrichten"))
+        self.mcp_hermes_button.setEnabled(False)
+        self.mcp_hermes_button.setToolTip(
+            mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl(aufruf))
+        )
+        self.mcp_hermes_button.clicked.connect(self._mcp_hermes_einrichten)
+        hermes_row.addWidget(self.mcp_hermes_button)
+        form.addRow(tr("Hermes Agent:"), hermes_row)
+
         self.mcp_meldung_label = QLabel(
             tr("Nach dem Einrichten und nach Änderungen an diesen Einstellungen den Assistenten neu starten.")
         )
@@ -1991,6 +2037,56 @@ class SettingsDialog(QDialog):
         self.mcp_code_button.setEnabled(False)
         self._mcp_hintergrund.starten(lambda: mcp_einrichtung.claude_code_status(),
                                       self._mcp_code_status_setzen)
+        self._mcp_hermes_pruefen()
+
+    def _mcp_hermes_pruefen(self) -> None:
+        """Hermes im Hintergrund (``hermes config get`` braucht einige Sekunden)."""
+        self.mcp_hermes_status_label.setText(tr("wird geprüft …"))
+        self.mcp_hermes_button.setEnabled(False)
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.hermes_status(),
+                                      self._mcp_hermes_status_setzen)
+
+    def _mcp_hermes_status_setzen(self, status) -> None:
+        if isinstance(status, Exception):
+            status = mcp_einrichtung.Status(mcp_einrichtung.FEHLER, tr("Prüfung gescheitert: {status}").format(status=status))
+        self._mcp_hermes_status = status
+        self.mcp_hermes_status_label.setText(self._mcp_status_text(status))
+        vorhanden = status.zustand in (mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        self.mcp_hermes_button.setText(tr("Neu einrichten") if vorhanden else tr("Einrichten"))
+        gefunden = status.zustand != mcp_einrichtung.NICHT_GEFUNDEN
+        self.mcp_hermes_button.setEnabled(gefunden)
+        self.mcp_hermes_button.setToolTip(
+            mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl()) if gefunden
+            else tr("Hermes Agent ist auf diesem Rechner nicht installiert.")
+        )
+
+    def _mcp_hermes_einrichten(self) -> None:
+        status = self._mcp_hermes_status
+        ersetzen = status is not None and status.zustand in (
+            mcp_einrichtung.EINGERICHTET, mcp_einrichtung.ANDERER_PFAD)
+        befehl = mcp_einrichtung.befehlszeile(mcp_einrichtung.hermes_befehl())
+        frage = tr("Hermes Agent trägt den Server „pdfsuche“ in seine Konfiguration (config.yaml) ein:\n\n"
+                   "{befehl}\n\nAndere Einträge bleiben erhalten; vorher entsteht eine "
+                   "Sicherungskopie.\n\n").format(befehl=befehl)
+        if ersetzen:
+            frage += tr("Der vorhandene Eintrag „pdfsuche“ wird dabei ersetzt.\n\n")
+        frage += tr("Fortfahren?")
+        antwort = QMessageBox.question(self, tr("Hermes Agent einrichten"), frage)
+        if antwort != QMessageBox.StandardButton.Yes:
+            return
+        self.mcp_hermes_button.setEnabled(False)
+        self.mcp_hermes_status_label.setText(tr("wird eingerichtet …"))
+        self._mcp_hintergrund.starten(lambda: mcp_einrichtung.hermes_einrichten(ersetzen),
+                                      self._mcp_hermes_eingerichtet)
+
+    def _mcp_hermes_eingerichtet(self, text) -> None:
+        if isinstance(text, Exception):
+            text = tr("Fehler: {text}").format(text=text)
+        if str(text).startswith(tr("Fehler")):
+            QMessageBox.warning(self, tr("Hermes Agent"), str(text))
+        else:
+            QMessageBox.information(self, tr("Hermes Agent"), str(text))
+        self._mcp_hermes_pruefen()
 
     def _mcp_status_text(self, status) -> str:
         return f"{self._MCP_SYMBOL.get(status.zustand, '')} {status.text}".strip()
@@ -2994,6 +3090,8 @@ class SettingsDialog(QDialog):
         self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
         self.doppelte_hinweis_check.setChecked(bool(self.config.get("doppelte_hinweis", True)))
         self.scan_programm_input.setText(self.config.get("scan_programm", "") or "")
+        self.scan_eingang_input.setText(self.config.get(scan_eingang.KONFIG_ORDNER, "") or "")
+        self.scan_eingang_auto_check.setChecked(bool(self.config.get(scan_eingang.KONFIG_AUTOMATISCH, False)))
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -3112,6 +3210,8 @@ class SettingsDialog(QDialog):
         self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
         self.config.set("doppelte_hinweis", self.doppelte_hinweis_check.isChecked())
         self.config.set("scan_programm", scan_programm.bereinigt(self.scan_programm_input.text()))
+        self.config.set(scan_eingang.KONFIG_ORDNER, scan_programm.bereinigt(self.scan_eingang_input.text()))
+        self.config.set(scan_eingang.KONFIG_AUTOMATISCH, self.scan_eingang_auto_check.isChecked())
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
@@ -3231,17 +3331,59 @@ class SettingsDialog(QDialog):
         """Dateiauswahl fuer das Scanprogramm (Issue #270)."""
         from PyQt6.QtWidgets import QFileDialog
 
+        start = scan_programm.bereinigt(self.scan_programm_input.text())
         if sys.platform == "win32":
-            file_filter = tr("Programme (*.exe);;Alle Dateien (*)")
+            # Issue #338: auch Verknuepfungen; ohne Eintrag im Startmenue beginnen
+            file_filter = tr("Programme und Verknüpfungen (*.exe *.lnk);;Alle Dateien (*)")
+            if not start:
+                ordner = scan_programm.startmenue_ordner()
+                start = str(ordner[-1] if ordner else "")
         elif sys.platform == "darwin":
             file_filter = tr("Programme (*.app);;Alle Dateien (*)")
         else:
             file_filter = tr("Alle Dateien (*)")
+        # Verknuepfungen selbst aufloesen: Ziel nur, wenn keine Startparameter verloren gehen
         path, _ = QFileDialog.getOpenFileName(
-            self, tr("Scanprogramm auswählen"), self.scan_programm_input.text(), file_filter
+            self, tr("Scanprogramm auswählen"), start, file_filter,
+            options=QFileDialog.Option.DontResolveSymlinks,
         )
         if path:
-            self.scan_programm_input.setText(str(Path(path)))
+            self.scan_programm_input.setText(scan_programm.eintragbarer_pfad(path))
+
+    def _browse_scan_eingang(self):
+        """Ordnerauswahl fuer „Neue Scans landen in:“ (Issue #339)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        start = scan_programm.bereinigt(self.scan_eingang_input.text())
+        ordner = QFileDialog.getExistingDirectory(self, tr("Wo speichert Ihr Scanprogramm neue Scans?"), start)
+        if ordner:
+            self.scan_eingang_input.setText(str(Path(ordner)))
+
+    def _fuelle_scan_vorschlaege(self):
+        """Fuellt das Menue „Vorschläge“ mit den gefundenen Scanprogrammen (Issue #338)."""
+        from PyQt6.QtWidgets import QApplication
+
+        menu = self.scan_programm_vorschlag_menu
+        menu.clear()
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            gefunden = scan_programm.vorschlaege()
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not gefunden:
+            leer = menu.addAction(tr("Kein Scanprogramm gefunden – bitte „Durchsuchen…“ verwenden"))
+            leer.setEnabled(False)
+            return
+        for vorschlag in gefunden:
+            text = vorschlag.name
+            if vorschlag.laeuft:
+                text = tr("{name} (läuft gerade)").format(name=vorschlag.name)
+            aktion = menu.addAction(text)
+            aktion.setToolTip(vorschlag.pfad)
+            aktion.triggered.connect(
+                lambda _=False, p=vorschlag.pfad: self.scan_programm_input.setText(p)
+            )
+        menu.setToolTipsVisible(True)
 
     def _apply_explorer_integration_change(self):
         """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""
