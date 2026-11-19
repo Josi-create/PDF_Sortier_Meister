@@ -20,6 +20,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Statusleiste, Chat und der Knopf „KI-Metadaten neu generieren“ sagen das jetzt („Modell wird
   geladen …“) statt einer zu kurzen Schätzung wie „ca. 7 s“. Derselbe Hinweis steht in den
   Einstellungen beim Anbieter Ollama.
+- **Chat zeigt seine Quelle immer** (#355): Nach einer Antwort erscheint das Dokument, auf das
+  sie sich hauptsächlich stützt, jetzt auch dann in der Vorschau, wenn links eine PDF ausgewählt
+  ist. Die Auswahl und ihre Felder bleiben stehen; über der Vorschau nennt eine Leiste die Quelle,
+  und der Knopf „Zurück zur ausgewählten PDF“ (oder ein Klick auf die ausgewählte Kachel) zeigt
+  wieder die eigene PDF.
 
 ### Behoben
 - **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
