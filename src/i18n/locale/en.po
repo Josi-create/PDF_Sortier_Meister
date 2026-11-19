@@ -10086,3 +10086,35 @@ msgstr "1 attachment put into the scan folder: {name}"
 #: src/gui/search_view.py
 msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
 msgstr "{anzahl} attachments put into the scan folder"
+
+#: src/gui/scan_eingang.py
+msgid "Wo speichert Ihr Scanprogramm neue Scans?"
+msgstr "Where does your scanning program save new scans?"
+
+#: src/gui/scan_eingang.py
+msgid "In den Ordner „{name}“ wechseln?\n\nDort erscheint der neue Scan und wird gleich ausgewählt."
+msgstr "Switch to the folder “{name}”?\n\nThe new scan will appear there and be selected right away."
+
+#: src/gui/scan_eingang.py
+msgid "Künftig immer automatisch wechseln"
+msgstr "Always switch automatically from now on"
+
+#: src/gui/settings_dialog.py
+msgid "Ordner, in dem das Scanprogramm speichert"
+msgstr "Folder where the scanning program saves"
+
+#: src/gui/settings_dialog.py
+msgid "Nach „Jetzt scannen“ wechselt die Ansicht in diesen Ordner,\nund der neue Scan wird gleich ausgewählt."
+msgstr "After “Scan now” the view switches to this folder,\nand the new scan is selected right away."
+
+#: src/gui/settings_dialog.py
+msgid "Neue Scans landen in:"
+msgstr "New scans are saved in:"
+
+#: src/gui/settings_dialog.py
+msgid "Nach „Jetzt scannen“ immer automatisch in diesen Ordner wechseln"
+msgstr "After “Scan now”, always switch to this folder automatically"
+
+#: src/gui/settings_dialog.py
+msgid "Ausgeschaltet fragt das Programm vor dem Wechsel nach."
+msgstr "When off, the program asks before switching."

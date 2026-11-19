@@ -21,6 +21,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   gefunden wurden (z. B. VueScan, NAPS2, PaperPort, Epson Scan, Windows-Fax und -Scan); ein gerade
   laufendes steht ganz oben. „Durchsuchen…“ beginnt unter Windows im Startmenü und nimmt auch
   Verknüpfungen an; eingetragen wird dann das Programm, auf das die Verknüpfung zeigt.
+- **Nach „Jetzt scannen“ gleich beim neuen Scan** (#339): Unter *Einstellungen → Allgemein →
+  Scannen* gibt es das Feld „Neue Scans landen in:“ für den Ordner, in dem das Scanprogramm
+  speichert. Ist es leer, fragt „Jetzt scannen“ einmal danach. Steht man gerade in einem anderen
+  Ordner, fragt der Knopf, ob er in den Scan-Ordner wechseln soll; mit dem Kästchen „Künftig immer
+  automatisch wechseln“ entfällt die Frage. Zurücknehmen lässt sich das in den Einstellungen
+  („Nach ‚Jetzt scannen‘ immer automatisch in diesen Ordner wechseln“). Erscheint danach der neue
+  Scan, wird er ausgewählt und angezeigt, mit Vorschau und Vorschlägen. Das gilt einmal je Klick
+  auf „Jetzt scannen“, auch wenn das Scanprogramm schon lief. Wer inzwischen in einen anderen
+  Ordner gewechselt oder mehrere Dateien markiert hat, wird nicht aus seiner Arbeit gerissen.
 
 ### Behoben
 - **„Jetzt scannen“ startet das Scanprogramm nicht mehr doppelt** (#337): Läuft das hinterlegte

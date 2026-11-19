@@ -20,6 +20,7 @@ import threading
 from pathlib import Path
 
 from src.core import scan_programm
+from src.gui import scan_eingang
 from src.gui import farben
 from src.gui.farben import stil
 from src.i18n import AUTO, available_languages, tr
@@ -1189,6 +1190,26 @@ class SettingsDialog(QDialog):
         self.scan_programm_vorschlag.setMenu(self.scan_programm_vorschlag_menu)
         scan_row.addWidget(self.scan_programm_vorschlag)
         scan_layout.addRow(tr("Scanprogramm:"), scan_row)
+        # Issue #339: Ordner, in dem das Scanprogramm neue Scans ablegt
+        eingang_row = QHBoxLayout()
+        self.scan_eingang_input = QLineEdit()
+        self.scan_eingang_input.setPlaceholderText(tr("Ordner, in dem das Scanprogramm speichert"))
+        self.scan_eingang_input.setToolTip(
+            tr("Nach „Jetzt scannen“ wechselt die Ansicht in diesen Ordner,\n"
+            "und der neue Scan wird gleich ausgewählt.")
+        )
+        eingang_row.addWidget(self.scan_eingang_input, 1)
+        self.scan_eingang_browse = QPushButton(tr("Durchsuchen…"))
+        self.scan_eingang_browse.clicked.connect(self._browse_scan_eingang)
+        eingang_row.addWidget(self.scan_eingang_browse)
+        scan_layout.addRow(tr("Neue Scans landen in:"), eingang_row)
+        self.scan_eingang_auto_check = QCheckBox(
+            tr("Nach „Jetzt scannen“ immer automatisch in diesen Ordner wechseln")
+        )
+        self.scan_eingang_auto_check.setToolTip(
+            tr("Ausgeschaltet fragt das Programm vor dem Wechsel nach.")
+        )
+        scan_layout.addRow(self.scan_eingang_auto_check)
         layout.addWidget(scan_group)
 
         # Cache-Einstellungen
@@ -2927,6 +2948,8 @@ class SettingsDialog(QDialog):
         self.scan_ordner_beobachten_check.setChecked(bool(self.config.get("scan_ordner_beobachten", True)))
         self.doppelte_hinweis_check.setChecked(bool(self.config.get("doppelte_hinweis", True)))
         self.scan_programm_input.setText(self.config.get("scan_programm", "") or "")
+        self.scan_eingang_input.setText(self.config.get(scan_eingang.KONFIG_ORDNER, "") or "")
+        self.scan_eingang_auto_check.setChecked(bool(self.config.get(scan_eingang.KONFIG_AUTOMATISCH, False)))
 
         # Persönliche Daten
         self.owner_name_input.setText(self.config.get("owner_name", ""))
@@ -3045,6 +3068,8 @@ class SettingsDialog(QDialog):
         self.config.set("scan_ordner_beobachten", self.scan_ordner_beobachten_check.isChecked())
         self.config.set("doppelte_hinweis", self.doppelte_hinweis_check.isChecked())
         self.config.set("scan_programm", scan_programm.bereinigt(self.scan_programm_input.text()))
+        self.config.set(scan_eingang.KONFIG_ORDNER, scan_programm.bereinigt(self.scan_eingang_input.text()))
+        self.config.set(scan_eingang.KONFIG_AUTOMATISCH, self.scan_eingang_auto_check.isChecked())
 
         # Cache-Einstellungen
         persist_cache = self.persist_cache_checkbox.isChecked()
@@ -3182,6 +3207,15 @@ class SettingsDialog(QDialog):
         )
         if path:
             self.scan_programm_input.setText(scan_programm.eintragbarer_pfad(path))
+
+    def _browse_scan_eingang(self):
+        """Ordnerauswahl fuer „Neue Scans landen in:“ (Issue #339)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        start = scan_programm.bereinigt(self.scan_eingang_input.text())
+        ordner = QFileDialog.getExistingDirectory(self, tr("Wo speichert Ihr Scanprogramm neue Scans?"), start)
+        if ordner:
+            self.scan_eingang_input.setText(str(Path(ordner)))
 
     def _fuelle_scan_vorschlaege(self):
         """Fuellt das Menue „Vorschläge“ mit den gefundenen Scanprogrammen (Issue #338)."""

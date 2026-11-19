@@ -95,6 +95,7 @@ from src.core.pdf_rotate import (
 from src.gui.ocr_neu_worker import OcrNeuWorker
 from src.gui.ocr_schwer_lesbar import OcrSchwerLesbar
 from src.gui.ordner_beobachtung import OrdnerBeobachtung
+from src.gui.scan_eingang import ScanEingang
 from src.gui.doppelte import DoppelteImOrdner, DoppelteMixin
 from src.core import office_vorschau
 from src.core.bild_convert import ist_bild_datei, pdf_lesbar
@@ -306,6 +307,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._ocr_schwer_lesbar = OcrSchwerLesbar(self)
         # Neue Dateien im Scan-Ordner erscheinen von selbst (Issue #232)
         self._ordner_beobachtung = OrdnerBeobachtung(self)
+        # Nach „Jetzt scannen“ den neuen Scan auswaehlen (Issue #339)
+        self._scan_eingang = ScanEingang(self)
         # Hinweis auf inhaltsgleiche Dateien im Scan-Bereich (Issue #245)
         self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
@@ -5180,6 +5183,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         Aufrufer, die selbst eine bestimmte Datei auswaehlen, geben False.
         """
         self._auswahl_im_ordner_merken()
+        self._scan_eingang.ordner_gewechselt(folder_path)  # Issue #339
         current = self.config.get_scan_folder()
         if current and add_to_history:
             current_path = Path(current)
@@ -5594,6 +5598,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             )
             self._open_settings_dialog(tab=tr("Allgemein"))
             return
+        # Issue #339: vor dem Start in den Scan-Ordner wechseln (mit Rueckfrage), damit die
+        # Frage nicht hinter dem Fenster des Scanprogramms liegt
+        scan_ordner = self._scan_eingang.vor_dem_scannen() if Path(pfad).exists() else None
         try:
             schon_offen = scan_programm.starten(pfad)
         except scan_programm.ScanprogrammFehler as e:
@@ -5605,6 +5612,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 "Prüfen Sie den Pfad unter Einstellungen › Allgemein › Scannen.").format(pfad=pfad, fehler=fehler),
             )
             return
+        if scan_ordner is not None:  # auch wenn es nur nach vorn geholt wurde (#337)
+            self._scan_eingang.erwarten(scan_ordner)
         if schon_offen:  # Issue #337: laeuft schon, nur nach vorn geholt
             self.statusbar.showMessage(tr("Scanprogramm läuft bereits: {name}").format(name=Path(pfad).name), 5000)
             return
