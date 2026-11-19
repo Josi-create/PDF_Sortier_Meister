@@ -1900,13 +1900,42 @@ class DetailPanel(QWidget):
         self._llm_worker = worker
         worker.start()
 
+    @staticmethod
+    def _llm_fehler_satz(roh: str) -> str:
+        """Verstaendlicher Satz zu einer technischen KI-Meldung, sonst leer.
+
+        Leer bei Meldungen, die nur dieses Dokument betreffen (die sind schon
+        lesbar), und wenn sich Anbieter oder Hinweis nicht ermitteln lassen.
+        """
+        try:
+            from src.ml.hybrid_classifier import get_hybrid_classifier
+            from src.ml.llm_hinweis import anbieter_name, betrifft_nur_dokument, ki_hinweis, modell_von
+
+            if not roh or betrifft_nur_dokument(roh):
+                return ""
+            provider = getattr(get_hybrid_classifier(), "llm_provider", None)
+            if provider is None:
+                return ""
+            h = ki_hinweis(anbieter_name(provider), roh, modell_von(provider))
+            satz = f"{h.problem} {h.abhilfe}".strip()
+            return satz if len(satz) <= 160 else h.problem
+        except Exception:  # noqa: BLE001 - die Anzeige darf nie am Hinweis scheitern
+            return ""
+
     def _show_llm_error(self, error: str):
-        """Zeigt einen KI-Fehler im Status-Label des Metadaten-Bereichs an."""
-        text = str(error).strip().splitlines()[0] if error else "KI-Fehler"
+        """Zeigt einen KI-Fehler im Status-Label des Metadaten-Bereichs an.
+
+        Technische Meldungen des Anbieters ("Ollama HTTP 500: error reading ...")
+        werden wie in Statusleiste und Chat in einen verstaendlichen Satz
+        uebersetzt; die Rohmeldung steht im Tooltip.
+        """
+        roh = str(error).strip() if error else ""
+        satz = self._llm_fehler_satz(roh)
+        text = satz or (roh.splitlines()[0] if roh else "KI-Fehler")
         if len(text) > 160:
             text = text[:157] + "…"
         self.metadata_status_label.setText(tr("KI-Fehler: {text}").format(text=text))
-        self.metadata_status_label.setToolTip(str(error))
+        self.metadata_status_label.setToolTip(f"{satz}\n\n{roh}" if satz else roh)
         stil(self.metadata_status_label,
             "font-size: 10px; padding: 2px 6px; border-radius: 3px; "
             "background-color: $rot_flaeche; color: $rot_text;"

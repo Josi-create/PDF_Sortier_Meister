@@ -289,3 +289,49 @@ def test_modell_uebernehmen_erst_nach_klick(monkeypatch):
                         staticmethod(lambda *a, **k: ("", False)))  # Abbrechen
     assert not win._ollama_modell_uebernehmen(["gemma3:4b", "qwen3:8b"])
     assert len(win.gesetzt) == 2
+
+
+# --------------------------------------------------------------------- #
+# Metadaten-Bereich: verstaendlicher Satz statt Rohmeldung (Live-Test 19.11.2026)
+# --------------------------------------------------------------------- #
+
+LESEFEHLER_ROH = ("Ollama HTTP 500: error reading llama-server response: read tcp 127.0.0.1:50556->127.0.0.1:50508: "
+                  "wsarecv: Eine vorhandene Verbindung wurde vom Remotehost geschlossen.")
+
+
+def _panel_mit_anbieter(qtbot, monkeypatch, provider):
+    from types import SimpleNamespace
+
+    import src.ml.hybrid_classifier as hc
+    from src.gui.detail_panel import DetailPanel
+
+    monkeypatch.setattr(hc, "get_hybrid_classifier", lambda: SimpleNamespace(llm_provider=provider))
+    panel = DetailPanel()
+    qtbot.addWidget(panel)
+    return panel
+
+
+def test_metadaten_bereich_zeigt_satz_statt_rohmeldung(qtbot, monkeypatch):
+    from src.ml.llm_provider import LLMConfig
+    from src.ml.ollama_provider import OllamaProvider
+
+    panel = _panel_mit_anbieter(qtbot, monkeypatch, OllamaProvider(LLMConfig(api_key="", model="gpt-oss")))
+    panel._show_llm_error(LESEFEHLER_ROH)
+    text = panel.metadata_status_label.text()
+    assert "abgestürzt" in text and "HTTP 500" not in text and "wsarecv" not in text
+    assert "wsarecv" in panel.metadata_status_label.toolTip()  # Rohmeldung bleibt nachlesbar
+
+
+def test_metadaten_bereich_laesst_dokument_meldungen_unveraendert(qtbot, monkeypatch):
+    from src.ml.llm_provider import LLMConfig
+    from src.ml.ollama_provider import OllamaProvider
+
+    panel = _panel_mit_anbieter(qtbot, monkeypatch, OllamaProvider(LLMConfig(api_key="", model="gpt-oss")))
+    panel._show_llm_error("KI hat keinen Vorschlag geliefert.")
+    assert panel.metadata_status_label.text() == "KI-Fehler: KI hat keinen Vorschlag geliefert."
+
+
+def test_metadaten_bereich_ohne_anbieter_zeigt_rohmeldung(qtbot, monkeypatch):
+    panel = _panel_mit_anbieter(qtbot, monkeypatch, None)
+    panel._show_llm_error("Ollama HTTP 500: irgendwas")
+    assert panel.metadata_status_label.text() == "KI-Fehler: Ollama HTTP 500: irgendwas"

@@ -36,6 +36,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   zweite Versuch, heißt es jetzt richtig, dass das Modell abgestürzt ist. Startet das Programm
   Ollama selbst, schreibt es dessen Ausgabe in `ollama_server.log` im Log-Ordner, damit sich ein
   Absturz nachlesen lässt.
+- **KI-Fehler im Metadaten-Bereich verständlich**: Scheitert „KI-Metadaten neu generieren“ am
+  Anbieter, steht über den Feldern jetzt derselbe verständliche Satz wie in Statusleiste und Chat
+  (was los ist und was hilft) statt der technischen Meldung. Die technische Meldung zeigt der
+  Tooltip.
 
 ## [0.31.1] - 2026-11-19
 
