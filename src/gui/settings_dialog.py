@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QComboBox, QPushButton,
     QGroupBox, QCheckBox, QMessageBox, QTabWidget,
     QWidget, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter
+    QButtonGroup, QPlainTextEdit, QScrollArea, QStyle, QCompleter, QMenu
 )
 from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal, pyqtSlot
 
@@ -1178,6 +1178,16 @@ class SettingsDialog(QDialog):
         self.scan_programm_browse = QPushButton(tr("Durchsuchen…"))
         self.scan_programm_browse.clicked.connect(self._browse_scan_programm)
         scan_row.addWidget(self.scan_programm_browse)
+        # Issue #338: gefundene Scanprogramme zur Auswahl (erst beim Aufklappen gesucht)
+        self.scan_programm_vorschlag = QPushButton(tr("Vorschläge"))
+        self.scan_programm_vorschlag.setToolTip(
+            tr("Zeigt die Scanprogramme, die auf diesem Rechner gefunden wurden.\n"
+            "Ein laufendes Scanprogramm steht ganz oben.")
+        )
+        self.scan_programm_vorschlag_menu = QMenu(self.scan_programm_vorschlag)
+        self.scan_programm_vorschlag_menu.aboutToShow.connect(self._fuelle_scan_vorschlaege)
+        self.scan_programm_vorschlag.setMenu(self.scan_programm_vorschlag_menu)
+        scan_row.addWidget(self.scan_programm_vorschlag)
         scan_layout.addRow(tr("Scanprogramm:"), scan_row)
         layout.addWidget(scan_group)
 
@@ -3154,17 +3164,50 @@ class SettingsDialog(QDialog):
         """Dateiauswahl fuer das Scanprogramm (Issue #270)."""
         from PyQt6.QtWidgets import QFileDialog
 
+        start = scan_programm.bereinigt(self.scan_programm_input.text())
         if sys.platform == "win32":
-            file_filter = tr("Programme (*.exe);;Alle Dateien (*)")
+            # Issue #338: auch Verknuepfungen; ohne Eintrag im Startmenue beginnen
+            file_filter = tr("Programme und Verknüpfungen (*.exe *.lnk);;Alle Dateien (*)")
+            if not start:
+                ordner = scan_programm.startmenue_ordner()
+                start = str(ordner[-1] if ordner else "")
         elif sys.platform == "darwin":
             file_filter = tr("Programme (*.app);;Alle Dateien (*)")
         else:
             file_filter = tr("Alle Dateien (*)")
+        # Verknuepfungen selbst aufloesen: Ziel nur, wenn keine Startparameter verloren gehen
         path, _ = QFileDialog.getOpenFileName(
-            self, tr("Scanprogramm auswählen"), self.scan_programm_input.text(), file_filter
+            self, tr("Scanprogramm auswählen"), start, file_filter,
+            options=QFileDialog.Option.DontResolveSymlinks,
         )
         if path:
-            self.scan_programm_input.setText(str(Path(path)))
+            self.scan_programm_input.setText(scan_programm.eintragbarer_pfad(path))
+
+    def _fuelle_scan_vorschlaege(self):
+        """Fuellt das Menue „Vorschläge“ mit den gefundenen Scanprogrammen (Issue #338)."""
+        from PyQt6.QtWidgets import QApplication
+
+        menu = self.scan_programm_vorschlag_menu
+        menu.clear()
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            gefunden = scan_programm.vorschlaege()
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not gefunden:
+            leer = menu.addAction(tr("Kein Scanprogramm gefunden – bitte „Durchsuchen…“ verwenden"))
+            leer.setEnabled(False)
+            return
+        for vorschlag in gefunden:
+            text = vorschlag.name
+            if vorschlag.laeuft:
+                text = tr("{name} (läuft gerade)").format(name=vorschlag.name)
+            aktion = menu.addAction(text)
+            aktion.setToolTip(vorschlag.pfad)
+            aktion.triggered.connect(
+                lambda _=False, p=vorschlag.pfad: self.scan_programm_input.setText(p)
+            )
+        menu.setToolTipsVisible(True)
 
     def _apply_explorer_integration_change(self):
         """Setzt oder entfernt den Explorer-Kontextmenue-Eintrag."""

@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Scanprogramm leichter hinterlegen** (#338): Unter *Einstellungen → Allgemein → Scannen* gibt
+  es neben „Durchsuchen…“ den Knopf „Vorschläge“. Er zeigt die Scanprogramme, die auf dem Rechner
+  gefunden wurden (z. B. VueScan, NAPS2, PaperPort, Epson Scan, Windows-Fax und -Scan); ein gerade
+  laufendes steht ganz oben. „Durchsuchen…“ beginnt unter Windows im Startmenü und nimmt auch
+  Verknüpfungen an; eingetragen wird dann das Programm, auf das die Verknüpfung zeigt.
+
 ## [0.31.1] - 2026-11-19
 
 ### Behoben
