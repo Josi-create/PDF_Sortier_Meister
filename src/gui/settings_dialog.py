@@ -331,6 +331,13 @@ class SettingsDialog(QDialog):
         self.lmstudio_status_label.setVisible(False)
         api_layout.addRow("", self.lmstudio_status_label)
 
+        # Ollama (Issue #390, #343): laeuft es, welche Modelle, erste Analyse dauert
+        self.ollama_status_label = QLabel("")
+        self.ollama_status_label.setWordWrap(True)
+        self.ollama_status_label.setVisible(False)
+        api_layout.addRow("", self.ollama_status_label)
+        self._ollama_modelle: list[str] | None = None  # None = Ollama laeuft nicht
+
         layout.addWidget(api_group)
 
         # Datenschutz: Einwilligung fuer Cloud-Provider
@@ -2610,6 +2617,7 @@ class SettingsDialog(QDialog):
         self.base_url_input.setEnabled(bool(default_url))
         no_key = new_provider in ("ollama", "lmstudio")
         self.lmstudio_status_label.setVisible(new_provider == "lmstudio")
+        self.ollama_status_label.setVisible(new_provider == "ollama")
 
         if new_provider == "none":
             self.api_key_input.setEnabled(False)
@@ -2625,6 +2633,8 @@ class SettingsDialog(QDialog):
 
         if new_provider == "lmstudio":
             self._detect_lmstudio()
+        elif new_provider == "ollama":
+            self._detect_ollama()
         else:
             self.model_combo.addItems(self._models_for_provider(new_provider))
         self.api_key_input.setPlaceholderText(
@@ -2666,6 +2676,71 @@ class SettingsDialog(QDialog):
         if current:
             self.model_combo.setCurrentText(current)
         return models
+
+    _OLLAMA_ERSTER_START = tr(
+        "Die erste Analyse nach dem Start dauert ein bis zwei Minuten, weil Ollama das Modell "
+        "erst in den Speicher lädt; danach geht es schneller.")
+
+    def _detect_ollama(self) -> list[str] | None:
+        """Fragt Ollama nach den installierten Modellen (Issue #390).
+
+        Laeuft Ollama, stehen genau die installierten Modelle in der Auswahl,
+        sonst die Vorschlaege wie bisher. Die Zeile darunter sagt, ob Ollama
+        laeuft, und erinnert an die lange erste Analyse (Issue #343).
+
+        Returns:
+            Installierte Modelle bei laufendem Ollama, sonst None.
+        """
+        from src.ml import ollama_launcher
+
+        laeuft, modelle = ollama_launcher.ollama_lage(self._current_base_url("ollama"))
+        current = self.model_combo.currentText().strip()
+        self.model_combo.clear()
+        if laeuft and modelle:
+            self.model_combo.addItems(modelle)
+        else:
+            self.model_combo.addItems(self._models_for_provider("ollama"))
+        self._ollama_modelle = list(modelle) if laeuft else None
+        if current:
+            self.model_combo.setCurrentText(current)
+        self._ollama_status_zeigen()
+        return self._ollama_modelle
+
+    def _ollama_status_zeigen(self, fehlt: str = "") -> None:
+        """Statuszeile unter der Modellauswahl fuer Ollama (``fehlt``: gespeichertes Modell fehlt)."""
+        modelle = self._ollama_modelle
+        if modelle is None:
+            text = tr("Ollama läuft nicht. Ollama starten und dann „Modelle aktualisieren“ klicken.")
+            color = "$rot_text_status"
+        elif fehlt:
+            text = tr("Ollama läuft, aber das gespeicherte Modell „{modell}“ ist nicht installiert. "
+                      "Bitte eines der installierten Modelle wählen.").format(modell=fehlt)
+            color = "$rot_text_status"
+        elif modelle:
+            text = tr("Ollama läuft: {anzahl} Modell(e) installiert.").format(anzahl=len(modelle))
+            color = "$gruen_status"
+        else:
+            text = tr("Ollama läuft, aber es ist noch kein Modell installiert.")
+            color = "$orange_text"
+        self.ollama_status_label.setText(f"{text}\n{self._OLLAMA_ERSTER_START}")
+        stil(self.ollama_status_label, f"color: {color};")
+
+    def _ollama_modell_markieren(self, model: str) -> None:
+        """Markiert ein gespeichertes Ollama-Modell, das nicht (mehr) installiert ist (Issue #390).
+
+        Es steht dann als erster Eintrag „<Name> (nicht installiert)“ in roter
+        Schrift in der Auswahl und bleibt gewaehlt - umgestellt wird nichts, bis
+        der Nutzer ein anderes Modell waehlt.
+        """
+        from src.ml.hybrid_classifier import _ollama_model_installed
+
+        modelle = self._ollama_modelle
+        if not model or not modelle or _ollama_model_installed(model, modelle):
+            return
+        self.model_combo.insertItem(0, tr("{modell} (nicht installiert)").format(modell=model))
+        self.model_combo.setItemData(0, farben.qfarbe("rot_text_status"), Qt.ItemDataRole.ForegroundRole)
+        self.model_combo.setCurrentIndex(0)
+        self._ollama_status_zeigen(fehlt=model)
 
     def _update_consent_hint(self):
         """Zeigt an, ob der Cloud-Provider ohne Einwilligung blockiert bleibt."""
@@ -2864,6 +2939,8 @@ class SettingsDialog(QDialog):
         self._on_provider_changed(self.provider_combo.currentIndex())
 
         self._select_model_in_combo(self.model_combo, llm_config.get("model", ""))
+        if provider == "ollama":
+            self._ollama_modell_markieren(llm_config.get("model", ""))
 
         self.max_tokens_spin.setValue(llm_config.get("max_tokens", 2000))
         self.temperature_spin.setValue(llm_config.get("temperature", 0.3))
@@ -3601,10 +3678,16 @@ class SettingsDialog(QDialog):
         if provider_id == "lmstudio":
             # Erkennungsstatus unter dem Provider aktualisieren (Issue #45)
             self._detect_lmstudio()
+        gewaehlt = self.model_combo.currentText().split(" ")[0]
+        if provider_id == "ollama":
+            self._detect_ollama()  # Statuszeile: laeuft Ollama jetzt? (Issue #390)
         self._refresh_models_into(
             provider_id, api_key, self._current_base_url(provider_id),
             self.model_combo, self.refresh_models_button,
         )
+        if provider_id == "ollama":
+            # Ein fehlendes Modell bleibt sichtbar gewaehlt statt still ersetzt
+            self._ollama_modell_markieren(gewaehlt)
 
     def _fetch_models_for(self, provider_id: str, api_key: str, base_url: str) -> list[str]:
         """Modell-Liste eines Anbieters abrufen (wirft bei Fehlern; leer = unbekannter Anbieter)."""

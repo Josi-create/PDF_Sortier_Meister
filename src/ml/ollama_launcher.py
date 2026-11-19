@@ -86,6 +86,19 @@ def list_models(base_url: str, timeout: float = 5.0) -> list[str]:
     return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
 
 
+def ollama_lage(base_url: str) -> tuple[bool, list[str]]:
+    """Laeuft Ollama, und welche Modelle sind installiert? (Issue #390)
+
+    Kurz genug fuer den GUI-Thread: Laeuft Ollama nicht, lehnt localhost die
+    Verbindung sofort ab; laeuft es, antwortet /api/tags in Millisekunden.
+    Tests ersetzen diese Funktion (tests/conftest.py), damit kein Test das
+    Ollama des Rechners fragt.
+    """
+    if not quick_ping(base_url, timeout=1.0):
+        return False, []
+    return True, list_models(base_url, timeout=3.0)
+
+
 def pull_model(
     base_url: str,
     model: str,

@@ -1813,6 +1813,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         analyzed, llm_done, total = self._precache_progress()
         health, hinweis = self._llm_health()
         provider = self.hybrid_classifier.get_llm_provider_name()
+        ollama = self._ollama_lage_fuer_dialog(health, hinweis)
+        if ollama is not None:
+            hinweis = ollama["hinweis"]
         if health == "fehler":
             llm_state = (tr(
                 "{provider} funktioniert gerade nicht.\n  Problem: {problem}\n"
@@ -1832,6 +1835,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             f"KI-Assistent: {llm_state}",
             tr("KI-Vorabfrage im Hintergrund: {precache}").format(precache=precache),
         ]
+        if ollama is not None:
+            lines[4:4] = [f"  {zeile}" for zeile in ollama["zeilen"]]
         if self._last_llm_error:
             name, error = self._last_llm_error
             lines.append(tr("\nLetzter KI-Fehler ({name}):\n{error}").format(name=name, error=error))
@@ -1843,11 +1848,26 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         warn = bool(self._last_llm_error) or health == "fehler"
         box.setIcon(QMessageBox.Icon.Warning if warn else QMessageBox.Icon.Information)
         box.setText("\n".join(lines))
+        # Issue #390: fehlt das Modell, eines der installierten anbieten (wirkt erst
+        # nach dem Klick); laeuft Ollama nicht, es von hier aus starten
+        modell_btn = start_btn = None
+        if ollama is not None and ollama["modelle"] and hinweis.art == "modell_fehlt":
+            modelle = ollama["modelle"]
+            modell_btn = box.addButton(
+                tr("„{modell}“ übernehmen").format(modell=modelle[0]) if len(modelle) == 1
+                else tr("Installiertes Modell übernehmen …"),
+                QMessageBox.ButtonRole.ActionRole)
+        if ollama is not None and ollama["starten"]:
+            start_btn = box.addButton(tr("Ollama starten"), QMessageBox.ButtonRole.ActionRole)
         settings_btn = box.addButton(tr("Einstellungen öffnen"), QMessageBox.ButtonRole.ActionRole)
         open_log_btn = box.addButton(tr("Log-Datei öffnen"), QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
-        if box.clickedButton() is settings_btn:
+        if modell_btn is not None and box.clickedButton() is modell_btn:
+            self._ollama_modell_uebernehmen(ollama["modelle"])
+        elif start_btn is not None and box.clickedButton() is start_btn:
+            self._ollama_starten(ollama["base_url"])
+        elif box.clickedButton() is settings_btn:
             self.open_settings()
         elif box.clickedButton() is open_log_btn:
             from src.utils.platform_paths import open_with_default_app
@@ -1855,6 +1875,97 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 open_with_default_app(log_file)
             except Exception as e:
                 QMessageBox.warning(self, tr("Log-Datei"), tr("Konnte die Log-Datei nicht öffnen:\n{e}").format(e=e))
+
+    def _ollama_lage_fuer_dialog(self, health, hinweis):
+        """Lage von Ollama fuer das Fenster „Hintergrund-Analyse“ (Issue #390).
+
+        Nur bei einem Fehler mit dem lokalen Ollama: fragt kurz nach, ob Ollama
+        laeuft und welche Modelle installiert sind. Liefert None oder ein Dict mit
+        ``hinweis`` (Problem/Abhilfe nach dem aktuellen Stand), ``zeilen`` (fuer den
+        Text), ``modelle`` (installiert), ``starten`` (Knopf „Ollama starten“
+        sinnvoll) und ``base_url``.
+        """
+        if health != "fehler" or hinweis is None:
+            return None
+        if self.hybrid_classifier.get_llm_provider_name() != "Ollama":
+            return None
+        from src.ml import ollama_launcher
+        from src.ml.hybrid_classifier import _ollama_model_installed
+        from src.ml.llm_hinweis import KIHinweis
+        provider = self.hybrid_classifier.llm_provider
+        base_url = ""
+        getter = getattr(provider, "_get_base_url", None)
+        if callable(getter):
+            try:
+                base_url = getter()
+            except Exception:  # noqa: BLE001 - dann Standard
+                base_url = ""
+        base_url = base_url or "http://localhost:11434"
+        model = self.hybrid_classifier.get_llm_model_name()
+        laeuft, modelle = ollama_launcher.ollama_lage(base_url)
+        lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url}
+        if not laeuft:
+            gefunden = bool(ollama_launcher.find_ollama_executable())
+            lage["starten"] = gefunden
+            lage["zeilen"].append(tr("Ollama läuft nicht (keine Antwort unter {url}).").format(url=base_url))
+            lage["hinweis"] = KIHinweis(
+                tr("Ollama läuft nicht."),
+                tr("Mit „Ollama starten“ starten.") if gefunden else
+                tr("Ollama wurde auf diesem Rechner nicht gefunden. Ollama von ollama.com "
+                   "installieren und starten (Windows: Startmenü → Ollama; macOS: Programme → "
+                   "Ollama)."),
+                "laeuft_nicht",
+            )
+            return lage
+        lage["zeilen"].append(tr("Ollama läuft (erreichbar unter {url}).").format(url=base_url))
+        lage["modelle"] = list(modelle)
+        if modelle:
+            lage["zeilen"].append(tr("Installierte Modelle: {modelle}").format(modelle=", ".join(modelle)))
+        else:
+            lage["zeilen"].append(tr("In Ollama ist noch kein Modell installiert."))
+        if not _ollama_model_installed(model, modelle):
+            lage["hinweis"] = KIHinweis(
+                tr("Ollama läuft, aber das Modell „{model}“ ist dort nicht installiert.").format(model=model),
+                tr("Eines der installierten Modelle übernehmen.") if modelle else
+                tr("In den Einstellungen ein Modell auswählen und herunterladen "
+                   "(oder in der Eingabeaufforderung „ollama pull“ mit dem Modellnamen)."),
+                "modell_fehlt",
+            )
+        return lage
+
+    def _ollama_modell_uebernehmen(self, modelle: list[str]) -> bool:
+        """Stellt eines der installierten Ollama-Modelle ein (Issue #390, erst nach Klick)."""
+        if not modelle:
+            return False
+        if len(modelle) == 1:
+            modell = modelle[0]
+        else:
+            modell, ok = QInputDialog.getItem(
+                self, tr("Modell übernehmen"),
+                tr("Welches installierte Ollama-Modell soll die KI benutzen?"),
+                modelle, 0, False)
+            if not ok or not modell:
+                return False
+        self.config.set_llm_model(modell)
+        self._on_settings_changed()
+        self.statusbar.showMessage(tr("KI-Modell „{modell}“ eingestellt.").format(modell=modell), 6000)
+        return True
+
+    def _ollama_starten(self, base_url: str) -> bool:
+        """Startet Ollama (Issue #390) und prueft danach die Verbindung neu."""
+        from src.ml import ollama_launcher
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            ok, meldung = ollama_launcher.ensure_running(base_url)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not ok:
+            QMessageBox.warning(self, tr("Ollama starten"), meldung)
+            return False
+        # Wie nach den Einstellungen: Verbindung neu pruefen, Vorabfrage neu anstossen
+        self._on_settings_changed()
+        self.statusbar.showMessage(tr("Ollama läuft."), 6000)
+        return True
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""

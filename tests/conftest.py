@@ -156,6 +156,17 @@ def kein_echtes_ollama_fuer_die_bedeutungssuche(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kein_echtes_ollama_fuer_meldungen(monkeypatch):
+    """Kein Test fragt das Ollama des Rechners, ob es laeuft und welche Modelle es hat (Issue #390).
+
+    Einstellungen und das Fenster „Hintergrund-Analyse“ rufen ``ollama_lage``; Tests dazu
+    ersetzen die Funktion selbst und gewinnen damit."""
+    from src.ml import ollama_launcher
+
+    monkeypatch.setattr(ollama_launcher, "ollama_lage", lambda base_url: (False, []))
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

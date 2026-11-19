@@ -565,12 +565,11 @@ class ChatView(QWidget):
         """Statuszeile mit laufender Uhr und Schaetzung (Issue #68)."""
         if self._request_started is None:
             return
-        from src.core.llm_activity import (
-            KIND_CHAT, format_elapsed, format_estimate, get_llm_activity,
-        )
+        from src.core.llm_activity import KIND_CHAT, format_elapsed, get_llm_activity
         elapsed = time.monotonic() - self._request_started
         text = f"{self._status_base} seit {format_elapsed(elapsed)}"
-        estimate = format_estimate(get_llm_activity().estimate(KIND_CHAT))
+        # Issue #343: beim ersten Aufruf eines lokalen Modells der Lade-Hinweis
+        estimate = get_llm_activity().schaetzung_text(KIND_CHAT)
         if estimate:
             text += f" · {estimate}"
         self.status_label.setText(text)
@@ -599,12 +598,28 @@ class ChatView(QWidget):
         if schritte:
             self._add_schritte(schritte)
 
+        # Issue #356: Ist die KI unterwegs gescheitert (z.B. lokales Modell
+        # abgestuerzt), steht der Grund als eigene, vollstaendige Zeile im Verlauf
+        ki_hinweis = (getattr(response, "ki_hinweis", "") or "").strip()
+        if ki_hinweis:
+            zeile = self._add_bubble(f"⚠ {ki_hinweis}", "error")
+            zeile.setProperty("ki_hinweis", True)
+            roh = (getattr(response, "ki_fehler_roh", "") or "").strip()
+            if roh:
+                zeile.setToolTip(tr("Meldung des Anbieters:\n{roh}").format(roh=roh))
+
         if getattr(response, "used_llm", False):
             self._add_bubble(
                 response.answer_text,
                 "assistant",
                 citations=response.citations,
             )
+            if getattr(response, "ohne_suche", False):
+                self._add_bubble(
+                    tr("Diese Antwort ist ohne eigene Suche der KI in den Dokumenten entstanden; "
+                       "sie stützt sich nur auf die vorab gefundenen Treffer."),
+                    "system",
+                ).setProperty("ohne_suche", True)
             self._zeige_vorschlaege(response)
             self._beste_quelle_melden(response)
             if getattr(response, "has_hallucinated_citations", False):

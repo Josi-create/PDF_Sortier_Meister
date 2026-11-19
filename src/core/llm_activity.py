@@ -63,6 +63,28 @@ def timing_key(provider: str, model: str, kind: str) -> str:
     return f"{provider or 'none'}|{model or '-'}|{kind}"
 
 
+def _modell_teil(key: str) -> str:
+    """'ollama|gemma3:4b|suggest' -> 'ollama|gemma3:4b' (geladen ist das Modell, nicht die Art)."""
+    return key.rsplit("|", 1)[0]
+
+
+# Anbieter, die das Modell beim ersten Aufruf erst in den Speicher laden (Issue #343)
+LOKALE_ANBIETER = frozenset({"ollama", "lmstudio", "strata"})
+
+
+def ist_lokal(key: str) -> bool:
+    """True, wenn der Schluessel zu einem lokalen Anbieter gehoert (Ollama, LM Studio, Strata)."""
+    return key.split("|", 1)[0].lower() in LOKALE_ANBIETER
+
+
+def modell_laedt_text(kurz: bool = False) -> str:
+    """Hinweis statt Schaetzung beim ersten Aufruf eines lokalen Modells (Issue #343)."""
+    if kurz:
+        return tr("Modell wird geladen, 1–2 Min.")
+    return tr("Modell wird geladen – beim ersten Mal nach dem Start ein bis zwei Minuten, "
+              "danach schneller")
+
+
 def current_timing_key(kind: str) -> str:
     """Schluessel fuer das aktuell konfigurierte Provider/Modell-Setting."""
     try:
@@ -157,6 +179,9 @@ class LLMActivity(QObject):
         self._lock = threading.Lock()
         self._jobs: dict[int, LLMJob] = {}
         self._next_token = 1
+        # Issue #343: Modelle ("provider|modell"), die seit dem Start schon
+        # einmal geantwortet haben - ein lokales Modell ist dann geladen
+        self._geladen: set[str] = set()
 
     @property
     def store(self) -> LLMTimingStore:
@@ -181,8 +206,29 @@ class LLMActivity(QObject):
         elapsed = job.elapsed
         if success:
             self._store.record(job.key, elapsed)
+            with self._lock:
+                self._geladen.add(_modell_teil(job.key))
         self.changed.emit()
         return elapsed
+
+    def modell_laedt(self, kind: str, key: str | None = None) -> bool:
+        """True beim ersten Aufruf eines lokalen Modells seit dem Start (Issue #343).
+
+        Ollama & Co. laden das Modell erst bei der ersten Anfrage in den Speicher;
+        das dauert ein bis zwei Minuten, die Schaetzung aus frueheren Laeufen
+        ("ca. 7 s") passt dann nicht.
+        """
+        job_key = key or current_timing_key(kind)
+        if not ist_lokal(job_key):
+            return False
+        with self._lock:
+            return _modell_teil(job_key) not in self._geladen
+
+    def schaetzung_text(self, kind: str, key: str | None = None, kurz: bool = False) -> str:
+        """'ca. 30 s' oder - beim ersten Aufruf eines lokalen Modells - der Lade-Hinweis."""
+        if self.modell_laedt(kind, key):
+            return modell_laedt_text(kurz)
+        return format_estimate(self.estimate(kind, key))
 
     def jobs(self) -> list[LLMJob]:
         with self._lock:
@@ -205,7 +251,7 @@ class LLMActivity(QObject):
             return ""
         job = jobs[0]
         text = f"seit {format_elapsed(job.elapsed)}"
-        estimate = format_estimate(self._store.estimate(job.key))
+        estimate = self.schaetzung_text(job.kind, job.key)
         if estimate:
             text += f" · {estimate}"
         return text

@@ -60,7 +60,6 @@ def _datum_iso(text: str) -> Optional[str]:
 from src.core.llm_activity import (
     KIND_SUGGEST,
     format_elapsed,
-    format_estimate,
     get_llm_activity,
 )
 from src.core.office_convert import ist_office_datei
@@ -1919,7 +1918,8 @@ class DetailPanel(QWidget):
         if self._llm_started is None:
             return
         text = tr("KI arbeitet… {0}").format(format_elapsed(time.monotonic() - self._llm_started))
-        estimate = format_estimate(get_llm_activity().estimate(KIND_SUGGEST))
+        # Issue #343: beim ersten Aufruf eines lokalen Modells der Lade-Hinweis
+        estimate = get_llm_activity().schaetzung_text(KIND_SUGGEST, kurz=True)
         if estimate:
             text += f" ({estimate})"
         self.llm_btn.setText(text)

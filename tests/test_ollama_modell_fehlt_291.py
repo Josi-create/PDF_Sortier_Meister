@@ -124,7 +124,8 @@ def _fenster(qtbot, request_error, llm_done=0, total=125):
 def test_statusleiste_nennt_das_fehlende_modell(qtbot):
     text = _fenster(qtbot, "Ollama HTTP 404: model 'gemma3:4b' not found")
     assert "KI kommt nicht weiter (0/125)" in text
-    assert "Das Modell „gemma3:4b“ gibt es bei Ollama nicht." in text
+    # Issue #390: Ollama hat geantwortet, also laeuft es - nur das Modell fehlt
+    assert "Ollama läuft, aber das Modell „gemma3:4b“ ist dort nicht installiert." in text
     assert "abgeschlossen" not in text
     assert "KI-Fehler (Doppelklick)" in text  # der Weg zu den Details bleibt
 

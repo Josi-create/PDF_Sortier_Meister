@@ -10066,3 +10066,155 @@ msgstr "1 attachment put into the scan folder: {name}"
 #: src/gui/search_view.py
 msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
 msgstr "{anzahl} attachments put into the scan folder"
+
+#: src/core/llm_activity.py
+msgid "Modell wird geladen, 1–2 Min."
+msgstr "Loading model, 1–2 min"
+
+#: src/core/llm_activity.py
+msgid "Modell wird geladen – beim ersten Mal nach dem Start ein bis zwei Minuten, danach schneller"
+msgstr "Loading model – the first time after startup takes one to two minutes, then it is faster"
+
+#: src/gui/chat_view.py
+msgid "Meldung des Anbieters:\n{roh}"
+msgstr "Message from the provider:\n{roh}"
+
+#: src/gui/chat_view.py
+msgid "Diese Antwort ist ohne eigene Suche der KI in den Dokumenten entstanden; sie stützt sich nur auf die vorab gefundenen Treffer."
+msgstr "This answer was written without the AI searching the documents itself; it relies only on the results found beforehand."
+
+#: src/gui/main_window.py
+msgid "„{modell}“ übernehmen"
+msgstr "Use “{modell}”"
+
+#: src/gui/main_window.py
+msgid "Installiertes Modell übernehmen …"
+msgstr "Use an installed model …"
+
+#: src/gui/main_window.py
+msgid "Ollama starten"
+msgstr "Start Ollama"
+
+#: src/gui/main_window.py
+msgid "Ollama läuft nicht (keine Antwort unter {url})."
+msgstr "Ollama is not running (no answer at {url})."
+
+#: src/gui/main_window.py
+msgid "Ollama läuft nicht."
+msgstr "Ollama is not running."
+
+#: src/gui/main_window.py
+msgid "Mit „Ollama starten“ starten."
+msgstr "Start it with “Start Ollama”."
+
+#: src/gui/main_window.py
+msgid "Ollama wurde auf diesem Rechner nicht gefunden. Ollama von ollama.com installieren und starten (Windows: Startmenü → Ollama; macOS: Programme → Ollama)."
+msgstr "Ollama was not found on this computer. Install Ollama from ollama.com and start it (Windows: Start menu → Ollama; macOS: Applications → Ollama)."
+
+#: src/gui/main_window.py
+msgid "Ollama läuft (erreichbar unter {url})."
+msgstr "Ollama is running (reachable at {url})."
+
+#: src/gui/main_window.py
+msgid "Installierte Modelle: {modelle}"
+msgstr "Installed models: {modelle}"
+
+#: src/gui/main_window.py
+msgid "In Ollama ist noch kein Modell installiert."
+msgstr "No model is installed in Ollama yet."
+
+#: src/gui/main_window.py
+msgid "Ollama läuft, aber das Modell „{model}“ ist dort nicht installiert."
+msgstr "Ollama is running, but the model “{model}” is not installed there."
+
+#: src/gui/main_window.py
+msgid "Eines der installierten Modelle übernehmen."
+msgstr "Use one of the installed models."
+
+#: src/gui/main_window.py
+msgid "In den Einstellungen ein Modell auswählen und herunterladen (oder in der Eingabeaufforderung „ollama pull“ mit dem Modellnamen)."
+msgstr "Choose a model in Settings and download it (or run “ollama pull” with the model name in a command prompt)."
+
+#: src/gui/main_window.py
+msgid "Modell übernehmen"
+msgstr "Use model"
+
+#: src/gui/main_window.py
+msgid "Welches installierte Ollama-Modell soll die KI benutzen?"
+msgstr "Which installed Ollama model should the AI use?"
+
+#: src/gui/main_window.py
+msgid "KI-Modell „{modell}“ eingestellt."
+msgstr "AI model “{modell}” set."
+
+#: src/gui/main_window.py
+msgid "Ollama läuft."
+msgstr "Ollama is running."
+
+#: src/gui/settings_dialog.py
+msgid "Die erste Analyse nach dem Start dauert ein bis zwei Minuten, weil Ollama das Modell erst in den Speicher lädt; danach geht es schneller."
+msgstr "The first analysis after startup takes one to two minutes because Ollama first loads the model into memory; after that it is faster."
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft nicht. Ollama starten und dann „Modelle aktualisieren“ klicken."
+msgstr "Ollama is not running. Start Ollama, then click “Refresh models”."
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft, aber das gespeicherte Modell „{modell}“ ist nicht installiert. Bitte eines der installierten Modelle wählen."
+msgstr "Ollama is running, but the saved model “{modell}” is not installed. Please choose one of the installed models."
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft: {anzahl} Modell(e) installiert."
+msgstr "Ollama is running: {anzahl} model(s) installed."
+
+#: src/gui/settings_dialog.py
+msgid "Ollama läuft, aber es ist noch kein Modell installiert."
+msgstr "Ollama is running, but no model is installed yet."
+
+#: src/gui/settings_dialog.py
+msgid "{modell} (nicht installiert)"
+msgstr "{modell} (not installed)"
+
+#: src/ml/llm_hinweis.py
+msgid "Die KI"
+msgstr "The AI"
+
+#: src/ml/llm_hinweis.py
+msgid "Das Modell {modell_name} kann nicht selbst in den Dokumenten suchen."
+msgstr "The model {modell_name} cannot search the documents itself."
+
+#: src/ml/llm_hinweis.py
+msgid "Das KI-Modell kann nicht selbst in den Dokumenten suchen."
+msgstr "The AI model cannot search the documents itself."
+
+#: src/ml/llm_hinweis.py
+msgid "Wer die Suche durch die KI möchte, wählt in den Einstellungen ein Modell, das Werkzeuge beherrscht (z. B. gpt-oss)."
+msgstr "If you want the AI to search, choose a model in Settings that supports tools (e.g. gpt-oss)."
+
+#: src/ml/llm_hinweis.py
+msgid "Das Modell {modell_name} ist abgestürzt, meist weil der Grafikspeicher nicht reicht."
+msgstr "The model {modell_name} crashed, usually because there is not enough graphics memory."
+
+#: src/ml/llm_hinweis.py
+msgid "Das KI-Modell ist abgestürzt, meist weil der Grafikspeicher nicht reicht."
+msgstr "The AI model crashed, usually because there is not enough graphics memory."
+
+#: src/ml/llm_hinweis.py
+msgid "In den Einstellungen ein kleineres Modell wählen oder {provider} neu starten."
+msgstr "Choose a smaller model in Settings or restart {provider}."
+
+#: src/ml/llm_hinweis.py
+msgid "In den Einstellungen ein kleineres Modell wählen."
+msgstr "Choose a smaller model in Settings."
+
+#: src/ml/llm_hinweis.py
+msgid "{provider} läuft, aber das Modell {modell_name} ist dort nicht installiert."
+msgstr "{provider} is running, but the model {modell_name} is not installed there."
+
+#: src/ml/llm_hinweis.py
+msgid "Eines der installierten Modelle übernehmen (in den Einstellungen oder im Fenster „Hintergrund-Analyse“)."
+msgstr "Use one of the installed models (in Settings or in the “Background analysis” window)."
+
+#: src/rag/rag_controller.py
+msgid "KI kann nicht selbst suchen – Antwort ohne Suche …"
+msgstr "AI cannot search itself – answering without search …"

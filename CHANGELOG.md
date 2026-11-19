@@ -7,6 +7,28 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Klare Meldungen zu Ollama** (#390): Fehlt das eingestellte Modell, sagt das Fenster
+  „Hintergrund-Analyse“ (Doppelklick auf die Statusleiste) jetzt getrennt, ob Ollama läuft, und
+  nennt die installierten Modelle. Ein Knopf übernimmt eines davon; umgestellt wird erst nach dem
+  Klick. Läuft Ollama nicht, gibt es dort den Knopf „Ollama starten“ (oder, wenn Ollama nicht
+  gefunden wird, einen Satz, wie man es startet). In den Einstellungen zeigt die Modellauswahl bei
+  laufendem Ollama die installierten Modelle; ein gespeichertes Modell, das es nicht mehr gibt,
+  steht dort rot als „(nicht installiert)“.
+- **Erste Analyse mit lokaler KI** (#343): Beim ersten KI-Aufruf nach dem Start lädt Ollama
+  (ebenso LM Studio und Strata) das Modell erst in den Speicher; das dauert ein bis zwei Minuten.
+  Statusleiste, Chat und der Knopf „KI-Metadaten neu generieren“ sagen das jetzt („Modell wird
+  geladen …“) statt einer zu kurzen Schätzung wie „ca. 7 s“. Derselbe Hinweis steht in den
+  Einstellungen beim Anbieter Ollama.
+
+### Behoben
+- **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
+  einer Chat-Frage ab, steht der Grund jetzt als eigene, vollständig lesbare Zeile im Verlauf:
+  dass das Modell abgestürzt ist, meist weil der Grafikspeicher nicht reicht, und was hilft
+  (kleineres Modell wählen oder Ollama neu starten). Bisher stand dort nur eine abgeschnittene
+  englische Meldung am unteren Rand. Kommt trotzdem eine Antwort, steht darunter, dass sie ohne
+  eigene Suche der KI in den Dokumenten entstanden ist. Die technische Meldung zeigt der Tooltip.
+
 ## [0.31.1] - 2026-11-19
 
 ### Behoben
