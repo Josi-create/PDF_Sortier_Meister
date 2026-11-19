@@ -370,6 +370,10 @@ class KiTrennenMixin:
         if pdf_path.suffix.lower() != ".pdf":
             QMessageBox.information(self, titel, tr("Das geht nur mit PDF-Dateien."))
             return
+        from src.gui.nicht_lesbar import melden_falls_nicht_lesbar
+
+        if melden_falls_nicht_lesbar(self, titel, [pdf_path]):  # Issue #414
+            return
         try:
             import fitz
 

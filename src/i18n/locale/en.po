@@ -10066,3 +10066,99 @@ msgstr "1 attachment put into the scan folder: {name}"
 #: src/gui/search_view.py
 msgid "{anzahl} Anhänge in den Scan-Ordner gelegt"
 msgstr "{anzahl} attachments put into the scan folder"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "Leere Datei"
+msgstr "Empty file"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "Keine PDF"
+msgstr "Not a PDF"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "Beschädigt"
+msgstr "Damaged"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "Passwortgeschützt"
+msgstr "Password-protected"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "Nicht lesbar"
+msgstr "Unreadable"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "die Datei ist leer"
+msgstr "the file is empty"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "die Datei ist keine PDF"
+msgstr "the file is not a PDF"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "die Datei ist beschädigt"
+msgstr "the file is damaged"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "die Datei ist passwortgeschützt"
+msgstr "the file is password-protected"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "die Datei lässt sich nicht lesen"
+msgstr "the file cannot be read"
+
+#: src/core/pdf_lesbarkeit.py
+msgid "„{name}“ ist leer (0 Byte). Vielleicht wird sie gerade noch geschrieben oder der Scan ist fehlgeschlagen."
+msgstr "“{name}” is empty (0 bytes). It may still be being written, or the scan failed."
+
+#: src/core/pdf_lesbarkeit.py
+msgid "„{name}“ ist keine PDF, auch wenn der Name auf .pdf endet."
+msgstr "“{name}” is not a PDF, even though its name ends in .pdf."
+
+#: src/core/pdf_lesbarkeit.py
+msgid "„{name}“ ist beschädigt und lässt sich nicht als PDF lesen."
+msgstr "“{name}” is damaged and cannot be read as a PDF."
+
+#: src/core/pdf_lesbarkeit.py
+msgid "„{name}“ ist passwortgeschützt. Rechtsklick auf die Kachel, „Passwortschutz entfernen…“ legt eine Kopie ohne Schutz an."
+msgstr "“{name}” is password-protected. Right-click the tile, “Remove password protection…” saves a copy without protection."
+
+#: src/core/pdf_lesbarkeit.py
+msgid "„{name}“ lässt sich nicht lesen ({technisch})."
+msgstr "“{name}” cannot be read ({technisch})."
+
+#: src/core/pdf_lesbarkeit.py
+msgid "keine Seiten gefunden"
+msgstr "no pages found"
+
+#: src/gui/main_window.py
+msgid "die Datei ist geöffnet oder schreibgeschützt"
+msgstr "the file is open in another program or read-only"
+
+#: src/gui/main_window.py
+msgid "„{name}“: Titel, Datum und übrige Angaben konnten nicht in die PDF geschrieben werden – {grund}."
+msgstr "“{name}”: title, date and other details could not be written into the PDF – {grund}."
+
+#: src/gui/main_window.py
+msgid "Stapeln"
+msgstr "Stack"
+
+#: src/gui/nicht_lesbar.py
+msgid "Es wurde nichts verändert."
+msgstr "Nothing was changed."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Die Vorschau dieser Datei konnte nicht geladen werden."
+msgstr "The preview of this file could not be loaded."
+
+#: src/gui/pdf_thumbnail.py
+msgid "Meldung der PDF-Bibliothek: {text}"
+msgstr "Message from the PDF library: {text}"
+
+#: src/gui/main_window.py
+msgid "Metadaten fehlen in „{name}“"
+msgstr "Metadata missing in “{name}”"
+
+#: src/gui/main_window.py
+msgid "Anklicken blendet den Hinweis aus."
+msgstr "Click to hide this notice."
