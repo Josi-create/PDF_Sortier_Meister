@@ -103,6 +103,7 @@ from src.core.bild_drehen import bild_drehen, ist_drehbares_bild
 from src.core.office_convert import endung_tauschen, ist_office_datei, ist_sortierbar
 from src.gui import original_wegraeumen
 from src.gui import seiten_bearbeiten
+from src.gui.nicht_lesbar import melden_falls_nicht_lesbar
 from src.gui.bild_aktionen import BildAktionenMixin
 from src.gui.entsperren import EntsperrenMixin
 from src.gui.ki_trennen_dialog import KiTrennenMixin
@@ -210,6 +211,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     thumbnails_loaded = pyqtSignal()
     # (Generation, (erreichbar, Detail) | None) aus dem Pruef-Thread
     _llm_connection_checked = pyqtSignal(int, object)
+    _metadaten_nicht_geschrieben = pyqtSignal(str, str)  # (Dateiname, Grund), Issue #414
+    METADATEN_HINWEIS_MS = 60_000  # so lange bleibt der Hinweis rechts in der Statusleiste stehen
     LLM_CHECK_INTERVAL_MS = 60_000
 
     def __init__(self):
@@ -225,6 +228,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.classifier = get_classifier()
         self.hybrid_classifier = get_hybrid_classifier()
         self.pdf_cache = get_pdf_cache()
+        # Issue #414: Metadaten liessen sich nicht in die PDF schreiben (auch aus dem Schreib-Thread).
+        # Immer verzoegert anzeigen: sonst ueberschriebe die Meldung des Aufrufers ("Verschoben nach ...") sie
+        self._metadaten_nicht_geschrieben.connect(
+            self._on_metadaten_nicht_geschrieben, Qt.ConnectionType.QueuedConnection)
 
         # Eigenes Chat-Modell (Issue #166/#167): Provider-Instanz zum
         # "chat"-Block, gecacht ueber das Konfigurations-Dict (Schluessel);
@@ -2511,6 +2518,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.backup_status_label.setVisible(bool(self.config.get("backup_pending", False)))
         self.statusbar.addPermanentWidget(self.backup_status_label)
 
+        # Issue #414: Metadaten nicht in die PDF geschrieben. Bleibt eine Weile stehen, auch wenn
+        # danach eine andere Meldung (z. B. "Ausgewählt: ...") die Statuszeile belegt
+        self.metadaten_hinweis_label = _ClickableLabel("")
+        stil(self.metadaten_hinweis_label, "color: $orange_text_hell; font-weight: bold;")
+        self.metadaten_hinweis_label.clicked.connect(self.metadaten_hinweis_label.hide)
+        self.metadaten_hinweis_label.setVisible(False)
+        self._metadaten_hinweis_timer = QTimer(self)
+        self._metadaten_hinweis_timer.setSingleShot(True)
+        self._metadaten_hinweis_timer.setInterval(self.METADATEN_HINWEIS_MS)
+        self._metadaten_hinweis_timer.timeout.connect(self.metadaten_hinweis_label.hide)
+        self.statusbar.addPermanentWidget(self.metadaten_hinweis_label)
+
         # Update-Hinweis (Issue #73): erst sichtbar, wenn ein Update gefunden wurde
         self.update_status_label = _ClickableLabel("")
         stil(self.update_status_label, "color: $orange_text_hell; font-weight: bold;")
@@ -3514,6 +3533,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         dialog_metadata: dict = None,
     ):
         """Schreibt Metadaten in die PDF-Datei (XMP + Info Dictionary)."""
+        geschrieben = gemeldet = False
         try:
             from src.core.metadata_choices import clean_category
             from src.core.pdf_metadata import PDFMetadata, ist_pdf, write_metadata
@@ -3571,18 +3591,46 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
             if metadata.has_any_data():
                 success = write_metadata(pdf_path, metadata)
+                geschrieben = bool(success)
                 if success:
                     # Erst der Index, dann die Ausgabe: ein Konsolenfehler beim Drucken
                     # (Zeichensatz) darf die Index-Meldung nicht verhindern
                     self._metadaten_an_index(pdf_path, metadata)
                     print(f"Metadaten in {pdf_path.name} geschrieben: {metadata.to_dict()}")
                 else:
+                    self._metadaten_fehler_melden(pdf_path)
+                    gemeldet = True
                     print(f"Metadaten konnten nicht in {pdf_path.name} geschrieben werden")
 
         except ImportError:
             pass  # pikepdf nicht installiert - kein Fehler
         except Exception as e:
+            if not geschrieben and not gemeldet:  # ein Fehler erst bei der Konsolenausgabe zaehlt nicht
+                self._metadaten_fehler_melden(pdf_path)
             print(f"Fehler beim Schreiben der PDF-Metadaten: {e}")
+
+    def _metadaten_fehler_melden(self, pdf_path: Path) -> None:
+        """Issue #414: Die Datei ist abgelegt, aber ohne Titel, Datum usw. in der PDF - das sagen,
+        mit Grund. Laeuft auch im Schreib-Thread; die Anzeige uebernimmt der GUI-Thread."""
+        from src.core.pdf_lesbarkeit import pruefen
+
+        fehler = pruefen(pdf_path)
+        grund = fehler.grund() if fehler else tr("die Datei ist geöffnet oder schreibgeschützt")
+        try:
+            self._metadaten_nicht_geschrieben.emit(pdf_path.name, grund)
+        except RuntimeError:
+            pass  # Fenster bereits geschlossen
+
+    def _on_metadaten_nicht_geschrieben(self, name: str, grund: str) -> None:
+        text = tr("„{name}“: Titel, Datum und übrige Angaben konnten nicht in die PDF geschrieben "
+                  "werden – {grund}.").format(name=name, grund=grund)
+        self.statusbar.showMessage(text, 10000)
+        label = self.metadaten_hinweis_label
+        kurz = name if len(name) <= 40 else name[:39] + "…"
+        label.setText(tr("Metadaten fehlen in „{name}“").format(name=kurz))
+        label.setToolTip(text + "\n\n" + tr("Anklicken blendet den Hinweis aus."))
+        label.show()
+        self._metadaten_hinweis_timer.start()
 
     def _metadaten_an_index(self, pdf_path: Path, metadata) -> None:
         """Nach dem Schreiben in die PDF: Inhalt neu lesen lassen und die PDFSM-Metadaten (Vorrang)
@@ -4174,6 +4222,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         """Wird aufgerufen wenn eine PDF getrennt werden soll."""
         from src.gui.split_pdf_dialog import SplitPDFDialog
 
+        if melden_falls_nicht_lesbar(self, tr("PDF trennen"), [pdf_path]):  # Issue #414
+            return
+
         # Seitenanzahl ermitteln
         try:
             import fitz
@@ -4224,6 +4275,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                 self, tr("PDFs zusammenfügen"),
                 tr("Bitte mindestens 2 PDFs mit Ctrl+Klick auswählen.")
             )
+            return
+        if melden_falls_nicht_lesbar(self, tr("PDFs zusammenfügen"), pdfs_to_merge):  # Issue #414
             return
 
         # Standard-Ausgabename vorschlagen
@@ -4293,6 +4346,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         from datetime import datetime
         sources = [Path(s) for s in sources if Path(s) != target]
         if not sources:
+            return
+        if melden_falls_nicht_lesbar(self, tr("Stapeln"), [*sources, target]):  # Issue #414
             return
         self._wait_for_metadata_writes([target, *sources])
 

@@ -36,7 +36,7 @@ class ThumbnailLoaderThread(QThread):
     """Thread zum asynchronen Laden von PDF-Thumbnails."""
 
     thumbnail_loaded = pyqtSignal(QPixmap)
-    error_occurred = pyqtSignal(str)
+    error_occurred = pyqtSignal(str, str)  # (Art aus pdf_lesbarkeit oder "", Text der Bibliothek), Issue #414
     passwort_noetig = pyqtSignal()  # die PDF laesst sich nur mit Passwort oeffnen (Issue #244)
 
     def __init__(self, pdf_path: Path, width: int = 140, height: int = 160):
@@ -52,11 +52,19 @@ class ThumbnailLoaderThread(QThread):
             pixmap = get_thumbnail(self.pdf_path, self.width, self.height)
             self.thumbnail_loaded.emit(pixmap)
         except Exception as e:
-            # Kein Bild: liegt es am Passwortschutz, zeigt die Kachel ein Schloss (Issue #244)
-            from src.core.pdf_entsperren import braucht_passwort
-            if braucht_passwort(self.pdf_path):
+            # Kein Bild: liegt es am Passwortschutz, zeigt die Kachel ein Schloss (Issue #244),
+            # sonst nennt sie den Grund (Issue #414)
+            from src.core.pdf_lesbarkeit import GESCHUETZT, pruefen
+            fehler = pruefen(self.pdf_path)
+            if fehler is not None and fehler.art == GESCHUETZT:
                 self.passwort_noetig.emit()
-            self.error_occurred.emit(str(e))
+            text = str(e) or (fehler.technisch if fehler else "")
+            # Der Bibliothekstext enthaelt oft den ganzen Pfad (unter Windows mit doppelten "\\"):
+            # im Tooltip genuegt der Dateiname
+            pfad = str(self.pdf_path)
+            for langform in (pfad.replace("\\", "\\\\"), pfad):
+                text = text.replace(langform, self.pdf_path.name)
+            self.error_occurred.emit(fehler.art if fehler else "", text)
 
 
 class SchlossSymbol(QWidget):
@@ -178,6 +186,7 @@ class PDFThumbnailWidget(QFrame):
         self._ocr_schlecht = False  # Issue #47: OCR-Text schlecht erkannt (Warndreieck)
         self._geschuetzt = False  # Issue #244: laesst sich nur mit Passwort oeffnen (Schloss)
         self._analyzing = False  # Issue #108: Erst-Analyse (OCR) laeuft gerade
+        self._lesefehler_tooltip = ""  # Issue #414: warum es kein Bild gibt (leer: es gibt eins)
         self._loader_thread: Optional[ThumbnailLoaderThread] = None
         self._drag_start_position: Optional[QPoint] = None
         # Klick auf eine Kachel der Mehrfachauswahl: erst beim Loslassen auswerten,
@@ -340,6 +349,9 @@ class PDFThumbnailWidget(QFrame):
     def _on_thumbnail_loaded(self, pixmap: QPixmap):
         """Wird aufgerufen wenn das Thumbnail geladen wurde."""
         self._original_pixmap = pixmap
+        if self._lesefehler_tooltip:  # z. B. die Datei war beim ersten Laden noch nicht fertig
+            self._lesefehler_tooltip = ""
+            self._update_tooltip()
         self.geschuetzt = False  # ein Bild gibt es nur ohne Passwortschutz
         self._apply_thumbnail_pixmap()
         stil(self.thumbnail_label,
@@ -440,12 +452,25 @@ class PDFThumbnailWidget(QFrame):
         """Der Lade-Thread meldet: Diese PDF laesst sich nur mit Passwort oeffnen."""
         self.geschuetzt = True
 
-    def _on_thumbnail_error(self, error: str):
-        """Wird aufgerufen wenn ein Fehler beim Laden auftrat."""
+    def _on_thumbnail_error(self, art: str, error: str = ""):
+        """Kein Bild: Die Kachel nennt den Grund, der Tooltip den Text der Bibliothek (Issue #414)."""
         if self._geschuetzt:
             self.thumbnail_ready.emit()  # das Schloss steht schon da
             return
-        self.thumbnail_label.setText(tr("Fehler\nbeim Laden"))
+        from src.core.pdf_lesbarkeit import Lesefehler
+
+        if art:
+            fehler = Lesefehler(art, error)
+            self.thumbnail_label.setText(fehler.kurz)
+            satz = fehler.satz(self.pdf_path.name)
+        else:  # lesbar, aber das Bild liess sich nicht zeichnen
+            self.thumbnail_label.setText(tr("Fehler\nbeim Laden"))
+            satz = tr("Die Vorschau dieser Datei konnte nicht geladen werden.")
+        self.thumbnail_label.setWordWrap(True)
+        self._lesefehler_tooltip = "\n\n" + satz
+        if error:
+            self._lesefehler_tooltip += "\n" + tr("Meldung der PDF-Bibliothek: {text}").format(text=error)
+        self._update_tooltip()
         stil(self.thumbnail_label,
             "background-color: $rot_flaeche_kachel; border: 1px solid $rot_rand_kachel; border-radius: 3px; color: $rot_text_kraeftig;"
         )
@@ -509,6 +534,7 @@ class PDFThumbnailWidget(QFrame):
             + (self.AI_TOOLTIP_SUFFIX if self._has_ai_suggestion else "")
             + (self.OCR_TOOLTIP_SUFFIX if self._ocr_schlecht else "")
             + (self.SCHLOSS_TOOLTIP_SUFFIX if self._geschuetzt else "")
+            + self._lesefehler_tooltip
         )
 
     @property

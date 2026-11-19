@@ -474,6 +474,10 @@ def bearbeiten(main, pdf_path: Path) -> bool:
     """Kontextmenue "Seiten bearbeiten…": Fenster zeigen, speichern, Rueckgaengig-Eintrag anlegen."""
     pdf_path = Path(pdf_path)
     titel = tr("Seiten bearbeiten")
+    from src.gui.nicht_lesbar import melden_falls_nicht_lesbar
+
+    if melden_falls_nicht_lesbar(main, titel, [pdf_path]):  # Issue #414: sonst z. B. leeres Fenster
+        return False
     try:
         anzahl = pdf_seiten.seitenzahl(pdf_path)
     except DrehenNichtMoeglich as e:

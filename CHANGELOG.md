@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Nicht lesbare Dateien sagen, was los ist** (#414): Statt „Fehler beim Laden“ steht auf der
+  Kachel jetzt der Grund: „Leere Datei“, „Keine PDF“ oder „Beschädigt“; der Tooltip erklärt es in
+  einem Satz und nennt zusätzlich die Meldung der PDF-Bibliothek. Trennen, KI-Trennen, Stapeln,
+  Zusammenfügen und „Seiten bearbeiten…“ prüfen die Dateien vorher und sagen auf Deutsch, welche
+  nicht lesbar ist und dass nichts verändert wurde, statt englischen Fachtext zu zeigen oder ein
+  leeres Fenster zu öffnen. Bei passwortgeschützten PDFs verweist der Hinweis auf „Passwortschutz
+  entfernen…“. Konnten beim Ablegen Titel, Datum und übrige Angaben nicht in die PDF geschrieben
+  werden (z. B. weil sie geschützt ist), steht das jetzt mit Grund in der Statusleiste; bisher
+  geschah das still.
+
 ### Neu
 - **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
   Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf

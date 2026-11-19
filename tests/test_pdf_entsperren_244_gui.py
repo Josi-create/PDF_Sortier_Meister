@@ -118,7 +118,7 @@ def test_menuepunkt_nennt_die_anzahl_der_auswahl(fenster, scan):
 
 
 def test_lade_thread_meldet_schloss_statt_fehler(qtbot, scan):
-    """Der echte Lade-Thread: geschuetzte PDF -> Schloss; kaputte PDF -> weiter "Fehler beim Laden"."""
+    """Der echte Lade-Thread: geschuetzte PDF -> Schloss; kaputte PDF -> roter Grund (seit #414 "Keine PDF")."""
     from src.gui.pdf_thumbnail import PDFThumbnailWidget
 
     zu = geschuetzte_pdf(scan / "Auszug.pdf")
@@ -136,7 +136,7 @@ def test_lade_thread_meldet_schloss_statt_fehler(qtbot, scan):
     try:
         assert kacheln[zu].geschuetzt and not kacheln[zu]._schloss_symbol.isHidden()
         assert kacheln[zu].thumbnail_label.text() == "" and kacheln[zu]._original_pixmap is None
-        assert not kacheln[kaputt].geschuetzt and "Fehler" in kacheln[kaputt].thumbnail_label.text()
+        assert not kacheln[kaputt].geschuetzt and kacheln[kaputt].thumbnail_label.text() == "Keine PDF"
         assert not kacheln[offen].geschuetzt and kacheln[offen]._original_pixmap is not None
     finally:
         for kachel in kacheln.values():
