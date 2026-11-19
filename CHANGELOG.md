@@ -28,6 +28,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   (kleineres Modell wählen oder Ollama neu starten). Bisher stand dort nur eine abgeschnittene
   englische Meldung am unteren Rand. Kommt trotzdem eine Antwort, steht darunter, dass sie ohne
   eigene Suche der KI in den Dokumenten entstanden ist. Die technische Meldung zeigt der Tooltip.
+- **Ollama: Absturz des Modells wird einmal von selbst wiederholt**: Stürzt bei Ollama das Modell
+  während einer Anfrage ab (häufig beim ersten Laden direkt nach dem Start von Ollama), versucht
+  das Programm es nach zwei Sekunden einmal erneut; Ollama startet das Modell dabei frisch. Bisher
+  blieb die Anfrage mit einer englischen Meldung („error reading llama-server response …“)
+  stehen, und der Hinweis dazu riet fälschlich, Ollama neu zu installieren. Scheitert auch der
+  zweite Versuch, heißt es jetzt richtig, dass das Modell abgestürzt ist. Startet das Programm
+  Ollama selbst, schreibt es dessen Ausgabe in `ollama_server.log` im Log-Ordner, damit sich ein
+  Absturz nachlesen lässt.
 
 ## [0.31.1] - 2026-11-19
 

@@ -186,8 +186,31 @@ def _consume_pull_stream(stream, progress_cb, should_cancel) -> tuple[bool, str]
     return False, tr("Download unvollstaendig (Verbindung beendet).")
 
 
+# Ab dieser Groesse wird das Protokoll des selbst gestarteten Servers beim
+# naechsten Start neu begonnen.
+_SERVER_LOG_MAX = 5 * 1024 * 1024
+
+
+def _server_log():
+    """Datei fuer die Ausgabe des selbst gestarteten Servers, sonst DEVNULL.
+
+    Ohne sie ist nach einem Absturz des Modells nicht nachzulesen, warum
+    (Live-Test 19.11.2026): `ollama serve` schreibt sein Protokoll nur auf die
+    Standardausgabe; die Datei server.log legt allein die Ollama-App an.
+    """
+    try:
+        from src.utils.logging_config import get_log_directory
+        pfad = get_log_directory() / "ollama_server.log"
+        zu_gross = pfad.exists() and pfad.stat().st_size > _SERVER_LOG_MAX
+        return open(pfad, "wb" if zu_gross else "ab")
+    except Exception as e:  # noqa: BLE001 - das Protokoll darf den Start nie verhindern
+        logger.warning(f"Ollama-Protokoll nicht anlegbar: {e}")
+        return subprocess.DEVNULL
+
+
 def _start_server_process(exe_path: str) -> bool:
     """Startet `ollama serve` als losgeloesten Hintergrundprozess."""
+    ausgabe = _server_log()
     try:
         if sys.platform == "win32":
             # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP - der Server
@@ -200,16 +223,16 @@ def _start_server_process(exe_path: str) -> bool:
             subprocess.Popen(
                 [exe_path, "serve"],
                 creationflags=flags,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=ausgabe,
+                stderr=ausgabe,
                 stdin=subprocess.DEVNULL,
                 close_fds=True,
             )
         else:
             subprocess.Popen(
                 [exe_path, "serve"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=ausgabe,
+                stderr=ausgabe,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
             )
@@ -217,6 +240,10 @@ def _start_server_process(exe_path: str) -> bool:
     except OSError as e:
         logger.warning(f"Konnte Ollama nicht starten: {e}")
         return False
+    finally:
+        # Der Server hat sein eigenes Handle geerbt; unseres wird nicht mehr gebraucht.
+        if ausgabe is not subprocess.DEVNULL:
+            ausgabe.close()
 
 
 def ensure_running(base_url: str, max_wait: float = 10.0) -> tuple[bool, str]:

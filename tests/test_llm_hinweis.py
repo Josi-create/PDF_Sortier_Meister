@@ -21,6 +21,10 @@ from src.ml.llm_hinweis import betrifft_nur_dokument, ki_hinweis
      "abgestürzt", "kleineres Modell wählen oder Ollama neu starten"),
     ("Ollama", "Ollama HTTP 500: llama-server process has terminated: exit status 2. The system d",
      "Grafikspeicher", "neu starten"),
+    # Live-Test 19.11.2026: Modellprozess stirbt mitten in der Antwort (nicht: unvollstaendig installiert)
+    ("Ollama", "Ollama HTTP 500: error reading llama-server response: read tcp 127.0.0.1:50556->127.0.0.1:50508: "
+               "wsarecv: Eine vorhandene Verbindung wurde vom Remotehost geschlossen.",
+     "abgestürzt", "kleineres Modell wählen oder Ollama neu starten"),
     ("Ollama", "Das Modell 'abc' unterstützt keine Werkzeuge (Ollama HTTP 400: abc does not support tools).",
      "nicht selbst in den Dokumenten suchen", "Werkzeuge"),
     ("Ollama", "Ollama HTTP 500: model requires more system memory (20 GiB) than is available",
@@ -47,6 +51,7 @@ def test_hinweise(provider, fehler, im_problem, in_abhilfe):
     ("Ollama HTTP 404: model 'abc' not found", "modell_fehlt"),
     ("Keine Verbindung zu Ollama (http://localhost:11434). Details: [WinError 10061]", "laeuft_nicht"),
     ("Ollama HTTP 500: llama runner process has terminated: exit status 2", "absturz"),
+    ("Ollama HTTP 500: error reading llama-server response: read tcp 127.0.0.1:1->127.0.0.1:2: wsarecv: x", "absturz"),
     ("irgendwas Unerwartetes", ""),
 ])
 def test_art_des_problems(fehler, art):

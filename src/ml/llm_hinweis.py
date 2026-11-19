@@ -80,6 +80,22 @@ def _enthaelt(text: str, *muster: str) -> bool:
     return any(m in text for m in muster)
 
 
+# Woran ein Absturz des lokalen Modells zu erkennen ist. Ollama meldet ihn je
+# nach Version und Zeitpunkt verschieden: "llama runner process has terminated:
+# exit status ..." oder, wenn der Modellprozess mitten in der Antwort stirbt,
+# "error reading llama-server response: read tcp ...: wsarecv: Eine vorhandene
+# Verbindung wurde vom Remotehost geschlossen".
+_ABSTURZ = ("has terminated", "no longer running", "exit status",
+            "error reading llama", "wsarecv", "forcibly closed", "connection reset by peer")
+_KEIN_ABSTURZ = ("error starting", "binary not found")
+
+
+def ist_modellabsturz(fehler: str) -> bool:
+    """True, wenn die Meldung sagt, dass das lokale Modell abgestuerzt ist."""
+    text = (fehler or "").lower()
+    return _enthaelt(text, *_ABSTURZ) and not _enthaelt(text, *_KEIN_ABSTURZ)
+
+
 def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
     """Uebersetzt eine technische Fehlermeldung in Problem + Abhilfe."""
     text = (fehler or "").lower()
@@ -99,8 +115,7 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
     # Issue #356: Das Modell ist waehrend der Arbeit abgestuerzt ("llama runner
     # process has terminated: exit status ...") - meist reicht der Grafikspeicher
     # nicht. Startet der llama-server gar nicht, ist es eine Installationsfrage.
-    if (_enthaelt(text, "has terminated", "no longer running", "exit status")
-            and not _enthaelt(text, "error starting", "binary not found")):
+    if ist_modellabsturz(text):
         return KIHinweis(
             tr("Das Modell {modell_name} ist abgestürzt, meist weil der Grafikspeicher nicht "
                "reicht.").format(modell_name=modell_name) if modell else
