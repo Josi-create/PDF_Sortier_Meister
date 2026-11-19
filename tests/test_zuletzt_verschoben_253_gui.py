@@ -46,7 +46,8 @@ def _verschieben(main_window, dateien, ziel: Path, namen=None):
 def test_hinweis_erscheint_erst_nach_dem_verschieben(main_window, fresh_singletons, monkeypatch):
     scan, ziel = _welt(fresh_singletons["tmp_path"])
     _prime_cache_on_load(main_window, monkeypatch)
-    main_window._navigate_to_folder(scan)
+    # ohne Auswahl (#340): eine ausgewaehlte a.pdf nimmt beim Ablegen den Namen aus dem Detail-Panel
+    main_window._navigate_to_folder(scan, auswaehlen=False)
     label = main_window.zuletzt_verschoben_label
     assert label.isHidden()
 
