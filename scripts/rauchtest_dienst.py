@@ -10,7 +10,9 @@ Alles laeuft in einem Temp-Ordner mit eigener ``config.json``; ``APPDATA``
 weder Einstellungen noch Index noch Protokolle des Nutzers beruehrt werden.
 Die Testdokumente entstehen synthetisch.
 
-Geprueft wird: ``--version``; ``status`` ohne Datenbank; ein vollstaendiger
+Geprueft wird: unter Windows, dass oben in ``_internal`` die OpenSSL-DLLs des
+Python liegen und nicht die der Tesseract-Laufzeit (Issue #441, sonst scheitert
+``import ssl`` in Oberflaeche und Dienst); ``--version``; ``status`` ohne Datenbank; ein vollstaendiger
 Indexlauf mit zwei Arbeitsprozessen (spawn im eingefrorenen Programm) und, wenn
 Tesseract mitgeliefert ist, OCR einer Bildseite; ``suche`` und ``lesen``;
 MCP-Handshake mit den Werkzeugen ``suche``, ``dokument_lesen``,
@@ -146,6 +148,22 @@ class Rauchtest:
                 raise Fehlschlag(f"{p} fehlt")
         return "Programme vorhanden"
 
+    def openssl(self) -> str:
+        if sys.platform != "win32":
+            return "OpenSSL-DLLs nur unter Windows geprüft"
+        from scripts.openssl_dlls import abweichungen, python_openssl_ordner
+
+        internal = self.ordner / "_internal"
+        ordner = python_openssl_ordner()
+        gebaut, eigenes = internal / "_ssl.pyd", (ordner / "_ssl.pyd") if ordner else None
+        if eigenes is None or not gebaut.is_file() or not eigenes.is_file()                 or gebaut.read_bytes() != eigenes.read_bytes():
+            return "OpenSSL-DLLs nicht geprüft (Rauchtest läuft mit einem anderen Python als der Build)"
+        falsch = abweichungen(internal, ordner)
+        if falsch:
+            raise Fehlschlag(f"{', '.join(falsch)} in _internal stammt nicht aus {ordner} "
+                             "(z. B. aus der Tesseract-Laufzeit oder einem Programm im PATH); import ssl scheitert")
+        return "OpenSSL-DLLs in _internal passen zu _ssl.pyd"
+
     def version_pruefen(self) -> str:
         aus = self.aufruf("--version")
         if version() not in aus:
@@ -260,7 +278,7 @@ class Rauchtest:
         return "pdfsm-dienstw.exe: Indexlauf und Schätzung ohne Konsole"
 
     def ausfuehren(self) -> int:
-        schritte = [self.programme_da, self.version_pruefen, self.status_leer, self.indexlauf, self.suchen,
+        schritte = [self.programme_da, self.openssl, self.version_pruefen, self.status_leer, self.indexlauf, self.suchen,
                     self.ausrichten, self.mcp, self.web, self.zeitplan, self.fensterlos]
         try:
             for schritt in schritte:
