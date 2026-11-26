@@ -10442,3 +10442,28 @@ msgstr "The preview shows the PDF selected on the left again."
 #: src/gui/detail_panel.py
 msgid "Quelle der Chat-Antwort: {name}"
 msgstr "Source of the chat answer: {name}"
+
+#: src/gui/main_window.py
+#: src/gui/handbuch.py
+msgid "Handbuch"
+msgstr "Manual"
+
+#: src/gui/main_window.py
+msgid "Zeigt das Handbuch in der Sprache der Oberfläche"
+msgstr "Shows the manual in the language of the interface"
+
+#: src/gui/handbuch.py
+msgid "Im Handbuch suchen …"
+msgstr "Search the manual …"
+
+#: src/gui/handbuch.py
+msgid "Weitersuchen"
+msgstr "Find next"
+
+#: src/gui/handbuch.py
+msgid "Das Handbuch wurde nicht gefunden."
+msgstr "The manual was not found."
+
+#: src/gui/handbuch.py
+msgid "Nicht gefunden"
+msgstr "Not found"
