@@ -432,15 +432,16 @@ class ChatView(QWidget):
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         if role == "user":
+            # Issue #350: rechts, waechst bis zur Textbreite, hoechstens ~5/6 der Spalte
+            self._bis_zur_textbreite(bubble)
             row.addStretch(1)
-            row.addWidget(bubble)
+            row.addWidget(bubble, 5)
         elif role == "system":
             row.addStretch(1)
             row.addWidget(bubble)
             row.addStretch(1)
-        else:  # assistant, error -> links
-            row.addWidget(bubble)
-            row.addStretch(1)
+        else:  # assistant, error -> links, ganze Breite der Spalte (Issue #350)
+            row.addWidget(bubble, 1)
 
         wrapper = QWidget()
         wrapper.setLayout(row)
@@ -698,8 +699,9 @@ class ChatView(QWidget):
         for schritt in schritte:
             zeile = QHBoxLayout()
             zeile.setContentsMargins(0, 0, 0, 0)
-            zeile.addWidget(self._schritt_bubble(schritt))
-            zeile.addStretch(1)
+            # Issue #350: Schritt waechst bis zur Textbreite, bricht erst am Spaltenrand um
+            zeile.addWidget(self._schritt_bubble(schritt), 1)
+            zeile.addStretch(0)
             box_layout.addLayout(zeile)
         aussen.addWidget(box)
 
@@ -747,6 +749,7 @@ class ChatView(QWidget):
         bubble.setProperty("schritt", True)
         bubble.setProperty("fehler", bool(fehler))
         bubble.setToolTip(_schritt_tooltip(werkzeug, getattr(schritt, "argumente", None), fehler))
+        self._bis_zur_textbreite(bubble)
         return bubble
 
     def _add_doc_bubble(self, doc) -> None:
@@ -787,8 +790,7 @@ class ChatView(QWidget):
 
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(bubble)
-        row.addStretch(1)
+        row.addWidget(bubble, 1)  # ganze Breite wie die Antwort (Issue #350)
         wrapper = QWidget()
         wrapper.setLayout(row)
         self.history_layout.insertWidget(
@@ -1008,6 +1010,22 @@ class ChatView(QWidget):
         """Bubbles im breiten Reiter begrenzen; in der schmalen Spalte (kompakt) volle Breite."""
         if not self.kompakt:
             bubble.setMaximumWidth(720)
+
+    @staticmethod
+    def _bis_zur_textbreite(bubble: QLabel) -> None:
+        """Bubble hoechstens so breit wie ihr Text in einer Zeile (Issue #350).
+
+        Mit Stretch-Faktor waechst die Bubble so bis zur Textbreite und bricht
+        erst am Rand der Spalte um; kurze Texte bleiben kleine Blasen. Ohne
+        diese Grenze haelt QLabel mit Zeilenumbruch eine feste Schaetzbreite
+        (rund 570 px) und laesst den Rest der Spalte leer. Nach ``setText``
+        aufrufen.
+        """
+        bubble.ensurePolished()
+        bubble.setWordWrap(False)
+        breite = bubble.sizeHint().width() + 2  # Rundung: letztes Wort nicht umbrechen
+        bubble.setWordWrap(True)
+        bubble.setMaximumWidth(min(breite, bubble.maximumWidth()))
 
     # ------------------------------------------------------------------ #
     # Vorschlaege unter der Antwort (Phase 3, Baustein 2)                #

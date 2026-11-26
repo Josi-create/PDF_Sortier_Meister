@@ -60,6 +60,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist. Die Auswahl und ihre Felder bleiben stehen; über der Vorschau nennt eine Leiste die Quelle,
   und der Knopf „Zurück zur ausgewählten PDF“ (oder ein Klick auf die ausgewählte Kachel) zeigt
   wieder die eigene PDF.
+- **Chat nutzt die ganze Breite** (#350): Antworten, Fehlermeldungen und Treffer gehen jetzt über
+  die ganze Breite der Spalte, statt nach etwa der Hälfte umzubrechen. Die eigene Frage bleibt
+  rechts als Blase, darf aber breiter werden; auch die Arbeitsschritte brechen erst am Rand um.
 
 ### Behoben
 - **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
