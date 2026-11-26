@@ -14,6 +14,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   darüber („Steuer 2025 › Quittungen“), so sind gleichnamige Ordner in verschiedenen Jahren zu
   unterscheiden. Ändert sich der Hinweis, leuchtet er kurz gelb auf wie mit einem Textmarker und
   verblasst nach gut zwei Sekunden von selbst.
+- **„Zuletzt verschoben nach“ merkt sich auch ganze Ordner und Kopien** (#312): Wer einen ganzen
+  Ordner verschiebt oder kopiert oder „Hierhin kopieren“ benutzt, findet das Ziel jetzt ebenfalls
+  im Hinweis in der Statusleiste und unter Ansicht › Zuletzt verschoben nach. Ein Klick öffnet
+  den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
+  das Ziel wieder heraus.
 
 ## [0.32.0] - 2026-11-26
 

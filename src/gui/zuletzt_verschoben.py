@@ -126,15 +126,19 @@ class ZuletztVerschobenMixin:
 
     # --- Merken -----------------------------------------------------------------
 
-    def _ziel_merken(self, paare) -> None:
-        """Nach einem Verschieben: ``paare`` = [(alter Pfad, neuer Pfad), ...]."""
+    def _ziel_merken(self, paare, ordner: Path | None = None) -> None:
+        """Nach einem Verschieben oder Kopieren: ``paare`` = [(alter Pfad, neuer Pfad), ...].
+
+        Mit ``ordner`` (ganzer Ordner verschoben/kopiert, Issue #312) gibt es genau
+        einen Eintrag fuer diesen Ordner, auch wenn Dateien in Unterordnern liegen.
+        """
         ziele = getattr(self, "_letzte_ziele", None)
         if ziele is None or not paare:
             return
         je_ordner: dict[Path, list[Path]] = {}
         for _alt, neu in paare:
             neu = Path(neu)
-            je_ordner.setdefault(neu.parent, []).append(neu)
+            je_ordner.setdefault(Path(ordner) if ordner is not None else neu.parent, []).append(neu)
         for ordner, dateien in je_ordner.items():
             ziele[:] = [z for z in ziele if not gleicher_pfad(z[0], ordner)]
             ziele.insert(0, (ordner, dateien))

@@ -652,3 +652,35 @@ def test_die_ueber_zeile_laesst_sich_nicht_ziehen(qtbot, szene, monkeypatch):
         QEvent.Type.MouseMove, ziel.toPointF(), punkt.mapToGlobal(ziel).toPointF(),
         Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
     assert not gestartet
+
+
+# --- Issue #312: ganze Ordner landen in "Zuletzt verschoben nach" ---------------------
+
+def test_ordner_verschieben_traegt_den_ordner_ein_und_rueckgaengig_nimmt_ihn_heraus(qtbot, szene):
+    win = szene.win
+    win.ordner_uebertragen(szene.vers, szene.ziel, False)
+    _fertig(qtbot, win, lambda: not szene.vers.exists())
+    neu = szene.ziel / "Versicherungen"
+
+    # ein Eintrag fuer den verschobenen Ordner, nicht je Unterordner
+    assert [o for o, _d in win._letzte_ziele] == [neu]
+    assert "Steuer 2025 › Versicherungen" in win.zuletzt_verschoben_label.text()
+    win.zuletzt_verschoben_oeffnen()
+    assert Path(win.config.get_scan_folder()) == neu
+    assert win.selected_pdf == neu / "a.pdf"  # b.pdf liegt im Unterordner "Kfz"
+
+    win._navigate_to_folder(szene.scan)
+    win.undo_last_action()
+    _fertig(qtbot, win, lambda: szene.vers.exists())
+    assert win._letzte_ziele == []
+    assert win.zuletzt_verschoben_label.isHidden()
+
+
+def test_ordner_kopieren_traegt_den_ordner_ein(qtbot, szene):
+    win = szene.win
+    win.ordner_uebertragen(szene.vers, szene.ziel, True)
+    neu = szene.ziel / "Versicherungen"
+    _fertig(qtbot, win, lambda: (neu / "a.pdf").exists())
+
+    assert [o for o, _d in win._letzte_ziele] == [neu]
+    assert szene.vers.exists()

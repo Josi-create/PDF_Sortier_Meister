@@ -515,6 +515,7 @@ class OrdnerVerschiebenMixin:
                 name=name, rel=rel, anzahl=len(erg.dateien), extra=extra), 6000
         )
         self.config.add_to_last_used(erg.ziel.parent)
+        self._ziel_merken(erg.dateien, ordner=erg.ziel)  # Issue #312
         if not erg.kopiert:
             self._ordner_markierung_aufheben()
         self._ordner_ansicht_aktualisieren(erg)
@@ -630,6 +631,8 @@ class OrdnerVerschiebenMixin:
                 nur_dateien=not (neu_angelegt and not probleme),
             )
             self.classifier._schedule_retrain()
+        # Issue #312: was nicht mehr am Ziel liegt, faellt aus "Zuletzt verschoben nach"
+        self._ziel_vergessen([n for _a, n in erg.dateien if not Path(n).exists()])
         self._invalidate_folder_caches()
         self.statusbar.showMessage(tr("Rückgängig: {description}").format(description=entry['description']), 3000)
         self._ordner_ansicht_aktualisieren(erg, rueckgaengig=True)
