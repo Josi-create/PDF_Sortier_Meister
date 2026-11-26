@@ -7,50 +7,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Verbessert
-- **Klare Meldungen zu Ollama** (#390): Fehlt das eingestellte Modell, sagt das Fenster
-  „Hintergrund-Analyse“ (Doppelklick auf die Statusleiste) jetzt getrennt, ob Ollama läuft, und
-  nennt die installierten Modelle. Ein Knopf übernimmt eines davon; umgestellt wird erst nach dem
-  Klick. Läuft Ollama nicht, gibt es dort den Knopf „Ollama starten“ (oder, wenn Ollama nicht
-  gefunden wird, einen Satz, wie man es startet). In den Einstellungen zeigt die Modellauswahl bei
-  laufendem Ollama die installierten Modelle; ein gespeichertes Modell, das es nicht mehr gibt,
-  steht dort rot als „(nicht installiert)“.
-- **Erste Analyse mit lokaler KI** (#343): Beim ersten KI-Aufruf nach dem Start lädt Ollama
-  (ebenso LM Studio und Strata) das Modell erst in den Speicher; das dauert ein bis zwei Minuten.
-  Statusleiste, Chat und der Knopf „KI-Metadaten neu generieren“ sagen das jetzt („Modell wird
-  geladen …“) statt einer zu kurzen Schätzung wie „ca. 7 s“. Derselbe Hinweis steht in den
-  Einstellungen beim Anbieter Ollama.
-
-### Behoben
-- **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
-  einer Chat-Frage ab, steht der Grund jetzt als eigene, vollständig lesbare Zeile im Verlauf:
-  dass das Modell abgestürzt ist, meist weil der Grafikspeicher nicht reicht, und was hilft
-  (kleineres Modell wählen oder Ollama neu starten). Bisher stand dort nur eine abgeschnittene
-  englische Meldung am unteren Rand. Kommt trotzdem eine Antwort, steht darunter, dass sie ohne
-  eigene Suche der KI in den Dokumenten entstanden ist. Die technische Meldung zeigt der Tooltip.
-- **Ollama: Absturz des Modells wird einmal von selbst wiederholt**: Stürzt bei Ollama das Modell
-  während einer Anfrage ab (häufig beim ersten Laden direkt nach dem Start von Ollama), versucht
-  das Programm es nach zwei Sekunden einmal erneut; Ollama startet das Modell dabei frisch. Bisher
-  blieb die Anfrage mit einer englischen Meldung („error reading llama-server response …“)
-  stehen, und der Hinweis dazu riet fälschlich, Ollama neu zu installieren. Scheitert auch der
-  zweite Versuch, heißt es jetzt richtig, dass das Modell abgestürzt ist. Startet das Programm
-  Ollama selbst, schreibt es dessen Ausgabe in `ollama_server.log` im Log-Ordner, damit sich ein
-  Absturz nachlesen lässt.
-- **KI-Fehler im Metadaten-Bereich verständlich**: Scheitert „KI-Metadaten neu generieren“ am
-  Anbieter, steht über den Feldern jetzt derselbe verständliche Satz wie in Statusleiste und Chat
-  (was los ist und was hilft) statt der technischen Meldung. Die technische Meldung zeigt der
-  Tooltip.
-
-- **Nicht lesbare Dateien sagen, was los ist** (#414): Statt „Fehler beim Laden“ steht auf der
-  Kachel jetzt der Grund: „Leere Datei“, „Keine PDF“ oder „Beschädigt“; der Tooltip erklärt es in
-  einem Satz und nennt zusätzlich die Meldung der PDF-Bibliothek. Trennen, KI-Trennen, Stapeln,
-  Zusammenfügen und „Seiten bearbeiten…“ prüfen die Dateien vorher und sagen auf Deutsch, welche
-  nicht lesbar ist und dass nichts verändert wurde, statt englischen Fachtext zu zeigen oder ein
-  leeres Fenster zu öffnen. Bei passwortgeschützten PDFs verweist der Hinweis auf „Passwortschutz
-  entfernen…“. Konnten beim Ablegen Titel, Datum und übrige Angaben nicht in die PDF geschrieben
-  werden (z. B. weil sie geschützt ist), steht das jetzt mit Grund in der Statusleiste; bisher
-  geschah das still.
-
 ### Neu
 - **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
   Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
@@ -73,6 +29,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist es die erste. Das gilt bis zum Beenden des Programms. Ein leerer Ordner leert die Mitte.
 
 ### Verbessert
+- **Klare Meldungen zu Ollama** (#390): Fehlt das eingestellte Modell, sagt das Fenster
+  „Hintergrund-Analyse“ (Doppelklick auf die Statusleiste) jetzt getrennt, ob Ollama läuft, und
+  nennt die installierten Modelle. Ein Knopf übernimmt eines davon; umgestellt wird erst nach dem
+  Klick. Läuft Ollama nicht, gibt es dort den Knopf „Ollama starten“ (oder, wenn Ollama nicht
+  gefunden wird, einen Satz, wie man es startet). In den Einstellungen zeigt die Modellauswahl bei
+  laufendem Ollama die installierten Modelle; ein gespeichertes Modell, das es nicht mehr gibt,
+  steht dort rot als „(nicht installiert)“.
+- **Erste Analyse mit lokaler KI** (#343): Beim ersten KI-Aufruf nach dem Start lädt Ollama
+  (ebenso LM Studio und Strata) das Modell erst in den Speicher; das dauert ein bis zwei Minuten.
+  Statusleiste, Chat und der Knopf „KI-Metadaten neu generieren“ sagen das jetzt („Modell wird
+  geladen …“) statt einer zu kurzen Schätzung wie „ca. 7 s“. Derselbe Hinweis steht in den
+  Einstellungen beim Anbieter Ollama.
 - **Scanprogramm leichter hinterlegen** (#338): Unter *Einstellungen → Allgemein → Scannen* gibt
   es neben „Durchsuchen…“ den Knopf „Vorschläge“. Er zeigt die Scanprogramme, die auf dem Rechner
   gefunden wurden (z. B. VueScan, NAPS2, PaperPort, Epson Scan, Windows-Fax und -Scan); ein gerade
@@ -89,6 +57,33 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Ordner gewechselt oder mehrere Dateien markiert hat, wird nicht aus seiner Arbeit gerissen.
 
 ### Behoben
+- **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
+  einer Chat-Frage ab, steht der Grund jetzt als eigene, vollständig lesbare Zeile im Verlauf:
+  dass das Modell abgestürzt ist, meist weil der Grafikspeicher nicht reicht, und was hilft
+  (kleineres Modell wählen oder Ollama neu starten). Bisher stand dort nur eine abgeschnittene
+  englische Meldung am unteren Rand. Kommt trotzdem eine Antwort, steht darunter, dass sie ohne
+  eigene Suche der KI in den Dokumenten entstanden ist. Die technische Meldung zeigt der Tooltip.
+- **Ollama: Absturz des Modells wird einmal von selbst wiederholt**: Stürzt bei Ollama das Modell
+  während einer Anfrage ab (häufig beim ersten Laden direkt nach dem Start von Ollama), versucht
+  das Programm es nach zwei Sekunden einmal erneut; Ollama startet das Modell dabei frisch. Bisher
+  blieb die Anfrage mit einer englischen Meldung („error reading llama-server response …“)
+  stehen, und der Hinweis dazu riet fälschlich, Ollama neu zu installieren. Scheitert auch der
+  zweite Versuch, heißt es jetzt richtig, dass das Modell abgestürzt ist. Startet das Programm
+  Ollama selbst, schreibt es dessen Ausgabe in `ollama_server.log` im Log-Ordner, damit sich ein
+  Absturz nachlesen lässt.
+- **KI-Fehler im Metadaten-Bereich verständlich**: Scheitert „KI-Metadaten neu generieren“ am
+  Anbieter, steht über den Feldern jetzt derselbe verständliche Satz wie in Statusleiste und Chat
+  (was los ist und was hilft) statt der technischen Meldung. Die technische Meldung zeigt der
+  Tooltip.
+- **Nicht lesbare Dateien sagen, was los ist** (#414): Statt „Fehler beim Laden“ steht auf der
+  Kachel jetzt der Grund: „Leere Datei“, „Keine PDF“ oder „Beschädigt“; der Tooltip erklärt es in
+  einem Satz und nennt zusätzlich die Meldung der PDF-Bibliothek. Trennen, KI-Trennen, Stapeln,
+  Zusammenfügen und „Seiten bearbeiten…“ prüfen die Dateien vorher und sagen auf Deutsch, welche
+  nicht lesbar ist und dass nichts verändert wurde, statt englischen Fachtext zu zeigen oder ein
+  leeres Fenster zu öffnen. Bei passwortgeschützten PDFs verweist der Hinweis auf „Passwortschutz
+  entfernen…“. Konnten beim Ablegen Titel, Datum und übrige Angaben nicht in die PDF geschrieben
+  werden (z. B. weil sie geschützt ist), steht das jetzt mit Grund in der Statusleiste; bisher
+  geschah das still.
 - **„Jetzt scannen“ startet das Scanprogramm nicht mehr doppelt** (#337): Läuft das hinterlegte
   Scanprogramm schon, holt der Knopf dessen Fenster nach vorn (auch wenn es minimiert war), statt
   es ein zweites Mal zu starten. Die Statusleiste meldet dann „Scanprogramm läuft bereits“. Nur
