@@ -125,7 +125,9 @@ def ki_hinweis(provider: str, fehler: str, modell: str = "") -> KIHinweis:
             tr("In den Einstellungen ein kleineres Modell wählen."),
             "absturz",
         )
-    if _enthaelt(text, "llama-server", "llama runner", "runner process"):
+    # „Ollama-Server wurde gestartet, antwortet aber nicht …“ (Auto-Start) enthaelt
+    # auch „llama-server“, meint aber „läuft nicht“ (Issue #431)
+    if _enthaelt(text.replace("ollama-server", ""), "llama-server", "llama runner", "runner process"):
         return KIHinweis(
             tr("{provider} ist unvollständig installiert und kann keine Modelle laden.").format(provider=provider),
             tr(

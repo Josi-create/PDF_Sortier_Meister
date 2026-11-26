@@ -1842,6 +1842,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         health, hinweis = self._llm_health()
         provider = self.hybrid_classifier.get_llm_provider_name()
         ollama = self._ollama_lage_fuer_dialog(health, hinweis)
+        if (ollama is not None and ollama["laeuft"] and ollama["hinweis"].art == "laeuft_nicht"
+                and self._veralteten_verbindungsfehler_vergessen()):
+            # Issue #431: Ollama antwortet inzwischen - der gemerkte Fehler
+            # „läuft nicht“ gilt nicht mehr
+            health, hinweis = self._llm_health()
+            ollama = self._ollama_lage_fuer_dialog(health, hinweis)
         if ollama is not None:
             hinweis = ollama["hinweis"]
         if health == "fehler":
@@ -1911,7 +1917,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         laeuft und welche Modelle installiert sind. Liefert None oder ein Dict mit
         ``hinweis`` (Problem/Abhilfe nach dem aktuellen Stand), ``zeilen`` (fuer den
         Text), ``modelle`` (installiert), ``starten`` (Knopf „Ollama starten“
-        sinnvoll) und ``base_url``.
+        sinnvoll), ``base_url`` und ``laeuft`` (Ollama antwortet).
         """
         if health != "fehler" or hinweis is None:
             return None
@@ -1931,7 +1937,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         base_url = base_url or "http://localhost:11434"
         model = self.hybrid_classifier.get_llm_model_name()
         laeuft, modelle = ollama_launcher.ollama_lage(base_url)
-        lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url}
+        lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url,
+                "laeuft": laeuft}
         if not laeuft:
             gefunden = bool(ollama_launcher.find_ollama_app() or ollama_launcher.find_ollama_executable())
             lage["starten"] = gefunden
@@ -6953,7 +6960,51 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if generation != self._llm_check_generation:
             return  # inzwischen neu gestartet (z.B. Einstellungen geaendert)
         self._llm_connection = result
+        # Issue #431 - getattr-defensiv, weil Tests Fenster-Attrappen nur mit
+        # einzelnen MainWindow-Methoden bauen
+        vergessen = getattr(self, "_veralteten_verbindungsfehler_vergessen", None)
+        if result and result[0] and callable(vergessen):
+            vergessen()
         self._update_llm_status()
+
+    def _veralteten_verbindungsfehler_vergessen(self) -> bool:
+        """Vergisst einen gemerkten Fehler „Server läuft nicht“, wenn er wieder antwortet (Issue #431).
+
+        Bisher blieb der Fehler einer KI-Anfrage stehen, bis wieder eine Analyse
+        gelang - auch wenn Ollama laengst lief (Fenster „Hintergrund-Analyse“ und
+        Statusleiste widersprachen sich). Nur Verbindungsfehler: ein fehlendes oder
+        abgestuerztes Modell bleibt gemerkt. Danach wird eine gescheiterte PDF neu
+        angefragt; gelingt das, folgen die uebrigen von selbst.
+
+        Returns:
+            True, wenn ein Fehler vergessen wurde.
+        """
+        from src.ml.llm_hinweis import ki_hinweis
+        hc = self.hybrid_classifier
+        provider = hc.get_llm_provider_name()
+        model = hc.get_llm_model_name()
+
+        def veraltet(fehler) -> bool:
+            return bool(fehler) and ki_hinweis(provider, fehler, model).art == "laeuft_nicht"
+
+        geaendert = False
+        if veraltet(getattr(self, "_llm_request_error", None)):
+            self._llm_request_error = None
+            geaendert = True
+        letzter = getattr(self, "_last_llm_error", None)
+        if letzter and veraltet(letzter[1]):
+            self._last_llm_error = None
+            self._llm_success_since_error = False
+            geaendert = True
+        if not geaendert:
+            return False
+        if hc.llm_connection_checkable():
+            self._llm_connection = (True, "")
+        self._update_llm_status()
+        self._update_cache_status()
+        if hc.is_llm_available() and self.config.get("llm_precache_enabled", True):
+            self.pdf_cache.retry_one_failed_llm()
+        return True
 
     def _set_llm_reachable(self, reachable: bool):
         """Echte KI-Antwort bzw. -Fehler: Anzeige sofort anpassen."""

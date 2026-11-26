@@ -19,6 +19,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Hintergrund: Die Statusleiste zeigt „Ollama wird gestartet …“, das Programm bleibt bedienbar
   (kein Wartezeiger mehr). Kommt die Fehlermeldung trotzdem und antwortet Ollama kurz danach doch
   noch, verschwindet die Meldung von selbst, und die KI legt los.
+- **„Hintergrund-Analyse“ widerspricht sich nicht mehr, wenn Ollama wieder läuft** (#431): Lief
+  Ollama zwischendurch nicht, blieb der Fehler „Ollama läuft nicht“ gemerkt, bis wieder eine
+  Analyse gelang, auch wenn Ollama längst antwortete. Jetzt verschwinden der Fehler und die
+  Warnung in der Statusleiste, sobald Ollama wieder antwortet (spätestens nach einer Minute,
+  beim Öffnen des Fensters sofort), und die liegen gebliebenen PDFs werden neu angefragt. Ein
+  fehlendes oder abgestürztes Modell bleibt dagegen gemeldet. Nach einem gescheiterten
+  Selbststart stand außerdem fälschlich „Ollama ist unvollständig installiert“ da; jetzt heißt es
+  richtig „Ollama läuft nicht“.
 
 ## [0.32.0] - 2026-11-26
 
