@@ -13,7 +13,8 @@ Kompakte Ordnervorschlaege (rechte Spalte "Vorgeschlagene Ziele").
 * ``VorschlagListe``: Scrollbereich darum; scrollt allein stehend erst ab ``MAX_ZEILEN`` Reihen.
 * ``VorschlagTeiler``: senkrechter Teiler aus Liste und Ordnerbaum (Issue #268). Die Liste
   ist so hoch, dass alle Vorschlaege ohne Scrollen Platz haben; die Trennlinie laesst sich
-  ziehen, ein Doppelklick stellt die passende Hoehe wieder ein.
+  ziehen, ein Doppelklick stellt die passende Hoehe wieder ein. Beim Loslassen rastet sie auf ganzen
+  Reihen ein oder knapp unter der letzten Reihe (Issue #341).
 """
 
 import html
@@ -26,6 +27,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from src.gui.einrasten import LoslassMelder, reihen_hoehe
 from src.gui.farben import css, melder, stil
 from src.gui.folder_widget import FolderWidget
 from src.i18n import tr
@@ -380,7 +382,8 @@ class VorschlagTeiler(QSplitter):
 
     Ohne Eingriff ist die Liste genau so hoch wie ihr Inhalt (kein Scrollen); nur wenn dem
     Ordnerbaum sonst weniger als ``UNTEN_MIN`` bliebe, wird sie kleiner und scrollt. Zieht
-    der Nutzer die Trennlinie, gilt seine Hoehe, bis er doppelt auf die Linie klickt.
+    der Nutzer die Trennlinie, gilt seine Hoehe, bis er doppelt auf die Linie klickt. Beim
+    Loslassen rastet sie ein (``einrasten``, Issue #341).
     """
 
     UNTEN_MIN = 120  # so viel bleibt dem Ordnerbaum mindestens
@@ -391,6 +394,7 @@ class VorschlagTeiler(QSplitter):
         self._manuell = None  # vom Nutzer gezogene Hoehe der Liste
         self._gemerkt = None  # (Hoehe, (Fensterbreite, Fensterhoehe)) aus der letzten Sitzung
         self._stellt = False
+        self._gezogen_seit_druck = False
         liste.hoehe_fest = False
         liste.setMinimumHeight(ZEILEN_HOEHE)
         liste.setMaximumHeight(16777215)
@@ -409,6 +413,7 @@ class VorschlagTeiler(QSplitter):
         # angewandt, wuerde die Hoehe zurueckspringen, bevor _gezogen sie festhaelt
         liste.bedarf_geaendert.connect(self.anpassen, Qt.ConnectionType.QueuedConnection)
         self.splitterMoved.connect(self._gezogen)
+        self._loslass_melder = LoslassMelder(self.handle(1), self.einrasten)
 
     def createHandle(self):
         return _Griff(self.orientation(), self)
@@ -418,6 +423,25 @@ class VorschlagTeiler(QSplitter):
             return
         self._manuell = self.sizes()[0]
         self._gemerkt = None
+        self._gezogen_seit_druck = True
+
+    def einrasten(self):
+        """Nach dem Loslassen (Issue #341): auf ganze Reihen, ab der letzten Reihe passend zum Inhalt.
+
+        Wer bis unter die letzte Reihe zieht, will alle Vorschlaege sehen: dann gilt wieder die
+        passende Hoehe (wie nach einem Doppelklick), ohne leeren Streifen darunter.
+        """
+        gezogen, self._gezogen_seit_druck = self._gezogen_seit_druck, False
+        if not gezogen or self._manuell is None:
+            return
+        bedarf = self.liste.bedarf()
+        hoechstens = sum(self.sizes()) - self.UNTEN_MIN
+        ziel = reihen_hoehe(self._manuell, bedarf, ZEILEN_HOEHE, ABSTAND, hoechstens)
+        if ziel >= bedarf:
+            self.automatisch()
+            return
+        self._manuell = ziel
+        self.anpassen()
 
     def automatisch(self):
         """Zurueck zur passenden Hoehe (Doppelklick auf die Trennlinie)."""

@@ -19,6 +19,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Ganz unten legt „Neuer Unterordner…“ einen Ordner an und legt die ausgewählte Datei hinein. Ist
   links nichts ausgewählt, sind die Unterordner ausgegraut; anlegen geht trotzdem.
 
+### Geändert
+- **Trennlinien rasten beim Loslassen ein** (#341): Die Linie zwischen „Vorgeschlagene Ziele“ und
+  dem Ordnerbaum springt nach dem Ziehen auf eine ganze Reihe von Vorschlagskacheln, es bleibt
+  keine halb abgeschnittene Reihe. Wer sie bis unter die letzte Reihe zieht, bekommt genau die
+  passende Höhe für alle Vorschläge ohne leeren Streifen darunter, wie nach einem Doppelklick.
+  Die Linie zwischen der linken Spalte und der Mitte rastet so ein, dass links eine ganze Zahl von
+  Kachelspalten Platz hat: keine halbe Kachel und kein leerer Streifen neben der letzten Spalte.
+  Die kleinste Breite links bleibt 300 px.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu

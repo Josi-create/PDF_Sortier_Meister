@@ -48,6 +48,7 @@ from src.core.ordnersuche import anzeigename
 from src.gui.folder_tile import FolderTileWidget
 from src.utils.timing import StepTimer
 from src.gui.folder_widget import FolderWidget, REGENBOGEN_SCHWELLE
+from src.gui.einrasten import LoslassMelder, spalten_breite
 from src.gui.vorschlag_liste import VorschlagListe, VorschlagTeiler, VorschlagZeile
 from src.gui.folder_tree_widget import FolderTreeWidget
 from src.core.sortierung import SORT_OPTIONEN, sortiere_pfade, sortierung_id
@@ -448,6 +449,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         splitter.setSizes([300, 400, 300])
         # Beim Verschieben des Splitters die Raster-Spalten anpassen (Issue #50)
         splitter.splitterMoved.connect(lambda *_: self._grid_relayout_timer.start())
+        # Issue #341: die Linie zwischen links und Mitte rastet beim Loslassen auf ganze Kachelspalten
+        self._links_gezogen = False
+        splitter.splitterMoved.connect(self._linke_linie_bewegt)
+        self._links_loslass_melder = LoslassMelder(splitter.handle(1), self.linke_spalte_einrasten)
 
         self.center_tabs.addTab(preview_container, tr("Vorschau"))
         self.center_tabs.setTabToolTip(
@@ -2794,6 +2799,37 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         kachel = self._tile_view.tile_w
         verdeckt = int(kachel * (1 - self.GRID_LETZTE_SPALTE_SICHTBAR))
         return max(1, (frei + abstand + verdeckt) // (kachel + abstand))
+
+    def _linke_linie_bewegt(self, _pos: int, index: int) -> None:
+        if index == 1:  # Griff zwischen linker Spalte und Mitte
+            self._links_gezogen = True
+
+    def linke_spalte_einrasten(self) -> None:
+        """Nach dem Loslassen der Linie links/Mitte (Issue #341): ganze Kachelspalten links.
+
+        Die linke Spalte wird so breit, dass die Kacheln genau in eine ganze Zahl von Spalten
+        passen (keine halbe Kachel, kein leerer Streifen); die Mitte gibt den Unterschied ab
+        oder bekommt ihn. Die Mindestbreiten (links 300 px) bleiben. Nur im Reiter "PDFs".
+        """
+        gezogen, self._links_gezogen = self._links_gezogen, False
+        if not gezogen or self.left_tabs.currentIndex() != 0 or not self.pdf_scroll_area.isVisible():
+            return
+        groessen = self.main_splitter.sizes()
+        if len(groessen) != 3 or min(groessen) <= 0:
+            return
+        links, mitte, rechts = groessen
+        raender = self.pdf_container.layout().contentsMargins()
+        abstand = self.pdf_layout.horizontalSpacing()
+        frei = self._scan_viewport_width() - raender.left() - raender.right()
+        min_links = max(self.left_tabs.minimumWidth(), 1)
+        min_mitte = max(self.detail_panel.minimumWidth(), 1)
+        ziel = spalten_breite(frei, self._tile_view.tile_w, abstand,
+                              unten=frei - (links - min_links), oben=frei + (mitte - min_mitte))
+        if ziel == frei:
+            return
+        unterschied = ziel - frei
+        self.main_splitter.setSizes([links + unterschied, mitte - unterschied, rechts])
+        self._grid_relayout_timer.start()
 
     def _folder_grid_columns(self) -> int:
         """Ordnerzeilen: 2 Spalten ab 2 x 240 px sichtbarer Breite, sonst 1 (Issue #147)."""
