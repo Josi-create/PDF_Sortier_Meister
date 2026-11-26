@@ -157,7 +157,8 @@ class _Aufraeumen(QThread):
             vorschlaege = self._hybrid.suggest_filename(
                 text=text, current_filename=pfad.name, use_llm=True, source_folder=source_folder_hint(pfad),
             )
-            ok = True
+            # Issue #436: nur eine echte Antwort des Modells zaehlt, nicht der Rueckfall
+            ok = any(getattr(s, "source", "") == "llm" for s in vorschlaege or [])
         finally:
             activity.end(token, success=ok)
         roh = ""

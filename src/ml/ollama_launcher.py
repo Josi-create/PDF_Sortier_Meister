@@ -7,9 +7,12 @@ Die Probe und der Start passieren erst beim ersten LLM-Bedarf.
 
 Strategie:
 1. Quick-Ping (1s Timeout) - laeuft Ollama schon? -> ok.
-2. ollama.exe an Standardpfaden suchen, dann im PATH.
-3. `ollama serve` als detached Hintergrundprozess starten.
-4. Auf Bereitschaft warten (max. ~10s, Polling alle 500ms).
+2. Unter Windows und macOS die Ollama-App starten, wenn sie installiert ist
+   (Issue #440): Sie bringt ihre Einstellungen mit, etwa einen verlegten
+   Modellordner.
+3. Sonst ollama.exe an Standardpfaden suchen, dann im PATH, und
+   `ollama serve` als detached Hintergrundprozess starten.
+4. Auf Bereitschaft warten (max. ~30s, Polling alle 500ms; Issue #432).
 """
 
 from __future__ import annotations
@@ -42,6 +45,38 @@ _MACOS_PATHS = [
     "/opt/homebrew/bin/ollama",
     "/usr/local/bin/ollama",
 ]
+
+
+# Die Ollama-App (Issue #440). Unter Windows liegt sie neben der ollama.exe.
+_WINDOWS_APP_RELATIVE_PATHS = [
+    "Programs/Ollama/ollama app.exe",
+]
+_MACOS_APP_PATHS = [
+    "/Applications/Ollama.app",
+    "~/Applications/Ollama.app",
+]
+
+# So lange wartet ensure_running nach dem Start auf eine Antwort. Die App
+# braucht laenger als `ollama serve`; 10 Sekunden reichten im Live-Test nicht
+# (Issue #432).
+START_WARTEZEIT_S = 30.0
+
+
+def find_ollama_app() -> Optional[str]:
+    """Pfad zur Ollama-App (Windows: ``ollama app.exe``, macOS: ``Ollama.app``) oder None."""
+    if sys.platform == "win32":
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        if local_appdata:
+            for rel in _WINDOWS_APP_RELATIVE_PATHS:
+                p = Path(local_appdata) / rel
+                if p.exists():
+                    return str(p)
+    elif sys.platform == "darwin":
+        for candidate in _MACOS_APP_PATHS:
+            p = Path(candidate).expanduser()
+            if p.exists():
+                return str(p)
+    return None
 
 
 def find_ollama_executable() -> Optional[str]:
@@ -84,6 +119,28 @@ def list_models(base_url: str, timeout: float = 5.0) -> list[str]:
     except Exception:
         return []
     return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+
+
+def loaded_models(base_url: str, timeout: float = 1.0) -> Optional[list[str]]:
+    """Modelle, die Ollama gerade im Speicher hat (``/api/ps``, Issue #436).
+
+    None, wenn die Abfrage nicht geht (Ollama laeuft nicht, alte Version);
+    eine leere Liste heisst: Ollama antwortet, hat aber kein Modell geladen.
+    Tests ersetzen diese Funktion (tests/conftest.py).
+    """
+    url = f"{base_url.rstrip('/')}/api/ps"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    namen: list[str] = []
+    for m in data.get("models") or []:
+        if isinstance(m, dict):
+            namen.extend(str(n) for n in (m.get("name"), m.get("model")) if n)
+    return namen
 
 
 def ollama_lage(base_url: str) -> tuple[bool, list[str]]:
@@ -246,33 +303,79 @@ def _start_server_process(exe_path: str) -> bool:
             ausgabe.close()
 
 
-def ensure_running(base_url: str, max_wait: float = 10.0) -> tuple[bool, str]:
+def _start_app_process(app_path: str) -> bool:
+    """Startet die Ollama-App (Issue #440); sie startet ihren Server selbst.
+
+    Gestartet wird wie ueber das Startmenue bzw. den Finder, ohne Argumente;
+    unter macOS mit ``open -g``, damit die App nicht in den Vordergrund kommt.
+    """
+    try:
+        if sys.platform == "win32":
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            subprocess.Popen(
+                [app_path],
+                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+            )
+        else:
+            subprocess.Popen(
+                ["open", "-g", app_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        return True
+    except OSError as e:
+        logger.warning(f"Konnte die Ollama-App nicht starten: {e}")
+        return False
+
+
+def ensure_running(base_url: str, max_wait: Optional[float] = None) -> tuple[bool, str]:
     """
     Stellt sicher, dass der Ollama-Server unter ``base_url`` erreichbar
-    ist. Falls nicht, sucht die Executable und startet sie.
+    ist. Falls nicht, startet sie die Ollama-App (Windows/macOS, wenn
+    installiert, Issue #440) und sonst ``ollama serve``.
+
+    Blockiert bis zu ``max_wait`` Sekunden - nur im Hintergrund aufrufen.
 
     Args:
         base_url: z.B. "http://localhost:11434"
-        max_wait: maximale Wartezeit nach dem Start in Sekunden.
+        max_wait: maximale Wartezeit nach dem Start in Sekunden
+            (Standard ``START_WARTEZEIT_S``).
 
     Returns:
         (ok, message). Bei Erfolg enthaelt message den Pfad zur
         gestarteten Executable bzw. einen Hinweis, dass schon lief.
     """
+    if max_wait is None:
+        max_wait = START_WARTEZEIT_S
     if quick_ping(base_url, timeout=1.0):
         return True, tr("Ollama war bereits erreichbar.")
 
-    exe = find_ollama_executable()
-    if not exe:
-        return False, (
-            tr("Ollama wurde nicht gefunden. Bitte Ollama installieren "
-            "(https://ollama.com) oder das Programm in den PATH legen.")
-        )
+    # Issue #440: erst die App. Ein direkt gestartetes `ollama serve` kennt
+    # einen in der App verlegten Modellordner nicht und zeigt dann nur einen
+    # Teil der Modelle.
+    app = find_ollama_app()
+    if app and _start_app_process(app):
+        exe = app
+        logger.info(f"Ollama-App gestartet: {exe}")
+    else:
+        exe = find_ollama_executable()
+        if not exe:
+            return False, (
+                tr("Ollama wurde nicht gefunden. Bitte Ollama installieren "
+                "(https://ollama.com) oder das Programm in den PATH legen.")
+            )
 
-    if not _start_server_process(exe):
-        return False, tr("Ollama ({exe}) konnte nicht gestartet werden.").format(exe=exe)
+        if not _start_server_process(exe):
+            return False, tr("Ollama ({exe}) konnte nicht gestartet werden.").format(exe=exe)
 
-    logger.info(f"Ollama-Server gestartet: {exe}")
+        logger.info(f"Ollama-Server gestartet: {exe}")
 
     # Auf Bereitschaft warten - der Server braucht einen Moment.
     deadline = time.monotonic() + max_wait

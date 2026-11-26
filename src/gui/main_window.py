@@ -211,6 +211,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     thumbnails_loaded = pyqtSignal()
     # (Generation, (erreichbar, Detail) | None) aus dem Pruef-Thread
     _llm_connection_checked = pyqtSignal(int, object)
+    _ollama_start_ergebnis = pyqtSignal(bool, str)  # (ok, Meldung) aus dem Start-Thread, Issue #432
     _metadaten_nicht_geschrieben = pyqtSignal(str, str)  # (Dateiname, Grund), Issue #414
     _vorab_listen_geladen = pyqtSignal(object)  # dict fuer DetailPanel.vorab_listen_setzen
     METADATEN_HINWEIS_MS = 60_000  # so lange bleibt der Hinweis rechts in der Statusleiste stehen
@@ -1848,6 +1849,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         health, hinweis = self._llm_health()
         provider = self.hybrid_classifier.get_llm_provider_name()
         ollama = self._ollama_lage_fuer_dialog(health, hinweis)
+        if (ollama is not None and ollama["laeuft"] and ollama["hinweis"].art == "laeuft_nicht"
+                and self._veralteten_verbindungsfehler_vergessen()):
+            # Issue #431: Ollama antwortet inzwischen - der gemerkte Fehler
+            # „läuft nicht“ gilt nicht mehr
+            health, hinweis = self._llm_health()
+            ollama = self._ollama_lage_fuer_dialog(health, hinweis)
         if ollama is not None:
             hinweis = ollama["hinweis"]
         if health == "fehler":
@@ -1895,7 +1902,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             start_btn = box.addButton(tr("Ollama starten"), QMessageBox.ButtonRole.ActionRole)
         settings_btn = box.addButton(tr("Einstellungen öffnen"), QMessageBox.ButtonRole.ActionRole)
         open_log_btn = box.addButton(tr("Log-Datei öffnen"), QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Ok)
+        ok_btn = box.addButton(QMessageBox.StandardButton.Ok)
+        # Issue #430: ohne Escape-Knopf graut Qt das X aus; X und Esc wirken wie „OK“
+        box.setEscapeButton(ok_btn)
         box.exec()
         if modell_btn is not None and box.clickedButton() is modell_btn:
             self._ollama_modell_uebernehmen(ollama["modelle"])
@@ -1917,7 +1926,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         laeuft und welche Modelle installiert sind. Liefert None oder ein Dict mit
         ``hinweis`` (Problem/Abhilfe nach dem aktuellen Stand), ``zeilen`` (fuer den
         Text), ``modelle`` (installiert), ``starten`` (Knopf „Ollama starten“
-        sinnvoll) und ``base_url``.
+        sinnvoll), ``base_url`` und ``laeuft`` (Ollama antwortet).
         """
         if health != "fehler" or hinweis is None:
             return None
@@ -1937,9 +1946,10 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         base_url = base_url or "http://localhost:11434"
         model = self.hybrid_classifier.get_llm_model_name()
         laeuft, modelle = ollama_launcher.ollama_lage(base_url)
-        lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url}
+        lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url,
+                "laeuft": laeuft}
         if not laeuft:
-            gefunden = bool(ollama_launcher.find_ollama_executable())
+            gefunden = bool(ollama_launcher.find_ollama_app() or ollama_launcher.find_ollama_executable())
             lage["starten"] = gefunden
             lage["zeilen"].append(tr("Ollama läuft nicht (keine Antwort unter {url}).").format(url=base_url))
             lage["hinweis"] = KIHinweis(
@@ -1985,21 +1995,84 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.statusbar.showMessage(tr("KI-Modell „{modell}“ eingestellt.").format(modell=modell), 6000)
         return True
 
+    # Issue #432: so lange fragt das Programm nach einem gescheiterten Start
+    # noch nach, ob Ollama doch antwortet (und in diesem Takt)
+    OLLAMA_NACHPRUEFEN_S = 90.0
+    OLLAMA_NACHPRUEF_TAKT_S = 2.0
+
     def _ollama_starten(self, base_url: str) -> bool:
-        """Startet Ollama (Issue #390) und prueft danach die Verbindung neu."""
-        from src.ml import ollama_launcher
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            ok, meldung = ollama_launcher.ensure_running(base_url)
-        finally:
-            QApplication.restoreOverrideCursor()
-        if not ok:
-            QMessageBox.warning(self, tr("Ollama starten"), meldung)
+        """Startet Ollama im Hintergrund (Issues #390, #432).
+
+        Die Oberflaeche bleibt bedienbar; die Statusleiste zeigt „Ollama wird
+        gestartet …“. Das Ergebnis kommt ueber ``_ollama_start_ergebnis``.
+        Antwortet Ollama nach Ablauf der Wartezeit doch noch, nimmt
+        ``_on_ollama_start_ergebnis`` die Fehlermeldung von selbst zurueck.
+
+        Returns:
+            True, wenn ein Start angestossen wurde (nicht schon einer laeuft).
+        """
+        if getattr(self, "_ollama_start_laeuft", False):
             return False
+        import threading
+        from src.ml import ollama_launcher
+
+        self._ollama_start_laeuft = True
+        self.statusbar.showMessage(tr("Ollama wird gestartet …"))
+        signal = self._ollama_start_ergebnis
+        nachpruefen, takt = self.OLLAMA_NACHPRUEFEN_S, self.OLLAMA_NACHPRUEF_TAKT_S
+
+        def _run():
+            try:
+                ok, meldung = ollama_launcher.ensure_running(base_url)
+            except Exception as e:  # noqa: BLE001 - Meldung an die Oberflaeche
+                ok, meldung = False, str(e)
+            try:
+                signal.emit(ok, meldung)
+            except RuntimeError:
+                return  # Fenster bereits geschlossen
+            if ok:
+                return
+            ende = time.monotonic() + nachpruefen
+            while time.monotonic() < ende:
+                time.sleep(takt)
+                if ollama_launcher.quick_ping(base_url, timeout=1.0):
+                    try:
+                        signal.emit(True, "")
+                    except RuntimeError:
+                        pass
+                    return
+
+        threading.Thread(target=_run, name="ollama-start", daemon=True).start()
+        return True
+
+    def _on_ollama_start_ergebnis(self, ok: bool, meldung: str) -> None:
+        """Ergebnis von ``_ollama_starten`` (GUI-Thread, Issue #432)."""
+        self._ollama_start_laeuft = False
+        box = getattr(self, "_ollama_start_fehlerbox", None)
+        if not ok:
+            self.statusbar.clearMessage()
+            if box is not None:
+                try:
+                    box.close()
+                except RuntimeError:
+                    pass  # schon geschlossen
+            box = QMessageBox(
+                QMessageBox.Icon.Warning, tr("Ollama starten"),
+                meldung + "\n\n" + tr("Antwortet Ollama doch noch, verschwindet diese Meldung von selbst."),
+                QMessageBox.StandardButton.Ok, self)
+            box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            box.open()  # nicht modal blockierend: die Nachpruefung laeuft weiter
+            self._ollama_start_fehlerbox = box
+            return
+        if box is not None:
+            self._ollama_start_fehlerbox = None
+            try:
+                box.close()
+            except RuntimeError:
+                pass  # vom Nutzer schon geschlossen
         # Wie nach den Einstellungen: Verbindung neu pruefen, Vorabfrage neu anstossen
         self._on_settings_changed()
         self.statusbar.showMessage(tr("Ollama läuft."), 6000)
-        return True
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -2651,7 +2724,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # LLM-Status anzeigen
         self.llm_status_label = _ClickableLabel("")
-        self.llm_status_label.doubleClicked.connect(self.open_settings)
+        # Issue #430: dasselbe Fenster wie der Text daneben; die Einstellungen
+        # erreicht man von dort ueber „Einstellungen öffnen“
+        self.llm_status_label.doubleClicked.connect(self._show_precache_details)
         # Erreichbarkeit lokaler Server (Ollama, Strata): Ergebnis der letzten
         # Hintergrund-Pruefung, None = noch offen / nicht pruefbar
         self._llm_connection: Optional[tuple[bool, str]] = None
@@ -2660,6 +2735,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._llm_request_error: Optional[str] = None
         self._llm_check_generation = 0
         self._llm_connection_checked.connect(self._on_llm_connection_checked)
+        self._ollama_start_ergebnis.connect(self._on_ollama_start_ergebnis)
         self._llm_check_timer = QTimer(self)
         self._llm_check_timer.setInterval(self.LLM_CHECK_INTERVAL_MS)
         self._llm_check_timer.timeout.connect(self._on_llm_check_tick)
@@ -6870,7 +6946,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.llm_status_label.setText(text + chat_text)
             stil(self.llm_status_label, f"color: {color};")
             self.llm_status_label.setToolTip(
-                tr("{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen.").format(state=state, chat_zeile=chat_zeile)
+                tr("{state}{chat_zeile}\n\nDoppelklick zeigt Details zur Hintergrund-Analyse "
+                   "(dort auch „Einstellungen öffnen“).").format(state=state, chat_zeile=chat_zeile)
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -6885,7 +6962,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.llm_status_label.setToolTip(
                 tr(
                     "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
-                    "Doppelklick öffnet die Einstellungen."
+                    "Doppelklick zeigt Details zur Hintergrund-Analyse (dort auch „Einstellungen öffnen“)."
                 ).format(reason=reason, chat_zeile=chat_zeile)
             )
 
@@ -6925,7 +7002,51 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if generation != self._llm_check_generation:
             return  # inzwischen neu gestartet (z.B. Einstellungen geaendert)
         self._llm_connection = result
+        # Issue #431 - getattr-defensiv, weil Tests Fenster-Attrappen nur mit
+        # einzelnen MainWindow-Methoden bauen
+        vergessen = getattr(self, "_veralteten_verbindungsfehler_vergessen", None)
+        if result and result[0] and callable(vergessen):
+            vergessen()
         self._update_llm_status()
+
+    def _veralteten_verbindungsfehler_vergessen(self) -> bool:
+        """Vergisst einen gemerkten Fehler „Server läuft nicht“, wenn er wieder antwortet (Issue #431).
+
+        Bisher blieb der Fehler einer KI-Anfrage stehen, bis wieder eine Analyse
+        gelang - auch wenn Ollama laengst lief (Fenster „Hintergrund-Analyse“ und
+        Statusleiste widersprachen sich). Nur Verbindungsfehler: ein fehlendes oder
+        abgestuerztes Modell bleibt gemerkt. Danach wird eine gescheiterte PDF neu
+        angefragt; gelingt das, folgen die uebrigen von selbst.
+
+        Returns:
+            True, wenn ein Fehler vergessen wurde.
+        """
+        from src.ml.llm_hinweis import ki_hinweis
+        hc = self.hybrid_classifier
+        provider = hc.get_llm_provider_name()
+        model = hc.get_llm_model_name()
+
+        def veraltet(fehler) -> bool:
+            return bool(fehler) and ki_hinweis(provider, fehler, model).art == "laeuft_nicht"
+
+        geaendert = False
+        if veraltet(getattr(self, "_llm_request_error", None)):
+            self._llm_request_error = None
+            geaendert = True
+        letzter = getattr(self, "_last_llm_error", None)
+        if letzter and veraltet(letzter[1]):
+            self._last_llm_error = None
+            self._llm_success_since_error = False
+            geaendert = True
+        if not geaendert:
+            return False
+        if hc.llm_connection_checkable():
+            self._llm_connection = (True, "")
+        self._update_llm_status()
+        self._update_cache_status()
+        if hc.is_llm_available() and self.config.get("llm_precache_enabled", True):
+            self.pdf_cache.retry_one_failed_llm()
+        return True
 
     def _set_llm_reachable(self, reachable: bool):
         """Echte KI-Antwort bzw. -Fehler: Anzeige sofort anpassen."""

@@ -81,8 +81,23 @@ def modell_laedt_text(kurz: bool = False) -> str:
     """Hinweis statt Schaetzung beim ersten Aufruf eines lokalen Modells (Issue #343)."""
     if kurz:
         return tr("Modell wird geladen, 1–2 Min.")
-    return tr("Modell wird geladen – beim ersten Mal nach dem Start ein bis zwei Minuten, "
-              "danach schneller")
+    # Issue #436: nicht nur nach dem Start - Ollama entlaedt das Modell auch nach einer Pause
+    return tr("Modell wird geladen – das dauert ein bis zwei Minuten, danach geht es schneller")
+
+
+def ollama_geladene_modelle() -> list[str] | None:
+    """Modelle, die das eingestellte Ollama gerade im Speicher hat (Issue #436).
+
+    None, wenn die Abfrage nicht geht; dann bleibt es beim gemerkten Stand.
+    """
+    try:
+        from src.ml import ollama_launcher
+        from src.utils.config import get_config
+
+        base_url = get_config().get_llm_config().get("base_url") or "http://localhost:11434"
+        return ollama_launcher.loaded_models(base_url)
+    except Exception:  # noqa: BLE001 - die Anzeige darf nie an der Abfrage scheitern
+        return None
 
 
 def current_timing_key(kind: str) -> str:
@@ -180,7 +195,8 @@ class LLMActivity(QObject):
         self._jobs: dict[int, LLMJob] = {}
         self._next_token = 1
         # Issue #343: Modelle ("provider|modell"), die seit dem Start schon
-        # einmal geantwortet haben - ein lokales Modell ist dann geladen
+        # einmal geantwortet haben - ein lokales Modell ist dann geladen.
+        # Bei Ollama prueft begin() das nach (Issue #436).
         self._geladen: set[str] = set()
 
     @property
@@ -190,6 +206,7 @@ class LLMActivity(QObject):
     def begin(self, kind: str, label: str = "", key: str | None = None) -> int:
         """Meldet einen startenden Aufruf; Rueckgabe ist das Token fuer ``end``."""
         job_key = key or current_timing_key(kind)
+        self._noch_geladen_pruefen(job_key)
         with self._lock:
             token = self._next_token
             self._next_token += 1
@@ -210,6 +227,33 @@ class LLMActivity(QObject):
                 self._geladen.add(_modell_teil(job.key))
         self.changed.emit()
         return elapsed
+
+    def _noch_geladen_pruefen(self, job_key: str) -> None:
+        """Fragt Ollama, ob ein als geladen gemerktes Modell noch im Speicher ist (Issue #436).
+
+        Ollama nimmt ein Modell nach 5 Minuten ohne Anfrage wieder aus dem
+        Speicher; der naechste Aufruf laedt es neu. Laeuft im Thread des Aufrufs
+        (``begin`` kommt aus den Worker-Threads); ``/api/ps`` antwortet sofort.
+        Geht die Abfrage nicht, bleibt es beim gemerkten Stand.
+        """
+        if job_key.split("|", 1)[0].lower() != "ollama":
+            return
+        teil = _modell_teil(job_key)
+        if teil.split("|", 1)[-1] in ("", "-"):
+            return  # Modell unbekannt: nichts zu vergleichen
+        with self._lock:
+            if teil not in self._geladen:
+                return
+        geladen = ollama_geladene_modelle()
+        if geladen is None:
+            return
+        def norm(name: str) -> str:  # wie hybrid_classifier._ollama_model_installed
+            name = (name or "").strip().lower()
+            return name[:-len(":latest")] if name.endswith(":latest") else name
+
+        if norm(teil.split("|", 1)[1]) not in {norm(n) for n in geladen}:
+            with self._lock:
+                self._geladen.discard(teil)
 
     def modell_laedt(self, kind: str, key: str | None = None) -> bool:
         """True beim ersten Aufruf eines lokalen Modells seit dem Start (Issue #343).

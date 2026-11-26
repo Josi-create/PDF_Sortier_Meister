@@ -262,6 +262,7 @@ def test_dialog_ollama_laeuft_nicht_bietet_start_an(monkeypatch):
 
 def test_dialog_ollama_nicht_gefunden_sagt_wie_man_startet(monkeypatch):
     monkeypatch.setattr(ollama_launcher, "find_ollama_executable", lambda: None)
+    monkeypatch.setattr(ollama_launcher, "find_ollama_app", lambda: None)
     lage = _fenster()._ollama_lage_fuer_dialog("fehler", _modell_fehlt())
     assert not lage["starten"] and "ollama.com" in lage["hinweis"].abhilfe
 

@@ -28,6 +28,38 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
   das Ziel wieder heraus.
 
+### Behoben
+- **Selbst gestartetes Ollama zeigt alle Modelle** (#440): Läuft Ollama noch nicht, startet das
+  Programm unter Windows und macOS jetzt die Ollama-App (wenn installiert) statt direkt
+  `ollama serve`. Die App bringt ihre Einstellungen mit; ein dort verlegter Modellordner gilt
+  damit auch, und die Modellauswahl zeigt wieder alle installierten Modelle. Ohne App wie bisher
+  `ollama serve`; wer dann einen verlegten Modellordner hat, setzt `OLLAMA_MODELS` (Hinweis in
+  der README).
+- **„Ollama starten“ meldet keinen falschen Fehlschlag mehr** (#432): Der Knopf im Fenster
+  „Hintergrund-Analyse“ wartet jetzt bis zu 30 Sekunden statt 10 auf Ollama, und zwar im
+  Hintergrund: Die Statusleiste zeigt „Ollama wird gestartet …“, das Programm bleibt bedienbar
+  (kein Wartezeiger mehr). Kommt die Fehlermeldung trotzdem und antwortet Ollama kurz danach doch
+  noch, verschwindet die Meldung von selbst, und die KI legt los.
+- **„Hintergrund-Analyse“ widerspricht sich nicht mehr, wenn Ollama wieder läuft** (#431): Lief
+  Ollama zwischendurch nicht, blieb der Fehler „Ollama läuft nicht“ gemerkt, bis wieder eine
+  Analyse gelang, auch wenn Ollama längst antwortete. Jetzt verschwinden der Fehler und die
+  Warnung in der Statusleiste, sobald Ollama wieder antwortet (spätestens nach einer Minute,
+  beim Öffnen des Fensters sofort), und die liegen gebliebenen PDFs werden neu angefragt. Ein
+  fehlendes oder abgestürztes Modell bleibt dagegen gemeldet. Nach einem gescheiterten
+  Selbststart stand außerdem fälschlich „Ollama ist unvollständig installiert“ da; jetzt heißt es
+  richtig „Ollama läuft nicht“.
+- **Statusleiste: KI-Anzeige und Text daneben öffnen dasselbe Fenster** (#430): Ein Doppelklick
+  auf die KI-Anzeige rechts unten („LLM: …“, auch mit Warnzeichen) öffnet jetzt wie der Text
+  daneben das Fenster „Hintergrund-Analyse“ mit Erklärung und „Ollama starten“. Zu den
+  Einstellungen geht es dort über „Einstellungen öffnen“. Das X oben rechts am Fenster ist nicht
+  mehr ausgegraut; X und Esc schließen es wie „OK“.
+- **Nach einer Pause wieder „Modell wird geladen“ statt einer zu kurzen Schätzung** (#436): Ollama
+  nimmt das Modell nach fünf Minuten ohne Anfrage aus dem Speicher; der nächste Aufruf dauert dann
+  wieder ein bis zwei Minuten. Bisher zeigte die Statusleiste trotzdem „ca. … s“, man dachte, es
+  hängt. Jetzt fragt das Programm vor jedem Aufruf kurz bei Ollama nach, ob das Modell noch
+  geladen ist, und zeigt sonst den Lade-Hinweis. Außerdem zählt nur noch eine echte Antwort des
+  Modells als „geladen“, nicht der Rückfall auf die eigenen Regeln.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu

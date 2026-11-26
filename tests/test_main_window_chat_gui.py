@@ -104,7 +104,7 @@ def test_ollama_block_liefert_gecachten_ollama_provider_und_status(fenster):
     label = win.llm_status_label
     assert label.text() == "LLM: Aus · Chat: Ollama/qwen3:8b"
     assert "Chat: Ollama, Modell: qwen3:8b" in label.toolTip()
-    assert "Doppelklick öffnet die Einstellungen" in label.toolTip()
+    assert "Doppelklick zeigt Details zur Hintergrund-Analyse" in label.toolTip()
 
 
 def test_modell_kurz_ohne_anbieter_praefix(fenster):

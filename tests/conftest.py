@@ -185,6 +185,19 @@ def kein_echtes_ollama_fuer_meldungen(monkeypatch):
     from src.ml import ollama_launcher
 
     monkeypatch.setattr(ollama_launcher, "ollama_lage", lambda base_url: (False, []))
+    # Issue #436: welche Modelle geladen sind - None heisst „Abfrage geht nicht“
+    monkeypatch.setattr(ollama_launcher, "loaded_models", lambda base_url, timeout=1.0: None)
+
+
+@pytest.fixture(autouse=True)
+def keine_echte_ollama_app(monkeypatch):
+    """Kein Test startet die Ollama-App des Rechners (Issue #440).
+
+    ``ensure_running`` startet sie, wenn Ollama nicht antwortet; Tests dazu ersetzen
+    ``find_ollama_app`` selbst und gewinnen damit."""
+    from src.ml import ollama_launcher
+
+    monkeypatch.setattr(ollama_launcher, "find_ollama_app", lambda: None)
 
 
 @pytest.fixture(autouse=True)
