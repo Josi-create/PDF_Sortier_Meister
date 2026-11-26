@@ -60,6 +60,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist. Die Auswahl und ihre Felder bleiben stehen; über der Vorschau nennt eine Leiste die Quelle,
   und der Knopf „Zurück zur ausgewählten PDF“ (oder ein Klick auf die ausgewählte Kachel) zeigt
   wieder die eigene PDF.
+- **Suchfeld oben und Reiter „Suche“ zeigen denselben Text** (#349): Wer oben in der
+  Werkzeugleiste ins Feld „Suche:“ tippt, landet wie bisher im Reiter „Suche“, schreibt aber oben
+  weiter; das große Suchfeld im Reiter zeigt Buchstabe für Buchstabe dasselbe. Tippt man stattdessen
+  im Reiter weiter oder lädt dort eine gespeicherte Suche, steht derselbe Text auch oben. Bisher blieb
+  oben nur der Anfang des Worts stehen.
 
 ### Behoben
 - **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
