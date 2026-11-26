@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
+  ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
+  aus dem Suchindex und das Fenster hing, bei einem großen Index 10 bis 40 Sekunden. Die Listen
+  werden jetzt beim Start im Hintergrund geladen; bis sie da sind, bleiben die Aufklapplisten
+  kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
+  langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
+
 ### Geändert
 - **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
   Statusleiste nutzt den freien Platz und kürzt erst, wenn das Fenster wirklich zu schmal ist,
