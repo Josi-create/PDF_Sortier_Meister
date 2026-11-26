@@ -324,7 +324,10 @@ class LLMSuggestionWorker(QThread):
                             file_date=file_date,
                             source_folder=source_folder_hint(pdf_path),
                         )
-                        llm_ok = True
+                        # Issue #436: nur eine echte Antwort des Modells zaehlt (als
+                        # „geladen“ und fuer die Schaetzung), nicht der Rueckfall auf
+                        # die lokalen Regeln
+                        llm_ok = any(getattr(s, "source", "") == "llm" for s in suggestions or [])
                     finally:
                         activity.end(activity_token, success=llm_ok)
 

@@ -121,6 +121,28 @@ def list_models(base_url: str, timeout: float = 5.0) -> list[str]:
     return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
 
 
+def loaded_models(base_url: str, timeout: float = 1.0) -> Optional[list[str]]:
+    """Modelle, die Ollama gerade im Speicher hat (``/api/ps``, Issue #436).
+
+    None, wenn die Abfrage nicht geht (Ollama laeuft nicht, alte Version);
+    eine leere Liste heisst: Ollama antwortet, hat aber kein Modell geladen.
+    Tests ersetzen diese Funktion (tests/conftest.py).
+    """
+    url = f"{base_url.rstrip('/')}/api/ps"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    namen: list[str] = []
+    for m in data.get("models") or []:
+        if isinstance(m, dict):
+            namen.extend(str(n) for n in (m.get("name"), m.get("model")) if n)
+    return namen
+
+
 def ollama_lage(base_url: str) -> tuple[bool, list[str]]:
     """Laeuft Ollama, und welche Modelle sind installiert? (Issue #390)
 

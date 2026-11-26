@@ -185,6 +185,8 @@ def kein_echtes_ollama_fuer_meldungen(monkeypatch):
     from src.ml import ollama_launcher
 
     monkeypatch.setattr(ollama_launcher, "ollama_lage", lambda base_url: (False, []))
+    # Issue #436: welche Modelle geladen sind - None heisst „Abfrage geht nicht“
+    monkeypatch.setattr(ollama_launcher, "loaded_models", lambda base_url, timeout=1.0: None)
 
 
 @pytest.fixture(autouse=True)

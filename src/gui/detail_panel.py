@@ -128,7 +128,8 @@ class _LLMMetadataWorker(QThread):
                 file_date=self._file_date,
                 source_folder=source_folder_hint(self._pdf_path),
             )
-            ok = True
+            # Issue #436: nur eine echte Antwort des Modells zaehlt, nicht der Rueckfall
+            ok = any(getattr(s, "source", "") == "llm" for s in suggestions or [])
         except Exception as e:  # noqa: BLE001 - Fehler an die GUI melden
             self.result_ready.emit(self._pdf_path, [], str(e))
             return

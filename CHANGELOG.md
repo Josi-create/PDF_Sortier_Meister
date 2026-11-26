@@ -32,6 +32,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   daneben das Fenster „Hintergrund-Analyse“ mit Erklärung und „Ollama starten“. Zu den
   Einstellungen geht es dort über „Einstellungen öffnen“. Das X oben rechts am Fenster ist nicht
   mehr ausgegraut; X und Esc schließen es wie „OK“.
+- **Nach einer Pause wieder „Modell wird geladen“ statt einer zu kurzen Schätzung** (#436): Ollama
+  nimmt das Modell nach fünf Minuten ohne Anfrage aus dem Speicher; der nächste Aufruf dauert dann
+  wieder ein bis zwei Minuten. Bisher zeigte die Statusleiste trotzdem „ca. … s“, man dachte, es
+  hängt. Jetzt fragt das Programm vor jedem Aufruf kurz bei Ollama nach, ob das Modell noch
+  geladen ist, und zeigt sonst den Lade-Hinweis. Außerdem zählt nur noch eine echte Antwort des
+  Modells als „geladen“, nicht der Rückfall auf die eigenen Regeln.
 
 ## [0.32.0] - 2026-11-26
 

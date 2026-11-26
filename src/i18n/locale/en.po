@@ -10092,8 +10092,8 @@ msgid "Modell wird geladen, 1–2 Min."
 msgstr "Loading model, 1–2 min"
 
 #: src/core/llm_activity.py
-msgid "Modell wird geladen – beim ersten Mal nach dem Start ein bis zwei Minuten, danach schneller"
-msgstr "Loading model – the first time after startup takes one to two minutes, then it is faster"
+msgid "Modell wird geladen – das dauert ein bis zwei Minuten, danach geht es schneller"
+msgstr "Loading model – this takes one to two minutes, then it is faster"
 
 #: src/gui/chat_view.py
 msgid "Meldung des Anbieters:\n{roh}"
