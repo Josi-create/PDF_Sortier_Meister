@@ -431,6 +431,7 @@ class HierhinKopierenMixin:
         for original, _kopie in kopien:
             self._kopie_hinweis_merken(original, folder_path)
         self.config.add_to_last_used(folder_path)
+        self._ziel_merken(kopien)  # Issue #312: auch Kopien landen in "Zuletzt verschoben nach"
         self._refresh_after_move(folder_path)
         self._auto_collect_korrespondenten()
         return [k for _o, k in kopien]
