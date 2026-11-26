@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
+  Statusleiste nutzt den freien Platz und kürzt erst, wenn das Fenster wirklich zu schmal ist,
+  dann in der Mitte, sodass eine Jahreszahl am Ende sichtbar bleibt. Davor steht der Ordner
+  darüber („Steuer 2025 › Quittungen“), so sind gleichnamige Ordner in verschiedenen Jahren zu
+  unterscheiden. Ändert sich der Hinweis, leuchtet er kurz gelb auf wie mit einem Textmarker und
+  verblasst nach gut zwei Sekunden von selbst.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu
