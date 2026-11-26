@@ -7,6 +7,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+- **Der Hauptreiter heißt jetzt „Sortieren“** (#385): Der erste Reiter im Hauptfenster mit
+  Kacheln, Angaben, Vorschau und Zielordnern hieß bisher „Vorschau“ (englisch „Preview“), obwohl
+  dort sortiert wird. Er heißt jetzt „Sortieren“ (englisch „Sort“). Die Auswahl der Reihenfolge
+  über den Kacheln heißt für Bildschirmleser entsprechend „Reihenfolge“ (englisch „Order“).
+
 ### Verbessert
 - **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
   ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien

@@ -130,12 +130,12 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
   Word, Excel und OpenDocument (`doc`, `docx`, `xls`, `xlsx`, `odt`), Markdown und Mails (Thunderbird,
   auf dem Mac auch Apple Mail, dazu `.eml`- und `.msg`-Dateien, z. B. aus Outlook gespeichert) — in den Ordnern und Laufwerken, die du auswählst. Einschalten im
   Einrichtungs-Assistenten oder unter *Einstellungen → Suche*; standardmäßig aus
-- Reiter **„Suche“** neben der Vorschau (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
+- Reiter **„Suche“** neben dem Reiter „Sortieren“ (`Ctrl+Shift+F`): Treffer mit hervorgehobener Fundstelle und
   Seite, Vorschau springt auf die Trefferseite; Filter nach Typ, Ordner, Zeitraum und den PDFSM-Metadaten
   (Steuerjahr, Kategorie, Korrespondent, Betrag). Suchsyntax: `Rechnung Telekom` (alle Wörter),
   `"genaue Wortfolge"`, `Rechnung*`, `Strom ODER Gas`, `Rechnung NICHT Mahnung`; Umlaute sind egal
 - Der **Chat** über die eigenen Dokumente sucht im selben Index und zitiert mit Seitenangabe. Er sitzt
-  als Reiter neben „PDFs“ in der linken Spalte der Vorschau; die gewählte PDF ist sein Bezug: Vertrags-,
+  als Reiter neben „PDFs“ in der linken Spalte des Reiters „Sortieren“; die gewählte PDF ist sein Bezug: Vertrags-,
   Zähler- und Kundennummern aus dem Dokument holen die verknüpften Unterlagen (Abrechnung, Vertrag,
   Mails) in den Kontext. Belegt eine Antwort einen Zielordner, verschiebt „Nach … verschieben“ die PDF
   mit einem Klick dorthin; dieselben Verknüpfungen stehen auch ohne Chat als Sortiervorschlag oben

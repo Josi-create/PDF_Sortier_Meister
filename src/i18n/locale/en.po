@@ -1454,7 +1454,6 @@ msgid "Nicht in den Papierkorb gelegt (die Dateien bleiben im Ordner):\n{0}"
 msgstr "Not moved to the Recycle Bin (the files stay in the folder):\n{0}"
 
 #: src/gui/entzerren_dialog.py
-#: src/gui/main_window.py
 #: src/gui/rename_dialog.py
 msgid "Vorschau"
 msgstr "Preview"
@@ -2365,8 +2364,12 @@ msgid "Reihenfolge der Dateien im Scan-Bereich."
 msgstr "Order of the files in the scan area."
 
 #: src/gui/main_window.py
-msgid "Sortieren:"
-msgstr "Sort by:"
+msgid "Reihenfolge:"
+msgstr "Order:"
+
+#: src/gui/main_window.py
+msgid "Sortieren"
+msgstr "Sort"
 
 #: src/gui/main_window.py
 msgid "Klicken zum Suchen nach Ordnern"
