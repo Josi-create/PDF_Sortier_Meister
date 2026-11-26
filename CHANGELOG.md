@@ -7,6 +7,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+- **Selbst gestartetes Ollama zeigt alle Modelle** (#440): Läuft Ollama noch nicht, startet das
+  Programm unter Windows und macOS jetzt die Ollama-App (wenn installiert) statt direkt
+  `ollama serve`. Die App bringt ihre Einstellungen mit; ein dort verlegter Modellordner gilt
+  damit auch, und die Modellauswahl zeigt wieder alle installierten Modelle. Ohne App wie bisher
+  `ollama serve`; wer dann einen verlegten Modellordner hat, setzt `OLLAMA_MODELS` (Hinweis in
+  der README).
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu

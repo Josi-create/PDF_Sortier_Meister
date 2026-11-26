@@ -119,6 +119,10 @@ Texterkennung (OCR, Tesseract) ist auch hier **enthalten**. Einstellungen und Le
 - Anbieter: **Ollama** (lokal, kein API-Key, startet bei Bedarf automatisch), **Ollama Cloud**
   (dieselben Modelle auf ollama.com — für PCs ohne Grafikkarte), **OpenRouter**, **Anthropic Claude**,
   **OpenAI**, **Poe**
+  - Läuft Ollama noch nicht, startet das Programm die Ollama-App (Windows, macOS), sonst
+    `ollama serve`. Wer den Modellordner in den Einstellungen der Ollama-App verlegt hat, setzt
+    zusätzlich die Umgebungsvariable `OLLAMA_MODELS` auf diesen Ordner; sonst sieht ein direkt
+    gestartetes `ollama serve` nur die Modelle im Standardordner.
 - Der Einrichtungs-Assistent **prüft die Grafikkarte** und empfiehlt danach: ein passendes lokales
   Modell (gemma3 4b/12b/27b je nach Grafikspeicher) — oder, ohne dedizierte Grafikkarte, Ollama Cloud.
   Er erkennt eine vorhandene Ollama-Installation, zeigt die installierten Modelle und lädt das

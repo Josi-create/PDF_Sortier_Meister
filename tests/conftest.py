@@ -188,6 +188,17 @@ def kein_echtes_ollama_fuer_meldungen(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def keine_echte_ollama_app(monkeypatch):
+    """Kein Test startet die Ollama-App des Rechners (Issue #440).
+
+    ``ensure_running`` startet sie, wenn Ollama nicht antwortet; Tests dazu ersetzen
+    ``find_ollama_app`` selbst und gewinnen damit."""
+    from src.ml import ollama_launcher
+
+    monkeypatch.setattr(ollama_launcher, "find_ollama_app", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def fenster_aus(monkeypatch):
     """Kein Test sucht oder aktiviert echte Fenster (``src.search.fenster``, nur Windows)."""
     from src.search import fenster

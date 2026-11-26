@@ -91,6 +91,10 @@ one; settings and learned data are kept. A portable ZIP is on the
 - With AI: better folder and name suggestions, automatic metadata extraction and a
   **chat about your own documents** with clickable sources
 - Providers: **Ollama** (local, no API key), Ollama Cloud, LM Studio, OpenRouter, Anthropic Claude, OpenAI, Poe
+  - If Ollama is not running yet, the program starts the Ollama app (Windows, macOS), otherwise
+    `ollama serve`. If you moved the model folder in the Ollama app's settings, also set the
+    environment variable `OLLAMA_MODELS` to that folder; otherwise a directly started
+    `ollama serve` only sees the models in the default folder.
 - The setup wizard checks your graphics card and recommends a suitable local model
 
 ### Document search across the whole PC

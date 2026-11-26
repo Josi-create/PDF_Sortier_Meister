@@ -1932,7 +1932,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         laeuft, modelle = ollama_launcher.ollama_lage(base_url)
         lage = {"hinweis": hinweis, "zeilen": [], "modelle": [], "starten": False, "base_url": base_url}
         if not laeuft:
-            gefunden = bool(ollama_launcher.find_ollama_executable())
+            gefunden = bool(ollama_launcher.find_ollama_app() or ollama_launcher.find_ollama_executable())
             lage["starten"] = gefunden
             lage["zeilen"].append(tr("Ollama läuft nicht (keine Antwort unter {url}).").format(url=base_url))
             lage["hinweis"] = KIHinweis(
