@@ -22,9 +22,13 @@ import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
+from src.core.sortierung import datum_aus_namen
 from src.i18n import tr
 
 SCHEMA_VERSION = 2
+
+# Sortierung nach dem Datum am Anfang des Dateinamens (Issue #352, wie die Kacheln in #296)
+NAMENSDATUM_SORTIERUNGEN = ("namensdatum_neu", "namensdatum_alt")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -988,10 +992,10 @@ def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortieru
     for i, e in dok.items():
         if i in meta:
             liste.append({**_kurz(meta[i]), **e})
-    if sortierung == "neu":
-        liste.sort(key=lambda x: -(x["datum"] or 0))
-    elif sortierung == "alt":
-        liste.sort(key=lambda x: (x["datum"] or 0))
+    if sortierung in ("neu", "namensdatum_neu"):
+        liste.sort(key=lambda x: -_sortierdatum(x, sortierung))
+    elif sortierung in ("alt", "namensdatum_alt"):
+        liste.sort(key=lambda x: _sortierdatum(x, sortierung))
     else:
         liste.sort(key=lambda x: x["rang"])
 
@@ -1004,11 +1008,29 @@ def suche(con, abfrage: str, typ=None, ordner=None, von=None, bis=None, sortieru
     }
 
 
+def _sortierdatum(treffer: dict, sortierung: str) -> float:
+    """Zeit, nach der ein Treffer bei Datumssortierung eingereiht wird.
+
+    Bei ``namensdatum_*`` (Issue #352) zaehlt das Datum JJJJ-MM-TT am Anfang des Namens;
+    Treffer ohne solches Datum reihen sich nach ihrem Dokumentdatum ein.
+    """
+    if sortierung in NAMENSDATUM_SORTIERUNGEN:
+        im_namen = datum_aus_namen(treffer.get("name") or "")
+        if im_namen is not None:
+            return im_namen
+    return treffer.get("datum") or 0
+
+
 def _nur_filter(con, filt: str, fargs: list, sortierung: str, anzahl: int, start: int, t0: float) -> dict:
     """Ohne Suchbegriff: alle Dokumente, die zu den Filtern passen (fuer die Metadatenfilter von PDFSM)."""
     if not filt:
         return {"treffer": [], "gesamt": 0, "mehr": False, "abfrage": "", "dauer_ms": 0}
-    reihenfolge = "d.datum ASC" if sortierung == "alt" else "d.datum DESC"
+    richtung = "ASC" if sortierung in ("alt", "namensdatum_alt") else "DESC"
+    reihenfolge = f"d.datum {richtung}"
+    if sortierung in NAMENSDATUM_SORTIERUNGEN:
+        # Datum am Namensanfang (Issue #352), sonst das Dokumentdatum - wie bei den Kacheln (#296)
+        con.create_function("pdfsm_namensdatum", 1, datum_aus_namen, deterministic=True)
+        reihenfolge = f"coalesce(pdfsm_namensdatum(d.name), d.datum) {richtung}"
     gesamt = con.execute(f"SELECT count(*) FROM dokumente d WHERE 1 = 1 {filt}", fargs).fetchone()[0]
     zeilen = con.execute(
         f"SELECT * FROM dokumente d WHERE 1 = 1 {filt} ORDER BY {reihenfolge}, d.name LIMIT ? OFFSET ?",

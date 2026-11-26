@@ -15,6 +15,10 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Sicherungskopie der `config.yaml`. Desktop-App und Kommandozeile von Hermes nutzen dieselbe
   Konfiguration. Danach in Hermes eine neue Sitzung beginnen oder `/reload-mcp` eingeben. Ist
   Hermes nicht installiert, bleibt der Knopf ausgegraut.
+- **Suche: Treffer nach dem Datum im Dateinamen sortieren** (#352): Die Auswahl „Sortierung“ im
+  Reiter „Suche“ kennt jetzt wie die Kacheln „Datum im Namen: neueste zuerst“ und „Datum im
+  Namen: älteste zuerst“. Maßgeblich ist ein Datum wie `2024-03-01` am Anfang des Namens; Treffer
+  ohne ein solches Datum reihen sich nach ihrem Dateidatum (bei Mails nach dem Maildatum) ein.
 
 ### Geändert
 - **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen
