@@ -331,9 +331,48 @@ class HierhinKopierenMixin:
         zeile.target_toggle_requested.connect(self.on_target_toggle_requested)
         zeile.ziel_pruefer = lambda p: Path(p) in self.config.get_target_folders()
 
-    def on_show_in_tree_requested(self, folder_path: Path) -> None:
-        """"Rechts im Baum zeigen": aufklappen, markieren, hinscrollen (ohne zu verschieben)."""
-        if not self.folder_tree.reveal_folder(Path(folder_path)):
+    def verbinde_zielkachel(self, kachel) -> None:
+        """Zusatzeintraege einer bestehenden Vorschlagskachel (Issue #427)."""
+        kachel.show_in_tree_requested.connect(lambda p: self.on_show_in_tree_requested(p, aufklappen=True))
+        # Issue #344: Untermenue "Unterordner" - verschieben wie ein Klick im Ordnerbaum
+        kachel.move_to_subfolder_requested.connect(self.on_tree_folder_selected)
+        kachel.new_subfolder_requested.connect(self.on_new_subfolder_requested)
+
+    def on_new_subfolder_requested(self, eltern: Path) -> None:
+        """"Neuer Unterordner…" einer Vorschlagskachel (Issue #344): anlegen, Auswahl hinein."""
+        from PyQt6.QtWidgets import QInputDialog
+
+        eltern = Path(eltern)
+        name, ok = QInputDialog.getText(
+            self, tr("Neuer Unterordner"),
+            tr("Name des neuen Ordners in „{name}“:").format(name=eltern.name),
+        )
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        if Path(name).name != name or name in (".", ".."):  # kein Pfad, nur ein Ordnername
+            QMessageBox.warning(self, tr("Neuer Unterordner"),
+                                tr("Bitte nur einen Ordnernamen ohne \\ oder / eingeben."))
+            return
+        neu = eltern / name
+        try:
+            neu.mkdir(exist_ok=True)
+        except OSError as e:
+            QMessageBox.critical(self, tr("Fehler"), tr("Ordner konnte nicht erstellt werden:\n{e}").format(e=e))
+            return
+        self.folder_tree.add_folder_incremental(neu)  # gleich im Baum (still, falls ausserhalb)
+        self._invalidate_folder_caches()
+        if self.kopier_auswahl():
+            self.on_tree_folder_selected(neu)
+        else:
+            self.statusbar.showMessage(tr("Ordner angelegt: {name}").format(name=name), 3000)
+
+    def on_show_in_tree_requested(self, folder_path: Path, aufklappen: bool = False) -> None:
+        """"Rechts im Baum zeigen": aufklappen, markieren, hinscrollen (ohne zu verschieben).
+
+        ``aufklappen``: auch den Ordner selbst, damit seine Unterordner zu sehen sind (#427).
+        """
+        if not self.folder_tree.reveal_folder(Path(folder_path), aufklappen=aufklappen):
             self.statusbar.showMessage(
                 tr("'{name}' liegt außerhalb der Zielordner rechts").format(name=Path(folder_path).name), 4000
             )

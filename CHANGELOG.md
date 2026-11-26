@@ -7,6 +7,27 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Vorgeschlagenes Ziel im Ordnerbaum zeigen** (#427): Rechtsklick auf eine Kachel unter
+  „Vorgeschlagene Ziele“ bietet „Im Baum zeigen“. Der Ordnerbaum darunter springt zu diesem
+  Ordner, klappt ihn auf und stellt ihn oben ins Bild, auch wenn er tief verschachtelt oder weit
+  unten liegt. So sieht man seine Unterordner und kann das Dokument hineinziehen. Hat der Ordner
+  keine Unterordner, wird er nur markiert.
+- **Vorgeschlagenes Ziel: Unterordner im Rechtsklick-Menü** (#344): Rechtsklick auf eine Kachel
+  unter „Vorgeschlagene Ziele“ zeigt unter „Unterordner“ die Unterordner dieses Ziels. Ein Klick
+  auf einen davon verschiebt die ausgewählte Datei direkt dorthin, wie ein Klick im Ordnerbaum.
+  Ganz unten legt „Neuer Unterordner…“ einen Ordner an und legt die ausgewählte Datei hinein. Ist
+  links nichts ausgewählt, sind die Unterordner ausgegraut; anlegen geht trotzdem.
+
+### Geändert
+- **Trennlinien rasten beim Loslassen ein** (#341): Die Linie zwischen „Vorgeschlagene Ziele“ und
+  dem Ordnerbaum springt nach dem Ziehen auf eine ganze Reihe von Vorschlagskacheln, es bleibt
+  keine halb abgeschnittene Reihe. Wer sie bis unter die letzte Reihe zieht, bekommt genau die
+  passende Höhe für alle Vorschläge ohne leeren Streifen darunter, wie nach einem Doppelklick.
+  Die Linie zwischen der linken Spalte und der Mitte rastet so ein, dass links eine ganze Zahl von
+  Kachelspalten Platz hat: keine halbe Kachel und kein leerer Streifen neben der letzten Spalte.
+  Die kleinste Breite links bleibt 300 px.
+
 ### Verbessert
 - **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
   ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
