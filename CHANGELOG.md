@@ -14,6 +14,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   damit auch, und die Modellauswahl zeigt wieder alle installierten Modelle. Ohne App wie bisher
   `ollama serve`; wer dann einen verlegten Modellordner hat, setzt `OLLAMA_MODELS` (Hinweis in
   der README).
+- **„Ollama starten“ meldet keinen falschen Fehlschlag mehr** (#432): Der Knopf im Fenster
+  „Hintergrund-Analyse“ wartet jetzt bis zu 30 Sekunden statt 10 auf Ollama, und zwar im
+  Hintergrund: Die Statusleiste zeigt „Ollama wird gestartet …“, das Programm bleibt bedienbar
+  (kein Wartezeiger mehr). Kommt die Fehlermeldung trotzdem und antwortet Ollama kurz danach doch
+  noch, verschwindet die Meldung von selbst, und die KI legt los.
 
 ## [0.32.0] - 2026-11-26
 

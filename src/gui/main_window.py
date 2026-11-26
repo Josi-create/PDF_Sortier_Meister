@@ -211,6 +211,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     thumbnails_loaded = pyqtSignal()
     # (Generation, (erreichbar, Detail) | None) aus dem Pruef-Thread
     _llm_connection_checked = pyqtSignal(int, object)
+    _ollama_start_ergebnis = pyqtSignal(bool, str)  # (ok, Meldung) aus dem Start-Thread, Issue #432
     _metadaten_nicht_geschrieben = pyqtSignal(str, str)  # (Dateiname, Grund), Issue #414
     METADATEN_HINWEIS_MS = 60_000  # so lange bleibt der Hinweis rechts in der Statusleiste stehen
     LLM_CHECK_INTERVAL_MS = 60_000
@@ -1978,21 +1979,84 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.statusbar.showMessage(tr("KI-Modell „{modell}“ eingestellt.").format(modell=modell), 6000)
         return True
 
+    # Issue #432: so lange fragt das Programm nach einem gescheiterten Start
+    # noch nach, ob Ollama doch antwortet (und in diesem Takt)
+    OLLAMA_NACHPRUEFEN_S = 90.0
+    OLLAMA_NACHPRUEF_TAKT_S = 2.0
+
     def _ollama_starten(self, base_url: str) -> bool:
-        """Startet Ollama (Issue #390) und prueft danach die Verbindung neu."""
-        from src.ml import ollama_launcher
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            ok, meldung = ollama_launcher.ensure_running(base_url)
-        finally:
-            QApplication.restoreOverrideCursor()
-        if not ok:
-            QMessageBox.warning(self, tr("Ollama starten"), meldung)
+        """Startet Ollama im Hintergrund (Issues #390, #432).
+
+        Die Oberflaeche bleibt bedienbar; die Statusleiste zeigt „Ollama wird
+        gestartet …“. Das Ergebnis kommt ueber ``_ollama_start_ergebnis``.
+        Antwortet Ollama nach Ablauf der Wartezeit doch noch, nimmt
+        ``_on_ollama_start_ergebnis`` die Fehlermeldung von selbst zurueck.
+
+        Returns:
+            True, wenn ein Start angestossen wurde (nicht schon einer laeuft).
+        """
+        if getattr(self, "_ollama_start_laeuft", False):
             return False
+        import threading
+        from src.ml import ollama_launcher
+
+        self._ollama_start_laeuft = True
+        self.statusbar.showMessage(tr("Ollama wird gestartet …"))
+        signal = self._ollama_start_ergebnis
+        nachpruefen, takt = self.OLLAMA_NACHPRUEFEN_S, self.OLLAMA_NACHPRUEF_TAKT_S
+
+        def _run():
+            try:
+                ok, meldung = ollama_launcher.ensure_running(base_url)
+            except Exception as e:  # noqa: BLE001 - Meldung an die Oberflaeche
+                ok, meldung = False, str(e)
+            try:
+                signal.emit(ok, meldung)
+            except RuntimeError:
+                return  # Fenster bereits geschlossen
+            if ok:
+                return
+            ende = time.monotonic() + nachpruefen
+            while time.monotonic() < ende:
+                time.sleep(takt)
+                if ollama_launcher.quick_ping(base_url, timeout=1.0):
+                    try:
+                        signal.emit(True, "")
+                    except RuntimeError:
+                        pass
+                    return
+
+        threading.Thread(target=_run, name="ollama-start", daemon=True).start()
+        return True
+
+    def _on_ollama_start_ergebnis(self, ok: bool, meldung: str) -> None:
+        """Ergebnis von ``_ollama_starten`` (GUI-Thread, Issue #432)."""
+        self._ollama_start_laeuft = False
+        box = getattr(self, "_ollama_start_fehlerbox", None)
+        if not ok:
+            self.statusbar.clearMessage()
+            if box is not None:
+                try:
+                    box.close()
+                except RuntimeError:
+                    pass  # schon geschlossen
+            box = QMessageBox(
+                QMessageBox.Icon.Warning, tr("Ollama starten"),
+                meldung + "\n\n" + tr("Antwortet Ollama doch noch, verschwindet diese Meldung von selbst."),
+                QMessageBox.StandardButton.Ok, self)
+            box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            box.open()  # nicht modal blockierend: die Nachpruefung laeuft weiter
+            self._ollama_start_fehlerbox = box
+            return
+        if box is not None:
+            self._ollama_start_fehlerbox = None
+            try:
+                box.close()
+            except RuntimeError:
+                pass  # vom Nutzer schon geschlossen
         # Wie nach den Einstellungen: Verbindung neu pruefen, Vorabfrage neu anstossen
         self._on_settings_changed()
         self.statusbar.showMessage(tr("Ollama läuft."), 6000)
-        return True
 
     def _on_thumbnail_loaded(self):
         """Wird aufgerufen wenn ein Thumbnail fertig geladen ist."""
@@ -2623,6 +2687,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._llm_request_error: Optional[str] = None
         self._llm_check_generation = 0
         self._llm_connection_checked.connect(self._on_llm_connection_checked)
+        self._ollama_start_ergebnis.connect(self._on_ollama_start_ergebnis)
         self._llm_check_timer = QTimer(self)
         self._llm_check_timer.setInterval(self.LLM_CHECK_INTERVAL_MS)
         self._llm_check_timer.timeout.connect(self._on_llm_check_tick)

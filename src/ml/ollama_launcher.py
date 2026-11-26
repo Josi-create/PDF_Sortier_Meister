@@ -12,7 +12,7 @@ Strategie:
    Modellordner.
 3. Sonst ollama.exe an Standardpfaden suchen, dann im PATH, und
    `ollama serve` als detached Hintergrundprozess starten.
-4. Auf Bereitschaft warten (max. ~10s, Polling alle 500ms).
+4. Auf Bereitschaft warten (max. ~30s, Polling alle 500ms; Issue #432).
 """
 
 from __future__ import annotations
@@ -56,8 +56,10 @@ _MACOS_APP_PATHS = [
     "~/Applications/Ollama.app",
 ]
 
-# So lange wartet ensure_running nach dem Start auf eine Antwort.
-START_WARTEZEIT_S = 10.0
+# So lange wartet ensure_running nach dem Start auf eine Antwort. Die App
+# braucht laenger als `ollama serve`; 10 Sekunden reichten im Live-Test nicht
+# (Issue #432).
+START_WARTEZEIT_S = 30.0
 
 
 def find_ollama_app() -> Optional[str]:

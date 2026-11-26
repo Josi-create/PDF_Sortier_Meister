@@ -10128,6 +10128,14 @@ msgid "Mit „Ollama starten“ starten."
 msgstr "Start it with “Start Ollama”."
 
 #: src/gui/main_window.py
+msgid "Ollama wird gestartet …"
+msgstr "Starting Ollama …"
+
+#: src/gui/main_window.py
+msgid "Antwortet Ollama doch noch, verschwindet diese Meldung von selbst."
+msgstr "If Ollama answers after all, this message disappears by itself."
+
+#: src/gui/main_window.py
 msgid "Ollama wurde auf diesem Rechner nicht gefunden. Ollama von ollama.com installieren und starten (Windows: Startmenü → Ollama; macOS: Programme → Ollama)."
 msgstr "Ollama was not found on this computer. Install Ollama from ollama.com and start it (Windows: Start menu → Ollama; macOS: Applications → Ollama)."
 
