@@ -27,6 +27,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   fehlendes oder abgestürztes Modell bleibt dagegen gemeldet. Nach einem gescheiterten
   Selbststart stand außerdem fälschlich „Ollama ist unvollständig installiert“ da; jetzt heißt es
   richtig „Ollama läuft nicht“.
+- **Statusleiste: KI-Anzeige und Text daneben öffnen dasselbe Fenster** (#430): Ein Doppelklick
+  auf die KI-Anzeige rechts unten („LLM: …“, auch mit Warnzeichen) öffnet jetzt wie der Text
+  daneben das Fenster „Hintergrund-Analyse“ mit Erklärung und „Ollama starten“. Zu den
+  Einstellungen geht es dort über „Einstellungen öffnen“. Das X oben rechts am Fenster ist nicht
+  mehr ausgegraut; X und Esc schließen es wie „OK“.
 
 ## [0.32.0] - 2026-11-26
 

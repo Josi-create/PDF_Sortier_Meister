@@ -147,7 +147,7 @@ def test_statusfarbe_ohne_fehler(qtbot, checkable, connection, farbe, tooltip):
     assert label.text() == "LLM: Ollama/gpt-oss"
     assert label.styleSheet() == f"color: {farbe};"
     assert tooltip in label.toolTip()
-    assert "Doppelklick öffnet die Einstellungen" in label.toolTip()
+    assert "Doppelklick zeigt Details zur Hintergrund-Analyse" in label.toolTip()
 
 
 def test_server_aus_rot_mit_abhilfe(qtbot):
@@ -157,7 +157,7 @@ def test_server_aus_rot_mit_abhilfe(qtbot):
     tip = label.toolTip()
     assert "Die KI funktioniert gerade nicht" in tip
     assert "Problem: Ollama läuft nicht" in tip and "Abhilfe: Ollama starten" in tip
-    assert "Doppelklick öffnet die Einstellungen" in tip
+    assert "Doppelklick zeigt Details zur Hintergrund-Analyse" in tip
 
 
 def test_echter_fehler_schlaegt_minutenpruefung(qtbot):

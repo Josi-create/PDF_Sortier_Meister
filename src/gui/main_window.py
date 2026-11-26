@@ -1895,7 +1895,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             start_btn = box.addButton(tr("Ollama starten"), QMessageBox.ButtonRole.ActionRole)
         settings_btn = box.addButton(tr("Einstellungen öffnen"), QMessageBox.ButtonRole.ActionRole)
         open_log_btn = box.addButton(tr("Log-Datei öffnen"), QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Ok)
+        ok_btn = box.addButton(QMessageBox.StandardButton.Ok)
+        # Issue #430: ohne Escape-Knopf graut Qt das X aus; X und Esc wirken wie „OK“
+        box.setEscapeButton(ok_btn)
         box.exec()
         if modell_btn is not None and box.clickedButton() is modell_btn:
             self._ollama_modell_uebernehmen(ollama["modelle"])
@@ -2685,7 +2687,9 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
         # LLM-Status anzeigen
         self.llm_status_label = _ClickableLabel("")
-        self.llm_status_label.doubleClicked.connect(self.open_settings)
+        # Issue #430: dasselbe Fenster wie der Text daneben; die Einstellungen
+        # erreicht man von dort ueber „Einstellungen öffnen“
+        self.llm_status_label.doubleClicked.connect(self._show_precache_details)
         # Erreichbarkeit lokaler Server (Ollama, Strata): Ergebnis der letzten
         # Hintergrund-Pruefung, None = noch offen / nicht pruefbar
         self._llm_connection: Optional[tuple[bool, str]] = None
@@ -6905,7 +6909,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.llm_status_label.setText(text + chat_text)
             stil(self.llm_status_label, f"color: {color};")
             self.llm_status_label.setToolTip(
-                tr("{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen.").format(state=state, chat_zeile=chat_zeile)
+                tr("{state}{chat_zeile}\n\nDoppelklick zeigt Details zur Hintergrund-Analyse "
+                   "(dort auch „Einstellungen öffnen“).").format(state=state, chat_zeile=chat_zeile)
             )
         else:
             from src.ml.llm_provider import is_cloud_provider
@@ -6920,7 +6925,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             self.llm_status_label.setToolTip(
                 tr(
                     "KI-Assistent deaktiviert. {reason}{chat_zeile}\n"
-                    "Doppelklick öffnet die Einstellungen."
+                    "Doppelklick zeigt Details zur Hintergrund-Analyse (dort auch „Einstellungen öffnen“)."
                 ).format(reason=reason, chat_zeile=chat_zeile)
             )
 

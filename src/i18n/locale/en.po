@@ -3861,8 +3861,8 @@ msgid "Die KI funktioniert gerade nicht ({detail}).\n\nProblem: {problem}\nAbhil
 msgstr "The AI is not working right now ({detail}).\n\nProblem: {problem}\nRemedy: {abhilfe}"
 
 #: src/gui/main_window.py
-msgid "{state}{chat_zeile}\n\nDoppelklick öffnet die Einstellungen."
-msgstr "{state}{chat_zeile}\n\nDouble-click opens the settings."
+msgid "{state}{chat_zeile}\n\nDoppelklick zeigt Details zur Hintergrund-Analyse (dort auch „Einstellungen öffnen“)."
+msgstr "{state}{chat_zeile}\n\nDouble-click shows the background analysis details (with “Open settings” there)."
 
 #: src/gui/main_window.py
 msgid "Keine Einwilligung zur Datenübertragung erteilt."
@@ -3877,8 +3877,8 @@ msgid "LLM: Aus{chat_text}"
 msgstr "LLM: off{chat_text}"
 
 #: src/gui/main_window.py
-msgid "KI-Assistent deaktiviert. {reason}{chat_zeile}\nDoppelklick öffnet die Einstellungen."
-msgstr "AI assistant disabled. {reason}{chat_zeile}\nDouble-click opens the settings."
+msgid "KI-Assistent deaktiviert. {reason}{chat_zeile}\nDoppelklick zeigt Details zur Hintergrund-Analyse (dort auch „Einstellungen öffnen“)."
+msgstr "AI assistant disabled. {reason}{chat_zeile}\nDouble-click shows the background analysis details (with “Open settings” there)."
 
 #: src/gui/main_window.py
 #: src/ml/ollama_provider.py
