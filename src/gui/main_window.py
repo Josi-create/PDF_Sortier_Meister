@@ -347,11 +347,11 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.filter_bar = self._create_filter_bar()
         main_layout.addWidget(self.filter_bar)
 
-        # Center-Bereich: QTabWidget mit Tabs "Vorschau" + "Chat" (Phase 19)
+        # Center-Bereich: QTabWidget mit Tabs "Sortieren" (bis #385 "Vorschau") + "Suche"
         self.center_tabs = QTabWidget()
         main_layout.addWidget(self.center_tabs, 1)
 
-        # Tab "Vorschau": der bisherige 3-Spalten-Splitter
+        # Tab "Sortieren": der bisherige 3-Spalten-Splitter
         preview_container = QWidget()
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
@@ -449,7 +449,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Beim Verschieben des Splitters die Raster-Spalten anpassen (Issue #50)
         splitter.splitterMoved.connect(lambda *_: self._grid_relayout_timer.start())
 
-        self.center_tabs.addTab(preview_container, tr("Vorschau"))
+        self.center_tabs.addTab(preview_container, tr("Sortieren"))  # #385: Hauptseite, keine reine Vorschau
         self.center_tabs.setTabToolTip(
             0, tr("3-Spalten-Ansicht: PDF auswählen, Details prüfen, Zielordner anklicken")
         )
@@ -961,7 +961,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.sort_combo.view().setMinimumWidth(self.sort_combo.sizeHint().width() + 8)
         self.sort_combo.setToolTip(tr("Reihenfolge der Dateien im Scan-Bereich."))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_combo_changed)
-        self.sort_combo.setAccessibleName(tr("Sortieren:"))
+        self.sort_combo.setAccessibleName(tr("Reihenfolge:"))  # #385: nicht mit dem Reiter verwechseln
         self.sort_combo.setFixedHeight(KOPF_AUSWAHL_HOEHE)
 
         auswahl_layout = QHBoxLayout()

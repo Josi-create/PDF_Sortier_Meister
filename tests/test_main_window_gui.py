@@ -5,10 +5,10 @@ initialisiert (Config, Database, FileManager, HybridClassifier, PDF-Cache).
 Diese Tests pruefen nur die wichtigsten Strukturen:
 
 * Konstruktion laeuft ohne Crash
-* QTabWidget mit den Tabs 'Vorschau' und 'Chat' (Issue #20) ist da
+* QTabWidget mit den Tabs 'Sortieren' (frueher 'Vorschau') und 'Chat' (Issue #20) ist da
 * Statusbar existiert
 * Folder-Tree ist da
-* Tab-Wechsel zwischen 'Vorschau' und 'Chat' funktioniert
+* Tab-Wechsel zwischen 'Sortieren' und 'Chat' funktioniert
 
 Die Singletons werden via ``monkeypatch`` auf ein tmp-DB-Verzeichnis
 umgebogen, damit keine echte Datenbank im Test entsteht.
@@ -124,17 +124,32 @@ def test_main_window_has_folder_tree(main_window):
 # --------------------------------------------------------------------- #
 
 
-def test_main_window_has_vorschau_tab(main_window):
-    """Tab 'Vorschau' (alter 3-Spalten-Splitter) ist vorhanden."""
+def test_main_window_has_sortieren_tab(main_window):
+    """Tab 'Sortieren' (3-Spalten-Splitter, bis #385 'Vorschau') ist vorhanden."""
     tab_titles = [
         main_window.center_tabs.tabText(i)
         for i in range(main_window.center_tabs.count())
     ]
-    assert "Vorschau" in tab_titles, f"Tab-Titel: {tab_titles}"
+    assert tab_titles[0] == "Sortieren", f"Tab-Titel: {tab_titles}"
+    assert "Vorschau" not in tab_titles
+    # Die Auswahl ueber den Kacheln heisst fuer Bildschirmleser anders als der Reiter (#385)
+    assert main_window.sort_combo.accessibleName() == "Reihenfolge:"
+
+
+def test_reiter_sortieren_auf_englisch():
+    """#385: Reiter heisst 'Sort'; echte Vorschauen (Dialoge) heissen weiter 'Preview'."""
+    from src import i18n
+    try:
+        i18n.set_language("en")
+        assert i18n.tr("Sortieren") == "Sort"
+        assert i18n.tr("Reihenfolge:") == "Order:"
+        assert i18n.tr("Vorschau") == "Preview"
+    finally:
+        i18n.set_language("de")
 
 
 def test_main_window_has_chat_tab(main_window):
-    """Tab 'Chat' (Issue #20) ist vorhanden - seit Phase 3 (#166) in der linken Spalte des Vorschau-Reiters."""
+    """Tab 'Chat' (Issue #20) ist vorhanden - seit Phase 3 (#166) in der linken Spalte des Reiters 'Sortieren'."""
     tab_titles = [
         main_window.left_tabs.tabText(i)
         for i in range(main_window.left_tabs.count())
@@ -159,7 +174,7 @@ def test_main_window_has_suche_tab(main_window):
 
 
 def test_main_window_has_exactly_two_center_tabs(main_window):
-    """Das center_tabs-Widget hat genau 2 Tabs (Vorschau + Suche); der Chat sitzt links im Vorschau-Reiter."""
+    """Das center_tabs-Widget hat genau 2 Tabs (Sortieren + Suche); der Chat sitzt links im Reiter Sortieren."""
     assert main_window.center_tabs.count() == 2
 
 
@@ -180,15 +195,15 @@ def test_main_window_can_switch_to_chat_tab(qtbot, main_window):
     qtbot.waitUntil(lambda: main_window.left_tabs.currentIndex() == chat_idx,
                     timeout=2000)
     assert main_window.left_tabs.currentWidget() is main_window.chat_view
-    # Der Vorschau-Reiter in der Mitte bleibt dabei aktiv
-    assert main_window.center_tabs.tabText(main_window.center_tabs.currentIndex()) == "Vorschau"
+    # Der Reiter Sortieren in der Mitte bleibt dabei aktiv
+    assert main_window.center_tabs.tabText(main_window.center_tabs.currentIndex()) == "Sortieren"
 
 
-def test_main_window_can_switch_back_to_vorschau_tab(qtbot, main_window):
-    """Tab-Wechsel zurueck auf 'Vorschau' funktioniert ebenfalls."""
+def test_main_window_can_switch_back_to_sortieren_tab(qtbot, main_window):
+    """Tab-Wechsel zurueck auf 'Sortieren' funktioniert ebenfalls."""
     vorschau_idx = None
     for i in range(main_window.center_tabs.count()):
-        if main_window.center_tabs.tabText(i) == "Vorschau":
+        if main_window.center_tabs.tabText(i) == "Sortieren":
             vorschau_idx = i
             break
     assert vorschau_idx is not None
