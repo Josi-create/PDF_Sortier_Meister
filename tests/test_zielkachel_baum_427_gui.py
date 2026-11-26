@@ -125,6 +125,7 @@ def test_im_hauptfenster_springt_der_baum_mit_aufklappen(qtbot, tmp_path):
     fake.verbinde_hierhin_kopieren = lambda widget: None
     fake.verbinde_zielkachel = lambda widget: MainWindow.verbinde_zielkachel(fake, widget)
     fake.on_show_in_tree_requested = lambda p, aufklappen=False: gezeigt.append((p, aufklappen))
+    fake.on_tree_folder_selected = fake.on_new_subfolder_requested = lambda *a: None  # Issue #344
 
     da = tmp_path / "Steuer 2026"
     da.mkdir()

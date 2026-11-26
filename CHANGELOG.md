@@ -13,6 +13,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Ordner, klappt ihn auf und stellt ihn oben ins Bild, auch wenn er tief verschachtelt oder weit
   unten liegt. So sieht man seine Unterordner und kann das Dokument hineinziehen. Hat der Ordner
   keine Unterordner, wird er nur markiert.
+- **Vorgeschlagenes Ziel: Unterordner im Rechtsklick-Menü** (#344): Rechtsklick auf eine Kachel
+  unter „Vorgeschlagene Ziele“ zeigt unter „Unterordner“ die Unterordner dieses Ziels. Ein Klick
+  auf einen davon verschiebt die ausgewählte Datei direkt dorthin, wie ein Klick im Ordnerbaum.
+  Ganz unten legt „Neuer Unterordner…“ einen Ordner an und legt die ausgewählte Datei hinein. Ist
+  links nichts ausgewählt, sind die Unterordner ausgegraut; anlegen geht trotzdem.
 
 ## [0.32.0] - 2026-11-26
 

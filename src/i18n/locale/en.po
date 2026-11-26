@@ -10446,3 +10446,23 @@ msgstr "Source of the chat answer: {name}"
 #: src/gui/folder_widget.py
 msgid "🌳 Im Baum zeigen"
 msgstr "🌳 Show in the tree"
+
+#: src/gui/folder_widget.py
+msgid "📂 Unterordner"
+msgstr "📂 Subfolders"
+
+#: src/gui/folder_widget.py
+msgid "➕ Neuer Unterordner…"
+msgstr "➕ New subfolder…"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Name des neuen Ordners in „{name}“:"
+msgstr "Name of the new folder in “{name}”:"
+
+#: src/gui/hierhin_kopieren.py
+msgid "Bitte nur einen Ordnernamen ohne \\ oder / eingeben."
+msgstr "Please enter just a folder name without \\ or /."
+
+#: src/gui/hierhin_kopieren.py
+msgid "Ordner angelegt: {name}"
+msgstr "Folder created: {name}"
