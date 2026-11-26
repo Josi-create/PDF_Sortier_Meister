@@ -10442,3 +10442,7 @@ msgstr "The preview shows the PDF selected on the left again."
 #: src/gui/detail_panel.py
 msgid "Quelle der Chat-Antwort: {name}"
 msgstr "Source of the chat answer: {name}"
+
+#: src/gui/folder_widget.py
+msgid "🌳 Im Baum zeigen"
+msgstr "🌳 Show in the tree"

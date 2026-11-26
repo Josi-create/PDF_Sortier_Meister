@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Vorgeschlagenes Ziel im Ordnerbaum zeigen** (#427): Rechtsklick auf eine Kachel unter
+  „Vorgeschlagene Ziele“ bietet „Im Baum zeigen“. Der Ordnerbaum darunter springt zu diesem
+  Ordner, klappt ihn auf und stellt ihn oben ins Bild, auch wenn er tief verschachtelt oder weit
+  unten liegt. So sieht man seine Unterordner und kann das Dokument hineinziehen. Hat der Ordner
+  keine Unterordner, wird er nur markiert.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu

@@ -37,6 +37,7 @@ def _aufbau(qtbot, tmp_path, n, breite, rels=None):
     fake.clear_suggestions = lambda: MainWindow.clear_suggestions(fake)
     fake.on_suggestion_clicked = fake.on_folder_double_clicked = fake.on_pdf_dropped_on_folder = lambda *a: None
     fake.verbinde_hierhin_kopieren = lambda widget: None
+    fake.verbinde_zielkachel = lambda widget: None  # Issue #427
     host.resize(breite, 400)
     host.show()
     rels = rels or [f"Ablage/Ordner {i}" for i in range(n)]

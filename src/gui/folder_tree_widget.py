@@ -1202,17 +1202,24 @@ class FolderTreeWidget(QWidget):
         else:
             item.setBackground(0, Qt.GlobalColor.transparent)
 
-    def reveal_folder(self, folder: Path) -> bool:
+    def reveal_folder(self, folder: Path, aufklappen: bool = False) -> bool:
         """Klappt den Baum bis zum Ordner auf, markiert und scrollt ihn ins Bild.
 
         Verschiebt nichts: markiert wird nur programmatisch (kein Klick, daher
         kein ``folder_selected``). Der Nutzer klickt den Ordner danach selbst.
+        ``aufklappen`` (Issue #427): auch den Ordner selbst aufklappen und ihn
+        oben ins Bild stellen, damit seine Unterordner darunter zu sehen sind.
+        Ohne Unterordner wird er nur markiert.
         """
         folder = Path(folder)
         if not self._ensure_folder_item(folder):
             self.status_message.emit(tr("Ordner nicht im sichtbaren Baum: {name}").format(name=folder.name))
             return False
         self._mark_folder(folder)
+        item = self._items.get(folder)
+        if aufklappen and item is not None:
+            item.setExpanded(True)  # laedt fehlende Unterordner nach (_on_item_expanded)
+            self.tree.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtTop)
         return True
 
     def get_selected_folder(self) -> Optional[Path]:

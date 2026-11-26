@@ -39,7 +39,7 @@ def test_vorschlag_hat_eintrag_vor_dem_dateimanager(qtbot, tmp_path):
     texte = _texte(_zeile(qtbot, tmp_path)._build_context_menu())
     assert EINTRAG in texte
     explorer = next(i for i, t in enumerate(texte) if t.startswith("Im ") and t.endswith(" öffnen"))
-    assert texte.index(EINTRAG) == explorer - 1
+    assert texte[texte.index(EINTRAG):explorer] == [EINTRAG, "🌳 Im Baum zeigen"]  # #427 direkt dahinter
 
 
 def test_wortlaut_wie_im_ordnerbaum(qtbot, tmp_path, fresh_config):
@@ -86,6 +86,7 @@ def test_im_hauptfenster_oeffnet_der_eintrag_den_ordner_links(qtbot, tmp_path):
     fake.on_suggestion_clicked = fake.on_pdf_dropped_on_folder = lambda *a: None
     fake.on_folder_double_clicked = geoeffnet.append
     fake.verbinde_hierhin_kopieren = lambda widget: None
+    fake.verbinde_zielkachel = lambda widget: None  # Issue #427
 
     da = tmp_path / "Steuer 2026"
     da.mkdir()

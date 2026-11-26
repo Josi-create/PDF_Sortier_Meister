@@ -331,9 +331,16 @@ class HierhinKopierenMixin:
         zeile.target_toggle_requested.connect(self.on_target_toggle_requested)
         zeile.ziel_pruefer = lambda p: Path(p) in self.config.get_target_folders()
 
-    def on_show_in_tree_requested(self, folder_path: Path) -> None:
-        """"Rechts im Baum zeigen": aufklappen, markieren, hinscrollen (ohne zu verschieben)."""
-        if not self.folder_tree.reveal_folder(Path(folder_path)):
+    def verbinde_zielkachel(self, kachel) -> None:
+        """Zusatzeintraege einer bestehenden Vorschlagskachel (Issue #427)."""
+        kachel.show_in_tree_requested.connect(lambda p: self.on_show_in_tree_requested(p, aufklappen=True))
+
+    def on_show_in_tree_requested(self, folder_path: Path, aufklappen: bool = False) -> None:
+        """"Rechts im Baum zeigen": aufklappen, markieren, hinscrollen (ohne zu verschieben).
+
+        ``aufklappen``: auch den Ordner selbst, damit seine Unterordner zu sehen sind (#427).
+        """
+        if not self.folder_tree.reveal_folder(Path(folder_path), aufklappen=aufklappen):
             self.statusbar.showMessage(
                 tr("'{name}' liegt außerhalb der Zielordner rechts").format(name=Path(folder_path).name), 4000
             )

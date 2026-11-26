@@ -40,6 +40,7 @@ class FolderWidget(QFrame):
     remove_requested = pyqtSignal(Path)  # Ordner soll entfernt werden
     copy_here_requested = pyqtSignal(Path)  # Menue "Hierhin kopieren" (Issue #179)
     pdf_copy_dropped = pyqtSignal(list, Path)  # Strg+Drop: (Dateien, Ordner), Issue #179
+    show_in_tree_requested = pyqtSignal(Path)  # Vorschlag: "Im Baum zeigen" (Issue #427)
 
     def __init__(self, folder_path: Path, pdf_count: int = 0, parent=None):
         super().__init__(parent)
@@ -273,6 +274,9 @@ class FolderWidget(QFrame):
         if self._is_suggestion and not self._neu:
             goto_action = menu.addAction(tr("📁 Ordner links öffnen"))
             goto_action.triggered.connect(lambda: self.double_clicked.emit(self.folder_path))
+            # Issue #427: der Ordnerbaum darunter springt hin und klappt den Ordner auf
+            tree_action = menu.addAction(tr("🌳 Im Baum zeigen"))
+            tree_action.triggered.connect(lambda: self.show_in_tree_requested.emit(self.folder_path))
 
         # Im Dateimanager öffnen (nicht bei einem Ordner, den es noch nicht gibt)
         if not self._neu:

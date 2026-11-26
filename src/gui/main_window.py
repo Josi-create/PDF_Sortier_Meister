@@ -3357,6 +3357,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             if not is_new:
                 # Neuer Ordner: kein Doppelklick-Navigieren (es gibt ihn noch nicht)
                 widget.double_clicked.connect(self.on_folder_double_clicked)
+                self.verbinde_zielkachel(widget)  # Issue #427: "Im Baum zeigen"
             # Drop auf eine Vorschlagskachel verschiebt wie ein Drop auf den Baum; bei einem
             # neuen Ordner legt stapel_verschieben ihn nach der Rueckfrage an (#218)
             widget.pdf_dropped.connect(self.on_pdf_dropped_on_folder)
