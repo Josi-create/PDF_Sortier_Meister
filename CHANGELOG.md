@@ -15,6 +15,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
   langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
 
+### Geändert
+- **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
+  Statusleiste nutzt den freien Platz und kürzt erst, wenn das Fenster wirklich zu schmal ist,
+  dann in der Mitte, sodass eine Jahreszahl am Ende sichtbar bleibt. Davor steht der Ordner
+  darüber („Steuer 2025 › Quittungen“), so sind gleichnamige Ordner in verschiedenen Jahren zu
+  unterscheiden. Ändert sich der Hinweis, leuchtet er kurz gelb auf wie mit einem Textmarker und
+  verblasst nach gut zwei Sekunden von selbst.
+- **„Zuletzt verschoben nach“ merkt sich auch ganze Ordner und Kopien** (#312): Wer einen ganzen
+  Ordner verschiebt oder kopiert oder „Hierhin kopieren“ benutzt, findet das Ziel jetzt ebenfalls
+  im Hinweis in der Statusleiste und unter Ansicht › Zuletzt verschoben nach. Ein Klick öffnet
+  den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
+  das Ziel wieder heraus.
+
 ### Behoben
 - **Selbst gestartetes Ollama zeigt alle Modelle** (#440): Läuft Ollama noch nicht, startet das
   Programm unter Windows und macOS jetzt die Ollama-App (wenn installiert) statt direkt

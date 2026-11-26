@@ -9,29 +9,100 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEasingCurve, QSize, Qt, QVariantAnimation, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QLabel, QMenu
 
+from src.gui import farben
 from src.i18n import tr
 from src.rag.bezug import gleicher_pfad
 
 MAX_ZIELE = 8  # so viele Zielordner bleiben in der Liste
-_MAX_NAME = 32  # laengere Ordnernamen werden in der Statusleiste gekuerzt
+LEUCHT_DAUER_MS = 2500  # so lange leuchtet der Hinweis nach einer Aenderung (Issue #428)
 
 
-def _kurz(name: str) -> str:
-    return name if len(name) <= _MAX_NAME else name[: _MAX_NAME - 1] + "…"
+def anzeige_name(ordner: Path) -> str:
+    """Ordnername mit dem Ordner davor, z. B. „Steuer 2025 › Quittungen“ (Issue #428)."""
+    name = ordner.name or str(ordner)
+    eltern = ordner.parent.name if ordner.name else ""
+    return f"{eltern} › {name}" if eltern else name
 
 
 class _ZielLabel(QLabel):
-    """Hinweis in der Statusleiste; ``clicked`` nur bei Linksklick (rechts: Kontextmenue)."""
+    """Hinweis in der Statusleiste; ``clicked`` nur bei Linksklick (rechts: Kontextmenue).
+
+    Nimmt so viel Platz, wie der ganze Text braucht, und kuerzt erst, wenn die
+    Statusleiste zu schmal ist (in der Mitte, damit eine Jahreszahl am Ende
+    sichtbar bleibt). ``text()`` liefert weiter den ganzen Text. Nach
+    ``aufleuchten()`` liegt kurz ein gelber Textmarker dahinter, der verblasst.
+    """
 
     clicked = pyqtSignal()
+    MINDESTBREITE = 120
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._leucht = 0.0  # 1.0 = volles Gelb, 0.0 = aus
+        self._leucht_anim: QVariantAnimation | None = None
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
             self.clicked.emit()
         super().mouseReleaseEvent(event)
+
+    def angezeigter_text(self) -> str:
+        """Der Text, der bei der aktuellen Breite gemalt wird."""
+        breite = self.contentsRect().width()
+        fm = self.fontMetrics()
+        if fm.horizontalAdvance(self.text()) <= breite:
+            return self.text()
+        return fm.elidedText(self.text(), Qt.TextElideMode.ElideMiddle, breite)
+
+    def minimumSizeHint(self) -> QSize:
+        breite = min(self.MINDESTBREITE, self.sizeHint().width())
+        return QSize(breite, super().minimumSizeHint().height())
+
+    # --- Aufleuchten (Issue #428) ---------------------------------------------
+
+    def leuchtet(self) -> bool:
+        return self._leucht > 0.0
+
+    def aufleuchten(self) -> None:
+        """Gelb hinterlegen und in ``LEUCHT_DAUER_MS`` zur normalen Farbe verblassen."""
+        if self._leucht_anim is None:
+            anim = QVariantAnimation(self)
+            anim.setStartValue(1.0)
+            anim.setEndValue(0.0)
+            anim.setDuration(LEUCHT_DAUER_MS)
+            anim.setEasingCurve(QEasingCurve.Type.InQuad)  # erst kraeftig, dann verblassen
+            anim.valueChanged.connect(self._leucht_setzen)
+            anim.finished.connect(lambda: self._leucht_setzen(0.0))
+            self._leucht_anim = anim
+        self._leucht_anim.stop()
+        self._leucht_setzen(1.0)
+        self._leucht_anim.start()
+
+    def _leucht_setzen(self, wert) -> None:
+        self._leucht = max(0.0, float(wert))
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        if self._leucht > 0.0:
+            # Textmarker-Gelb; im dunklen Design schwaecher, damit die helle Schrift lesbar bleibt
+            gelb = QColor(255, 225, 40)
+            gelb.setAlpha(int((110 if farben.ist_dunkel() else 200) * self._leucht))
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(gelb)
+            painter.drawRoundedRect(self.rect().adjusted(0, 1, 0, -1).toRectF(), 3, 3)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        painter.drawText(
+            self.contentsRect(),
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+            self.angezeigter_text(),
+        )
+        painter.end()
 
 
 class ZuletztVerschobenMixin:
@@ -55,20 +126,24 @@ class ZuletztVerschobenMixin:
 
     # --- Merken -----------------------------------------------------------------
 
-    def _ziel_merken(self, paare) -> None:
-        """Nach einem Verschieben: ``paare`` = [(alter Pfad, neuer Pfad), ...]."""
+    def _ziel_merken(self, paare, ordner: Path | None = None) -> None:
+        """Nach einem Verschieben oder Kopieren: ``paare`` = [(alter Pfad, neuer Pfad), ...].
+
+        Mit ``ordner`` (ganzer Ordner verschoben/kopiert, Issue #312) gibt es genau
+        einen Eintrag fuer diesen Ordner, auch wenn Dateien in Unterordnern liegen.
+        """
         ziele = getattr(self, "_letzte_ziele", None)
         if ziele is None or not paare:
             return
         je_ordner: dict[Path, list[Path]] = {}
         for _alt, neu in paare:
             neu = Path(neu)
-            je_ordner.setdefault(neu.parent, []).append(neu)
+            je_ordner.setdefault(Path(ordner) if ordner is not None else neu.parent, []).append(neu)
         for ordner, dateien in je_ordner.items():
             ziele[:] = [z for z in ziele if not gleicher_pfad(z[0], ordner)]
             ziele.insert(0, (ordner, dateien))
         del ziele[MAX_ZIELE:]
-        self._zuletzt_verschoben_anzeigen()
+        self._zuletzt_verschoben_anzeigen(aufleuchten=True)
 
     def _ziel_vergessen(self, dateien) -> None:
         """Nach „Rückgängig“: die zurueckgeholten Dateien liegen nicht mehr im Zielordner."""
@@ -84,7 +159,7 @@ class ZuletztVerschobenMixin:
         ziele[:] = neu
         self._zuletzt_verschoben_anzeigen()
 
-    def _zuletzt_verschoben_anzeigen(self) -> None:
+    def _zuletzt_verschoben_anzeigen(self, aufleuchten: bool = False) -> None:
         label = getattr(self, "zuletzt_verschoben_label", None)
         if label is None:
             return
@@ -92,12 +167,16 @@ class ZuletztVerschobenMixin:
             label.setVisible(False)
             return
         ordner = self._letzte_ziele[0][0]
-        label.setText(tr("Zuletzt verschoben nach: {name}").format(name=_kurz(ordner.name or str(ordner))))
+        text = tr("Zuletzt verschoben nach: {name}").format(name=anzeige_name(ordner))
+        aufleuchten = aufleuchten or text != label.text() or label.isHidden()
+        label.setText(text)
         label.setToolTip(tr(
             "{pfad}\nKlick: Ordner links öffnen und die verschobenen Dateien markieren.\n"
             "Rechtsklick: frühere Ziele."
         ).format(pfad=ordner))
         label.setVisible(True)
+        if aufleuchten:
+            label.aufleuchten()  # Issue #428
 
     # --- Menue ------------------------------------------------------------------
 
