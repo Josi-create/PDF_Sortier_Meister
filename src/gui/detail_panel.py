@@ -247,6 +247,11 @@ class DetailPanel(QWidget):
         # Schon benutzte Schlagwoerter (Issue #231): einmal aus dem Suchindex geladen,
         # danach um die selbst gespeicherten ergaenzt (der Index folgt verzoegert)
         self._schlagwort_wahl: Optional[list[str]] = None
+        # Langsamer erster Klick nach dem Start: Schlagwoerter und haeufigste Kategorien
+        # kommen aus dem Suchindex. Laedt das Hauptfenster sie im Hintergrund vor, fragt
+        # das Panel bis dahin nicht selbst (der GUI-Thread wartete sonst bis zu 40 s).
+        self._vorab_ausstehend = False
+        self._top_kategorien: Optional[list[str]] = None
 
         # Feste Größenpolitik: Panel ändert seine Größe nicht beim Befüllen
         from PyQt6.QtWidgets import QSizePolicy
@@ -690,6 +695,10 @@ class DetailPanel(QWidget):
         detected_date: str = None,
     ):
         """Befüllt das Panel mit Daten für eine ausgewählte PDF."""
+        from src.utils.timing import StepTimer
+
+        # Schritte einzeln ins Log (ab 100 ms), damit ein langsamer Klick die Ursache nennt
+        timer = StepTimer("Detail")
         self.notiz_sichern()  # Issue #382: die Notiz des bisherigen Dokuments geht nicht verloren
         # Issue #355: Frische KI-Vorschlaege fuer dieselbe PDF verdraengen eine gezeigte Chat-Quelle nicht
         vorschau_behalten = self._chat_quelle is not None and pdf_path == self._current_pdf
@@ -705,6 +714,7 @@ class DetailPanel(QWidget):
 
         if not vorschau_behalten:
             self._vorschau_laden(pdf_path)
+        timer.step("vorschau")
 
         # Metadaten vorbefüllen
         self._metadata = {}
@@ -715,6 +725,7 @@ class DetailPanel(QWidget):
         self._pdf_field_keys = set()
         pdf_had_data = False
         self._start_metadata_reader(pdf_path)
+        timer.step("xmp_start")
 
         # 2. Nur wenn keine PDF-Metadaten vorhanden: Basis aus Analyse
         if not pdf_had_data:
@@ -739,6 +750,7 @@ class DetailPanel(QWidget):
             elif self._metadata.get("korrespondent"):
                 # Issue #160: Alias bzw. gleichwertige Schreibweise -> Schreibweise der Verwaltung
                 self._metadata["korrespondent"] = self._kanonisch(self._metadata["korrespondent"])
+            timer.step("korrespondent")
 
             # Gelernte Korrespondent-Zuordnungen
             korrespondent = self._metadata.get("korrespondent")
@@ -751,6 +763,7 @@ class DetailPanel(QWidget):
                         self._has_learned_overrides = True
                 except Exception:
                     pass
+            timer.step("gelernt")
 
             # Issue #254: Nennt das Dokument sein Bezugsjahr ("Bescheid fuer
             # 2020"), ist das das Steuerjahr - auch wenn die KI das Briefjahr liefert
@@ -769,13 +782,17 @@ class DetailPanel(QWidget):
                 self._metadata_source = "llm"
             else:
                 self._metadata_source = None
+            timer.step("felder")
 
         # Vorschläge befüllen (nach den Metadaten: die Muster-Vorschlaege
         # rendern aus den Feldern)
         self._load_category_choices()
+        timer.step("kategorien")
         self._load_schlagwort_choices()
+        timer.step("schlagwoerter")
         self.refresh_settings()
         self._populate_suggestions()
+        timer.step("vorschlaege")
 
         # GroupBox-Titel
         if self._has_learned_overrides:
@@ -794,6 +811,8 @@ class DetailPanel(QWidget):
         self.placeholder.hide()
         self.search_container.hide()
         self.detail_container.show()
+        timer.step("rest")
+        timer.done()
 
     def show_search_results(self, results: list[dict]):
         """Zeigt Suchergebnisse an."""
@@ -1472,11 +1491,16 @@ class DetailPanel(QWidget):
         except Exception:
             pass
         top: list[str] = []
-        try:
-            from src.utils.database import get_database
-            top = get_database().get_top_kategorien(10)
-        except Exception:
-            pass
+        if self._vorab_ausstehend:
+            top = []  # kommt mit vorab_listen_setzen nach
+        elif self._top_kategorien is not None:
+            top = self._top_kategorien
+        else:
+            try:
+                from src.utils.database import get_database
+                top = get_database().get_top_kategorien(10)
+            except Exception:
+                pass
         widget = self._metadata_inputs.get("subject")
         if isinstance(widget, _CategoryCombo):
             widget.set_choices(category_choices(recent, top))
@@ -1486,9 +1510,39 @@ class DetailPanel(QWidget):
         widget = self._metadata_inputs.get("schlagwoerter")
         if not isinstance(widget, SchlagwortFeld):
             return
-        if self._schlagwort_wahl is None:
+        if self._schlagwort_wahl is None and not self._vorab_ausstehend:
             self._schlagwort_wahl = schlagwort_regeln.benutzte()
-        widget.set_choices(self._schlagwort_wahl)
+        widget.set_choices(self._schlagwort_wahl or [])
+
+    def vorab_laden_ausstehend(self) -> None:
+        """Das Hauptfenster laedt Schlagwoerter und Kategorien im Hintergrund vor."""
+        self._vorab_ausstehend = True
+
+    def vorab_listen_setzen(self, listen: dict) -> None:
+        """Vorgeladene Listen aus dem Hintergrund-Thread uebernehmen (im GUI-Thread aufgerufen).
+
+        ``listen``: ``{"schlagwoerter": [...], "kategorien": [...]}``; fehlt ein Eintrag
+        (Fehler beim Vorladen), fragt das Panel beim naechsten Mal selbst.
+        """
+        self._vorab_ausstehend = False
+        schlagwoerter = listen.get("schlagwoerter")
+        if schlagwoerter is not None:
+            # Inzwischen gespeicherte Schlagwoerter (_remember_schlagwoerter) bleiben erhalten
+            bekannt = list(schlagwoerter)
+            for wort in self._schlagwort_wahl or []:
+                if wort not in bekannt:
+                    bekannt.append(wort)
+            self._schlagwort_wahl = sorted(bekannt, key=str.casefold)
+        kategorien = listen.get("kategorien")
+        if kategorien is not None:
+            self._top_kategorien = list(kategorien)
+        if self._current_pdf is None:
+            return
+        # Nur die Aufklapplisten auffrischen, eingegebene Werte bleiben stehen
+        self._load_category_choices()
+        widget = self._metadata_inputs.get("schlagwoerter")
+        if isinstance(widget, SchlagwortFeld) and self._schlagwort_wahl is not None:
+            widget.set_choices(self._schlagwort_wahl)
 
     def _remember_schlagwoerter(self):
         """Gerade gespeicherte Schlagwoerter sofort in die Vorschlagsliste aufnehmen."""
