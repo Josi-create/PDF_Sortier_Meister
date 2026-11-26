@@ -18,7 +18,9 @@ def _abfangen(monkeypatch):
     def exec_attrappe(box):
         escape = box.escapeButton()
         gezeigt.append({
-            "titel": box.windowTitle(),
+            # macOS zeigt keinen Fenstertitel an einer QMessageBox (windowTitle() bleibt
+            # leer) - darum am Inhalt erkennen
+            "hintergrund_analyse": "KI-Vorabfrage im Hintergrund" in box.text(),
             "escape": box.standardButton(escape) if escape is not None else None,
         })
         return 0
@@ -36,7 +38,7 @@ def test_warnzeichen_und_text_daneben_oeffnen_hintergrund_analyse(fenster, monke
     win.llm_status_label.doubleClicked.emit()
     win.cache_status_label.doubleClicked.emit()
 
-    assert [g["titel"] for g in gezeigt] == ["Hintergrund-Analyse", "Hintergrund-Analyse"]
+    assert [g["hintergrund_analyse"] for g in gezeigt] == [True, True]
     assert geoeffnet == []  # die Einstellungen nur noch ueber den Knopf im Fenster
     assert "Hintergrund-Analyse" in win.llm_status_label.toolTip()
 
