@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from email import policy
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -661,6 +662,47 @@ class _HtmlZuText:
         return cls._zeilen.sub("\n\n", h).strip()
 
 
+ZUKUNFT_TOLERANZ_S = 86400   # Issue #389: spaeter als ein Tag nach dem Lesen gilt als falsch
+
+
+def _datum_lesen(text: str):
+    try:
+        return parsedate_to_datetime(text)
+    except Exception:
+        return None
+
+
+def _in_zukunft(dt, jetzt: float) -> bool:
+    try:
+        return dt.timestamp() > jetzt + ZUKUNFT_TOLERANZ_S
+    except Exception:   # Jahr ausserhalb des Bereichs der Plattform
+        return True
+
+
+def _received_daten(msg) -> list[str]:
+    """Datumsteile der ``Received``-Zeilen (hinter dem letzten ``;``), oberste (juengste) zuerst."""
+    try:
+        zeilen = msg.get_all("Received") or []
+    except Exception:
+        return []
+    return [str(z).rsplit(";", 1)[1].strip() for z in zeilen if ";" in str(z)]
+
+
+def mail_datum(date_kopf: str, received: list[str] | None = None, jetzt: float | None = None):
+    """Sortierdatum einer Mail (Issue #389): die Kopfzeile ``Date``, ausser sie liegt in der Zukunft.
+
+    Manche Mailprogramme haben ein falsches Jahr geschrieben (z. B. 2094 statt 2002).
+    Dann zaehlt die erste ``Received``-Zeile mit einem gueltigen Datum; sonst None
+    (bei Mail-Dateien gilt dann das Dateidatum). Liefert ein ``datetime`` oder None.
+    """
+    jetzt = time.time() if jetzt is None else jetzt
+    for kandidat in ([date_kopf] if date_kopf else []) + list(received or []):
+        dt = _datum_lesen(kandidat)
+        if dt is not None and not _in_zukunft(dt, jetzt):
+            return dt
+    return None
+
+
 def _mail_aus_message(msg) -> dict:
     def kopf(name):
         try:
@@ -674,12 +716,9 @@ def _mail_aus_message(msg) -> dict:
     an = ", ".join(x for x in (kopf("To"), kopf("Cc")) if x)
     datum_iso, ts = None, None
     d = kopf("Date")
-    if d:
-        try:
-            dt = parsedate_to_datetime(d)
-            datum_iso, ts = dt.isoformat(), dt.timestamp()
-        except Exception:
-            pass
+    dt = mail_datum(d, _received_daten(msg))
+    if dt is not None:
+        datum_iso, ts = dt.isoformat(), dt.timestamp()
 
     text = ""
     try:
@@ -871,7 +910,7 @@ def msg_text(pfad: str) -> dict:
                 body = _HtmlZuText.wandle(hb.decode("utf-8", "replace") if isinstance(hb, bytes) else hb)
             anh = [a.getFilename() for a in m.attachments if hasattr(a, "getFilename")]
             ts, iso = None, None
-            if m.date:
+            if m.date and not _in_zukunft(m.date, time.time()):   # Issue #389: kein Datum aus der Zukunft
                 try:
                     iso, ts = m.date.isoformat(), m.date.timestamp()
                 except Exception:

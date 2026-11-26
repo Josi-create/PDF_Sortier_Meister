@@ -206,3 +206,39 @@ def test_bild_hash_aendert_sich_mit_der_drehung(tmp_path):
     # Nach viermal 90 Grad wieder der Ausgangs-Hash (OCR-Cache trifft wieder)
     assert extract.pdf_text(str(p), min_zeichen=5)["bild_hashes"][1] == hashes[0]
     assert extract.pdf_bild_hashes(str(p), [1])[1] == hashes[0]
+
+
+# --------------------------------------------------------------------------- Issue #389: Maildatum
+
+def _mail_mit_received(datum: str, received: list[str]) -> bytes:
+    roh = h.mail_roh("Alte Mail", datum=datum)
+    kopf = b"".join(f"Received: from mx.example.invalid by mail.example.invalid; {r}\r\n".encode() for r in received)
+    return kopf + roh
+
+
+def test_maildatum_aus_der_zukunft_nimmt_received():
+    m = extract.mail_aus_bytes(_mail_mit_received("Sun, 27 Jun 2094 01:14:58 +0200",
+                                                  ["Thu, 27 Jun 2002 04:09:04 +0200", "Wed, 26 Jun 2002 23:18:50 +0000"]))
+    assert m["datum_iso"].startswith("2002-06-27T04:09:04")
+    assert "2094" in m["text"]   # die Kopfzeile bleibt im Volltext lesbar
+
+
+def test_maildatum_aus_der_zukunft_ohne_received_ist_leer():
+    m = extract.mail_aus_bytes(h.mail_roh("Alte Mail", datum="Thu, 24 Jun 2094 21:24:42 +0200"))
+    assert m["status"] == "text" and m["datum_iso"] is None and m["datum_ts"] is None
+
+
+def test_maildatum_zweistelliges_jahr():
+    m = extract.mail_aus_bytes(h.mail_roh("Alte Mail", datum="Mon, 27 Jun 94 10:00:00 +0200"))
+    assert m["datum_iso"].startswith("1994-06-27")
+    m = extract.mail_aus_bytes(h.mail_roh("Neuere Mail", datum="Mon, 27 Jun 05 10:00:00 +0200"))
+    assert m["datum_iso"].startswith("2005-06-27")
+
+
+def test_maildatum_normal_und_kurz_in_der_zukunft_bleibt():
+    m = extract.mail_aus_bytes(_mail_mit_received("Wed, 10 Jan 2024 10:00:00 +0100", ["Wed, 10 Jan 2024 09:00:00 +0000"]))
+    assert m["datum_iso"].startswith("2024-01-10T10:00:00")
+    # Uhr des Absenders ein paar Stunden vor: kein Grund, das Datum zu verwerfen
+    jetzt = 1_800_000_000   # 15.01.2027, 08:00 UTC
+    assert extract.mail_datum("Fri, 15 Jan 2027 12:00:00 +0000", [], jetzt=jetzt) is not None
+    assert extract.mail_datum("Sun, 17 Jan 2027 12:00:00 +0000", [], jetzt=jetzt) is None

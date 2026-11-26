@@ -88,6 +88,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Scanprogramm schon, holt der Knopf dessen Fenster nach vorn (auch wenn es minimiert war), statt
   es ein zweites Mal zu starten. Die Statusleiste meldet dann „Scanprogramm läuft bereits“. Nur
   wenn es nicht läuft, wird es gestartet.
+- **Suche: alte Mails mit falschem Jahr stehen nicht mehr oben** (#389): Manche alten
+  Mailprogramme haben ein Datum weit in der Zukunft in die Mail geschrieben (z. B. 2094 statt
+  2002). Solche Mails standen bei „Neueste zuerst“ ganz oben. Liegt das Datum einer Mail mehr als
+  einen Tag in der Zukunft, nimmt die Suche jetzt das Datum, an dem die Mail beim Mailserver
+  ankam; steht dort keins, bleibt die Mail ohne Datum und steht bei „Neueste zuerst“ hinten.
+  Schon indexierte Mails werden beim nächsten vollständigen Indexlauf von selbst berichtigt.
 
 ## [0.31.1] - 2026-11-19
 
