@@ -55,6 +55,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Scan, wird er ausgewählt und angezeigt, mit Vorschau und Vorschlägen. Das gilt einmal je Klick
   auf „Jetzt scannen“, auch wenn das Scanprogramm schon lief. Wer inzwischen in einen anderen
   Ordner gewechselt oder mehrere Dateien markiert hat, wird nicht aus seiner Arbeit gerissen.
+- **Chat zeigt seine Quelle immer** (#355): Nach einer Antwort erscheint das Dokument, auf das
+  sie sich hauptsächlich stützt, jetzt auch dann in der Vorschau, wenn links eine PDF ausgewählt
+  ist. Die Auswahl und ihre Felder bleiben stehen; über der Vorschau nennt eine Leiste die Quelle,
+  und der Knopf „Zurück zur ausgewählten PDF“ (oder ein Klick auf die ausgewählte Kachel) zeigt
+  wieder die eigene PDF.
 
 ### Behoben
 - **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während

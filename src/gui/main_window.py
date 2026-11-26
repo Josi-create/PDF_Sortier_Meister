@@ -804,19 +804,27 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.open_pdf(Path(file_path), seite=seite)
 
     def _on_chat_beste_quelle(self, file_path: str, seite: int) -> None:
-        """Issue #297: Die Hauptquelle einer Chat-Antwort in der Vorschau der Mitte zeigen.
+        """Issues #297, #355: Die Hauptquelle einer Chat-Antwort in der Vorschau der Mitte zeigen.
 
-        Nur wenn dort gerade keine PDF ausgewaehlt ist - eine ausgewaehlte PDF
-        (mit ihren Feldern und der Textuebernahme aus der Vorschau) bleibt stehen.
-        Nur PDFs; Word, Excel und Bilder brauchen eine Umwandlung.
+        Immer, auch wenn links eine PDF ausgewaehlt ist (Entscheidung des CEO, #355): Die
+        Auswahl, ihre Felder und der Bezug des Chats bleiben, ueber der Vorschau fuehrt der
+        Knopf "Zurück zur ausgewählten PDF" zurueck. Zeigt die Vorschau die Quelle schon,
+        springt sie nur auf die Seite. Nur PDFs; Word, Excel und Bilder brauchen eine Umwandlung.
         """
-        if not file_path or self.selected_pdf is not None or self.detail_panel.get_current_pdf() is not None:
+        if not file_path:
             return
         pfad = Path(file_path)
         if pfad.suffix.lower() != ".pdf" or not pfad.is_file():
             return
-        self._chat_quelle_seite = (pfad, int(seite)) if seite and int(seite) > 0 else None
-        self.detail_panel.preview.load_pdf(pfad)
+        seite = int(seite) if seite and int(seite) > 0 else 0
+        vorschau = self.detail_panel.preview
+        if vorschau.current_path == pfad and vorschau.is_showing_document():
+            self._chat_quelle_seite = None
+            if seite:
+                vorschau.go_to_page(seite - 1)
+            return
+        self._chat_quelle_seite = (pfad, seite) if seite else None
+        self.detail_panel.chat_quelle_zeigen(pfad)
 
     def _on_detail_vorschau_geladen(self, path: Path) -> None:
         """Vorgemerkte Seite der Chat-Quelle (Issue #297) anspringen, sobald die PDF steht."""
@@ -1433,6 +1441,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
         if self.selected_pdf != pfad:
             return  # inzwischen etwas anderes ausgewaehlt
+        if self.detail_panel.zeigt_chat_quelle():
+            return  # Issue #355: die Vorschau zeigt die Chat-Quelle; "Zurück" laedt die Auswahl neu
         if pdf is not None:
             self.detail_panel.preview.load_pdf(pdf)
         else:
@@ -2893,6 +2903,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             widget = self._pdf_widget_for(pdf_path)
             if widget is not None and not widget.selected:
                 widget.selected = True  # z. B. nach einem Neuaufbau der Kacheln
+            if self.detail_panel.zeigt_chat_quelle():
+                self.detail_panel.zurueck_zur_auswahl()  # Issue #355: Klick auf die Auswahl zeigt sie wieder
             return
 
         # Alte Auswahl aufheben (Einzelauswahl)
@@ -4701,12 +4713,14 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         if self.selected_pdf == path and not self.selected_pdfs:
             if self.detail_panel.has_user_edits():
                 # Eingaben des Nutzers nicht verwerfen: nur die Vorschau neu laden
-                if ist_drehbares_bild(path):
+                if self.detail_panel.zeigt_chat_quelle():
+                    pass  # Issue #355: Vorschau zeigt die Chat-Quelle; "Zurück" laedt den neuen Stand
+                elif ist_drehbares_bild(path):
                     self._on_office_preview_requested(path)  # Bild: Vorschau-PDF im Hintergrund neu
                 else:
                     self.detail_panel.preview.load_pdf(path)
             else:
-                if not ist_drehbares_bild(path):
+                if not ist_drehbares_bild(path) and not self.detail_panel.zeigt_chat_quelle():
                     # Vorschau sofort neu (Issue #345): Die neue Analyse (OCR) dauert bei
                     # Scans Sekunden, bis dahin zeigte die Vorschau noch den alten Stand
                     self.detail_panel.preview.load_pdf(path)

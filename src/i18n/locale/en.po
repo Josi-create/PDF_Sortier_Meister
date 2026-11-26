@@ -10430,3 +10430,15 @@ msgstr "After “Scan now”, always switch to this folder automatically"
 #: src/gui/settings_dialog.py
 msgid "Ausgeschaltet fragt das Programm vor dem Wechsel nach."
 msgstr "When off, the program asks before switching."
+
+#: src/gui/detail_panel.py
+msgid "Zurück zur ausgewählten PDF"
+msgstr "Back to the selected PDF"
+
+#: src/gui/detail_panel.py
+msgid "Die Vorschau zeigt wieder die links ausgewählte PDF."
+msgstr "The preview shows the PDF selected on the left again."
+
+#: src/gui/detail_panel.py
+msgid "Quelle der Chat-Antwort: {name}"
+msgstr "Source of the chat answer: {name}"
