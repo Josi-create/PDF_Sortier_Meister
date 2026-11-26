@@ -98,6 +98,35 @@ HILFE_HTML = (
 
 # --------------------------------------------------------------------------- Darstellungshelfer (Qt-frei, testbar)
 
+# Issue #351: Woerter, mit denen eine Frage an den Chat meist anfaengt (Deutsch und Englisch)
+_FRAGEWOERTER = frozenset((
+    "wie", "was", "wer", "wem", "wen", "wessen", "wann", "wo", "warum", "wieso", "weshalb", "weswegen",
+    "welche", "welcher", "welches", "welchen", "welchem", "wieviel", "wieviele", "woher", "wohin",
+    "wozu", "womit", "wofür", "worüber", "worauf", "wovon", "habe", "hab", "hat", "haben", "hatte",
+    "bin", "ist", "sind", "war", "waren", "gibt", "gab", "kann", "können", "muss", "müssen", "soll",
+    "sollte", "darf", "brauche", "fasse",
+    "how", "what", "who", "whom", "whose", "when", "where", "why", "which", "do", "does", "did",
+    "is", "are", "was", "were", "can", "could", "should", "have", "has", "summarize",
+))
+_SUCHSYNTAX = ('"', "*", "NEAR(", " ODER ", " NICHT ", " OR ", " NOT ", " AND ", " UND ")
+
+
+def sieht_nach_frage_aus(text: str) -> bool:
+    """Sieht der Suchtext nach einer Frage an den Chat aus statt nach Suchwoertern (Issue #351)?
+
+    Ja bei mindestens zwei Woertern mit Fragezeichen am Ende oder bei einem ganzen Satz
+    (mindestens vier Woerter), der mit einem Fragewort anfaengt. Suchsyntax (Anfuehrungszeichen,
+    ``*``, ``NEAR(``, ODER/NICHT) spricht fuer eine gewollte Volltextsuche.
+    """
+    t = " ".join((text or "").split())
+    woerter = t.split(" ") if t else []
+    if len(woerter) < 2 or any(z in f" {t} " for z in _SUCHSYNTAX):
+        return False
+    if t.endswith("?"):
+        return True
+    return len(woerter) >= 4 and woerter[0].lower().strip(",.:;!") in _FRAGEWOERTER
+
+
 def markiert_html(text: str, zeilen: bool = False) -> str:
     """Fundstellen-Marker (``\\x02``/``\\x03``) in HTML-Hervorhebung umwandeln, alles andere maskieren.
 
@@ -464,6 +493,7 @@ class SearchView(QWidget):
         suche_fertig(dict): Ergebnis der angezeigten Abfrage (auch fuer Tests)
         status_aktualisiert(dict): Indexstand ist da
         vorschau_fertig(int): Textvorschau fuer dieses Dokument steht
+        chat_requested(str, bool): in den Chat wechseln mit diesem Text; True = gleich fragen (#351)
     """
 
     open_pdf_requested = pyqtSignal(Path)
@@ -473,6 +503,7 @@ class SearchView(QWidget):
     suche_fertig = pyqtSignal(object)
     status_aktualisiert = pyqtSignal(object)
     vorschau_fertig = pyqtSignal(int)
+    chat_requested = pyqtSignal(str, bool)  # Issue #351: (Text, sofort fragen)
 
     def __init__(self, config, parent=None) -> None:
         """``config``: die :class:`~src.utils.config.Config` (liefert ``get_search_config()``)."""
@@ -623,6 +654,7 @@ class SearchView(QWidget):
         self.help_button.clicked.connect(self._hilfe_zeigen)
         zeile.addWidget(self.help_button)
         lay.addLayout(zeile)
+        self._chat_weg_bauen(zeile, lay)  # Issue #351
 
         # Gespeicherte Suchen (Issue #281): Suchtext und Filter unter einem Namen merken
         gespeichert = QHBoxLayout()
@@ -744,6 +776,32 @@ class SearchView(QWidget):
         self.treffer_scroll.setWidget(self.treffer_container)
         lay.addWidget(self.treffer_scroll, 1)
         return links
+
+    def _chat_weg_bauen(self, zeile: QHBoxLayout, lay: QVBoxLayout) -> None:
+        """Issue #351: Knopf „Im Chat fragen“ neben der Suche und das Angebot, eine Frage im Chat zu stellen."""
+        self.chat_button = QPushButton(tr("Im Chat fragen"))
+        self.chat_button.setToolTip(tr("In den Chat wechseln und die KI fragen; der Suchtext kommt "
+                                       "ins Eingabefeld des Chats"))
+        self.chat_button.clicked.connect(lambda: self.chat_requested.emit(self.search_edit.text().strip(), False))
+        zeile.addWidget(self.chat_button)
+
+        self.frage_hinweis = QFrame()
+        self.frage_hinweis.setObjectName("frageHinweis")
+        stil(self.frage_hinweis, "QFrame#frageHinweis { background: $hinweis_flaeche; "
+                                 "border: 1px solid $hinweis_rand; border-radius: 4px; }")
+        h = QHBoxLayout(self.frage_hinweis)
+        h.setContentsMargins(8, 4, 8, 4)
+        self.frage_label = QLabel(tr("Das sieht nach einer Frage aus. Die Suche findet nur Wörter, "
+                                     "der Chat beantwortet Fragen."))
+        self.frage_label.setWordWrap(True)
+        h.addWidget(self.frage_label, 1)
+        self.frage_button = QPushButton(tr("Diese Frage im Chat stellen"))
+        self.frage_button.clicked.connect(lambda: self.chat_requested.emit(self.search_edit.text().strip(), True))
+        h.addWidget(self.frage_button)
+        self.frage_hinweis.setVisible(False)
+        lay.addWidget(self.frage_hinweis)
+        self.search_edit.textChanged.connect(
+            lambda text: self.frage_hinweis.setVisible(sieht_nach_frage_aus(text)))
 
     def _rechts_bauen(self) -> QWidget:
         rechts = QWidget()

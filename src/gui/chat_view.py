@@ -938,6 +938,22 @@ class ChatView(QWidget):
         self.input_edit.setPlainText(str(frage))
         self._on_send()
 
+    def frage_uebernehmen(self, frage: str, senden: bool = False) -> None:
+        """Text aus dem Reiter „Suche“ ins Eingabefeld setzen, auf Wunsch gleich fragen (Issue #351).
+
+        Laeuft noch eine Antwort, wird nur eingetragen; abgeschickt wird dann von Hand.
+        """
+        frage = (frage or "").strip()
+        if frage:
+            self.input_edit.setPlainText(frage)
+        if senden and frage and self._chat_thread is None:
+            self._on_send()
+            return
+        self.input_edit.setFocus()
+        cursor = self.input_edit.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.input_edit.setTextCursor(cursor)
+
     def _schnellfragen_freigeben(self, aktiv: bool) -> None:
         """Schnellfragen waehrend eines Aufrufs sperren."""
         for btn in self.schnellfragen_btns:

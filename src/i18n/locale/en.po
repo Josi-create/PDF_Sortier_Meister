@@ -5211,6 +5211,22 @@ msgid "Weitere Treffer laden"
 msgstr "Load more results"
 
 #: src/gui/search_view.py
+msgid "Im Chat fragen"
+msgstr "Ask in chat"
+
+#: src/gui/search_view.py
+msgid "In den Chat wechseln und die KI fragen; der Suchtext kommt ins Eingabefeld des Chats"
+msgstr "Switch to the chat and ask the AI; the search text goes into the chat's input field"
+
+#: src/gui/search_view.py
+msgid "Das sieht nach einer Frage aus. Die Suche findet nur Wörter, der Chat beantwortet Fragen."
+msgstr "This looks like a question. The search only finds words, the chat answers questions."
+
+#: src/gui/search_view.py
+msgid "Diese Frage im Chat stellen"
+msgstr "Ask this question in the chat"
+
+#: src/gui/search_view.py
 msgid "Kein Treffer ausgewählt"
 msgstr "No result selected"
 

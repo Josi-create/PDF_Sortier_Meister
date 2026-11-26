@@ -19,6 +19,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Reiter „Suche“ kennt jetzt wie die Kacheln „Datum im Namen: neueste zuerst“ und „Datum im
   Namen: älteste zuerst“. Maßgeblich ist ein Datum wie `2024-03-01` am Anfang des Namens; Treffer
   ohne ein solches Datum reihen sich nach ihrem Dateidatum (bei Mails nach dem Maildatum) ein.
+- **Aus der Suche direkt in den Chat** (#351): Neben „Suchen“ im Reiter „Suche“ steht der Knopf
+  „Im Chat fragen“. Er wechselt in den Chat und nimmt den Suchtext ins Eingabefeld mit. Sieht der
+  Suchtext nach einer Frage aus (Fragezeichen am Ende oder ein ganzer Satz mit „Wie“, „Wann“,
+  „Welche“ …), erscheint darunter „Diese Frage im Chat stellen“: Ein Klick stellt die Frage gleich
+  im Chat. Fragen aus der Suche gelten der ganzen Sammlung, nicht einer gerade ausgewählten PDF.
 
 ### Geändert
 - **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen

@@ -465,6 +465,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.search_view.im_ordner_anzeigen_requested.connect(self.zeige_datei_im_ordner)
         self.search_view.einrichten_requested.connect(lambda: self._open_settings_dialog(tab=tr("Suche")))
         self.search_view.suche_fertig.connect(self._on_search_view_result)
+        self.search_view.chat_requested.connect(self._on_suche_zum_chat)  # Issue #351
         self.center_tabs.addTab(self.search_view, tr("Suche"))
         self.center_tabs.setTabToolTip(
             1, tr("Volltextsuche in PDFs (auch gescannten), Office-Dateien, Markdown und Mails")
@@ -586,6 +587,17 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     def show_chat_tab(self) -> None:
         """Wechselt in der linken Spalte auf den Chat."""
         self.left_tabs.setCurrentWidget(self.chat_view)
+
+    def _on_suche_zum_chat(self, text: str, senden: bool) -> None:
+        """Reiter „Suche“ → Chat (Issue #351): Vorschau mit dem Chat zeigen, Text übernehmen.
+
+        Eine Frage aus der Suche gilt der ganzen Sammlung, nicht der PDF, die im Reiter
+        „Vorschau“ zufällig ausgewählt ist: der Bezug wird deshalb entfernt.
+        """
+        self.center_tabs.setCurrentIndex(0)
+        self.show_chat_tab()
+        self.chat_view.set_bezug(None)
+        self.chat_view.frage_uebernehmen(text, senden=senden)
 
     def _on_chat_verschieben(self, ordner_pfad: str, quelle: str = "") -> None:
         """Knopf "Nach … verschieben" im Chat: ``quelle`` (Standard: Bezug) in den Ordner verschieben.
