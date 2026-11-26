@@ -7,6 +7,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Handbuch im Programm** (#365, erster Teil): **Hilfe › Handbuch** (oder `F1`) öffnet ein
+  Handbuch in der Sprache der Oberfläche, auf Deutsch und Englisch. Links stehen die Kapitel
+  (Erste Schritte, Ordner, Sortieren, Stapeln und Trennen, Suche und Chat, KI-Anbieter,
+  Einstellungen, Tastenkürzel, häufige Fragen), rechts der Text; das Feld oben sucht im ganzen
+  Handbuch, „Weitersuchen“ springt zur nächsten Fundstelle, auch im nächsten Kapitel. Das geht
+  ohne KI und ohne Internet. Ein Abschnitt erklärt, was mit alten PaperPort-Dateien (`.max`)
+  zu tun ist.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu

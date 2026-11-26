@@ -111,6 +111,8 @@ if (ROOT_DIR / "LICENSE").exists():
     datas.append((str(ROOT_DIR / "LICENSE"), "."))
 # Uebersetzungen der Oberflaeche (Issue #118): src/i18n liest sie neben dem Modul
 datas.append((str(SRC_DIR / "i18n" / "locale"), "src/i18n/locale"))
+# Handbuch (Issue #365): src/gui/handbuch.py sucht es unter docs/handbuch neben src
+datas.append((str(ROOT_DIR / "docs" / "handbuch"), "docs/handbuch"))
 # Gebuendelte Tesseract-Laufzeit (vorher scripts/prepare_tesseract.py bzw.
 # scripts/prepare_tesseract_mac.py ausfuehren).
 # Landet in _internal/tesseract/ und wird von find_tesseract() zuerst gefunden.

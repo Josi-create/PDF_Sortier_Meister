@@ -2496,6 +2496,13 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         # Hilfe-Menü
         help_menu = menubar.addMenu(tr("Hilfe"))
 
+        # Handbuch im Programm (Issue #365): Markdown aus docs/handbuch, ohne KI und Internet
+        handbuch_action = QAction(tr("Handbuch"), self)
+        handbuch_action.setShortcut("F1")
+        handbuch_action.setToolTip(tr("Zeigt das Handbuch in der Sprache der Oberfläche"))
+        handbuch_action.triggered.connect(self.show_handbuch)
+        help_menu.addAction(handbuch_action)
+
         first_steps_action = QAction(tr("Erste Schritte"), self)
         first_steps_action.setToolTip(tr("Zeigt die Kurzanleitung zum 3-Spalten-Workflow erneut an"))
         first_steps_action.triggered.connect(lambda: self.show_first_steps_hint(force=True))
@@ -2514,6 +2521,18 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         about_action = QAction(tr("Über PDF Sortier Meister"), self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+
+    def show_handbuch(self):
+        """Öffnet das Handbuch (Issue #365) als eigenes Fenster, nicht modal."""
+        from src.gui.handbuch import HandbuchDialog
+
+        dialog = getattr(self, "_handbuch_dialog", None)
+        if dialog is None:
+            dialog = HandbuchDialog(self)
+            self._handbuch_dialog = dialog
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def setup_toolbar(self):
         """Erstellt die Werkzeugleiste."""
