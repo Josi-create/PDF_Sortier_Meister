@@ -213,6 +213,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
     _llm_connection_checked = pyqtSignal(int, object)
     _ollama_start_ergebnis = pyqtSignal(bool, str)  # (ok, Meldung) aus dem Start-Thread, Issue #432
     _metadaten_nicht_geschrieben = pyqtSignal(str, str)  # (Dateiname, Grund), Issue #414
+    _vorab_listen_geladen = pyqtSignal(object)  # dict fuer DetailPanel.vorab_listen_setzen
     METADATEN_HINWEIS_MS = 60_000  # so lange bleibt der Hinweis rechts in der Statusleiste stehen
     LLM_CHECK_INTERVAL_MS = 60_000
 
@@ -321,6 +322,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self._doppelte_im_ordner = DoppelteImOrdner(self)
         # Laufende Hintergrund-Schreibvorgaenge (XMP-Metadaten) je Zielpfad
         self._pending_metadata_writes: dict[Path, "threading.Thread"] = {}
+
+        # Schlagwoerter und Kategorien aus dem Suchindex sofort im Hintergrund holen: beim
+        # ersten Klick nach dem Start las der GUI-Thread sie selbst und hing dabei 10-40 s
+        self._vorab_listen_geladen.connect(
+            self.detail_panel.vorab_listen_setzen, Qt.ConnectionType.QueuedConnection)
+        self._listen_vorladen()
 
         # Initial laden
         QTimer.singleShot(100, self._start_laden)
@@ -2165,6 +2172,36 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
                 break
         self._doppelte_im_ordner.datei_betroffen(old_path)  # Issue #245: der Hinweis nennt den Namen
+
+    def _listen_vorladen(self):
+        """Holt die Aufklapplisten des Detail-Panels (Schlagwoerter, haeufigste Kategorien)
+        im Hintergrund. Bis sie da sind, zeigt das Panel sie leer statt zu warten."""
+        import threading
+
+        self.detail_panel.vorab_laden_ausstehend()
+
+        def _run():
+            from src.utils.timing import StepTimer
+
+            timer = StepTimer("Listen vorladen")
+            listen = {}
+            try:
+                listen["schlagwoerter"] = schlagwort_regeln.benutzte()
+            except Exception as e:  # noqa: BLE001 - dann fragt das Panel selbst
+                logging.getLogger(__name__).debug(f"Schlagwoerter nicht vorgeladen: {e}")
+            timer.step("schlagwoerter")
+            try:
+                listen["kategorien"] = self.db.get_top_kategorien(10)
+            except Exception as e:  # noqa: BLE001
+                logging.getLogger(__name__).debug(f"Kategorien nicht vorgeladen: {e}")
+            timer.step("kategorien")
+            timer.done()
+            try:
+                self._vorab_listen_geladen.emit(listen)
+            except RuntimeError:
+                pass  # Fenster bereits geschlossen
+
+        threading.Thread(target=_run, name="listen-vorladen", daemon=True).start()
 
     def _start_warmup(self):
         """Laedt teure Module im Hintergrund vor, damit der erste Klick nicht wartet."""
