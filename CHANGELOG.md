@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-26
+
 ### Neu
 - **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
   Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
