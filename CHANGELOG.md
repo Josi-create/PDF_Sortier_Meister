@@ -14,6 +14,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   werden jetzt beim Start im Hintergrund geladen; bis sie da sind, bleiben die Aufklapplisten
   kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
   langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
+- **Suchfeld oben und Reiter „Suche“ zeigen denselben Text** (#349): Wer oben in der
+  Werkzeugleiste ins Feld „Suche:“ tippt, landet wie bisher im Reiter „Suche“, schreibt aber oben
+  weiter; das große Suchfeld im Reiter zeigt Buchstabe für Buchstabe dasselbe. Tippt man stattdessen
+  im Reiter weiter oder lädt dort eine gespeicherte Suche, steht derselbe Text auch oben. Bisher blieb
+  oben nur der Anfang des Worts stehen.
 
 ### Geändert
 - **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der

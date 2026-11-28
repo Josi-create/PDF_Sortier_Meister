@@ -2607,6 +2607,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.search_input.setStyleSheet("padding: 3px 6px;")
         self.search_input.returnPressed.connect(self._execute_search)
         self.search_input.textChanged.connect(self._on_search_text_changed)
+        # Issue #349: Tippt man im Reiter „Suche“ weiter, zeigt das Feld oben denselben Text
+        self.search_view.search_edit.textChanged.connect(self._suchtext_nach_oben)
         toolbar.addWidget(self.search_input)
 
         self.search_count_label = QLabel("")
@@ -6026,6 +6028,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
 
     def _on_search_text_changed(self, text: str):
         """Live-Suche bei Texteingabe (mit Verzögerung)."""
+        # Issue #349: auch kurze Eingaben (noch ohne Suche) im Reiter „Suche“ mitschreiben
+        edit = self.search_view.search_edit
+        if edit.text() != text:
+            edit.blockSignals(True)
+            edit.setText(text)
+            edit.blockSignals(False)
         if not text.strip():
             if not self._has_active_filters():
                 self._clear_search()
@@ -6084,10 +6092,23 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             schlagwort=schlagwort,
         )
         if self.center_tabs.currentWidget() is not self.search_view:
+            # Issue #349: Wer oben tippt, tippt oben weiter (der Reiter nimmt sonst den Fokus)
+            oben_fokus = self.search_input.hasFocus()
             self.center_tabs.setCurrentWidget(self.search_view)
+            if oben_fokus:
+                self.search_input.setFocus()
+
+    def _suchtext_nach_oben(self, text: str) -> None:
+        """Text des Reiters „Suche“ ins Feld der Werkzeugleiste uebernehmen, ohne neu zu suchen (#349)."""
+        if self.search_input.text() != text:
+            self.search_input.blockSignals(True)
+            self.search_input.setText(text)
+            self.search_input.blockSignals(False)
 
     def _on_search_view_result(self, ergebnis: dict) -> None:
         """Trefferzahl des Reiters „Suche“ in der Werkzeugleiste anzeigen."""
+        # Auch Text, der ohne Signal gesetzt wurde (gespeicherte Suche), oben zeigen (#349)
+        self._suchtext_nach_oben(self.search_view.search_edit.text())
         gesamt = int(ergebnis.get("gesamt") or 0)
         self.search_count_label.setText(tr("{gesamt} Treffer").format(gesamt=gesamt) if gesamt else tr("Keine Treffer"))
 
