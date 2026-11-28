@@ -198,6 +198,9 @@ class DetailPanel(QWidget):
     korrespondent_dokumente_requested = pyqtSignal(str)
     # Issue #382: geaenderte Notiz von selbst speichern (PDF, Notiztext; "" = entfernen)
     notiz_speichern_requested = pyqtSignal(Path, str)
+    # Welches Dokument die Vorschau gerade zeigt (Auswahl oder Chat-Quelle), None = keins.
+    # Der Chat links zeigt damit oben Name und Ordner an.
+    vorschau_dokument_geaendert = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -298,6 +301,8 @@ class DetailPanel(QWidget):
             "background-color: $grau_f5; border-radius: 3px;"
         )
         self.header_label.setWordWrap(True)
+        # Pfad markier- und kopierbar; der Ordner steht in der zweiten Zeile
+        self.header_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         detail_layout.addWidget(self.header_label)
 
         # Neuer Dateiname mit einklappbaren Vorschlaegen (Issue #146).
@@ -656,7 +661,14 @@ class DetailPanel(QWidget):
         self.chat_quelle_label = QLabel()
         # Lange Dateinamen werden abgeschnitten statt das Panel zu verbreitern (Tooltip: ganzer Pfad)
         self.chat_quelle_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.chat_quelle_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         leiste.addWidget(self.chat_quelle_label, 1)
+        # Ordner der Quelle im Explorer/Finder zeigen (Datei markiert)
+        from src.gui.pfad_aktionen import zeigen_text
+        self.chat_quelle_ordner_btn = QPushButton("📂")
+        self.chat_quelle_ordner_btn.setToolTip(zeigen_text())
+        self.chat_quelle_ordner_btn.clicked.connect(self._chat_quelle_im_ordner_zeigen)
+        leiste.addWidget(self.chat_quelle_ordner_btn)
         self.zurueck_zur_auswahl_btn = QPushButton(tr("Zurück zur ausgewählten PDF"))
         self.zurueck_zur_auswahl_btn.setToolTip(
             tr("Die Vorschau zeigt wieder die links ausgewählte PDF.")
@@ -709,11 +721,11 @@ class DetailPanel(QWidget):
         jahr = bezugsjahr(extracted_text or "")
         self._bezugsjahr = str(jahr) if jahr else ""
 
-        # Header
-        self.header_label.setText(tr("Original: {name}").format(name=pdf_path.name))
-
         if not vorschau_behalten:
             self._vorschau_laden(pdf_path)
+        # Header: Name und Ordner der ausgewaehlten PDF (nach der Vorschau, damit der
+        # Chat links das Dokument erfaehrt, das die Vorschau nun zeigt)
+        self.header_setzen(pdf_path)
         timer.step("vorschau")
 
         # Metadaten vorbefüllen
@@ -910,6 +922,9 @@ class DetailPanel(QWidget):
         self._date_invalid = False
         self._chat_quelle_beenden()
         self.preview.clear()
+        self.header_label.clear()
+        self.header_label.setToolTip("")
+        self.vorschau_dokument_geaendert.emit(None)
 
         self.name_input.clear()
         self.suggestions_list.clear()
@@ -1024,15 +1039,40 @@ class DetailPanel(QWidget):
         if self._current_pdf is None:
             self._chat_quelle_beenden()
             self.preview.load_pdf(pfad)
+            self.vorschau_dokument_geaendert.emit(pfad)
             return
         if pfad == self._current_pdf:
             self.zurueck_zur_auswahl()
             return
         self._chat_quelle = pfad
-        self.chat_quelle_label.setText(tr("Quelle der Chat-Antwort: {name}").format(name=pfad.name))
+        self.chat_quelle_label.setText(
+            tr("Quelle der Chat-Antwort: {name}").format(name=pfad.name)
+            + "\n" + tr("Liegt in: {ordner}").format(ordner=pfad.parent)
+        )
         self.chat_quelle_label.setToolTip(str(pfad))
         self.chat_quelle_leiste.show()
         self.preview.load_pdf(pfad)
+        self.vorschau_dokument_geaendert.emit(pfad)
+
+    def header_setzen(self, pdf_path: Path) -> None:
+        """Kopfzeile oben in der Mitte: Name und Ordner der ausgewaehlten PDF.
+
+        Wie links in der Ansicht "Sortieren" soll auch bei einer Suche oder im Chat zu sehen
+        sein, wo das Dokument gerade liegt.
+        """
+        pdf_path = Path(pdf_path)
+        self.header_label.setText(
+            tr("Original: {name}").format(name=pdf_path.name)
+            + "\n" + tr("Ordner: {ordner}").format(ordner=pdf_path.parent)
+        )
+        self.header_label.setToolTip(str(pdf_path))
+        if self._current_pdf is not None and self._chat_quelle is None:
+            self.vorschau_dokument_geaendert.emit(pdf_path)
+
+    def _chat_quelle_im_ordner_zeigen(self) -> None:
+        if self._chat_quelle is not None:
+            from src.gui.pfad_aktionen import im_dateimanager_zeigen
+            im_dateimanager_zeigen(self._chat_quelle)
 
     def zeigt_chat_quelle(self) -> bool:
         """Zeigt die Vorschau gerade eine Chat-Quelle statt der ausgewaehlten PDF?"""
@@ -1043,6 +1083,7 @@ class DetailPanel(QWidget):
         self._chat_quelle_beenden()
         if self._current_pdf is not None:
             self._vorschau_laden(self._current_pdf)
+            self.vorschau_dokument_geaendert.emit(self._current_pdf)
 
     def _chat_quelle_beenden(self) -> None:
         self._chat_quelle = None

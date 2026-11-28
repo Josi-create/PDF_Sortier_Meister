@@ -10442,3 +10442,15 @@ msgstr "The preview shows the PDF selected on the left again."
 #: src/gui/detail_panel.py
 msgid "Quelle der Chat-Antwort: {name}"
 msgstr "Source of the chat answer: {name}"
+
+msgid "Ordner des Dokuments öffnen"
+msgstr "Open the document's folder"
+
+msgid "In der Vorschau: {name}"
+msgstr "In the preview: {name}"
+
+msgid "Ordner: {ordner}"
+msgstr "Folder: {ordner}"
+
+msgid "Liegt in: {ordner}"
+msgstr "Located in: {ordner}"

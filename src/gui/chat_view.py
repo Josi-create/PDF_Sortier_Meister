@@ -235,6 +235,43 @@ class ChatView(QWidget):
         self.banner.setVisible(False)
         layout.addWidget(self.banner)
 
+        # Oben: Name und Ordner des Dokuments, das die Vorschau in der Mitte gerade zeigt
+        # (Auswahl oder Quelle einer Chat-Antwort). Wie links in "Sortieren" soll man auch
+        # hier sehen, wo das Dokument liegt.
+        self.angezeigt_leiste = QFrame()
+        self.angezeigt_leiste.setObjectName("angezeigtLeiste")
+        stil(self.angezeigt_leiste,
+            "#angezeigtLeiste { background-color: $grau_f5; border-radius: 3px; }"
+        )
+        angezeigt_layout = QHBoxLayout(self.angezeigt_leiste)
+        angezeigt_layout.setContentsMargins(6, 3, 3, 3)
+        angezeigt_layout.setSpacing(4)
+        self.angezeigt_label = QLabel()
+        self.angezeigt_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.angezeigt_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Lange Pfade werden abgeschnitten statt die Spalte zu verbreitern (Tooltip: ganzer Pfad)
+        self.angezeigt_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        stil(self.angezeigt_label, "font-size: 11px; color: $grau_55;")
+        angezeigt_layout.addWidget(self.angezeigt_label, 1)
+        from src.gui.pfad_aktionen import zeigen_text
+        self.angezeigt_ordner_btn = QToolButton()
+        self.angezeigt_ordner_btn.setText("📂")
+        self.angezeigt_ordner_btn.setAutoRaise(True)
+        self.angezeigt_ordner_btn.setToolTip(tr("Ordner des Dokuments öffnen"))
+        self.angezeigt_ordner_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        ordner_menue = QMenu(self.angezeigt_ordner_btn)
+        # Ordner links in "PDFs" oeffnen und die Datei auswaehlen (wie im Reiter Suche)
+        ordner_menue.addAction(
+            tr("📂 Im Ordner anzeigen"),
+            lambda: self._angezeigt and self.im_ordner_anzeigen_requested.emit(self._angezeigt),
+        )
+        ordner_menue.addAction(zeigen_text(), self._angezeigt_im_ordner_zeigen)
+        self.angezeigt_ordner_btn.setMenu(ordner_menue)
+        angezeigt_layout.addWidget(self.angezeigt_ordner_btn)
+        self._angezeigt: Optional[Path] = None
+        self.angezeigt_leiste.setVisible(False)
+        layout.addWidget(self.angezeigt_leiste)
+
         # Split: links Verlauf, rechts Quellen - in der schmalen linken Spalte
         # des Vorschau-Reiters (kompakt, Phase 3) Verlauf oben, Quellen darunter
         self.split = QSplitter(Qt.Orientation.Vertical if self.kompakt else Qt.Orientation.Horizontal)
@@ -919,6 +956,31 @@ class ChatView(QWidget):
             ).format(bezug=self._bezug)
         )
         self.bezug_box.setVisible(True)
+
+    @property
+    def angezeigt(self) -> Optional[Path]:
+        """Das Dokument, das die Vorschau in der Mitte gerade zeigt (oder None)."""
+        return self._angezeigt
+
+    def set_angezeigt(self, path) -> None:
+        """Leiste oben: Name und Ordner des Dokuments in der Vorschau; None blendet sie aus."""
+        self._angezeigt = Path(path) if path else None
+        if self._angezeigt is None:
+            self.angezeigt_label.clear()
+            self.angezeigt_leiste.setToolTip("")
+            self.angezeigt_leiste.setVisible(False)
+            return
+        self.angezeigt_label.setText(
+            tr("In der Vorschau: {name}").format(name=self._angezeigt.name)
+            + "\n" + tr("Ordner: {ordner}").format(ordner=self._angezeigt.parent)
+        )
+        self.angezeigt_leiste.setToolTip(str(self._angezeigt))
+        self.angezeigt_leiste.setVisible(True)
+
+    def _angezeigt_im_ordner_zeigen(self) -> None:
+        if self._angezeigt is not None:
+            from src.gui.pfad_aktionen import im_dateimanager_zeigen
+            im_dateimanager_zeigen(self._angezeigt)
 
     def _on_bezug_entfernen(self) -> None:
         """✕ am Chip: Fragen gelten wieder der ganzen Sammlung."""

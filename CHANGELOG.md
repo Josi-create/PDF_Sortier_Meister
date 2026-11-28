@@ -8,6 +8,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Verbessert
+- **Man sieht, wo das gezeigte Dokument liegt**: Oben in der Mitte steht unter „Original:“ jetzt
+  auch der Ordner der ausgewählten Datei. Zeigt die Vorschau die Quelle einer Chat-Antwort,
+  nennt die Leiste darüber deren Ordner („Liegt in: …“), ein Knopf 📂 zeigt die Datei im
+  Explorer. Im Chat links steht oben, welches Dokument die Vorschau gerade zeigt und in welchem
+  Ordner es liegt; über 📂 lässt sich der Ordner links unter „PDFs“ oder im Explorer öffnen.
 - **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
   ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
   aus dem Suchindex und das Fenster hing, bei einem großen Index 10 bis 40 Sekunden. Die Listen

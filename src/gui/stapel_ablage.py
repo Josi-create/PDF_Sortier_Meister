@@ -519,7 +519,7 @@ class StapelAblageMixin:
                         self.db.learn_korrespondent_metadata(meta["korrespondent"], meta)
                 if e.pfad == panel_pdf:
                     self.detail_panel._current_pdf = neu
-                    self.detail_panel.header_label.setText(tr("Original: {name}").format(name=neu.name))
+                    self.detail_panel.header_setzen(neu)
                     self.detail_panel.mark_metadata_saved()
                 gespeichert += 1
             except Exception as ex:  # noqa: BLE001 - die uebrigen trotzdem
@@ -574,7 +574,7 @@ class StapelAblageMixin:
                 self._update_pdf_widget_path(neu, wieder)
                 if self.detail_panel.get_current_pdf() == neu:
                     self.detail_panel._current_pdf = wieder
-                    self.detail_panel.header_label.setText(tr("Original: {name}").format(name=wieder.name))
+                    self.detail_panel.header_setzen(wieder)
                 zurueck.append((neu, wieder))
             except Exception as ex:  # noqa: BLE001
                 fehler.append(f"{neu.name}: {ex}")
