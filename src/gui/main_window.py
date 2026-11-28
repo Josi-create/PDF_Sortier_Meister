@@ -425,6 +425,8 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
         self.detail_panel.enlarge_preview_requested.connect(self.show_preview_window)
         self.detail_panel.edit_pattern_requested.connect(self.open_filename_settings)
         self.detail_panel.korrespondent_dokumente_requested.connect(self.show_korrespondent)
+        # Chat links oben: Name und Ordner des Dokuments in der Vorschau
+        self.detail_panel.vorschau_dokument_geaendert.connect(self._on_vorschau_dokument_geaendert)
         self.detail_panel.preview.document_loaded.connect(self._on_detail_vorschau_geladen)
         # Aufteilung Details/Vorschau aus der letzten Sitzung wiederherstellen
         saved_sizes = self.config.get("detail_splitter_sizes") or []
@@ -686,7 +688,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             logging.getLogger(__name__).debug(f"Umbenennung aus dem Chat nicht gelernt: {e}")
         if self.detail_panel.get_current_pdf() == pfad:
             self.detail_panel._current_pdf = neu
-            self.detail_panel.header_label.setText(tr("Original: {name}").format(name=neu.name))
+            self.detail_panel.header_setzen(neu)
         self._update_pdf_widget_path(pfad, neu)
         bezug = self.chat_view.bezug
         if bezug is not None and Path(bezug) == pfad:
@@ -832,6 +834,12 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
             return
         self._chat_quelle_seite = (pfad, seite) if seite else None
         self.detail_panel.chat_quelle_zeigen(pfad)
+
+    def _on_vorschau_dokument_geaendert(self, pfad) -> None:
+        """Der Chat zeigt oben, welches Dokument die Vorschau zeigt und in welchem Ordner es liegt."""
+        chat = getattr(self, "chat_view", None)
+        if chat is not None:
+            chat.set_angezeigt(pfad)
 
     def _on_detail_vorschau_geladen(self, path: Path) -> None:
         """Vorgemerkte Seite der Chat-Quelle (Issue #297) anspringen, sobald die PDF steht."""
@@ -3926,7 +3934,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     )
                 self.selected_pdf = new_path
                 self.detail_panel._current_pdf = new_path
-                self.detail_panel.header_label.setText(tr("Original: {name}").format(name=new_path.name))
+                self.detail_panel.header_setzen(new_path)
             else:
                 new_path = pdf_path
 
@@ -4113,7 +4121,7 @@ class MainWindow(BildAktionenMixin, HierhinKopierenMixin, OrdnerVerschiebenMixin
                     )])
                     if self.detail_panel._current_pdf == pdf_path:
                         self.detail_panel._current_pdf = new_path
-                        self.detail_panel.header_label.setText(tr("Original: {name}").format(name=new_path.name))
+                        self.detail_panel.header_setzen(new_path)
 
                     # Metadaten in PDF schreiben (Phase 16)
                     self._write_pdf_metadata(new_path, new_name, keywords, dialog_metadata)
