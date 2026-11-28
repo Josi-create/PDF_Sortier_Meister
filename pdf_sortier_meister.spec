@@ -234,6 +234,20 @@ a_dienst = Analysis(
 )
 pyz_dienst = PYZ(a_dienst.pure, a_dienst.zipped_data, cipher=block_cipher)
 
+# OpenSSL oben in _internal immer aus dem Python (Issue #441): Sonst kann die
+# gleichnamige, aeltere libcrypto der Tesseract-Laufzeit (oder eines anderen
+# Programms im PATH, z. B. Git fuer Windows) gewinnen, und
+# "import ssl" scheitert in Oberflaeche und Dienst. Tesseract behaelt seine
+# Dateien unter _internal/tesseract/.
+if not IS_MAC:
+    sys.path.insert(0, str(ROOT_DIR))
+    from scripts.openssl_dlls import binaries_umbiegen, python_openssl_ordner
+    _ssl_ordner = python_openssl_ordner()
+    a.binaries[:], _geaendert = binaries_umbiegen(a.binaries, _ssl_ordner)
+    a_dienst.binaries[:], _geaendert_dienst = binaries_umbiegen(a_dienst.binaries, _ssl_ordner)
+    for _name, _alt in sorted(set(_geaendert + _geaendert_dienst)):
+        print(f"HINWEIS: {_name} aus {_ssl_ordner} statt {_alt}.")
+
 # ---------------------------------------------------------------------------
 # Nativer Splash: wird vom Bootloader angezeigt, bevor Python startet.
 # So erscheint das Bild innerhalb von Millisekunden nach dem Doppelklick.

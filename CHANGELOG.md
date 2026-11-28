@@ -28,6 +28,14 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
   das Ziel wieder heraus.
 
+### Behoben
+- **Selbst gebautes Windows-Paket: Verschlüsselung (SSL) lädt wieder** (#441): Beim Bauen mit
+  `build.bat` konnte eine ältere Verschlüsselungs-Bibliothek aus der mitgelieferten
+  Texterkennung (Tesseract) die des Python ersetzen. Dann startete der MCP-Server der
+  Dokumentensuche nicht, und alles mit Internetverbindung (Cloud-KI, Aktualisierungsprüfung)
+  konnte ausfallen. Der Build nimmt jetzt immer die Bibliothek des Python; der Rauchtest prüft
+  das. Die bei GitHub gebauten Pakete waren nicht betroffen.
+
 ## [0.32.0] - 2026-11-26
 
 ### Neu
