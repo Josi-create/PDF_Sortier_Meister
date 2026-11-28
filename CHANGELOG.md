@@ -14,6 +14,9 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   werden jetzt beim Start im Hintergrund geladen; bis sie da sind, bleiben die Aufklapplisten
   kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
   langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
+- **Chat nutzt die ganze Breite** (#350): Antworten, Fehlermeldungen und Treffer gehen jetzt über
+  die ganze Breite der Spalte, statt nach etwa der Hälfte umzubrechen. Die eigene Frage bleibt
+  rechts als Blase, darf aber breiter werden; auch die Arbeitsschritte brechen erst am Rand um.
 
 ### Geändert
 - **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
