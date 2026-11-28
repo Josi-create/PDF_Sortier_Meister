@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Neu
+- **Aus der Suche direkt in den Chat** (#351): Neben „Suchen“ im Reiter „Suche“ steht der Knopf
+  „Im Chat fragen“. Er wechselt in den Chat und nimmt den Suchtext ins Eingabefeld mit. Sieht der
+  Suchtext nach einer Frage aus (Fragezeichen am Ende oder ein ganzer Satz mit „Wie“, „Wann“,
+  „Welche“ …), erscheint darunter „Diese Frage im Chat stellen“: Ein Klick stellt die Frage gleich
+  im Chat. Fragen aus der Suche gelten der ganzen Sammlung, nicht einer gerade ausgewählten PDF.
+
 ### Verbessert
 - **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
   ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
