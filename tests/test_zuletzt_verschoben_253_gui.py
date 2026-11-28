@@ -158,3 +158,58 @@ def test_umbenannte_datei_oeffnet_nur_den_ordner(main_window, fresh_singletons, 
 
     assert Path(main_window.config.get_scan_folder()) == ziel
     assert not any(w.selected for w in main_window.pdf_widgets)
+
+
+# --- Issue #428: ganzer Name, Ordner davor, kurz gelb -----------------------------
+
+def test_anzeige_name_nennt_den_ordner_davor(tmp_path):
+    from src.gui.zuletzt_verschoben import anzeige_name
+
+    assert anzeige_name(Path("Ablage") / "Steuer 2025" / "Quittungen") == "Steuer 2025 › Quittungen"
+    assert anzeige_name(Path("Quittungen")) == "Quittungen"
+    assert anzeige_name(Path(tmp_path.anchor)) == tmp_path.anchor  # Laufwerk: ganzer Pfad
+
+
+def test_langer_name_steht_ganz_und_wird_erst_bei_platzmangel_gekuerzt(main_window, fresh_singletons,
+                                                                       monkeypatch):
+    tmp = fresh_singletons["tmp_path"]
+    scan, _ziel = _welt(tmp)
+    lang = tmp / "Steuer 2025" / "Handwerker und Erhaltungsaufwand Musterstraße 2025"
+    lang.mkdir(parents=True)
+    _prime_cache_on_load(main_window, monkeypatch)
+    main_window._navigate_to_folder(scan)
+    _verschieben(main_window, [scan / "a.pdf"], lang)
+    label = main_window.zuletzt_verschoben_label
+
+    ganz = "Zuletzt verschoben nach: Steuer 2025 › Handwerker und Erhaltungsaufwand Musterstraße 2025"
+    assert label.text() == ganz
+    assert label.sizeHint().width() >= label.fontMetrics().horizontalAdvance(ganz)
+    assert label.minimumSizeHint().width() < label.sizeHint().width()  # darf schrumpfen
+
+    label.resize(label.sizeHint())
+    assert label.angezeigter_text() == ganz
+    label.resize(label.minimumSizeHint().width() + 40, label.height())
+    kurz = label.angezeigter_text()
+    assert "…" in kurz and kurz.endswith("2025")  # die Jahreszahl hinten bleibt sichtbar
+
+
+def test_hinweis_leuchtet_bei_aenderung_und_verblasst(main_window, fresh_singletons, monkeypatch, qtbot):
+    from src.gui import farben, zuletzt_verschoben
+
+    monkeypatch.setattr(zuletzt_verschoben, "LEUCHT_DAUER_MS", 300)
+    scan, ziel = _welt(fresh_singletons["tmp_path"])
+    _prime_cache_on_load(main_window, monkeypatch)
+    main_window._navigate_to_folder(scan)
+    label = main_window.zuletzt_verschoben_label
+    assert not label.leuchtet()
+
+    _verschieben(main_window, [scan / "a.pdf"], ziel)
+    assert label.leuchtet()
+    for dunkel in (False, True):  # Malen klappt in beiden Designs
+        monkeypatch.setattr(farben, "_dunkel", dunkel)
+        assert not label.grab().isNull()
+    qtbot.waitUntil(lambda: not label.leuchtet(), timeout=3000)
+
+    _verschieben(main_window, [scan / "b.pdf"], ziel)  # gleiches Ziel: leuchtet trotzdem kurz
+    assert label.leuchtet()
+    qtbot.waitUntil(lambda: not label.leuchtet(), timeout=3000)

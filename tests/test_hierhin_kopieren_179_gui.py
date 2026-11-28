@@ -540,3 +540,16 @@ def test_als_zielordner_merken_und_wieder_entfernen(aufbau):
 
     zeile.target_toggle_requested.emit(unter)
     assert unter not in config.get_target_folders()
+
+
+# --- Issue #312: Kopien landen in "Zuletzt verschoben nach" -----------------
+
+
+def test_kopie_traegt_das_ziel_in_zuletzt_verschoben_ein(aufbau):
+    win, a, ziel = aufbau["win"], aufbau["a"], aufbau["ziel"]
+    win.on_copy_here_requested(ziel)
+
+    assert win._letzte_ziele == [(ziel, [ziel / "a.pdf"])]
+    assert not win.zuletzt_verschoben_label.isHidden()
+    win.zuletzt_verschoben_oeffnen()
+    assert win.selected_pdf == ziel / "a.pdf"

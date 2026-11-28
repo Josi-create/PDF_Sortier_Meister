@@ -8,6 +8,36 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Neu
+- **Aus der Suche direkt in den Chat** (#351): Neben „Suchen“ im Reiter „Suche“ steht der Knopf
+  „Im Chat fragen“. Er wechselt in den Chat und nimmt den Suchtext ins Eingabefeld mit. Sieht der
+  Suchtext nach einer Frage aus (Fragezeichen am Ende oder ein ganzer Satz mit „Wie“, „Wann“,
+  „Welche“ …), erscheint darunter „Diese Frage im Chat stellen“: Ein Klick stellt die Frage gleich
+  im Chat. Fragen aus der Suche gelten der ganzen Sammlung, nicht einer gerade ausgewählten PDF.
+
+### Verbessert
+- **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
+  ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
+  aus dem Suchindex und das Fenster hing, bei einem großen Index 10 bis 40 Sekunden. Die Listen
+  werden jetzt beim Start im Hintergrund geladen; bis sie da sind, bleiben die Aufklapplisten
+  kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
+  langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
+
+### Geändert
+- **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
+  Statusleiste nutzt den freien Platz und kürzt erst, wenn das Fenster wirklich zu schmal ist,
+  dann in der Mitte, sodass eine Jahreszahl am Ende sichtbar bleibt. Davor steht der Ordner
+  darüber („Steuer 2025 › Quittungen“), so sind gleichnamige Ordner in verschiedenen Jahren zu
+  unterscheiden. Ändert sich der Hinweis, leuchtet er kurz gelb auf wie mit einem Textmarker und
+  verblasst nach gut zwei Sekunden von selbst.
+- **„Zuletzt verschoben nach“ merkt sich auch ganze Ordner und Kopien** (#312): Wer einen ganzen
+  Ordner verschiebt oder kopiert oder „Hierhin kopieren“ benutzt, findet das Ziel jetzt ebenfalls
+  im Hinweis in der Statusleiste und unter Ansicht › Zuletzt verschoben nach. Ein Klick öffnet
+  den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
+  das Ziel wieder heraus.
+
+## [0.32.0] - 2026-11-26
+
+### Neu
 - **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
   Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
   „Einrichten“. Der Knopf trägt den Dienst „pdfsuche“ über Hermes selbst (`hermes mcp add`) in
@@ -19,11 +49,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   Reiter „Suche“ kennt jetzt wie die Kacheln „Datum im Namen: neueste zuerst“ und „Datum im
   Namen: älteste zuerst“. Maßgeblich ist ein Datum wie `2024-03-01` am Anfang des Namens; Treffer
   ohne ein solches Datum reihen sich nach ihrem Dateidatum (bei Mails nach dem Maildatum) ein.
-- **Aus der Suche direkt in den Chat** (#351): Neben „Suchen“ im Reiter „Suche“ steht der Knopf
-  „Im Chat fragen“. Er wechselt in den Chat und nimmt den Suchtext ins Eingabefeld mit. Sieht der
-  Suchtext nach einer Frage aus (Fragezeichen am Ende oder ein ganzer Satz mit „Wie“, „Wann“,
-  „Welche“ …), erscheint darunter „Diese Frage im Chat stellen“: Ein Klick stellt die Frage gleich
-  im Chat. Fragen aus der Suche gelten der ganzen Sammlung, nicht einer gerade ausgewählten PDF.
 
 ### Geändert
 - **Nach dem Ordnerwechsel ist gleich eine Datei ausgewählt** (#340): Wer links in einen anderen
