@@ -7,6 +7,34 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+- **Erster Klick nach dem Start ohne lange Wartezeit**: Beim Start ist die erste Datei gleich
+  ausgewählt. Dabei las das Programm bisher die Aufklapplisten für Schlagwörter und Kategorien
+  aus dem Suchindex und das Fenster hing, bei einem großen Index 10 bis 40 Sekunden. Die Listen
+  werden jetzt beim Start im Hintergrund geladen; bis sie da sind, bleiben die Aufklapplisten
+  kurz leer, die Felder lassen sich trotzdem sofort ausfüllen. Das Log nennt für einen
+  langsamen Klick jetzt die einzelnen Schritte im Detailbereich („Detail … ms“).
+- **Suchfeld oben und Reiter „Suche“ zeigen denselben Text** (#349): Wer oben in der
+  Werkzeugleiste ins Feld „Suche:“ tippt, landet wie bisher im Reiter „Suche“, schreibt aber oben
+  weiter; das große Suchfeld im Reiter zeigt Buchstabe für Buchstabe dasselbe. Tippt man stattdessen
+  im Reiter weiter oder lädt dort eine gespeicherte Suche, steht derselbe Text auch oben. Bisher blieb
+  oben nur der Anfang des Worts stehen.
+
+### Geändert
+- **„Zuletzt verschoben nach“ zeigt den ganzen Ordnernamen** (#428): Der Hinweis in der
+  Statusleiste nutzt den freien Platz und kürzt erst, wenn das Fenster wirklich zu schmal ist,
+  dann in der Mitte, sodass eine Jahreszahl am Ende sichtbar bleibt. Davor steht der Ordner
+  darüber („Steuer 2025 › Quittungen“), so sind gleichnamige Ordner in verschiedenen Jahren zu
+  unterscheiden. Ändert sich der Hinweis, leuchtet er kurz gelb auf wie mit einem Textmarker und
+  verblasst nach gut zwei Sekunden von selbst.
+- **„Zuletzt verschoben nach“ merkt sich auch ganze Ordner und Kopien** (#312): Wer einen ganzen
+  Ordner verschiebt oder kopiert oder „Hierhin kopieren“ benutzt, findet das Ziel jetzt ebenfalls
+  im Hinweis in der Statusleiste und unter Ansicht › Zuletzt verschoben nach. Ein Klick öffnet
+  den Ordner und markiert die Dateien, die direkt darin liegen. „Rückgängig“ beim Ordner nimmt
+  das Ziel wieder heraus.
+
+## [0.32.0] - 2026-11-26
+
 ### Neu
 - **Dokumentensuche in Hermes Agent mit einem Klick einrichten** (#417): Unter Einstellungen ›
   Suche › KI-Assistenten (MCP) gibt es eine Zeile „Hermes Agent“ mit Status und Knopf
@@ -60,11 +88,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
   ist. Die Auswahl und ihre Felder bleiben stehen; über der Vorschau nennt eine Leiste die Quelle,
   und der Knopf „Zurück zur ausgewählten PDF“ (oder ein Klick auf die ausgewählte Kachel) zeigt
   wieder die eigene PDF.
-- **Suchfeld oben und Reiter „Suche“ zeigen denselben Text** (#349): Wer oben in der
-  Werkzeugleiste ins Feld „Suche:“ tippt, landet wie bisher im Reiter „Suche“, schreibt aber oben
-  weiter; das große Suchfeld im Reiter zeigt Buchstabe für Buchstabe dasselbe. Tippt man stattdessen
-  im Reiter weiter oder lädt dort eine gespeicherte Suche, steht derselbe Text auch oben. Bisher blieb
-  oben nur der Anfang des Worts stehen.
 
 ### Behoben
 - **Chat: Absturz des lokalen Modells verständlich gemeldet** (#356): Stürzt das Modell während
